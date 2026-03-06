@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { ReactNode, useEffect, useId, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -11,11 +11,14 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
-  YAxis
+  YAxis,
+  ZAxis
 } from "recharts";
-import { Criticality, FindingSeverity } from "@/lib/types";
+import { AssetType, Criticality, FindingSeverity } from "@/lib/types";
 
 export interface CyberCopImpactItem {
   id: string;
@@ -45,8 +48,85 @@ export interface CyberCopDailyTrendPoint {
   count: number;
 }
 
+export interface CyberCopImpactSpiDriver {
+  spiId: number;
+  label: string;
+  description: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  count: number;
+}
+
+export interface CyberCopImpactEnvironmentSplitRow {
+  environment: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  total: number;
+}
+
+export interface CyberCopImpactEntityTrendPoint {
+  weekLabel: string;
+  count: number;
+}
+
+export interface CyberCopImpactEntityTrend {
+  id: string;
+  name: string;
+  criticality: Criticality;
+  riskCount: number;
+  weeklyTrend: CyberCopImpactEntityTrendPoint[];
+}
+
+export interface CyberCopActionThroughputPoint {
+  weekLabel: string;
+  openedCount: number;
+  closedCount: number;
+  netChange: number;
+}
+
+export interface CyberCopActionAgeBucketRow {
+  bucketLabel: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  total: number;
+}
+
+export interface CyberCopActionOldestFindingRow {
+  findingId: string;
+  title: string;
+  severity: FindingSeverity;
+  spiLabel: string;
+  systemName: string;
+  openedDate: string;
+  ageDays: number;
+  recommendedAction: string;
+}
+
+export interface CyberCopActionQuickWinRow {
+  actionText: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  total: number;
+  systemCount: number;
+}
+
+export interface CyberCopImpactLinks {
+  businessToSystems: Record<string, string[]>;
+  missionToSystems: Record<string, string[]>;
+}
+
+export interface CyberCopBlastRadiusSystemMeta {
+  totalAssets: number;
+  primaryAssetType: AssetType;
+}
+
 export interface CyberCopDashboardProps {
   snapshotDate: string;
+  filtersSlot?: ReactNode;
   complianceScores: {
     overall: number;
     dse: number;
@@ -67,6 +147,13 @@ export interface CyberCopDashboardProps {
     mission: CyberCopImpactItem[];
     systems: CyberCopImpactItem[];
   };
+  impactLinks: CyberCopImpactLinks;
+  impactBlastRadiusBySystemId: Record<string, CyberCopBlastRadiusSystemMeta>;
+  impactSpiDrivers: CyberCopImpactSpiDriver[];
+  impactSpiDriversBySystemId: Record<string, CyberCopImpactSpiDriver[]>;
+  impactEnvironmentSplit: CyberCopImpactEnvironmentSplitRow[];
+  impactEnvironmentSplitBySystemId: Record<string, CyberCopImpactEnvironmentSplitRow[]>;
+  impactEntityTrends: CyberCopImpactEntityTrend[];
   modellingSummary: {
     diisDefinedCount: number;
     modelledCount: number;
@@ -81,6 +168,10 @@ export interface CyberCopDashboardProps {
     networkNotDiscovered: number;
     unmodelledIctSystems: number;
   };
+  actionThroughput: CyberCopActionThroughputPoint[];
+  actionAgeBuckets: CyberCopActionAgeBucketRow[];
+  actionOldestOpenFindings: CyberCopActionOldestFindingRow[];
+  actionQuickWins: CyberCopActionQuickWinRow[];
   dailyHighRisk: CyberCopDailyTrendPoint[];
   dailyCriticalExposure: CyberCopDailyTrendPoint[];
 }
@@ -92,6 +183,16 @@ const severityColors: Record<FindingSeverity, string> = {
   Moderate: "#38bdf8",
   "Data Gap": "#94a3b8"
 };
+
+type CyberCopTabId = "overview" | "impact" | "action";
+
+const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "impact", label: "Impact" },
+  { id: "action", label: "Action" }
+];
+
+const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
 
 function formatDateKey(
   dateKey: string,
@@ -149,11 +250,25 @@ function ComplianceTile({ title, score }: { title: string; score: number }) {
 function ImpactLeaderboard({
   title,
   subtitle,
-  items
+  items,
+  selectedItemId,
+  selectedText,
+  onSelectItem,
+  onFilterScopeChange,
+  showClearSelectionButton,
+  clearSelectionDisabled,
+  onClearSelection
 }: {
   title: string;
   subtitle: string;
   items: CyberCopImpactItem[];
+  selectedItemId?: string | null;
+  selectedText?: string | null;
+  onSelectItem?: (item: CyberCopImpactItem) => void;
+  onFilterScopeChange?: (scope: { active: boolean; itemIds: string[] }) => void;
+  showClearSelectionButton?: boolean;
+  clearSelectionDisabled?: boolean;
+  onClearSelection?: () => void;
 }) {
   const listId = useId();
   const [query, setQuery] = useState("");
@@ -176,9 +291,32 @@ function ImpactLeaderboard({
     return riskScopedItems.filter((item) => item.name.toLowerCase().includes(normalizedQuery));
   }, [riskScopedItems, normalizedQuery]);
 
+  const selectedItem = useMemo(
+    () => riskScopedItems.find((item) => item.id === selectedItemId),
+    [riskScopedItems, selectedItemId]
+  );
+
+  const selectable = Boolean(onSelectItem);
+  const selectedLabel = selectedText ?? selectedItem?.name ?? null;
+
+  useEffect(() => {
+    if (!onFilterScopeChange) {
+      return;
+    }
+    onFilterScopeChange({
+      active: normalizedQuery.length > 0,
+      itemIds: filteredItems.map((item) => item.id)
+    });
+  }, [filteredItems, normalizedQuery, onFilterScopeChange]);
+
   return (
     <section className="panel p-4">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+        <p className="min-h-[1rem] text-[11px] text-right text-cyan-100/90">
+          {selectedLabel ? `Selected: ${selectedLabel}` : "Selected: none"}
+        </p>
+      </div>
       <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
       <div className="mt-3 flex items-center gap-2">
         <input
@@ -196,6 +334,16 @@ function ImpactLeaderboard({
         >
           Clear
         </button>
+        {showClearSelectionButton && onClearSelection ? (
+          <button
+            type="button"
+            onClick={onClearSelection}
+            disabled={clearSelectionDisabled}
+            className="rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+          >
+            Clear Selection
+          </button>
+        ) : null}
         <datalist id={listId}>
           {riskScopedItems.map((item) => (
             <option key={item.id} value={item.name} />
@@ -203,7 +351,7 @@ function ImpactLeaderboard({
         </datalist>
       </div>
       {riskScopedItems.length ? (
-        <div className="mt-3 max-h-[256px] overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <div className="mt-3 max-h-[320px] overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
@@ -217,8 +365,25 @@ function ImpactLeaderboard({
             </thead>
             <tbody>
               {filteredItems.map((item) => (
-                <tr key={item.id} className="border-t border-sky-300/10">
-                  <td className="px-3 py-2 text-slate-100">{item.name}</td>
+                <tr
+                  key={item.id}
+                  className={`border-t border-sky-300/10 ${
+                    selectedItemId === item.id ? "bg-cyan-500/10" : ""
+                  }`}
+                >
+                  <td className="px-3 py-2 text-slate-100">
+                    {selectable ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelectItem?.(item)}
+                        className="text-left text-slate-100 hover:text-cyan-100"
+                      >
+                        {item.name}
+                      </button>
+                    ) : (
+                      item.name
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] ${criticalityClass(item.criticality)}`}>
                       {item.criticality}
@@ -268,9 +433,9 @@ function ActionTile({
         : "border-sky-300/35 text-sky-100";
 
   return (
-    <article className={`panel-alt ${toneClass} p-4`}>
+    <article className={`panel-alt ${toneClass} p-3`}>
       <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/75">{title}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
+      <p className="mt-1.5 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
     </article>
   );
@@ -309,7 +474,7 @@ function DailyTrendPanel({
           {formatDateKey(data[data.length - 1]?.date ?? "", { month: "short", day: "numeric", year: "numeric" })}
         </p>
       </div>
-      <div className="mt-3 h-64">
+      <div className="mt-3 h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 14, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -339,232 +504,1060 @@ function DailyTrendPanel({
   );
 }
 
+function BlastRadiusChart({
+  items,
+  metaBySystemId
+}: {
+  items: CyberCopImpactItem[];
+  metaBySystemId: Record<string, CyberCopBlastRadiusSystemMeta>;
+}) {
+  const points = useMemo(
+    () =>
+      items
+        .map((item) => {
+          const meta = metaBySystemId[item.id];
+          if (!meta) {
+            return null;
+          }
+          return {
+            ...item,
+            totalAssets: meta.totalAssets,
+            primaryAssetType: meta.primaryAssetType,
+            riskCount: item.criticalExposureCount + item.highRiskCount,
+            p1p2Count: item.highPriority
+          };
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .filter((item) => item.riskCount > 0 && item.totalAssets > 0)
+        .sort((a, b) => {
+          if (b.riskCount !== a.riskCount) {
+            return b.riskCount - a.riskCount;
+          }
+          return b.totalAssets - a.totalAssets;
+        })
+        .slice(0, 30),
+    [items, metaBySystemId]
+  );
+
+  if (!points.length) {
+    return (
+      <section className="panel p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Blast Radius</h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          X: total assets, Y: Critical Exposure + High Risk, bubble radius: total P1/P2 findings.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No blast-radius points in current scope.</p>
+      </section>
+    );
+  }
+
+  const serverPoints = points.filter((item) => item.primaryAssetType === "server");
+  const workstationPoints = points.filter((item) => item.primaryAssetType === "workstation");
+  const networkDevicePoints = points.filter((item) => item.primaryAssetType === "network-device");
+
+  return (
+    <section className="panel p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Blast Radius</h3>
+      <p className="mt-1 text-xs text-slate-300/80">
+        X: total assets, Y: Critical Exposure + High Risk, bubble radius: total P1/P2 findings.
+      </p>
+      <p className="mt-1 text-[11px] text-slate-300/70">Colour key by primary asset type.</p>
+      <div className="mt-3 h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis
+              type="number"
+              dataKey="totalAssets"
+              name="Total Assets"
+              allowDecimals={false}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <YAxis
+              type="number"
+              dataKey="riskCount"
+              name="Critical + High"
+              allowDecimals={false}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <ZAxis type="number" dataKey="p1p2Count" range={[70, 520]} />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) {
+                  return null;
+                }
+                const row = payload[0].payload as {
+                  name: string;
+                  totalAssets: number;
+                  criticalExposureCount: number;
+                  highRiskCount: number;
+                  p1p2Count: number;
+                  primaryAssetType: AssetType;
+                };
+
+                return (
+                  <div className="rounded-md border border-slate-500/60 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
+                    <p className="font-semibold text-slate-100">{row.name}</p>
+                    <p className="mt-1 text-slate-200">Total Assets: {row.totalAssets}</p>
+                    <p className="text-red-200">Total Critical Exposure: {row.criticalExposureCount}</p>
+                    <p className="text-orange-200">Total High Risk: {row.highRiskCount}</p>
+                    <p className="text-cyan-200">Total P1-P2: {row.p1p2Count}</p>
+                    <p className="text-slate-300">Primary Asset Type: {row.primaryAssetType}</p>
+                  </div>
+                );
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+            <Scatter name="Server" data={serverPoints} fill="#38bdf8" isAnimationActive={false} />
+            <Scatter name="Workstation" data={workstationPoints} fill="#22c55e" isAnimationActive={false} />
+            <Scatter name="Network Device" data={networkDevicePoints} fill="#f59e0b" isAnimationActive={false} />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Control families driving severe open impact.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No severe SPI driver data in current scope.</p>
+      </section>
+    );
+  }
+
+  const topRows = rows.slice(0, 10);
+  const chartData = topRows.map((row) => ({
+    ...row,
+    spiLabel: row.label
+  }));
+
+  return (
+    <section className="panel p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
+      <div className="mt-3 h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <YAxis dataKey="spiLabel" type="category" width={68} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) {
+                  return null;
+                }
+                const row = payload[0].payload as CyberCopImpactSpiDriver;
+                return (
+                  <div className="rounded-md border border-slate-500/60 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
+                    <p>{row.description}</p>
+                  </div>
+                );
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+            <Bar
+              dataKey="criticalExposureCount"
+              stackId="severity"
+              name="Critical Exposure"
+              fill="#ef4444"
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="highRiskCount"
+              stackId="severity"
+              name="High Risk"
+              fill="#f97316"
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="otherCount"
+              stackId="severity"
+              name="Other"
+              fill="#38bdf8"
+              radius={[0, 6, 6, 0]}
+              isAnimationActive={false}
+            >
+              <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironmentSplitRow[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Open finding impact by environment type.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No environment impact data in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Open findings grouped by environment and severity band.</p>
+      <div className="mt-3 h-80">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis dataKey="environment" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              formatter={(value, key, item) => {
+                const row = item.payload as CyberCopImpactEnvironmentSplitRow;
+                if (key === "criticalExposureCount") {
+                  return [value, "Critical Exposure"];
+                }
+                if (key === "highRiskCount") {
+                  return [value, "High Risk"];
+                }
+                if (key === "otherCount") {
+                  return [value, "Other"];
+                }
+                return [row.total, "Total"];
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+            <Bar dataKey="criticalExposureCount" stackId="severity" name="Critical Exposure" fill="#ef4444" isAnimationActive={false} />
+            <Bar dataKey="highRiskCount" stackId="severity" name="High Risk" fill="#f97316" isAnimationActive={false} />
+            <Bar dataKey="otherCount" stackId="severity" name="Other" fill="#38bdf8" isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function ImpactEntityTrendMiniLines({ rows }: { rows: CyberCopImpactEntityTrend[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Top ICT System as risk Weekly Trend</h3>
+        <p className="mt-1 text-xs text-slate-300/80">13-week severe open trend for top impacted ICT systems.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No entity trend data in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Top ICT System as risk Weekly Trend</h3>
+      <p className="mt-1 text-xs text-slate-300/80">
+        Weekly open Critical Exposure + High Risk counts for top impacted ICT systems.
+      </p>
+      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {rows.map((row) => (
+          <article key={row.id} className="panel-alt border-sky-300/20 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium text-slate-100">{row.name}</p>
+              <span className={`rounded-full border px-2 py-0.5 text-[11px] ${criticalityClass(row.criticality)}`}>
+                {row.criticality}
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-300/80">Current severe open: {row.riskCount}</p>
+            <div className="mt-2 h-20">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={row.weeklyTrend} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(120,180,210,0.12)" />
+                  <XAxis dataKey="weekLabel" hide />
+                  <YAxis allowDecimals={false} hide />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                    formatter={(value) => [value, "Critical + High"]}
+                    labelFormatter={(label) => `Week ${label}`}
+                  />
+                  <Line type="monotone" dataKey="count" stroke="#f97316" strokeWidth={2.1} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPoint[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Opened vs closed findings over the last 13 weeks.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No throughput data in current scope.</p>
+      </section>
+    );
+  }
+
+  const totalOpened = rows.reduce((accumulator, row) => accumulator + row.openedCount, 0);
+  const totalClosed = rows.reduce((accumulator, row) => accumulator + row.closedCount, 0);
+
+  return (
+    <section className="panel p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
+          <p className="mt-1 text-xs text-slate-300/80">Opened vs closed findings over the last 13 weeks.</p>
+        </div>
+        <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
+          Opened: {totalOpened} | Closed: {totalClosed}
+        </p>
+      </div>
+      <div className="mt-3 h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis dataKey="weekLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} minTickGap={20} />
+            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              formatter={(value, name) => {
+                if (name === "openedCount") {
+                  return [value, "Opened"];
+                }
+                if (name === "closedCount") {
+                  return [value, "Closed"];
+                }
+                return [value, "Net"];
+              }}
+            />
+            <Legend
+              formatter={(value) => {
+                if (value === "openedCount") {
+                  return "Opened";
+                }
+                if (value === "closedCount") {
+                  return "Closed";
+                }
+                return "Net";
+              }}
+              wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }}
+            />
+            <Bar dataKey="openedCount" name="openedCount" fill="#f59e0b" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="closedCount" name="closedCount" fill="#22c55e" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function FindingAgingBucketsChart({ rows }: { rows: CyberCopActionAgeBucketRow[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No open findings in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
+      <div className="mt-3 h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis dataKey="bucketLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              formatter={(value, key, item) => {
+                const row = item.payload as CyberCopActionAgeBucketRow;
+                if (key === "criticalExposureCount") {
+                  return [value, "Critical Exposure"];
+                }
+                if (key === "highRiskCount") {
+                  return [value, "High Risk"];
+                }
+                if (key === "otherCount") {
+                  return [value, "Other"];
+                }
+                return [row.total, "Total"];
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+            <Bar dataKey="criticalExposureCount" stackId="severity" name="Critical Exposure" fill="#ef4444" isAnimationActive={false} />
+            <Bar dataKey="highRiskCount" stackId="severity" name="High Risk" fill="#f97316" isAnimationActive={false} />
+            <Bar dataKey="otherCount" stackId="severity" name="Other" fill="#38bdf8" isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function severityPillClass(severity: FindingSeverity): string {
+  if (severity === "Critical Exposure") {
+    return "border-red-400/35 text-red-100";
+  }
+  if (severity === "High Risk") {
+    return "border-orange-400/35 text-orange-100";
+  }
+  if (severity === "Major") {
+    return "border-amber-300/35 text-amber-100";
+  }
+  if (severity === "Moderate") {
+    return "border-sky-300/35 text-sky-100";
+  }
+  return "border-slate-400/35 text-slate-200";
+}
+
+function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRow[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel flex h-full min-h-0 flex-col p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No open findings in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel flex h-full min-h-0 flex-col p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
+      <div className="mt-2 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
+            <tr>
+              <th className="px-3 py-2 text-left">Severity</th>
+              <th className="px-3 py-2 text-right">Age (Days)</th>
+              <th className="px-3 py-2 text-left">SPI</th>
+              <th className="px-3 py-2 text-left">ICT System</th>
+              <th className="px-3 py-2 text-left">Opened</th>
+              <th className="px-3 py-2 text-left">Title</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.findingId} className="border-t border-sky-300/10">
+                <td className="px-3 py-2">
+                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}>
+                    {row.severity}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right text-slate-100">{row.ageDays}</td>
+                <td className="px-3 py-2 text-slate-200">{row.spiLabel}</td>
+                <td className="px-3 py-2 text-slate-200">{row.systemName}</td>
+                <td className="px-3 py-2 text-slate-300">{row.openedDate}</td>
+                <td className="px-3 py-2 text-slate-200">{row.title}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel flex h-full min-h-0 flex-col p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          Repeated remediation actions that can reduce severe findings fastest.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No quick-win action clusters in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel flex h-full min-h-0 flex-col p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
+      <div className="mt-2 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
+            <tr>
+              <th className="px-3 py-2 text-left">Recommended Action</th>
+              <th className="px-3 py-2 text-right">Critical Exposure</th>
+              <th className="px-3 py-2 text-right">High Risk</th>
+              <th className="px-3 py-2 text-right">Other</th>
+              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2 text-right">ICT Systems</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.actionText} className="border-t border-sky-300/10">
+                <td className="px-3 py-2 text-slate-100">{row.actionText}</td>
+                <td className="px-3 py-2 text-right text-red-100">{row.criticalExposureCount}</td>
+                <td className="px-3 py-2 text-right text-orange-100">{row.highRiskCount}</td>
+                <td className="px-3 py-2 text-right text-sky-100">{row.otherCount}</td>
+                <td className="px-3 py-2 text-right text-slate-200">{row.total}</td>
+                <td className="px-3 py-2 text-right text-slate-200">{row.systemCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function CyberCopTabFooter() {
+  return (
+    <footer className="mt-auto shrink-0 border-t border-sky-300/15 bg-slate-950/30">
+      <div className="px-4 py-3 text-center text-xs text-slate-300/70">
+        TSAAT Operational Reporting Layer | Snapshot-aligned analytics and mission impact context.
+      </div>
+    </footer>
+  );
+}
+
 export function CyberCopDashboard({
   snapshotDate,
+  filtersSlot,
   complianceScores,
   riskProfile,
   impact,
+  impactLinks,
+  impactBlastRadiusBySystemId,
+  impactSpiDrivers,
+  impactSpiDriversBySystemId,
+  impactEnvironmentSplit,
+  impactEnvironmentSplitBySystemId,
+  impactEntityTrends,
   modellingSummary,
   actionPlan,
+  actionThroughput,
+  actionAgeBuckets,
+  actionOldestOpenFindings,
+  actionQuickWins,
   dailyHighRisk,
   dailyCriticalExposure
 }: CyberCopDashboardProps) {
+  const [activeTab, setActiveTab] = useState<CyberCopTabId>("overview");
+  const [selectedBusinessServiceId, setSelectedBusinessServiceId] = useState<string | null>(null);
+  const [selectedMissionCapabilityId, setSelectedMissionCapabilityId] = useState<string | null>(null);
+  const [selectedIctSystemId, setSelectedIctSystemId] = useState<string | null>(null);
+  const [businessSearchScope, setBusinessSearchScope] = useState<{ active: boolean; itemIds: string[] }>({
+    active: false,
+    itemIds: []
+  });
+  const [missionSearchScope, setMissionSearchScope] = useState<{ active: boolean; itemIds: string[] }>({
+    active: false,
+    itemIds: []
+  });
+
+  const scopedSystemImpact = useMemo(() => {
+    if (selectedBusinessServiceId) {
+      const allowedSystemIds = new Set(impactLinks.businessToSystems[selectedBusinessServiceId] ?? []);
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    if (selectedMissionCapabilityId) {
+      const allowedSystemIds = new Set(impactLinks.missionToSystems[selectedMissionCapabilityId] ?? []);
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    if (businessSearchScope.active) {
+      if (!businessSearchScope.itemIds.length) {
+        return [];
+      }
+      const allowedSystemIds = new Set(
+        businessSearchScope.itemIds.flatMap((businessId) => impactLinks.businessToSystems[businessId] ?? [])
+      );
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    if (missionSearchScope.active) {
+      if (!missionSearchScope.itemIds.length) {
+        return [];
+      }
+      const allowedSystemIds = new Set(
+        missionSearchScope.itemIds.flatMap((missionId) => impactLinks.missionToSystems[missionId] ?? [])
+      );
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    return impact.systems;
+  }, [
+    impact.systems,
+    impactLinks.businessToSystems,
+    impactLinks.missionToSystems,
+    selectedBusinessServiceId,
+    selectedMissionCapabilityId,
+    businessSearchScope,
+    missionSearchScope
+  ]);
+
+  const selectedBusinessService = useMemo(
+    () => impact.business.find((item) => item.id === selectedBusinessServiceId),
+    [impact.business, selectedBusinessServiceId]
+  );
+  const selectedMissionCapability = useMemo(
+    () => impact.mission.find((item) => item.id === selectedMissionCapabilityId),
+    [impact.mission, selectedMissionCapabilityId]
+  );
+  const selectedIctSystem = useMemo(
+    () => scopedSystemImpact.find((item) => item.id === selectedIctSystemId),
+    [scopedSystemImpact, selectedIctSystemId]
+  );
+  useEffect(() => {
+    if (selectedIctSystemId && !scopedSystemImpact.some((system) => system.id === selectedIctSystemId)) {
+      setSelectedIctSystemId(null);
+    }
+  }, [scopedSystemImpact, selectedIctSystemId]);
+  const chartFilteredSystemImpact = useMemo(() => {
+    if (!selectedIctSystemId) {
+      return scopedSystemImpact;
+    }
+
+    const selectedRows = scopedSystemImpact.filter((system) => system.id === selectedIctSystemId);
+    return selectedRows.length ? selectedRows : scopedSystemImpact;
+  }, [scopedSystemImpact, selectedIctSystemId]);
+  const filteredImpactSpiDrivers = useMemo(() => {
+    const aggregated = new Map<number, CyberCopImpactSpiDriver>();
+    for (const system of chartFilteredSystemImpact) {
+      const rows = impactSpiDriversBySystemId[system.id] ?? [];
+      for (const row of rows) {
+        const current = aggregated.get(row.spiId) ?? {
+          spiId: row.spiId,
+          label: row.label,
+          description: row.description,
+          criticalExposureCount: 0,
+          highRiskCount: 0,
+          otherCount: 0,
+          count: 0
+        };
+        current.criticalExposureCount += row.criticalExposureCount;
+        current.highRiskCount += row.highRiskCount;
+        current.otherCount += row.otherCount;
+        current.count += row.count;
+        aggregated.set(row.spiId, current);
+      }
+    }
+
+    return Array.from(aggregated.values()).sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      return a.spiId - b.spiId;
+    });
+  }, [
+    chartFilteredSystemImpact,
+    impactSpiDriversBySystemId
+  ]);
+  const filteredImpactEnvironmentSplit = useMemo(() => {
+    const aggregated = new Map<string, CyberCopImpactEnvironmentSplitRow>();
+    for (const system of chartFilteredSystemImpact) {
+      const rows = impactEnvironmentSplitBySystemId[system.id] ?? [];
+      for (const row of rows) {
+        const current = aggregated.get(row.environment) ?? {
+          environment: row.environment,
+          criticalExposureCount: 0,
+          highRiskCount: 0,
+          otherCount: 0,
+          total: 0
+        };
+        current.criticalExposureCount += row.criticalExposureCount;
+        current.highRiskCount += row.highRiskCount;
+        current.otherCount += row.otherCount;
+        current.total += row.total;
+        aggregated.set(row.environment, current);
+      }
+    }
+
+    return impactEnvironmentOrder
+      .map((environment) => aggregated.get(environment))
+      .filter((row): row is CyberCopImpactEnvironmentSplitRow => Boolean(row))
+      .filter((row) => row.total > 0);
+  }, [
+    chartFilteredSystemImpact,
+    impactEnvironmentSplitBySystemId
+  ]);
+  const ictSystemsSelectedText = selectedIctSystem?.name ?? selectedBusinessService?.name ?? selectedMissionCapability?.name ?? null;
+
+  const ictSystemsSubtitle =
+    ictSystemsSelectedText
+      ? `Systems filtered by ${ictSystemsSelectedText}.`
+      : "Systems with highest open finding pressure.";
+
+  const tabButtonClass = (isActive: boolean): string =>
+    `rounded-lg border px-4 py-3 text-left text-sm uppercase tracking-[0.14em] transition ${
+      isActive
+        ? "border-cyan-300/50 bg-cyan-500/15 text-cyan-100"
+        : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
+    }`;
+
   return (
     <div className="space-y-4">
-      <section className="panel cop-reveal relative overflow-hidden p-5">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.22),transparent_44%),radial-gradient(circle_at_88%_16%,rgba(239,68,68,0.16),transparent_38%)]" />
-        <div className="relative">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-sm uppercase tracking-[0.16em] text-slate-100">Compliance Scores</h2>
+      <section className="panel p-2">
+        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-3">
+          {cyberCopTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`cyber-cop-tab-${tab.id}`}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`cyber-cop-tabpanel-${tab.id}`}
+                className={tabButtonClass(isActive)}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeTab === "overview" ? (
+        <div
+          id="cyber-cop-tabpanel-overview"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-overview"
+          className="h-[1920px] overflow-hidden"
+        >
+          <div className="flex h-full flex-col">
+            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+              {filtersSlot}
+
+          <section className="panel cop-reveal relative overflow-hidden p-4">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.22),transparent_44%),radial-gradient(circle_at_88%_16%,rgba(239,68,68,0.16),transparent_38%)]" />
+            <div className="relative">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="text-sm uppercase tracking-[0.16em] text-slate-100">Compliance Scores</h2>
+                  <p className="mt-1 text-xs text-slate-300/80">
+                    Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
+                  </p>
+                </div>
+                <span className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
+                  Senior Cyber Operations Briefing
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <ComplianceTile title="Overall Compliance" score={complianceScores.overall} />
+                <ComplianceTile title="DSE Compliance" score={complianceScores.dse} />
+                <ComplianceTile title="DPE Compliance" score={complianceScores.dpe} />
+                <ComplianceTile title="Critical ICT Systems Compliance" score={complianceScores.ictSystems} />
+                <ComplianceTile title="Networks Compliance" score={complianceScores.networks} />
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <section className="panel cop-reveal cop-reveal-delay-1 p-4">
+              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h2>
               <p className="mt-1 text-xs text-slate-300/80">
-                Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
+                Open finding pressure by severity across the Defence Cyber Terrain.
               </p>
-            </div>
-            <span className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-              Senior Cyber Operations Briefing
-            </span>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="panel-alt border-sky-300/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
+                  <p className="mt-1 text-3xl font-semibold text-slate-100">{riskProfile.openFindings}</p>
+                </div>
+                <div className="panel-alt border-sky-300/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">P1-P2 Findings</p>
+                  <p className="mt-1 text-3xl font-semibold text-slate-100">{riskProfile.p1p2Count}</p>
+                </div>
+                <div className="panel-alt border-red-400/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Critical Exposure (Open)</p>
+                  <p className="mt-1 text-3xl font-semibold text-red-100">{riskProfile.criticalExposureOpenCount}</p>
+                </div>
+                <div className="panel-alt border-orange-400/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">High Risk (Open)</p>
+                  <p className="mt-1 text-3xl font-semibold text-orange-100">{riskProfile.highRiskOpenCount}</p>
+                </div>
+              </div>
+              <div className="mt-3 h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={riskProfile.severitySummary}
+                    layout="vertical"
+                    margin={{ left: 0, right: 16, top: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                    <YAxis dataKey="severity" type="category" width={124} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                      formatter={(value) => [value, "Open Findings"]}
+                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]} isAnimationActive={false}>
+                      <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
+                      {riskProfile.severitySummary.map((entry) => (
+                        <Cell key={entry.severity} fill={severityColors[entry.severity]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="panel cop-reveal cop-reveal-delay-1 p-4">
+              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h2>
+              <p className="mt-1 text-xs text-slate-300/80">
+                Weekly open finding counts for Critical Exposure and High Risk.
+              </p>
+              <div className="mt-3 h-[520px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={riskProfile.weeklyTrend} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                    <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                    <XAxis dataKey="weekLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                      formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
+                    />
+                    <Legend
+                      formatter={(value) => (value === "highRiskCount" ? "High Risk" : "Critical Exposure")}
+                      wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="highRiskCount"
+                      stroke="#f97316"
+                      strokeWidth={2.2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="criticalExposureCount"
+                      stroke="#ef4444"
+                      strokeWidth={2.2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <ComplianceTile title="Overall Compliance" score={complianceScores.overall} />
-            <ComplianceTile title="DSE Compliance" score={complianceScores.dse} />
-            <ComplianceTile title="DPE Compliance" score={complianceScores.dpe} />
-            <ComplianceTile title="Critical ICT Systems Compliance" score={complianceScores.ictSystems} />
-            <ComplianceTile title="Networks Compliance" score={complianceScores.networks} />
+
+              <div className="cop-reveal cop-reveal-delay-3 grid gap-3 lg:grid-cols-2">
+                <DailyTrendPanel
+                  title="Open High Risk Findings"
+                  subtitle="Daily open high-risk trajectory for the last 12 months. Right edge is current date."
+                  color="#f97316"
+                  data={dailyHighRisk}
+                />
+                <DailyTrendPanel
+                  title="Open Critical Exposure Findings"
+                  subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge is current date."
+                  color="#ef4444"
+                  data={dailyCriticalExposure}
+                />
+              </div>
+            </div>
+            <CyberCopTabFooter />
           </div>
         </div>
-      </section>
+      ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
-        <section className="panel cop-reveal cop-reveal-delay-1 p-4">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h2>
-          <p className="mt-1 text-xs text-slate-300/80">Open finding pressure by severity across the Defence Cyber Terrain.</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="panel-alt border-sky-300/25 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
-              <p className="mt-1 text-3xl font-semibold text-slate-100">{riskProfile.openFindings}</p>
+      {activeTab === "impact" ? (
+        <div
+          id="cyber-cop-tabpanel-impact"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-impact"
+          className="h-[1920px] overflow-hidden"
+        >
+          <div className="flex h-full flex-col">
+            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
+              <div className="cop-reveal cop-reveal-delay-2 grid gap-3 lg:grid-cols-3">
+                <ImpactLeaderboard
+                  title="Business Services Impact"
+                  subtitle="Services carrying concentrated findings."
+                  items={impact.business}
+                  selectedItemId={selectedBusinessServiceId}
+                  selectedText={selectedBusinessService?.name ?? null}
+                  onSelectItem={(item) => {
+                    setSelectedMissionCapabilityId(null);
+                    setSelectedIctSystemId(null);
+                    setSelectedBusinessServiceId((current) => (current === item.id ? null : item.id));
+                  }}
+                  onFilterScopeChange={({ active, itemIds }) =>
+                    setBusinessSearchScope((current) => {
+                      if (
+                        current.active === active &&
+                        current.itemIds.length === itemIds.length &&
+                        current.itemIds.every((id, index) => id === itemIds[index])
+                      ) {
+                        return current;
+                      }
+                      return { active, itemIds };
+                    })
+                  }
+                  showClearSelectionButton
+                  clearSelectionDisabled={!selectedBusinessServiceId}
+                  onClearSelection={() => setSelectedBusinessServiceId(null)}
+                />
+                <ImpactLeaderboard
+                  title="Mission Capabilities Impact"
+                  subtitle="Capabilities affected by current findings."
+                  items={impact.mission}
+                  selectedItemId={selectedMissionCapabilityId}
+                  selectedText={selectedMissionCapability?.name ?? null}
+                  onSelectItem={(item) => {
+                    setSelectedBusinessServiceId(null);
+                    setSelectedIctSystemId(null);
+                    setSelectedMissionCapabilityId((current) => (current === item.id ? null : item.id));
+                  }}
+                  onFilterScopeChange={({ active, itemIds }) =>
+                    setMissionSearchScope((current) => {
+                      if (
+                        current.active === active &&
+                        current.itemIds.length === itemIds.length &&
+                        current.itemIds.every((id, index) => id === itemIds[index])
+                      ) {
+                        return current;
+                      }
+                      return { active, itemIds };
+                    })
+                  }
+                  showClearSelectionButton
+                  clearSelectionDisabled={!selectedMissionCapabilityId}
+                  onClearSelection={() => setSelectedMissionCapabilityId(null)}
+                />
+                <ImpactLeaderboard
+                  title="ICT Systems Impact"
+                  subtitle={ictSystemsSubtitle}
+                  items={scopedSystemImpact}
+                  selectedItemId={selectedIctSystemId}
+                  selectedText={ictSystemsSelectedText}
+                  onSelectItem={(item) => setSelectedIctSystemId((current) => (current === item.id ? null : item.id))}
+                  showClearSelectionButton
+                  clearSelectionDisabled={!selectedIctSystemId}
+                  onClearSelection={() => setSelectedIctSystemId(null)}
+                />
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <SpiDriverChart rows={filteredImpactSpiDrivers} />
+                <BlastRadiusChart items={chartFilteredSystemImpact} metaBySystemId={impactBlastRadiusBySystemId} />
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <EnvironmentImpactSplitChart rows={filteredImpactEnvironmentSplit} />
+                <ImpactEntityTrendMiniLines rows={impactEntityTrends} />
+              </div>
             </div>
-            <div className="panel-alt border-sky-300/25 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">P1-P2 Findings</p>
-              <p className="mt-1 text-3xl font-semibold text-slate-100">{riskProfile.p1p2Count}</p>
-            </div>
-            <div className="panel-alt border-red-400/25 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Critical Exposure (Open)</p>
-              <p className="mt-1 text-3xl font-semibold text-red-100">{riskProfile.criticalExposureOpenCount}</p>
-            </div>
-            <div className="panel-alt border-orange-400/25 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">High Risk (Open)</p>
-              <p className="mt-1 text-3xl font-semibold text-orange-100">{riskProfile.highRiskOpenCount}</p>
-            </div>
+            <CyberCopTabFooter />
           </div>
-          <div className="mt-4 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ left: 0, right: 16, top: 10, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <YAxis dataKey="severity" type="category" width={124} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value) => [value, "Open Findings"]}
-                />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} isAnimationActive={false}>
-                  <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
-                  {riskProfile.severitySummary.map((entry) => (
-                    <Cell key={entry.severity} fill={severityColors[entry.severity]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        <section className="panel cop-reveal cop-reveal-delay-1 p-4">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h2>
-          <p className="mt-1 text-xs text-slate-300/80">Weekly open finding counts for Critical Exposure and High Risk.</p>
-          <div className="mt-4 h-[420px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={riskProfile.weeklyTrend} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                <XAxis dataKey="weekLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
-                />
-                <Legend
-                  formatter={(value) => (value === "highRiskCount" ? "High Risk" : "Critical Exposure")}
-                  wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="highRiskCount"
-                  stroke="#f97316"
-                  strokeWidth={2.2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="criticalExposureCount"
-                  stroke="#ef4444"
-                  strokeWidth={2.2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      </div>
-
-      <div className="cop-reveal cop-reveal-delay-2 grid gap-4 xl:grid-cols-3">
-        <ImpactLeaderboard
-          title="Business Services Impact"
-          subtitle="Services carrying concentrated findings."
-          items={impact.business}
-        />
-        <ImpactLeaderboard
-          title="Mission Capabilities Impact"
-          subtitle="Capabilities affected by current findings."
-          items={impact.mission}
-        />
-        <ImpactLeaderboard
-          title="ICT Systems Impact"
-          subtitle="Systems with highest open finding pressure."
-          items={impact.systems}
-        />
-      </div>
-
-      <section className="panel cop-reveal cop-reveal-delay-3 p-5">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">ICT System Modelling Summary</h2>
-        <p className="mt-1 text-xs text-slate-300/80">
-          DIIS ICT system inventory coverage versus modelling completeness and discovery readiness.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <ActionTile
-            title="DIIS ICT Systems Defined"
-            value={modellingSummary.diisDefinedCount}
-            subtitle="Total ICT systems defined in DIIS scope"
-            tone="watch"
-          />
-          <ActionTile
-            title="ICT Systems Modelled"
-            value={modellingSummary.modelledCount}
-            subtitle={`${modellingSummary.modelledCount}/${modellingSummary.diisDefinedCount} DIIS systems modelled`}
-            tone="warning"
-          />
-          <ActionTile
-            title="ICT Systems Modelled with Discovery Non-Compliant"
-            value={modellingSummary.modelledDiscoveryNonCompliantCount}
-            subtitle="Modelled systems with discovery coverage gaps"
-            tone="critical"
-          />
         </div>
-      </section>
+      ) : null}
 
-      <section className="panel cyber-cop-pulse-border p-5">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
-        <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-          <ActionTile
-            title="Immediate Action"
-            value={actionPlan.immediateAction}
-            subtitle="Critical Exposure + High Risk findings"
-            tone="critical"
-          />
-          <ActionTile
-            title="Planned Remediation"
-            value={actionPlan.plannedRemediation}
-            subtitle="P3+ findings backlog"
-            tone="warning"
-          />
-          <ActionTile
-            title="Total Non-Compliant OS"
-            value={actionPlan.nonCompliantOs}
-            subtitle="Assets failing OS SPI controls"
-            tone="warning"
-          />
-          <ActionTile
-            title="Assets Out of Warranty"
-            value={actionPlan.outOfWarranty}
-            subtitle="Physical assets beyond support coverage"
-            tone="critical"
-          />
-          <ActionTile
-            title="Discovery Coverage Gaps"
-            value={actionPlan.discoveryCoverageGaps}
-            subtitle="Assets not meeting discovery compliance"
-            tone="watch"
-          />
-          <ActionTile
-            title="Network Not Discovered"
-            value={actionPlan.networkNotDiscovered}
-            subtitle="Managed networks with Discovery Non Enabled status"
-            tone="warning"
-          />
-          <ActionTile
-            title="ICT Systems Not Modelled"
-            value={actionPlan.unmodelledIctSystems}
-            subtitle="DIIS-defined systems without TSAAT models"
-            tone="warning"
-          />
+      {activeTab === "action" ? (
+        <div
+          id="cyber-cop-tabpanel-action"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-action"
+          className="h-[1920px] overflow-hidden"
+        >
+          <div className="flex h-full flex-col">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+              <section className="panel cyber-cop-pulse-border p-4">
+                <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
+                <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
+                  <ActionTile
+                    title="Immediate Action"
+                    value={actionPlan.immediateAction}
+                    subtitle="Critical Exposure + High Risk findings"
+                    tone="critical"
+                  />
+                  <ActionTile
+                    title="Planned Remediation"
+                    value={actionPlan.plannedRemediation}
+                    subtitle="P3+ findings backlog"
+                    tone="warning"
+                  />
+                  <ActionTile
+                    title="Total Non-Compliant OS"
+                    value={actionPlan.nonCompliantOs}
+                    subtitle="Assets failing OS SPI controls"
+                    tone="warning"
+                  />
+                  <ActionTile
+                    title="Assets Out of Warranty"
+                    value={actionPlan.outOfWarranty}
+                    subtitle="Physical assets beyond support coverage"
+                    tone="critical"
+                  />
+                  <ActionTile
+                    title="Discovery Coverage Gaps"
+                    value={actionPlan.discoveryCoverageGaps}
+                    subtitle="Assets not meeting discovery compliance"
+                    tone="watch"
+                  />
+                  <ActionTile
+                    title="Network Not Discovered"
+                    value={actionPlan.networkNotDiscovered}
+                    subtitle="Managed networks with Discovery Non Enabled status"
+                    tone="warning"
+                  />
+                  <ActionTile
+                    title="ICT Systems Not Modelled"
+                    value={actionPlan.unmodelledIctSystems}
+                    subtitle="DIIS-defined systems without TSAAT models"
+                    tone="warning"
+                  />
+                </div>
+
+                <div className="mt-4 border-t border-sky-300/20 pt-3">
+                  <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">ICT System Modelling Summary</h3>
+                  <p className="mt-1 text-xs text-slate-300/80">
+                    DIIS ICT system inventory coverage versus modelling completeness and discovery readiness.
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    <ActionTile
+                      title="DIIS ICT Systems Defined"
+                      value={modellingSummary.diisDefinedCount}
+                      subtitle="Total ICT systems defined in DIIS scope"
+                      tone="watch"
+                    />
+                    <ActionTile
+                      title="ICT Systems Modelled"
+                      value={modellingSummary.modelledCount}
+                      subtitle={`${modellingSummary.modelledCount}/${modellingSummary.diisDefinedCount} DIIS systems modelled`}
+                      tone="warning"
+                    />
+                    <ActionTile
+                      title="ICT Systems Modelled with Discovery Non-Compliant"
+                      value={modellingSummary.modelledDiscoveryNonCompliantCount}
+                      subtitle="Modelled systems with discovery coverage gaps"
+                      tone="critical"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid gap-2 lg:grid-cols-2">
+                <RemediationThroughputChart rows={actionThroughput} />
+                <FindingAgingBucketsChart rows={actionAgeBuckets} />
+              </div>
+
+              <div className="grid h-[440px] auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
+                <OldestOpenFindingsTable rows={actionOldestOpenFindings} />
+                <ActionQuickWinsTable rows={actionQuickWins} />
+              </div>
+            </div>
+            <CyberCopTabFooter />
+          </div>
         </div>
-      </section>
-
-      <div className="cop-reveal cop-reveal-delay-3 grid gap-4 xl:grid-cols-2">
-        <DailyTrendPanel
-          title="Open High Risk Findings"
-          subtitle="Daily open high-risk trajectory for the last 12 months. Right edge is current date."
-          color="#f97316"
-          data={dailyHighRisk}
-        />
-        <DailyTrendPanel
-          title="Open Critical Exposure Findings"
-          subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge is current date."
-          color="#ef4444"
-          data={dailyCriticalExposure}
-        />
-      </div>
+      ) : null}
     </div>
   );
 }

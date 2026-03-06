@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
+import { SiteFooter } from "@/components/site-footer";
 import { APP_NAME } from "@/lib/constants";
 
 const heading = Rajdhani({ subsets: ["latin"], weight: ["500", "600", "700"] });
@@ -55,11 +56,7 @@ export default function RootLayout({
           <FilterLoadingOverlay />
         </Suspense>
 
-        <footer className="no-print mt-8 border-t border-sky-300/15 bg-slate-950/40">
-          <div className="mx-auto max-w-[1400px] px-5 py-3 text-xs text-slate-300/70">
-            TSAAT Operational Reporting Layer | Snapshot-aligned analytics and mission impact context.
-          </div>
-        </footer>
+        <SiteFooter />
       </body>
     </html>
   );
