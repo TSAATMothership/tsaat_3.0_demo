@@ -108,7 +108,7 @@ export default async function NetworksPage({
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel p-5">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Networks View</p>
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">Network Roll-up Posture</h1>

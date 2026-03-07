@@ -99,9 +99,9 @@ export function KpiSpiMatrix({
 
       <div className="px-4 py-4">
         <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">Key Performance Indicators (KPI)</h3>
-        <div className="overflow-x-auto">
+        <div className="max-h-[420px] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
                 <th className="px-3 py-2">KPI</th>
                 <th className="px-3 py-2">Description</th>
@@ -141,9 +141,9 @@ export function KpiSpiMatrix({
 
       <div className="border-t border-sky-400/10 px-4 py-4">
         <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">Security Posture Indicators (SPI)</h3>
-        <div className="overflow-x-auto">
+        <div className="max-h-[460px] overflow-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
                 <th className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-2">SPI</th>
                 <th className="px-3 py-2">Description</th>

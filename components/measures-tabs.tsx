@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-type MeasuresTabId = "measures" | "settings";
+type MeasuresTabId = "summary" | "measures" | "settings";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -91,6 +91,7 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
   };
 
   const tabs = [
+    { id: "summary" as const, label: "Measures Summary" },
     { id: "measures" as const, label: "Measures" },
     { id: "settings" as const, label: "Measures Settings" }
   ];
@@ -134,7 +135,15 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
                 </div>
                 <div className="mt-5 flex items-center justify-center gap-3 text-xs text-slate-200">
                   <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
-                  <span>Opening {pendingTab === "settings" ? "Measures Settings" : "Measures"}...</span>
+                  <span>
+                    Opening{" "}
+                    {pendingTab === "settings"
+                      ? "Measures Settings"
+                      : pendingTab === "measures"
+                        ? "Measures"
+                        : "Measures Summary"}
+                    ...
+                  </span>
                 </div>
               </div>
             </div>,

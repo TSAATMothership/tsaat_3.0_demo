@@ -154,7 +154,7 @@ export default async function ReportPage({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel p-5 no-print">
         <h1 className="text-3xl font-semibold text-slate-100">Written Brief Generator</h1>
         <p className="mt-2 text-sm text-slate-300/85">

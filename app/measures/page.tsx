@@ -27,7 +27,12 @@ export default async function MeasuresPage({
     searchParams
   );
   const requestedTab = firstParam(searchParams.measuresTab)?.trim().toLowerCase();
-  const activeTab: "measures" | "settings" = requestedTab === "settings" ? "settings" : "measures";
+  const activeTab: "summary" | "measures" | "settings" =
+    requestedTab === "settings" ? "settings" : requestedTab === "measures" ? "measures" : "summary";
+  const tabContentClass =
+    activeTab === "settings"
+      ? ""
+      : "max-h-[calc(100vh-330px)] overflow-auto pr-1 lg:max-h-[calc(100vh-350px)]";
   const kpiRows = buildKpiRows(analytics, systems, networks);
   const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const measuresExtraSelects = [
@@ -72,7 +77,7 @@ export default async function MeasuresPage({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel p-5">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Measures View</p>
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">KPI and SPI Measures</h1>
@@ -84,32 +89,42 @@ export default async function MeasuresPage({
 
       <MeasuresTabs activeTab={activeTab} />
 
-      {activeTab === "measures" ? (
-        <>
-          <FilterBar
-            options={filterOptions}
-            filters={filters}
-            hiddenFields={["systemCriticality"]}
-            extraSelectFields={measuresExtraSelects}
-            enableLoadingOverlay
-          />
-
-          <section className="grid gap-4 xl:grid-cols-2">
-            <KpiComplianceChart data={kpiCompliancePoints} />
-            <SecurityPerformanceIndicatorComplianceChart data={spiCompliancePoints} />
-          </section>
-
-          <KpiSpiMatrix
-            analytics={analytics}
-            systems={systems}
-            networks={networks}
-            filters={filters}
-            filterOptions={filterOptions}
-          />
-        </>
-      ) : (
-        <MeasuresSettingsMatrix initialSettings={measuresSettings} />
-      )}
+      <div className={tabContentClass}>
+        {activeTab === "summary" ? (
+          <>
+            <FilterBar
+              options={filterOptions}
+              filters={filters}
+              hiddenFields={["systemCriticality"]}
+              extraSelectFields={measuresExtraSelects}
+              enableLoadingOverlay
+            />
+            <section className="grid gap-4 xl:grid-cols-2">
+              <KpiComplianceChart data={kpiCompliancePoints} />
+              <SecurityPerformanceIndicatorComplianceChart data={spiCompliancePoints} />
+            </section>
+          </>
+        ) : activeTab === "measures" ? (
+          <>
+            <FilterBar
+              options={filterOptions}
+              filters={filters}
+              hiddenFields={["systemCriticality"]}
+              extraSelectFields={measuresExtraSelects}
+              enableLoadingOverlay
+            />
+            <KpiSpiMatrix
+              analytics={analytics}
+              systems={systems}
+              networks={networks}
+              filters={filters}
+              filterOptions={filterOptions}
+            />
+          </>
+        ) : (
+          <MeasuresSettingsMatrix initialSettings={measuresSettings} />
+        )}
+      </div>
     </div>
   );
 }
