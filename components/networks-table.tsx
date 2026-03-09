@@ -1,70 +1,80 @@
-import Link from "next/link";
 import { ManagedNetwork, RollupResult } from "@/lib/types";
 import { deriveOverallStatus } from "@/lib/posture";
-import { PostureBadge } from "@/components/posture-badge";
+import { NetworksTableClient, type NetworkTableRow } from "@/components/networks-table-client";
+
+function fallbackDescription(network: ManagedNetwork): string {
+  if (network.description?.trim()) {
+    return network.description.trim();
+  }
+
+  const classificationLabel = network.classification ?? "multi-domain";
+  return `${network.name} is a ${classificationLabel} managed network segment in current TSAAT scope.`;
+}
+
+function fallbackOwner(network: ManagedNetwork): string {
+  if (network.owner?.trim()) {
+    return network.owner.trim();
+  }
+
+  return `${network.name} Operations Team`;
+}
+
+function fallbackSupportEmail(network: ManagedNetwork): string {
+  if (network.supportEmail?.trim()) {
+    return network.supportEmail.trim();
+  }
+
+  const normalizedId = network.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  return `network-support+${normalizedId}@tsaat.local`;
+}
+
+function fallbackServiceCatalogueUrl(network: ManagedNetwork): string {
+  if (network.serviceCatalogueUrl?.trim()) {
+    return network.serviceCatalogueUrl.trim();
+  }
+
+  return `/networks/${network.id}`;
+}
 
 export function NetworksTable({
   networks,
   networkRollups,
   findingsByNetwork,
   p12FindingsByNetwork,
-  p12HighRiskFindingsByNetwork
+  p12HighRiskFindingsByNetwork,
+  p12CriticalExposureFindingsByNetwork,
+  scrollable = false
 }: {
   networks: ManagedNetwork[];
   networkRollups: RollupResult[];
   findingsByNetwork: Map<string, number>;
   p12FindingsByNetwork: Map<string, number>;
   p12HighRiskFindingsByNetwork: Map<string, number>;
+  p12CriticalExposureFindingsByNetwork: Map<string, number>;
+  scrollable?: boolean;
 }) {
-  return (
-    <div className="panel overflow-hidden">
-      <table className="min-w-full text-sm">
-        <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-          <tr>
-            <th className="px-3 py-2">Network</th>
-            <th className="px-3 py-2">Classification</th>
-            <th className="px-3 py-2">Assets</th>
-            <th className="px-3 py-2">Posture</th>
-            <th className="px-3 py-2">Open Findings</th>
-            <th className="px-3 py-2">P1-P2 Findings</th>
-            <th className="px-3 py-2">P1-P2 Findings (High Risk)</th>
-            <th className="px-3 py-2">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {networks.map((network) => {
-            const rollups = networkRollups.filter(
-              (rollup) => rollup.scopeType === "network" && rollup.scopeId === network.id
-            );
-            const posture = deriveOverallStatus(rollups);
-            return (
-              <tr key={network.id} className="border-t border-sky-400/10">
-                <td className="px-3 py-3 text-slate-100">{network.name}</td>
-                <td className="px-3 py-3 text-slate-300">{network.classification ?? "-"}</td>
-                <td className="px-3 py-3 text-slate-300">{network.assetIds.length}</td>
-                <td className="px-3 py-3">
-                  <PostureBadge status={posture} />
-                </td>
-                <td className="px-3 py-3 text-slate-200">{findingsByNetwork.get(network.id) ?? 0}</td>
-                <td className="px-3 py-3 text-slate-200">{p12FindingsByNetwork.get(network.id) ?? 0}</td>
-                <td className="px-3 py-3 text-slate-200">
-                  {p12HighRiskFindingsByNetwork.get(network.id) ?? 0}
-                </td>
-                <td className="px-3 py-3">
-                  <Link
-                    href={`/networks/${network.id}`}
-                    data-filter-loading="true"
-                    data-filter-loading-message="Loading network page..."
-                    className="text-sky-200 underline"
-                  >
-                    Drill Down
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  const rows: NetworkTableRow[] = networks.map((network) => {
+    const rollups = networkRollups.filter(
+      (rollup) => rollup.scopeType === "network" && rollup.scopeId === network.id
+    );
+    const posture = deriveOverallStatus(rollups);
+
+    return {
+      id: network.id,
+      name: network.name,
+      classification: network.classification ?? "-",
+      assetCount: network.assetIds.length,
+      posture,
+      openFindings: findingsByNetwork.get(network.id) ?? 0,
+      p12Findings: p12FindingsByNetwork.get(network.id) ?? 0,
+      p12HighRiskFindings: p12HighRiskFindingsByNetwork.get(network.id) ?? 0,
+      p12CriticalExposureFindings: p12CriticalExposureFindingsByNetwork.get(network.id) ?? 0,
+      description: fallbackDescription(network),
+      owner: fallbackOwner(network),
+      supportEmail: fallbackSupportEmail(network),
+      serviceCatalogueUrl: fallbackServiceCatalogueUrl(network)
+    };
+  });
+
+  return <NetworksTableClient rows={rows} scrollable={scrollable} />;
 }

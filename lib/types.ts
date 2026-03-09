@@ -35,6 +35,10 @@ export interface ManagedNetwork {
   name: string;
   criticality: Criticality;
   classification?: string;
+  description?: string;
+  owner?: string;
+  supportEmail?: string;
+  serviceCatalogueUrl?: string;
   discoveryStatus: NetworkDiscoveryStatus;
   ictSystemIds: string[];
   assetIds: string[];

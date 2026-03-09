@@ -10,6 +10,14 @@ interface MenuItem {
   label: string;
 }
 
+function isMenuItemActive(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function nextProgressValue(current: number): number {
   if (current >= 92) {
     return current + 1;
@@ -122,18 +130,35 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
   return (
     <>
       <nav className="flex flex-wrap items-center gap-2">
-        {items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={(event) => onMenuClick(event, item.href)}
-            className={`rounded-md border border-sky-400/20 bg-slate-900/40 px-3 py-2 text-xs uppercase tracking-[0.13em] text-slate-100 transition hover:border-sky-300/50 hover:bg-slate-800/70 ${
-              item.href === "/cyber-cop" ? "menu-cyber-cop" : ""
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
+        {items.map((item) => {
+          const isActive = isMenuItemActive(pathname, item.href);
+          const isCyberCop = item.href === "/cyber-cop";
+          const linkClass = isActive
+            ? isCyberCop
+              ? "menu-cyber-cop-neo menu-cyber-cop-neo-active border-rose-400/80 bg-rose-500/12 text-rose-50"
+              : "menu-active-link border-cyan-300/70 bg-cyan-500/10 text-cyan-50"
+            : isCyberCop
+              ? "menu-cyber-cop-neo border-rose-400/35 bg-rose-950/30 text-rose-100 hover:border-rose-300/60 hover:bg-rose-900/40"
+              : "border-sky-400/20 bg-slate-900/40 text-slate-100 hover:border-sky-300/50 hover:bg-slate-800/70";
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              onClick={(event) => onMenuClick(event, item.href)}
+              className={`group flex items-center gap-2 rounded-md border px-3 py-2 text-xs uppercase tracking-[0.13em] transition ${linkClass}`}
+            >
+              <span>{item.label}</span>
+              {isActive ? (
+                <span
+                  aria-hidden
+                  className={`menu-active-dot ${isCyberCop ? "menu-active-dot-red" : ""}`}
+                />
+              ) : null}
+            </Link>
+          );
+        })}
       </nav>
 
       {isMounted && isLoading
