@@ -1,6 +1,10 @@
 import { DiscoveryCoverageByToolSection } from "@/components/discovery-coverage-by-tool-section";
 import { DiscoveryCoverageSearchForm } from "@/components/discovery-coverage-search-form";
-import { DiscoveryCoverageTabs, type TargetStateNetworkSummary } from "@/components/discovery-coverage-tabs";
+import { DiscoveryCoverageTabs } from "@/components/discovery-coverage-tabs";
+import {
+  DiscoveryCoverageTargetStateSection,
+  type TargetStateNetworkSummary
+} from "@/components/discovery-coverage-target-state-section";
 import { FilterBar } from "@/components/filter-bar";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { getCoreAppData } from "@/lib/app-data";
@@ -154,6 +158,12 @@ export default async function DiscoveryCoveragePage({
     }))
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
   const queryEntries = toQueryEntries(searchParams);
+  const requestedTab = firstParam(searchParams.discoveryCoverageTab)?.trim().toLowerCase();
+  const activeTab: "summary" | "details" | "target-state" =
+    requestedTab === "details" ? "details" : requestedTab === "target-state" ? "target-state" : "summary";
+  const tabContentBaseClass = "h-[min(calc(100vh-20rem),1040px)] pr-1 md:h-[min(calc(100vh-24rem),1040px)]";
+  const tabContentClass =
+    activeTab === "summary" ? `${tabContentBaseClass} overflow-auto` : `${tabContentBaseClass} overflow-hidden`;
   const gapPageState = parsePageState(searchParams, "page", "pageSize");
   const matrixPageState = parsePageState(searchParams, "matrixPage", "matrixPageSize");
   const gapSearchTerm = firstParam(searchParams.gapSearch)?.trim() ?? "";
@@ -280,8 +290,8 @@ export default async function DiscoveryCoveragePage({
     });
 
   return (
-    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]">
-      <section className="panel p-5">
+    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-3 md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel p-4">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Discovery Coverage View</p>
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">Discovery Coverage</h1>
         <p className="mt-2 max-w-5xl text-sm text-slate-300/85">
@@ -290,278 +300,324 @@ export default async function DiscoveryCoveragePage({
         </p>
       </section>
 
-      <DiscoveryCoverageTabs targetStateNetworks={targetStateNetworks}>
-        <FilterBar options={filterOptions} filters={filters} enableLoadingOverlay />
+      <DiscoveryCoverageTabs activeTab={activeTab} />
 
-      <section id="remediation-report" className="panel p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
-            <p className="mt-1 text-sm text-slate-300/85">
-              Generate a remediation report for discovery coverage gaps using the current Discovery Coverage page filters
-              and search terms.
-            </p>
-            <p className="mt-1 text-xs text-slate-300/75">
-              Includes scope summary, coverage score, filters applied, asset-level discovery gaps, and recommended actions.
-            </p>
-          </div>
-          <a
-            href={remediationReportHref}
-            className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
-          >
-            Generate Remediation Report
-          </a>
-        </div>
-      </section>
+      <div className={tabContentClass}>
+        {activeTab === "summary" ? (
+          <div className="space-y-4">
+            <FilterBar options={filterOptions} filters={filters} enableLoadingOverlay />
 
-      <section className="panel p-4">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Coverage Snapshot</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="panel-alt border-sky-300/25 p-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Assets In Scope</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-100">{rows.length}</p>
-          </div>
-          <div className="panel-alt border-emerald-400/25 p-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Coverage Compliant Assets</p>
-            <p className="mt-1 text-2xl font-semibold text-emerald-100">{compliantCount}</p>
-          </div>
-          <div className="panel-alt border-red-400/25 p-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Assets With Coverage Gaps</p>
-            <p className="mt-1 text-2xl font-semibold text-red-100">{gapCount}</p>
-          </div>
-          <div className="panel-alt border-sky-400/25 p-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Overall Tool Coverage</p>
-            <p className="mt-1 text-2xl font-semibold text-sky-100">{overallToolCoveragePercent}%</p>
-          </div>
-        </div>
-      </section>
-
-      <DiscoveryCoverageByToolSection toolStats={toolStats} />
-
-      <Suspense
-        fallback={
-          <section className="panel p-4">
-            <p className="text-sm text-slate-300/80">Loading coverage gaps...</p>
-          </section>
-        }
-      >
-        <ServerStreamHint />
-        <section id="coverage-gaps" className="panel overflow-hidden">
-        <div className="border-b border-sky-400/15 px-4 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Assets With Discovery Coverage Gaps</h2>
-            <DiscoveryCoverageSearchForm
-              searchParamKey="gapSearch"
-              searchValue={gapSearchTerm}
-              placeholder="Search assets, IDs, environment, or missing tools"
-            />
-          </div>
-        </div>
-        <div className="max-h-[420px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">Asset</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Network</th>
-                <th className="px-3 py-2">ICT System</th>
-                <th className="px-3 py-2">Environment</th>
-                <th className="px-3 py-2">Missing Tools</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gapRowsPage.items.map((row) => (
-                <tr key={row.assetId} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                  <td className="px-3 py-2 text-slate-300">{networkNameById.get(row.networkId) ?? row.networkId}</td>
-                  <td className="px-3 py-2 text-slate-300">
-                    {row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "-"}
-                  </td>
-                  <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                  <td className="px-3 py-2 text-red-100">{row.coverage.missingTools.join(", ")}</td>
-                </tr>
-              ))}
-              {gapRowsPage.totalItems === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                    {gapSearchTerm ? "No gap rows match this search in the current scope." : "No discovery coverage gaps in this scope."}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        {gapRowsPage.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-            <p>
-              Showing {(gapRowsPage.currentPage - 1) * gapRowsPage.pageSize + 1}-
-              {Math.min(gapRowsPage.currentPage * gapRowsPage.pageSize, gapRowsPage.totalItems)} of{" "}
-              {gapRowsPage.totalItems}
-            </p>
-            <div className="flex items-center gap-2">
-              {gapRowsPage.currentPage > 1 ? (
+            <section id="remediation-report" className="panel p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
+                  <p className="mt-1 text-sm text-slate-300/85">
+                    Generate a remediation report for discovery coverage gaps using the current Discovery Coverage page
+                    filters and search terms.
+                  </p>
+                  <p className="mt-1 text-xs text-slate-300/75">
+                    Includes scope summary, coverage score, filters applied, asset-level discovery gaps, and
+                    recommended actions.
+                  </p>
+                </div>
                 <a
-                  href={`${pageHref({ page: String(gapRowsPage.currentPage - 1) })}#coverage-gaps`}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading coverage gaps..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                  href={remediationReportHref}
+                  className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
                 >
-                  Previous
+                  Generate Remediation Report
                 </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
-              )}
-              <span>
-                Page {gapRowsPage.currentPage} of {gapRowsPage.totalPages}
-              </span>
-              {gapRowsPage.currentPage < gapRowsPage.totalPages ? (
-                <a
-                  href={`${pageHref({ page: String(gapRowsPage.currentPage + 1) })}#coverage-gaps`}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading coverage gaps..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Next
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-              )}
+              </div>
+            </section>
+
+            <section className="panel p-4">
+              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Coverage Snapshot</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="panel-alt border-sky-300/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Assets In Scope</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-100">{rows.length}</p>
+                </div>
+                <div className="panel-alt border-emerald-400/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
+                    Coverage Compliant Assets
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-emerald-100">{compliantCount}</p>
+                </div>
+                <div className="panel-alt border-red-400/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
+                    Assets With Coverage Gaps
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-red-100">{gapCount}</p>
+                </div>
+                <div className="panel-alt border-sky-400/25 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Overall Tool Coverage</p>
+                  <p className="mt-1 text-2xl font-semibold text-sky-100">{overallToolCoveragePercent}%</p>
+                </div>
+              </div>
+            </section>
+
+            <DiscoveryCoverageByToolSection toolStats={toolStats} />
+          </div>
+        ) : activeTab === "details" ? (
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-3">
+            <div className="-mt-4">
+              <FilterBar options={filterOptions} filters={filters} enableLoadingOverlay />
             </div>
-          </div>
-        ) : null}
-        </section>
-      </Suspense>
 
-      <Suspense
-        fallback={
-          <section className="panel p-4">
-            <p className="text-sm text-slate-300/80">Loading coverage matrix...</p>
-          </section>
-        }
-      >
-        <ServerStreamHint />
-        <section id="coverage-matrix" className="panel overflow-hidden">
-        <div className="border-b border-sky-400/15 px-4 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-              Discovery Coverage Matrix (All Assets)
-            </h2>
-            <DiscoveryCoverageSearchForm
-              searchParamKey="matrixSearch"
-              searchValue={matrixSearchTerm}
-              placeholder="Search assets, IDs, network, system, or environment"
+            <Suspense
+              fallback={
+                <section className="panel h-full min-h-0 p-4">
+                  <p className="text-sm text-slate-300/80">Loading coverage gaps...</p>
+                </section>
+              }
+            >
+              <ServerStreamHint />
+              <section id="coverage-gaps" className="panel flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="border-b border-sky-400/15 px-4 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+                      Assets With Discovery Coverage Gaps
+                    </h2>
+                    <DiscoveryCoverageSearchForm
+                      searchParamKey="gapSearch"
+                      searchValue={gapSearchTerm}
+                      placeholder="Search assets, IDs, environment, or missing tools"
+                    />
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                      <tr>
+                        <th className="px-3 py-2">Asset</th>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Network</th>
+                        <th className="px-3 py-2">ICT System</th>
+                        <th className="px-3 py-2">Environment</th>
+                        <th className="px-3 py-2">Missing Tools</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gapRowsPage.items.map((row) => (
+                        <tr key={row.assetId} className="border-t border-sky-400/10">
+                          <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                          <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
+                          <td className="px-3 py-2 text-slate-300">
+                            {networkNameById.get(row.networkId) ?? row.networkId}
+                          </td>
+                          <td className="px-3 py-2 text-slate-300">
+                            {row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "-"}
+                          </td>
+                          <td className="px-3 py-2 text-slate-300">{row.environment}</td>
+                          <td className="px-3 py-2 text-red-100">{row.coverage.missingTools.join(", ")}</td>
+                        </tr>
+                      ))}
+                      {gapRowsPage.totalItems === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                            {gapSearchTerm
+                              ? "No gap rows match this search in the current scope."
+                              : "No discovery coverage gaps in this scope."}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                {gapRowsPage.totalPages > 1 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
+                    <p>
+                      Showing {(gapRowsPage.currentPage - 1) * gapRowsPage.pageSize + 1}-
+                      {Math.min(gapRowsPage.currentPage * gapRowsPage.pageSize, gapRowsPage.totalItems)} of{" "}
+                      {gapRowsPage.totalItems}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {gapRowsPage.currentPage > 1 ? (
+                        <a
+                          href={`${pageHref({ page: String(gapRowsPage.currentPage - 1) })}#coverage-gaps`}
+                          data-filter-loading="true"
+                          data-filter-loading-message="Loading coverage gaps..."
+                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                        >
+                          Previous
+                        </a>
+                      ) : (
+                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">
+                          Previous
+                        </span>
+                      )}
+                      <span>
+                        Page {gapRowsPage.currentPage} of {gapRowsPage.totalPages}
+                      </span>
+                      {gapRowsPage.currentPage < gapRowsPage.totalPages ? (
+                        <a
+                          href={`${pageHref({ page: String(gapRowsPage.currentPage + 1) })}#coverage-gaps`}
+                          data-filter-loading="true"
+                          data-filter-loading-message="Loading coverage gaps..."
+                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                        >
+                          Next
+                        </a>
+                      ) : (
+                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            </Suspense>
+
+            <Suspense
+              fallback={
+                <section className="panel h-full min-h-0 p-4">
+                  <p className="text-sm text-slate-300/80">Loading coverage matrix...</p>
+                </section>
+              }
+            >
+              <ServerStreamHint />
+              <section id="coverage-matrix" className="panel flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="border-b border-sky-400/15 px-4 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+                      Discovery Coverage Matrix (All Assets)
+                    </h2>
+                    <DiscoveryCoverageSearchForm
+                      searchParamKey="matrixSearch"
+                      searchValue={matrixSearchTerm}
+                      placeholder="Search assets, IDs, network, system, or environment"
+                    />
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                      <tr>
+                        <th className="px-3 py-2">Asset</th>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Environment</th>
+                        <th className="px-3 py-2">UCMDB</th>
+                        <th className="px-3 py-2">Tanium</th>
+                        <th className="px-3 py-2">Tenable</th>
+                        <th className="px-3 py-2">SNOW</th>
+                        <th className="px-3 py-2">ServiceNow</th>
+                        <th className="px-3 py-2">DSOC SIEM</th>
+                        <th className="px-3 py-2">Elastic</th>
+                        <th className="px-3 py-2">Coverage Compliance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matrixRowsPage.items.map((row) => (
+                        <tr key={row.assetId} className="border-t border-sky-400/10">
+                          <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                          <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
+                          <td className="px-3 py-2 text-slate-300">{row.environment}</td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.ucmdb} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.tanium} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.tenable} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.snow} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.serviceNow} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.dsocSiem} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <OneZeroPill value={row.coverage.elastic} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`rounded-full border px-2 py-0.5 text-xs ${
+                                row.coverage.coverageCompliance
+                                  ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                                  : "border-red-400/45 bg-red-500/15 text-red-100"
+                              }`}
+                            >
+                              {row.coverage.coverageCompliance ? "Yes" : "No"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {matrixRowsPage.totalItems === 0 ? (
+                        <tr>
+                          <td colSpan={11} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                            {matrixSearchTerm
+                              ? "No matrix rows match this search in the current scope."
+                              : "No assets in this scope."}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+                {matrixRowsPage.totalPages > 1 ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
+                    <p>
+                      Showing {(matrixRowsPage.currentPage - 1) * matrixRowsPage.pageSize + 1}-
+                      {Math.min(matrixRowsPage.currentPage * matrixRowsPage.pageSize, matrixRowsPage.totalItems)} of{" "}
+                      {matrixRowsPage.totalItems}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {matrixRowsPage.currentPage > 1 ? (
+                        <a
+                          href={`${pageHref({ matrixPage: String(matrixRowsPage.currentPage - 1) })}#coverage-matrix`}
+                          data-filter-loading="true"
+                          data-filter-loading-message="Loading coverage matrix..."
+                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                        >
+                          Previous
+                        </a>
+                      ) : (
+                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">
+                          Previous
+                        </span>
+                      )}
+                      <span>
+                        Page {matrixRowsPage.currentPage} of {matrixRowsPage.totalPages}
+                      </span>
+                      {matrixRowsPage.currentPage < matrixRowsPage.totalPages ? (
+                        <a
+                          href={`${pageHref({ matrixPage: String(matrixRowsPage.currentPage + 1) })}#coverage-matrix`}
+                          data-filter-loading="true"
+                          data-filter-loading-message="Loading coverage matrix..."
+                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                        >
+                          Next
+                        </a>
+                      ) : (
+                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            </Suspense>
+          </div>
+        ) : (
+          <div className="flex h-full min-h-0 flex-col gap-3 pb-[15px]">
+            <FilterBar
+              options={filterOptions}
+              filters={filters}
+              hiddenFields={["ictSystem", "environment", "systemCriticality"]}
+              enableLoadingOverlay
             />
+            <section className="panel flex min-h-0 flex-1 flex-col p-4">
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <DiscoveryCoverageTargetStateSection
+                  targetStateNetworks={targetStateNetworks}
+                  lastRefreshedAt={dataset.generatedAt}
+                />
+              </div>
+            </section>
           </div>
-        </div>
-        <div className="max-h-[520px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">Asset</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Environment</th>
-                <th className="px-3 py-2">UCMDB</th>
-                <th className="px-3 py-2">Tanium</th>
-                <th className="px-3 py-2">Tenable</th>
-                <th className="px-3 py-2">SNOW</th>
-                <th className="px-3 py-2">ServiceNow</th>
-                <th className="px-3 py-2">DSOC SIEM</th>
-                <th className="px-3 py-2">Elastic</th>
-                <th className="px-3 py-2">Coverage Compliance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {matrixRowsPage.items.map((row) => (
-                <tr key={row.assetId} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.ucmdb} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.tanium} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.tenable} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.snow} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.serviceNow} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.dsocSiem} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <OneZeroPill value={row.coverage.elastic} />
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.coverage.coverageCompliance
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.coverage.coverageCompliance ? "Yes" : "No"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {matrixRowsPage.totalItems === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                    {matrixSearchTerm ? "No matrix rows match this search in the current scope." : "No assets in this scope."}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        {matrixRowsPage.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-            <p>
-              Showing {(matrixRowsPage.currentPage - 1) * matrixRowsPage.pageSize + 1}-
-              {Math.min(matrixRowsPage.currentPage * matrixRowsPage.pageSize, matrixRowsPage.totalItems)} of{" "}
-              {matrixRowsPage.totalItems}
-            </p>
-            <div className="flex items-center gap-2">
-              {matrixRowsPage.currentPage > 1 ? (
-                <a
-                  href={`${pageHref({ matrixPage: String(matrixRowsPage.currentPage - 1) })}#coverage-matrix`}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading coverage matrix..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Previous
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
-              )}
-              <span>
-                Page {matrixRowsPage.currentPage} of {matrixRowsPage.totalPages}
-              </span>
-              {matrixRowsPage.currentPage < matrixRowsPage.totalPages ? (
-                <a
-                  href={`${pageHref({ matrixPage: String(matrixRowsPage.currentPage + 1) })}#coverage-matrix`}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading coverage matrix..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Next
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-              )}
-            </div>
-          </div>
-        ) : null}
-        </section>
-      </Suspense>
-      </DiscoveryCoverageTabs>
+        )}
+      </div>
     </div>
   );
 }
