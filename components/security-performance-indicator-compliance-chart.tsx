@@ -48,9 +48,9 @@ function ComplianceRadarChart({
   return (
     <div className="panel p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">{title}</h3>
-      <div className="mt-3 h-[36rem]">
+      <div className="mt-3 h-[796px]">
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={data}>
+          <RadarChart data={data} outerRadius="84%" margin={{ top: 8, right: 18, bottom: 8, left: 18 }}>
             <PolarGrid stroke="rgba(120,180,210,0.2)" />
             <PolarAngleAxis dataKey="label" tick={{ fill: "#c8ddec", fontSize: 11 }} />
             <PolarRadiusAxis
