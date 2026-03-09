@@ -29,10 +29,9 @@ export default async function MeasuresPage({
   const requestedTab = firstParam(searchParams.measuresTab)?.trim().toLowerCase();
   const activeTab: "summary" | "measures" | "settings" =
     requestedTab === "settings" ? "settings" : requestedTab === "measures" ? "measures" : "summary";
+  const tabContentBaseClass = "h-[min(calc(100vh-20rem),1040px)] pr-1 md:h-[min(calc(100vh-24rem),1040px)]";
   const tabContentClass =
-    activeTab === "settings"
-      ? ""
-      : "max-h-[calc(100vh-330px)] overflow-auto pr-1 lg:max-h-[calc(100vh-350px)]";
+    activeTab === "measures" ? `${tabContentBaseClass} overflow-hidden` : `${tabContentBaseClass} overflow-auto`;
   const kpiRows = buildKpiRows(analytics, systems, networks);
   const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const measuresExtraSelects = [
@@ -77,8 +76,8 @@ export default async function MeasuresPage({
   });
 
   return (
-    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]">
-      <section className="panel p-5">
+    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-3 md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel p-4">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Measures View</p>
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">KPI and SPI Measures</h1>
         <p className="mt-2 max-w-4xl text-sm text-slate-300/85">
@@ -91,7 +90,7 @@ export default async function MeasuresPage({
 
       <div className={tabContentClass}>
         {activeTab === "summary" ? (
-          <>
+          <div className="space-y-3">
             <FilterBar
               options={filterOptions}
               filters={filters}
@@ -99,13 +98,13 @@ export default async function MeasuresPage({
               extraSelectFields={measuresExtraSelects}
               enableLoadingOverlay
             />
-            <section className="grid gap-4 xl:grid-cols-2">
+            <section className="grid gap-3 xl:grid-cols-2">
               <KpiComplianceChart data={kpiCompliancePoints} />
               <SecurityPerformanceIndicatorComplianceChart data={spiCompliancePoints} />
             </section>
-          </>
+          </div>
         ) : activeTab === "measures" ? (
-          <>
+          <div className="flex h-full min-h-0 flex-col gap-3">
             <FilterBar
               options={filterOptions}
               filters={filters}
@@ -113,14 +112,16 @@ export default async function MeasuresPage({
               extraSelectFields={measuresExtraSelects}
               enableLoadingOverlay
             />
-            <KpiSpiMatrix
-              analytics={analytics}
-              systems={systems}
-              networks={networks}
-              filters={filters}
-              filterOptions={filterOptions}
-            />
-          </>
+            <div className="min-h-0 flex-1">
+              <KpiSpiMatrix
+                analytics={analytics}
+                systems={systems}
+                networks={networks}
+                filters={filters}
+                filterOptions={filterOptions}
+              />
+            </div>
+          </div>
         ) : (
           <MeasuresSettingsMatrix initialSettings={measuresSettings} />
         )}

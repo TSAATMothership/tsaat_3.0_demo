@@ -89,7 +89,7 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
   };
 
   return (
-    <section className="panel p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">SPI Severity Matrix Settings</h2>
@@ -131,9 +131,9 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
         </p>
       ) : null}
 
-      <div className="mt-4 overflow-x-auto rounded-lg border border-sky-400/15">
+      <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-900/70 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
               <th className="w-[360px] min-w-[360px] px-3 py-2">SPI</th>
               {MEASURES_ASSET_TYPES.map((assetType) => (

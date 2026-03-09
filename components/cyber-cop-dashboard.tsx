@@ -237,9 +237,9 @@ function criticalityClass(criticality: Criticality): string {
 function ComplianceTile({ title, score }: { title: string; score: number }) {
   const tone = complianceTone(score);
   return (
-    <article className={`panel-alt ${tone.borderClass} p-4`}>
+    <article className={`panel-alt ${tone.borderClass} p-3`}>
       <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/80">{title}</p>
-      <p className={`mt-2 text-3xl font-semibold ${tone.textClass}`}>{score}%</p>
+      <p className={`mt-1.5 text-2xl font-semibold ${tone.textClass}`}>{score}%</p>
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800/90">
         <div className={`h-full rounded-full ${tone.meterClass}`} style={{ width: `${Math.min(100, score)}%` }} />
       </div>
@@ -295,6 +295,8 @@ function ImpactLeaderboard({
     () => riskScopedItems.find((item) => item.id === selectedItemId),
     [riskScopedItems, selectedItemId]
   );
+  const visibleItems = filteredItems.slice(0, 6);
+  const isTrimmed = filteredItems.length > visibleItems.length;
 
   const selectable = Boolean(onSelectItem);
   const selectedLabel = selectedText ?? selectedItem?.name ?? null;
@@ -310,7 +312,7 @@ function ImpactLeaderboard({
   }, [filteredItems, normalizedQuery, onFilterScopeChange]);
 
   return (
-    <section className="panel p-4">
+    <section className="panel p-3">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
         <p className="min-h-[1rem] text-[11px] text-right text-cyan-100/90">
@@ -318,7 +320,7 @@ function ImpactLeaderboard({
         </p>
       </div>
       <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2">
         <input
           type="search"
           list={listId}
@@ -351,7 +353,7 @@ function ImpactLeaderboard({
         </datalist>
       </div>
       {riskScopedItems.length ? (
-        <div className="mt-3 max-h-[320px] overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <div className="mt-2.5 overflow-x-auto overflow-y-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
@@ -364,7 +366,7 @@ function ImpactLeaderboard({
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item) => (
+              {visibleItems.map((item) => (
                 <tr
                   key={item.id}
                   className={`border-t border-sky-300/10 ${
@@ -395,7 +397,7 @@ function ImpactLeaderboard({
                   <td className="px-3 py-2 text-right text-slate-200">{item.impactedAssets}</td>
                 </tr>
               ))}
-              {filteredItems.length === 0 ? (
+              {visibleItems.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-4 text-center text-sm text-slate-300/80">
                     No matching rows.
@@ -410,6 +412,7 @@ function ImpactLeaderboard({
           No critical exposure or high risk impact in current scope.
         </p>
       )}
+      {isTrimmed ? <p className="mt-2 text-[11px] text-slate-300/70">Showing top 6 rows for this view.</p> : null}
     </section>
   );
 }
@@ -445,16 +448,18 @@ function DailyTrendPanel({
   title,
   subtitle,
   color,
-  data
+  data,
+  compact = false
 }: {
   title: string;
   subtitle: string;
   color: string;
   data: CyberCopDailyTrendPoint[];
+  compact?: boolean;
 }) {
   if (!data.length) {
     return (
-      <section className="panel p-4">
+      <section className={`panel ${compact ? "p-3" : "p-4"}`}>
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
         <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
         <p className="mt-3 text-sm text-slate-300/80">No daily trend data available.</p>
@@ -463,25 +468,27 @@ function DailyTrendPanel({
   }
 
   return (
-    <section className="panel p-4">
+    <section className={`panel ${compact ? "flex h-full min-h-0 flex-col p-3" : "p-4"}`}>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
           <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
         </div>
-        <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-          Latest: {data[data.length - 1]?.count} on{" "}
-          {formatDateKey(data[data.length - 1]?.date ?? "", { month: "short", day: "numeric", year: "numeric" })}
-        </p>
+        {compact ? null : (
+          <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
+            Latest: {data[data.length - 1]?.count} on{" "}
+            {formatDateKey(data[data.length - 1]?.date ?? "", { month: "short", day: "numeric", year: "numeric" })}
+          </p>
+        )}
       </div>
-      <div className="mt-3 h-72">
+      <div className={compact ? "mt-2 min-h-0 flex-1" : "mt-2.5 h-48"}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 14, left: 6, bottom: 8 }}>
+          <LineChart data={data} margin={compact ? { top: 4, right: 10, left: 0, bottom: 0 } : { top: 8, right: 14, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
             <XAxis
               dataKey="date"
               tickFormatter={(value) => formatDateKey(String(value))}
-              minTickGap={42}
+              minTickGap={compact ? 54 : 42}
               tick={{ fill: "#a8c6d8", fontSize: 11 }}
             />
             <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -562,7 +569,7 @@ function BlastRadiusChart({
         X: total assets, Y: Critical Exposure + High Risk, bubble radius: total P1/P2 findings.
       </p>
       <p className="mt-1 text-[11px] text-slate-300/70">Colour key by primary asset type.</p>
-      <div className="mt-3 h-80">
+      <div className="mt-2.5 h-60">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -640,7 +647,7 @@ function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
     <section className="panel p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
       <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
-      <div className="mt-3 h-80">
+      <div className="mt-2.5 h-60">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -706,7 +713,7 @@ function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironment
     <section className="panel p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
       <p className="mt-1 text-xs text-slate-300/80">Open findings grouped by environment and severity band.</p>
-      <div className="mt-3 h-80">
+      <div className="mt-2.5 h-60">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -756,9 +763,9 @@ function ImpactEntityTrendMiniLines({ rows }: { rows: CyberCopImpactEntityTrend[
       <p className="mt-1 text-xs text-slate-300/80">
         Weekly open Critical Exposure + High Risk counts for top impacted ICT systems.
       </p>
-      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((row) => (
-          <article key={row.id} className="panel-alt border-sky-300/20 p-3">
+      <div className="mt-2.5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {rows.slice(0, 5).map((row) => (
+          <article key={row.id} className="panel-alt border-sky-300/20 p-2.5">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium text-slate-100">{row.name}</p>
               <span className={`rounded-full border px-2 py-0.5 text-[11px] ${criticalityClass(row.criticality)}`}>
@@ -766,7 +773,7 @@ function ImpactEntityTrendMiniLines({ rows }: { rows: CyberCopImpactEntityTrend[
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-300/80">Current severe open: {row.riskCount}</p>
-            <div className="mt-2 h-20">
+            <div className="mt-2 h-16">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={row.weeklyTrend} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.12)" />
@@ -813,7 +820,7 @@ function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPo
           Opened: {totalOpened} | Closed: {totalClosed}
         </p>
       </div>
-      <div className="mt-3 h-72">
+      <div className="mt-2.5 h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -867,7 +874,7 @@ function FindingAgingBucketsChart({ rows }: { rows: CyberCopActionAgeBucketRow[]
     <section className="panel p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
       <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
-      <div className="mt-3 h-72">
+      <div className="mt-2.5 h-56">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -928,10 +935,10 @@ function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRo
   }
 
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
       <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
@@ -979,10 +986,10 @@ function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
   }
 
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
       <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
@@ -1192,14 +1199,15 @@ export function CyberCopDashboard({
       : "Systems with highest open finding pressure.";
 
   const tabButtonClass = (isActive: boolean): string =>
-    `rounded-lg border px-4 py-3 text-left text-sm uppercase tracking-[0.14em] transition ${
+    `rounded-lg border px-3 py-2.5 text-left text-xs uppercase tracking-[0.14em] transition ${
       isActive
         ? "border-cyan-300/50 bg-cyan-500/15 text-cyan-100"
         : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
     }`;
+  const tabPanelClass = "h-[min(calc(100vh-19rem+100px),1228px)] overflow-hidden";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <section className="panel p-2">
         <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-3">
           {cyberCopTabs.map((tab) => {
@@ -1227,138 +1235,145 @@ export function CyberCopDashboard({
           id="cyber-cop-tabpanel-overview"
           role="tabpanel"
           aria-labelledby="cyber-cop-tab-overview"
-          className="h-[1920px] overflow-hidden"
+          className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
-              {filtersSlot}
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)_minmax(0,0.82fr)] gap-2 overflow-hidden">
+              <div className="min-h-0">{filtersSlot}</div>
 
-          <section className="panel cop-reveal relative overflow-hidden p-4">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.22),transparent_44%),radial-gradient(circle_at_88%_16%,rgba(239,68,68,0.16),transparent_38%)]" />
-            <div className="relative">
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h2 className="text-sm uppercase tracking-[0.16em] text-slate-100">Compliance Scores</h2>
+              <section className="panel cop-reveal relative overflow-hidden p-3">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.22),transparent_44%),radial-gradient(circle_at_88%_16%,rgba(239,68,68,0.16),transparent_38%)]" />
+                <div className="relative">
+                  <div className="flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <h2 className="text-sm uppercase tracking-[0.16em] text-slate-100">Compliance Scores</h2>
+                      <p className="mt-1 text-xs text-slate-300/80">
+                        Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
+                      Senior Cyber Operations Briefing
+                    </span>
+                  </div>
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                    <ComplianceTile title="Overall Compliance" score={complianceScores.overall} />
+                    <ComplianceTile title="DSE Compliance" score={complianceScores.dse} />
+                    <ComplianceTile title="DPE Compliance" score={complianceScores.dpe} />
+                    <ComplianceTile title="Critical ICT Systems Compliance" score={complianceScores.ictSystems} />
+                    <ComplianceTile title="Networks Compliance" score={complianceScores.networks} />
+                  </div>
+                </div>
+              </section>
+
+              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
+                <section className="panel cop-reveal cop-reveal-delay-1 flex min-h-0 flex-col p-3">
+                  <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h2>
                   <p className="mt-1 text-xs text-slate-300/80">
-                    Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
+                    Open finding pressure by severity across the Defence Cyber Terrain.
                   </p>
-                </div>
-                <span className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-                  Senior Cyber Operations Briefing
-                </span>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                <ComplianceTile title="Overall Compliance" score={complianceScores.overall} />
-                <ComplianceTile title="DSE Compliance" score={complianceScores.dse} />
-                <ComplianceTile title="DPE Compliance" score={complianceScores.dpe} />
-                <ComplianceTile title="Critical ICT Systems Compliance" score={complianceScores.ictSystems} />
-                <ComplianceTile title="Networks Compliance" score={complianceScores.networks} />
-              </div>
-            </div>
-          </section>
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                    <div className="panel-alt border-sky-300/25 p-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
+                      <p className="mt-1 text-2xl font-semibold text-slate-100">{riskProfile.openFindings}</p>
+                    </div>
+                    <div className="panel-alt border-sky-300/25 p-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">P1-P2 Findings</p>
+                      <p className="mt-1 text-2xl font-semibold text-slate-100">{riskProfile.p1p2Count}</p>
+                    </div>
+                    <div className="panel-alt border-red-400/25 p-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Critical Exposure (Open)</p>
+                      <p className="mt-1 text-2xl font-semibold text-red-100">{riskProfile.criticalExposureOpenCount}</p>
+                    </div>
+                    <div className="panel-alt border-orange-400/25 p-2.5">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">High Risk (Open)</p>
+                      <p className="mt-1 text-2xl font-semibold text-orange-100">{riskProfile.highRiskOpenCount}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 min-h-0 flex-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={riskProfile.severitySummary}
+                        layout="vertical"
+                        margin={{ left: 0, right: 10, top: 2, bottom: 0 }}
+                      >
+                        <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                        <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                        <YAxis dataKey="severity" type="category" width={120} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                          formatter={(value) => [value, "Open Findings"]}
+                        />
+                        <Bar dataKey="count" radius={[0, 6, 6, 0]} isAnimationActive={false}>
+                          <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
+                          {riskProfile.severitySummary.map((entry) => (
+                            <Cell key={entry.severity} fill={severityColors[entry.severity]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <section className="panel cop-reveal cop-reveal-delay-1 p-4">
-              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h2>
-              <p className="mt-1 text-xs text-slate-300/80">
-                Open finding pressure by severity across the Defence Cyber Terrain.
-              </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="panel-alt border-sky-300/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
-                  <p className="mt-1 text-3xl font-semibold text-slate-100">{riskProfile.openFindings}</p>
-                </div>
-                <div className="panel-alt border-sky-300/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">P1-P2 Findings</p>
-                  <p className="mt-1 text-3xl font-semibold text-slate-100">{riskProfile.p1p2Count}</p>
-                </div>
-                <div className="panel-alt border-red-400/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Critical Exposure (Open)</p>
-                  <p className="mt-1 text-3xl font-semibold text-red-100">{riskProfile.criticalExposureOpenCount}</p>
-                </div>
-                <div className="panel-alt border-orange-400/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">High Risk (Open)</p>
-                  <p className="mt-1 text-3xl font-semibold text-orange-100">{riskProfile.highRiskOpenCount}</p>
-                </div>
+                <section className="panel cop-reveal cop-reveal-delay-1 flex min-h-0 flex-col p-3">
+                  <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h2>
+                  <p className="mt-1 text-xs text-slate-300/80">
+                    Weekly open finding counts for Critical Exposure and High Risk.
+                  </p>
+                  <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-300/80">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block h-2 w-2 rounded-full bg-orange-400" />
+                      High Risk
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                      Critical Exposure
+                    </span>
+                  </div>
+                  <div className="mt-1.5 min-h-0 flex-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                        <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                        <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                          formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="highRiskCount"
+                          stroke="#f97316"
+                          strokeWidth={2.2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="criticalExposureCount"
+                          stroke="#ef4444"
+                          strokeWidth={2.2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
               </div>
-              <div className="mt-3 h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={riskProfile.severitySummary}
-                    layout="vertical"
-                    margin={{ left: 0, right: 16, top: 10, bottom: 0 }}
-                  >
-                    <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                    <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                    <YAxis dataKey="severity" type="category" width={124} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                      formatter={(value) => [value, "Open Findings"]}
-                    />
-                    <Bar dataKey="count" radius={[0, 6, 6, 0]} isAnimationActive={false}>
-                      <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
-                      {riskProfile.severitySummary.map((entry) => (
-                        <Cell key={entry.severity} fill={severityColors[entry.severity]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            <section className="panel cop-reveal cop-reveal-delay-1 p-4">
-              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h2>
-              <p className="mt-1 text-xs text-slate-300/80">
-                Weekly open finding counts for Critical Exposure and High Risk.
-              </p>
-              <div className="mt-3 h-[520px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={riskProfile.weeklyTrend} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-                    <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                    <XAxis dataKey="weekLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                      formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
-                    />
-                    <Legend
-                      formatter={(value) => (value === "highRiskCount" ? "High Risk" : "Critical Exposure")}
-                      wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="highRiskCount"
-                      stroke="#f97316"
-                      strokeWidth={2.2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="criticalExposureCount"
-                      stroke="#ef4444"
-                      strokeWidth={2.2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-          </div>
-
-              <div className="cop-reveal cop-reveal-delay-3 grid gap-3 lg:grid-cols-2">
+              <div className="cop-reveal cop-reveal-delay-3 grid min-h-0 gap-2 lg:grid-cols-2">
                 <DailyTrendPanel
                   title="Open High Risk Findings"
                   subtitle="Daily open high-risk trajectory for the last 12 months. Right edge is current date."
                   color="#f97316"
                   data={dailyHighRisk}
+                  compact
                 />
                 <DailyTrendPanel
                   title="Open Critical Exposure Findings"
                   subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge is current date."
                   color="#ef4444"
                   data={dailyCriticalExposure}
+                  compact
                 />
               </div>
             </div>
@@ -1372,11 +1387,11 @@ export function CyberCopDashboard({
           id="cyber-cop-tabpanel-impact"
           role="tabpanel"
           aria-labelledby="cyber-cop-tab-impact"
-          className="h-[1920px] overflow-hidden"
+          className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
-              <div className="cop-reveal cop-reveal-delay-2 grid gap-3 lg:grid-cols-3">
+            <div className="min-h-0 flex-1 space-y-2 overflow-hidden">
+              <div className="cop-reveal cop-reveal-delay-2 grid gap-2 lg:grid-cols-3">
                 <ImpactLeaderboard
                   title="Business Services Impact"
                   subtitle="Services carrying concentrated findings."
@@ -1444,12 +1459,12 @@ export function CyberCopDashboard({
                 />
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2 lg:grid-cols-2">
                 <SpiDriverChart rows={filteredImpactSpiDrivers} />
                 <BlastRadiusChart items={chartFilteredSystemImpact} metaBySystemId={impactBlastRadiusBySystemId} />
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-2 lg:grid-cols-2">
                 <EnvironmentImpactSplitChart rows={filteredImpactEnvironmentSplit} />
                 <ImpactEntityTrendMiniLines rows={impactEntityTrends} />
               </div>
@@ -1464,14 +1479,14 @@ export function CyberCopDashboard({
           id="cyber-cop-tabpanel-action"
           role="tabpanel"
           aria-labelledby="cyber-cop-tab-action"
-          className="h-[1920px] overflow-hidden"
+          className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-              <section className="panel cyber-cop-pulse-border p-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+              <section className="panel cyber-cop-pulse-border p-3">
                 <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
                 <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
+                <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-7">
                   <ActionTile
                     title="Immediate Action"
                     value={actionPlan.immediateAction}
@@ -1516,12 +1531,12 @@ export function CyberCopDashboard({
                   />
                 </div>
 
-                <div className="mt-4 border-t border-sky-300/20 pt-3">
+                <div className="mt-3 border-t border-sky-300/20 pt-2.5">
                   <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">ICT System Modelling Summary</h3>
                   <p className="mt-1 text-xs text-slate-300/80">
                     DIIS ICT system inventory coverage versus modelling completeness and discovery readiness.
                   </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
                     <ActionTile
                       title="DIIS ICT Systems Defined"
                       value={modellingSummary.diisDefinedCount}
@@ -1549,9 +1564,9 @@ export function CyberCopDashboard({
                 <FindingAgingBucketsChart rows={actionAgeBuckets} />
               </div>
 
-              <div className="grid h-[440px] auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
-                <OldestOpenFindingsTable rows={actionOldestOpenFindings} />
-                <ActionQuickWinsTable rows={actionQuickWins} />
+              <div className="grid h-[360px] auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
+                <OldestOpenFindingsTable rows={actionOldestOpenFindings.slice(0, 8)} />
+                <ActionQuickWinsTable rows={actionQuickWins.slice(0, 8)} />
               </div>
             </div>
             <CyberCopTabFooter />

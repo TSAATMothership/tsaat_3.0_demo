@@ -90,16 +90,16 @@ export function KpiSpiMatrix({
   const spiRows = buildSpiRows(analytics);
 
   return (
-    <section className="panel overflow-hidden">
-      <div className="border-b border-sky-400/15 px-4 py-4">
+    <section className="panel flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="border-b border-sky-400/15 px-4 py-3">
         <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">KPI and SPI Performance Matrix</h2>
         <p className="mt-2 text-xs text-slate-300/80">Scores are computed on currently filtered scope.</p>
         <p className="mt-1 text-xs text-slate-300/70">{summarizeFilterScope(filters, filterOptions)}</p>
       </div>
 
-      <div className="px-4 py-4">
+      <div className="px-4 py-3">
         <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">Key Performance Indicators (KPI)</h3>
-        <div className="max-h-[420px] overflow-auto">
+        <div className="max-h-[min(31vh,360px)] overflow-auto">
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
@@ -139,9 +139,9 @@ export function KpiSpiMatrix({
         </div>
       </div>
 
-      <div className="border-t border-sky-400/10 px-4 py-4">
+      <div className="border-t border-sky-400/10 px-4 py-3">
         <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">Security Posture Indicators (SPI)</h3>
-        <div className="max-h-[460px] overflow-auto">
+        <div className="max-h-[min(34vh,390px)] overflow-auto">
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>

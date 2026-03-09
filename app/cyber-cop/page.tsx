@@ -1138,17 +1138,19 @@ export default async function CyberCopPage({
   return (
     <div
       data-cyber-cop-page="true"
-      className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]"
+      className="relative left-1/2 -my-5 h-[calc(100vh-11rem+100px)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem+100px)] md:w-[min(2100px,calc(100vw-3rem))]"
     >
       <CyberCopDashboard
         snapshotDate={dataset.snapshotDate}
         filtersSlot={
-          <FilterBar
-            options={filterOptions}
-            filters={filters}
-            hiddenFields={["managedNetwork", "ictSystem", "systemCriticality", "assetType"]}
-            enableLoadingOverlay
-          />
+          <div className="-mt-2">
+            <FilterBar
+              options={filterOptions}
+              filters={filters}
+              hiddenFields={["managedNetwork", "ictSystem", "systemCriticality", "assetType"]}
+              enableLoadingOverlay
+            />
+          </div>
         }
         complianceScores={{
           overall: analytics.overallCompliancePercent,
