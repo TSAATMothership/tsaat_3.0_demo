@@ -576,7 +576,7 @@ export default async function NetworksPage({
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Networks View</p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-100">Network Roll-up Posture</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-slate-100">Network Cyber Security Posture</h1>
         <p className="mt-1 text-sm text-slate-300/80">
           Network-scoped operational posture with Cyber COP aligned overview and action views.
         </p>
