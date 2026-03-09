@@ -609,7 +609,13 @@ export default async function SystemsPage({
       scopedSystemIds.has(evaluation.systemId as string) &&
       !evaluation.discoveryCoverageCompliant
   ).length;
+  const totalSystemsCount = systems.length;
+  const modelledSystemsCount = systems.filter((system) => system.modellingStatus).length;
   const systemsNotModelled = systems.filter((system) => !system.modellingStatus).length;
+  const modelledPercent = totalSystemsCount ? Number(((modelledSystemsCount / totalSystemsCount) * 100).toFixed(1)) : 0;
+  const notModelledPercent = totalSystemsCount
+    ? Number(((systemsNotModelled / totalSystemsCount) * 100).toFixed(1))
+    : 0;
 
   const immediateAction = highRiskOpenCount + criticalExposureOpenCount;
   const plannedRemediation = openFindings.filter(
@@ -652,6 +658,13 @@ export default async function SystemsPage({
                   dse: dseComplianceScore(statusesWithEnvironment),
                   dpe: dpeComplianceScore(statusesWithEnvironment),
                   systems: systemsCompliance
+                }}
+                modellingCoverage={{
+                  modelledPercent,
+                  notModelledPercent,
+                  modelledCount: modelledSystemsCount,
+                  notModelledCount: systemsNotModelled,
+                  totalCount: totalSystemsCount
                 }}
                 riskProfile={{
                   openFindings: openFindings.length,

@@ -558,9 +558,19 @@ export default async function NetworksPage({
   const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters);
   const outOfWarranty = filteredAssets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
   const discoveryCoverageGaps = analytics.evaluations.filter((evaluation) => !evaluation.discoveryCoverageCompliant).length;
+  const totalNetworksCount = networks.length;
+  const modelledNetworksCount = networks.filter(
+    (network) => network.discoveryStatus !== "Discovery Non Enabled"
+  ).length;
   const networkNotDiscovered = networks.filter(
     (network) => network.discoveryStatus === "Discovery Non Enabled"
   ).length;
+  const modelledPercent = totalNetworksCount
+    ? Number(((modelledNetworksCount / totalNetworksCount) * 100).toFixed(1))
+    : 0;
+  const notModelledPercent = totalNetworksCount
+    ? Number(((networkNotDiscovered / totalNetworksCount) * 100).toFixed(1))
+    : 0;
 
   const immediateAction = highRiskOpenCount + criticalExposureOpenCount;
   const plannedRemediation = openFindings.filter(
@@ -603,6 +613,13 @@ export default async function NetworksPage({
                   dse: dseComplianceScore(statusesWithEnvironment),
                   dpe: dpeComplianceScore(statusesWithEnvironment),
                   networks: networksCompliance
+                }}
+                modellingCoverage={{
+                  modelledPercent,
+                  notModelledPercent,
+                  modelledCount: modelledNetworksCount,
+                  notModelledCount: networkNotDiscovered,
+                  totalCount: totalNetworksCount
                 }}
                 riskProfile={{
                   openFindings: openFindings.length,
