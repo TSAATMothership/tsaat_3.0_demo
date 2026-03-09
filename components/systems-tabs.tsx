@@ -22,7 +22,7 @@ function nextProgressValue(current: number): number {
 const tabs: Array<{ id: SystemsTabId; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "action", label: "Action" },
-  { id: "posture", label: "ICT Systems Roll-up Posture" }
+  { id: "posture", label: "ICT Systems Roll-Up Posture Summary" }
 ];
 
 export function SystemsTabs({ activeTab }: { activeTab: SystemsTabId }) {
@@ -138,7 +138,7 @@ export function SystemsTabs({ activeTab }: { activeTab: SystemsTabId }) {
                   <span>
                     Opening{" "}
                     {pendingTab === "posture"
-                      ? "ICT Systems Roll-up Posture"
+                      ? "ICT Systems Roll-Up Posture Summary"
                       : pendingTab === "action"
                         ? "Action"
                         : "Overview"}

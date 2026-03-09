@@ -57,6 +57,14 @@ export interface SystemEnvironment {
 export interface ICTSystem {
   id: string;
   name: string;
+  description?: string;
+  diisId?: string;
+  owner?: string;
+  supportEmail?: string;
+  serviceCatalogueUrl?: string;
+  atoNumber?: string;
+  diisUrl?: string;
+  grcUrl?: string;
   modellingStatus: boolean;
   diisDefined: boolean;
   networkId: string;
