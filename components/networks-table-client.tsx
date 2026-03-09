@@ -21,6 +21,9 @@ export interface NetworkTableRow {
   owner: string;
   supportEmail: string;
   serviceCatalogueUrl: string;
+  atoNumber: string;
+  diisUrl: string;
+  grcUrl: string;
 }
 
 function isExternalLink(href: string): boolean {
@@ -217,6 +220,44 @@ export function NetworksTableClient({
                   >
                     Open Service Catalogue Item
                   </Link>
+                </dd>
+              </div>
+              <div className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-3 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+                <dt className="text-[11px] uppercase tracking-[0.14em] text-sky-100/95">Security Accreditation</dt>
+                <dd className="mt-2">
+                  <table className="min-w-full text-sm">
+                    <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-sky-100/85">
+                      <tr>
+                        <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
+                        <th className="px-2 py-1.5">Links</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-sky-300/35 text-slate-100">
+                        <td className="px-2 py-2 font-semibold text-sky-50">{selectedRow.atoNumber}</td>
+                        <td className="px-2 py-2">
+                          <div className="flex flex-wrap gap-3 text-sky-100">
+                            <Link
+                              href={selectedRow.diisUrl}
+                              className="underline decoration-sky-300/70 underline-offset-2"
+                              target={isExternalLink(selectedRow.diisUrl) ? "_blank" : undefined}
+                              rel={isExternalLink(selectedRow.diisUrl) ? "noreferrer" : undefined}
+                            >
+                              View in DIIS
+                            </Link>
+                            <Link
+                              href={selectedRow.grcUrl}
+                              className="underline decoration-sky-300/70 underline-offset-2"
+                              target={isExternalLink(selectedRow.grcUrl) ? "_blank" : undefined}
+                              rel={isExternalLink(selectedRow.grcUrl) ? "noreferrer" : undefined}
+                            >
+                              View in Cyber GRC Portal
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </dd>
               </div>
             </dl>

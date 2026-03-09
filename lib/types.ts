@@ -39,6 +39,9 @@ export interface ManagedNetwork {
   owner?: string;
   supportEmail?: string;
   serviceCatalogueUrl?: string;
+  atoNumber?: string;
+  diisUrl?: string;
+  grcUrl?: string;
   discoveryStatus: NetworkDiscoveryStatus;
   ictSystemIds: string[];
   assetIds: string[];

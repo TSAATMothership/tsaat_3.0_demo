@@ -36,6 +36,31 @@ function fallbackServiceCatalogueUrl(network: ManagedNetwork): string {
   return `/networks/${network.id}`;
 }
 
+function fallbackAtoNumber(network: ManagedNetwork): string {
+  if (network.atoNumber?.trim()) {
+    return network.atoNumber.trim();
+  }
+
+  const normalizedId = network.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase();
+  return `ATO-${normalizedId}`;
+}
+
+function fallbackDiisUrl(network: ManagedNetwork): string {
+  if (network.diisUrl?.trim()) {
+    return network.diisUrl.trim();
+  }
+
+  return `https://diis.defence.gov.au/networks/${encodeURIComponent(network.id)}`;
+}
+
+function fallbackGrcUrl(network: ManagedNetwork, atoNumber: string): string {
+  if (network.grcUrl?.trim()) {
+    return network.grcUrl.trim();
+  }
+
+  return `https://grc.defence.gov.au/ato/${encodeURIComponent(atoNumber)}`;
+}
+
 export function NetworksTable({
   networks,
   networkRollups,
@@ -59,6 +84,8 @@ export function NetworksTable({
     );
     const posture = deriveOverallStatus(rollups);
 
+    const atoNumber = fallbackAtoNumber(network);
+
     return {
       id: network.id,
       name: network.name,
@@ -72,7 +99,10 @@ export function NetworksTable({
       description: fallbackDescription(network),
       owner: fallbackOwner(network),
       supportEmail: fallbackSupportEmail(network),
-      serviceCatalogueUrl: fallbackServiceCatalogueUrl(network)
+      serviceCatalogueUrl: fallbackServiceCatalogueUrl(network),
+      atoNumber,
+      diisUrl: fallbackDiisUrl(network),
+      grcUrl: fallbackGrcUrl(network, atoNumber)
     };
   });
 
