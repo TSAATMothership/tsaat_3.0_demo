@@ -74,6 +74,15 @@ function fallbackGrcUrl(system: ICTSystem, atoNumber: string): string {
   return `https://grc.defence.gov.au/ato/${encodeURIComponent(atoNumber)}`;
 }
 
+function fallbackApmNumber(system: ICTSystem): string {
+  const normalizedId = system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase();
+  return `APM-${normalizedId}`;
+}
+
+function fallbackApmUrl(system: ICTSystem, apmNumber: string): string {
+  return `https://apm.defence.gov.au/applications/${encodeURIComponent(apmNumber)}`;
+}
+
 export function SystemsTable({
   systems,
   systemRollups,
@@ -99,6 +108,7 @@ export function SystemsTable({
 
     const atoNumber = fallbackAtoNumber(system);
     const diisId = fallbackDiisId(system);
+    const apmNumber = fallbackApmNumber(system);
 
     return {
       id: system.id,
@@ -116,7 +126,9 @@ export function SystemsTable({
       atoNumber,
       diisId,
       diisUrl: fallbackDiisUrl(system),
-      grcUrl: fallbackGrcUrl(system, atoNumber)
+      grcUrl: fallbackGrcUrl(system, atoNumber),
+      apmNumber,
+      apmUrl: fallbackApmUrl(system, apmNumber)
     };
   });
 
