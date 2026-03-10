@@ -488,7 +488,7 @@ export default async function NetworkDetailPage({
       <section className="panel p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href="/networks" className="text-xs text-sky-200 underline">
+            <Link href="/networks?networksTab=posture" className="text-xs text-sky-200 underline">
               Back to Networks
             </Link>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{network.name}</h1>
