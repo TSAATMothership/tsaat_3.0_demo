@@ -19,6 +19,20 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+function toQueryEntries(searchParams: Record<string, string | string[] | undefined>): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        entries.push([key, item]);
+      }
+    } else if (typeof value === "string") {
+      entries.push([key, value]);
+    }
+  }
+  return entries;
+}
+
 function complianceScore(statuses: ComplianceStatus[]): number {
   if (!statuses.length) {
     return 0;
@@ -316,11 +330,15 @@ function buildActionOldestOpenFindings(
         severity: finding.severity,
         spiLabel: `SPI ${finding.spiId}`,
         networkName: networkNameById.get(finding.scope.networkId) ?? "Unassigned",
+        impactedDevices:
+          typeof finding.evidence.assetName === "string" && finding.evidence.assetName.trim().length > 0
+            ? finding.evidence.assetName
+            : finding.scope.assetId,
         openedDate: formatActionDate(openedDateKey),
         ageDays: differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today)
       };
     })
-    .filter((row): row is { findingId: string; title: string; severity: FindingSeverity; spiLabel: string; networkName: string; openedDate: string; ageDays: number } => Boolean(row))
+    .filter((row): row is { findingId: string; title: string; severity: FindingSeverity; spiLabel: string; networkName: string; impactedDevices: string; openedDate: string; ageDays: number } => Boolean(row))
     .sort((a, b) => {
       if (b.ageDays !== a.ageDays) {
         return b.ageDays - a.ageDays;
@@ -404,6 +422,33 @@ export default async function NetworksPage({
   const requestedTab = firstParam(searchParams.networksTab)?.trim().toLowerCase();
   const activeTab: "overview" | "action" | "posture" =
     requestedTab === "action" ? "action" : requestedTab === "posture" ? "posture" : "overview";
+  const queryEntries = toQueryEntries(searchParams);
+  const remediationReportHref = (() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of queryEntries) {
+      params.append(key, value);
+    }
+    const query = params.toString();
+    return query ? `/api/networks/remediation-report?${query}` : "/api/networks/remediation-report";
+  })();
+  const filtersSection = (
+    <div className="-mt-4">
+      <FilterBar
+        options={filterOptions}
+        filters={filters}
+        hiddenFields={["ictSystem", "systemCriticality", "environment"]}
+        enableLoadingOverlay
+        actions={
+          <a
+            href={remediationReportHref}
+            className="inline-flex h-[42px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-4 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-500/25"
+          >
+            Generate Remediation Report
+          </a>
+        }
+      />
+    </div>
+  );
 
   const findingsByNetwork = new Map<string, number>();
   const p12FindingsByNetwork = new Map<string, number>();
@@ -576,6 +621,14 @@ export default async function NetworksPage({
   const plannedRemediation = openFindings.filter(
     (finding) => finding.priorityRank >= 3 && finding.priorityRank < 90
   ).length;
+  const nonCompliantOs = analytics.evaluations.filter(
+    (evaluation) =>
+      (evaluation.assetType === "server" || evaluation.assetType === "workstation") &&
+      evaluation.evaluations.some(
+        (evaluationItem) =>
+          (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+      )
+  ).length;
   const actionThroughput = buildActionThroughput(analytics.findings, todayDateKey, 13);
   const actionAgeBuckets = buildActionAgeBuckets(openFindings, todayDateKey);
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
@@ -597,14 +650,7 @@ export default async function NetworksPage({
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "overview" ? (
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-            <div className="-mt-4">
-              <FilterBar
-                options={filterOptions}
-                filters={filters}
-                hiddenFields={["ictSystem", "systemCriticality", "environment"]}
-                enableLoadingOverlay
-              />
-            </div>
+            {filtersSection}
             <div className="min-h-0">
               <NetworksOverviewPanel
                 snapshotDate={dataset.snapshotDate}
@@ -635,29 +681,28 @@ export default async function NetworksPage({
             </div>
           </div>
         ) : activeTab === "action" ? (
-          <NetworksActionPanel
-            actionPlan={{
-              immediateAction,
-              plannedRemediation,
-              outOfWarranty,
-              discoveryCoverageGaps,
-              networkNotDiscovered
-            }}
-            actionThroughput={actionThroughput}
-            actionAgeBuckets={actionAgeBuckets}
-            actionOldestOpenFindings={actionOldestOpenFindings}
-            actionQuickWins={actionQuickWins}
-          />
-        ) : (
-          <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
-            <div className="-mt-4">
-              <FilterBar
-                options={filterOptions}
-                filters={filters}
-                hiddenFields={["ictSystem", "systemCriticality", "environment"]}
-                enableLoadingOverlay
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            {filtersSection}
+            <div className="min-h-0">
+              <NetworksActionPanel
+                actionPlan={{
+                  immediateAction,
+                  plannedRemediation,
+                  nonCompliantOs,
+                  outOfWarranty,
+                  discoveryCoverageGaps,
+                  networkNotDiscovered
+                }}
+                actionThroughput={actionThroughput}
+                actionAgeBuckets={actionAgeBuckets}
+                actionOldestOpenFindings={actionOldestOpenFindings}
+                actionQuickWins={actionQuickWins}
               />
             </div>
+          </div>
+        ) : (
+          <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
+            {filtersSection}
 
             <section className="panel p-3">
               <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Networks KPI Snapshot</h2>

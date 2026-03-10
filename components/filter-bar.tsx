@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AssetType, EnvironmentType, Filters } from "@/lib/types";
@@ -191,13 +191,15 @@ export function FilterBar({
   filters,
   hiddenFields = [],
   extraSelectFields = [],
-  enableLoadingOverlay = false
+  enableLoadingOverlay = false,
+  actions
 }: {
   options: FilterOptions;
   filters: Filters;
   hiddenFields?: FilterField[];
   extraSelectFields?: ExtraSelectField[];
   enableLoadingOverlay?: boolean;
+  actions?: ReactNode;
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -344,6 +346,7 @@ export function FilterBar({
             onChange={(value) => updateParam(field.key, value)}
           />
         ))}
+        {actions ? <div className="w-full sm:ml-auto sm:w-auto">{actions}</div> : null}
       </div>
 
       {isMounted && isLoading && enableLoadingOverlay
