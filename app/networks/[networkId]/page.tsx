@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
+import { NetworkDetailTabs } from "@/components/network-detail-tabs";
 import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { loadCurrentDataset, loadLatestSnapshots, loadMeasuresSettings } from "@/lib/data-loader";
@@ -20,6 +21,8 @@ type KpiFilterKey =
   | "highRiskP12Findings"
   | "outOfWarrantyAssets"
   | "nonCompliantDiscoveryCoverage";
+
+type NetworkDetailTab = "network-details" | "cyber-posture" | "discovery-compliance";
 
 const KPI_FILTER_LABELS: Record<KpiFilterKey, string> = {
   nonCompliantAssets: "Total Non-compliant Assets",
@@ -226,6 +229,13 @@ export default async function NetworkDetailPage({
   const p12Findings = findings.filter((finding) => finding.priorityRank <= 2);
   const requestedKpiFilter = firstParam(requestParams.kpiFilter);
   const selectedKpiFilter = isKpiFilterKey(requestedKpiFilter) ? requestedKpiFilter : undefined;
+  const requestedDetailTab = firstParam(requestParams.networkDetailTab)?.trim().toLowerCase();
+  const activeDetailTab: NetworkDetailTab =
+    requestedDetailTab === "cyber-posture"
+      ? "cyber-posture"
+      : requestedDetailTab === "discovery-compliance"
+        ? "discovery-compliance"
+        : "network-details";
   const requestedP12Spi = Number(firstParam(requestParams.p12Spi));
   const selectedP12Spi =
     Number.isInteger(requestedP12Spi) && requestedP12Spi >= 1 && requestedP12Spi <= 10 ? requestedP12Spi : undefined;
@@ -465,6 +475,12 @@ export default async function NetworkDetailPage({
 
   const kpiFilterHref = (kpiFilter?: KpiFilterKey) => {
     const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(requestParams)) {
+      if (!value || key === "kpiFilter") {
+        continue;
+      }
+      query.set(key, Array.isArray(value) ? value[0] : value);
+    }
     if (kpiFilter) {
       query.set("kpiFilter", kpiFilter);
     }
@@ -484,8 +500,8 @@ export default async function NetworkDetailPage({
   })();
 
   return (
-    <div className="space-y-4">
-      <section className="panel p-5">
+    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <Link href="/networks?networksTab=posture" className="text-xs text-sky-200 underline">
@@ -518,6 +534,10 @@ export default async function NetworkDetailPage({
         </div>
       </section>
 
+      <NetworkDetailTabs activeTab={activeDetailTab} />
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-auto pr-1">
+      {activeDetailTab === "network-details" ? (
       <section className="panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -538,7 +558,9 @@ export default async function NetworkDetailPage({
           </a>
         </div>
       </section>
+      ) : null}
 
+      {activeDetailTab === "cyber-posture" ? (
       <section className="panel p-4">
         <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">KPI Snapshot</h2>
         <p className="mt-1 text-xs text-slate-300/80">
@@ -654,7 +676,9 @@ export default async function NetworkDetailPage({
           </Link>
         </div>
       </section>
+      ) : null}
 
+      {activeDetailTab === "discovery-compliance" ? (
       <Suspense
         fallback={
           <section className="panel p-4">
@@ -794,7 +818,9 @@ export default async function NetworkDetailPage({
         ) : null}
         </section>
       </Suspense>
+      ) : null}
 
+      {activeDetailTab === "cyber-posture" ? (
       <Suspense
         fallback={
           <section className="panel p-4">
@@ -898,7 +924,9 @@ export default async function NetworkDetailPage({
         ) : null}
         </section>
       </Suspense>
+      ) : null}
 
+      {activeDetailTab === "cyber-posture" ? (
       <section id="p12-findings" className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/15 px-4 py-3">
           <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">P1-2 Findings (All Environments)</h2>
@@ -1025,6 +1053,8 @@ export default async function NetworkDetailPage({
           </ul>
         </div>
       </section>
+      ) : null}
+      </div>
     </div>
   );
 }
