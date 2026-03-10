@@ -54,6 +54,7 @@ export interface SystemActionOldestFindingRow {
   severity: FindingSeverity;
   spiLabel: string;
   systemName: string;
+  impactedDevices: string;
   openedDate: string;
   ageDays: number;
 }
@@ -286,14 +287,15 @@ function OldestOpenFindingsTable({ rows }: { rows: SystemActionOldestFindingRow[
     <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
       <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
-              <th className="px-3 py-2 text-left">Severity</th>
+              <th className="min-w-[11rem] px-3 py-2 text-left">Severity</th>
               <th className="px-3 py-2 text-right">Age (Days)</th>
               <th className="px-3 py-2 text-left">SPI</th>
               <th className="px-3 py-2 text-left">ICT System</th>
+              <th className="px-3 py-2 text-left">Imacted Devices</th>
               <th className="px-3 py-2 text-left">Opened</th>
               <th className="px-3 py-2 text-left">Title</th>
             </tr>
@@ -301,14 +303,17 @@ function OldestOpenFindingsTable({ rows }: { rows: SystemActionOldestFindingRow[
           <tbody>
             {rows.map((row) => (
               <tr key={row.findingId} className="border-t border-sky-300/10">
-                <td className="px-3 py-2">
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}>
+                <td className="min-w-[11rem] px-3 py-2">
+                  <span
+                    className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}
+                  >
                     {row.severity}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right text-slate-100">{row.ageDays}</td>
                 <td className="px-3 py-2 text-slate-200">{row.spiLabel}</td>
                 <td className="px-3 py-2 text-slate-200">{row.systemName}</td>
+                <td className="px-3 py-2 text-slate-200">{row.impactedDevices}</td>
                 <td className="px-3 py-2 text-slate-300">{row.openedDate}</td>
                 <td className="px-3 py-2 text-slate-200">{row.title}</td>
               </tr>
@@ -325,7 +330,7 @@ function ActionQuickWinsTable({ rows }: { rows: SystemActionQuickWinRow[] }) {
     <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
       <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
@@ -530,6 +535,7 @@ export function SystemsActionPanel({
   actionPlan: {
     immediateAction: number;
     plannedRemediation: number;
+    nonCompliantOs: number;
     outOfWarranty: number;
     discoveryCoverageGaps: number;
     systemsNotModelled: number;
@@ -544,7 +550,7 @@ export function SystemsActionPanel({
       <section className="panel cyber-cop-pulse-border p-3">
         <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
         <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
-        <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-6">
           <ActionTile
             title="Immediate Action"
             value={actionPlan.immediateAction}
@@ -556,6 +562,12 @@ export function SystemsActionPanel({
             value={actionPlan.plannedRemediation}
             subtitle="P3+ findings backlog"
             tone="warning"
+          />
+          <ActionTile
+            title="Total Non-Compliant OS"
+            value={actionPlan.nonCompliantOs}
+            subtitle="Server/workstation OS SPI 1-2 non-compliance"
+            tone="critical"
           />
           <ActionTile
             title="Assets Out of Warranty"

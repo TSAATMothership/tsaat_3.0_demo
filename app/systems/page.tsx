@@ -19,6 +19,20 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
+function toQueryEntries(searchParams: Record<string, string | string[] | undefined>): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        entries.push([key, item]);
+      }
+    } else if (typeof value === "string") {
+      entries.push([key, value]);
+    }
+  }
+  return entries;
+}
+
 function complianceScore(statuses: ComplianceStatus[]): number {
   if (!statuses.length) {
     return 0;
@@ -327,6 +341,10 @@ function buildActionOldestOpenFindings(
         severity: finding.severity,
         spiLabel: `SPI ${finding.spiId}`,
         systemName: systemNameById.get(finding.scope.systemId) ?? "Unassigned",
+        impactedDevices:
+          typeof finding.evidence.assetName === "string" && finding.evidence.assetName.trim().length > 0
+            ? finding.evidence.assetName
+            : finding.scope.assetId,
         openedDate: formatActionDate(openedDateKey),
         ageDays: differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today)
       };
@@ -340,6 +358,7 @@ function buildActionOldestOpenFindings(
         severity: FindingSeverity;
         spiLabel: string;
         systemName: string;
+        impactedDevices: string;
         openedDate: string;
         ageDays: number;
       } => Boolean(row)
@@ -424,6 +443,15 @@ export default async function SystemsPage({
   const { analytics, filterOptions, filters, systems, snapshots, measuresSettings, dataset } = await getTrendAppData(
     systemsOnlySearchParams
   );
+  const queryEntries = toQueryEntries(systemsOnlySearchParams);
+  const remediationReportHref = (() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of queryEntries) {
+      params.append(key, value);
+    }
+    const query = params.toString();
+    return query ? `/api/systems/remediation-report?${query}` : "/api/systems/remediation-report";
+  })();
 
   const requestedTab = firstParam(searchParams.systemsTab)?.trim().toLowerCase();
   const activeTab: "overview" | "action" | "posture" =
@@ -621,6 +649,16 @@ export default async function SystemsPage({
   const plannedRemediation = openFindings.filter(
     (finding) => finding.priorityRank >= 3 && finding.priorityRank < 90
   ).length;
+  const nonCompliantOs = analytics.evaluations.filter(
+    (evaluation) =>
+      Boolean(evaluation.systemId) &&
+      scopedSystemIds.has(evaluation.systemId as string) &&
+      (evaluation.assetType === "server" || evaluation.assetType === "workstation") &&
+      evaluation.evaluations.some(
+        (evaluationItem) =>
+          (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+      )
+  ).length;
   const actionThroughput = buildActionThroughput(systemScopedFindings, todayDateKey, 13);
   const actionAgeBuckets = buildActionAgeBuckets(openFindings, todayDateKey);
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
@@ -680,19 +718,40 @@ export default async function SystemsPage({
             </div>
           </div>
         ) : activeTab === "action" ? (
-          <SystemsActionPanel
-            actionPlan={{
-              immediateAction,
-              plannedRemediation,
-              outOfWarranty,
-              discoveryCoverageGaps,
-              systemsNotModelled
-            }}
-            actionThroughput={actionThroughput}
-            actionAgeBuckets={actionAgeBuckets}
-            actionOldestOpenFindings={actionOldestOpenFindings}
-            actionQuickWins={actionQuickWins}
-          />
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["managedNetwork"]}
+                enableLoadingOverlay
+                actions={
+                  <a
+                    href={remediationReportHref}
+                    className="inline-flex h-[42px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-4 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-500/25"
+                  >
+                    Generate Remediation Report
+                  </a>
+                }
+              />
+            </div>
+            <div className="min-h-0">
+              <SystemsActionPanel
+                actionPlan={{
+                  immediateAction,
+                  plannedRemediation,
+                  nonCompliantOs,
+                  outOfWarranty,
+                  discoveryCoverageGaps,
+                  systemsNotModelled
+                }}
+                actionThroughput={actionThroughput}
+                actionAgeBuckets={actionAgeBuckets}
+                actionOldestOpenFindings={actionOldestOpenFindings}
+                actionQuickWins={actionQuickWins}
+              />
+            </div>
+          </div>
         ) : (
           <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
             <div className="-mt-4">

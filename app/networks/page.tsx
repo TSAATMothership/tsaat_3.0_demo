@@ -449,6 +449,16 @@ export default async function NetworksPage({
       />
     </div>
   );
+  const filtersSectionWithoutReport = (
+    <div className="-mt-4">
+      <FilterBar
+        options={filterOptions}
+        filters={filters}
+        hiddenFields={["ictSystem", "systemCriticality", "environment"]}
+        enableLoadingOverlay
+      />
+    </div>
+  );
 
   const findingsByNetwork = new Map<string, number>();
   const p12FindingsByNetwork = new Map<string, number>();
@@ -650,7 +660,7 @@ export default async function NetworksPage({
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "overview" ? (
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-            {filtersSection}
+            {filtersSectionWithoutReport}
             <div className="min-h-0">
               <NetworksOverviewPanel
                 snapshotDate={dataset.snapshotDate}
@@ -702,7 +712,7 @@ export default async function NetworksPage({
           </div>
         ) : (
           <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
-            {filtersSection}
+            {filtersSectionWithoutReport}
 
             <section className="panel p-3">
               <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Networks KPI Snapshot</h2>
