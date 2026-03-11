@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkDetailTabs } from "@/components/network-detail-tabs";
+import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
 import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { loadCurrentDataset, loadLatestSnapshots, loadMeasuresSettings } from "@/lib/data-loader";
@@ -10,7 +11,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { paginate, parsePageState } from "@/lib/pagination";
-import { Asset, ComplianceStatus, Dataset, Finding } from "@/lib/types";
+import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
 import { Suspense } from "react";
 
 type KpiFilterKey =
@@ -83,6 +84,77 @@ function findingMatchesSearch(finding: Finding, normalizedSearchTerm: string) {
     .toLowerCase();
 
   return text.includes(normalizedSearchTerm);
+}
+
+function toUtcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseUtcDateKey(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function formatUtcDay(date: Date): string {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function toFindingDateKey(timestamp?: string | null): string | null {
+  if (!timestamp) {
+    return null;
+  }
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return toUtcDateKey(parsed);
+}
+
+function buildNetworkDetailWeeklyRiskTrend(findings: Finding[], weeks = 13) {
+  const today = new Date();
+  const endDate = parseUtcDateKey(toUtcDateKey(today));
+
+  return Array.from({ length: weeks }, (_, index) => {
+    const weekOffset = weeks - 1 - index;
+    const pointDate = addUtcDays(endDate, -weekOffset * 7);
+    const pointDateKey = toUtcDateKey(pointDate);
+
+    let highRiskCount = 0;
+    let criticalExposureCount = 0;
+
+    for (const finding of findings) {
+      if (finding.severity !== "High Risk" && finding.severity !== "Critical Exposure") {
+        continue;
+      }
+
+      const openedDateKey = toFindingDateKey(finding.timestamp);
+      if (!openedDateKey || openedDateKey > pointDateKey) {
+        continue;
+      }
+
+      const closedDateKey = toFindingDateKey(finding.closedTimestamp);
+      if (closedDateKey && closedDateKey <= pointDateKey) {
+        continue;
+      }
+
+      if (finding.severity === "High Risk") {
+        highRiskCount += 1;
+      } else {
+        criticalExposureCount += 1;
+      }
+    }
+
+    return {
+      weekLabel: formatUtcDay(pointDate),
+      highRiskCount,
+      criticalExposureCount
+    };
+  });
 }
 
 interface NetworkKpiSnapshotMetrics {
@@ -322,6 +394,18 @@ export default async function NetworkDetailPage({
   const coveragePageState = parsePageState(requestParams, "page", "pageSize");
   const inventoryPageState = parsePageState(requestParams, "inventoryPage", "inventoryPageSize");
   const filteredFindings = findings.filter((finding) => filteredAssetIds.has(finding.scope.assetId));
+  const networkScopedFindings = findings;
+  const openNetworkScopedFindings = networkScopedFindings.filter((finding) => finding.status === "open");
+  const riskSeverityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const riskSeverityCounts = openNetworkScopedFindings.reduce<Map<FindingSeverity, number>>((accumulator, finding) => {
+    accumulator.set(finding.severity, (accumulator.get(finding.severity) ?? 0) + 1);
+    return accumulator;
+  }, new Map());
+  const riskSeveritySummary = riskSeverityOrder.map((severity) => ({
+    severity,
+    count: riskSeverityCounts.get(severity) ?? 0
+  }));
+  const networkDetailWeeklyRiskTrend = buildNetworkDetailWeeklyRiskTrend(networkScopedFindings, 13);
   const filteredP12Findings = filteredFindings.filter((finding) => finding.priorityRank <= 2);
   const p12SpiOptions = Array.from(new Set(filteredP12Findings.map((finding) => finding.spiId))).sort((a, b) => a - b);
   const p12PriorityOptions = Array.from(new Set(filteredP12Findings.map((finding) => finding.priorityRank))).sort(
@@ -567,16 +651,16 @@ export default async function NetworkDetailPage({
       ) : null}
 
       {activeDetailTab === "network-details" ? (
-      <section className="panel p-4">
+      <section className="panel p-3">
         <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Network Details</h2>
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-4 xl:row-span-2">
+        <div className="mt-2 grid gap-2 xl:grid-cols-2">
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-3 xl:row-span-2">
             <h3 className="text-lg font-medium text-slate-100">Description</h3>
             <p className="mt-3 text-sm leading-6 text-slate-200/90">{networkDetailFields.description}</p>
           </article>
 
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-4">
-            <dl className="space-y-6">
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-3">
+            <dl className="space-y-5">
               <div>
                 <dt className="text-lg font-medium text-slate-100">Owner:</dt>
                 <dd className="mt-1 text-sm text-slate-200">{networkDetailFields.owner}</dd>
@@ -622,7 +706,7 @@ export default async function NetworkDetailPage({
             </dl>
           </article>
 
-          <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-4 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+          <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-3 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
             <h3 className="text-lg font-medium text-slate-100">Security Accreditation</h3>
             <div className="mt-3 overflow-auto">
               <table className="min-w-full text-sm">
@@ -661,6 +745,21 @@ export default async function NetworkDetailPage({
             </div>
           </article>
         </div>
+      </section>
+      ) : null}
+
+      {activeDetailTab === "network-details" ? (
+      <section className="panel p-3">
+        <NetworkDetailRiskCharts
+          riskProfile={{
+            openFindings: openNetworkScopedFindings.length,
+            p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,
+            highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
+            criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
+            severitySummary: riskSeveritySummary,
+            weeklyTrend: networkDetailWeeklyRiskTrend
+          }}
+        />
       </section>
       ) : null}
 
