@@ -8,6 +8,7 @@ import { loadCurrentDataset, loadLatestSnapshots, loadMeasuresSettings } from "@
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, Finding } from "@/lib/types";
 import { Suspense } from "react";
@@ -47,6 +48,10 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return value[0];
   }
   return value;
+}
+
+function isExternalLink(href: string): boolean {
+  return /^https?:\/\//i.test(href);
 }
 
 function findingMatchesSearch(finding: Finding, normalizedSearchTerm: string) {
@@ -498,6 +503,7 @@ export default async function NetworkDetailPage({
       ? `/api/networks/${network.id}/remediation-report?${params}`
       : `/api/networks/${network.id}/remediation-report`;
   })();
+  const networkDetailFields = resolveNetworkDetailFields(network);
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -556,6 +562,104 @@ export default async function NetworkDetailPage({
           >
             Generate Remediation Report
           </a>
+        </div>
+      </section>
+      ) : null}
+
+      {activeDetailTab === "network-details" ? (
+      <section className="panel p-4">
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Network Details</h2>
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-4 xl:row-span-2">
+            <h3 className="text-lg font-medium text-slate-100">Description</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-200/90">{networkDetailFields.description}</p>
+          </article>
+
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-4">
+            <dl className="space-y-6">
+              <div>
+                <dt className="text-lg font-medium text-slate-100">Owner:</dt>
+                <dd className="mt-1 text-sm text-slate-200">{networkDetailFields.owner}</dd>
+              </div>
+              <div>
+                <dt className="text-lg font-medium text-slate-100">Support Email:</dt>
+                <dd className="mt-1 text-sm text-sky-100">
+                  <a
+                    className="underline decoration-sky-300/60 underline-offset-2"
+                    href={`mailto:${networkDetailFields.supportEmail}`}
+                  >
+                    {networkDetailFields.supportEmail}
+                  </a>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-lg font-medium text-slate-100">Service Catalogue Item:</dt>
+                <dd className="mt-1 text-sm text-sky-100">
+                  <ul className="list-disc space-y-1 pl-5">
+                    <li>
+                      <Link
+                        href={networkDetailFields.serviceCatalogueUrl}
+                        className="underline decoration-sky-300/60 underline-offset-2"
+                        target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
+                        rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                      >
+                        Support Request
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href={networkDetailFields.serviceCatalogueUrl}
+                        className="underline decoration-sky-300/60 underline-offset-2"
+                        target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
+                        rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                      >
+                        Issue Request
+                      </Link>
+                    </li>
+                  </ul>
+                </dd>
+              </div>
+            </dl>
+          </article>
+
+          <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-4 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+            <h3 className="text-lg font-medium text-slate-100">Security Accreditation</h3>
+            <div className="mt-3 overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
+                  <tr>
+                    <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
+                    <th className="px-2 py-1.5">Links</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-sky-300/30 text-slate-100">
+                    <td className="px-2 py-2 font-semibold text-slate-100">{networkDetailFields.atoNumber}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-wrap gap-3 text-sky-100">
+                        <Link
+                          href={networkDetailFields.diisUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(networkDetailFields.diisUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(networkDetailFields.diisUrl) ? "noreferrer" : undefined}
+                        >
+                          View in DIIS
+                        </Link>
+                        <Link
+                          href={networkDetailFields.grcUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(networkDetailFields.grcUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(networkDetailFields.grcUrl) ? "noreferrer" : undefined}
+                        >
+                          View in Cyber GRC Portal
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </div>
       </section>
       ) : null}
