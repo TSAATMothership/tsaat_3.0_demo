@@ -251,7 +251,7 @@ export function NetworkComplianceOverview({
       );
   }, [selectedMeasure, selectedMeasureFindings, timelineMaxDate]);
 
-  const filteredFindings = useMemo(() => {
+  const filteredTimelineFindings = useMemo(() => {
     if (!selectedMeasure) {
       return [];
     }
@@ -283,9 +283,10 @@ export function NetworkComplianceOverview({
           .join(" ")
           .toLowerCase();
         return haystack.includes(normalizedSearch);
-      })
-      .slice(0, 200);
+      });
   }, [searchTerm, selectedMeasure, severityFilter, timelineScopedFindings, workflowFilter]);
+
+  const filteredFindings = useMemo(() => filteredTimelineFindings.slice(0, 200), [filteredTimelineFindings]);
 
   const findingsHistoryPoints = useMemo(() => {
     if (!selectedMeasure) {
@@ -302,7 +303,8 @@ export function NetworkComplianceOverview({
       const monthEndMs = nextMonthStart.getTime() - 1;
 
       let openFindings = 0;
-      for (const finding of selectedMeasureFindings) {
+      for (const entry of filteredTimelineFindings) {
+        const finding = entry.finding;
         const openedAt = new Date(finding.timestamp).getTime();
         if (Number.isNaN(openedAt) || openedAt > monthEndMs) {
           continue;
@@ -319,7 +321,7 @@ export function NetworkComplianceOverview({
         openFindings
       };
     });
-  }, [selectedMeasure, selectedMeasureFindings, timelineMaxDate]);
+  }, [filteredTimelineFindings, selectedMeasure, timelineMaxDate]);
 
   const findingsBySeverityPoints = useMemo(() => {
     const counts: Record<FindingSeverity, number> = {
@@ -329,14 +331,14 @@ export function NetworkComplianceOverview({
       Moderate: 0,
       "Data Gap": 0
     };
-    for (const entry of timelineScopedFindings) {
+    for (const entry of filteredTimelineFindings) {
       counts[entry.finding.severity] += 1;
     }
     return FINDING_SEVERITY_FILTERS.map((severity) => ({
       severity,
       count: counts[severity]
     }));
-  }, [timelineScopedFindings]);
+  }, [filteredTimelineFindings]);
 
   const compliantPercent = percentage(summary.compliant, summary.total);
   const nonCompliantPercent = percentage(summary.nonCompliant, summary.total);
@@ -565,7 +567,7 @@ export function NetworkComplianceOverview({
                       </div>
                       <div className="text-right">
                         <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Findings In Scope</p>
-                        <p className="mt-1 text-xl font-semibold text-slate-100">{timelineScopedFindings.length}</p>
+                        <p className="mt-1 text-xl font-semibold text-slate-100">{filteredTimelineFindings.length}</p>
                       </div>
                     </div>
                     <div className="mt-3 h-52 w-full">
