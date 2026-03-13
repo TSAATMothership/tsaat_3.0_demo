@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
+import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailTabs } from "@/components/network-detail-tabs";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
 import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
-import { loadCurrentDataset, loadLatestSnapshots, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadDatasetForDate,
+  loadLatestSnapshotsForDate,
+  loadMeasuresSettings
+} from "@/lib/data-loader";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
@@ -24,7 +30,9 @@ type KpiFilterKey =
   | "outOfWarrantyAssets"
   | "nonCompliantDiscoveryCoverage";
 
-type NetworkDetailTab = "network-details" | "cyber-posture" | "discovery-compliance";
+type NetworkDetailTab = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
+
+const SPI_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 const KPI_FILTER_LABELS: Record<KpiFilterKey, string> = {
   nonCompliantAssets: "Total Non-compliant Assets",
@@ -104,6 +112,29 @@ function formatUtcDay(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+function formatTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+  return `${parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC"
+  })} UTC`;
+}
+
+function toEvidenceString(value: string | number | boolean | null): string {
+  if (value === null) {
+    return "null";
+  }
+  return String(value);
+}
+
 function toFindingDateKey(timestamp?: string | null): string | null {
   if (!timestamp) {
     return null;
@@ -115,14 +146,37 @@ function toFindingDateKey(timestamp?: string | null): string | null {
   return toUtcDateKey(parsed);
 }
 
-function buildNetworkDetailWeeklyRiskTrend(findings: Finding[], weeks = 13) {
-  const today = new Date();
-  const endDate = parseUtcDateKey(toUtcDateKey(today));
+function buildNetworkDetailWeeklyRiskTrend(
+  findings: Finding[],
+  endDateKey: string,
+  dataAvailableUntilDateKey: string,
+  weeks = 13
+) {
+  const endDate = parseUtcDateKey(endDateKey);
+  const effectiveDataEndDateKey =
+    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
+  const earliestSevereOpenedDateKey = findings
+    .filter((finding) => finding.severity === "High Risk" || finding.severity === "Critical Exposure")
+    .map((finding) => toFindingDateKey(finding.timestamp))
+    .filter((dateKey): dateKey is string => Boolean(dateKey))
+    .sort()[0];
 
   return Array.from({ length: weeks }, (_, index) => {
     const weekOffset = weeks - 1 - index;
     const pointDate = addUtcDays(endDate, -weekOffset * 7);
     const pointDateKey = toUtcDateKey(pointDate);
+
+    if (
+      pointDateKey > effectiveDataEndDateKey ||
+      (earliestSevereOpenedDateKey && pointDateKey < earliestSevereOpenedDateKey) ||
+      !earliestSevereOpenedDateKey
+    ) {
+      return {
+        weekLabel: formatUtcDay(pointDate),
+        highRiskCount: null,
+        criticalExposureCount: null
+      };
+    }
 
     let highRiskCount = 0;
     let criticalExposureCount = 0;
@@ -289,9 +343,10 @@ export default async function NetworkDetailPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const requestParams = searchParams ?? {};
+  const requestedDataDate = extractDataDateParam(requestParams);
   const [dataset, snapshots, measuresSettings] = await Promise.all([
-    loadCurrentDataset(),
-    loadLatestSnapshots(12),
+    loadDatasetForDate(requestedDataDate),
+    loadLatestSnapshotsForDate(requestedDataDate, 12),
     loadMeasuresSettings()
   ]);
   const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
@@ -312,6 +367,8 @@ export default async function NetworkDetailPage({
       ? "cyber-posture"
       : requestedDetailTab === "discovery-compliance"
         ? "discovery-compliance"
+        : requestedDetailTab === "compliance-overview"
+          ? "compliance-overview"
         : "network-details";
   const requestedP12Spi = Number(firstParam(requestParams.p12Spi));
   const selectedP12Spi =
@@ -405,7 +462,12 @@ export default async function NetworkDetailPage({
     severity,
     count: riskSeverityCounts.get(severity) ?? 0
   }));
-  const networkDetailWeeklyRiskTrend = buildNetworkDetailWeeklyRiskTrend(networkScopedFindings, 13);
+  const networkDetailWeeklyRiskTrend = buildNetworkDetailWeeklyRiskTrend(
+    networkScopedFindings,
+    requestedDataDate ?? todayDateKey(),
+    dataset.snapshotDate,
+    13
+  );
   const filteredP12Findings = filteredFindings.filter((finding) => finding.priorityRank <= 2);
   const p12SpiOptions = Array.from(new Set(filteredP12Findings.map((finding) => finding.spiId))).sort((a, b) => a - b);
   const p12PriorityOptions = Array.from(new Set(filteredP12Findings.map((finding) => finding.priorityRank))).sort(
@@ -451,11 +513,145 @@ export default async function NetworkDetailPage({
     map.set(finding.scope.assetId, (map.get(finding.scope.assetId) ?? 0) + 1);
     return map;
   }, new Map<string, number>());
-  const statuses = analytics.evaluations
-    .filter((evaluation) => filteredAssetIds.has(evaluation.assetId))
-    .flatMap((evaluation) => evaluation.evaluations.map((item) => item.status));
+  const filteredEvaluations = analytics.evaluations.filter((evaluation) => filteredAssetIds.has(evaluation.assetId));
+  const statuses = filteredEvaluations.flatMap((evaluation) => evaluation.evaluations.map((item) => item.status));
+  const evaluationComplianceSummaryCounts = statuses.reduce(
+    (accumulator, status) => {
+      if (status === "Compliant") {
+        accumulator.compliant += 1;
+      } else if (status === "Non-compliant") {
+        accumulator.nonCompliant += 1;
+      } else {
+        accumulator.unknown += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
+  );
   const networkComplianceScore = complianceScore(statuses);
   const selectedPosture = overallStatusFromStatuses(statuses);
+
+  const scopedEvaluationRows = filteredEvaluations.flatMap((evaluation) =>
+    evaluation.evaluations.map((item) => ({
+      assetId: evaluation.assetId,
+      spiId: item.spiId,
+      status: item.status,
+      reasons: item.reasons
+    }))
+  );
+  const evaluationStatusByAssetAndSpi = new Map<string, ComplianceStatus>();
+  for (const row of scopedEvaluationRows) {
+    evaluationStatusByAssetAndSpi.set(`${row.assetId}:${row.spiId}`, row.status);
+  }
+  const complianceOverviewStatuses = scopedEvaluationRows.map((row) => row.status);
+  const complianceOverviewSummaryCounts = complianceOverviewStatuses.reduce(
+    (accumulator, status) => {
+      if (status === "Compliant") {
+        accumulator.compliant += 1;
+      } else if (status === "Non-compliant") {
+        accumulator.nonCompliant += 1;
+      } else {
+        accumulator.unknown += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
+  );
+  const complianceOverviewScore = complianceScore(complianceOverviewStatuses);
+
+  const complianceMeasureRows = SPI_IDS.map((spiId) => {
+    const scopedSpiEvaluations = scopedEvaluationRows.filter((row) => row.spiId === spiId);
+    const compliant = scopedSpiEvaluations.filter((row) => row.status === "Compliant").length;
+    const nonCompliant = scopedSpiEvaluations.filter((row) => row.status === "Non-compliant").length;
+    const unknown = scopedSpiEvaluations.filter((row) => row.status === "Unknown").length;
+    const impactedAssetIds = new Set<string>();
+    const reasonCounts = new Map<string, number>();
+
+    for (const row of scopedSpiEvaluations) {
+      if (row.status !== "Compliant") {
+        impactedAssetIds.add(row.assetId);
+      }
+      if (row.status !== "Non-compliant") {
+        continue;
+      }
+      for (const reason of row.reasons) {
+        const normalizedReason = reason.trim();
+        if (!normalizedReason) {
+          continue;
+        }
+        reasonCounts.set(normalizedReason, (reasonCounts.get(normalizedReason) ?? 0) + 1);
+      }
+    }
+
+    const total = compliant + nonCompliant + unknown;
+    const score = total ? Number(((compliant / total) * 100).toFixed(1)) : 0;
+    const topReasons = Array.from(reasonCounts.entries())
+      .sort((a, b) => {
+        if (b[1] !== a[1]) {
+          return b[1] - a[1];
+        }
+        return a[0].localeCompare(b[0]);
+      })
+      .slice(0, 3)
+      .map(([reason]) => reason);
+
+    return {
+      spiId,
+      label: `SPI ${spiId} - ${SPI_DESCRIPTIONS[spiId]}`,
+      total,
+      compliant,
+      nonCompliant,
+      unknown,
+      score,
+      impactedAssets: impactedAssetIds.size,
+      topReasons
+    };
+  });
+
+  const complianceOverviewFindings = [...filteredFindings]
+    .sort((a, b) => {
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    })
+    .map((finding) => {
+      const evidence = Object.entries(finding.evidence).map(([key, value]) => ({
+        key,
+        value: toEvidenceString(value)
+      }));
+      const evidencePreview = evidence.length
+        ? evidence
+            .slice(0, 2)
+            .map((item) => `${item.key}: ${item.value}`)
+            .join(" | ")
+        : "No evidence captured";
+      const scopeLabel = [
+        `Asset ${finding.scope.assetId}`,
+        finding.scope.systemId ? `System ${finding.scope.systemId}` : "System n/a",
+        finding.scope.environmentType ? `Env ${finding.scope.environmentType}` : "Env n/a"
+      ].join(" | ");
+
+      return {
+        id: finding.id,
+        spiId: finding.spiId,
+        timestamp: finding.timestamp,
+        closedTimestamp: finding.closedTimestamp ?? null,
+        closedTimestampLabel: finding.closedTimestamp ? formatTimestamp(finding.closedTimestamp) : null,
+        title: finding.title,
+        timestampLabel: formatTimestamp(finding.timestamp),
+        measureLabel: `SPI ${finding.spiId} - ${SPI_DESCRIPTIONS[finding.spiId]}`,
+        priorityRank: finding.priorityRank,
+        severity: finding.severity,
+        workflowStatus: finding.status,
+        complianceStatus: finding.complianceStatus,
+        evaluationStatus:
+          evaluationStatusByAssetAndSpi.get(`${finding.scope.assetId}:${finding.spiId}`) ?? "Unknown",
+        scopeLabel,
+        evidencePreview,
+        evidence,
+        recommendedAction: finding.recommendedAction
+      };
+    });
 
   const metricsBySnapshotDate = new Map<string, NetworkKpiSnapshotMetrics>();
   const snapshotMetrics = (snapshot: Dataset) => {
@@ -475,6 +671,12 @@ export default async function NetworkDetailPage({
   const highRiskP12Count = currentKpis.highRiskP12Findings;
   const outOfWarrantyAssetCount = currentKpis.outOfWarrantyAssets;
   const nonCompliantDiscoveryCoverageCount = currentKpis.nonCompliantDiscoveryCoverage;
+  const assetTypeSummary = {
+    totalAssets: filteredAssets.length,
+    serverCount: filteredAssets.filter((asset) => asset.type === "server").length,
+    workstationCount: filteredAssets.filter((asset) => asset.type === "workstation").length,
+    networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length
+  };
 
   const snapshotByDate = new Map<string, Dataset>();
   for (const snapshot of snapshots) {
@@ -577,24 +779,31 @@ export default async function NetworkDetailPage({
     return params ? `/networks/${network.id}?${params}` : `/networks/${network.id}`;
   };
 
-  const remediationReportHref = (() => {
-    const query = new URLSearchParams();
-    if (selectedKpiFilter) {
-      query.set("kpiFilter", selectedKpiFilter);
-    }
-    const params = query.toString();
-    return params
-      ? `/api/networks/${network.id}/remediation-report?${params}`
-      : `/api/networks/${network.id}/remediation-report`;
-  })();
   const networkDetailFields = resolveNetworkDetailFields(network);
+  const headerComplianceCounts =
+    activeDetailTab === "compliance-overview"
+      ? complianceOverviewSummaryCounts
+      : evaluationComplianceSummaryCounts;
+  const headerComplianceScore =
+    activeDetailTab === "compliance-overview" ? complianceOverviewScore : networkComplianceScore;
+  const complianceChartTotal =
+    headerComplianceCounts.compliant + headerComplianceCounts.nonCompliant + headerComplianceCounts.unknown;
+  const complianceChartCompliantStop = complianceChartTotal
+    ? (headerComplianceCounts.compliant / complianceChartTotal) * 360
+    : 0;
+  const complianceChartNonCompliantStop = complianceChartTotal
+    ? ((headerComplianceCounts.compliant + headerComplianceCounts.nonCompliant) / complianceChartTotal) * 360
+    : 0;
+  const complianceChartBackground = complianceChartTotal
+    ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${complianceChartCompliantStop}deg, rgba(248,113,113,0.95) ${complianceChartCompliantStop}deg ${complianceChartNonCompliantStop}deg, rgba(148,163,184,0.92) ${complianceChartNonCompliantStop}deg 360deg)`
+    : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href="/networks?networksTab=posture" className="text-xs text-sky-200 underline">
+            <Link href={withDataDate("/networks?networksTab=posture", requestedDataDate)} className="text-xs text-sky-200 underline">
               Back to Networks
             </Link>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{network.name}</h1>
@@ -609,158 +818,173 @@ export default async function NetworkDetailPage({
             </div>
           </div>
 
-          <div className="panel-alt min-w-[210px] self-stretch border-sky-300/25 p-4 lg:self-auto">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
-            <p className="mt-1 text-3xl font-semibold text-emerald-200">{networkComplianceScore}%</p>
-            <p className="mt-1 text-xs text-slate-300/80">
-              {selectedKpiFilter ? "Network scope with KPI filter" : "Network scope"}
-            </p>
-            {selectedKpiFilter ? (
-              <p className="mt-2 text-[11px] text-sky-200/90">{KPI_FILTER_LABELS[selectedKpiFilter]}</p>
-            ) : (
-              <p className="mt-2 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
-            )}
+          <div className="panel-alt min-w-[250px] self-stretch border-sky-300/25 p-4 lg:self-auto">
+            <div className="text-center">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
+              <div
+                className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
+                style={{
+                  background: complianceChartBackground
+                }}
+              >
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
+                  <span className="text-2xl font-semibold text-emerald-100">{headerComplianceScore}%</span>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-slate-300/80">
+                {selectedKpiFilter ? "Network scope with KPI filter" : "Network scope"}
+              </p>
+              {selectedKpiFilter ? (
+                <p className="mt-1 text-[11px] text-sky-200/90">{KPI_FILTER_LABELS[selectedKpiFilter]}</p>
+              ) : activeDetailTab === "compliance-overview" ? (
+                <p className="mt-1 text-[11px] text-sky-200/90">Aligned to Compliance Overview (open findings)</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
       <NetworkDetailTabs activeTab={activeDetailTab} />
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-auto pr-1">
+      <div
+        className={
+          activeDetailTab === "compliance-overview" || activeDetailTab === "network-details"
+            ? "min-h-0 flex-1 overflow-hidden pr-1"
+            : "min-h-0 flex-1 space-y-4 overflow-auto pr-1"
+        }
+      >
       {activeDetailTab === "network-details" ? (
-      <section className="panel p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
-            <p className="mt-1 text-sm text-slate-300/85">
-              Generate a remediation report for this network using the current drill-through scope.
-            </p>
-            <p className="mt-1 text-xs text-slate-300/75">
-              Includes network summary, scoped compliance score, findings register entries, and recommended
-              remediation actions.
-            </p>
-          </div>
-          <a
-            href={remediationReportHref}
-            className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
-          >
-            Generate Remediation Report
-          </a>
-        </div>
-      </section>
-      ) : null}
+      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+        <section className="panel flex min-h-0 flex-col p-2.5">
+          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Network Details</h2>
+          <div className="mt-2">
+            <div className="grid gap-1.5 xl:grid-cols-2">
+              <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5 xl:row-span-2">
+                <h3 className="text-base font-medium text-slate-100">Description</h3>
+                <p className="mt-2 text-sm leading-5 text-slate-200/90">{networkDetailFields.description}</p>
+              </article>
 
-      {activeDetailTab === "network-details" ? (
-      <section className="panel p-3">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Network Details</h2>
-        <div className="mt-2 grid gap-2 xl:grid-cols-2">
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-3 xl:row-span-2">
-            <h3 className="text-lg font-medium text-slate-100">Description</h3>
-            <p className="mt-3 text-sm leading-6 text-slate-200/90">{networkDetailFields.description}</p>
-          </article>
-
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-3">
-            <dl className="space-y-5">
-              <div>
-                <dt className="text-lg font-medium text-slate-100">Owner:</dt>
-                <dd className="mt-1 text-sm text-slate-200">{networkDetailFields.owner}</dd>
-              </div>
-              <div>
-                <dt className="text-lg font-medium text-slate-100">Support Email:</dt>
-                <dd className="mt-1 text-sm text-sky-100">
-                  <a
-                    className="underline decoration-sky-300/60 underline-offset-2"
-                    href={`mailto:${networkDetailFields.supportEmail}`}
-                  >
-                    {networkDetailFields.supportEmail}
-                  </a>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-lg font-medium text-slate-100">Service Catalogue Item:</dt>
-                <dd className="mt-1 text-sm text-sky-100">
-                  <ul className="list-disc space-y-1 pl-5">
-                    <li>
-                      <Link
-                        href={networkDetailFields.serviceCatalogueUrl}
+              <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+                <dl className="space-y-3.5">
+                  <div>
+                    <dt className="text-base font-medium text-slate-100">Owner:</dt>
+                    <dd className="mt-0.5 text-sm text-slate-200">{networkDetailFields.owner}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-base font-medium text-slate-100">Support Email:</dt>
+                    <dd className="mt-0.5 text-sm text-sky-100">
+                      <a
                         className="underline decoration-sky-300/60 underline-offset-2"
-                        target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
-                        rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                        href={`mailto:${networkDetailFields.supportEmail}`}
                       >
-                        Support Request
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href={networkDetailFields.serviceCatalogueUrl}
-                        className="underline decoration-sky-300/60 underline-offset-2"
-                        target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
-                        rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
-                      >
-                        Issue Request
-                      </Link>
-                    </li>
-                  </ul>
-                </dd>
-              </div>
-            </dl>
-          </article>
+                        {networkDetailFields.supportEmail}
+                      </a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-base font-medium text-slate-100">Service Catalogue Item:</dt>
+                    <dd className="mt-0.5 text-sm text-sky-100">
+                      <ul className="list-disc space-y-0.5 pl-5">
+                        <li>
+                          <Link
+                            href={networkDetailFields.serviceCatalogueUrl}
+                            className="underline decoration-sky-300/60 underline-offset-2"
+                            target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
+                            rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                          >
+                            Support Request
+                          </Link>
+                        </li>
+                        <li>
+                          <Link
+                            href={networkDetailFields.serviceCatalogueUrl}
+                            className="underline decoration-sky-300/60 underline-offset-2"
+                            target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
+                            rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                          >
+                            Issue Request
+                          </Link>
+                        </li>
+                      </ul>
+                    </dd>
+                  </div>
+                </dl>
+              </article>
 
-          <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-3 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
-            <h3 className="text-lg font-medium text-slate-100">Security Accreditation</h3>
-            <div className="mt-3 overflow-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
-                  <tr>
-                    <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
-                    <th className="px-2 py-1.5">Links</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-sky-300/30 text-slate-100">
-                    <td className="px-2 py-2 font-semibold text-slate-100">{networkDetailFields.atoNumber}</td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-3 text-sky-100">
-                        <Link
-                          href={networkDetailFields.diisUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(networkDetailFields.diisUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(networkDetailFields.diisUrl) ? "noreferrer" : undefined}
-                        >
-                          View in DIIS
-                        </Link>
-                        <Link
-                          href={networkDetailFields.grcUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(networkDetailFields.grcUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(networkDetailFields.grcUrl) ? "noreferrer" : undefined}
-                        >
-                          View in Cyber GRC Portal
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+                <h3 className="text-base font-medium text-slate-100">Security Accreditation</h3>
+                <div className="mt-2 overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
+                      <tr>
+                        <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
+                        <th className="px-2 py-1.5">Links</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-sky-300/30 text-slate-100">
+                        <td className="px-2 py-2 font-semibold text-slate-100">{networkDetailFields.atoNumber}</td>
+                        <td className="px-2 py-2">
+                          <div className="flex flex-wrap gap-3 text-sky-100">
+                            <Link
+                              href={networkDetailFields.diisUrl}
+                              className="underline decoration-sky-300/70 underline-offset-2"
+                              target={isExternalLink(networkDetailFields.diisUrl) ? "_blank" : undefined}
+                              rel={isExternalLink(networkDetailFields.diisUrl) ? "noreferrer" : undefined}
+                            >
+                              View in DIIS
+                            </Link>
+                            <Link
+                              href={networkDetailFields.grcUrl}
+                              className="underline decoration-sky-300/70 underline-offset-2"
+                              target={isExternalLink(networkDetailFields.grcUrl) ? "_blank" : undefined}
+                              rel={isExternalLink(networkDetailFields.grcUrl) ? "noreferrer" : undefined}
+                            >
+                              View in Cyber GRC Portal
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
             </div>
-          </article>
-        </div>
-      </section>
+          </div>
+        </section>
+
+        <section className="panel min-h-0 p-2.5">
+          <NetworkDetailRiskCharts
+            riskProfile={{
+              openFindings: openNetworkScopedFindings.length,
+              p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,
+              highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
+              criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
+              severitySummary: riskSeveritySummary,
+              weeklyTrend: networkDetailWeeklyRiskTrend
+            }}
+          />
+        </section>
+      </div>
       ) : null}
 
-      {activeDetailTab === "network-details" ? (
-      <section className="panel p-3">
-        <NetworkDetailRiskCharts
-          riskProfile={{
-            openFindings: openNetworkScopedFindings.length,
-            p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,
-            highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
-            criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
-            severitySummary: riskSeveritySummary,
-            weeklyTrend: networkDetailWeeklyRiskTrend
-          }}
-        />
-      </section>
+      {activeDetailTab === "compliance-overview" ? (
+      <NetworkComplianceOverview
+        networkName={network.name}
+        asOfDate={requestedDataDate ?? todayDateKey()}
+        summary={{
+          score: complianceOverviewScore,
+          total: complianceOverviewStatuses.length,
+          compliant: complianceOverviewSummaryCounts.compliant,
+          nonCompliant: complianceOverviewSummaryCounts.nonCompliant,
+          unknown: complianceOverviewSummaryCounts.unknown
+        }}
+        assetTypeSummary={assetTypeSummary}
+        measures={complianceMeasureRows}
+        findings={complianceOverviewFindings}
+      />
       ) : null}
 
       {activeDetailTab === "cyber-posture" ? (

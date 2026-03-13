@@ -22,8 +22,8 @@ export interface NetworkDetailRiskSeveritySummary {
 
 export interface NetworkDetailWeeklyRiskPoint {
   weekLabel: string;
-  highRiskCount: number;
-  criticalExposureCount: number;
+  highRiskCount: number | null;
+  criticalExposureCount: number | null;
 }
 
 const severityColors: Record<FindingSeverity, string> = {
@@ -47,8 +47,8 @@ export function NetworkDetailRiskCharts({
   };
 }) {
   return (
-    <div className="grid min-h-0 gap-3 lg:grid-cols-2">
-      <section className="panel-alt flex h-[clamp(285px,36vh,340px)] min-h-0 flex-col p-2.5">
+    <div className="grid h-full min-h-0 gap-3 lg:grid-cols-2">
+      <section className="panel-alt flex min-h-0 flex-col p-2.5">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h3>
         <p className="mt-1 text-xs text-slate-300/80">Open findings by severity in current network detail scope.</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -90,7 +90,7 @@ export function NetworkDetailRiskCharts({
         </div>
       </section>
 
-      <section className="panel-alt flex h-[clamp(285px,36vh,340px)] min-h-0 flex-col p-2.5">
+      <section className="panel-alt flex min-h-0 flex-col p-2.5">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h3>
         <p className="mt-1 text-xs text-slate-300/80">
           Weekly open finding counts for Critical Exposure and High Risk.
@@ -113,7 +113,10 @@ export function NetworkDetailRiskCharts({
               <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
+                formatter={(value, name) => [
+                  value ?? "-",
+                  name === "highRiskCount" ? "High Risk" : "Critical Exposure"
+                ]}
               />
               <Line type="monotone" dataKey="highRiskCount" stroke="#f97316" strokeWidth={2.2} dot={false} isAnimationActive={false} />
               <Line

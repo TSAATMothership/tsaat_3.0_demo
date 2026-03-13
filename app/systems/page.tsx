@@ -7,6 +7,7 @@ import {
 import { SystemsTable } from "@/components/systems-table";
 import { SystemsTabs } from "@/components/systems-tabs";
 import { getTrendAppData } from "@/lib/app-data";
+import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { deriveOverallStatus } from "@/lib/posture";
 import { applyAssetFilters, filterSystems } from "@/lib/selectors";
 import { createSnapshotAnalyticsMemo } from "@/lib/snapshot-analytics-memo";
@@ -112,11 +113,14 @@ function buildOpenFindingsDailySeries(
   findings: Finding[],
   severity: "High Risk" | "Critical Exposure",
   endDateKey: string,
+  dataAvailableUntilDateKey: string,
   days = 365
 ) {
   const endDate = parseUtcDateKey(endDateKey);
   const startDate = addUtcDays(endDate, -(days - 1));
   const startDateKey = toUtcDateKey(startDate);
+  const effectiveDataEndDateKey =
+    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
   const events = new Map<string, number>();
   let openAtWindowStart = 0;
 
@@ -135,24 +139,36 @@ function buildOpenFindingsDailySeries(
       openAtWindowStart += 1;
     }
 
-    if (openedDateKey >= startDateKey && openedDateKey <= endDateKey) {
+    if (openedDateKey >= startDateKey && openedDateKey <= effectiveDataEndDateKey) {
       events.set(openedDateKey, (events.get(openedDateKey) ?? 0) + 1);
     }
-    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= endDateKey) {
+    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= effectiveDataEndDateKey) {
       events.set(closedDateKey, (events.get(closedDateKey) ?? 0) - 1);
     }
   }
 
-  const points: Array<{ date: string; label: string; count: number }> = [];
+  const points: Array<{ date: string; label: string; count: number | null }> = [];
   let running = openAtWindowStart;
+  let hasObservedData = openAtWindowStart > 0;
   for (let offset = 0; offset < days; offset += 1) {
     const pointDate = addUtcDays(startDate, offset);
     const pointDateKey = toUtcDateKey(pointDate);
+    if (pointDateKey > effectiveDataEndDateKey) {
+      points.push({
+        date: pointDateKey,
+        label: formatUtcDay(pointDate),
+        count: null
+      });
+      continue;
+    }
+    if (events.has(pointDateKey)) {
+      hasObservedData = true;
+    }
     running += events.get(pointDateKey) ?? 0;
     points.push({
       date: pointDateKey,
       label: formatUtcDay(pointDate),
-      count: Math.max(0, running)
+      count: hasObservedData ? Math.max(0, running) : null
     });
   }
 
@@ -160,8 +176,8 @@ function buildOpenFindingsDailySeries(
 }
 
 function buildWeeklyRiskTrend(
-  highRiskDaily: Array<{ date: string; count: number }>,
-  criticalExposureDaily: Array<{ date: string; count: number }>,
+  highRiskDaily: Array<{ date: string; count: number | null }>,
+  criticalExposureDaily: Array<{ date: string; count: number | null }>,
   weeks = 13
 ) {
   const endDateKey =
@@ -178,10 +194,16 @@ function buildWeeklyRiskTrend(
     const weekOffset = weeks - 1 - index;
     const pointDate = addUtcDays(endDate, -weekOffset * 7);
     const pointDateKey = toUtcDateKey(pointDate);
+    const highRiskCount = highRiskByDate.has(pointDateKey)
+      ? (highRiskByDate.get(pointDateKey) ?? null)
+      : null;
+    const criticalExposureCount = criticalExposureByDate.has(pointDateKey)
+      ? (criticalExposureByDate.get(pointDateKey) ?? null)
+      : null;
     return {
       weekLabel: formatUtcDay(pointDate),
-      highRiskCount: highRiskByDate.get(pointDateKey) ?? 0,
-      criticalExposureCount: criticalExposureByDate.get(pointDateKey) ?? 0
+      highRiskCount,
+      criticalExposureCount
     };
   });
 }
@@ -439,6 +461,7 @@ export default async function SystemsPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  const selectedDataDate = extractDataDateParam(searchParams);
   const { network: _ignoredNetwork, ...systemsOnlySearchParams } = searchParams;
   const { analytics, filterOptions, filters, systems, snapshots, measuresSettings, dataset } = await getTrendAppData(
     systemsOnlySearchParams
@@ -621,9 +644,20 @@ export default async function SystemsPage({
   const criticalExposureOpenCount = severityCounts.get("Critical Exposure") ?? 0;
   const p1p2Count = openFindings.filter((finding) => finding.priorityRank <= 2).length;
 
-  const todayDateKey = toUtcDateKey(new Date());
-  const highRiskDaily = buildOpenFindingsDailySeries(systemScopedFindings, "High Risk", todayDateKey);
-  const criticalExposureDaily = buildOpenFindingsDailySeries(systemScopedFindings, "Critical Exposure", todayDateKey);
+  const chartAnchorDateKey = selectedDataDate ?? dataset.snapshotDate;
+  const chartWindowEndDateKey = selectedDataDate ?? todayDateKey();
+  const highRiskDaily = buildOpenFindingsDailySeries(
+    systemScopedFindings,
+    "High Risk",
+    chartWindowEndDateKey,
+    dataset.snapshotDate
+  );
+  const criticalExposureDaily = buildOpenFindingsDailySeries(
+    systemScopedFindings,
+    "Critical Exposure",
+    chartWindowEndDateKey,
+    dataset.snapshotDate
+  );
   const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
 
   const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters).filter((asset) => {
@@ -659,10 +693,15 @@ export default async function SystemsPage({
           (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
       )
   ).length;
-  const actionThroughput = buildActionThroughput(systemScopedFindings, todayDateKey, 13);
-  const actionAgeBuckets = buildActionAgeBuckets(openFindings, todayDateKey);
+  const actionThroughput = buildActionThroughput(systemScopedFindings, chartAnchorDateKey, 13);
+  const actionAgeBuckets = buildActionAgeBuckets(openFindings, chartAnchorDateKey);
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
-  const actionOldestOpenFindings = buildActionOldestOpenFindings(openFindings, systemNameById, todayDateKey, 12);
+  const actionOldestOpenFindings = buildActionOldestOpenFindings(
+    openFindings,
+    systemNameById,
+    chartAnchorDateKey,
+    12
+  );
   const actionQuickWins = buildActionQuickWins(openFindings, 10);
 
   return (

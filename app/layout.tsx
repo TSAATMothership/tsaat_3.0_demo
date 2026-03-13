@@ -37,17 +37,21 @@ export default function RootLayout({
         <div className="app-bg" />
         <div className="topography-overlay" />
         <header className="no-print border-b border-sky-300/15 bg-slate-950/50 backdrop-blur-md">
-          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Image src="/dct-mark.svg" alt="TSAAT mark" width={40} height={40} />
-              <div>
-                <p className={`${heading.className} text-xl uppercase tracking-[0.14em] text-slate-100`}>
-                  TSAAT
-                </p>
-                <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
+          <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 py-4 md:w-[min(2100px,calc(100vw-3rem))]">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex shrink-0 items-center gap-3">
+                <Image src="/dct-mark.svg" alt="TSAAT mark" width={40} height={40} />
+                <div>
+                  <p className={`${heading.className} text-xl uppercase tracking-[0.14em] text-slate-100`}>
+                    TSAAT
+                  </p>
+                  <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <MenuNavigation items={navigation} />
               </div>
             </div>
-            <MenuNavigation items={navigation} />
           </div>
         </header>
 

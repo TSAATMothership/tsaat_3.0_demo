@@ -38,14 +38,14 @@ export interface CyberCopSeveritySummary {
 
 export interface CyberCopWeeklyRiskPoint {
   weekLabel: string;
-  highRiskCount: number;
-  criticalExposureCount: number;
+  highRiskCount: number | null;
+  criticalExposureCount: number | null;
 }
 
 export interface CyberCopDailyTrendPoint {
   date: string;
   label: string;
-  count: number;
+  count: number | null;
 }
 
 export interface CyberCopImpactSpiDriver {
@@ -295,8 +295,6 @@ function ImpactLeaderboard({
     () => riskScopedItems.find((item) => item.id === selectedItemId),
     [riskScopedItems, selectedItemId]
   );
-  const visibleItems = filteredItems.slice(0, 6);
-  const isTrimmed = filteredItems.length > visibleItems.length;
 
   const selectable = Boolean(onSelectItem);
   const selectedLabel = selectedText ?? selectedItem?.name ?? null;
@@ -353,53 +351,54 @@ function ImpactLeaderboard({
         </datalist>
       </div>
       {riskScopedItems.length ? (
-        <div className="mt-2.5 overflow-x-auto overflow-y-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
-          <table className="min-w-full text-sm">
+        <div className="mt-2.5 max-h-[14.5rem] overflow-x-hidden overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+          <table className="w-full table-fixed text-xs xl:text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-left">Criticality</th>
-                <th className="px-3 py-2 text-right">Critical Exposure</th>
-                <th className="px-3 py-2 text-right">High Risk</th>
-                <th className="px-3 py-2 text-right">Findings</th>
-                <th className="px-3 py-2 text-right">Impacted Assets</th>
+                <th className="w-[42%] px-2 py-2 text-left">Name</th>
+                <th className="w-[20%] px-2 py-2 text-left">Criticality</th>
+                <th className="w-[14%] px-2 py-2 text-right">Crit Exp</th>
+                <th className="w-[12%] px-2 py-2 text-right">High</th>
+                <th className="w-[12%] px-2 py-2 text-right">Assets</th>
               </tr>
             </thead>
             <tbody>
-              {visibleItems.map((item) => (
+              {filteredItems.map((item) => (
                 <tr
                   key={item.id}
                   className={`border-t border-sky-300/10 ${
                     selectedItemId === item.id ? "bg-cyan-500/10" : ""
                   }`}
                 >
-                  <td className="px-3 py-2 text-slate-100">
+                  <td className="px-2 py-2 text-slate-100">
                     {selectable ? (
                       <button
                         type="button"
                         onClick={() => onSelectItem?.(item)}
-                        className="text-left text-slate-100 hover:text-cyan-100"
+                        title={item.name}
+                        className="block w-full truncate text-left text-slate-100 hover:text-cyan-100"
                       >
                         {item.name}
                       </button>
                     ) : (
-                      item.name
+                      <span title={item.name} className="block truncate">
+                        {item.name}
+                      </span>
                     )}
                   </td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded-full border px-2 py-0.5 text-[11px] ${criticalityClass(item.criticality)}`}>
+                  <td className="px-2 py-2">
+                    <span className={`inline-block max-w-full truncate rounded-full border px-1.5 py-0.5 text-[10px] xl:px-2 xl:text-[11px] ${criticalityClass(item.criticality)}`}>
                       {item.criticality}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-right text-red-100">{item.criticalExposureCount}</td>
-                  <td className="px-3 py-2 text-right text-orange-100">{item.highRiskCount}</td>
-                  <td className="px-3 py-2 text-right text-slate-200">{item.findings}</td>
-                  <td className="px-3 py-2 text-right text-slate-200">{item.impactedAssets}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-red-100">{item.criticalExposureCount}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-orange-100">{item.highRiskCount}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-200">{item.impactedAssets}</td>
                 </tr>
               ))}
-              {visibleItems.length === 0 ? (
+              {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-4 text-center text-sm text-slate-300/80">
+                  <td colSpan={5} className="px-3 py-4 text-center text-sm text-slate-300/80">
                     No matching rows.
                   </td>
                 </tr>
@@ -412,7 +411,6 @@ function ImpactLeaderboard({
           No critical exposure or high risk impact in current scope.
         </p>
       )}
-      {isTrimmed ? <p className="mt-2 text-[11px] text-slate-300/70">Showing top 6 rows for this view.</p> : null}
     </section>
   );
 }
@@ -440,6 +438,46 @@ function ActionTile({
       <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/75">{title}</p>
       <p className="mt-1.5 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+    </article>
+  );
+}
+
+function IctSystemsModelledBulletTile({
+  modelledCount,
+  totalCount
+}: {
+  modelledCount: number;
+  totalCount: number;
+}) {
+  const safeTotal = Math.max(0, totalCount);
+  const boundedModelledCount = Math.min(Math.max(0, modelledCount), safeTotal);
+  const notModelledCount = Math.max(0, safeTotal - boundedModelledCount);
+  const modelledPercent = safeTotal ? Number(((boundedModelledCount / safeTotal) * 100).toFixed(1)) : 0;
+  const notModelledPercent = safeTotal ? Number((100 - modelledPercent).toFixed(1)) : 0;
+
+  return (
+    <article className="panel-alt border-emerald-300/35 bg-emerald-500/10 p-3 text-emerald-100">
+      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-200/90">ICT Systems Modelled</p>
+      <p className="mt-1.5 text-2xl font-semibold">{modelledPercent}%</p>
+      <p className="mt-0.5 text-xs text-slate-300/90">
+        {boundedModelledCount} of {safeTotal} ICT systems
+      </p>
+      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full border border-sky-300/25 bg-slate-900/80">
+        <div className="flex h-full w-full">
+          <div className="h-full bg-emerald-400/90" style={{ width: `${modelledPercent}%` }} />
+          <div className="h-full bg-amber-300/95" style={{ width: `${notModelledPercent}%` }} />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-200/90">
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+          Modelled: {modelledPercent}% ({boundedModelledCount})
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2 w-2 rounded-full bg-amber-300" />
+          Not Modelled: {notModelledPercent}% ({notModelledCount})
+        </span>
+      </div>
     </article>
   );
 }
@@ -476,7 +514,7 @@ function DailyTrendPanel({
         </div>
         {compact ? null : (
           <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-            Latest: {data[data.length - 1]?.count} on{" "}
+            Latest: {data[data.length - 1]?.count ?? "-"} on{" "}
             {formatDateKey(data[data.length - 1]?.date ?? "", { month: "short", day: "numeric", year: "numeric" })}
           </p>
         )}
@@ -494,7 +532,7 @@ function DailyTrendPanel({
             <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
             <Tooltip
               contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-              formatter={(value) => [value, "Open Findings"]}
+              formatter={(value) => [value ?? "-", "Open Findings"]}
               labelFormatter={(label) =>
                 formatDateKey(String(label), {
                   month: "short",
@@ -530,15 +568,14 @@ function BlastRadiusChart({
             ...item,
             totalAssets: meta.totalAssets,
             primaryAssetType: meta.primaryAssetType,
-            riskCount: item.criticalExposureCount + item.highRiskCount,
-            p1p2Count: item.highPriority
+            criticalExposureBubbleSize: Math.max(1, item.criticalExposureCount)
           };
         })
         .filter((item): item is NonNullable<typeof item> => Boolean(item))
-        .filter((item) => item.riskCount > 0 && item.totalAssets > 0)
+        .filter((item) => item.criticalExposureCount > 0 && item.totalAssets > 0)
         .sort((a, b) => {
-          if (b.riskCount !== a.riskCount) {
-            return b.riskCount - a.riskCount;
+          if (b.criticalExposureCount !== a.criticalExposureCount) {
+            return b.criticalExposureCount - a.criticalExposureCount;
           }
           return b.totalAssets - a.totalAssets;
         })
@@ -548,10 +585,10 @@ function BlastRadiusChart({
 
   if (!points.length) {
     return (
-      <section className="panel p-4">
+      <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Blast Radius</h3>
         <p className="mt-1 text-xs text-slate-300/80">
-          X: total assets, Y: Critical Exposure + High Risk, bubble radius: total P1/P2 findings.
+          X: total assets, Y: critical exposure findings, bubble radius: critical exposure volume.
         </p>
         <p className="mt-3 text-sm text-slate-300/80">No blast-radius points in current scope.</p>
       </section>
@@ -563,13 +600,15 @@ function BlastRadiusChart({
   const networkDevicePoints = points.filter((item) => item.primaryAssetType === "network-device");
 
   return (
-    <section className="panel p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Blast Radius</h3>
       <p className="mt-1 text-xs text-slate-300/80">
-        X: total assets, Y: Critical Exposure + High Risk, bubble radius: total P1/P2 findings.
+        X: total assets, Y: critical exposure findings, bubble radius: critical exposure volume.
       </p>
-      <p className="mt-1 text-[11px] text-slate-300/70">Colour key by primary asset type.</p>
-      <div className="mt-2.5 h-60">
+      <p className="mt-1 text-[11px] text-slate-300/70">
+        Only systems with open critical exposure findings. Colour key by primary asset type.
+      </p>
+      <div className="mt-2.5 min-h-[10rem] flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -582,12 +621,12 @@ function BlastRadiusChart({
             />
             <YAxis
               type="number"
-              dataKey="riskCount"
-              name="Critical + High"
+              dataKey="criticalExposureCount"
+              name="Critical Exposure"
               allowDecimals={false}
               tick={{ fill: "#a8c6d8", fontSize: 11 }}
             />
-            <ZAxis type="number" dataKey="p1p2Count" range={[70, 520]} />
+            <ZAxis type="number" dataKey="criticalExposureBubbleSize" range={[70, 520]} />
             <Tooltip
               cursor={{ strokeDasharray: "3 3" }}
               content={({ active, payload }) => {
@@ -598,8 +637,6 @@ function BlastRadiusChart({
                   name: string;
                   totalAssets: number;
                   criticalExposureCount: number;
-                  highRiskCount: number;
-                  p1p2Count: number;
                   primaryAssetType: AssetType;
                 };
 
@@ -608,8 +645,6 @@ function BlastRadiusChart({
                     <p className="font-semibold text-slate-100">{row.name}</p>
                     <p className="mt-1 text-slate-200">Total Assets: {row.totalAssets}</p>
                     <p className="text-red-200">Total Critical Exposure: {row.criticalExposureCount}</p>
-                    <p className="text-orange-200">Total High Risk: {row.highRiskCount}</p>
-                    <p className="text-cyan-200">Total P1-P2: {row.p1p2Count}</p>
                     <p className="text-slate-300">Primary Asset Type: {row.primaryAssetType}</p>
                   </div>
                 );
@@ -629,7 +664,7 @@ function BlastRadiusChart({
 function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
   if (!rows.length) {
     return (
-      <section className="panel p-4">
+      <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
         <p className="mt-1 text-xs text-slate-300/80">Control families driving severe open impact.</p>
         <p className="mt-3 text-sm text-slate-300/80">No severe SPI driver data in current scope.</p>
@@ -644,10 +679,10 @@ function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
   }));
 
   return (
-    <section className="panel p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
       <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
-      <div className="mt-2.5 h-60">
+      <div className="mt-2.5 min-h-[10rem] flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -701,7 +736,7 @@ function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
 function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironmentSplitRow[] }) {
   if (!rows.length) {
     return (
-      <section className="panel p-4">
+      <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
         <p className="mt-1 text-xs text-slate-300/80">Open finding impact by environment type.</p>
         <p className="mt-3 text-sm text-slate-300/80">No environment impact data in current scope.</p>
@@ -710,10 +745,10 @@ function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironment
   }
 
   return (
-    <section className="panel p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
       <p className="mt-1 text-xs text-slate-300/80">Open findings grouped by environment and severity band.</p>
-      <div className="mt-2.5 h-60">
+      <div className="mt-2.5 min-h-[10rem] flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -746,50 +781,157 @@ function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironment
   );
 }
 
-function ImpactEntityTrendMiniLines({ rows }: { rows: CyberCopImpactEntityTrend[] }) {
-  if (!rows.length) {
+function MissionBusinessBlastRadiusChart({
+  missionRows,
+  businessRows
+}: {
+  missionRows: CyberCopImpactItem[];
+  businessRows: CyberCopImpactItem[];
+}) {
+  type DomainPoint = {
+    id: string;
+    name: string;
+    domain: "Mission Capability" | "Business Service";
+    criticality: Criticality;
+    impactedAssets: number;
+    criticalExposureCount: number;
+    highRiskCount: number;
+    findings: number;
+    bubbleSize: number;
+  };
+
+  const missionPoints = useMemo(
+    () =>
+      missionRows
+        .filter((row) => row.criticalExposureCount > 0)
+        .sort((a, b) => {
+          if (b.criticalExposureCount !== a.criticalExposureCount) {
+            return b.criticalExposureCount - a.criticalExposureCount;
+          }
+          if (b.impactedAssets !== a.impactedAssets) {
+            return b.impactedAssets - a.impactedAssets;
+          }
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 28)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          domain: "Mission Capability" as const,
+          criticality: row.criticality,
+          impactedAssets: row.impactedAssets,
+          criticalExposureCount: row.criticalExposureCount,
+          highRiskCount: row.highRiskCount,
+          findings: row.findings,
+          bubbleSize: Math.max(1, row.findings)
+        })),
+    [missionRows]
+  );
+  const businessPoints = useMemo(
+    () =>
+      businessRows
+        .filter((row) => row.criticalExposureCount > 0)
+        .sort((a, b) => {
+          if (b.criticalExposureCount !== a.criticalExposureCount) {
+            return b.criticalExposureCount - a.criticalExposureCount;
+          }
+          if (b.impactedAssets !== a.impactedAssets) {
+            return b.impactedAssets - a.impactedAssets;
+          }
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 28)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          domain: "Business Service" as const,
+          criticality: row.criticality,
+          impactedAssets: row.impactedAssets,
+          criticalExposureCount: row.criticalExposureCount,
+          highRiskCount: row.highRiskCount,
+          findings: row.findings,
+          bubbleSize: Math.max(1, row.findings)
+        })),
+    [businessRows]
+  );
+  const hasPoints = missionPoints.length > 0 || businessPoints.length > 0;
+
+  if (!hasPoints) {
     return (
-      <section className="panel p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Top ICT System as risk Weekly Trend</h3>
-        <p className="mt-1 text-xs text-slate-300/80">13-week severe open trend for top impacted ICT systems.</p>
-        <p className="mt-3 text-sm text-slate-300/80">No entity trend data in current scope.</p>
+      <section className="panel flex h-full min-h-0 flex-col p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">
+          Mission/Business Blast Radius (Critical Exposure)
+        </h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          Mission capabilities and business services with open critical exposure findings.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No mission capability or business service critical exposure data in current scope.</p>
       </section>
     );
   }
 
   return (
-    <section className="panel p-4">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Top ICT System as risk Weekly Trend</h3>
+    <section className="panel flex h-full min-h-0 flex-col p-4">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">
+        Mission/Business Blast Radius (Critical Exposure)
+      </h3>
       <p className="mt-1 text-xs text-slate-300/80">
-        Weekly open Critical Exposure + High Risk counts for top impacted ICT systems.
+        X: impacted assets, Y: open critical exposure findings, bubble size: total open findings.
       </p>
-      <div className="mt-2.5 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {rows.slice(0, 5).map((row) => (
-          <article key={row.id} className="panel-alt border-sky-300/20 p-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-medium text-slate-100">{row.name}</p>
-              <span className={`rounded-full border px-2 py-0.5 text-[11px] ${criticalityClass(row.criticality)}`}>
-                {row.criticality}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-slate-300/80">Current severe open: {row.riskCount}</p>
-            <div className="mt-2 h-16">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={row.weeklyTrend} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(120,180,210,0.12)" />
-                  <XAxis dataKey="weekLabel" hide />
-                  <YAxis allowDecimals={false} hide />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                    formatter={(value) => [value, "Critical + High"]}
-                    labelFormatter={(label) => `Week ${label}`}
-                  />
-                  <Line type="monotone" dataKey="count" stroke="#f97316" strokeWidth={2.1} dot={false} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </article>
-        ))}
+      <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-300/80">
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-300" />
+          Mission Capability
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-cyan-300" />
+          Business Service
+        </span>
+      </div>
+      <div className="mt-2.5 min-h-[10rem] flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis
+              type="number"
+              dataKey="impactedAssets"
+              name="Impacted Assets"
+              allowDecimals={false}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <YAxis
+              type="number"
+              dataKey="criticalExposureCount"
+              name="Critical Exposure Findings"
+              allowDecimals={false}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <ZAxis type="number" dataKey="bubbleSize" range={[80, 520]} />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) {
+                  return null;
+                }
+
+                const point = payload[0].payload as DomainPoint;
+                return (
+                  <div className="rounded-md border border-sky-300/35 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
+                    <p className="font-medium text-slate-100">{point.name}</p>
+                    <p className="mt-0.5 text-slate-300/90">{point.domain}</p>
+                    <p className="mt-1 text-slate-200">Critical Exposure: {point.criticalExposureCount}</p>
+                    <p className="text-slate-200">High Risk: {point.highRiskCount}</p>
+                    <p className="text-slate-200">Impacted Assets: {point.impactedAssets}</p>
+                    <p className="text-slate-200">Open Findings: {point.findings}</p>
+                  </div>
+                );
+              }}
+            />
+            <Scatter name="Mission Capability" data={missionPoints} fill="#fcd34d" isAnimationActive={false} />
+            <Scatter name="Business Service" data={businessPoints} fill="#67e8f9" isAnimationActive={false} />
+          </ScatterChart>
+        </ResponsiveContainer>
       </div>
     </section>
   );
@@ -798,7 +940,7 @@ function ImpactEntityTrendMiniLines({ rows }: { rows: CyberCopImpactEntityTrend[
 function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPoint[] }) {
   if (!rows.length) {
     return (
-      <section className="panel p-4">
+      <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
         <p className="mt-1 text-xs text-slate-300/80">Opened vs closed findings over the last 13 weeks.</p>
         <p className="mt-3 text-sm text-slate-300/80">No throughput data in current scope.</p>
@@ -810,7 +952,7 @@ function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPo
   const totalClosed = rows.reduce((accumulator, row) => accumulator + row.closedCount, 0);
 
   return (
-    <section className="panel p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
@@ -820,7 +962,7 @@ function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPo
           Opened: {totalOpened} | Closed: {totalClosed}
         </p>
       </div>
-      <div className="mt-2.5 h-56">
+      <div className="mt-2.5 min-h-[10rem] flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -862,7 +1004,7 @@ function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPo
 function FindingAgingBucketsChart({ rows }: { rows: CyberCopActionAgeBucketRow[] }) {
   if (!rows.length) {
     return (
-      <section className="panel p-4">
+      <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
         <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
         <p className="mt-3 text-sm text-slate-300/80">No open findings in current scope.</p>
@@ -871,10 +1013,10 @@ function FindingAgingBucketsChart({ rows }: { rows: CyberCopActionAgeBucketRow[]
   }
 
   return (
-    <section className="panel p-4">
+    <section className="panel flex h-full min-h-0 flex-col p-4">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
       <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
-      <div className="mt-2.5 h-56">
+      <div className="mt-2.5 min-h-[10rem] flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -938,11 +1080,11 @@ function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRo
     <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
       <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
-              <th className="px-3 py-2 text-left">Severity</th>
+              <th className="w-[11.5rem] min-w-[11.5rem] whitespace-nowrap px-3 py-2 text-left">Severity</th>
               <th className="px-3 py-2 text-right">Age (Days)</th>
               <th className="px-3 py-2 text-left">SPI</th>
               <th className="px-3 py-2 text-left">ICT System</th>
@@ -953,8 +1095,10 @@ function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRo
           <tbody>
             {rows.map((row) => (
               <tr key={row.findingId} className="border-t border-sky-300/10">
-                <td className="px-3 py-2">
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}>
+                <td className="w-[11.5rem] min-w-[11.5rem] whitespace-nowrap px-3 py-2">
+                  <span
+                    className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}
+                  >
                     {row.severity}
                   </span>
                 </td>
@@ -989,7 +1133,7 @@ function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
     <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
       <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45">
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
@@ -1041,7 +1185,6 @@ export function CyberCopDashboard({
   impactSpiDriversBySystemId,
   impactEnvironmentSplit,
   impactEnvironmentSplitBySystemId,
-  impactEntityTrends,
   modellingSummary,
   actionPlan,
   actionThroughput,
@@ -1131,6 +1274,64 @@ export function CyberCopDashboard({
     const selectedRows = scopedSystemImpact.filter((system) => system.id === selectedIctSystemId);
     return selectedRows.length ? selectedRows : scopedSystemImpact;
   }, [scopedSystemImpact, selectedIctSystemId]);
+  const businessImpactForLeaderboard = useMemo(() => {
+    if (!selectedIctSystemId) {
+      return impact.business;
+    }
+
+    return impact.business.filter((item) => (impactLinks.businessToSystems[item.id] ?? []).includes(selectedIctSystemId));
+  }, [impact.business, impactLinks.businessToSystems, selectedIctSystemId]);
+  const missionImpactForLeaderboard = useMemo(() => {
+    if (!selectedIctSystemId) {
+      return impact.mission;
+    }
+
+    return impact.mission.filter((item) => (impactLinks.missionToSystems[item.id] ?? []).includes(selectedIctSystemId));
+  }, [impact.mission, impactLinks.missionToSystems, selectedIctSystemId]);
+  const filteredBusinessImpact = useMemo(() => {
+    if (selectedBusinessServiceId) {
+      return impact.business.filter((item) => item.id === selectedBusinessServiceId);
+    }
+
+    const activeSystemIds = new Set(chartFilteredSystemImpact.map((system) => system.id));
+    const businessScopeIds = businessSearchScope.active ? new Set(businessSearchScope.itemIds) : null;
+
+    return impact.business.filter((item) => {
+      if (businessScopeIds && !businessScopeIds.has(item.id)) {
+        return false;
+      }
+      const linkedSystemIds = impactLinks.businessToSystems[item.id] ?? [];
+      return linkedSystemIds.some((systemId) => activeSystemIds.has(systemId));
+    });
+  }, [
+    selectedBusinessServiceId,
+    impact.business,
+    chartFilteredSystemImpact,
+    businessSearchScope,
+    impactLinks.businessToSystems
+  ]);
+  const filteredMissionImpact = useMemo(() => {
+    if (selectedMissionCapabilityId) {
+      return impact.mission.filter((item) => item.id === selectedMissionCapabilityId);
+    }
+
+    const activeSystemIds = new Set(chartFilteredSystemImpact.map((system) => system.id));
+    const missionScopeIds = missionSearchScope.active ? new Set(missionSearchScope.itemIds) : null;
+
+    return impact.mission.filter((item) => {
+      if (missionScopeIds && !missionScopeIds.has(item.id)) {
+        return false;
+      }
+      const linkedSystemIds = impactLinks.missionToSystems[item.id] ?? [];
+      return linkedSystemIds.some((systemId) => activeSystemIds.has(systemId));
+    });
+  }, [
+    selectedMissionCapabilityId,
+    impact.mission,
+    chartFilteredSystemImpact,
+    missionSearchScope,
+    impactLinks.missionToSystems
+  ]);
   const filteredImpactSpiDrivers = useMemo(() => {
     const aggregated = new Map<number, CyberCopImpactSpiDriver>();
     for (const system of chartFilteredSystemImpact) {
@@ -1337,7 +1538,10 @@ export function CyberCopDashboard({
                         <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
                         <Tooltip
                           contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                          formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
+                          formatter={(value, name) => [
+                            value ?? "-",
+                            name === "highRiskCount" ? "High Risk" : "Critical Exposure"
+                          ]}
                         />
                         <Line
                           type="monotone"
@@ -1363,14 +1567,14 @@ export function CyberCopDashboard({
               <div className="cop-reveal cop-reveal-delay-3 grid min-h-0 gap-2 lg:grid-cols-2">
                 <DailyTrendPanel
                   title="Open High Risk Findings"
-                  subtitle="Daily open high-risk trajectory for the last 12 months. Right edge is current date."
+                  subtitle="Daily open high-risk trajectory for the last 12 months. Right edge aligns to the selected date."
                   color="#f97316"
                   data={dailyHighRisk}
                   compact
                 />
                 <DailyTrendPanel
                   title="Open Critical Exposure Findings"
-                  subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge is current date."
+                  subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge aligns to the selected date."
                   color="#ef4444"
                   data={dailyCriticalExposure}
                   compact
@@ -1390,12 +1594,12 @@ export function CyberCopDashboard({
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="min-h-0 flex-1 space-y-2 overflow-hidden">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
               <div className="cop-reveal cop-reveal-delay-2 grid gap-2 lg:grid-cols-3">
                 <ImpactLeaderboard
                   title="Business Services Impact"
                   subtitle="Services carrying concentrated findings."
-                  items={impact.business}
+                  items={businessImpactForLeaderboard}
                   selectedItemId={selectedBusinessServiceId}
                   selectedText={selectedBusinessService?.name ?? null}
                   onSelectItem={(item) => {
@@ -1422,7 +1626,7 @@ export function CyberCopDashboard({
                 <ImpactLeaderboard
                   title="Mission Capabilities Impact"
                   subtitle="Capabilities affected by current findings."
-                  items={impact.mission}
+                  items={missionImpactForLeaderboard}
                   selectedItemId={selectedMissionCapabilityId}
                   selectedText={selectedMissionCapability?.name ?? null}
                   onSelectItem={(item) => {
@@ -1452,21 +1656,28 @@ export function CyberCopDashboard({
                   items={scopedSystemImpact}
                   selectedItemId={selectedIctSystemId}
                   selectedText={ictSystemsSelectedText}
-                  onSelectItem={(item) => setSelectedIctSystemId((current) => (current === item.id ? null : item.id))}
+                  onSelectItem={(item) => {
+                    setSelectedBusinessServiceId(null);
+                    setSelectedMissionCapabilityId(null);
+                    setSelectedIctSystemId((current) => (current === item.id ? null : item.id));
+                  }}
                   showClearSelectionButton
                   clearSelectionDisabled={!selectedIctSystemId}
                   onClearSelection={() => setSelectedIctSystemId(null)}
                 />
               </div>
 
-              <div className="grid gap-2 lg:grid-cols-2">
+              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
                 <SpiDriverChart rows={filteredImpactSpiDrivers} />
                 <BlastRadiusChart items={chartFilteredSystemImpact} metaBySystemId={impactBlastRadiusBySystemId} />
               </div>
 
-              <div className="grid gap-2 lg:grid-cols-2">
+              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
                 <EnvironmentImpactSplitChart rows={filteredImpactEnvironmentSplit} />
-                <ImpactEntityTrendMiniLines rows={impactEntityTrends} />
+                <MissionBusinessBlastRadiusChart
+                  missionRows={filteredMissionImpact}
+                  businessRows={filteredBusinessImpact}
+                />
               </div>
             </div>
             <CyberCopTabFooter />
@@ -1482,7 +1693,7 @@ export function CyberCopDashboard({
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
               <section className="panel cyber-cop-pulse-border p-3">
                 <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
                 <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
@@ -1543,11 +1754,9 @@ export function CyberCopDashboard({
                       subtitle="Total ICT systems defined in DIIS scope"
                       tone="watch"
                     />
-                    <ActionTile
-                      title="ICT Systems Modelled"
-                      value={modellingSummary.modelledCount}
-                      subtitle={`${modellingSummary.modelledCount}/${modellingSummary.diisDefinedCount} DIIS systems modelled`}
-                      tone="warning"
+                    <IctSystemsModelledBulletTile
+                      modelledCount={modellingSummary.modelledCount}
+                      totalCount={modellingSummary.diisDefinedCount}
                     />
                     <ActionTile
                       title="ICT Systems Modelled with Discovery Non-Compliant"
@@ -1559,12 +1768,12 @@ export function CyberCopDashboard({
                 </div>
               </section>
 
-              <div className="grid gap-2 lg:grid-cols-2">
+              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
                 <RemediationThroughputChart rows={actionThroughput} />
                 <FindingAgingBucketsChart rows={actionAgeBuckets} />
               </div>
 
-              <div className="grid h-[360px] auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
+              <div className="grid min-h-0 auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
                 <OldestOpenFindingsTable rows={actionOldestOpenFindings.slice(0, 8)} />
                 <ActionQuickWinsTable rows={actionQuickWins.slice(0, 8)} />
               </div>

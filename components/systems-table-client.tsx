@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PostureBadge } from "@/components/posture-badge";
 import { ComplianceStatus } from "@/lib/types";
+import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
 
 const PANEL_TWEEN_MS = 260;
 
@@ -39,9 +41,11 @@ export function SystemsTableClient({
   rows: SystemTableRow[];
   scrollable?: boolean;
 }) {
+  const searchParams = useSearchParams();
   const [selectedRow, setSelectedRow] = useState<SystemTableRow | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scopedDataDate = normalizeDataDate(searchParams.get(DATA_DATE_PARAM));
 
   useEffect(() => {
     return () => {
@@ -148,7 +152,7 @@ export function SystemsTableClient({
                   <td className="px-2.5 py-2 text-slate-200">{row.openFindings}</td>
                   <td className="px-2.5 py-2">
                     <Link
-                      href={`/systems/${row.id}`}
+                      href={withDataDate(`/systems/${row.id}`, scopedDataDate)}
                       data-filter-loading="true"
                       data-filter-loading-message="Loading system page..."
                       className="text-sky-200 underline"

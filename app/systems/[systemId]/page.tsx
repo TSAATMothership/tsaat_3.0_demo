@@ -4,7 +4,12 @@ import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadLatestSnapshots, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadDatasetForDate,
+  loadLatestSnapshotsForDate,
+  loadMeasuresSettings
+} from "@/lib/data-loader";
+import { extractDataDateParam, withDataDate } from "@/lib/data-date";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding } from "@/lib/types";
@@ -343,9 +348,10 @@ export default async function SystemDetailPage({
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
   const requestParams = searchParams ?? {};
+  const requestedDataDate = extractDataDateParam(requestParams);
   const [dataset, snapshots, measuresSettings] = await Promise.all([
-    loadCurrentDataset(),
-    loadLatestSnapshots(12),
+    loadDatasetForDate(requestedDataDate),
+    loadLatestSnapshotsForDate(requestedDataDate, 12),
     loadMeasuresSettings()
   ]);
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
@@ -712,6 +718,9 @@ export default async function SystemDetailPage({
     kpiFilter?: KpiFilterKey;
   }) => {
     const params = new URLSearchParams();
+    if (requestedDataDate) {
+      params.set("dataDate", requestedDataDate);
+    }
     if (scope.environment) {
       params.set("environment", scope.environment);
     }
@@ -759,6 +768,9 @@ export default async function SystemDetailPage({
     });
   const remediationReportHref = (() => {
     const query = new URLSearchParams();
+    if (requestedDataDate) {
+      query.set("dataDate", requestedDataDate);
+    }
     if (selectedEnvironment) {
       query.set("environment", selectedEnvironment);
     }
@@ -775,6 +787,9 @@ export default async function SystemDetailPage({
   })();
   const coverageGapsReportHref = (() => {
     const query = new URLSearchParams();
+    if (requestedDataDate) {
+      query.set("dataDate", requestedDataDate);
+    }
     if (selectedEnvironment) {
       query.set("environment", selectedEnvironment);
     }
@@ -833,7 +848,7 @@ export default async function SystemDetailPage({
       <section className="panel p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href="/systems" className="text-xs text-sky-200 underline">
+            <Link href={withDataDate("/systems", requestedDataDate)} className="text-xs text-sky-200 underline">
               Back to ICT Systems
             </Link>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{system.name}</h1>

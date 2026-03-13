@@ -7,6 +7,7 @@ import {
 import { NetworksTable } from "@/components/networks-table";
 import { NetworksTabs } from "@/components/networks-tabs";
 import { getTrendAppData } from "@/lib/app-data";
+import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { deriveOverallStatus } from "@/lib/posture";
 import { applyAssetFilters, filterNetworks } from "@/lib/selectors";
 import { createSnapshotAnalyticsMemo } from "@/lib/snapshot-analytics-memo";
@@ -112,11 +113,14 @@ function buildOpenFindingsDailySeries(
   findings: Finding[],
   severity: "High Risk" | "Critical Exposure",
   endDateKey: string,
+  dataAvailableUntilDateKey: string,
   days = 365
 ) {
   const endDate = parseUtcDateKey(endDateKey);
   const startDate = addUtcDays(endDate, -(days - 1));
   const startDateKey = toUtcDateKey(startDate);
+  const effectiveDataEndDateKey =
+    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
   const events = new Map<string, number>();
   let openAtWindowStart = 0;
 
@@ -135,24 +139,36 @@ function buildOpenFindingsDailySeries(
       openAtWindowStart += 1;
     }
 
-    if (openedDateKey >= startDateKey && openedDateKey <= endDateKey) {
+    if (openedDateKey >= startDateKey && openedDateKey <= effectiveDataEndDateKey) {
       events.set(openedDateKey, (events.get(openedDateKey) ?? 0) + 1);
     }
-    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= endDateKey) {
+    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= effectiveDataEndDateKey) {
       events.set(closedDateKey, (events.get(closedDateKey) ?? 0) - 1);
     }
   }
 
-  const points: Array<{ date: string; label: string; count: number }> = [];
+  const points: Array<{ date: string; label: string; count: number | null }> = [];
   let running = openAtWindowStart;
+  let hasObservedData = openAtWindowStart > 0;
   for (let offset = 0; offset < days; offset += 1) {
     const pointDate = addUtcDays(startDate, offset);
     const pointDateKey = toUtcDateKey(pointDate);
+    if (pointDateKey > effectiveDataEndDateKey) {
+      points.push({
+        date: pointDateKey,
+        label: formatUtcDay(pointDate),
+        count: null
+      });
+      continue;
+    }
+    if (events.has(pointDateKey)) {
+      hasObservedData = true;
+    }
     running += events.get(pointDateKey) ?? 0;
     points.push({
       date: pointDateKey,
       label: formatUtcDay(pointDate),
-      count: Math.max(0, running)
+      count: hasObservedData ? Math.max(0, running) : null
     });
   }
 
@@ -160,8 +176,8 @@ function buildOpenFindingsDailySeries(
 }
 
 function buildWeeklyRiskTrend(
-  highRiskDaily: Array<{ date: string; count: number }>,
-  criticalExposureDaily: Array<{ date: string; count: number }>,
+  highRiskDaily: Array<{ date: string; count: number | null }>,
+  criticalExposureDaily: Array<{ date: string; count: number | null }>,
   weeks = 13
 ) {
   const endDateKey = highRiskDaily[highRiskDaily.length - 1]?.date ?? criticalExposureDaily[criticalExposureDaily.length - 1]?.date;
@@ -177,10 +193,16 @@ function buildWeeklyRiskTrend(
     const weekOffset = weeks - 1 - index;
     const pointDate = addUtcDays(endDate, -weekOffset * 7);
     const pointDateKey = toUtcDateKey(pointDate);
+    const highRiskCount = highRiskByDate.has(pointDateKey)
+      ? (highRiskByDate.get(pointDateKey) ?? null)
+      : null;
+    const criticalExposureCount = criticalExposureByDate.has(pointDateKey)
+      ? (criticalExposureByDate.get(pointDateKey) ?? null)
+      : null;
     return {
       weekLabel: formatUtcDay(pointDate),
-      highRiskCount: highRiskByDate.get(pointDateKey) ?? 0,
-      criticalExposureCount: criticalExposureByDate.get(pointDateKey) ?? 0
+      highRiskCount,
+      criticalExposureCount
     };
   });
 }
@@ -415,6 +437,7 @@ export default async function NetworksPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  const selectedDataDate = extractDataDateParam(searchParams);
   const { analytics, filterOptions, filters, networks, snapshots, measuresSettings, dataset, systems } = await getTrendAppData(
     searchParams
   );
@@ -605,9 +628,20 @@ export default async function NetworksPage({
   const criticalExposureOpenCount = severityCounts.get("Critical Exposure") ?? 0;
   const p1p2Count = openFindings.filter((finding) => finding.priorityRank <= 2).length;
 
-  const todayDateKey = toUtcDateKey(new Date());
-  const highRiskDaily = buildOpenFindingsDailySeries(analytics.findings, "High Risk", todayDateKey);
-  const criticalExposureDaily = buildOpenFindingsDailySeries(analytics.findings, "Critical Exposure", todayDateKey);
+  const chartAnchorDateKey = selectedDataDate ?? dataset.snapshotDate;
+  const chartWindowEndDateKey = selectedDataDate ?? todayDateKey();
+  const highRiskDaily = buildOpenFindingsDailySeries(
+    analytics.findings,
+    "High Risk",
+    chartWindowEndDateKey,
+    dataset.snapshotDate
+  );
+  const criticalExposureDaily = buildOpenFindingsDailySeries(
+    analytics.findings,
+    "Critical Exposure",
+    chartWindowEndDateKey,
+    dataset.snapshotDate
+  );
   const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
 
   const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters);
@@ -639,10 +673,15 @@ export default async function NetworksPage({
           (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
       )
   ).length;
-  const actionThroughput = buildActionThroughput(analytics.findings, todayDateKey, 13);
-  const actionAgeBuckets = buildActionAgeBuckets(openFindings, todayDateKey);
+  const actionThroughput = buildActionThroughput(analytics.findings, chartAnchorDateKey, 13);
+  const actionAgeBuckets = buildActionAgeBuckets(openFindings, chartAnchorDateKey);
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
-  const actionOldestOpenFindings = buildActionOldestOpenFindings(openFindings, networkNameById, todayDateKey, 12);
+  const actionOldestOpenFindings = buildActionOldestOpenFindings(
+    openFindings,
+    networkNameById,
+    chartAnchorDateKey,
+    12
+  );
   const actionQuickWins = buildActionQuickWins(openFindings, 10);
 
   return (

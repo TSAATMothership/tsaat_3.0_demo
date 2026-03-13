@@ -3,6 +3,25 @@ import { deriveOverallStatus } from "@/lib/posture";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { NetworksTableClient, type NetworkTableRow } from "@/components/networks-table-client";
 
+function complianceScoreFromRollups(rollups: RollupResult[]): number {
+  const totals = rollups.reduce(
+    (accumulator, rollup) => {
+      accumulator.compliant += rollup.counts.compliant;
+      accumulator.nonCompliant += rollup.counts.nonCompliant;
+      accumulator.unknown += rollup.counts.unknown;
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
+  );
+
+  const denominator = totals.compliant + totals.nonCompliant + totals.unknown;
+  if (!denominator) {
+    return 0;
+  }
+
+  return Number(((totals.compliant / denominator) * 100).toFixed(1));
+}
+
 export function NetworksTable({
   networks,
   networkRollups,
@@ -25,6 +44,7 @@ export function NetworksTable({
       (rollup) => rollup.scopeType === "network" && rollup.scopeId === network.id
     );
     const posture = deriveOverallStatus(rollups);
+    const complianceScore = complianceScoreFromRollups(rollups);
     const detailFields = resolveNetworkDetailFields(network);
 
     return {
@@ -37,6 +57,7 @@ export function NetworksTable({
       p12Findings: p12FindingsByNetwork.get(network.id) ?? 0,
       p12HighRiskFindings: p12HighRiskFindingsByNetwork.get(network.id) ?? 0,
       p12CriticalExposureFindings: p12CriticalExposureFindingsByNetwork.get(network.id) ?? 0,
+      complianceScore,
       description: detailFields.description,
       owner: detailFields.owner,
       supportEmail: detailFields.supportEmail,

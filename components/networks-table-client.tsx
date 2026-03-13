@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { PostureBadge } from "@/components/posture-badge";
 import { ComplianceStatus } from "@/lib/types";
+import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
 
 const PANEL_TWEEN_MS = 260;
 
@@ -17,6 +19,7 @@ export interface NetworkTableRow {
   p12Findings: number;
   p12HighRiskFindings: number;
   p12CriticalExposureFindings: number;
+  complianceScore: number;
   description: string;
   owner: string;
   supportEmail: string;
@@ -37,9 +40,11 @@ export function NetworksTableClient({
   rows: NetworkTableRow[];
   scrollable?: boolean;
 }) {
+  const searchParams = useSearchParams();
   const [selectedRow, setSelectedRow] = useState<NetworkTableRow | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scopedDataDate = normalizeDataDate(searchParams.get(DATA_DATE_PARAM));
 
   useEffect(() => {
     return () => {
@@ -120,6 +125,7 @@ export function NetworksTableClient({
                 <th className="px-2.5 py-1.5">P1-P2 Findings</th>
                 <th className="px-2.5 py-1.5">P1-P2 Findings (High Risk)</th>
                 <th className="px-2.5 py-1.5">P1-P2 Findings (Critical Exposure)</th>
+                <th className="px-2.5 py-1.5">Compliance Score</th>
                 <th className="px-2.5 py-1.5">Action</th>
               </tr>
             </thead>
@@ -144,9 +150,10 @@ export function NetworksTableClient({
                   <td className="px-2.5 py-2 text-slate-200">{row.p12Findings}</td>
                   <td className="px-2.5 py-2 text-slate-200">{row.p12HighRiskFindings}</td>
                   <td className="px-2.5 py-2 text-slate-200">{row.p12CriticalExposureFindings}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-slate-100">{row.complianceScore}%</td>
                   <td className="px-2.5 py-2">
                     <Link
-                      href={`/networks/${row.id}`}
+                      href={withDataDate(`/networks/${row.id}`, scopedDataDate)}
                       data-filter-loading="true"
                       data-filter-loading-message="Loading network page..."
                       className="text-sky-200 underline"

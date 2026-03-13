@@ -1,10 +1,16 @@
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadLatestSnapshots, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadDatasetForDate,
+  loadLatestSnapshotsForDate,
+  loadMeasuresSettings
+} from "@/lib/data-loader";
+import { extractDataDateParam } from "@/lib/data-date";
 import { buildFilterOptions, filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
 import { buildTrendPoints } from "@/lib/trends";
 
 export async function getCoreAppData(searchParams: Record<string, string | string[] | undefined> = {}) {
-  const [dataset, measuresSettings] = await Promise.all([loadCurrentDataset(), loadMeasuresSettings()]);
+  const dataDate = extractDataDateParam(searchParams);
+  const [dataset, measuresSettings] = await Promise.all([loadDatasetForDate(dataDate), loadMeasuresSettings()]);
   const filters = parseFilters(searchParams);
 
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings);
@@ -28,7 +34,11 @@ export async function getTrendAppData(
   lookback = 12,
   options: { includeTrendPoints?: boolean } = {}
 ) {
-  const [core, snapshots] = await Promise.all([getCoreAppData(searchParams), loadLatestSnapshots(lookback)]);
+  const dataDate = extractDataDateParam(searchParams);
+  const [core, snapshots] = await Promise.all([
+    getCoreAppData(searchParams),
+    loadLatestSnapshotsForDate(dataDate, lookback)
+  ]);
   const trendPoints = options.includeTrendPoints
     ? buildTrendPoints(snapshots, core.filters, core.measuresSettings)
     : undefined;

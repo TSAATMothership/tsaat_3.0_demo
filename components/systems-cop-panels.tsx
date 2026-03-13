@@ -23,14 +23,14 @@ export interface SystemSeveritySummary {
 
 export interface SystemWeeklyRiskPoint {
   weekLabel: string;
-  highRiskCount: number;
-  criticalExposureCount: number;
+  highRiskCount: number | null;
+  criticalExposureCount: number | null;
 }
 
 export interface SystemDailyTrendPoint {
   date: string;
   label: string;
-  count: number;
+  count: number | null;
 }
 
 export interface SystemActionThroughputPoint {
@@ -184,7 +184,7 @@ function DailyTrendPanel({
             <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={28} />
             <Tooltip
               contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-              formatter={(value) => [value, "Open Findings"]}
+              formatter={(value) => [value ?? "-", "Open Findings"]}
             />
             <Line type="monotone" dataKey="count" stroke={color} strokeWidth={2.2} dot={false} isAnimationActive={false} />
           </LineChart>
@@ -490,7 +490,10 @@ export function SystemsOverviewPanel({
                 <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value, name) => [value, name === "highRiskCount" ? "High Risk" : "Critical Exposure"]}
+                  formatter={(value, name) => [
+                    value ?? "-",
+                    name === "highRiskCount" ? "High Risk" : "Critical Exposure"
+                  ]}
                 />
                 <Line type="monotone" dataKey="highRiskCount" stroke="#f97316" strokeWidth={2.2} dot={false} isAnimationActive={false} />
                 <Line
@@ -510,13 +513,13 @@ export function SystemsOverviewPanel({
       <div className="grid min-h-0 gap-2 lg:grid-cols-2">
         <DailyTrendPanel
           title="Open High Risk Findings"
-          subtitle="Daily open high-risk trajectory for the last 12 months. Right edge is current date."
+          subtitle="Daily open high-risk trajectory for the last 12 months. Right edge aligns to the selected date."
           color="#f97316"
           data={dailyHighRisk}
         />
         <DailyTrendPanel
           title="Open Critical Exposure Findings"
-          subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge is current date."
+          subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge aligns to the selected date."
           color="#ef4444"
           data={dailyCriticalExposure}
         />

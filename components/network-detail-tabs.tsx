@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-type NetworkDetailTabId = "network-details" | "cyber-posture" | "discovery-compliance";
+type NetworkDetailTabId = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -22,7 +22,8 @@ function nextProgressValue(current: number): number {
 const tabs: Array<{ id: NetworkDetailTabId; label: string }> = [
   { id: "network-details", label: "Network Details" },
   { id: "cyber-posture", label: "Cyber Posture" },
-  { id: "discovery-compliance", label: "Discovery Compliance" }
+  { id: "discovery-compliance", label: "Discovery Compliance" },
+  { id: "compliance-overview", label: "Compliance Overview" }
 ];
 
 export function NetworkDetailTabs({ activeTab }: { activeTab: NetworkDetailTabId }) {
@@ -103,6 +104,8 @@ export function NetworkDetailTabs({ activeTab }: { activeTab: NetworkDetailTabId
   const pendingTabLabel =
     pendingTab === "cyber-posture"
       ? "Cyber Posture"
+      : pendingTab === "compliance-overview"
+        ? "Compliance Overview"
       : pendingTab === "discovery-compliance"
         ? "Discovery Compliance"
         : "Network Details";
