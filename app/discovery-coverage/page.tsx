@@ -27,6 +27,7 @@ interface DiscoveryCoverageStatus {
 interface CoverageRow {
   assetId: string;
   hostname: string;
+  ipAddress: string;
   assetType: Asset["type"];
   networkId: string;
   systemId: string | null;
@@ -120,6 +121,22 @@ function deterministicDiscoveryPercent(seed: string): number {
   return 90 + (hash % 11);
 }
 
+function resolveAssetIpAddress(asset: Asset): string {
+  const candidate = asset as Asset & {
+    ipAddress?: string | null;
+    ip?: string | null;
+    ipv4?: string | null;
+    ipv4Address?: string | null;
+    primaryIp?: string | null;
+  };
+  const value =
+    candidate.ipAddress ?? candidate.ip ?? candidate.ipv4 ?? candidate.ipv4Address ?? candidate.primaryIp ?? null;
+  if (!value || !String(value).trim()) {
+    return "N/A";
+  }
+  return String(value).trim();
+}
+
 function targetCountForActual(actual: number, percentFound: number): number {
   if (actual <= 0) {
     return 0;
@@ -150,6 +167,7 @@ export default async function DiscoveryCoveragePage({
     .map((asset) => ({
       assetId: asset.id,
       hostname: asset.hostname,
+      ipAddress: resolveAssetIpAddress(asset),
       assetType: asset.type,
       networkId: asset.networkId,
       systemId: asset.systemContext?.systemId ?? null,
@@ -161,9 +179,7 @@ export default async function DiscoveryCoveragePage({
   const requestedTab = firstParam(searchParams.discoveryCoverageTab)?.trim().toLowerCase();
   const activeTab: "summary" | "details" | "target-state" =
     requestedTab === "details" ? "details" : requestedTab === "target-state" ? "target-state" : "summary";
-  const tabContentBaseClass = "h-[min(calc(100vh-20rem),1040px)] pr-1 md:h-[min(calc(100vh-24rem),1040px)]";
-  const tabContentClass =
-    activeTab === "summary" ? `${tabContentBaseClass} overflow-auto` : `${tabContentBaseClass} overflow-hidden`;
+  const tabContentClass = activeTab === "summary" ? "min-h-0 flex-1 overflow-auto pr-1" : "min-h-0 flex-1 overflow-hidden pr-1";
   const gapPageState = parsePageState(searchParams, "page", "pageSize");
   const matrixPageState = parsePageState(searchParams, "matrixPage", "matrixPageSize");
   const gapSearchTerm = firstParam(searchParams.gapSearch)?.trim() ?? "";
@@ -194,6 +210,16 @@ export default async function DiscoveryCoveragePage({
     const coveragePercent = rows.length ? Number(((covered / rows.length) * 100).toFixed(1)) : 0;
     return { label, covered, missing, coveragePercent };
   });
+  const coverageByToolAssetRows = rows.map((row) => ({
+    assetId: row.assetId,
+    hostname: row.hostname,
+    ipAddress: row.ipAddress,
+    assetType: row.assetType,
+    network: networkNameById.get(row.networkId) ?? row.networkId,
+    ictSystem: row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "-",
+    environment: row.environment,
+    coverage: row.coverage
+  }));
 
   const nonCompliantRows = rows.filter((row) => !row.coverage.coverageCompliance);
   const gapRows = nonCompliantRows.filter((row) => {
@@ -290,8 +316,8 @@ export default async function DiscoveryCoveragePage({
     });
 
   return (
-    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-3 md:w-[min(2100px,calc(100vw-3rem))]">
-      <section className="panel p-4">
+    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel shrink-0 p-4">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Discovery Coverage View</p>
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">Discovery Coverage</h1>
         <p className="mt-2 max-w-5xl text-sm text-slate-300/85">
@@ -300,67 +326,89 @@ export default async function DiscoveryCoveragePage({
         </p>
       </section>
 
-      <DiscoveryCoverageTabs activeTab={activeTab} />
+      <div className="shrink-0">
+        <DiscoveryCoverageTabs activeTab={activeTab} />
+      </div>
 
       <div className={tabContentClass}>
         {activeTab === "summary" ? (
-          <div className="space-y-4">
-            <FilterBar options={filterOptions} filters={filters} enableLoadingOverlay />
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
+            <FilterBar
+              options={filterOptions}
+              filters={filters}
+              hiddenFields={["systemCriticality"]}
+              enableLoadingOverlay
+            />
 
-            <section id="remediation-report" className="panel p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
-                  <p className="mt-1 text-sm text-slate-300/85">
-                    Generate a remediation report for discovery coverage gaps using the current Discovery Coverage page
-                    filters and search terms.
-                  </p>
-                  <p className="mt-1 text-xs text-slate-300/75">
-                    Includes scope summary, coverage score, filters applied, asset-level discovery gaps, and
-                    recommended actions.
-                  </p>
+            <div
+              id="discovery-coverage-summary-slideout-scope"
+              className="relative grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4"
+            >
+              <section id="remediation-report" className="panel p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
+                    <p className="mt-1 text-sm text-slate-300/85">
+                      Generate a remediation report for discovery coverage gaps using the current Discovery Coverage page
+                      filters and search terms.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-300/75">
+                      Includes scope summary, coverage score, filters applied, asset-level discovery gaps, and
+                      recommended actions.
+                    </p>
+                  </div>
+                  <a
+                    href={remediationReportHref}
+                    className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
+                  >
+                    Generate Remediation Report
+                  </a>
                 </div>
-                <a
-                  href={remediationReportHref}
-                  className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
-                >
-                  Generate Remediation Report
-                </a>
-              </div>
-            </section>
+              </section>
 
-            <section className="panel p-4">
-              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Coverage Snapshot</h2>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="panel-alt border-sky-300/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Assets In Scope</p>
-                  <p className="mt-1 text-2xl font-semibold text-slate-100">{rows.length}</p>
+              <section className="panel p-4">
+                <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Coverage Snapshot</h2>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="panel-alt border-sky-300/25 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Assets In Scope</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-100">{rows.length}</p>
+                  </div>
+                  <div className="panel-alt border-emerald-400/25 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
+                      Coverage Compliant Assets
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-emerald-100">{compliantCount}</p>
+                  </div>
+                  <div className="panel-alt border-red-400/25 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
+                      Assets With Coverage Gaps
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold text-red-100">{gapCount}</p>
+                  </div>
+                  <div className="panel-alt border-sky-400/25 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Overall Tool Coverage</p>
+                    <p className="mt-1 text-2xl font-semibold text-sky-100">{overallToolCoveragePercent}%</p>
+                  </div>
                 </div>
-                <div className="panel-alt border-emerald-400/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Coverage Compliant Assets
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-emerald-100">{compliantCount}</p>
-                </div>
-                <div className="panel-alt border-red-400/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Assets With Coverage Gaps
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold text-red-100">{gapCount}</p>
-                </div>
-                <div className="panel-alt border-sky-400/25 p-3">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Overall Tool Coverage</p>
-                  <p className="mt-1 text-2xl font-semibold text-sky-100">{overallToolCoveragePercent}%</p>
-                </div>
-              </div>
-            </section>
+              </section>
 
-            <DiscoveryCoverageByToolSection toolStats={toolStats} />
+              <DiscoveryCoverageByToolSection
+                toolStats={toolStats}
+                assetRows={coverageByToolAssetRows}
+                slideoutScopeId="discovery-coverage-summary-slideout-scope"
+                className="min-h-0 h-[calc(100%-10px)]"
+              />
+            </div>
           </div>
         ) : activeTab === "details" ? (
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-3">
             <div className="-mt-4">
-              <FilterBar options={filterOptions} filters={filters} enableLoadingOverlay />
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["systemCriticality"]}
+                enableLoadingOverlay
+              />
             </div>
 
             <Suspense

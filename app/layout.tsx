@@ -20,7 +20,7 @@ const navigation = [
   { href: "/cyber-cop", label: "Cyber COP" },
   { href: "/networks", label: "Networks" },
   { href: "/systems", label: "ICT Systems" },
-  { href: "/discovery-coverage", label: "Discovery Coverage" },
+  { href: "/discovery-coverage", label: "Discovery" },
   { href: "/findings", label: "Findings Register" },
   { href: "/measures", label: "Measures" },
   { href: "/report", label: "Briefs & Reports" }

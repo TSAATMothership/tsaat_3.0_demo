@@ -1,5 +1,6 @@
 "use client";
 
+import clsx from "clsx";
 import {
   PolarAngleAxis,
   PolarGrid,
@@ -15,10 +16,18 @@ export interface CoverageByToolPoint {
   coveragePercent: number;
 }
 
-export function CoverageByToolRadar({ data }: { data: CoverageByToolPoint[] }) {
+export function CoverageByToolRadar({
+  data,
+  className,
+  chartHeightClassName = "h-[22rem]"
+}: {
+  data: CoverageByToolPoint[];
+  className?: string;
+  chartHeightClassName?: string;
+}) {
   if (!data.length) {
     return (
-      <div className="panel-alt p-3">
+      <div className={clsx("panel-alt p-3", className)}>
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Coverage By Tool</p>
         <p className="mt-2 text-sm text-slate-300/80">No data in current scope.</p>
       </div>
@@ -31,9 +40,9 @@ export function CoverageByToolRadar({ data }: { data: CoverageByToolPoint[] }) {
   }));
 
   return (
-    <div className="panel-alt p-3">
+    <div className={clsx("panel-alt p-3", className)}>
       <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Coverage By Tool</p>
-      <div className="mt-2 h-[22rem]">
+      <div className={clsx("mt-2", chartHeightClassName)}>
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={chartData}>
             <PolarGrid stroke="rgba(120,180,210,0.2)" />

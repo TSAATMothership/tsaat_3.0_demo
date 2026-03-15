@@ -143,7 +143,7 @@ function SelectField({
           <span className="ml-3 text-xs text-slate-300/70">{isOpen ? "▲" : "▼"}</span>
         </button>
         {isOpen ? (
-          <div className="absolute z-20 mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950 p-2 shadow-2xl">
+          <div className="absolute z-[160] mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950 p-2 shadow-2xl">
             <input
               ref={searchInputRef}
               type="search"
