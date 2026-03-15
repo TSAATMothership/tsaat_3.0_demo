@@ -4,19 +4,9 @@ import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CoverageByToolRadar } from "@/components/coverage-by-tool-radar";
+import { DiscoveryCoverageValue } from "@/lib/discovery-coverage";
 
 const PANEL_TWEEN_MS = 260;
-type CoverageToolKey = "ucmdb" | "tanium" | "tenable" | "snow" | "serviceNow" | "dsocSiem" | "elastic";
-
-const TOOL_KEY_BY_LABEL: Record<string, CoverageToolKey> = {
-  UCMDB: "ucmdb",
-  Tanium: "tanium",
-  Tenable: "tenable",
-  SNOW: "snow",
-  ServiceNow: "serviceNow",
-  "DSOC SIEM": "dsocSiem",
-  Elastic: "elastic"
-};
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -40,9 +30,11 @@ function csvCell(value: string | number | boolean): string {
 }
 
 interface CoverageToolStat {
+  id: string;
   label: string;
   covered: number;
   missing: number;
+  applicable: number;
   coveragePercent: number;
 }
 
@@ -54,10 +46,17 @@ interface CoverageByToolAssetRow {
   network: string;
   ictSystem: string;
   environment: string;
-  coverage: Record<CoverageToolKey, number> & { coverageCompliance: boolean };
+  coverage: {
+    toolValues: Record<string, DiscoveryCoverageValue>;
+    coverageCompliance: boolean;
+  };
 }
 
-function OneZeroPill({ value }: { value: number }) {
+function OneZeroPill({ value }: { value: DiscoveryCoverageValue }) {
+  if (value === null) {
+    return <span className="rounded-full border border-slate-500/50 bg-slate-700/45 px-2 py-0.5 text-xs text-slate-200">N/A</span>;
+  }
+
   return (
     <span
       className={`rounded-full border px-2 py-0.5 text-xs ${
@@ -83,7 +82,7 @@ export function DiscoveryCoverageByToolSection({
   className?: string;
 }) {
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedToolLabel, setSelectedToolLabel] = useState<string | null>(null);
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isPanelLoading, setIsPanelLoading] = useState(false);
   const [panelProgress, setPanelProgress] = useState(0);
@@ -97,7 +96,7 @@ export function DiscoveryCoverageByToolSection({
   const panelLoadOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelLoadCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const signature = useMemo(
-    () => toolStats.map((tool) => `${tool.label}:${tool.covered}:${tool.missing}:${tool.coveragePercent}`).join("|"),
+    () => toolStats.map((tool) => `${tool.id}:${tool.covered}:${tool.missing}:${tool.coveragePercent}`).join("|"),
     [toolStats]
   );
 
@@ -108,7 +107,6 @@ export function DiscoveryCoverageByToolSection({
       clearTimeout(closeTimeoutRef.current);
     }
 
-    // Keep this short to avoid UI flicker while still showing feedback when chart rendering lags.
     closeTimeoutRef.current = setTimeout(() => {
       setIsLoading(false);
       closeTimeoutRef.current = null;
@@ -147,7 +145,7 @@ export function DiscoveryCoverageByToolSection({
   }, [slideoutScopeId, signature, assetRows]);
 
   useEffect(() => {
-    if (!selectedToolLabel) {
+    if (!selectedToolId) {
       return;
     }
 
@@ -158,7 +156,7 @@ export function DiscoveryCoverageByToolSection({
           clearTimeout(closePanelTimeoutRef.current);
         }
         closePanelTimeoutRef.current = setTimeout(() => {
-          setSelectedToolLabel(null);
+          setSelectedToolId(null);
           closePanelTimeoutRef.current = null;
         }, PANEL_TWEEN_MS);
       }
@@ -168,9 +166,9 @@ export function DiscoveryCoverageByToolSection({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [selectedToolLabel]);
+  }, [selectedToolId]);
 
-  const openPanel = (toolLabel: string) => {
+  const openPanel = (toolId: string, toolLabel: string) => {
     if (closePanelTimeoutRef.current) {
       clearTimeout(closePanelTimeoutRef.current);
       closePanelTimeoutRef.current = null;
@@ -194,7 +192,7 @@ export function DiscoveryCoverageByToolSection({
     setIsPanelLoading(true);
     setPanelProgress(0);
     setIsPanelOpen(false);
-    setSelectedToolLabel(null);
+    setSelectedToolId(null);
 
     panelLoadIntervalRef.current = setInterval(() => {
       setPanelProgress((current) => Math.min(96, nextProgressValue(current)));
@@ -205,7 +203,7 @@ export function DiscoveryCoverageByToolSection({
         clearInterval(panelLoadIntervalRef.current);
         panelLoadIntervalRef.current = null;
       }
-      setSelectedToolLabel(toolLabel);
+      setSelectedToolId(toolId);
       requestAnimationFrame(() => {
         setIsPanelOpen(true);
       });
@@ -225,24 +223,30 @@ export function DiscoveryCoverageByToolSection({
       clearTimeout(closePanelTimeoutRef.current);
     }
     closePanelTimeoutRef.current = setTimeout(() => {
-      setSelectedToolLabel(null);
+      setSelectedToolId(null);
       setSelectedToolSearchTerm("");
       setSelectedToolAssetType("");
       closePanelTimeoutRef.current = null;
     }, PANEL_TWEEN_MS);
   };
 
-  const selectedToolKey = selectedToolLabel ? TOOL_KEY_BY_LABEL[selectedToolLabel] : null;
+  const selectedTool = useMemo(
+    () => (selectedToolId ? toolStats.find((tool) => tool.id === selectedToolId) ?? null : null),
+    [selectedToolId, toolStats]
+  );
+
   const selectedToolRows = useMemo(() => {
-    if (!selectedToolKey) {
+    if (!selectedToolId) {
       return [];
     }
-    return assetRows.filter((row) => row.coverage[selectedToolKey] === 0);
-  }, [assetRows, selectedToolKey]);
+    return assetRows.filter((row) => row.coverage.toolValues[selectedToolId] === 0);
+  }, [assetRows, selectedToolId]);
+
   const selectedToolAssetTypeOptions = useMemo(
     () => Array.from(new Set(selectedToolRows.map((row) => row.assetType))).sort((a, b) => a.localeCompare(b)),
     [selectedToolRows]
   );
+
   const filteredSelectedToolRows = useMemo(() => {
     const normalizedSearchTerm = selectedToolSearchTerm.trim().toLowerCase();
     return selectedToolRows.filter((row) => {
@@ -258,8 +262,9 @@ export function DiscoveryCoverageByToolSection({
       return haystack.includes(normalizedSearchTerm);
     });
   }, [selectedToolAssetType, selectedToolRows, selectedToolSearchTerm]);
+
   const downloadSelectedToolCsv = () => {
-    if (!selectedToolLabel || !selectedToolKey || !filteredSelectedToolRows.length) {
+    if (!selectedTool || !filteredSelectedToolRows.length) {
       return;
     }
 
@@ -270,7 +275,7 @@ export function DiscoveryCoverageByToolSection({
       "Network",
       "ICT System",
       "Environment",
-      selectedToolLabel,
+      selectedTool.label,
       "Coverage Compliance"
     ];
     const rows = filteredSelectedToolRows.map((row) => [
@@ -280,12 +285,12 @@ export function DiscoveryCoverageByToolSection({
       row.network,
       row.ictSystem,
       row.environment,
-      row.coverage[selectedToolKey],
+      row.coverage.toolValues[selectedTool.id] === null ? "N/A" : row.coverage.toolValues[selectedTool.id],
       row.coverage.coverageCompliance ? "Yes" : "No"
     ]);
     const csvContent = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
     const safeToolLabel =
-      selectedToolLabel
+      selectedTool.label
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
@@ -300,6 +305,150 @@ export function DiscoveryCoverageByToolSection({
     anchor.remove();
     URL.revokeObjectURL(url);
   };
+
+  const panel = selectedTool ? (
+    <div className="absolute inset-0 z-20 overflow-hidden">
+      <div
+        className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
+          isPanelOpen ? "opacity-100" : "opacity-0"
+        }`}
+        onClick={closePanel}
+      />
+      <aside
+        className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-5 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+          isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+        }`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="coverage-by-tool-slideout-title"
+      >
+        <button
+          type="button"
+          onClick={closePanel}
+          className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
+        >
+          Close
+        </button>
+
+        <div className="flex h-full min-h-0 flex-col pt-2">
+          <div className="pr-16">
+            <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Coverage By Tool</p>
+            <h3 id="coverage-by-tool-slideout-title" className="mt-2 text-2xl font-semibold text-slate-100">
+              {selectedTool.label} Asset Coverage Gaps
+            </h3>
+            <p className="mt-2 text-sm text-slate-300/85">
+              Assets missing {selectedTool.label} coverage in the current Discovery scope.
+            </p>
+          </div>
+
+          <div className="mt-4 panel-alt border-sky-300/25 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-200">
+                Non-compliant assets for {selectedTool.label}:{" "}
+                <span className="font-semibold text-red-100">{filteredSelectedToolRows.length}</span> of{" "}
+                <span className="font-semibold text-red-100">{selectedToolRows.length}</span> shown in tool scope,{" "}
+                <span className="font-semibold text-slate-100">{assetRows.length}</span>
+              </p>
+              <button
+                type="button"
+                onClick={downloadSelectedToolCsv}
+                disabled={!filteredSelectedToolRows.length}
+                className="rounded-md border border-emerald-300/45 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-200/70 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:bg-slate-500/10 disabled:text-slate-400"
+              >
+                Export to CSV
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div>
+              <label htmlFor="coverage-by-tool-asset-type-filter" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
+                Asset Type
+              </label>
+              <select
+                id="coverage-by-tool-asset-type-filter"
+                value={selectedToolAssetType}
+                onChange={(event) => setSelectedToolAssetType(event.target.value)}
+                className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+              >
+                <option value="">All Asset Types</option>
+                {selectedToolAssetTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="coverage-by-tool-search" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
+                Text Search
+              </label>
+              <input
+                id="coverage-by-tool-search"
+                type="search"
+                value={selectedToolSearchTerm}
+                onChange={(event) => setSelectedToolSearchTerm(event.target.value)}
+                placeholder="Search asset, IP, type, network, ICT system, environment..."
+                className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                <tr>
+                  <th className="px-3 py-2">Asset</th>
+                  <th className="px-3 py-2">IP Address</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Network</th>
+                  <th className="px-3 py-2">ICT System</th>
+                  <th className="px-3 py-2">Environment</th>
+                  <th className="px-3 py-2">{selectedTool.label}</th>
+                  <th className="px-3 py-2">Coverage Compliance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSelectedToolRows.map((row) => (
+                  <tr key={`${selectedTool.id}:${row.assetId}`} className="border-t border-sky-400/10">
+                    <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.ipAddress}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.network}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.ictSystem}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.environment}</td>
+                    <td className="px-3 py-2">
+                      <OneZeroPill value={row.coverage.toolValues[selectedTool.id] ?? null} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs ${
+                          row.coverage.coverageCompliance
+                            ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                            : "border-red-400/45 bg-red-500/15 text-red-100"
+                        }`}
+                      >
+                        {row.coverage.coverageCompliance ? "Yes" : "No"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {filteredSelectedToolRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                      {selectedToolSearchTerm || selectedToolAssetType
+                        ? `No assets match this search for ${selectedTool.label}.`
+                        : `No non-compliant assets for ${selectedTool.label} in the current scope.`}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </aside>
+    </div>
+  ) : null;
 
   return (
     <section className={clsx("panel relative flex h-full min-h-0 flex-col overflow-hidden", className)}>
@@ -319,11 +468,11 @@ export function DiscoveryCoverageByToolSection({
             </thead>
             <tbody>
               {toolStats.map((tool) => (
-                <tr key={tool.label} className="border-t border-sky-400/10">
+                <tr key={tool.id} className="border-t border-sky-400/10">
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={() => openPanel(tool.label)}
+                      onClick={() => openPanel(tool.id, tool.label)}
                       className="text-left text-sky-100 underline decoration-sky-300/40 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                     >
                       {tool.label}
@@ -347,302 +496,7 @@ export function DiscoveryCoverageByToolSection({
         />
       </div>
 
-      {selectedToolLabel && selectedToolKey
-        ? (slideoutScopeElement
-            ? createPortal(
-                <div className="absolute inset-0 z-20 overflow-hidden">
-                  <div
-                    className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
-                      isPanelOpen ? "opacity-100" : "opacity-0"
-                    }`}
-                    onClick={closePanel}
-                  />
-                  <aside
-                    className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-5 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
-                      isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
-                    }`}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="coverage-by-tool-slideout-title"
-                  >
-                    <button
-                      type="button"
-                      onClick={closePanel}
-                      className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
-                    >
-                      Close
-                    </button>
-
-                    <div className="flex h-full min-h-0 flex-col pt-2">
-                      <div className="pr-16">
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Coverage By Tool</p>
-                        <h3 id="coverage-by-tool-slideout-title" className="mt-2 text-2xl font-semibold text-slate-100">
-                          {selectedToolLabel} Asset Coverage Gaps
-                        </h3>
-                        <p className="mt-2 text-sm text-slate-300/85">
-                          Assets missing {selectedToolLabel} coverage in the current Discovery scope.
-                        </p>
-                      </div>
-
-                      <div className="mt-4 panel-alt border-sky-300/25 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-sm text-slate-200">
-                            Non-compliant assets for {selectedToolLabel}:{" "}
-                            <span className="font-semibold text-red-100">{filteredSelectedToolRows.length}</span> of{" "}
-                            <span className="font-semibold text-red-100">{selectedToolRows.length}</span> shown in tool scope,{" "}
-                            <span className="font-semibold text-slate-100">{assetRows.length}</span>
-                          </p>
-                          <button
-                            type="button"
-                            onClick={downloadSelectedToolCsv}
-                            disabled={!filteredSelectedToolRows.length}
-                            className="rounded-md border border-emerald-300/45 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-200/70 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:bg-slate-500/10 disabled:text-slate-400"
-                          >
-                            Export to CSV
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <div>
-                          <label
-                            htmlFor="coverage-by-tool-asset-type-filter"
-                            className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
-                          >
-                            Asset Type
-                          </label>
-                          <select
-                            id="coverage-by-tool-asset-type-filter"
-                            value={selectedToolAssetType}
-                            onChange={(event) => setSelectedToolAssetType(event.target.value)}
-                            className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          >
-                            <option value="">All Asset Types</option>
-                            {selectedToolAssetTypeOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label htmlFor="coverage-by-tool-search" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                            Text Search
-                          </label>
-                          <input
-                            id="coverage-by-tool-search"
-                            type="search"
-                            value={selectedToolSearchTerm}
-                            onChange={(event) => setSelectedToolSearchTerm(event.target.value)}
-                            placeholder="Search asset, IP, type, network, ICT system, environment..."
-                            className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-4 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
-                        <table className="min-w-full text-sm">
-                          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                            <tr>
-                              <th className="px-3 py-2">Asset</th>
-                              <th className="px-3 py-2">IP Address</th>
-                              <th className="px-3 py-2">Type</th>
-                              <th className="px-3 py-2">Network</th>
-                              <th className="px-3 py-2">ICT System</th>
-                              <th className="px-3 py-2">Environment</th>
-                              <th className="px-3 py-2">{selectedToolLabel}</th>
-                              <th className="px-3 py-2">Coverage Compliance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredSelectedToolRows.map((row) => (
-                              <tr key={`${selectedToolLabel}:${row.assetId}`} className="border-t border-sky-400/10">
-                                <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.ipAddress}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.network}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.ictSystem}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                                <td className="px-3 py-2">
-                                  <OneZeroPill value={row.coverage[selectedToolKey]} />
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span
-                                    className={`rounded-full border px-2 py-0.5 text-xs ${
-                                      row.coverage.coverageCompliance
-                                        ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                                        : "border-red-400/45 bg-red-500/15 text-red-100"
-                                    }`}
-                                  >
-                                    {row.coverage.coverageCompliance ? "Yes" : "No"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                            {filteredSelectedToolRows.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                                  {selectedToolSearchTerm || selectedToolAssetType
-                                    ? `No assets match this search for ${selectedToolLabel}.`
-                                    : `No non-compliant assets for ${selectedToolLabel} in the current scope.`}
-                                </td>
-                              </tr>
-                            ) : null}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </aside>
-                </div>,
-                slideoutScopeElement
-              )
-            : (
-                <div className="absolute inset-0 z-20 overflow-hidden">
-                  <div
-                    className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
-                      isPanelOpen ? "opacity-100" : "opacity-0"
-                    }`}
-                    onClick={closePanel}
-                  />
-                  <aside
-                    className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-5 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
-                      isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
-                    }`}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="coverage-by-tool-slideout-title"
-                  >
-                    <button
-                      type="button"
-                      onClick={closePanel}
-                      className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
-                    >
-                      Close
-                    </button>
-
-                    <div className="flex h-full min-h-0 flex-col pt-2">
-                      <div className="pr-16">
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Coverage By Tool</p>
-                        <h3 id="coverage-by-tool-slideout-title" className="mt-2 text-2xl font-semibold text-slate-100">
-                          {selectedToolLabel} Asset Coverage Gaps
-                        </h3>
-                        <p className="mt-2 text-sm text-slate-300/85">
-                          Assets missing {selectedToolLabel} coverage in the current Discovery scope.
-                        </p>
-                      </div>
-
-                      <div className="mt-4 panel-alt border-sky-300/25 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-sm text-slate-200">
-                            Non-compliant assets for {selectedToolLabel}:{" "}
-                            <span className="font-semibold text-red-100">{filteredSelectedToolRows.length}</span> of{" "}
-                            <span className="font-semibold text-red-100">{selectedToolRows.length}</span> shown in tool scope,{" "}
-                            <span className="font-semibold text-slate-100">{assetRows.length}</span>
-                          </p>
-                          <button
-                            type="button"
-                            onClick={downloadSelectedToolCsv}
-                            disabled={!filteredSelectedToolRows.length}
-                            className="rounded-md border border-emerald-300/45 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:border-emerald-200/70 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:bg-slate-500/10 disabled:text-slate-400"
-                          >
-                            Export to CSV
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <div>
-                          <label
-                            htmlFor="coverage-by-tool-asset-type-filter"
-                            className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
-                          >
-                            Asset Type
-                          </label>
-                          <select
-                            id="coverage-by-tool-asset-type-filter"
-                            value={selectedToolAssetType}
-                            onChange={(event) => setSelectedToolAssetType(event.target.value)}
-                            className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-                          >
-                            <option value="">All Asset Types</option>
-                            {selectedToolAssetTypeOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label htmlFor="coverage-by-tool-search" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                            Text Search
-                          </label>
-                          <input
-                            id="coverage-by-tool-search"
-                            type="search"
-                            value={selectedToolSearchTerm}
-                            onChange={(event) => setSelectedToolSearchTerm(event.target.value)}
-                            placeholder="Search asset, IP, type, network, ICT system, environment..."
-                            className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-4 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
-                        <table className="min-w-full text-sm">
-                          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                            <tr>
-                              <th className="px-3 py-2">Asset</th>
-                              <th className="px-3 py-2">IP Address</th>
-                              <th className="px-3 py-2">Type</th>
-                              <th className="px-3 py-2">Network</th>
-                              <th className="px-3 py-2">ICT System</th>
-                              <th className="px-3 py-2">Environment</th>
-                              <th className="px-3 py-2">{selectedToolLabel}</th>
-                              <th className="px-3 py-2">Coverage Compliance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredSelectedToolRows.map((row) => (
-                              <tr key={`${selectedToolLabel}:${row.assetId}`} className="border-t border-sky-400/10">
-                                <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.ipAddress}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.network}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.ictSystem}</td>
-                                <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                                <td className="px-3 py-2">
-                                  <OneZeroPill value={row.coverage[selectedToolKey]} />
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span
-                                    className={`rounded-full border px-2 py-0.5 text-xs ${
-                                      row.coverage.coverageCompliance
-                                        ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                                        : "border-red-400/45 bg-red-500/15 text-red-100"
-                                    }`}
-                                  >
-                                    {row.coverage.coverageCompliance ? "Yes" : "No"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                            {filteredSelectedToolRows.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                                  {selectedToolSearchTerm || selectedToolAssetType
-                                    ? `No assets match this search for ${selectedToolLabel}.`
-                                    : `No non-compliant assets for ${selectedToolLabel} in the current scope.`}
-                                </td>
-                              </tr>
-                            ) : null}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </aside>
-                </div>
-              ))
-        : null}
+      {panel ? (slideoutScopeElement ? createPortal(panel, slideoutScopeElement) : panel) : null}
 
       {isPanelLoading ? (
         <div className="absolute inset-0 z-30 cursor-wait bg-slate-950/60">
@@ -678,3 +532,4 @@ export function DiscoveryCoverageByToolSection({
     </section>
   );
 }
+

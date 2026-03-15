@@ -1,14 +1,16 @@
 import { buildAnalytics } from "@/lib/analytics";
+import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
 import { Dataset, Filters, TrendPoint } from "@/lib/types";
 
 export function buildTrendPoints(
   snapshots: Dataset[],
   filters: Filters = {},
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings()
+  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): TrendPoint[] {
   return snapshots.map((snapshot, index) => {
-    const analytics = buildAnalytics(snapshot, snapshot.ictSystems, filters, measuresSettings);
+    const analytics = buildAnalytics(snapshot, snapshot.ictSystems, filters, measuresSettings, discoveryToolsSettings);
     const highRiskCount = analytics.findings.filter((finding) => finding.severity === "High Risk").length;
     const criticalExposureCount = analytics.findings.filter(
       (finding) => finding.severity === "Critical Exposure"
@@ -51,7 +53,8 @@ export function buildNetworkP12TrendSeries(
   networks: Array<{ id: string; name: string }>,
   filters: Filters = {},
   lookbackWeeks = 12,
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings()
+  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): NetworkP12TrendSeries[] {
   const scopedSnapshots = snapshots.slice(-lookbackWeeks);
   const globalScopeFilters: Filters = {
@@ -60,7 +63,13 @@ export function buildNetworkP12TrendSeries(
   };
 
   const pointRows = scopedSnapshots.map((snapshot, index) => {
-    const analytics = buildAnalytics(snapshot, snapshot.ictSystems, globalScopeFilters, measuresSettings);
+    const analytics = buildAnalytics(
+      snapshot,
+      snapshot.ictSystems,
+      globalScopeFilters,
+      measuresSettings,
+      discoveryToolsSettings
+    );
     const p12Findings = analytics.findings.filter((finding) => finding.priorityRank <= 2);
 
     const countByNetwork = p12Findings.reduce((map, finding) => {

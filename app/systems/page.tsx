@@ -463,7 +463,16 @@ export default async function SystemsPage({
 }) {
   const selectedDataDate = extractDataDateParam(searchParams);
   const { network: _ignoredNetwork, ...systemsOnlySearchParams } = searchParams;
-  const { analytics, filterOptions, filters, systems, snapshots, measuresSettings, dataset } = await getTrendAppData(
+  const {
+    analytics,
+    filterOptions,
+    filters,
+    systems,
+    snapshots,
+    measuresSettings,
+    discoveryToolsSettings,
+    dataset
+  } = await getTrendAppData(
     systemsOnlySearchParams
   );
   const queryEntries = toQueryEntries(systemsOnlySearchParams);
@@ -544,7 +553,7 @@ export default async function SystemsPage({
   }).length;
 
   const scopedSnapshots = snapshots.slice(-12);
-  const getSnapshotAnalytics = createSnapshotAnalyticsMemo(filters, measuresSettings);
+  const getSnapshotAnalytics = createSnapshotAnalyticsMemo(filters, measuresSettings, discoveryToolsSettings);
   const trendPoints = scopedSnapshots.map((snapshot, index) => {
     const snapshotAnalytics = getSnapshotAnalytics(snapshot);
     const snapshotSystems = filterSystems(snapshot.ictSystems, filters);

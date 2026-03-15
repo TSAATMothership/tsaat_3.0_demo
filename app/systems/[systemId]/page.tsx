@@ -6,10 +6,13 @@ import { ServerStreamHint } from "@/components/server-stream-hint";
 import { buildAnalytics } from "@/lib/analytics";
 import {
   loadDatasetForDate,
+  loadDiscoveryToolsSettings,
   loadLatestSnapshotsForDate,
   loadMeasuresSettings
 } from "@/lib/data-loader";
+import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { extractDataDateParam, withDataDate } from "@/lib/data-date";
+import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding } from "@/lib/types";
@@ -123,20 +126,19 @@ function n2PlusStatusLabel(nMinus: number | null): string {
   return nMinus <= 2 ? "Within N-2+" : "Outside N-2+";
 }
 
-function discoveryCoverageForAsset(asset: Asset) {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const snow = asset.lifecycle.warrantyStatus !== "Unknown" ? 1 : 0;
-  const seviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  const dsocSiem = asset.vulnerabilities.length > 0 ? 1 : 0;
-  const elastic = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const coverageCompliance =
-    ucmdb === 1 && tanium === 1 && tenable === 1 && snow === 1 && seviceNow === 1 && dsocSiem === 1 && elastic === 1;
+function coverageFlag(value: DiscoveryCoverageValue | undefined): number {
+  return value === 0 ? 0 : 1;
+}
+
+function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
+  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+  const ucmdb = coverageFlag(coverage.toolValues.ucmdb);
+  const tanium = coverageFlag(coverage.toolValues.tanium);
+  const tenable = coverageFlag(coverage.toolValues.tenable);
+  const snow = coverageFlag(coverage.toolValues.snow);
+  const seviceNow = coverageFlag(coverage.toolValues.servicenow ?? coverage.toolValues["service-now"]);
+  const dsocSiem = coverageFlag(coverage.toolValues["dsoc-siem"] ?? coverage.toolValues.siem);
+  const elastic = coverageFlag(coverage.toolValues.elastic);
 
   return {
     ucmdb,
@@ -146,7 +148,7 @@ function discoveryCoverageForAsset(asset: Asset) {
     seviceNow,
     dsocSiem,
     elastic,
-    coverageCompliance
+    coverageCompliance: coverage.coverageCompliance
   };
 }
 
@@ -165,7 +167,8 @@ function buildSystemKpiSnapshotMetrics(
   systemId: string,
   selectedEnvironment: EnvironmentType | undefined,
   serverSearchTerm: string,
-  measuresSettings: MeasuresSettings
+  measuresSettings: MeasuresSettings,
+  discoveryToolsSettings: DiscoveryToolsSettings
 ): SystemKpiSnapshotMetrics {
   const system = snapshot.ictSystems.find((item) => item.id === systemId);
   if (!system) {
@@ -180,7 +183,13 @@ function buildSystemKpiSnapshotMetrics(
     };
   }
 
-  const analytics = buildAnalytics(snapshot, snapshot.ictSystems, { ictSystem: systemId }, measuresSettings);
+  const analytics = buildAnalytics(
+    snapshot,
+    snapshot.ictSystems,
+    { ictSystem: systemId },
+    measuresSettings,
+    discoveryToolsSettings
+  );
   const assets = snapshot.assets.filter((asset) => asset.systemContext?.systemId === systemId);
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12Findings = analytics.findings.filter((finding) => finding.priorityRank <= 2);
@@ -260,7 +269,7 @@ function buildSystemKpiSnapshotMetrics(
     (asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty"
   ).length;
   const nonCompliantDiscoveryCoverage = assetsInCountScope.filter(
-    (asset) => !discoveryCoverageForAsset(asset).coverageCompliance
+    (asset) => !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance
   ).length;
 
   return {
@@ -349,10 +358,11 @@ export default async function SystemDetailPage({
 }) {
   const requestParams = searchParams ?? {};
   const requestedDataDate = extractDataDateParam(requestParams);
-  const [dataset, snapshots, measuresSettings] = await Promise.all([
+  const [dataset, snapshots, measuresSettings, discoveryToolsSettings] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
     loadLatestSnapshotsForDate(requestedDataDate, 12),
-    loadMeasuresSettings()
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
   ]);
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
 
@@ -360,7 +370,13 @@ export default async function SystemDetailPage({
     notFound();
   }
 
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, { ictSystem: system.id }, measuresSettings);
+  const analytics = buildAnalytics(
+    dataset,
+    dataset.ictSystems,
+    { ictSystem: system.id },
+    measuresSettings,
+    discoveryToolsSettings
+  );
 
   const assets = dataset.assets.filter((asset) => asset.systemContext?.systemId === system.id);
   const assetNameById = new Map(assets.map((asset) => [asset.id, asset.hostname]));
@@ -462,7 +478,7 @@ export default async function SystemDetailPage({
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !discoveryCoverageForAsset(asset).coverageCompliance;
+      return !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance;
     }
     return true;
   };
@@ -534,7 +550,7 @@ export default async function SystemDetailPage({
     (asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty"
   ).length;
   const nonCompliantDiscoveryCoverageCount = assetsInCountScope.filter(
-    (asset) => !discoveryCoverageForAsset(asset).coverageCompliance
+    (asset) => !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance
   ).length;
 
   const filteredAssets = selectedEnvironment
@@ -598,7 +614,7 @@ export default async function SystemDetailPage({
 
   const discoveryCoverageRows = filteredAssets
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset);
+      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
 
       return {
         assetId: asset.id,
@@ -821,7 +837,8 @@ export default async function SystemDetailPage({
       system.id,
       selectedEnvironment,
       serverSearchTerm,
-      measuresSettings
+      measuresSettings,
+      discoveryToolsSettings
     );
     return {
       weekLabel: `W${String(last12Snapshots.length - index).padStart(2, "0")}`,

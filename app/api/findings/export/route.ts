@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadMeasuresSettings } from "@/lib/data-loader";
+import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { parseFilters } from "@/lib/selectors";
 
@@ -60,12 +60,16 @@ function findingMatchesSearch(
 }
 
 export async function GET(request: NextRequest) {
-  const [dataset, measuresSettings] = await Promise.all([loadCurrentDataset(), loadMeasuresSettings()]);
+  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+    loadCurrentDataset(),
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
+  ]);
   const searchParams = Object.fromEntries(request.nextUrl.searchParams.entries());
 
   const format = request.nextUrl.searchParams.get("format") ?? "json";
   const filters = parseFilters(searchParams);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
   historyStartDate.setUTCFullYear(historyStartDate.getUTCFullYear() - 2);

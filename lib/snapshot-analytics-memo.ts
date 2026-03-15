@@ -1,4 +1,5 @@
 import { buildAnalytics } from "@/lib/analytics";
+import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
 import { AnalyticsResult, Dataset, Filters } from "@/lib/types";
 
@@ -18,7 +19,8 @@ function filtersKey(filters: Filters): string {
 
 export function createSnapshotAnalyticsMemo(
   filters: Filters,
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings()
+  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ) {
   const filterKey = filtersKey(filters);
   const cache = new Map<string, AnalyticsResult>();
@@ -30,7 +32,7 @@ export function createSnapshotAnalyticsMemo(
       return cached;
     }
 
-    const computed = buildAnalytics(snapshot, snapshot.ictSystems, filters, measuresSettings);
+    const computed = buildAnalytics(snapshot, snapshot.ictSystems, filters, measuresSettings, discoveryToolsSettings);
     cache.set(key, computed);
     return computed;
   };

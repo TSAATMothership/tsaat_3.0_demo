@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadMeasuresSettings } from "@/lib/data-loader";
+import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { Asset, ComplianceStatus, EnvironmentType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -70,30 +72,11 @@ function nonCompliantEnvironmentTypesForScope(
   return nonCompliant;
 }
 
-function discoveryCoverageForAsset(asset: Asset) {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const snow = asset.lifecycle.warrantyStatus !== "Unknown" ? 1 : 0;
-  const serviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  const dsocSiem = asset.vulnerabilities.length > 0 ? 1 : 0;
-  const elastic = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const coverageCompliance =
-    ucmdb === 1 && tanium === 1 && tenable === 1 && snow === 1 && serviceNow === 1 && dsocSiem === 1 && elastic === 1;
-
+function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
+  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
   return {
-    ucmdb,
-    tanium,
-    tenable,
-    snow,
-    serviceNow,
-    dsocSiem,
-    elastic,
-    coverageCompliance
+    missingTools: coverage.missingToolNames,
+    coverageCompliance: coverage.coverageCompliance
   };
 }
 
@@ -205,14 +188,24 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { systemId: string } }
 ) {
-  const [dataset, measuresSettings] = await Promise.all([loadCurrentDataset(), loadMeasuresSettings()]);
+  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+    loadCurrentDataset(),
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
+  ]);
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
 
   if (!system) {
     return NextResponse.json({ error: "ICT System not found." }, { status: 404 });
   }
 
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, { ictSystem: system.id }, measuresSettings);
+  const analytics = buildAnalytics(
+    dataset,
+    dataset.ictSystems,
+    { ictSystem: system.id },
+    measuresSettings,
+    discoveryToolsSettings
+  );
   const assets = dataset.assets.filter((asset) => asset.systemContext?.systemId === system.id);
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12Findings = analytics.findings.filter((finding) => finding.priorityRank <= 2);
@@ -296,7 +289,7 @@ export async function GET(
     }
 
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !discoveryCoverageForAsset(asset).coverageCompliance;
+      return !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance;
     }
 
     return true;
@@ -313,36 +306,13 @@ export async function GET(
 
   const serverCoverageGaps = filteredServers
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset);
-      const missingTools: string[] = [];
-
-      if (coverage.ucmdb === 0) {
-        missingTools.push("UCMDB");
-      }
-      if (coverage.tanium === 0) {
-        missingTools.push("Tanium");
-      }
-      if (coverage.tenable === 0) {
-        missingTools.push("Tenable");
-      }
-      if (coverage.snow === 0) {
-        missingTools.push("SNOW");
-      }
-      if (coverage.serviceNow === 0) {
-        missingTools.push("ServiceNow");
-      }
-      if (coverage.dsocSiem === 0) {
-        missingTools.push("DSOC SIEM");
-      }
-      if (coverage.elastic === 0) {
-        missingTools.push("Elastic");
-      }
+      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
 
       return {
         assetId: asset.id,
         hostname: asset.hostname,
         environment: asset.systemContext?.environmentType ?? "-",
-        missingTools
+        missingTools: coverage.missingTools
       };
     })
     .filter((item) => item.missingTools.length > 0)

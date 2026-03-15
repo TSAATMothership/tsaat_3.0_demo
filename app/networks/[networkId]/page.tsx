@@ -8,13 +8,16 @@ import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import {
   loadDatasetForDate,
+  loadDiscoveryToolsSettings,
   loadLatestSnapshotsForDate,
   loadMeasuresSettings
 } from "@/lib/data-loader";
+import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
+import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
@@ -313,17 +316,17 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function discoveryCoverageForAsset(asset: Asset) {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const snow = asset.lifecycle.warrantyStatus !== "Unknown" ? 1 : 0;
-  const seviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  const coverageCompliance = ucmdb === 1 && tanium === 1 && tenable === 1 && snow === 1 && seviceNow === 1;
+function coverageFlag(value: DiscoveryCoverageValue | undefined): number {
+  return value === 0 ? 0 : 1;
+}
+
+function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
+  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+  const ucmdb = coverageFlag(coverage.toolValues.ucmdb);
+  const tanium = coverageFlag(coverage.toolValues.tanium);
+  const tenable = coverageFlag(coverage.toolValues.tenable);
+  const snow = coverageFlag(coverage.toolValues.snow);
+  const seviceNow = coverageFlag(coverage.toolValues.servicenow ?? coverage.toolValues["service-now"]);
 
   return {
     ucmdb,
@@ -331,16 +334,23 @@ function discoveryCoverageForAsset(asset: Asset) {
     tenable,
     snow,
     seviceNow,
-    coverageCompliance
+    coverageCompliance: coverage.coverageCompliance
   };
 }
 
 function buildNetworkKpiSnapshotMetrics(
   snapshot: Dataset,
   networkId: string,
-  measuresSettings: MeasuresSettings
+  measuresSettings: MeasuresSettings,
+  discoveryToolsSettings: DiscoveryToolsSettings
 ): NetworkKpiSnapshotMetrics {
-  const analytics = buildAnalytics(snapshot, snapshot.ictSystems, { managedNetwork: networkId }, measuresSettings);
+  const analytics = buildAnalytics(
+    snapshot,
+    snapshot.ictSystems,
+    { managedNetwork: networkId },
+    measuresSettings,
+    discoveryToolsSettings
+  );
   const assets = snapshot.assets.filter((asset) => asset.networkId === networkId);
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12Findings = analytics.findings.filter((finding) => finding.priorityRank <= 2);
@@ -390,7 +400,7 @@ function buildNetworkKpiSnapshotMetrics(
   const highRiskP12Findings = p12Findings.filter((finding) => finding.severity === "High Risk").length;
   const outOfWarrantyAssets = assets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
   const nonCompliantDiscoveryCoverage = assets.filter(
-    (asset) => !discoveryCoverageForAsset(asset).coverageCompliance
+    (asset) => !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance
   ).length;
 
   return {
@@ -414,10 +424,11 @@ export default async function NetworkDetailPage({
 }) {
   const requestParams = searchParams ?? {};
   const requestedDataDate = extractDataDateParam(requestParams);
-  const [dataset, snapshots, measuresSettings] = await Promise.all([
+  const [dataset, snapshots, measuresSettings, discoveryToolsSettings] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
     loadLatestSnapshotsForDate(requestedDataDate, 12),
-    loadMeasuresSettings()
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
   ]);
   const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
 
@@ -425,7 +436,13 @@ export default async function NetworkDetailPage({
     notFound();
   }
 
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, { managedNetwork: network.id }, measuresSettings);
+  const analytics = buildAnalytics(
+    dataset,
+    dataset.ictSystems,
+    { managedNetwork: network.id },
+    measuresSettings,
+    discoveryToolsSettings
+  );
   const assets = dataset.assets.filter((asset) => asset.networkId === network.id);
   const findings = analytics.findings;
   const p12Findings = findings.filter((finding) => finding.priorityRank <= 2);
@@ -516,7 +533,7 @@ export default async function NetworkDetailPage({
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !discoveryCoverageForAsset(asset).coverageCompliance;
+      return !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance;
     }
     return true;
   };
@@ -828,7 +845,7 @@ export default async function NetworkDetailPage({
     if (cached) {
       return cached;
     }
-    const computed = buildNetworkKpiSnapshotMetrics(snapshot, network.id, measuresSettings);
+    const computed = buildNetworkKpiSnapshotMetrics(snapshot, network.id, measuresSettings, discoveryToolsSettings);
     metricsBySnapshotDate.set(snapshot.snapshotDate, computed);
     return computed;
   };
@@ -896,7 +913,7 @@ export default async function NetworkDetailPage({
   });
   const discoveryCoverageRows = filteredAssets
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset);
+      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
       return {
         assetId: asset.id,
         hostname: asset.hostname,

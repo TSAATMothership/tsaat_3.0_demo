@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadMeasuresSettings } from "@/lib/data-loader";
+import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { buildKpiRows, buildSpiRows } from "@/lib/measures";
 import {
   remediationActionsForKpi,
@@ -220,12 +220,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing or invalid kind/id parameters." }, { status: 400 });
   }
 
-  const [dataset, measuresSettings] = await Promise.all([loadCurrentDataset(), loadMeasuresSettings()]);
+  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+    loadCurrentDataset(),
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
+  ]);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
   const scopedSystems = filterSystems(dataset.ictSystems, filters);
   const scopedNetworks = filterNetworks(dataset.managedNetworks, filters);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
 
   const kpiRows = buildKpiRows(analytics, scopedSystems, scopedNetworks);
   const spiRows = buildSpiRows(analytics);

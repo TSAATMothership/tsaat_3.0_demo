@@ -1,7 +1,9 @@
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadDatasetForDate, loadMeasuresSettings } from "@/lib/data-loader";
+import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { loadDatasetForDate, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { Asset, ComplianceStatus } from "@/lib/types";
 
 type KpiFilterKey =
@@ -53,23 +55,19 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function discoveryCoverageForAsset(asset: Asset) {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const serviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  const coverageCompliance = ucmdb === 1 && tanium === 1 && tenable === 1 && serviceNow === 1;
+function coverageFlag(value: DiscoveryCoverageValue | undefined): number {
+  return value === 0 ? 0 : 1;
+}
+
+function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
+  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
 
   return {
-    ucmdb,
-    tanium,
-    tenable,
-    serviceNow,
-    coverageCompliance
+    ucmdb: coverageFlag(coverage.toolValues.ucmdb),
+    tanium: coverageFlag(coverage.toolValues.tanium),
+    tenable: coverageFlag(coverage.toolValues.tenable),
+    serviceNow: coverageFlag(coverage.toolValues.servicenow ?? coverage.toolValues["service-now"]),
+    coverageCompliance: coverage.coverageCompliance
   };
 }
 
@@ -94,9 +92,10 @@ export async function GET(
   { params }: { params: { networkId: string } }
 ) {
   const requestedDataDate = request.nextUrl.searchParams.get("dataDate")?.trim() || undefined;
-  const [dataset, measuresSettings] = await Promise.all([
+  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
-    loadMeasuresSettings()
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
   ]);
 
   const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
@@ -104,7 +103,13 @@ export async function GET(
     return NextResponse.json({ error: "Managed network not found." }, { status: 404 });
   }
 
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, { managedNetwork: network.id }, measuresSettings);
+  const analytics = buildAnalytics(
+    dataset,
+    dataset.ictSystems,
+    { managedNetwork: network.id },
+    measuresSettings,
+    discoveryToolsSettings
+  );
   const assets = dataset.assets.filter((asset) => asset.networkId === network.id);
   const allFindings = analytics.findings;
   const requestedKpiFilter = request.nextUrl.searchParams.get("kpiFilter") ?? undefined;
@@ -175,7 +180,7 @@ export async function GET(
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !discoveryCoverageForAsset(asset).coverageCompliance;
+      return !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance;
     }
     return true;
   };
@@ -189,7 +194,7 @@ export async function GET(
 
   const rows = (selectedKpiFilter ? assets.filter((asset) => matchesSelectedKpiFilter(asset)) : assets)
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset);
+      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
       return {
         assetId: asset.id,
         asset: asset.hostname,

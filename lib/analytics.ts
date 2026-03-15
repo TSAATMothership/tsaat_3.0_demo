@@ -1,5 +1,7 @@
 import { buildFindings } from "@/lib/findings";
 import { deduplicateFindings } from "@/lib/findings-normalization";
+import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { applyMeasuresSeveritySettings, defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
 import { buildRollups, mergeStatusCounts } from "@/lib/rollup";
 import { applyAssetFilters } from "@/lib/selectors";
@@ -15,22 +17,14 @@ import {
   ICTSystem
 } from "@/lib/types";
 
-function discoveryCoverageForAsset(asset: Asset): boolean {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const snow = asset.lifecycle.warrantyStatus !== "Unknown" ? 1 : 0;
-  const serviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  return ucmdb === 1 && tanium === 1 && tenable === 1 && snow === 1 && serviceNow === 1;
-}
-
-function toAssetEvaluation(asset: Asset, systemsById: Map<string, ICTSystem>): AssetSpiEvaluation {
+function toAssetEvaluation(
+  asset: Asset,
+  systemsById: Map<string, ICTSystem>,
+  discoveryToolsSettings: DiscoveryToolsSettings
+): AssetSpiEvaluation {
   const systemId = asset.systemContext?.systemId;
   const system = systemId ? systemsById.get(systemId) : undefined;
+  const discoveryCoverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
 
   return {
     assetId: asset.id,
@@ -40,7 +34,7 @@ function toAssetEvaluation(asset: Asset, systemsById: Map<string, ICTSystem>): A
     environmentType: asset.systemContext?.environmentType ?? null,
     securityDomain: asset.securityDomain,
     systemCriticality: system?.criticality ?? null,
-    discoveryCoverageCompliant: discoveryCoverageForAsset(asset),
+    discoveryCoverageCompliant: discoveryCoverage.coverageCompliance,
     evaluations: evaluateAssetSpis(asset)
   };
 }
@@ -57,11 +51,12 @@ export function buildAnalytics(
   dataset: Dataset,
   systems: ICTSystem[],
   filters: Filters = {},
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings()
+  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): AnalyticsResult {
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
   const systemsById = new Map(systems.map((system) => [system.id, system]));
-  const evaluations = filteredAssets.map((asset) => toAssetEvaluation(asset, systemsById));
+  const evaluations = filteredAssets.map((asset) => toAssetEvaluation(asset, systemsById, discoveryToolsSettings));
 
   const allStatuses = evaluations.flatMap((assetEval) =>
     assetEval.evaluations.map((evaluation) => evaluation.status)
@@ -77,7 +72,7 @@ export function buildAnalytics(
       return dataset.findings;
     }
 
-    const allEvaluations = dataset.assets.map((asset) => toAssetEvaluation(asset, systemsById));
+    const allEvaluations = dataset.assets.map((asset) => toAssetEvaluation(asset, systemsById, discoveryToolsSettings));
     const allProductionCriticalSet = new Set(
       dataset.assets.filter((asset) => hasProductionCriticalVulnerability(asset)).map((asset) => asset.id)
     );

@@ -2,11 +2,17 @@ import { promises as fs } from "fs";
 import path from "path";
 import { cache } from "react";
 import { normalizeDataDate, todayDateKey } from "@/lib/data-date";
+import {
+  defaultDiscoveryToolsSettings,
+  DiscoveryToolsSettings,
+  normalizeDiscoveryToolsSettings
+} from "@/lib/discovery-tools-settings";
 import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } from "@/lib/measures-settings";
 import { Dataset, ReferenceVersions } from "@/lib/types";
 
 const dataDir = path.join(process.cwd(), "data");
 const measuresSettingsPath = path.join(dataDir, "measures-settings.json");
+const discoveryToolsSettingsPath = path.join(dataDir, "discovery-tools-settings.json");
 
 async function readJsonFile<T>(filepath: string): Promise<T> {
   const content = await fs.readFile(filepath, "utf-8");
@@ -111,5 +117,25 @@ export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSett
   };
 
   await fs.writeFile(measuresSettingsPath, JSON.stringify(persisted, null, 2), "utf-8");
+  return persisted;
+}
+
+export async function loadDiscoveryToolsSettings(): Promise<DiscoveryToolsSettings> {
+  try {
+    const parsed = await readJsonFile<unknown>(discoveryToolsSettingsPath);
+    return normalizeDiscoveryToolsSettings(parsed);
+  } catch (error) {
+    return defaultDiscoveryToolsSettings();
+  }
+}
+
+export async function saveDiscoveryToolsSettings(input: unknown): Promise<DiscoveryToolsSettings> {
+  const normalized = normalizeDiscoveryToolsSettings(input);
+  const persisted: DiscoveryToolsSettings = {
+    ...normalized,
+    updatedAt: new Date().toISOString()
+  };
+
+  await fs.writeFile(discoveryToolsSettingsPath, JSON.stringify(persisted, null, 2), "utf-8");
   return persisted;
 }

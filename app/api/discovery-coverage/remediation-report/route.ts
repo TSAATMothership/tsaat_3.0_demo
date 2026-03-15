@@ -1,54 +1,13 @@
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadMeasuresSettings } from "@/lib/data-loader";
+import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { parseFilters } from "@/lib/selectors";
 import { Asset } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function discoveryCoverageForAsset(asset: Asset) {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const snow = asset.lifecycle.warrantyStatus !== "Unknown" ? 1 : 0;
-  const serviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  const dsocSiem = asset.vulnerabilities.length > 0 ? 1 : 0;
-  const elastic = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-
-  const missingTools: string[] = [];
-  if (ucmdb === 0) {
-    missingTools.push("UCMDB");
-  }
-  if (tanium === 0) {
-    missingTools.push("Tanium");
-  }
-  if (tenable === 0) {
-    missingTools.push("Tenable");
-  }
-  if (snow === 0) {
-    missingTools.push("SNOW");
-  }
-  if (serviceNow === 0) {
-    missingTools.push("ServiceNow");
-  }
-  if (dsocSiem === 0) {
-    missingTools.push("DSOC SIEM");
-  }
-  if (elastic === 0) {
-    missingTools.push("Elastic");
-  }
-
-  return {
-    missingTools,
-    coverageCompliance: missingTools.length === 0
-  };
-}
 
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
@@ -168,10 +127,14 @@ function includesSearch(
 }
 
 export async function GET(request: NextRequest) {
-  const [dataset, measuresSettings] = await Promise.all([loadCurrentDataset(), loadMeasuresSettings()]);
+  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+    loadCurrentDataset(),
+    loadMeasuresSettings(),
+    loadDiscoveryToolsSettings()
+  ]);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
 
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
@@ -183,7 +146,7 @@ export async function GET(request: NextRequest) {
   const scopedRows = dataset.assets
     .filter((asset) => scopedAssetIds.has(asset.id))
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset);
+      const discoveryCoverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
       const networkName = networkNameById.get(asset.networkId) ?? asset.networkId;
       const systemId = asset.systemContext?.systemId ?? null;
       const systemName = systemId ? (systemNameById.get(systemId) ?? systemId) : "-";
@@ -196,7 +159,10 @@ export async function GET(request: NextRequest) {
         networkName,
         systemName,
         environment,
-        coverage
+        coverage: {
+          missingTools: discoveryCoverage.missingToolNames,
+          coverageCompliance: discoveryCoverage.coverageCompliance
+        }
       };
     })
     .sort((a, b) => a.hostname.localeCompare(b.hostname));

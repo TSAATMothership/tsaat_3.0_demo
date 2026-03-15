@@ -1,6 +1,6 @@
 import { DiscoveryCoverageByToolSection } from "@/components/discovery-coverage-by-tool-section";
-import { DiscoveryCoverageSearchForm } from "@/components/discovery-coverage-search-form";
 import { DiscoveryCoverageTabs } from "@/components/discovery-coverage-tabs";
+import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
 import {
   NetworkDiscoverySummaryTableClient,
   type NetworkDiscoverySummaryTableRow
@@ -10,21 +10,13 @@ import {
   type TargetStateNetworkSummary
 } from "@/components/discovery-coverage-target-state-section";
 import { FilterBar } from "@/components/filter-bar";
-import { ServerStreamHint } from "@/components/server-stream-hint";
 import { getCoreAppData } from "@/lib/app-data";
+import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
-import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset } from "@/lib/types";
-import { Suspense } from "react";
 
 interface DiscoveryCoverageStatus {
-  ucmdb: number;
-  tanium: number;
-  tenable: number;
-  snow: number;
-  serviceNow: number;
-  dsocSiem: number;
-  elastic: number;
+  toolValues: Record<string, DiscoveryCoverageValue>;
   coverageCompliance: boolean;
   missingTools: string[];
 }
@@ -38,63 +30,6 @@ interface CoverageRow {
   systemId: string | null;
   environment: string;
   coverage: DiscoveryCoverageStatus;
-}
-
-const TOOL_COLUMNS = [
-  { key: "ucmdb", label: "UCMDB" },
-  { key: "tanium", label: "Tanium" },
-  { key: "tenable", label: "Tenable" },
-  { key: "snow", label: "SNOW" },
-  { key: "serviceNow", label: "ServiceNow" },
-  { key: "dsocSiem", label: "DSOC SIEM" },
-  { key: "elastic", label: "Elastic" }
-] as const;
-
-function discoveryCoverageForAsset(asset: Asset): DiscoveryCoverageStatus {
-  const ucmdb = asset.systemContext?.systemId ? 1 : 0;
-  const tanium = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-  const tenable = asset.vulnerabilities.some((vulnerability) =>
-    ["Nessus", "Qualys", "OpenVAS"].includes(vulnerability.source)
-  )
-    ? 1
-    : 0;
-  const snow = asset.lifecycle.warrantyStatus !== "Unknown" ? 1 : 0;
-  const serviceNow = asset.lifecycle.eolStatus !== "Unknown" ? 1 : 0;
-  const dsocSiem = asset.vulnerabilities.length > 0 ? 1 : 0;
-  const elastic = asset.type === "server" || asset.type === "workstation" ? 1 : 0;
-
-  const toolValues = {
-    ucmdb,
-    tanium,
-    tenable,
-    snow,
-    serviceNow,
-    dsocSiem,
-    elastic
-  } as const;
-
-  const missingTools = TOOL_COLUMNS.filter(({ key }) => toolValues[key] === 0).map(({ label }) => label);
-  const coverageCompliance = missingTools.length === 0;
-
-  return {
-    ...toolValues,
-    coverageCompliance,
-    missingTools
-  };
-}
-
-function OneZeroPill({ value }: { value: number }) {
-  return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs ${
-        value === 1
-          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-          : "border-red-400/45 bg-red-500/15 text-red-100"
-      }`}
-    >
-      {value}
-    </span>
-  );
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -170,41 +105,53 @@ export default async function DiscoveryCoveragePage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const requestedTab = firstParam(searchParams.discoveryCoverageTab)?.trim().toLowerCase();
-  const activeTab: "summary" | "details" | "target-state" =
-    requestedTab === "target-state" ? "target-state" : "summary";
-  const tabsActiveTab: "summary" | "target-state" = activeTab === "target-state" ? "target-state" : "summary";
+  const activeTab: "summary" | "target-state" | "tool-settings" =
+    requestedTab === "target-state"
+      ? "target-state"
+      : requestedTab === "tool-settings"
+        ? "tool-settings"
+        : "summary";
+
   const discoveryDataSearchParams: Record<string, string | string[] | undefined> = { ...searchParams };
   delete discoveryDataSearchParams.criticality;
   if (activeTab === "target-state") {
     delete discoveryDataSearchParams.system;
     delete discoveryDataSearchParams.environment;
   }
-  const { dataset, analytics, filters, filterOptions, networks } = await getCoreAppData(discoveryDataSearchParams);
+
+  const { dataset, analytics, filters, filterOptions, networks, discoveryToolsSettings } = await getCoreAppData(
+    discoveryDataSearchParams
+  );
+  const toolColumns = discoveryToolsSettings.tools.map((tool) => ({ key: tool.id, label: tool.name }));
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const rows: CoverageRow[] = dataset.assets
     .filter((asset) => scopedAssetIds.has(asset.id))
-    .map((asset) => ({
-      assetId: asset.id,
-      hostname: asset.hostname,
-      ipAddress: resolveAssetIpAddress(asset),
-      assetType: asset.type,
-      networkId: asset.networkId,
-      systemId: asset.systemContext?.systemId ?? null,
-      environment: asset.systemContext?.environmentType ?? "-",
-      coverage: discoveryCoverageForAsset(asset)
-    }))
+    .map((asset) => {
+      const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+      return {
+        assetId: asset.id,
+        hostname: asset.hostname,
+        ipAddress: resolveAssetIpAddress(asset),
+        assetType: asset.type,
+        networkId: asset.networkId,
+        systemId: asset.systemContext?.systemId ?? null,
+        environment: asset.systemContext?.environmentType ?? "-",
+        coverage: {
+          toolValues: coverage.toolValues,
+          coverageCompliance: coverage.coverageCompliance,
+          missingTools: coverage.missingToolNames
+        }
+      };
+    })
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
+
   const queryEntries = toQueryEntries(discoveryDataSearchParams);
-  const tabContentClass = activeTab === "summary" ? "min-h-0 flex-1 overflow-auto pr-1" : "min-h-0 flex-1 overflow-hidden pr-1";
-  const gapPageState = parsePageState(searchParams, "page", "pageSize");
-  const matrixPageState = parsePageState(searchParams, "matrixPage", "matrixPageSize");
-  const gapSearchTerm = firstParam(searchParams.gapSearch)?.trim() ?? "";
-  const matrixSearchTerm = firstParam(searchParams.matrixSearch)?.trim() ?? "";
-  const normalizedGapSearchTerm = gapSearchTerm.toLowerCase();
-  const normalizedMatrixSearchTerm = matrixSearchTerm.toLowerCase();
+  const tabContentClass =
+    activeTab === "summary" ? "min-h-0 flex-1 overflow-auto pr-1" : "min-h-0 flex-1 overflow-hidden pr-1";
+
   const remediationReportHref = (() => {
     const params = new URLSearchParams();
     for (const [key, value] of queryEntries) {
@@ -216,19 +163,32 @@ export default async function DiscoveryCoveragePage({
 
   const compliantCount = rows.filter((row) => row.coverage.coverageCompliance).length;
   const gapCount = rows.length - compliantCount;
-  const toolSlots = rows.length * TOOL_COLUMNS.length;
+  const toolSlots = rows.reduce((total, row) => {
+    return (
+      total +
+      toolColumns.reduce((sum, toolColumn) => {
+        return sum + (row.coverage.toolValues[toolColumn.key] === null ? 0 : 1);
+      }, 0)
+    );
+  }, 0);
   const coveredToolSlots = rows.reduce((total, row) => {
-    const toolSum = TOOL_COLUMNS.reduce((sum, { key }) => sum + row.coverage[key], 0);
-    return total + toolSum;
+    return (
+      total +
+      toolColumns.reduce((sum, toolColumn) => {
+        return sum + (row.coverage.toolValues[toolColumn.key] === 1 ? 1 : 0);
+      }, 0)
+    );
   }, 0);
   const overallToolCoveragePercent = toolSlots ? Number(((coveredToolSlots / toolSlots) * 100).toFixed(1)) : 0;
 
-  const toolStats = TOOL_COLUMNS.map(({ key, label }) => {
-    const covered = rows.filter((row) => row.coverage[key] === 1).length;
-    const missing = rows.length - covered;
-    const coveragePercent = rows.length ? Number(((covered / rows.length) * 100).toFixed(1)) : 0;
-    return { label, covered, missing, coveragePercent };
+  const toolStats = toolColumns.map(({ key, label }) => {
+    const applicable = rows.filter((row) => row.coverage.toolValues[key] !== null).length;
+    const covered = rows.filter((row) => row.coverage.toolValues[key] === 1).length;
+    const missing = rows.filter((row) => row.coverage.toolValues[key] === 0).length;
+    const coveragePercent = applicable ? Number(((covered / applicable) * 100).toFixed(1)) : 0;
+    return { id: key, label, covered, missing, applicable, coveragePercent };
   });
+
   const coverageByToolAssetRows = rows.map((row) => ({
     assetId: row.assetId,
     hostname: row.hostname,
@@ -237,58 +197,11 @@ export default async function DiscoveryCoveragePage({
     network: networkNameById.get(row.networkId) ?? row.networkId,
     ictSystem: row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "-",
     environment: row.environment,
-    coverage: row.coverage
+    coverage: {
+      toolValues: row.coverage.toolValues,
+      coverageCompliance: row.coverage.coverageCompliance
+    }
   }));
-
-  const nonCompliantRows = rows.filter((row) => !row.coverage.coverageCompliance);
-  const gapRows = nonCompliantRows.filter((row) => {
-    if (!normalizedGapSearchTerm) {
-      return true;
-    }
-    const networkName = networkNameById.get(row.networkId) ?? row.networkId;
-    const systemName = row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "";
-    const haystack = [
-      row.hostname,
-      row.assetId,
-      row.assetType,
-      row.environment,
-      networkName,
-      systemName,
-      row.coverage.missingTools.join(" ")
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(normalizedGapSearchTerm);
-  });
-  const matrixRows = rows.filter((row) => {
-    if (!normalizedMatrixSearchTerm) {
-      return true;
-    }
-    const networkName = networkNameById.get(row.networkId) ?? row.networkId;
-    const systemName = row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "";
-    const haystack = [row.hostname, row.assetId, row.assetType, row.environment, networkName, systemName]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(normalizedMatrixSearchTerm);
-  });
-  const gapRowsPage = paginate(gapRows, gapPageState.page, gapPageState.pageSize);
-  const matrixRowsPage = paginate(matrixRows, matrixPageState.page, matrixPageState.pageSize);
-
-  const pageHref = (updates: Record<string, string | undefined>): string => {
-    const params = new URLSearchParams();
-    for (const [key, value] of queryEntries) {
-      params.append(key, value);
-    }
-    for (const [key, value] of Object.entries(updates)) {
-      if (!value) {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-    }
-    const query = params.toString();
-    return query ? `/discovery-coverage?${query}` : "/discovery-coverage";
-  };
 
   const assetTotalsByNetwork = rows.reduce(
     (map, asset) => {
@@ -305,33 +218,35 @@ export default async function DiscoveryCoveragePage({
     },
     new Map<string, { server: number; workstation: number; networkDevice: number }>()
   );
-  const targetStateNetworks: TargetStateNetworkSummary[] = networks.map((network) => {
-      const actualTotals = assetTotalsByNetwork.get(network.id) ?? { server: 0, workstation: 0, networkDevice: 0 };
-      const serverPercent = deterministicDiscoveryPercent(`${network.id}:server`);
-      const workstationPercent = deterministicDiscoveryPercent(`${network.id}:workstation`);
-      const networkDevicePercent = deterministicDiscoveryPercent(`${network.id}:network-device`);
 
-      return {
-        id: network.id,
-        name: network.name,
-        isNewNetwork: network.discoveryStatus === "Discovery Non Enabled",
-        discoveryStatus: network.discoveryStatus,
-        totals: {
-          server: {
-            actual: actualTotals.server,
-            target: targetCountForActual(actualTotals.server, serverPercent)
-          },
-          workstation: {
-            actual: actualTotals.workstation,
-            target: targetCountForActual(actualTotals.workstation, workstationPercent)
-          },
-          networkDevice: {
-            actual: actualTotals.networkDevice,
-            target: targetCountForActual(actualTotals.networkDevice, networkDevicePercent)
-          }
+  const targetStateNetworks: TargetStateNetworkSummary[] = networks.map((network) => {
+    const actualTotals = assetTotalsByNetwork.get(network.id) ?? { server: 0, workstation: 0, networkDevice: 0 };
+    const serverPercent = deterministicDiscoveryPercent(`${network.id}:server`);
+    const workstationPercent = deterministicDiscoveryPercent(`${network.id}:workstation`);
+    const networkDevicePercent = deterministicDiscoveryPercent(`${network.id}:network-device`);
+
+    return {
+      id: network.id,
+      name: network.name,
+      isNewNetwork: network.discoveryStatus === "Discovery Non Enabled",
+      discoveryStatus: network.discoveryStatus,
+      totals: {
+        server: {
+          actual: actualTotals.server,
+          target: targetCountForActual(actualTotals.server, serverPercent)
+        },
+        workstation: {
+          actual: actualTotals.workstation,
+          target: targetCountForActual(actualTotals.workstation, workstationPercent)
+        },
+        networkDevice: {
+          actual: actualTotals.networkDevice,
+          target: targetCountForActual(actualTotals.networkDevice, networkDevicePercent)
         }
-      };
-    });
+      }
+    };
+  });
+
   const networkDetailFieldsById = new Map(networks.map((network) => [network.id, resolveNetworkDetailFields(network)]));
   const networkDiscoverySummaryRows: NetworkDiscoverySummaryTableRow[] = targetStateNetworks
     .map((network) => ({
@@ -362,7 +277,7 @@ export default async function DiscoveryCoveragePage({
       </section>
 
       <div className="shrink-0">
-        <DiscoveryCoverageTabs activeTab={tabsActiveTab} />
+        <DiscoveryCoverageTabs activeTab={activeTab} />
       </div>
 
       <div className={tabContentClass}>
@@ -435,252 +350,9 @@ export default async function DiscoveryCoveragePage({
               />
             </div>
           </div>
-        ) : activeTab === "details" ? (
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-3">
-            <div className="-mt-4">
-              <FilterBar
-                options={filterOptions}
-                filters={filters}
-                hiddenFields={["systemCriticality"]}
-                enableLoadingOverlay
-              />
-            </div>
-
-            <Suspense
-              fallback={
-                <section className="panel h-full min-h-0 p-4">
-                  <p className="text-sm text-slate-300/80">Loading coverage gaps...</p>
-                </section>
-              }
-            >
-              <ServerStreamHint />
-              <section id="coverage-gaps" className="panel flex h-full min-h-0 flex-col overflow-hidden">
-                <div className="border-b border-sky-400/15 px-4 py-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-                      Assets With Discovery Coverage Gaps
-                    </h2>
-                    <DiscoveryCoverageSearchForm
-                      searchParamKey="gapSearch"
-                      searchValue={gapSearchTerm}
-                      placeholder="Search assets, IDs, environment, or missing tools"
-                    />
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                      <tr>
-                        <th className="px-3 py-2">Asset</th>
-                        <th className="px-3 py-2">Type</th>
-                        <th className="px-3 py-2">Network</th>
-                        <th className="px-3 py-2">ICT System</th>
-                        <th className="px-3 py-2">Environment</th>
-                        <th className="px-3 py-2">Missing Tools</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gapRowsPage.items.map((row) => (
-                        <tr key={row.assetId} className="border-t border-sky-400/10">
-                          <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                          <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                          <td className="px-3 py-2 text-slate-300">
-                            {networkNameById.get(row.networkId) ?? row.networkId}
-                          </td>
-                          <td className="px-3 py-2 text-slate-300">
-                            {row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "-"}
-                          </td>
-                          <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                          <td className="px-3 py-2 text-red-100">{row.coverage.missingTools.join(", ")}</td>
-                        </tr>
-                      ))}
-                      {gapRowsPage.totalItems === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                            {gapSearchTerm
-                              ? "No gap rows match this search in the current scope."
-                              : "No discovery coverage gaps in this scope."}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-                {gapRowsPage.totalPages > 1 ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-                    <p>
-                      Showing {(gapRowsPage.currentPage - 1) * gapRowsPage.pageSize + 1}-
-                      {Math.min(gapRowsPage.currentPage * gapRowsPage.pageSize, gapRowsPage.totalItems)} of{" "}
-                      {gapRowsPage.totalItems}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {gapRowsPage.currentPage > 1 ? (
-                        <a
-                          href={`${pageHref({ page: String(gapRowsPage.currentPage - 1) })}#coverage-gaps`}
-                          data-filter-loading="true"
-                          data-filter-loading-message="Loading coverage gaps..."
-                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                        >
-                          Previous
-                        </a>
-                      ) : (
-                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">
-                          Previous
-                        </span>
-                      )}
-                      <span>
-                        Page {gapRowsPage.currentPage} of {gapRowsPage.totalPages}
-                      </span>
-                      {gapRowsPage.currentPage < gapRowsPage.totalPages ? (
-                        <a
-                          href={`${pageHref({ page: String(gapRowsPage.currentPage + 1) })}#coverage-gaps`}
-                          data-filter-loading="true"
-                          data-filter-loading-message="Loading coverage gaps..."
-                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                        >
-                          Next
-                        </a>
-                      ) : (
-                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </section>
-            </Suspense>
-
-            <Suspense
-              fallback={
-                <section className="panel h-full min-h-0 p-4">
-                  <p className="text-sm text-slate-300/80">Loading coverage matrix...</p>
-                </section>
-              }
-            >
-              <ServerStreamHint />
-              <section id="coverage-matrix" className="panel flex h-full min-h-0 flex-col overflow-hidden">
-                <div className="border-b border-sky-400/15 px-4 py-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-                      Discovery Coverage Matrix (All Assets)
-                    </h2>
-                    <DiscoveryCoverageSearchForm
-                      searchParamKey="matrixSearch"
-                      searchValue={matrixSearchTerm}
-                      placeholder="Search assets, IDs, network, system, or environment"
-                    />
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                      <tr>
-                        <th className="px-3 py-2">Asset</th>
-                        <th className="px-3 py-2">Type</th>
-                        <th className="px-3 py-2">Environment</th>
-                        <th className="px-3 py-2">UCMDB</th>
-                        <th className="px-3 py-2">Tanium</th>
-                        <th className="px-3 py-2">Tenable</th>
-                        <th className="px-3 py-2">SNOW</th>
-                        <th className="px-3 py-2">ServiceNow</th>
-                        <th className="px-3 py-2">DSOC SIEM</th>
-                        <th className="px-3 py-2">Elastic</th>
-                        <th className="px-3 py-2">Coverage Compliance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {matrixRowsPage.items.map((row) => (
-                        <tr key={row.assetId} className="border-t border-sky-400/10">
-                          <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                          <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                          <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.ucmdb} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.tanium} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.tenable} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.snow} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.serviceNow} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.dsocSiem} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <OneZeroPill value={row.coverage.elastic} />
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-xs ${
-                                row.coverage.coverageCompliance
-                                  ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                                  : "border-red-400/45 bg-red-500/15 text-red-100"
-                              }`}
-                            >
-                              {row.coverage.coverageCompliance ? "Yes" : "No"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {matrixRowsPage.totalItems === 0 ? (
-                        <tr>
-                          <td colSpan={11} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                            {matrixSearchTerm
-                              ? "No matrix rows match this search in the current scope."
-                              : "No assets in this scope."}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-                {matrixRowsPage.totalPages > 1 ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-                    <p>
-                      Showing {(matrixRowsPage.currentPage - 1) * matrixRowsPage.pageSize + 1}-
-                      {Math.min(matrixRowsPage.currentPage * matrixRowsPage.pageSize, matrixRowsPage.totalItems)} of{" "}
-                      {matrixRowsPage.totalItems}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {matrixRowsPage.currentPage > 1 ? (
-                        <a
-                          href={`${pageHref({ matrixPage: String(matrixRowsPage.currentPage - 1) })}#coverage-matrix`}
-                          data-filter-loading="true"
-                          data-filter-loading-message="Loading coverage matrix..."
-                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                        >
-                          Previous
-                        </a>
-                      ) : (
-                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">
-                          Previous
-                        </span>
-                      )}
-                      <span>
-                        Page {matrixRowsPage.currentPage} of {matrixRowsPage.totalPages}
-                      </span>
-                      {matrixRowsPage.currentPage < matrixRowsPage.totalPages ? (
-                        <a
-                          href={`${pageHref({ matrixPage: String(matrixRowsPage.currentPage + 1) })}#coverage-matrix`}
-                          data-filter-loading="true"
-                          data-filter-loading-message="Loading coverage matrix..."
-                          className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                        >
-                          Next
-                        </a>
-                      ) : (
-                        <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-              </section>
-            </Suspense>
+        ) : activeTab === "tool-settings" ? (
+          <div className="h-full min-h-0">
+            <DiscoveryToolsSettingsPanel initialSettings={discoveryToolsSettings} />
           </div>
         ) : (
           <div className="flex h-full min-h-0 flex-col gap-3 pb-[15px]">
@@ -713,3 +385,4 @@ export default async function DiscoveryCoveragePage({
     </div>
   );
 }
+
