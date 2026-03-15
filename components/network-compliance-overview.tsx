@@ -97,6 +97,13 @@ export interface ComplianceOverviewMeasureRow {
 
 export interface ComplianceOverviewFindingRow {
   id: string;
+  assetId: string;
+  assetName: string;
+  assetType: string;
+  assetIpAddress: string;
+  assetChangeAssignmentGroup: string;
+  assetIncidentAssignmentGroup: string;
+  owner: string;
   spiId: number;
   timestamp: string;
   closedTimestamp: string | null;
@@ -114,6 +121,20 @@ export interface ComplianceOverviewFindingRow {
   evidence: Array<{ key: string; value: string }>;
   recommendedAction: string;
 }
+
+type TimelineFindingEntry = { finding: ComplianceOverviewFindingRow; asOfStatus: "open" | "closed" };
+type AssetDetailsRow = {
+  assetId: string;
+  assetName: string;
+  assetIpAddress: string;
+  assetType: string;
+  criticalExposureFindings: number;
+  highRiskFindings: number;
+  totalFindings: number;
+  assetChangeAssignmentGroup: string;
+  assetIncidentAssignmentGroup: string;
+  owner: string;
+};
 
 function percentage(part: number, whole: number): number {
   if (!whole) {
@@ -138,6 +159,14 @@ function workflowBadgeClass(status: "open" | "closed"): string {
     : "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
 }
 
+function csvCell(value: string | number): string {
+  const text = String(value);
+  if (!/[",\r\n]/.test(text)) {
+    return text;
+  }
+  return `"${text.replace(/"/g, "\"\"")}"`;
+}
+
 export function NetworkComplianceOverview({
   networkName,
   asOfDate,
@@ -159,7 +188,11 @@ export function NetworkComplianceOverview({
   const [severityFilter, setSeverityFilter] = useState<"all" | FindingSeverity>("all");
   const [isFindingsPanelVisible, setIsFindingsPanelVisible] = useState(false);
   const [isFindingsPanelOpen, setIsFindingsPanelOpen] = useState(false);
+  const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<TimelineFindingEntry | null>(null);
+  const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
+  const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const assetDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timelineMaxDate = useMemo(() => asOfDate, [asOfDate]);
 
   useEffect(() => {
@@ -167,6 +200,10 @@ export function NetworkComplianceOverview({
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current);
         closeTimerRef.current = null;
+      }
+      if (assetDetailsCloseTimerRef.current) {
+        clearTimeout(assetDetailsCloseTimerRef.current);
+        assetDetailsCloseTimerRef.current = null;
       }
     };
   }, []);
@@ -177,6 +214,10 @@ export function NetworkComplianceOverview({
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (isAssetDetailsPanelVisible) {
+          closeAssetDetailsPanel();
+          return;
+        }
         closeFindingsPanel();
       }
     };
@@ -184,17 +225,24 @@ export function NetworkComplianceOverview({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isFindingsPanelVisible]);
+  }, [isAssetDetailsPanelVisible, isFindingsPanelVisible]);
 
   const openFindingsPanel = (measure: ComplianceOverviewMeasureRow) => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
+    if (assetDetailsCloseTimerRef.current) {
+      clearTimeout(assetDetailsCloseTimerRef.current);
+      assetDetailsCloseTimerRef.current = null;
+    }
     setSelectedMeasure(measure);
     setSearchTerm("");
     setWorkflowFilter("open");
     setSeverityFilter("all");
+    setSelectedFindingForAssets(null);
+    setIsAssetDetailsPanelVisible(false);
+    setIsAssetDetailsPanelOpen(false);
     setIsFindingsPanelVisible(true);
     requestAnimationFrame(() => {
       setIsFindingsPanelOpen(true);
@@ -203,6 +251,13 @@ export function NetworkComplianceOverview({
 
   const closeFindingsPanel = () => {
     setIsFindingsPanelOpen(false);
+    setIsAssetDetailsPanelOpen(false);
+    setIsAssetDetailsPanelVisible(false);
+    setSelectedFindingForAssets(null);
+    if (assetDetailsCloseTimerRef.current) {
+      clearTimeout(assetDetailsCloseTimerRef.current);
+      assetDetailsCloseTimerRef.current = null;
+    }
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
     }
@@ -210,6 +265,30 @@ export function NetworkComplianceOverview({
       setIsFindingsPanelVisible(false);
       setSelectedMeasure(null);
       closeTimerRef.current = null;
+    }, PANEL_TWEEN_MS);
+  };
+
+  const openAssetDetailsPanel = (entry: TimelineFindingEntry) => {
+    if (assetDetailsCloseTimerRef.current) {
+      clearTimeout(assetDetailsCloseTimerRef.current);
+      assetDetailsCloseTimerRef.current = null;
+    }
+    setSelectedFindingForAssets(entry);
+    setIsAssetDetailsPanelVisible(true);
+    requestAnimationFrame(() => {
+      setIsAssetDetailsPanelOpen(true);
+    });
+  };
+
+  const closeAssetDetailsPanel = () => {
+    setIsAssetDetailsPanelOpen(false);
+    if (assetDetailsCloseTimerRef.current) {
+      clearTimeout(assetDetailsCloseTimerRef.current);
+    }
+    assetDetailsCloseTimerRef.current = setTimeout(() => {
+      setIsAssetDetailsPanelVisible(false);
+      setSelectedFindingForAssets(null);
+      assetDetailsCloseTimerRef.current = null;
     }, PANEL_TWEEN_MS);
   };
 
@@ -246,8 +325,7 @@ export function NetworkComplianceOverview({
         )
       }))
       .filter(
-        (entry): entry is { finding: ComplianceOverviewFindingRow; asOfStatus: "open" | "closed" } =>
-          entry.asOfStatus !== null
+        (entry): entry is TimelineFindingEntry => entry.asOfStatus !== null
       );
   }, [selectedMeasure, selectedMeasureFindings, timelineMaxDate]);
 
@@ -287,6 +365,124 @@ export function NetworkComplianceOverview({
   }, [searchTerm, selectedMeasure, severityFilter, timelineScopedFindings, workflowFilter]);
 
   const filteredFindings = useMemo(() => filteredTimelineFindings.slice(0, 200), [filteredTimelineFindings]);
+
+  const findingCountsByAsset = useMemo(() => {
+    const counts = new Map<string, { criticalExposureFindings: number; highRiskFindings: number; totalFindings: number }>();
+    for (const finding of findings) {
+      const current = counts.get(finding.assetId) ?? {
+        criticalExposureFindings: 0,
+        highRiskFindings: 0,
+        totalFindings: 0
+      };
+      current.totalFindings += 1;
+      if (finding.severity === "Critical Exposure") {
+        current.criticalExposureFindings += 1;
+      }
+      if (finding.severity === "High Risk") {
+        current.highRiskFindings += 1;
+      }
+      counts.set(finding.assetId, current);
+    }
+    return counts;
+  }, [findings]);
+
+  const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
+    if (!selectedFindingForAssets) {
+      return [];
+    }
+
+    const linkedAssetFindings = filteredTimelineFindings.filter(
+      (entry) =>
+        entry.finding.spiId === selectedFindingForAssets.finding.spiId &&
+        entry.finding.title === selectedFindingForAssets.finding.title
+    );
+    const latestFindingByAsset = new Map<string, ComplianceOverviewFindingRow>();
+    for (const entry of linkedAssetFindings) {
+      if (!latestFindingByAsset.has(entry.finding.assetId)) {
+        latestFindingByAsset.set(entry.finding.assetId, entry.finding);
+      }
+    }
+
+    return Array.from(latestFindingByAsset.values())
+      .map((finding) => {
+        const counts = findingCountsByAsset.get(finding.assetId) ?? {
+          criticalExposureFindings: 0,
+          highRiskFindings: 0,
+          totalFindings: 0
+        };
+        return {
+          assetId: finding.assetId,
+          assetName: finding.assetName,
+          assetIpAddress: finding.assetIpAddress,
+          assetType: finding.assetType,
+          criticalExposureFindings: counts.criticalExposureFindings,
+          highRiskFindings: counts.highRiskFindings,
+          totalFindings: counts.totalFindings,
+          assetChangeAssignmentGroup: finding.assetChangeAssignmentGroup,
+          assetIncidentAssignmentGroup: finding.assetIncidentAssignmentGroup,
+          owner: finding.owner
+        };
+      })
+      .sort((a, b) => {
+        if (b.criticalExposureFindings !== a.criticalExposureFindings) {
+          return b.criticalExposureFindings - a.criticalExposureFindings;
+        }
+        if (b.highRiskFindings !== a.highRiskFindings) {
+          return b.highRiskFindings - a.highRiskFindings;
+        }
+        if (b.totalFindings !== a.totalFindings) {
+          return b.totalFindings - a.totalFindings;
+        }
+        return a.assetName.localeCompare(b.assetName);
+      });
+  }, [filteredTimelineFindings, findingCountsByAsset, selectedFindingForAssets]);
+
+  const downloadAssetDetailsCsv = () => {
+    if (!assetDetailsRows.length) {
+      return;
+    }
+
+    const headers = [
+      "Asset Name",
+      "Asset IP address",
+      "Asset Type",
+      "Total Critical Exposure Findings",
+      "Total High Risk Findings",
+      "Total Findings",
+      "Asset Change Assignment Group",
+      "Asset Incident Assignment Group",
+      "Owner"
+    ];
+    const rows = assetDetailsRows.map((assetRow) => [
+      assetRow.assetName,
+      assetRow.assetIpAddress,
+      assetRow.assetType,
+      assetRow.criticalExposureFindings,
+      assetRow.highRiskFindings,
+      assetRow.totalFindings,
+      assetRow.assetChangeAssignmentGroup,
+      assetRow.assetIncidentAssignmentGroup,
+      assetRow.owner
+    ]);
+    const csvContent = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+
+    const findingLabel = selectedFindingForAssets?.finding.title ?? "asset-details";
+    const safeFindingLabel =
+      findingLabel
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "asset-details";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `asset-details-${safeFindingLabel}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const findingsHistoryPoints = useMemo(() => {
     if (!selectedMeasure) {
@@ -652,56 +848,154 @@ export function NetworkComplianceOverview({
                 />
               </div>
 
-              <div className="mt-4 min-h-0 flex-1 overflow-auto rounded-xl border border-sky-400/15">
-                <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                    <tr>
-                      <th className="px-3 py-2">Timestamp</th>
-                      <th className="px-3 py-2">Title</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Scope</th>
-                      <th className="px-3 py-2">Evidence</th>
-                      <th className="px-3 py-2">Recommended Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredFindings.map((entry) => (
-                          <tr key={entry.finding.id} className="border-t border-sky-400/10 align-top">
-                        <td className="px-3 py-2 text-slate-200">{entry.finding.timestampLabel}</td>
-                        <td className="px-3 py-2 text-slate-100">{entry.finding.title}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-wrap gap-1.5">
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${workflowBadgeClass(entry.asOfStatus)}`}
-                            >
-                              {entry.asOfStatus}
-                            </span>
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${statusBadgeClass(entry.finding.complianceStatus)}`}
-                            >
-                              Finding {entry.finding.complianceStatus}
-                            </span>
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${statusBadgeClass(entry.finding.evaluationStatus)}`}
-                            >
-                              Eval {entry.finding.evaluationStatus}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.scopeLabel}</td>
-                        <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.evidencePreview}</td>
-                        <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.recommendedAction}</td>
-                      </tr>
-                    ))}
-                    {filteredFindings.length === 0 ? (
+              <div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-xl border border-sky-400/15">
+                <div className="h-full overflow-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                          No findings match this measure and active filters.
-                        </td>
+                        <th className="px-3 py-2">Timestamp</th>
+                        <th className="px-3 py-2">Title</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Scope</th>
+                        <th className="px-3 py-2">Evidence</th>
+                        <th className="px-3 py-2">Recommended Action</th>
                       </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredFindings.map((entry) => (
+                        <tr key={entry.finding.id} className="border-t border-sky-400/10 align-top">
+                          <td className="px-3 py-2 text-slate-200">{entry.finding.timestampLabel}</td>
+                          <td className="px-3 py-2 text-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => openAssetDetailsPanel(entry)}
+                              className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
+                            >
+                              {entry.finding.title}
+                            </button>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-1.5">
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${workflowBadgeClass(entry.asOfStatus)}`}
+                              >
+                                {entry.asOfStatus}
+                              </span>
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${statusBadgeClass(entry.finding.complianceStatus)}`}
+                              >
+                                Finding {entry.finding.complianceStatus}
+                              </span>
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${statusBadgeClass(entry.finding.evaluationStatus)}`}
+                              >
+                                Eval {entry.finding.evaluationStatus}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.scopeLabel}</td>
+                          <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.evidencePreview}</td>
+                          <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.recommendedAction}</td>
+                        </tr>
+                      ))}
+                      {filteredFindings.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                            No findings match this measure and active filters.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
+                  <div className="absolute inset-0 z-[3]">
+                    <div
+                      className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
+                        isAssetDetailsPanelOpen ? "opacity-100" : "opacity-0"
+                      }`}
+                      onClick={closeAssetDetailsPanel}
+                    />
+                    <aside
+                      className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+                        isAssetDetailsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+                      }`}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="asset-details-slideout-title"
+                    >
+                      <button
+                        type="button"
+                        onClick={closeAssetDetailsPanel}
+                        className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
+                      >
+                        Close
+                      </button>
+
+                      <div className="flex h-full min-h-0 flex-col">
+                        <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Asset Details</p>
+                        <h5 id="asset-details-slideout-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
+                          Asset Details
+                        </h5>
+                        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.finding.title}</p>
+                            <p className="mt-1 text-xs text-slate-300/80">Linked Assets: {assetDetailsRows.length}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={downloadAssetDetailsCsv}
+                            disabled={!assetDetailsRows.length}
+                            className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
+                          >
+                            Export to CSV
+                          </button>
+                        </div>
+
+                        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-sky-400/15">
+                          <table className="min-w-full text-sm">
+                            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                              <tr>
+                                <th className="px-3 py-2">Asset Name</th>
+                                <th className="px-3 py-2">Asset IP address</th>
+                                <th className="px-3 py-2">Asset Type</th>
+                                <th className="px-3 py-2">Total Critical Exposure Findings</th>
+                                <th className="px-3 py-2">Total High Risk Findings</th>
+                                <th className="px-3 py-2">Total Findings</th>
+                                <th className="px-3 py-2">Asset Change Assignment Group</th>
+                                <th className="px-3 py-2">Asset Incident Assignment Group</th>
+                                <th className="px-3 py-2">Owner</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {assetDetailsRows.map((assetRow) => (
+                                <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
+                                  <td className="px-3 py-2 text-slate-100">{assetRow.assetName}</td>
+                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
+                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
+                                  <td className="px-3 py-2 text-red-100">{assetRow.criticalExposureFindings}</td>
+                                  <td className="px-3 py-2 text-orange-100">{assetRow.highRiskFindings}</td>
+                                  <td className="px-3 py-2 text-slate-200">{assetRow.totalFindings}</td>
+                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
+                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
+                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
+                                </tr>
+                              ))}
+                              {assetDetailsRows.length === 0 ? (
+                                <tr>
+                                  <td colSpan={9} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                                    No linked assets found for this finding.
+                                  </td>
+                                </tr>
+                              ) : null}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </aside>
+                  </div>
+                ) : null}
               </div>
             </div>
           </aside>

@@ -487,6 +487,7 @@ export default async function NetworksPage({
   const p12FindingsByNetwork = new Map<string, number>();
   const p12HighRiskFindingsByNetwork = new Map<string, number>();
   const p12CriticalExposureFindingsByNetwork = new Map<string, number>();
+  const discoveryComplianceScoreByNetwork = new Map<string, number>();
 
   let p12FindingsCount = 0;
   let highRiskP12FindingsCount = 0;
@@ -516,6 +517,20 @@ export default async function NetworksPage({
         (p12CriticalExposureFindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
       );
     }
+  }
+
+  const discoveryCoverageTotalsByNetwork = new Map<string, { compliant: number; total: number }>();
+  for (const evaluation of analytics.evaluations) {
+    const current = discoveryCoverageTotalsByNetwork.get(evaluation.networkId) ?? { compliant: 0, total: 0 };
+    current.total += 1;
+    if (evaluation.discoveryCoverageCompliant) {
+      current.compliant += 1;
+    }
+    discoveryCoverageTotalsByNetwork.set(evaluation.networkId, current);
+  }
+  for (const [networkId, counts] of discoveryCoverageTotalsByNetwork.entries()) {
+    const score = counts.total ? Number(((counts.compliant / counts.total) * 100).toFixed(1)) : 0;
+    discoveryComplianceScoreByNetwork.set(networkId, score);
   }
 
   const compliantNetworksCount = networks.filter((network) => {
@@ -805,6 +820,7 @@ export default async function NetworksPage({
                 p12FindingsByNetwork={p12FindingsByNetwork}
                 p12HighRiskFindingsByNetwork={p12HighRiskFindingsByNetwork}
                 p12CriticalExposureFindingsByNetwork={p12CriticalExposureFindingsByNetwork}
+                discoveryComplianceScoreByNetwork={discoveryComplianceScoreByNetwork}
                 scrollable
               />
             </div>

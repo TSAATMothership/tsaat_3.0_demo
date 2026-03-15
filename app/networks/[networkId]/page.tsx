@@ -29,6 +29,7 @@ type KpiFilterKey =
   | "highRiskP12Findings"
   | "outOfWarrantyAssets"
   | "nonCompliantDiscoveryCoverage";
+type DiscoveryToolFilterKey = "ucmdb" | "tanium" | "tenable" | "servicenow";
 
 type NetworkDetailTab = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
 
@@ -50,6 +51,13 @@ function isKpiFilterKey(value: string | undefined): value is KpiFilterKey {
     return false;
   }
   return value in KPI_FILTER_LABELS;
+}
+
+function isDiscoveryToolFilterKey(value: string | undefined): value is DiscoveryToolFilterKey {
+  if (!value) {
+    return false;
+  }
+  return value === "ucmdb" || value === "tanium" || value === "tenable" || value === "servicenow";
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -133,6 +141,68 @@ function toEvidenceString(value: string | number | boolean | null): string {
     return "null";
   }
   return String(value);
+}
+
+function readEvidenceStringValue(
+  evidence: Record<string, string | number | boolean | null>,
+  candidateKeys: string[]
+): string | null {
+  if (!candidateKeys.length) {
+    return null;
+  }
+  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
+  for (const candidateKey of candidateKeys) {
+    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
+    if (!matched) {
+      continue;
+    }
+    const value = matched[1];
+    if (value === null) {
+      continue;
+    }
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+      continue;
+    }
+    return text;
+  }
+  return null;
+}
+
+function formatAssetTypeLabel(value?: string | null): string {
+  if (!value) {
+    return "Unknown";
+  }
+  if (value === "network-device") {
+    return "Network Device";
+  }
+  if (value === "workstation") {
+    return "Workstation";
+  }
+  if (value === "server") {
+    return "Server";
+  }
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolveAssetIpAddress(asset: Asset): string {
+  const candidate = asset as Asset & {
+    ipAddress?: string | null;
+    ip?: string | null;
+    ipv4?: string | null;
+    ipv4Address?: string | null;
+    primaryIp?: string | null;
+  };
+  const value =
+    candidate.ipAddress ?? candidate.ip ?? candidate.ipv4 ?? candidate.ipv4Address ?? candidate.primaryIp ?? null;
+  if (!value || !String(value).trim()) {
+    return "N/A";
+  }
+  return String(value).trim();
 }
 
 function toFindingDateKey(timestamp?: string | null): string | null {
@@ -363,9 +433,7 @@ export default async function NetworkDetailPage({
   const selectedKpiFilter = isKpiFilterKey(requestedKpiFilter) ? requestedKpiFilter : undefined;
   const requestedDetailTab = firstParam(requestParams.networkDetailTab)?.trim().toLowerCase();
   const activeDetailTab: NetworkDetailTab =
-    requestedDetailTab === "cyber-posture"
-      ? "cyber-posture"
-      : requestedDetailTab === "discovery-compliance"
+    requestedDetailTab === "discovery-compliance"
         ? "discovery-compliance"
         : requestedDetailTab === "compliance-overview"
           ? "compliance-overview"
@@ -379,6 +447,13 @@ export default async function NetworkDetailPage({
   const selectedP12Severity = firstParam(requestParams.p12Severity)?.trim() || undefined;
   const selectedP12SearchTerm = firstParam(requestParams.p12Search)?.trim() ?? "";
   const normalizedP12SearchTerm = selectedP12SearchTerm.toLowerCase();
+  const selectedDiscoverySearchTerm = firstParam(requestParams.discoverySearch)?.trim() ?? "";
+  const normalizedDiscoverySearchTerm = selectedDiscoverySearchTerm.toLowerCase();
+  const selectedDiscoveryAssetType = firstParam(requestParams.discoveryAssetType)?.trim() ?? "";
+  const requestedDiscoveryToolFilter = firstParam(requestParams.discoveryToolFilter)?.trim().toLowerCase();
+  const selectedDiscoveryToolFilter = isDiscoveryToolFilterKey(requestedDiscoveryToolFilter)
+    ? requestedDiscoveryToolFilter
+    : undefined;
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12AssetIds = new Set(p12Findings.map((finding) => finding.scope.assetId));
   const highRiskP12AssetIds = new Set(
@@ -509,6 +584,50 @@ export default async function NetworkDetailPage({
     const query = params.toString();
     return query ? `/networks/${network.id}?${query}#p12-findings` : `/networks/${network.id}#p12-findings`;
   })();
+  const preservedDiscoveryParams = Object.entries(requestParams).flatMap(([key, value]) => {
+    if (key === "discoverySearch" || key === "discoveryAssetType" || key === "discoveryToolFilter" || key === "page") {
+      return [];
+    }
+    if (!value) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value.length ? [{ key, value: value[0] }] : [];
+    }
+    return [{ key, value }];
+  });
+  const clearDiscoveryFiltersHref = (() => {
+    const params = new URLSearchParams();
+    for (const param of preservedDiscoveryParams) {
+      params.set(param.key, param.value);
+    }
+    const query = params.toString();
+    return query
+      ? `/networks/${network.id}?${query}#asset-discovery-coverage`
+      : `/networks/${network.id}#asset-discovery-coverage`;
+  })();
+  const discoveryCoverageExportHref = (() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(requestParams)) {
+      if (key === "page") {
+        continue;
+      }
+      if (!value) {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        if (value.length) {
+          params.set(key, value[0]);
+        }
+      } else {
+        params.set(key, value);
+      }
+    }
+    const query = params.toString();
+    return query
+      ? `/api/networks/${network.id}/discovery-coverage-export?${query}`
+      : `/api/networks/${network.id}/discovery-coverage-export`;
+  })();
   const p12CountByAsset = filteredP12Findings.reduce((map, finding) => {
     map.set(finding.scope.assetId, (map.get(finding.scope.assetId) ?? 0) + 1);
     return map;
@@ -608,6 +727,12 @@ export default async function NetworkDetailPage({
     };
   });
 
+  const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
+  const systemOwnerById = new Map(
+    dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""])
+  );
+  const networkOwnerFallback = network.owner?.trim() || "Not assigned";
+
   const complianceOverviewFindings = [...filteredFindings]
     .sort((a, b) => {
       const aTime = new Date(a.timestamp).getTime();
@@ -615,6 +740,7 @@ export default async function NetworkDetailPage({
       return bTime - aTime;
     })
     .map((finding) => {
+      const asset = filteredAssetsById.get(finding.scope.assetId);
       const evidence = Object.entries(finding.evidence).map(([key, value]) => ({
         key,
         value: toEvidenceString(value)
@@ -630,9 +756,52 @@ export default async function NetworkDetailPage({
         finding.scope.systemId ? `System ${finding.scope.systemId}` : "System n/a",
         finding.scope.environmentType ? `Env ${finding.scope.environmentType}` : "Env n/a"
       ].join(" | ");
+      const assetName =
+        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
+        asset?.name ??
+        finding.scope.assetId;
+      const assetType = formatAssetTypeLabel(
+        readEvidenceStringValue(finding.evidence, ["assetType", "asset_type"]) ?? asset?.type ?? null
+      );
+      const assetIpAddress =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIpAddress",
+          "assetIp",
+          "ipAddress",
+          "ip",
+          "ipv4Address",
+          "ipv4",
+          "ip_address"
+        ]) ?? "Not available";
+      const assetChangeAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetChangeAssignmentGroup",
+          "changeAssignmentGroup",
+          "changeGroup",
+          "change_assignment_group"
+        ]) ?? "Not assigned";
+      const assetIncidentAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIncidentAssignmentGroup",
+          "incidentAssignmentGroup",
+          "incidentGroup",
+          "incident_assignment_group"
+        ]) ?? "Not assigned";
+      const owner =
+        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
+        (asset?.systemContext?.systemId
+          ? systemOwnerById.get(asset.systemContext.systemId)?.trim() || networkOwnerFallback
+          : networkOwnerFallback);
 
       return {
         id: finding.id,
+        assetId: finding.scope.assetId,
+        assetName,
+        assetType,
+        assetIpAddress,
+        assetChangeAssignmentGroup,
+        assetIncidentAssignmentGroup,
+        owner,
         spiId: finding.spiId,
         timestamp: finding.timestamp,
         closedTimestamp: finding.closedTimestamp ?? null,
@@ -731,8 +900,10 @@ export default async function NetworkDetailPage({
       return {
         assetId: asset.id,
         hostname: asset.hostname,
+        assetIpAddress: resolveAssetIpAddress(asset),
         assetType: asset.type,
         environment: asset.systemContext?.environmentType ?? "-",
+        ictSystem: asset.systemContext?.systemId ?? "-",
         ucmdb: coverage.ucmdb,
         tanium: coverage.tanium,
         tenable: coverage.tenable,
@@ -741,7 +912,71 @@ export default async function NetworkDetailPage({
       };
     })
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
-  const coverageRowsPage = paginate(discoveryCoverageRows, coveragePageState.page, coveragePageState.pageSize);
+  const discoveryAssetTypeOptions = Array.from(new Set(discoveryCoverageRows.map((row) => row.assetType))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const discoveryCoverageFilteredRows = discoveryCoverageRows.filter((row) => {
+    if (selectedDiscoveryAssetType && row.assetType !== selectedDiscoveryAssetType) {
+      return false;
+    }
+    if (selectedDiscoveryToolFilter) {
+      const hasCoverageForSelectedTool =
+        selectedDiscoveryToolFilter === "ucmdb"
+          ? row.ucmdb === 1
+          : selectedDiscoveryToolFilter === "tanium"
+            ? row.tanium === 1
+            : selectedDiscoveryToolFilter === "tenable"
+              ? row.tenable === 1
+              : row.seviceNow === 1;
+      if (hasCoverageForSelectedTool) {
+        return false;
+      }
+    }
+    if (!normalizedDiscoverySearchTerm) {
+      return true;
+    }
+    const text = [row.assetId, row.hostname, row.assetIpAddress, row.assetType, row.environment, row.ictSystem]
+      .join(" ")
+      .toLowerCase();
+    return text.includes(normalizedDiscoverySearchTerm);
+  });
+  const discoveryCoverageTotal = discoveryCoverageRows.length;
+  const discoveryToolCoverageCharts = [
+    {
+      id: "ucmdb",
+      label: "UCMDB",
+      covered: discoveryCoverageRows.filter((row) => row.ucmdb === 1).length
+    },
+    {
+      id: "tanium",
+      label: "TANIUM",
+      covered: discoveryCoverageRows.filter((row) => row.tanium === 1).length
+    },
+    {
+      id: "tenable",
+      label: "TENABLE",
+      covered: discoveryCoverageRows.filter((row) => row.tenable === 1).length
+    },
+    {
+      id: "servicenow",
+      label: "SERVICENOW",
+      covered: discoveryCoverageRows.filter((row) => row.seviceNow === 1).length
+    }
+  ].map((tool) => {
+    const coveragePercent = discoveryCoverageTotal
+      ? Number(((tool.covered / discoveryCoverageTotal) * 100).toFixed(1))
+      : 0;
+    const coveredStop = (coveragePercent / 100) * 360;
+    return {
+      ...tool,
+      missing: Math.max(0, discoveryCoverageTotal - tool.covered),
+      coveragePercent,
+      chartBackground: discoveryCoverageTotal
+        ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${coveredStop}deg, rgba(248,113,113,0.95) ${coveredStop}deg 360deg)`
+        : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)"
+    };
+  });
+  const coverageRowsPage = paginate(discoveryCoverageFilteredRows, coveragePageState.page, coveragePageState.pageSize);
   const inventoryRowsPage = paginate(filteredAssets, inventoryPageState.page, inventoryPageState.pageSize);
 
   const scopedPageHref = (updates: Record<string, string | undefined>, hash?: string) => {
@@ -797,6 +1032,37 @@ export default async function NetworkDetailPage({
   const complianceChartBackground = complianceChartTotal
     ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${complianceChartCompliantStop}deg, rgba(248,113,113,0.95) ${complianceChartCompliantStop}deg ${complianceChartNonCompliantStop}deg, rgba(148,163,184,0.92) ${complianceChartNonCompliantStop}deg 360deg)`
     : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
+  const discoveryComplianceCounts = discoveryCoverageRows.reduce(
+    (accumulator, row) => {
+      const sourceAsset = filteredAssetsById.get(row.assetId);
+      const isOther =
+        sourceAsset?.lifecycle.eolStatus === "Unknown" || sourceAsset?.lifecycle.warrantyStatus === "Unknown";
+
+      if (isOther) {
+        accumulator.other += 1;
+      } else if (row.coverageCompliance) {
+        accumulator.compliant += 1;
+      } else {
+        accumulator.nonCompliant += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, other: 0 }
+  );
+  const discoveryComplianceTotal =
+    discoveryComplianceCounts.compliant + discoveryComplianceCounts.nonCompliant + discoveryComplianceCounts.other;
+  const discoveryComplianceScore = discoveryComplianceTotal
+    ? Number(((discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 100).toFixed(1))
+    : 0;
+  const discoveryComplianceCompliantStop = discoveryComplianceTotal
+    ? (discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 360
+    : 0;
+  const discoveryComplianceNonCompliantStop = discoveryComplianceTotal
+    ? ((discoveryComplianceCounts.compliant + discoveryComplianceCounts.nonCompliant) / discoveryComplianceTotal) * 360
+    : 0;
+  const discoveryComplianceChartBackground = discoveryComplianceTotal
+    ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${discoveryComplianceCompliantStop}deg, rgba(248,113,113,0.95) ${discoveryComplianceCompliantStop}deg ${discoveryComplianceNonCompliantStop}deg, rgba(148,163,184,0.92) ${discoveryComplianceNonCompliantStop}deg 360deg)`
+    : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -818,29 +1084,51 @@ export default async function NetworkDetailPage({
             </div>
           </div>
 
-          <div className="panel-alt min-w-[250px] self-stretch border-sky-300/25 p-4 lg:self-auto">
-            <div className="text-center">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
-              <div
-                className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
-                style={{
-                  background: complianceChartBackground
-                }}
-              >
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
-                  <span className="text-2xl font-semibold text-emerald-100">{headerComplianceScore}%</span>
+          <div className="grid min-w-[250px] gap-3 self-stretch md:grid-cols-2 lg:self-auto">
+            <div className="panel-alt border-sky-300/25 p-4">
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
+                <div
+                  className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
+                  style={{
+                    background: complianceChartBackground
+                  }}
+                >
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
+                    <span className="text-2xl font-semibold text-emerald-100">{headerComplianceScore}%</span>
+                  </div>
                 </div>
+                <p className="mt-2 text-xs text-slate-300/80">
+                  {selectedKpiFilter ? "Network scope with KPI filter" : "Network scope"}
+                </p>
+                {selectedKpiFilter ? (
+                  <p className="mt-1 text-[11px] text-sky-200/90">{KPI_FILTER_LABELS[selectedKpiFilter]}</p>
+                ) : activeDetailTab === "compliance-overview" ? (
+                  <p className="mt-1 text-[11px] text-sky-200/90">Aligned to Compliance Overview (open findings)</p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
+                )}
               </div>
-              <p className="mt-2 text-xs text-slate-300/80">
-                {selectedKpiFilter ? "Network scope with KPI filter" : "Network scope"}
-              </p>
-              {selectedKpiFilter ? (
-                <p className="mt-1 text-[11px] text-sky-200/90">{KPI_FILTER_LABELS[selectedKpiFilter]}</p>
-              ) : activeDetailTab === "compliance-overview" ? (
-                <p className="mt-1 text-[11px] text-sky-200/90">Aligned to Compliance Overview (open findings)</p>
-              ) : (
+            </div>
+            <div className="panel-alt border-sky-300/25 p-4">
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Discovery Compliance Score</p>
+                <div
+                  className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
+                  style={{
+                    background: discoveryComplianceChartBackground
+                  }}
+                >
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
+                    <span className="text-2xl font-semibold text-emerald-100">{discoveryComplianceScore}%</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-300/80">
+                  C {discoveryComplianceCounts.compliant} | NC {discoveryComplianceCounts.nonCompliant} | Other{" "}
+                  {discoveryComplianceCounts.other}
+                </p>
                 <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -850,7 +1138,9 @@ export default async function NetworkDetailPage({
 
       <div
         className={
-          activeDetailTab === "compliance-overview" || activeDetailTab === "network-details"
+          activeDetailTab === "compliance-overview" ||
+          activeDetailTab === "network-details" ||
+          activeDetailTab === "discovery-compliance"
             ? "min-h-0 flex-1 overflow-hidden pr-1"
             : "min-h-0 flex-1 space-y-4 overflow-auto pr-1"
         }
@@ -1114,136 +1404,267 @@ export default async function NetworkDetailPage({
         }
       >
         <ServerStreamHint />
-        <section id="asset-discovery-coverage" className="panel overflow-hidden">
-        <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
-          Asset Discovery Coverage (Network Scope)
-        </h2>
-        <div className="max-h-[420px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">Asset</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Environment</th>
-                <th className="px-3 py-2">UCMDB</th>
-                <th className="px-3 py-2">Tanium</th>
-                <th className="px-3 py-2">Tenable</th>
-                <th className="px-3 py-2">SeviceNow</th>
-                <th className="px-3 py-2">Coverage Compliance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coverageRowsPage.items.map((row) => (
-                <tr key={row.assetId} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.ucmdb === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.ucmdb}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.tanium === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.tanium}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.tenable === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.tenable}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.seviceNow === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.seviceNow}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.coverageCompliance
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.coverageCompliance ? "Yes" : "No"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {coverageRowsPage.totalItems === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                    No assets in this scope.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        {coverageRowsPage.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-            <p>
-              Showing {(coverageRowsPage.currentPage - 1) * coverageRowsPage.pageSize + 1}-
-              {Math.min(coverageRowsPage.currentPage * coverageRowsPage.pageSize, coverageRowsPage.totalItems)} of{" "}
-              {coverageRowsPage.totalItems}
+        <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+          <section className="panel p-4">
+            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h2>
+            <p className="mt-1 text-xs text-slate-300/80">
+              Coverage score by discovery tool across current network scope.
             </p>
-            <div className="flex items-center gap-2">
-              {coverageRowsPage.currentPage > 1 ? (
-                <a
-                  href={scopedPageHref({ page: String(coverageRowsPage.currentPage - 1) }, "asset-discovery-coverage")}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading discovery coverage page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Previous
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
-              )}
-              <span>
-                Page {coverageRowsPage.currentPage} of {coverageRowsPage.totalPages}
-              </span>
-              {coverageRowsPage.currentPage < coverageRowsPage.totalPages ? (
-                <a
-                  href={scopedPageHref({ page: String(coverageRowsPage.currentPage + 1) }, "asset-discovery-coverage")}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading discovery coverage page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Next
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-              )}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {discoveryToolCoverageCharts.map((tool) => {
+                const isToolFilterActive = selectedDiscoveryToolFilter === tool.id;
+                const toolFilterHref = scopedPageHref(
+                  {
+                    discoveryToolFilter: isToolFilterActive ? undefined : tool.id,
+                    page: undefined
+                  },
+                  "asset-discovery-coverage"
+                );
+
+                return (
+                  <Link
+                    key={tool.id}
+                    href={toolFilterHref}
+                    scroll={false}
+                    data-filter-loading="true"
+                    data-filter-loading-message="Applying discovery filters..."
+                    className={`panel-alt border-sky-300/25 p-3 transition hover:bg-slate-900/70 ${
+                      isToolFilterActive ? "ring-2 ring-red-300/65" : ""
+                    }`}
+                  >
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">{tool.label}</p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <div
+                        className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-200/45"
+                        style={{
+                          background: tool.chartBackground
+                        }}
+                      >
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-950/95">
+                          <span className="text-sm font-semibold text-emerald-100">{tool.coveragePercent}%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-100">
+                          {tool.covered}/{discoveryCoverageTotal} covered
+                        </p>
+                        <p className="mt-1 text-xs text-red-100/90">{tool.missing} non-compliant</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] text-sky-200/85">
+                      {isToolFilterActive ? "Showing non-compliant assets for this tool" : "Select to filter non-compliant assets"}
+                    </p>
+                  </Link>
+                );
+              })}
             </div>
-          </div>
-        ) : null}
+          </section>
+
+          <section id="asset-discovery-coverage" className="panel flex min-h-0 flex-col overflow-hidden">
+            <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
+              Asset Discovery Coverage (Network Scope)
+            </h2>
+            <div className="border-b border-sky-400/10 px-4 py-3">
+              <form
+                action={`/networks/${network.id}#asset-discovery-coverage`}
+                method="get"
+                data-filter-loading="true"
+                data-filter-loading-message="Applying discovery filters..."
+                className="flex flex-wrap items-end gap-3 xl:flex-nowrap"
+              >
+                {preservedDiscoveryParams.map((param) => (
+                  <input key={param.key} type="hidden" name={param.key} value={param.value} />
+                ))}
+                {selectedDiscoveryToolFilter ? (
+                  <input type="hidden" name="discoveryToolFilter" value={selectedDiscoveryToolFilter} />
+                ) : null}
+                <div className="flex min-w-[220px] flex-1 flex-col gap-1">
+                  <label htmlFor="discovery-search" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70">
+                    Search
+                  </label>
+                  <input
+                    id="discovery-search"
+                    name="discoverySearch"
+                    type="search"
+                    defaultValue={selectedDiscoverySearchTerm}
+                    placeholder="Search asset, id, type, environment..."
+                    className="rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
+                  />
+                </div>
+                <div className="flex min-w-[170px] flex-col gap-1">
+                  <label htmlFor="discovery-asset-type" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70">
+                    Asset Type
+                  </label>
+                  <select
+                    id="discovery-asset-type"
+                    name="discoveryAssetType"
+                    defaultValue={selectedDiscoveryAssetType}
+                    className="rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                  >
+                    <option value="">All Asset Types</option>
+                    {discoveryAssetTypeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-100"
+                >
+                  Apply
+                </button>
+                {selectedDiscoverySearchTerm || selectedDiscoveryAssetType || selectedDiscoveryToolFilter ? (
+                  <Link
+                    href={clearDiscoveryFiltersHref}
+                    scroll={false}
+                    data-filter-loading="true"
+                    data-filter-loading-message="Applying discovery filters..."
+                    className="shrink-0 rounded-md border border-slate-500/40 px-3 py-2 text-xs font-semibold text-slate-200"
+                  >
+                    Clear
+                  </Link>
+                ) : null}
+                <Link
+                  href={discoveryCoverageExportHref}
+                  className="shrink-0 rounded-md border border-emerald-300/45 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-200/70"
+                >
+                  Export to CSV
+                </Link>
+              </form>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                  <tr>
+                    <th className="px-3 py-2">Asset</th>
+                    <th className="px-3 py-2">IP Address</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Environment</th>
+                    <th className="px-3 py-2">ICT System</th>
+                    <th className="px-3 py-2">UCMDB</th>
+                    <th className="px-3 py-2">Tanium</th>
+                    <th className="px-3 py-2">Tenable</th>
+                    <th className="px-3 py-2">SeviceNow</th>
+                    <th className="px-3 py-2">Coverage Compliance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coverageRowsPage.items.map((row) => (
+                    <tr key={row.assetId} className="border-t border-sky-400/10">
+                      <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                      <td className="px-3 py-2 text-slate-300">{row.assetIpAddress}</td>
+                      <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
+                      <td className="px-3 py-2 text-slate-300">{row.environment}</td>
+                      <td className="px-3 py-2 text-slate-300">{row.ictSystem}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs ${
+                            row.ucmdb === 1
+                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                              : "border-red-400/45 bg-red-500/15 text-red-100"
+                          }`}
+                        >
+                          {row.ucmdb}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs ${
+                            row.tanium === 1
+                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                              : "border-red-400/45 bg-red-500/15 text-red-100"
+                          }`}
+                        >
+                          {row.tanium}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs ${
+                            row.tenable === 1
+                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                              : "border-red-400/45 bg-red-500/15 text-red-100"
+                          }`}
+                        >
+                          {row.tenable}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs ${
+                            row.seviceNow === 1
+                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                              : "border-red-400/45 bg-red-500/15 text-red-100"
+                          }`}
+                        >
+                          {row.seviceNow}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-xs ${
+                            row.coverageCompliance
+                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                              : "border-red-400/45 bg-red-500/15 text-red-100"
+                          }`}
+                        >
+                          {row.coverageCompliance ? "Yes" : "No"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {coverageRowsPage.totalItems === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                        No assets match the selected discovery filters.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            {coverageRowsPage.totalPages > 1 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
+                <p>
+                  Showing {(coverageRowsPage.currentPage - 1) * coverageRowsPage.pageSize + 1}-
+                  {Math.min(coverageRowsPage.currentPage * coverageRowsPage.pageSize, coverageRowsPage.totalItems)} of{" "}
+                  {coverageRowsPage.totalItems}
+                </p>
+                <div className="flex items-center gap-2">
+                  {coverageRowsPage.currentPage > 1 ? (
+                    <a
+                      href={scopedPageHref({ page: String(coverageRowsPage.currentPage - 1) }, "asset-discovery-coverage")}
+                      data-filter-loading="true"
+                      data-filter-loading-message="Loading discovery coverage page..."
+                      className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                    >
+                      Previous
+                    </a>
+                  ) : (
+                    <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
+                  )}
+                  <span>
+                    Page {coverageRowsPage.currentPage} of {coverageRowsPage.totalPages}
+                  </span>
+                  {coverageRowsPage.currentPage < coverageRowsPage.totalPages ? (
+                    <a
+                      href={scopedPageHref({ page: String(coverageRowsPage.currentPage + 1) }, "asset-discovery-coverage")}
+                      data-filter-loading="true"
+                      data-filter-loading-message="Loading discovery coverage page..."
+                      className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                    >
+                      Next
+                    </a>
+                  ) : (
+                    <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
         </section>
+        </div>
       </Suspense>
       ) : null}
 

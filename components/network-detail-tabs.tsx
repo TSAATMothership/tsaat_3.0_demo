@@ -21,9 +21,8 @@ function nextProgressValue(current: number): number {
 
 const tabs: Array<{ id: NetworkDetailTabId; label: string }> = [
   { id: "network-details", label: "Network Details" },
-  { id: "cyber-posture", label: "Cyber Posture" },
-  { id: "discovery-compliance", label: "Discovery Compliance" },
-  { id: "compliance-overview", label: "Compliance Overview" }
+  { id: "compliance-overview", label: "Compliance Overview" },
+  { id: "discovery-compliance", label: "Discovery Compliance" }
 ];
 
 export function NetworkDetailTabs({ activeTab }: { activeTab: NetworkDetailTabId }) {

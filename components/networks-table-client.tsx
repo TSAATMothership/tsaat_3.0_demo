@@ -20,6 +20,7 @@ export interface NetworkTableRow {
   p12HighRiskFindings: number;
   p12CriticalExposureFindings: number;
   complianceScore: number;
+  discoveryComplianceScore: number;
   description: string;
   owner: string;
   supportEmail: string;
@@ -126,6 +127,7 @@ export function NetworksTableClient({
                 <th className="px-2.5 py-1.5">P1-P2 Findings (High Risk)</th>
                 <th className="px-2.5 py-1.5">P1-P2 Findings (Critical Exposure)</th>
                 <th className="px-2.5 py-1.5">Compliance Score</th>
+                <th className="px-2.5 py-1.5">Discovery Compliance Score</th>
                 <th className="px-2.5 py-1.5">Action</th>
               </tr>
             </thead>
@@ -151,6 +153,7 @@ export function NetworksTableClient({
                   <td className="px-2.5 py-2 text-slate-200">{row.p12HighRiskFindings}</td>
                   <td className="px-2.5 py-2 text-slate-200">{row.p12CriticalExposureFindings}</td>
                   <td className="whitespace-nowrap px-2.5 py-2 text-slate-100">{row.complianceScore}%</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-slate-100">{row.discoveryComplianceScore}%</td>
                   <td className="px-2.5 py-2">
                     <Link
                       href={withDataDate(`/networks/${row.id}`, scopedDataDate)}

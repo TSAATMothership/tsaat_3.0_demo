@@ -29,6 +29,7 @@ export function NetworksTable({
   p12FindingsByNetwork,
   p12HighRiskFindingsByNetwork,
   p12CriticalExposureFindingsByNetwork,
+  discoveryComplianceScoreByNetwork,
   scrollable = false
 }: {
   networks: ManagedNetwork[];
@@ -37,6 +38,7 @@ export function NetworksTable({
   p12FindingsByNetwork: Map<string, number>;
   p12HighRiskFindingsByNetwork: Map<string, number>;
   p12CriticalExposureFindingsByNetwork: Map<string, number>;
+  discoveryComplianceScoreByNetwork: Map<string, number>;
   scrollable?: boolean;
 }) {
   const rows: NetworkTableRow[] = networks.map((network) => {
@@ -58,6 +60,7 @@ export function NetworksTable({
       p12HighRiskFindings: p12HighRiskFindingsByNetwork.get(network.id) ?? 0,
       p12CriticalExposureFindings: p12CriticalExposureFindingsByNetwork.get(network.id) ?? 0,
       complianceScore,
+      discoveryComplianceScore: discoveryComplianceScoreByNetwork.get(network.id) ?? 0,
       description: detailFields.description,
       owner: detailFields.owner,
       supportEmail: detailFields.supportEmail,
