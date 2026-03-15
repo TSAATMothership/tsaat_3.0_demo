@@ -2,12 +2,17 @@ import { DiscoveryCoverageByToolSection } from "@/components/discovery-coverage-
 import { DiscoveryCoverageSearchForm } from "@/components/discovery-coverage-search-form";
 import { DiscoveryCoverageTabs } from "@/components/discovery-coverage-tabs";
 import {
+  NetworkDiscoverySummaryTableClient,
+  type NetworkDiscoverySummaryTableRow
+} from "@/components/network-discovery-summary-table-client";
+import {
   DiscoveryCoverageTargetStateSection,
   type TargetStateNetworkSummary
 } from "@/components/discovery-coverage-target-state-section";
 import { FilterBar } from "@/components/filter-bar";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { getCoreAppData } from "@/lib/app-data";
+import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset } from "@/lib/types";
 import { Suspense } from "react";
@@ -152,12 +157,29 @@ function targetCountForActual(actual: number, percentFound: number): number {
   return target;
 }
 
+function coveragePercent(actual: number, target: number): number {
+  if (target <= 0) {
+    return 0;
+  }
+  return Number(((actual / target) * 100).toFixed(1));
+}
+
 export default async function DiscoveryCoveragePage({
   searchParams
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const { dataset, analytics, filters, filterOptions } = await getCoreAppData(searchParams);
+  const requestedTab = firstParam(searchParams.discoveryCoverageTab)?.trim().toLowerCase();
+  const activeTab: "summary" | "details" | "target-state" =
+    requestedTab === "target-state" ? "target-state" : "summary";
+  const tabsActiveTab: "summary" | "target-state" = activeTab === "target-state" ? "target-state" : "summary";
+  const discoveryDataSearchParams: Record<string, string | string[] | undefined> = { ...searchParams };
+  delete discoveryDataSearchParams.criticality;
+  if (activeTab === "target-state") {
+    delete discoveryDataSearchParams.system;
+    delete discoveryDataSearchParams.environment;
+  }
+  const { dataset, analytics, filters, filterOptions, networks } = await getCoreAppData(discoveryDataSearchParams);
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
@@ -175,10 +197,7 @@ export default async function DiscoveryCoveragePage({
       coverage: discoveryCoverageForAsset(asset)
     }))
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
-  const queryEntries = toQueryEntries(searchParams);
-  const requestedTab = firstParam(searchParams.discoveryCoverageTab)?.trim().toLowerCase();
-  const activeTab: "summary" | "details" | "target-state" =
-    requestedTab === "details" ? "details" : requestedTab === "target-state" ? "target-state" : "summary";
+  const queryEntries = toQueryEntries(discoveryDataSearchParams);
   const tabContentClass = activeTab === "summary" ? "min-h-0 flex-1 overflow-auto pr-1" : "min-h-0 flex-1 overflow-hidden pr-1";
   const gapPageState = parsePageState(searchParams, "page", "pageSize");
   const matrixPageState = parsePageState(searchParams, "matrixPage", "matrixPageSize");
@@ -271,12 +290,12 @@ export default async function DiscoveryCoveragePage({
     return query ? `/discovery-coverage?${query}` : "/discovery-coverage";
   };
 
-  const assetTotalsByNetwork = dataset.assets.reduce(
+  const assetTotalsByNetwork = rows.reduce(
     (map, asset) => {
       const current = map.get(asset.networkId) ?? { server: 0, workstation: 0, networkDevice: 0 };
-      if (asset.type === "server") {
+      if (asset.assetType === "server") {
         current.server += 1;
-      } else if (asset.type === "workstation") {
+      } else if (asset.assetType === "workstation") {
         current.workstation += 1;
       } else {
         current.networkDevice += 1;
@@ -286,8 +305,7 @@ export default async function DiscoveryCoveragePage({
     },
     new Map<string, { server: number; workstation: number; networkDevice: number }>()
   );
-
-  const targetStateNetworks: TargetStateNetworkSummary[] = dataset.managedNetworks.map((network) => {
+  const targetStateNetworks: TargetStateNetworkSummary[] = networks.map((network) => {
       const actualTotals = assetTotalsByNetwork.get(network.id) ?? { server: 0, workstation: 0, networkDevice: 0 };
       const serverPercent = deterministicDiscoveryPercent(`${network.id}:server`);
       const workstationPercent = deterministicDiscoveryPercent(`${network.id}:workstation`);
@@ -314,12 +332,29 @@ export default async function DiscoveryCoveragePage({
         }
       };
     });
+  const networkDetailFieldsById = new Map(networks.map((network) => [network.id, resolveNetworkDetailFields(network)]));
+  const networkDiscoverySummaryRows: NetworkDiscoverySummaryTableRow[] = targetStateNetworks
+    .map((network) => ({
+      id: network.id,
+      name: network.name,
+      ...networkDetailFieldsById.get(network.id)!,
+      discoveryEnabled: network.discoveryStatus === "Discovery Enabled" ? "Enabled" : "Not Enabled",
+      serverCoverage: coveragePercent(network.totals.server.actual, network.totals.server.target),
+      workstationCoverage: coveragePercent(network.totals.workstation.actual, network.totals.workstation.target),
+      networkDeviceCoverage: coveragePercent(network.totals.networkDevice.actual, network.totals.networkDevice.target)
+    }))
+    .sort((a, b) => {
+      if (a.discoveryEnabled !== b.discoveryEnabled) {
+        return a.discoveryEnabled === "Enabled" ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel shrink-0 p-4">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Discovery Coverage View</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-100">Discovery Coverage</h1>
+        <h1 className="mt-1 text-3xl font-semibold text-slate-100">Discovery</h1>
         <p className="mt-2 max-w-5xl text-sm text-slate-300/85">
           Breakdown of discovery tooling coverage issues across all assets within the Defence Cyber Terrain. Use filters
           to scope networks, ICT systems, criticality, environments, and security domains.
@@ -327,7 +362,7 @@ export default async function DiscoveryCoveragePage({
       </section>
 
       <div className="shrink-0">
-        <DiscoveryCoverageTabs activeTab={activeTab} />
+        <DiscoveryCoverageTabs activeTab={tabsActiveTab} />
       </div>
 
       <div className={tabContentClass}>
@@ -655,14 +690,23 @@ export default async function DiscoveryCoveragePage({
               hiddenFields={["ictSystem", "environment", "systemCriticality"]}
               enableLoadingOverlay
             />
-            <section className="panel flex min-h-0 flex-1 flex-col p-4">
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <DiscoveryCoverageTargetStateSection
-                  targetStateNetworks={targetStateNetworks}
-                  lastRefreshedAt={dataset.generatedAt}
-                />
-              </div>
-            </section>
+            <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+              <section className="panel flex min-h-0 flex-col overflow-hidden">
+                <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
+                  Network Discovery Summary
+                </h2>
+                <NetworkDiscoverySummaryTableClient rows={networkDiscoverySummaryRows} />
+              </section>
+
+              <section className="panel flex min-h-0 flex-1 flex-col p-4">
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  <DiscoveryCoverageTargetStateSection
+                    targetStateNetworks={targetStateNetworks}
+                    lastRefreshedAt={dataset.generatedAt}
+                  />
+                </div>
+              </section>
+            </div>
           </div>
         )}
       </div>

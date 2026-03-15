@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -61,6 +61,10 @@ export function DiscoveryCoverageTargetStateSection({
   const [discoveryStatusFilter, setDiscoveryStatusFilter] = useState<
     "All" | "Discovery Enabled" | "Discovery Non Enabled"
   >("All");
+
+  useEffect(() => {
+    setDiscoveryStatusFilter("All");
+  }, [targetStateNetworks]);
 
   const filteredTargetStateNetworks = useMemo(() => {
     if (discoveryStatusFilter === "All") {
