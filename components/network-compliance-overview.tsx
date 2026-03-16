@@ -184,7 +184,7 @@ export function NetworkComplianceOverview({
 }) {
   const [selectedMeasure, setSelectedMeasure] = useState<ComplianceOverviewMeasureRow | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [workflowFilter, setWorkflowFilter] = useState<"all" | "open" | "closed">("open");
+  const [workflowFilter, setWorkflowFilter] = useState<"all" | "open" | "closed">("all");
   const [severityFilter, setSeverityFilter] = useState<"all" | FindingSeverity>("all");
   const [isFindingsPanelVisible, setIsFindingsPanelVisible] = useState(false);
   const [isFindingsPanelOpen, setIsFindingsPanelOpen] = useState(false);
@@ -238,7 +238,24 @@ export function NetworkComplianceOverview({
     }
     setSelectedMeasure(measure);
     setSearchTerm("");
-    setWorkflowFilter("open");
+    let hasOpenFindingsAtAsOf = false;
+    for (const finding of findings) {
+      if (finding.spiId !== measure.spiId) {
+        continue;
+      }
+      const asOfStatus = workflowStatusAtAsOf(
+        {
+          timestamp: finding.timestamp,
+          closedTimestamp: finding.closedTimestamp
+        },
+        timelineMaxDate
+      );
+      if (asOfStatus === "open") {
+        hasOpenFindingsAtAsOf = true;
+        break;
+      }
+    }
+    setWorkflowFilter(hasOpenFindingsAtAsOf ? "open" : "all");
     setSeverityFilter("all");
     setSelectedFindingForAssets(null);
     setIsAssetDetailsPanelVisible(false);
@@ -328,6 +345,19 @@ export function NetworkComplianceOverview({
         (entry): entry is TimelineFindingEntry => entry.asOfStatus !== null
       );
   }, [selectedMeasure, selectedMeasureFindings, timelineMaxDate]);
+
+  const timelineScopedStatusCounts = useMemo(() => {
+    let open = 0;
+    let closed = 0;
+    for (const entry of timelineScopedFindings) {
+      if (entry.asOfStatus === "open") {
+        open += 1;
+      } else {
+        closed += 1;
+      }
+    }
+    return { open, closed, total: timelineScopedFindings.length };
+  }, [timelineScopedFindings]);
 
   const filteredTimelineFindings = useMemo(() => {
     if (!selectedMeasure) {
@@ -715,6 +745,10 @@ export function NetworkComplianceOverview({
                 Findings and Evidence
               </h4>
               <p className="mt-1 text-xs text-slate-300/80">Selected Measure: {selectedMeasure.label}</p>
+              <p className="mt-1 text-xs text-slate-300/80">
+                Findings in scope: {timelineScopedStatusCounts.total} (Open {timelineScopedStatusCounts.open} | Closed{" "}
+                {timelineScopedStatusCounts.closed})
+              </p>
 
               <section className="panel-alt mt-3 p-3">
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -901,7 +935,9 @@ export function NetworkComplianceOverview({
                       {filteredFindings.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                            No findings match this measure and active filters.
+                            {timelineScopedStatusCounts.total === 0
+                              ? "No findings were generated for this measure in the current scope."
+                              : "No findings match the active filters. Try Workflow Status = All."}
                           </td>
                         </tr>
                       ) : null}
