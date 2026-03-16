@@ -208,6 +208,44 @@ function resolveAssetIpAddress(asset: Asset): string {
   return String(value).trim();
 }
 
+function fallbackFindingSeverity(status: ComplianceStatus, spiId: number): FindingSeverity {
+  if (status === "Unknown") {
+    return "Data Gap";
+  }
+  if (spiId === 4 || spiId === 5 || spiId === 6) {
+    return "High Risk";
+  }
+  if (spiId === 1 || spiId === 3 || spiId === 7 || spiId === 8) {
+    return "Major";
+  }
+  return "Moderate";
+}
+
+function fallbackPriorityRank(status: ComplianceStatus, spiId: number): number {
+  if (status === "Unknown") {
+    return 90;
+  }
+  if (spiId === 4 || spiId === 5 || spiId === 6) {
+    return 1;
+  }
+  if (spiId === 3 || spiId === 7) {
+    return 2;
+  }
+  if (spiId === 1 || spiId === 8) {
+    return 3;
+  }
+  if (spiId === 2) {
+    return 4;
+  }
+  if (spiId === 9) {
+    return 6;
+  }
+  if (spiId === 10) {
+    return 7;
+  }
+  return 99;
+}
+
 function toFindingDateKey(timestamp?: string | null): string | null {
   if (!timestamp) {
     return null;
@@ -675,10 +713,6 @@ export default async function NetworkDetailPage({
       reasons: item.reasons
     }))
   );
-  const evaluationStatusByAssetAndSpi = new Map<string, ComplianceStatus>();
-  for (const row of scopedEvaluationRows) {
-    evaluationStatusByAssetAndSpi.set(`${row.assetId}:${row.spiId}`, row.status);
-  }
   const complianceOverviewStatuses = scopedEvaluationRows.map((row) => row.status);
   const complianceOverviewSummaryCounts = complianceOverviewStatuses.reduce(
     (accumulator, status) => {
@@ -750,93 +784,148 @@ export default async function NetworkDetailPage({
   );
   const networkOwnerFallback = network.owner?.trim() || "Not assigned";
 
-  const complianceOverviewFindings = [...filteredFindings]
-    .sort((a, b) => {
-      const aTime = new Date(a.timestamp).getTime();
-      const bTime = new Date(b.timestamp).getTime();
-      return bTime - aTime;
-    })
-    .map((finding) => {
-      const asset = filteredAssetsById.get(finding.scope.assetId);
-      const evidence = Object.entries(finding.evidence).map(([key, value]) => ({
-        key,
-        value: toEvidenceString(value)
-      }));
-      const evidencePreview = evidence.length
-        ? evidence
-            .slice(0, 2)
-            .map((item) => `${item.key}: ${item.value}`)
-            .join(" | ")
-        : "No evidence captured";
+  const latestFindingByAssetAndSpi = filteredFindings.reduce((map, finding) => {
+    const key = `${finding.scope.assetId}:${finding.spiId}`;
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, finding);
+      return map;
+    }
+    const currentTime = new Date(current.timestamp).getTime();
+    const candidateTime = new Date(finding.timestamp).getTime();
+    if (candidateTime > currentTime) {
+      map.set(key, finding);
+    }
+    return map;
+  }, new Map<string, Finding>());
+
+  const complianceOverviewFindings = scopedEvaluationRows
+    .filter((row) => row.status !== "Compliant")
+    .map((row) => {
+      const asset = filteredAssetsById.get(row.assetId);
+      const latestFinding = latestFindingByAssetAndSpi.get(`${row.assetId}:${row.spiId}`);
+      const evidenceFromFinding = latestFinding
+        ? Object.entries(latestFinding.evidence).map(([key, value]) => ({
+            key,
+            value: toEvidenceString(value)
+          }))
+        : [];
+      const evidenceFromEvaluation = row.reasons
+        .map((reason) => reason.trim())
+        .filter(Boolean)
+        .map((reason, index) => ({
+          key: index === 0 ? "reason" : `reason ${index + 1}`,
+          value: reason
+        }));
+      const evidence =
+        evidenceFromFinding.length > 0
+          ? evidenceFromFinding
+          : evidenceFromEvaluation.length > 0
+            ? evidenceFromEvaluation
+            : [{ key: "evaluationStatus", value: row.status }];
+      const evidencePreview = evidence
+        .slice(0, 2)
+        .map((item) => `${item.key}: ${item.value}`)
+        .join(" | ");
       const scopeLabel = [
-        `Asset ${finding.scope.assetId}`,
-        finding.scope.systemId ? `System ${finding.scope.systemId}` : "System n/a",
-        finding.scope.environmentType ? `Env ${finding.scope.environmentType}` : "Env n/a"
+        `Asset ${row.assetId}`,
+        asset?.systemContext?.systemId ? `System ${asset.systemContext.systemId}` : "System n/a",
+        asset?.systemContext?.environmentType ? `Env ${asset.systemContext.environmentType}` : "Env n/a"
       ].join(" | ");
       const assetName =
-        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, ["assetName", "asset_name"])
+          : null) ??
         asset?.name ??
-        finding.scope.assetId;
+        row.assetId;
       const assetType = formatAssetTypeLabel(
-        readEvidenceStringValue(finding.evidence, ["assetType", "asset_type"]) ?? asset?.type ?? null
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, ["assetType", "asset_type"])
+          : null) ?? asset?.type ?? null
       );
       const assetIpAddress =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIpAddress",
-          "assetIp",
-          "ipAddress",
-          "ip",
-          "ipv4Address",
-          "ipv4",
-          "ip_address"
-        ]) ?? "Not available";
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, [
+              "assetIpAddress",
+              "assetIp",
+              "ipAddress",
+              "ip",
+              "ipv4Address",
+              "ipv4",
+              "ip_address"
+            ])
+          : null) ??
+        (asset ? resolveAssetIpAddress(asset) : "Not available");
       const assetChangeAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned";
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, [
+              "assetChangeAssignmentGroup",
+              "changeAssignmentGroup",
+              "changeGroup",
+              "change_assignment_group"
+            ])
+          : null) ?? "Not assigned";
       const assetIncidentAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned";
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, [
+              "assetIncidentAssignmentGroup",
+              "incidentAssignmentGroup",
+              "incidentGroup",
+              "incident_assignment_group"
+            ])
+          : null) ?? "Not assigned";
       const owner =
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, ["assetOwner", "owner", "serviceOwner"])
+          : null) ??
         (asset?.systemContext?.systemId
           ? systemOwnerById.get(asset.systemContext.systemId)?.trim() || networkOwnerFallback
           : networkOwnerFallback);
 
+      const timestamp = latestFinding?.timestamp ?? `${dataset.snapshotDate}T00:00:00.000Z`;
+      const severity = latestFinding?.severity ?? fallbackFindingSeverity(row.status, row.spiId);
+      const priorityRank = latestFinding?.priorityRank ?? fallbackPriorityRank(row.status, row.spiId);
+      const title = latestFinding?.title ?? SPI_DESCRIPTIONS[row.spiId];
+      const recommendedAction =
+        latestFinding?.recommendedAction ??
+        (row.reasons.length
+          ? row.reasons.join(" | ")
+          : `Investigate and remediate SPI ${row.spiId} non-compliance for the impacted asset.`);
+
       return {
-        id: finding.id,
-        assetId: finding.scope.assetId,
+        id: latestFinding ? `${latestFinding.id}-current` : `current-${row.assetId}-spi-${row.spiId}`,
+        assetId: row.assetId,
         assetName,
         assetType,
         assetIpAddress,
         assetChangeAssignmentGroup,
         assetIncidentAssignmentGroup,
         owner,
-        spiId: finding.spiId,
-        timestamp: finding.timestamp,
-        closedTimestamp: finding.closedTimestamp ?? null,
-        closedTimestampLabel: finding.closedTimestamp ? formatTimestamp(finding.closedTimestamp) : null,
-        title: finding.title,
-        timestampLabel: formatTimestamp(finding.timestamp),
-        measureLabel: `SPI ${finding.spiId} - ${SPI_DESCRIPTIONS[finding.spiId]}`,
-        priorityRank: finding.priorityRank,
-        severity: finding.severity,
-        workflowStatus: finding.status,
-        complianceStatus: finding.complianceStatus,
-        evaluationStatus:
-          evaluationStatusByAssetAndSpi.get(`${finding.scope.assetId}:${finding.spiId}`) ?? "Unknown",
+        spiId: row.spiId,
+        timestamp,
+        closedTimestamp: null,
+        closedTimestampLabel: null,
+        title,
+        timestampLabel: formatTimestamp(timestamp),
+        measureLabel: `SPI ${row.spiId} - ${SPI_DESCRIPTIONS[row.spiId]}`,
+        priorityRank,
+        severity,
+        workflowStatus: "open" as const,
+        complianceStatus: row.status,
+        evaluationStatus: row.status,
         scopeLabel,
-        evidencePreview,
+        evidencePreview: evidencePreview || "No evidence captured",
         evidence,
-        recommendedAction: finding.recommendedAction
+        recommendedAction
       };
+    })
+    .sort((a, b) => {
+      if (a.priorityRank !== b.priorityRank) {
+        return a.priorityRank - b.priorityRank;
+      }
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
     });
 
   const metricsBySnapshotDate = new Map<string, NetworkKpiSnapshotMetrics>();

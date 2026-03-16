@@ -93,7 +93,7 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
   const tabs = [
     { id: "summary" as const, label: "Measures Summary" },
     { id: "measures" as const, label: "Measures" },
-    { id: "settings" as const, label: "Measures Settings" }
+    { id: "settings" as const, label: "Measures Severity Settings" }
   ];
 
   return (
@@ -138,7 +138,7 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
                   <span>
                     Opening{" "}
                     {pendingTab === "settings"
-                      ? "Measures Settings"
+                      ? "Measures Severity Settings"
                       : pendingTab === "measures"
                         ? "Measures"
                         : "Measures Summary"}
