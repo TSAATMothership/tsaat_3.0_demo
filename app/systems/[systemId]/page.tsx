@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
+import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
+import { SystemDetailTabId, SystemDetailTabs } from "@/components/system-detail-tabs";
 import { buildAnalytics } from "@/lib/analytics";
+import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
@@ -15,7 +18,7 @@ import { extractDataDateParam, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { paginate, parsePageState } from "@/lib/pagination";
-import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding } from "@/lib/types";
+import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding, FindingSeverity } from "@/lib/types";
 import { Suspense } from "react";
 
 type KpiFilterKey =
@@ -36,6 +39,7 @@ const KPI_FILTER_LABELS: Record<KpiFilterKey, string> = {
   outOfWarrantyAssets: "Total Physical Assets Out of Warranty",
   nonCompliantDiscoveryCoverage: "Assets non-compliant with discovery coverage"
 };
+const SPI_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 function isKpiFilterKey(value: string | undefined): value is KpiFilterKey {
   if (!value) {
@@ -49,6 +53,10 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return value[0];
   }
   return value;
+}
+
+function isExternalLink(href: string): boolean {
+  return /^https?:\/\//i.test(href);
 }
 
 function findingMatchesSearch(finding: Finding, normalizedSearchTerm: string) {
@@ -80,6 +88,129 @@ function findingMatchesSearch(finding: Finding, normalizedSearchTerm: string) {
     .toLowerCase();
 
   return text.includes(normalizedSearchTerm);
+}
+
+function formatTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+  return `${parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC"
+  })} UTC`;
+}
+
+function toEvidenceString(value: string | number | boolean | null): string {
+  if (value === null) {
+    return "null";
+  }
+  return String(value);
+}
+
+function readEvidenceStringValue(
+  evidence: Record<string, string | number | boolean | null>,
+  candidateKeys: string[]
+): string | null {
+  if (!candidateKeys.length) {
+    return null;
+  }
+  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
+  for (const candidateKey of candidateKeys) {
+    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
+    if (!matched) {
+      continue;
+    }
+    const value = matched[1];
+    if (value === null) {
+      continue;
+    }
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+      continue;
+    }
+    return text;
+  }
+  return null;
+}
+
+function formatAssetTypeLabel(value?: string | null): string {
+  if (!value) {
+    return "Unknown";
+  }
+  if (value === "network-device") {
+    return "Network Device";
+  }
+  if (value === "workstation") {
+    return "Workstation";
+  }
+  if (value === "server") {
+    return "Server";
+  }
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolveAssetIpAddress(asset: Asset): string {
+  const candidate = asset as Asset & {
+    ipAddress?: string | null;
+    ip?: string | null;
+    ipv4?: string | null;
+    ipv4Address?: string | null;
+    primaryIp?: string | null;
+  };
+  const value =
+    candidate.ipAddress ?? candidate.ip ?? candidate.ipv4 ?? candidate.ipv4Address ?? candidate.primaryIp ?? null;
+  if (!value || !String(value).trim()) {
+    return "N/A";
+  }
+  return String(value).trim();
+}
+
+function fallbackFindingSeverity(status: ComplianceStatus, spiId: number): FindingSeverity {
+  if (status === "Unknown") {
+    return "Data Gap";
+  }
+  if (spiId === 4 || spiId === 5 || spiId === 6) {
+    return "High Risk";
+  }
+  if (spiId === 1 || spiId === 3 || spiId === 7 || spiId === 8) {
+    return "Major";
+  }
+  return "Moderate";
+}
+
+function fallbackPriorityRank(status: ComplianceStatus, spiId: number): number {
+  if (status === "Unknown") {
+    return 90;
+  }
+  if (spiId === 4 || spiId === 5 || spiId === 6) {
+    return 1;
+  }
+  if (spiId === 3 || spiId === 7) {
+    return 2;
+  }
+  if (spiId === 1 || spiId === 8) {
+    return 3;
+  }
+  if (spiId === 2) {
+    return 4;
+  }
+  if (spiId === 9) {
+    return 6;
+  }
+  if (spiId === 10) {
+    return 7;
+  }
+  return 99;
 }
 
 function complianceScore(statuses: ComplianceStatus[]): number {
@@ -370,6 +501,22 @@ export default async function SystemDetailPage({
     notFound();
   }
 
+  const missionSummary =
+    system.missionCapabilities.map((capability) => capability.name).join(", ") || "assigned mission capabilities";
+  const serviceSummary = system.businessServices.map((service) => service.name).join(", ") || "assigned business services";
+  const systemDescription =
+    system.description?.trim() ||
+    `${system.name} is a ${system.criticality.toLowerCase()} ICT system in the ${system.securityDomain} domain supporting ${missionSummary} and ${serviceSummary}.`;
+  const systemOwner = system.owner?.trim() || `${system.name} Operations Team`;
+  const systemSupportEmail = system.supportEmail?.trim() || `ict-support+${system.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}@tsaat.local`;
+  const systemServiceCatalogueUrl = system.serviceCatalogueUrl?.trim() || `/systems/${system.id}`;
+  const systemAtoNumber = system.atoNumber?.trim() || `ATO-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+  const systemDiisId = system.diisId?.trim() || `DIIS-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+  const systemDiisUrl = system.diisUrl?.trim() || `https://diis.defence.gov.au/systems/${encodeURIComponent(system.id)}`;
+  const systemGrcUrl = system.grcUrl?.trim() || `https://grc.defence.gov.au/ato/${encodeURIComponent(systemAtoNumber)}`;
+  const systemApmNumber = `APM-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+  const systemApmUrl = `https://apm.defence.gov.au/applications/${encodeURIComponent(systemApmNumber)}`;
+
   const analytics = buildAnalytics(
     dataset,
     dataset.ictSystems,
@@ -389,6 +536,13 @@ export default async function SystemDetailPage({
     : undefined;
   const requestedKpiFilter = firstParam(requestParams.kpiFilter);
   const selectedKpiFilter = isKpiFilterKey(requestedKpiFilter) ? requestedKpiFilter : undefined;
+  const requestedDetailTab = firstParam(requestParams.systemDetailTab)?.trim().toLowerCase();
+  const activeDetailTab: SystemDetailTabId =
+    requestedDetailTab === "discovery-compliance"
+      ? "discovery-compliance"
+      : requestedDetailTab === "compliance-overview"
+        ? "compliance-overview"
+        : "system-details";
   const requestedP12Spi = Number(firstParam(requestParams.p12Spi));
   const selectedP12Spi =
     Number.isInteger(requestedP12Spi) && requestedP12Spi >= 1 && requestedP12Spi <= 10 ? requestedP12Spi : undefined;
@@ -727,6 +881,321 @@ export default async function SystemDetailPage({
     .flatMap((evaluation) => evaluation.evaluations.map((evaluationItem) => evaluationItem.status));
   const selectedComplianceScore = complianceScore(selectedStatuses);
   const selectedPosture = overallStatusFromStatuses(selectedStatuses);
+  const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
+
+  const scopedEvaluationRows = analytics.evaluations
+    .filter((evaluation) => filteredAssetIds.has(evaluation.assetId))
+    .flatMap((evaluation) =>
+      evaluation.evaluations.map((item) => ({
+        assetId: evaluation.assetId,
+        spiId: item.spiId,
+        status: item.status,
+        reasons: item.reasons
+      }))
+    );
+
+  const complianceOverviewStatuses = scopedEvaluationRows.map((row) => row.status);
+  const complianceOverviewSummaryCounts = complianceOverviewStatuses.reduce(
+    (accumulator, status) => {
+      if (status === "Compliant") {
+        accumulator.compliant += 1;
+      } else if (status === "Non-compliant") {
+        accumulator.nonCompliant += 1;
+      } else {
+        accumulator.unknown += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
+  );
+  const complianceOverviewScore = complianceScore(complianceOverviewStatuses);
+
+  const complianceMeasureRows = SPI_IDS.map((spiId) => {
+    const scopedSpiEvaluations = scopedEvaluationRows.filter((row) => row.spiId === spiId);
+    const compliant = scopedSpiEvaluations.filter((row) => row.status === "Compliant").length;
+    const nonCompliant = scopedSpiEvaluations.filter((row) => row.status === "Non-compliant").length;
+    const unknown = scopedSpiEvaluations.filter((row) => row.status === "Unknown").length;
+    const impactedAssetIds = new Set<string>();
+    const reasonCounts = new Map<string, number>();
+
+    for (const row of scopedSpiEvaluations) {
+      if (row.status !== "Compliant") {
+        impactedAssetIds.add(row.assetId);
+      }
+      if (row.status !== "Non-compliant") {
+        continue;
+      }
+      for (const reason of row.reasons) {
+        const normalizedReason = reason.trim();
+        if (!normalizedReason) {
+          continue;
+        }
+        reasonCounts.set(normalizedReason, (reasonCounts.get(normalizedReason) ?? 0) + 1);
+      }
+    }
+
+    const total = compliant + nonCompliant + unknown;
+    const score = total ? Number(((compliant / total) * 100).toFixed(1)) : 0;
+    const topReasons = Array.from(reasonCounts.entries())
+      .sort((a, b) => {
+        if (b[1] !== a[1]) {
+          return b[1] - a[1];
+        }
+        return a[0].localeCompare(b[0]);
+      })
+      .slice(0, 3)
+      .map(([reason]) => reason);
+
+    return {
+      spiId,
+      label: `SPI ${spiId} - ${SPI_DESCRIPTIONS[spiId]}`,
+      total,
+      compliant,
+      nonCompliant,
+      unknown,
+      score,
+      impactedAssets: impactedAssetIds.size,
+      topReasons
+    };
+  });
+
+  const systemScopedFindings = findings.filter((finding) => filteredAssetIds.has(finding.scope.assetId));
+  const latestFindingByAssetAndSpi = systemScopedFindings.reduce((map, finding) => {
+    const key = `${finding.scope.assetId}:${finding.spiId}`;
+    const current = map.get(key);
+    if (!current) {
+      map.set(key, finding);
+      return map;
+    }
+    const currentTime = new Date(current.timestamp).getTime();
+    const candidateTime = new Date(finding.timestamp).getTime();
+    if (candidateTime > currentTime) {
+      map.set(key, finding);
+    }
+    return map;
+  }, new Map<string, Finding>());
+
+  const systemOwnerFallback = system.owner?.trim() || "Not assigned";
+
+  const complianceOverviewFindings = scopedEvaluationRows
+    .filter((row) => row.status !== "Compliant")
+    .map((row) => {
+      const asset = filteredAssetsById.get(row.assetId);
+      const latestFinding = latestFindingByAssetAndSpi.get(`${row.assetId}:${row.spiId}`);
+      const evidenceFromFinding = latestFinding
+        ? Object.entries(latestFinding.evidence).map(([key, value]) => ({
+            key,
+            value: toEvidenceString(value)
+          }))
+        : [];
+      const evidenceFromEvaluation = row.reasons
+        .map((reason) => reason.trim())
+        .filter(Boolean)
+        .map((reason, index) => ({
+          key: index === 0 ? "reason" : `reason ${index + 1}`,
+          value: reason
+        }));
+      const evidence =
+        evidenceFromFinding.length > 0
+          ? evidenceFromFinding
+          : evidenceFromEvaluation.length > 0
+            ? evidenceFromEvaluation
+            : [{ key: "evaluationStatus", value: row.status }];
+      const evidencePreview = evidence
+        .slice(0, 2)
+        .map((item) => `${item.key}: ${item.value}`)
+        .join(" | ");
+      const scopeLabel = [
+        `Asset ${row.assetId}`,
+        system.id ? `System ${system.id}` : "System n/a",
+        asset?.systemContext?.environmentType ? `Env ${asset.systemContext.environmentType}` : "Env n/a"
+      ].join(" | ");
+      const assetName =
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, ["assetName", "asset_name"])
+          : null) ??
+        asset?.name ??
+        asset?.hostname ??
+        row.assetId;
+      const assetType = formatAssetTypeLabel(
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, ["assetType", "asset_type"])
+          : null) ?? asset?.type ?? null
+      );
+      const assetIpAddress =
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, [
+              "assetIpAddress",
+              "assetIp",
+              "ipAddress",
+              "ip",
+              "ipv4Address",
+              "ipv4",
+              "ip_address"
+            ])
+          : null) ??
+        (asset ? resolveAssetIpAddress(asset) : "Not available");
+      const assetChangeAssignmentGroup =
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, [
+              "assetChangeAssignmentGroup",
+              "changeAssignmentGroup",
+              "changeGroup",
+              "change_assignment_group"
+            ])
+          : null) ?? "Not assigned";
+      const assetIncidentAssignmentGroup =
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, [
+              "assetIncidentAssignmentGroup",
+              "incidentAssignmentGroup",
+              "incidentGroup",
+              "incident_assignment_group"
+            ])
+          : null) ?? "Not assigned";
+      const owner =
+        (latestFinding
+          ? readEvidenceStringValue(latestFinding.evidence, ["assetOwner", "owner", "serviceOwner"])
+          : null) ?? systemOwnerFallback;
+
+      const timestamp = latestFinding?.timestamp ?? `${dataset.snapshotDate}T00:00:00.000Z`;
+      const severity = latestFinding?.severity ?? fallbackFindingSeverity(row.status, row.spiId);
+      const priorityRank = latestFinding?.priorityRank ?? fallbackPriorityRank(row.status, row.spiId);
+      const title = latestFinding?.title ?? SPI_DESCRIPTIONS[row.spiId];
+      const recommendedAction =
+        latestFinding?.recommendedAction ??
+        (row.reasons.length
+          ? row.reasons.join(" | ")
+          : `Investigate and remediate SPI ${row.spiId} non-compliance for the impacted asset.`);
+
+      return {
+        id: latestFinding ? `${latestFinding.id}-current` : `current-${row.assetId}-spi-${row.spiId}`,
+        assetId: row.assetId,
+        assetName,
+        assetType,
+        assetIpAddress,
+        assetChangeAssignmentGroup,
+        assetIncidentAssignmentGroup,
+        owner,
+        spiId: row.spiId,
+        timestamp,
+        closedTimestamp: null,
+        closedTimestampLabel: null,
+        title,
+        timestampLabel: formatTimestamp(timestamp),
+        measureLabel: `SPI ${row.spiId} - ${SPI_DESCRIPTIONS[row.spiId]}`,
+        priorityRank,
+        severity,
+        workflowStatus: "open" as const,
+        complianceStatus: row.status,
+        evaluationStatus: row.status,
+        scopeLabel,
+        evidencePreview: evidencePreview || "No evidence captured",
+        evidence,
+        recommendedAction
+      };
+    })
+    .sort((a, b) => {
+      if (a.priorityRank !== b.priorityRank) {
+        return a.priorityRank - b.priorityRank;
+      }
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    });
+
+  const assetTypeSummary = {
+    totalAssets: filteredAssets.length,
+    serverCount: filteredAssets.filter((asset) => asset.type === "server").length,
+    workstationCount: filteredAssets.filter((asset) => asset.type === "workstation").length,
+    networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length
+  };
+
+  const selectedComplianceSummaryCounts = selectedStatuses.reduce(
+    (accumulator, status) => {
+      if (status === "Compliant") {
+        accumulator.compliant += 1;
+      } else if (status === "Non-compliant") {
+        accumulator.nonCompliant += 1;
+      } else {
+        accumulator.unknown += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
+  );
+
+  const headerComplianceCounts =
+    activeDetailTab === "compliance-overview" ? complianceOverviewSummaryCounts : selectedComplianceSummaryCounts;
+  const headerComplianceScore = activeDetailTab === "compliance-overview" ? complianceOverviewScore : selectedComplianceScore;
+  const complianceChartTotal =
+    headerComplianceCounts.compliant + headerComplianceCounts.nonCompliant + headerComplianceCounts.unknown;
+  const complianceChartCompliantStop = complianceChartTotal
+    ? (headerComplianceCounts.compliant / complianceChartTotal) * 360
+    : 0;
+  const complianceChartNonCompliantStop = complianceChartTotal
+    ? ((headerComplianceCounts.compliant + headerComplianceCounts.nonCompliant) / complianceChartTotal) * 360
+    : 0;
+  const complianceChartBackground = complianceChartTotal
+    ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${complianceChartCompliantStop}deg, rgba(248,113,113,0.95) ${complianceChartCompliantStop}deg ${complianceChartNonCompliantStop}deg, rgba(148,163,184,0.92) ${complianceChartNonCompliantStop}deg 360deg)`
+    : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
+
+  const discoveryComplianceCounts = discoveryCoverageRows.reduce(
+    (accumulator, row) => {
+      const sourceAsset = filteredAssetsById.get(row.assetId);
+      const isOther =
+        sourceAsset?.lifecycle.eolStatus === "Unknown" || sourceAsset?.lifecycle.warrantyStatus === "Unknown";
+
+      if (isOther) {
+        accumulator.other += 1;
+      } else if (row.coverageCompliance) {
+        accumulator.compliant += 1;
+      } else {
+        accumulator.nonCompliant += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, other: 0 }
+  );
+  const discoveryComplianceTotal =
+    discoveryComplianceCounts.compliant + discoveryComplianceCounts.nonCompliant + discoveryComplianceCounts.other;
+  const discoveryComplianceScore = discoveryComplianceTotal
+    ? Number(((discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 100).toFixed(1))
+    : 0;
+  const discoveryComplianceCompliantStop = discoveryComplianceTotal
+    ? (discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 360
+    : 0;
+  const discoveryComplianceNonCompliantStop = discoveryComplianceTotal
+    ? ((discoveryComplianceCounts.compliant + discoveryComplianceCounts.nonCompliant) / discoveryComplianceTotal) * 360
+    : 0;
+  const discoveryComplianceChartBackground = discoveryComplianceTotal
+    ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${discoveryComplianceCompliantStop}deg, rgba(248,113,113,0.95) ${discoveryComplianceCompliantStop}deg ${discoveryComplianceNonCompliantStop}deg, rgba(148,163,184,0.92) ${discoveryComplianceNonCompliantStop}deg 360deg)`
+    : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
+
+  const discoveryToolCoverageCharts = [
+    { id: "ucmdb", label: "UCMDB", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.ucmdb },
+    { id: "tanium", label: "Tanium", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.tanium },
+    { id: "tenable", label: "Tenable", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.tenable },
+    { id: "servicenow", label: "ServiceNow", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.seviceNow }
+  ].map((tool) => {
+    const total = discoveryCoverageRows.length;
+    const compliant = discoveryCoverageRows.filter((row) => tool.accessor(row) === 1).length;
+    const nonCompliant = Math.max(total - compliant, 0);
+    const score = total ? Number(((compliant / total) * 100).toFixed(1)) : 0;
+    const compliantStop = total ? (compliant / total) * 360 : 0;
+    const nonCompliantStop = total ? ((compliant + nonCompliant) / total) * 360 : 0;
+    const chartBackground = total
+      ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${compliantStop}deg, rgba(248,113,113,0.95) ${compliantStop}deg ${nonCompliantStop}deg, rgba(148,163,184,0.92) ${nonCompliantStop}deg 360deg)`
+      : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
+    return {
+      ...tool,
+      total,
+      compliant,
+      nonCompliant,
+      score,
+      chartBackground
+    };
+  });
 
   const scopeHref = (scope: {
     environment?: EnvironmentType;
@@ -861,11 +1330,11 @@ export default async function SystemDetailPage({
   const nonCompliantDiscoveryCoverageTrend = trendPointsFor("nonCompliantDiscoveryCoverage");
 
   return (
-    <div className="space-y-4">
-      <section className="panel p-5">
+    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href={withDataDate("/systems", requestedDataDate)} className="text-xs text-sky-200 underline">
+            <Link href={withDataDate("/systems?systemsTab=posture", requestedDataDate)} className="text-xs text-sky-200 underline">
               Back to ICT Systems
             </Link>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{system.name}</h1>
@@ -875,7 +1344,10 @@ export default async function SystemDetailPage({
                 Network: {system.networkId}
               </span>
               <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
-                Assets in scope: {filteredAssets.length} ({selectedLabel})
+                Assets: {filteredAssets.length}
+              </span>
+              <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
+                Scope: {selectedLabel}
               </span>
               {serverSearchTerm ? (
                 <span className="rounded-full border border-sky-300/40 bg-sky-500/10 px-3 py-1 text-xs text-sky-100">
@@ -887,27 +1359,78 @@ export default async function SystemDetailPage({
                   KPI filter: {KPI_FILTER_LABELS[selectedKpiFilter]}
                 </span>
               ) : null}
-              <span className="rounded-full border border-red-400/35 bg-red-500/10 px-3 py-1 text-xs text-red-100">
-                P1-2 findings in scope: {filteredFindings.length}
-              </span>
             </div>
-            <p className="mt-3 text-sm text-slate-300/85">
-              Drill-through redesigned for environment-level compliance and P1-2 risk visibility.
-            </p>
           </div>
 
-          <Link
-            href="#environment-filter"
-            className="panel-alt min-w-[210px] self-stretch border-sky-300/25 p-4 lg:self-auto"
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
-            <p className="mt-1 text-3xl font-semibold text-emerald-200">{selectedComplianceScore}%</p>
-            <p className="mt-1 text-xs text-slate-300/80">{selectedLabel}</p>
-            <p className="mt-2 text-[11px] text-sky-200/90">Linked to Environment, Search, and KPI Filters</p>
-          </Link>
+          <div className="grid min-w-[250px] gap-3 self-stretch md:grid-cols-2 lg:self-auto">
+            <div className="panel-alt border-sky-300/25 p-4">
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
+                <div
+                  className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
+                  style={{ background: complianceChartBackground }}
+                >
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
+                    <span className="text-2xl font-semibold text-emerald-100">{headerComplianceScore}%</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-300/80">
+                  C {headerComplianceCounts.compliant} | NC {headerComplianceCounts.nonCompliant} | U{" "}
+                  {headerComplianceCounts.unknown}
+                </p>
+                <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
+              </div>
+            </div>
+            <div className="panel-alt border-sky-300/25 p-4">
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Discovery Compliance Score</p>
+                <div
+                  className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
+                  style={{ background: discoveryComplianceChartBackground }}
+                >
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
+                    <span className="text-2xl font-semibold text-emerald-100">{discoveryComplianceScore}%</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-300/80">
+                  C {discoveryComplianceCounts.compliant} | NC {discoveryComplianceCounts.nonCompliant} | Other{" "}
+                  {discoveryComplianceCounts.other}
+                </p>
+                <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
+      <SystemDetailTabs activeTab={activeDetailTab} />
+
+      <div
+        className={
+          activeDetailTab === "compliance-overview" || activeDetailTab === "discovery-compliance"
+            ? "min-h-0 flex-1 overflow-hidden pr-1"
+            : "min-h-0 flex-1 space-y-4 overflow-auto pr-1"
+        }
+      >
+      {activeDetailTab === "compliance-overview" ? (
+      <NetworkComplianceOverview
+        networkName={system.name}
+        asOfDate={requestedDataDate ?? dataset.snapshotDate}
+        summary={{
+          score: complianceOverviewScore,
+          total: complianceOverviewStatuses.length,
+          compliant: complianceOverviewSummaryCounts.compliant,
+          nonCompliant: complianceOverviewSummaryCounts.nonCompliant,
+          unknown: complianceOverviewSummaryCounts.unknown
+        }}
+        assetTypeSummary={assetTypeSummary}
+        measures={complianceMeasureRows}
+        findings={complianceOverviewFindings}
+      />
+      ) : null}
+
+      {activeDetailTab === "system-details" ? (
+      <>
       <section id="kpi-filter" className="panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -938,863 +1461,333 @@ export default async function SystemDetailPage({
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="panel p-4">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Mission Capabilities</h2>
-          <ul className="mt-2 space-y-2 text-sm text-slate-200">
-            {system.missionCapabilities.map((capability) => (
-              <li key={capability.id} className="panel-alt p-2">
-                {capability.name} ({capability.criticality})
-              </li>
-            ))}
-          </ul>
-        </div>
+      <section className="panel flex min-h-0 flex-col p-2.5">
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">System Details</h2>
+        <div className="mt-2 grid gap-1.5 xl:grid-cols-2">
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5 xl:row-span-2">
+            <h3 className="text-base font-medium text-slate-100">Description</h3>
+            <p className="mt-2 text-sm leading-5 text-slate-200/90">{systemDescription}</p>
+          </article>
 
-        <div className="panel p-4">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Business Services</h2>
-          <ul className="mt-2 space-y-2 text-sm text-slate-200">
-            {system.businessServices.map((service) => (
-              <li key={service.id} className="panel-alt p-2">
-                {service.name} ({service.criticality})
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <section className="panel p-4">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">KPI Snapshot</h2>
-        <p className="mt-1 text-xs text-slate-300/80">
-          Calculated for {selectedLabel} scope. Select a tile to filter the whole page. Charts show the last 12 weeks.
-        </p>
-        {selectedKpiFilter ? (
-          <p className="mt-2 text-xs text-amber-100/90">
-            Active KPI filter: {KPI_FILTER_LABELS[selectedKpiFilter]}{" "}
-            <Link
-              href={kpiFilterHref()}
-              scroll={false}
-              data-filter-loading="true"
-              data-filter-loading-message="Applying KPI filter..."
-              className="underline text-sky-200"
-            >
-              Clear KPI filter
-            </Link>
-          </p>
-        ) : null}
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <Link
-            href={
-              selectedKpiFilter === "nonCompliantServers"
-                ? kpiFilterHref()
-                : kpiFilterHref("nonCompliantServers")
-            }
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-red-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "nonCompliantServers" ? "ring-2 ring-red-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Non-compliant Servers</p>
-            <p className="mt-1 text-2xl font-semibold text-red-100">{nonCompliantServerCount}</p>
-            <MiniTrendSparkline points={nonCompliantServersTrend} stroke="#fb7185" />
-          </Link>
-          <Link
-            href={selectedKpiFilter === "nonCompliantOs" ? kpiFilterHref() : kpiFilterHref("nonCompliantOs")}
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-amber-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "nonCompliantOs" ? "ring-2 ring-amber-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Non-compliant OS</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-100">{nonCompliantOsCount}</p>
-            <MiniTrendSparkline points={nonCompliantOsTrend} stroke="#f59e0b" />
-          </Link>
-          <Link
-            href={
-              selectedKpiFilter === "nonCompliantEnvironments"
-                ? kpiFilterHref()
-                : kpiFilterHref("nonCompliantEnvironments")
-            }
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-red-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "nonCompliantEnvironments" ? "ring-2 ring-red-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-              Total Non-compliant Environments
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-red-100">{nonCompliantEnvironmentCount}</p>
-            <MiniTrendSparkline points={nonCompliantEnvironmentsTrend} stroke="#ef4444" />
-          </Link>
-          <Link
-            href={selectedKpiFilter === "p12Findings" ? kpiFilterHref() : kpiFilterHref("p12Findings")}
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-red-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "p12Findings" ? "ring-2 ring-red-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total P1-P2 Findings</p>
-            <p className="mt-1 text-2xl font-semibold text-red-100">{findingsInCountScope.length}</p>
-            <MiniTrendSparkline points={p12FindingsTrend} stroke="#f97316" />
-          </Link>
-          <Link
-            href={
-              selectedKpiFilter === "highRiskP12Findings"
-                ? kpiFilterHref()
-                : kpiFilterHref("highRiskP12Findings")
-            }
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-red-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "highRiskP12Findings" ? "ring-2 ring-red-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-              Total P1-P2 High Risk Findings
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-red-100">{highRiskP12Count}</p>
-            <MiniTrendSparkline points={highRiskP12Trend} stroke="#ef4444" />
-          </Link>
-          <Link
-            href={
-              selectedKpiFilter === "outOfWarrantyAssets"
-                ? kpiFilterHref()
-                : kpiFilterHref("outOfWarrantyAssets")
-            }
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-amber-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "outOfWarrantyAssets" ? "ring-2 ring-amber-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-              Total Physical Assets Out of Warranty
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-amber-100">{outOfWarrantyAssetCount}</p>
-            <MiniTrendSparkline points={outOfWarrantyTrend} stroke="#f59e0b" />
-          </Link>
-          <Link
-            href={
-              selectedKpiFilter === "nonCompliantDiscoveryCoverage"
-                ? kpiFilterHref()
-                : kpiFilterHref("nonCompliantDiscoveryCoverage")
-            }
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying KPI filter..."
-            className={`panel-alt border-red-400/25 p-3 transition hover:bg-slate-900/70 ${
-              selectedKpiFilter === "nonCompliantDiscoveryCoverage" ? "ring-2 ring-red-300/65" : ""
-            }`}
-          >
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-              Assets non-compliant with discovery coverage
-            </p>
-            <p className="mt-1 text-2xl font-semibold text-red-100">{nonCompliantDiscoveryCoverageCount}</p>
-            <MiniTrendSparkline points={nonCompliantDiscoveryCoverageTrend} stroke="#dc2626" />
-          </Link>
-        </div>
-      </section>
-
-      <section id="environment-filter" className="panel p-4">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Environment Filter</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link
-            href={environmentHref()}
-            scroll={false}
-            data-filter-loading="true"
-            data-filter-loading-message="Applying environment filter..."
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-              !selectedEnvironment
-                ? "border-sky-300/55 bg-sky-500/20 text-sky-100"
-                : "border-sky-400/25 text-slate-300 hover:bg-slate-900/60"
-            }`}
-          >
-            All Environments
-          </Link>
-          {environmentCards.map((environment) => (
-            <Link
-              key={environment.type}
-              href={environmentHref(environment.type)}
-              scroll={false}
-              data-filter-loading="true"
-              data-filter-loading-message="Applying environment filter..."
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                selectedEnvironment === environment.type
-                  ? "border-sky-300/55 bg-sky-500/20 text-sky-100"
-                  : "border-sky-400/25 text-slate-300 hover:bg-slate-900/60"
-              }`}
-            >
-              {environment.type}
-            </Link>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-slate-300/75">
-          Asset, KPI, OS posture, and findings panels below follow this selection, server search, and KPI tile filter.
-        </p>
-      </section>
-
-      <Suspense
-        fallback={
-          <section className="panel p-4">
-            <p className="text-sm text-slate-300/80">Loading discovery coverage table...</p>
-          </section>
-        }
-      >
-        <ServerStreamHint />
-        <section id="asset-discovery-coverage" className="panel overflow-hidden">
-        <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
-          Environment Compliance and P1-2 Exposure
-        </h2>
-        <div className="grid gap-3 p-4 md:grid-cols-2 lg:grid-cols-4">
-          {environmentCards.map((environment) => {
-            const isSelected = selectedEnvironment === environment.type;
-            return (
-              <div
-                key={environment.type}
-                className={`panel-alt p-3 ${
-                  isSelected ? "ring-2 ring-sky-200/60" : ""
-                } ${
-                  environment.type === "Production" ? "ring-1 ring-red-300/50" : "ring-1 ring-sky-300/25"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-slate-100">{environment.type}</p>
-                  <PostureBadge status={environment.posture} />
-                </div>
-                <p className="mt-3 text-xs uppercase tracking-[0.14em] text-slate-300/75">Compliance Score</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-100">{environment.complianceScore}%</p>
-                <div className="mt-2 h-1.5 w-full rounded-full bg-slate-900/80">
-                  <div
-                    className="h-1.5 rounded-full bg-emerald-400/80"
-                    style={{ width: `${Math.max(0, Math.min(environment.complianceScore, 100))}%` }}
-                  />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300/85">
-                  <p>Assets: {environment.assetCount}</p>
-                  <p>P1-2 Findings: {environment.findingCount}</p>
-                  <p className="col-span-2">Affected Assets: {environment.affectedAssets.length}</p>
-                </div>
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+            <dl className="space-y-3.5">
+              <div>
+                <dt className="text-base font-medium text-slate-100">Owner:</dt>
+                <dd className="mt-0.5 text-sm text-slate-200">{systemOwner}</dd>
               </div>
-            );
-          })}
+              <div>
+                <dt className="text-base font-medium text-slate-100">Support Email:</dt>
+                <dd className="mt-0.5 text-sm text-sky-100">
+                  <a className="underline decoration-sky-300/60 underline-offset-2" href={`mailto:${systemSupportEmail}`}>
+                    {systemSupportEmail}
+                  </a>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-base font-medium text-slate-100">Service Catalogue Item:</dt>
+                <dd className="mt-0.5 text-sm text-sky-100">
+                  <ul className="list-disc space-y-0.5 pl-5">
+                    <li>
+                      <Link
+                        href={systemServiceCatalogueUrl}
+                        className="underline decoration-sky-300/60 underline-offset-2"
+                        target={isExternalLink(systemServiceCatalogueUrl) ? "_blank" : undefined}
+                        rel={isExternalLink(systemServiceCatalogueUrl) ? "noreferrer" : undefined}
+                      >
+                        Support Request
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href={systemServiceCatalogueUrl}
+                        className="underline decoration-sky-300/60 underline-offset-2"
+                        target={isExternalLink(systemServiceCatalogueUrl) ? "_blank" : undefined}
+                        rel={isExternalLink(systemServiceCatalogueUrl) ? "noreferrer" : undefined}
+                      >
+                        Issue Request
+                      </Link>
+                    </li>
+                  </ul>
+                </dd>
+              </div>
+            </dl>
+          </article>
+
+          <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+            <h3 className="text-base font-medium text-slate-100">Security Accreditation</h3>
+            <div className="mt-2 overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
+                  <tr>
+                    <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
+                    <th className="px-2 py-1.5">DIIS ID</th>
+                    <th className="px-2 py-1.5">Links</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-sky-300/30 text-slate-100">
+                    <td className="px-2 py-2 font-semibold text-slate-100">{systemAtoNumber}</td>
+                    <td className="px-2 py-2 text-slate-100">{systemDiisId}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-wrap gap-3 text-sky-100">
+                        <Link
+                          href={systemDiisUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(systemDiisUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(systemDiisUrl) ? "noreferrer" : undefined}
+                        >
+                          View in DIIS
+                        </Link>
+                        <Link
+                          href={systemGrcUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(systemGrcUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(systemGrcUrl) ? "noreferrer" : undefined}
+                        >
+                          View in Cyber GRC Portal
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="security-accreditation-pulse rounded-xl border border-lime-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(190,242,100,0.34)]">
+            <h3 className="text-base font-medium text-slate-100">Application Portfolio Management</h3>
+            <div className="mt-2 overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
+                  <tr>
+                    <th className="px-2 py-1.5">APM Number</th>
+                    <th className="px-2 py-1.5">Links</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-sky-300/30 text-slate-100">
+                    <td className="px-2 py-2 font-semibold text-slate-100">{systemApmNumber}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-wrap gap-3 text-sky-100">
+                        <Link
+                          href={systemApmUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(systemApmUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(systemApmUrl) ? "noreferrer" : undefined}
+                        >
+                          View in APM
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="security-accreditation-pulse rounded-xl border border-fuchsia-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(232,121,249,0.34)]">
+            <h3 className="text-base font-medium text-slate-100">Defence ICT Inventory System</h3>
+            <div className="mt-2 overflow-auto">
+              <table className="min-w-full text-sm">
+                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
+                  <tr>
+                    <th className="px-2 py-1.5">DIIS ID</th>
+                    <th className="px-2 py-1.5">Links</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-sky-300/30 text-slate-100">
+                    <td className="px-2 py-2 font-semibold text-slate-100">{systemDiisId}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-wrap gap-3 text-sky-100">
+                        <Link
+                          href={systemDiisUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(systemDiisUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(systemDiisUrl) ? "noreferrer" : undefined}
+                        >
+                          View in DIIS
+                        </Link>
+                        <Link
+                          href={systemGrcUrl}
+                          className="underline decoration-sky-300/70 underline-offset-2"
+                          target={isExternalLink(systemGrcUrl) ? "_blank" : undefined}
+                          rel={isExternalLink(systemGrcUrl) ? "noreferrer" : undefined}
+                        >
+                          View in Cyber GRC Portal
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+            <h3 className="text-base font-medium text-slate-100">Mission Capabilities</h3>
+            <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+              {system.missionCapabilities.map((capability) => (
+                <li key={capability.id} className="rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5">
+                  {capability.name} ({capability.criticality})
+                </li>
+              ))}
+            </ul>
+          </article>
+
+          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+            <h3 className="text-base font-medium text-slate-100">Business Services</h3>
+            <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+              {system.businessServices.map((service) => (
+                <li key={service.id} className="rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5">
+                  {service.name} ({service.criticality})
+                </li>
+              ))}
+            </ul>
+          </article>
         </div>
       </section>
 
-      <section className="panel overflow-hidden">
-        <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
-          Asset Discovery Coverage ({selectedLabel})
-        </h2>
-        <div className="max-h-[420px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">Asset</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Environment</th>
-                <th className="px-3 py-2">UCMDB</th>
-                <th className="px-3 py-2">Tanium</th>
-                <th className="px-3 py-2">Tenable</th>
-                <th className="px-3 py-2">SNOW</th>
-                <th className="px-3 py-2">ServiceNow</th>
-                <th className="px-3 py-2">DSOC SIEM</th>
-                <th className="px-3 py-2">Elastic</th>
-                <th className="px-3 py-2">Coverage Compliance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {coverageRowsPage.items.map((row) => (
-                <tr key={row.assetId} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
-                  <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.ucmdb === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.ucmdb}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.tanium === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.tanium}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.tenable === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.tenable}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.snow === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.snow}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.seviceNow === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.seviceNow}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.dsocSiem === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.dsocSiem}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.elastic === 1
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.elastic}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        row.coverageCompliance
-                          ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                          : "border-red-400/45 bg-red-500/15 text-red-100"
-                      }`}
-                    >
-                      {row.coverageCompliance ? "Yes" : "No"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {coverageRowsPage.totalItems === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                    No assets in this scope.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        {coverageRowsPage.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-            <p>
-              Showing {(coverageRowsPage.currentPage - 1) * coverageRowsPage.pageSize + 1}-
-              {Math.min(coverageRowsPage.currentPage * coverageRowsPage.pageSize, coverageRowsPage.totalItems)} of{" "}
-              {coverageRowsPage.totalItems}
-            </p>
-            <div className="flex items-center gap-2">
-              {coverageRowsPage.currentPage > 1 ? (
-                <a
-                  href={scopedPageHref(
-                    { coveragePage: String(coverageRowsPage.currentPage - 1) },
-                    "asset-discovery-coverage"
-                  )}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading discovery coverage page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Previous
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
-              )}
-              <span>
-                Page {coverageRowsPage.currentPage} of {coverageRowsPage.totalPages}
-              </span>
-              {coverageRowsPage.currentPage < coverageRowsPage.totalPages ? (
-                <a
-                  href={scopedPageHref(
-                    { coveragePage: String(coverageRowsPage.currentPage + 1) },
-                    "asset-discovery-coverage"
-                  )}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading discovery coverage page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Next
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-              )}
-            </div>
+      </>
+      ) : null}
+
+      {activeDetailTab === "discovery-compliance" ? (
+      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+        <section className="panel p-4">
+          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h2>
+          <p className="mt-1 text-xs text-slate-300/80">
+            Coverage score by discovery tool across the current ICT System drill-through context.
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {discoveryToolCoverageCharts.map((tool) => (
+              <article key={tool.id} className="panel-alt border-sky-300/25 p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">{tool.label}</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <div
+                    className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-200/45"
+                    style={{ background: tool.chartBackground }}
+                  >
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-950/95">
+                      <span className="text-sm font-semibold text-emerald-100">{tool.score}%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-100">
+                      {tool.compliant}/{tool.total} covered
+                    </p>
+                    <p className="mt-1 text-xs text-red-100/90">{tool.nonCompliant} non-compliant</p>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
-        ) : null}
         </section>
-      </Suspense>
 
-      <Suspense
-        fallback={
-          <section className="panel p-4">
-            <p className="text-sm text-slate-300/80">Loading asset inventory...</p>
-          </section>
-        }
-      >
-        <ServerStreamHint />
-        <section id="asset-inventory" className="panel overflow-hidden">
-        <div className="border-b border-sky-400/15 px-4 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Asset Inventory ({selectedLabel})</h2>
-              <p className="mt-1 text-xs text-slate-300/75">
-                Search by server hostname or asset ID. This search filters the whole page.
-              </p>
-            </div>
-            <form
-              action={`/systems/${system.id}#asset-inventory`}
-              method="get"
-              data-filter-loading="true"
-              data-filter-loading-message="Applying filters..."
-              className="flex w-full max-w-xl flex-wrap gap-2"
-            >
-              {selectedEnvironment ? <input type="hidden" name="environment" value={selectedEnvironment} /> : null}
-              {selectedKpiFilter ? <input type="hidden" name="kpiFilter" value={selectedKpiFilter} /> : null}
-              <input
-                type="search"
-                name="serverSearch"
-                defaultValue={serverSearchTerm}
-                placeholder="Search server hostname or asset ID"
-                className="min-w-[240px] flex-1 rounded-md border border-sky-400/30 bg-slate-950/80 px-3 py-1.5 text-sm text-slate-100 outline-none placeholder:text-slate-400/70 focus:border-sky-300/70"
-              />
-              <button
-                type="submit"
-                className="rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-100 hover:bg-sky-500/25"
-              >
-                Search
-              </button>
-              {serverSearchTerm ? (
-                <Link
-                  href={scopeHref({ environment: selectedEnvironment, kpiFilter: selectedKpiFilter })}
-                  scroll={false}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Applying filters..."
-                  className="rounded-md border border-slate-500/40 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-900/70"
-                >
-                  Clear
-                </Link>
-              ) : null}
-            </form>
-          </div>
-        </div>
-        <div className="max-h-[420px] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">Asset</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Environment</th>
-                <th className="px-3 py-2">Critical Vulns</th>
-                <th className="px-3 py-2">P1-2 Findings</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assetRowsPage.items.map((asset) => (
-                <tr key={asset.id} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{asset.hostname}</td>
-                  <td className="px-3 py-2 text-slate-300">{asset.type}</td>
-                  <td className="px-3 py-2 text-slate-300">{asset.systemContext?.environmentType ?? "-"}</td>
-                  <td className="px-3 py-2 text-slate-200">
-                    {asset.vulnerabilities.filter((vulnerability) => vulnerability.severity === "Critical").length}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${
-                        (p12CountByAsset.get(asset.id) ?? 0) > 0
-                          ? "border-red-400/45 bg-red-500/15 text-red-100"
-                          : "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                      }`}
-                    >
-                      {p12CountByAsset.get(asset.id) ?? 0}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {assetRowsPage.totalItems === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                    {serverSearchTerm
-                      ? "No servers match this search in the selected scope."
-                      : "No assets in this environment."}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        {assetRowsPage.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-            <p>
-              Showing {(assetRowsPage.currentPage - 1) * assetRowsPage.pageSize + 1}-
-              {Math.min(assetRowsPage.currentPage * assetRowsPage.pageSize, assetRowsPage.totalItems)} of{" "}
-              {assetRowsPage.totalItems}
-            </p>
-            <div className="flex items-center gap-2">
-              {assetRowsPage.currentPage > 1 ? (
-                <a
-                  href={scopedPageHref({ page: String(assetRowsPage.currentPage - 1) }, "asset-inventory")}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading inventory page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Previous
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
-              )}
-              <span>
-                Page {assetRowsPage.currentPage} of {assetRowsPage.totalPages}
-              </span>
-              {assetRowsPage.currentPage < assetRowsPage.totalPages ? (
-                <a
-                  href={scopedPageHref({ page: String(assetRowsPage.currentPage + 1) }, "asset-inventory")}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading inventory page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Next
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-              )}
-            </div>
-          </div>
-        ) : null}
-        </section>
-      </Suspense>
-
-      <section className="panel overflow-hidden">
-        <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
-          OS Posture Summary ({selectedLabel})
-        </h2>
-        <p className="px-4 py-2 text-xs text-slate-300/80">
-          Scope includes servers and workstations in the selected environment. Totals summarize each installed OS
-          profile and detail rows show each asset.
-        </p>
-
-        <div className="border-t border-sky-400/10 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">OS Totals</p>
-          <div className="mt-2 max-h-[240px] overflow-auto">
+        <section id="asset-discovery-coverage" className="panel flex min-h-0 flex-col overflow-hidden">
+          <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
+            Asset Discovery Coverage ({selectedLabel})
+          </h2>
+          <div className="min-h-0 flex-1 overflow-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                <tr>
-                  <th className="px-3 py-2">OS</th>
-                  <th className="px-3 py-2">Version</th>
-                  <th className="px-3 py-2">Patch Level</th>
-                  <th className="px-3 py-2">N-2+ Status</th>
-                  <th className="px-3 py-2">Vendor Support</th>
-                  <th className="px-3 py-2">Assets</th>
-                  <th className="px-3 py-2">P1-P2 Findings</th>
-                </tr>
-              </thead>
-              <tbody>
-                {osTotals.map((row, index) => (
-                  <tr key={`${row.osName}-${row.version}-${index}`} className="border-t border-sky-400/10">
-                    <td className="px-3 py-2 text-slate-100">{row.osName}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.version}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.patchLevel}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.n2Status}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.supportStatus}</td>
-                    <td className="px-3 py-2 text-slate-100">{row.assetCount}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-xs ${
-                          row.p1 > 0 || row.p2 > 0
-                            ? "border-red-400/45 bg-red-500/15 text-red-100"
-                            : "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                        }`}
-                      >
-                        {row.p1 > 0 || row.p2 > 0 ? `P1: ${row.p1} | P2: ${row.p2}` : "Compliant"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {osTotals.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                      No server/workstation OS data in this environment scope.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="border-t border-sky-400/10 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Server/Workstation OS Detail</p>
-          <div className="mt-2 max-h-[420px] overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                 <tr>
                   <th className="px-3 py-2">Asset</th>
+                  <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Environment</th>
-                  <th className="px-3 py-2">OS</th>
-                  <th className="px-3 py-2">Version</th>
-                  <th className="px-3 py-2">Patch Level</th>
-                  <th className="px-3 py-2">N-2+ Status</th>
-                  <th className="px-3 py-2">Vendor Support</th>
-                  <th className="px-3 py-2">P1-P2 Status</th>
+                  <th className="px-3 py-2">UCMDB</th>
+                  <th className="px-3 py-2">Tanium</th>
+                  <th className="px-3 py-2">Tenable</th>
+                  <th className="px-3 py-2">SNOW</th>
+                  <th className="px-3 py-2">ServiceNow</th>
+                  <th className="px-3 py-2">DSOC SIEM</th>
+                  <th className="px-3 py-2">Elastic</th>
+                  <th className="px-3 py-2">Coverage Compliance</th>
                 </tr>
               </thead>
               <tbody>
-                {osAssetRows.map((row) => (
+                {coverageRowsPage.items.map((row) => (
                   <tr key={row.assetId} className="border-t border-sky-400/10">
-                    <td className="px-3 py-2 text-slate-100">
-                      <p>{row.hostname}</p>
-                      <p className="text-xs text-slate-400">{row.assetType}</p>
-                    </td>
+                    <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
                     <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.osName}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.version}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.patchLevel}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.n2Status}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.supportStatus}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.ucmdb}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.tanium}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.tenable}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.snow}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.seviceNow}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.dsocSiem}</td>
+                    <td className="px-3 py-2 text-slate-200">{row.elastic}</td>
                     <td className="px-3 py-2">
                       <span
                         className={`rounded-full border px-2 py-0.5 text-xs ${
-                          row.p1 > 0 || row.p2 > 0
-                            ? "border-red-400/45 bg-red-500/15 text-red-100"
-                            : "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                          row.coverageCompliance
+                            ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                            : "border-red-400/45 bg-red-500/15 text-red-100"
                         }`}
                       >
-                        {row.p1 > 0 || row.p2 > 0 ? row.p12Status : "Compliant"}
+                        {row.coverageCompliance ? "Yes" : "No"}
                       </span>
                     </td>
                   </tr>
                 ))}
-                {osAssetRows.length === 0 ? (
+                {coverageRowsPage.totalItems === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                      No servers or workstations in this environment scope.
+                    <td colSpan={11} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                      No assets in this scope.
                     </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
           </div>
-        </div>
-      </section>
-
-      <Suspense
-        fallback={
-          <section className="panel p-4">
-            <p className="text-sm text-slate-300/80">Loading findings...</p>
-          </section>
-        }
-      >
-        <ServerStreamHint />
-        <section id="p12-findings" className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/15 px-4 py-3">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">P1-2 Findings ({selectedLabel})</h2>
-        </div>
-        <div className="border-b border-sky-400/10 px-4 py-3">
-          <form
-            action={`/systems/${system.id}#p12-findings`}
-            method="get"
-            data-filter-loading="true"
-            data-filter-loading-message="Applying findings filters..."
-            className="flex flex-wrap items-end gap-3 xl:flex-nowrap"
-          >
-            {preservedP12Params.map((param) => (
-              <input key={param.key} type="hidden" name={param.key} value={param.value} />
-            ))}
-            <div className="flex min-w-[300px] flex-col gap-1">
-              <label htmlFor="p12-findings-spi" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70">
-                SPI
-              </label>
-              <select
-                id="p12-findings-spi"
-                name="p12Spi"
-                defaultValue={selectedP12Spi ? String(selectedP12Spi) : ""}
-                className="rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-              >
-                <option value="">All SPI</option>
-                {p12SpiOptions.map((option) => (
-                  <option key={option} value={option}>
-                    SPI {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex min-w-[120px] flex-col gap-1">
-              <label
-                htmlFor="p12-findings-priority"
-                className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70"
-              >
-                Priority
-              </label>
-              <select
-                id="p12-findings-priority"
-                name="p12Priority"
-                defaultValue={selectedP12Priority ? String(selectedP12Priority) : ""}
-                className="rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-              >
-                <option value="">All Priorities</option>
-                {p12PriorityOptions.map((option) => (
-                  <option key={option} value={option}>
-                    P{option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex min-w-[160px] flex-col gap-1">
-              <label
-                htmlFor="p12-findings-severity"
-                className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70"
-              >
-                Severity
-              </label>
-              <select
-                id="p12-findings-severity"
-                name="p12Severity"
-                defaultValue={selectedP12Severity ?? ""}
-                className="rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
-              >
-                <option value="">All Severities</option>
-                {p12SeverityOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex min-w-[160px] flex-1 flex-col gap-1">
-              <label htmlFor="p12-findings-search" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70">
-                Text Search
-              </label>
-              <input
-                id="p12-findings-search"
-                name="p12Search"
-                type="search"
-                defaultValue={selectedP12SearchTerm}
-                placeholder="Search title, scope, evidence, action..."
-                className="rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
-              />
-            </div>
-            <button
-              type="submit"
-              className="shrink-0 rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-100"
-            >
-              Apply
-            </button>
-            {selectedP12Spi || selectedP12Priority || selectedP12Severity || selectedP12SearchTerm ? (
-              <Link
-                href={clearP12FiltersHref}
-                scroll={false}
-                data-filter-loading="true"
-                data-filter-loading-message="Applying findings filters..."
-                className="shrink-0 rounded-md border border-slate-500/40 px-3 py-2 text-xs font-semibold text-slate-200"
-              >
-                Clear
-              </Link>
-            ) : null}
-          </form>
-        </div>
-        <ul className="max-h-[420px] space-y-2 overflow-auto p-4 text-sm">
-          {findingsRowsPage.items.map((finding) => (
-            <li key={finding.id} className="panel-alt p-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">
-                P{finding.priorityRank} | SPI {finding.spiId} | {finding.severity}
+          {coverageRowsPage.totalPages > 1 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
+              <p>
+                Showing {(coverageRowsPage.currentPage - 1) * coverageRowsPage.pageSize + 1}-
+                {Math.min(coverageRowsPage.currentPage * coverageRowsPage.pageSize, coverageRowsPage.totalItems)} of{" "}
+                {coverageRowsPage.totalItems}
               </p>
-              <p className="mt-1 text-slate-100">{finding.title}</p>
-              <p className="mt-1 text-xs text-slate-300/80">
-                {(assetNameById.get(finding.scope.assetId) ?? finding.scope.assetId)} | {finding.scope.environmentType}
-              </p>
-            </li>
-          ))}
-          {findingsRowsPage.totalItems === 0 ? (
-            <li className="panel-alt p-3 text-sm text-emerald-200/90">
-              No P1-2 findings match the selected SPI, Priority, Severity, and text search filters.
-            </li>
+              <div className="flex items-center gap-2">
+                {coverageRowsPage.currentPage > 1 ? (
+                  <a
+                    href={scopedPageHref(
+                      { coveragePage: String(coverageRowsPage.currentPage - 1) },
+                      "asset-discovery-coverage"
+                    )}
+                    data-filter-loading="true"
+                    data-filter-loading-message="Loading discovery coverage page..."
+                    className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                  >
+                    Previous
+                  </a>
+                ) : (
+                  <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
+                )}
+                <span>
+                  Page {coverageRowsPage.currentPage} of {coverageRowsPage.totalPages}
+                </span>
+                {coverageRowsPage.currentPage < coverageRowsPage.totalPages ? (
+                  <a
+                    href={scopedPageHref(
+                      { coveragePage: String(coverageRowsPage.currentPage + 1) },
+                      "asset-discovery-coverage"
+                    )}
+                    data-filter-loading="true"
+                    data-filter-loading-message="Loading discovery coverage page..."
+                    className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
+                  >
+                    Next
+                  </a>
+                ) : (
+                  <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
+                )}
+              </div>
+            </div>
           ) : null}
-        </ul>
-        {findingsRowsPage.totalPages > 1 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sky-400/10 px-4 py-3 text-xs text-slate-300/85">
-            <p>
-              Showing {(findingsRowsPage.currentPage - 1) * findingsRowsPage.pageSize + 1}-
-              {Math.min(findingsRowsPage.currentPage * findingsRowsPage.pageSize, findingsRowsPage.totalItems)} of{" "}
-              {findingsRowsPage.totalItems}
-            </p>
-            <div className="flex items-center gap-2">
-              {findingsRowsPage.currentPage > 1 ? (
-                <a
-                  href={scopedPageHref(
-                    { findingsPage: String(findingsRowsPage.currentPage - 1) },
-                    "p12-findings"
-                  )}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading findings page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Previous
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Previous</span>
-              )}
-              <span>
-                Page {findingsRowsPage.currentPage} of {findingsRowsPage.totalPages}
-              </span>
-              {findingsRowsPage.currentPage < findingsRowsPage.totalPages ? (
-                <a
-                  href={scopedPageHref(
-                    { findingsPage: String(findingsRowsPage.currentPage + 1) },
-                    "p12-findings"
-                  )}
-                  data-filter-loading="true"
-                  data-filter-loading-message="Loading findings page..."
-                  className="rounded-md border border-sky-400/30 px-3 py-1 text-slate-100 hover:bg-slate-800/70"
-                >
-                  Next
-                </a>
-              ) : (
-                <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
-              )}
-            </div>
-          </div>
-        ) : null}
         </section>
-      </Suspense>
-
+      </div>
+      ) : null}
+      </div>
     </div>
   );
 }
