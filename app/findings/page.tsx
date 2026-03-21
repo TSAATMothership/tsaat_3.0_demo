@@ -341,6 +341,7 @@ export default async function FindingsPage({
 
       <FindingsTable
         findings={paginatedFindings}
+        findingsForDrillthrough={findings}
         searchParams={searchParams}
         selectedAsOf={selectedAsOf}
         selectedSpi={selectedSpi}

@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { Finding } from "@/lib/types";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
@@ -12,8 +15,77 @@ function formatFindingTimestamp(timestamp: string): string {
   return `${day}:${month}:${year} ${hour}:${minute}`;
 }
 
+function readEvidenceStringValue(
+  evidence: Record<string, string | number | boolean | null>,
+  candidateKeys: string[]
+): string | null {
+  if (!candidateKeys.length) {
+    return null;
+  }
+
+  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
+  for (const candidateKey of candidateKeys) {
+    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
+    if (!matched) {
+      continue;
+    }
+    const value = matched[1];
+    if (value === null) {
+      continue;
+    }
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+      continue;
+    }
+    return text;
+  }
+  return null;
+}
+
+function formatAssetTypeLabel(value?: string | null): string {
+  if (!value) {
+    return "Unknown";
+  }
+  if (value === "network-device") {
+    return "Network Device";
+  }
+  if (value === "workstation") {
+    return "Workstation";
+  }
+  if (value === "server") {
+    return "Server";
+  }
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function escapeCsvValue(value: string | number): string {
+  const text = String(value);
+  if (text.includes('"') || text.includes(",") || text.includes("\n")) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+interface AssetDetailsRow {
+  assetId: string;
+  assetName: string;
+  assetIpAddress: string;
+  assetType: string;
+  criticalExposureFindings: number;
+  highRiskFindings: number;
+  totalFindings: number;
+  assetChangeAssignmentGroup: string;
+  assetIncidentAssignmentGroup: string;
+  owner: string;
+}
+
 export function FindingsTable({
   findings,
+  findingsForDrillthrough,
   searchParams,
   selectedAsOf,
   selectedSpi,
@@ -23,6 +95,7 @@ export function FindingsTable({
   pagination
 }: {
   findings: Finding[];
+  findingsForDrillthrough: Finding[];
   searchParams: Record<string, string | string[] | undefined>;
   selectedAsOf: string;
   selectedSpi?: number;
@@ -36,6 +109,10 @@ export function FindingsTable({
     totalItems: number;
   };
 }) {
+  const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
+  const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
+  const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
+
   const preservedParams = Object.entries(searchParams).flatMap(([key, value]) => {
     if (key === "spi" || key === "search" || key === "status" || key === "page") {
       return [];
@@ -93,8 +170,154 @@ export function FindingsTable({
     return query ? `/findings?${query}` : "/findings";
   };
 
+  const openAssetDetailsPanel = (finding: Finding) => {
+    setSelectedFindingForAssets(finding);
+    setIsAssetDetailsPanelVisible(true);
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => setIsAssetDetailsPanelOpen(true));
+    } else {
+      setIsAssetDetailsPanelOpen(true);
+    }
+  };
+
+  const closeAssetDetailsPanel = () => {
+    setIsAssetDetailsPanelOpen(false);
+    if (typeof window === "undefined") {
+      setIsAssetDetailsPanelVisible(false);
+      setSelectedFindingForAssets(null);
+      return;
+    }
+    window.setTimeout(() => {
+      setIsAssetDetailsPanelVisible(false);
+      setSelectedFindingForAssets(null);
+    }, 220);
+  };
+
+  const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
+    if (!selectedFindingForAssets) {
+      return [];
+    }
+
+    const relatedFindings = findingsForDrillthrough.filter(
+      (finding) => finding.spiId === selectedFindingForAssets.spiId && finding.title === selectedFindingForAssets.title
+    );
+    const scopedFindings = relatedFindings.length ? relatedFindings : [selectedFindingForAssets];
+    const byAsset = new Map<string, AssetDetailsRow>();
+
+    for (const finding of scopedFindings) {
+      const assetId = finding.scope.assetId;
+      const existing = byAsset.get(assetId);
+      if (!existing) {
+        const assetName =
+          readEvidenceStringValue(finding.evidence, ["assetName", "asset_name", "hostname", "assetHostname"]) ?? assetId;
+        const assetIpAddress =
+          readEvidenceStringValue(finding.evidence, [
+            "assetIpAddress",
+            "assetIp",
+            "ipAddress",
+            "ip",
+            "ipv4Address",
+            "ipv4",
+            "ip_address"
+          ]) ?? "Not available";
+        const assetType = formatAssetTypeLabel(
+          readEvidenceStringValue(finding.evidence, ["assetType", "asset_type", "type"])
+        );
+        const assetChangeAssignmentGroup =
+          readEvidenceStringValue(finding.evidence, [
+            "assetChangeAssignmentGroup",
+            "changeAssignmentGroup",
+            "changeGroup",
+            "change_assignment_group"
+          ]) ?? "Not assigned";
+        const assetIncidentAssignmentGroup =
+          readEvidenceStringValue(finding.evidence, [
+            "assetIncidentAssignmentGroup",
+            "incidentAssignmentGroup",
+            "incidentGroup",
+            "incident_assignment_group"
+          ]) ?? "Not assigned";
+        const owner =
+          readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ?? "Not assigned";
+
+        byAsset.set(assetId, {
+          assetId,
+          assetName,
+          assetIpAddress,
+          assetType,
+          criticalExposureFindings: 0,
+          highRiskFindings: 0,
+          totalFindings: 0,
+          assetChangeAssignmentGroup,
+          assetIncidentAssignmentGroup,
+          owner
+        });
+      }
+
+      const row = byAsset.get(assetId);
+      if (!row) {
+        continue;
+      }
+
+      row.totalFindings += 1;
+      if (finding.severity === "Critical Exposure") {
+        row.criticalExposureFindings += 1;
+      }
+      if (finding.severity === "High Risk") {
+        row.highRiskFindings += 1;
+      }
+    }
+
+    return Array.from(byAsset.values()).sort((a, b) => {
+      if (b.totalFindings !== a.totalFindings) {
+        return b.totalFindings - a.totalFindings;
+      }
+      return a.assetName.localeCompare(b.assetName);
+    });
+  }, [findingsForDrillthrough, selectedFindingForAssets]);
+
+  const downloadAssetDetailsCsv = () => {
+    if (!selectedFindingForAssets || !assetDetailsRows.length || typeof window === "undefined") {
+      return;
+    }
+
+    const headers = [
+      "Asset Name",
+      "Asset IP address",
+      "Asset Type",
+      "Total Critical Exposure Findings",
+      "Total High Risk Findings",
+      "Total Findings",
+      "Asset Change Assignment Group",
+      "Asset Incident Assignment Group",
+      "Owner"
+    ];
+    const rows = assetDetailsRows.map((row) => [
+      row.assetName,
+      row.assetIpAddress,
+      row.assetType,
+      row.criticalExposureFindings,
+      row.highRiskFindings,
+      row.totalFindings,
+      row.assetChangeAssignmentGroup,
+      row.assetIncidentAssignmentGroup,
+      row.owner
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((value) => escapeCsvValue(value)).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const safeId = selectedFindingForAssets.id.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+    anchor.href = url;
+    anchor.download = `asset-details-${safeId}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="panel overflow-hidden">
+    <div className="panel relative overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/15 px-4 py-3">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Findings Register</h3>
         <div className="flex gap-2">
@@ -180,6 +403,7 @@ export function FindingsTable({
               <th className="px-3 py-2">SPI</th>
               <th className="px-3 py-2">Severity</th>
               <th className="px-3 py-2">Timestamp</th>
+              <th className="px-3 py-2">Title</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Scope</th>
               <th className="px-3 py-2">Evidence</th>
@@ -195,6 +419,15 @@ export function FindingsTable({
                   <td className="px-3 py-3 text-slate-100">{finding.spiId}</td>
                   <td className="px-3 py-3 text-slate-200">{finding.severity}</td>
                   <td className="px-3 py-3 text-slate-300/90">{formatFindingTimestamp(finding.timestamp)}</td>
+                  <td className="px-3 py-3 text-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => openAssetDetailsPanel(finding)}
+                      className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
+                    >
+                      {finding.title}
+                    </button>
+                  </td>
                   <td className="px-3 py-3 text-slate-300/90">
                     <p>Workflow: {asOfStatus}</p>
                     <p>Compliance: {finding.complianceStatus}</p>
@@ -220,7 +453,7 @@ export function FindingsTable({
             })}
             {findings.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                <td colSpan={9} className="px-3 py-6 text-center text-sm text-slate-300/80">
                   No findings match the selected SPI, Priority, Severity, and text search filters.
                 </td>
               </tr>
@@ -263,6 +496,94 @@ export function FindingsTable({
               <span className="rounded-md border border-slate-700/70 px-3 py-1 text-slate-500">Next</span>
             )}
           </div>
+        </div>
+      ) : null}
+
+      {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
+        <div className="absolute inset-0 z-[4]">
+          <div
+            className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
+              isAssetDetailsPanelOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeAssetDetailsPanel}
+          />
+          <aside
+            className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+              isAssetDetailsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+            }`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="findings-register-asset-details-title"
+          >
+            <button
+              type="button"
+              onClick={closeAssetDetailsPanel}
+              className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
+            >
+              Close
+            </button>
+
+            <div className="flex h-full min-h-0 flex-col">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Asset Details</p>
+              <h4 id="findings-register-asset-details-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
+                Asset Details
+              </h4>
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.title}</p>
+                  <p className="mt-1 text-xs text-slate-300/80">Linked Assets: {assetDetailsRows.length}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={downloadAssetDetailsCsv}
+                  disabled={!assetDetailsRows.length}
+                  className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
+                >
+                  Export to CSV
+                </button>
+              </div>
+
+              <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-sky-400/15">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                    <tr>
+                      <th className="px-3 py-2">Asset Name</th>
+                      <th className="px-3 py-2">Asset IP address</th>
+                      <th className="px-3 py-2">Asset Type</th>
+                      <th className="px-3 py-2">Total Critical Exposure Findings</th>
+                      <th className="px-3 py-2">Total High Risk Findings</th>
+                      <th className="px-3 py-2">Total Findings</th>
+                      <th className="px-3 py-2">Asset Change Assignment Group</th>
+                      <th className="px-3 py-2">Asset Incident Assignment Group</th>
+                      <th className="px-3 py-2">Owner</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assetDetailsRows.map((assetRow) => (
+                      <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
+                        <td className="px-3 py-2 text-slate-100">{assetRow.assetName}</td>
+                        <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
+                        <td className="px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
+                        <td className="px-3 py-2 text-red-100">{assetRow.criticalExposureFindings}</td>
+                        <td className="px-3 py-2 text-orange-100">{assetRow.highRiskFindings}</td>
+                        <td className="px-3 py-2 text-slate-200">{assetRow.totalFindings}</td>
+                        <td className="px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
+                        <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
+                        <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
+                      </tr>
+                    ))}
+                    {assetDetailsRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                          No linked assets found for this finding.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </aside>
         </div>
       ) : null}
     </div>
