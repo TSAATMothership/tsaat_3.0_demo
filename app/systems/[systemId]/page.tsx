@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
+import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
 import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { SystemDetailTabId, SystemDetailTabs } from "@/components/system-detail-tabs";
@@ -53,6 +54,24 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return value[0];
   }
   return value;
+}
+
+function toUtcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseUtcDateKey(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function formatUtcDay(date: Date): string {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 function isExternalLink(href: string): boolean {
@@ -211,6 +230,82 @@ function fallbackPriorityRank(status: ComplianceStatus, spiId: number): number {
     return 7;
   }
   return 99;
+}
+
+function toFindingDateKey(timestamp?: string | null): string | null {
+  if (!timestamp) {
+    return null;
+  }
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return toUtcDateKey(parsed);
+}
+
+function buildSystemDetailWeeklyRiskTrend(
+  findings: Finding[],
+  endDateKey: string,
+  dataAvailableUntilDateKey: string,
+  weeks = 13
+) {
+  const endDate = parseUtcDateKey(endDateKey);
+  const effectiveDataEndDateKey =
+    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
+  const earliestSevereOpenedDateKey = findings
+    .filter((finding) => finding.severity === "High Risk" || finding.severity === "Critical Exposure")
+    .map((finding) => toFindingDateKey(finding.timestamp))
+    .filter((dateKey): dateKey is string => Boolean(dateKey))
+    .sort()[0];
+
+  return Array.from({ length: weeks }, (_, index) => {
+    const weekOffset = weeks - 1 - index;
+    const pointDate = addUtcDays(endDate, -weekOffset * 7);
+    const pointDateKey = toUtcDateKey(pointDate);
+
+    if (
+      pointDateKey > effectiveDataEndDateKey ||
+      (earliestSevereOpenedDateKey && pointDateKey < earliestSevereOpenedDateKey) ||
+      !earliestSevereOpenedDateKey
+    ) {
+      return {
+        weekLabel: formatUtcDay(pointDate),
+        highRiskCount: null,
+        criticalExposureCount: null
+      };
+    }
+
+    let highRiskCount = 0;
+    let criticalExposureCount = 0;
+
+    for (const finding of findings) {
+      if (finding.severity !== "High Risk" && finding.severity !== "Critical Exposure") {
+        continue;
+      }
+
+      const openedDateKey = toFindingDateKey(finding.timestamp);
+      if (!openedDateKey || openedDateKey > pointDateKey) {
+        continue;
+      }
+
+      const closedDateKey = toFindingDateKey(finding.closedTimestamp);
+      if (closedDateKey && closedDateKey <= pointDateKey) {
+        continue;
+      }
+
+      if (finding.severity === "High Risk") {
+        highRiskCount += 1;
+      } else {
+        criticalExposureCount += 1;
+      }
+    }
+
+    return {
+      weekLabel: formatUtcDay(pointDate),
+      highRiskCount,
+      criticalExposureCount
+    };
+  });
 }
 
 function complianceScore(statuses: ComplianceStatus[]): number {
@@ -725,6 +820,31 @@ export default async function SystemDetailPage({
     }
     return true;
   });
+  const systemScopedRiskFindings = findings.filter((finding) => {
+    if (!filteredAssetIds.has(finding.scope.assetId)) {
+      return false;
+    }
+    if (selectedEnvironment && finding.scope.environmentType !== selectedEnvironment) {
+      return false;
+    }
+    return true;
+  });
+  const openSystemScopedRiskFindings = systemScopedRiskFindings.filter((finding) => finding.status === "open");
+  const riskSeverityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const riskSeverityCounts = openSystemScopedRiskFindings.reduce<Map<FindingSeverity, number>>((accumulator, finding) => {
+    accumulator.set(finding.severity, (accumulator.get(finding.severity) ?? 0) + 1);
+    return accumulator;
+  }, new Map());
+  const riskSeveritySummary = riskSeverityOrder.map((severity) => ({
+    severity,
+    count: riskSeverityCounts.get(severity) ?? 0
+  }));
+  const systemDetailWeeklyRiskTrend = buildSystemDetailWeeklyRiskTrend(
+    systemScopedRiskFindings,
+    requestedDataDate ?? dataset.snapshotDate,
+    dataset.snapshotDate,
+    13
+  );
   const p12SpiOptions = Array.from(new Set(filteredFindings.map((finding) => finding.spiId))).sort((a, b) => a - b);
   const p12PriorityOptions = Array.from(new Set(filteredFindings.map((finding) => finding.priorityRank))).sort(
     (a, b) => a - b
@@ -1251,45 +1371,6 @@ export default async function SystemDetailPage({
       serverSearch: serverSearchTerm || undefined,
       kpiFilter
     });
-  const remediationReportHref = (() => {
-    const query = new URLSearchParams();
-    if (requestedDataDate) {
-      query.set("dataDate", requestedDataDate);
-    }
-    if (selectedEnvironment) {
-      query.set("environment", selectedEnvironment);
-    }
-    if (serverSearchTerm) {
-      query.set("serverSearch", serverSearchTerm);
-    }
-    if (selectedKpiFilter) {
-      query.set("kpiFilter", selectedKpiFilter);
-    }
-    const params = query.toString();
-    return params
-      ? `/api/systems/${system.id}/remediation-report?${params}`
-      : `/api/systems/${system.id}/remediation-report`;
-  })();
-  const coverageGapsReportHref = (() => {
-    const query = new URLSearchParams();
-    if (requestedDataDate) {
-      query.set("dataDate", requestedDataDate);
-    }
-    if (selectedEnvironment) {
-      query.set("environment", selectedEnvironment);
-    }
-    if (serverSearchTerm) {
-      query.set("serverSearch", serverSearchTerm);
-    }
-    if (selectedKpiFilter) {
-      query.set("kpiFilter", selectedKpiFilter);
-    }
-    const params = query.toString();
-    return params
-      ? `/api/systems/${system.id}/coverage-gaps-report?${params}`
-      : `/api/systems/${system.id}/coverage-gaps-report`;
-  })();
-
   const snapshotByDate = new Map<string, Dataset>();
   for (const snapshot of snapshots) {
     snapshotByDate.set(snapshot.snapshotDate, snapshot);
@@ -1407,7 +1488,9 @@ export default async function SystemDetailPage({
 
       <div
         className={
-          activeDetailTab === "compliance-overview" || activeDetailTab === "discovery-compliance"
+          activeDetailTab === "compliance-overview" ||
+          activeDetailTab === "discovery-compliance" ||
+          activeDetailTab === "system-details"
             ? "min-h-0 flex-1 overflow-hidden pr-1"
             : "min-h-0 flex-1 space-y-4 overflow-auto pr-1"
         }
@@ -1430,40 +1513,11 @@ export default async function SystemDetailPage({
       ) : null}
 
       {activeDetailTab === "system-details" ? (
-      <>
-      <section id="kpi-filter" className="panel p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
-            <p className="mt-1 text-sm text-slate-300/85">
-              Generate a remediation report for this ICT System using the current environment, server search, and KPI
-              filters.
-            </p>
-            <p className="mt-1 text-xs text-slate-300/75">
-              Includes system summary, scoped compliance score, applied filters, findings register entries, and
-              recommended remediation actions.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={remediationReportHref}
-              className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
-            >
-              Generate Remediation Report
-            </a>
-            <a
-              href={coverageGapsReportHref}
-              className="inline-flex items-center justify-center rounded-md border border-sky-300/45 bg-sky-500/15 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/25"
-            >
-              Export coverage gaps
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel flex min-h-0 flex-col p-2.5">
+      <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+      <section className="panel flex min-h-0 flex-col overflow-hidden p-2.5">
         <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">System Details</h2>
-        <div className="mt-2 grid gap-1.5 xl:grid-cols-2">
+        <div className="mt-2 min-h-0 overflow-auto pr-1">
+        <div className="grid gap-1.5 xl:grid-cols-2">
           <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5 xl:row-span-2">
             <h3 className="text-base font-medium text-slate-100">Description</h3>
             <p className="mt-2 text-sm leading-5 text-slate-200/90">{systemDescription}</p>
@@ -1646,9 +1700,24 @@ export default async function SystemDetailPage({
             </ul>
           </article>
         </div>
+        </div>
       </section>
 
-      </>
+      <section className="panel min-h-0 overflow-hidden p-2.5">
+        <NetworkDetailRiskCharts
+          layout="stacked"
+          scopeDescription="Open findings by severity in current ICT system detail scope."
+          riskProfile={{
+            openFindings: openSystemScopedRiskFindings.length,
+            p1p2Count: openSystemScopedRiskFindings.filter((finding) => finding.priorityRank <= 2).length,
+            highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
+            criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
+            severitySummary: riskSeveritySummary,
+            weeklyTrend: systemDetailWeeklyRiskTrend
+          }}
+        />
+      </section>
+      </div>
       ) : null}
 
       {activeDetailTab === "discovery-compliance" ? (

@@ -1252,10 +1252,10 @@ export default async function NetworkDetailPage({
         }
       >
       {activeDetailTab === "network-details" ? (
-      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-        <section className="panel flex min-h-0 flex-col p-2.5">
+      <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+        <section className="panel flex min-h-0 flex-col overflow-hidden p-2.5">
           <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Network Details</h2>
-          <div className="mt-2">
+          <div className="mt-2 min-h-0 overflow-auto pr-1">
             <div className="grid gap-1.5 xl:grid-cols-2">
               <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5 xl:row-span-2">
                 <h3 className="text-base font-medium text-slate-100">Description</h3>
@@ -1351,8 +1351,9 @@ export default async function NetworkDetailPage({
           </div>
         </section>
 
-        <section className="panel min-h-0 p-2.5">
+        <section className="panel min-h-0 overflow-hidden p-2.5">
           <NetworkDetailRiskCharts
+            layout="stacked"
             riskProfile={{
               openFindings: openNetworkScopedFindings.length,
               p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,

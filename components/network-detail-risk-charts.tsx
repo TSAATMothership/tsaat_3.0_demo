@@ -35,7 +35,9 @@ const severityColors: Record<FindingSeverity, string> = {
 };
 
 export function NetworkDetailRiskCharts({
-  riskProfile
+  riskProfile,
+  scopeDescription = "Open findings by severity in current network detail scope.",
+  layout = "side-by-side"
 }: {
   riskProfile: {
     openFindings: number;
@@ -45,12 +47,19 @@ export function NetworkDetailRiskCharts({
     severitySummary: NetworkDetailRiskSeveritySummary[];
     weeklyTrend: NetworkDetailWeeklyRiskPoint[];
   };
+  scopeDescription?: string;
+  layout?: "side-by-side" | "stacked";
 }) {
+  const containerClass =
+    layout === "stacked"
+      ? "grid h-full min-h-0 gap-3 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"
+      : "grid h-full min-h-0 gap-3 lg:grid-cols-2";
+
   return (
-    <div className="grid h-full min-h-0 gap-3 lg:grid-cols-2">
+    <div className={containerClass}>
       <section className="panel-alt flex min-h-0 flex-col p-2.5">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h3>
-        <p className="mt-1 text-xs text-slate-300/80">Open findings by severity in current network detail scope.</p>
+        <p className="mt-1 text-xs text-slate-300/80">{scopeDescription}</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <div className="rounded-lg border border-sky-300/25 bg-slate-950/50 p-2">
             <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
