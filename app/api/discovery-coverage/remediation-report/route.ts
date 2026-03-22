@@ -3,6 +3,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
 import { Asset } from "@/lib/types";
 
@@ -205,11 +206,46 @@ export async function GET(request: NextRequest) {
     : 0;
 
   const generatedAt = new Date().toISOString();
+  const topToolActionSummary = prioritizedToolActions
+    .slice(0, 3)
+    .map(([tool, count]) => `${count}x ${tool}`)
+    .join("; ");
   const lines: string[] = [];
   lines.push("# Discovery Coverage Remediation Report");
   lines.push("");
+  lines.push("## Report Name");
+  lines.push("Discovery Coverage Remediation Report");
+  lines.push("");
+  lines.push("## Timestamp");
   lines.push(`Generated At: ${generatedAt}`);
   lines.push(`Snapshot Date: ${dataset.snapshotDate}`);
+  lines.push("");
+  lines.push("## Introduction");
+  lines.push(
+    "This executive brief provides a concise view of discovery coverage posture for the currently scoped assets and highlights remediation priorities for visibility gaps."
+  );
+  lines.push("");
+  lines.push("## Audience");
+  lines.push(
+    "Discovery tool owners, CMDB and asset management teams, architecture governance, and cyber operations leadership."
+  );
+  lines.push("");
+  lines.push("## Executive Summary");
+  lines.push(
+    `Current discovery coverage compliance is ${compliancePercent}% across ${matrixFilteredRows.length} scoped asset(s). ${coverageGapRows.length} asset(s) remain non-compliant for discovery coverage, including ${serverCoverageGapRows.length} server(s), creating material visibility and assurance risk.`
+  );
+  lines.push("");
+  lines.push("## Findings Summary Including Impacts");
+  lines.push(
+    `Coverage gaps reduce confidence in detection completeness, increase the likelihood of delayed remediation triage, and can mask vulnerable assets from operational workflows. Concentrated missing-tool patterns indicate integration and onboarding bottlenecks that require coordinated resolution.`
+  );
+  lines.push("");
+  lines.push("## Recommendations to Remediate");
+  lines.push(
+    prioritizedToolActions.length
+      ? `Prioritize deployment and integration of the most frequently missing tools on affected assets. Immediate focus should be placed on: ${topToolActionSummary}. Track closure progress against accountable teams and validate coverage uplift in the next reporting cycle.`
+      : "Maintain current discovery coverage controls and continue routine validation to prevent regression."
+  );
   lines.push("");
   lines.push("## Scope Summary");
   lines.push(`- Assets in Scope: ${matrixFilteredRows.length}`);
@@ -271,6 +307,40 @@ export async function GET(request: NextRequest) {
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const topMissingTools = prioritizedToolActions.slice(0, 5).map(([tool, count]) => ({
+    label: tool,
+    value: count,
+    color: [0.21, 0.49, 0.81] as [number, number, number]
+  }));
+
+  addVisualSummaryPage({
+    pdfDoc,
+    pageTitle: "Discovery Coverage Remediation Report",
+    subtitle: "Coverage compliance visualisation showing gap concentration, missing tools, and remediation focus areas.",
+    titleFont: fontBold,
+    bodyFont: fontRegular,
+    cards: [
+      { label: "Coverage Score", value: `${compliancePercent}%`, tone: "good" },
+      { label: "Assets in Scope", value: `${matrixFilteredRows.length}`, tone: "neutral" },
+      { label: "Coverage Gaps", value: `${coverageGapRows.length}`, tone: "critical" },
+      { label: "Server Gaps", value: `${serverCoverageGapRows.length}`, tone: "warning" }
+    ],
+    bars: [
+      { label: "Coverage Compliant", value: matrixFilteredRows.length - coverageGapRows.length, color: [0.2, 0.62, 0.42] },
+      { label: "Coverage Non-compliant", value: coverageGapRows.length, color: [0.82, 0.3, 0.29] },
+      ...topMissingTools
+    ],
+    segments: [
+      { label: "Compliant", value: matrixFilteredRows.length - coverageGapRows.length, color: [0.2, 0.62, 0.42] },
+      { label: "Non-compliant", value: coverageGapRows.length, color: [0.82, 0.3, 0.29] }
+    ],
+    insights: [
+      `${coverageGapRows.length} asset(s) are non-compliant for discovery coverage in the filtered scope.`,
+      `${serverCoverageGapRows.length} server(s) currently have missing discovery tool alignment.`,
+      topToolActionSummary ? `Primary missing tool concentration: ${topToolActionSummary}.` : "No missing tool concentration in current scope.",
+      "Use these visuals to prioritise tool onboarding and integration sequencing."
+    ]
+  });
 
   const pageTitle = "Discovery Coverage Remediation Report";
   let pageState = createPage(pdfDoc, pageTitle, fontBold);

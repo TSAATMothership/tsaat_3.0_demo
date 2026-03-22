@@ -4,6 +4,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { applyAssetFilters, filterSystems, parseFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus } from "@/lib/types";
 
@@ -164,6 +165,9 @@ export async function GET(request: NextRequest) {
   const scopedStatuses = analytics.evaluations
     .filter((evaluation) => Boolean(evaluation.systemId) && scopedSystemIds.has(evaluation.systemId as string))
     .flatMap((evaluation) => evaluation.evaluations.map((evaluationItem) => evaluationItem.status));
+  const compliantStatusCount = scopedStatuses.filter((status) => status === "Compliant").length;
+  const nonCompliantStatusCount = scopedStatuses.filter((status) => status === "Non-compliant").length;
+  const unknownStatusCount = scopedStatuses.filter((status) => status === "Unknown").length;
   const scopedComplianceScore = complianceScore(scopedStatuses);
   const scopedPosture = overallStatusFromStatuses(scopedStatuses);
 
@@ -210,11 +214,46 @@ export async function GET(request: NextRequest) {
   const isFindingsTruncated = findings.length > findingsForReport.length;
 
   const generatedAt = new Date().toISOString();
+  const topActionSummary = prioritizedActions
+    .slice(0, 3)
+    .map(([action, count]) => `${count}x ${action}`)
+    .join("; ");
   const lines: string[] = [];
   lines.push("# ICT System Scope Remediation Report");
   lines.push("");
+  lines.push("## Report Name");
+  lines.push("ICT System Scope Remediation Report");
+  lines.push("");
+  lines.push("## Timestamp");
   lines.push(`Generated At: ${generatedAt}`);
   lines.push(`Snapshot Date: ${dataset.snapshotDate}`);
+  lines.push("");
+  lines.push("## Introduction");
+  lines.push(
+    "This executive brief provides a concise remediation view of cyber posture across the currently scoped ICT systems, aligned to active filters."
+  );
+  lines.push("");
+  lines.push("## Audience");
+  lines.push(
+    "ICT system owners, service managers, cyber assurance stakeholders, and remediation delivery teams."
+  );
+  lines.push("");
+  lines.push("## Executive Summary");
+  lines.push(
+    `Current scoped posture is ${scopedPosture} with a compliance score of ${scopedComplianceScore}%. The scope includes ${systems.length} ICT system(s), ${filteredAssets.length} asset(s), and ${findings.length} total finding(s), including ${p12Findings.length} P1-P2 and ${highRiskFindings.length} High Risk finding(s).`
+  );
+  lines.push("");
+  lines.push("## Findings Summary Including Impacts");
+  lines.push(
+    `Non-compliance currently affects ${nonCompliantAssetCount} asset(s), creating elevated service and assurance risk where unresolved findings intersect with production and mission-critical operations. Discovery coverage review identifies ${discoveryCoverageServerGaps.length} server(s) with tool coverage gaps that may reduce visibility and delay response prioritization.`
+  );
+  lines.push("");
+  lines.push("## Recommendations to Remediate");
+  lines.push(
+    prioritizedActions.length
+      ? `Prioritize closure of repeated non-compliance actions with named ownership and due dates. Immediate attention should be given to: ${topActionSummary}. Concurrently remediate discovery coverage gaps to strengthen control verification and reporting confidence.`
+      : "Maintain current control posture, continue scheduled assurance cycles, and enforce governance controls to sustain compliance outcomes."
+  );
   lines.push("");
   lines.push("## Scope Summary");
   lines.push(`- ICT Systems in Scope: ${systems.length}`);
@@ -296,6 +335,39 @@ export async function GET(request: NextRequest) {
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const topAction = prioritizedActions[0];
+
+  addVisualSummaryPage({
+    pdfDoc,
+    pageTitle: "ICT Systems Remediation Report",
+    subtitle: "Visualisation of scoped ICT system compliance, finding concentrations, and discovery coverage pressure.",
+    titleFont: fontBold,
+    bodyFont: fontRegular,
+    cards: [
+      { label: "Compliance Score", value: `${scopedComplianceScore}%`, tone: "good" },
+      { label: "Systems in Scope", value: `${systems.length}`, tone: "neutral" },
+      { label: "Assets in Scope", value: `${filteredAssets.length}`, tone: "neutral" },
+      { label: "Findings in Scope", value: `${findings.length}`, tone: "warning" }
+    ],
+    bars: [
+      { label: "Non-compliant Assets", value: nonCompliantAssetCount, color: [0.82, 0.3, 0.29] },
+      { label: "P1-P2 Findings", value: p12Findings.length, color: [0.17, 0.47, 0.77] },
+      { label: "High Risk Findings", value: highRiskFindings.length, color: [0.86, 0.51, 0.2] },
+      { label: "Discovery Gap Servers", value: discoveryCoverageServerGaps.length, color: [0.55, 0.38, 0.79] },
+      { label: "Top Action Frequency", value: topAction?.[1] ?? 0, color: [0.35, 0.59, 0.83] }
+    ],
+    segments: [
+      { label: "Compliant", value: compliantStatusCount, color: [0.2, 0.62, 0.42] },
+      { label: "Non-compliant", value: nonCompliantStatusCount, color: [0.82, 0.3, 0.29] },
+      { label: "Unknown", value: unknownStatusCount, color: [0.89, 0.66, 0.28] }
+    ],
+    insights: [
+      `Scoped posture is ${scopedPosture} at ${scopedComplianceScore}% compliance.`,
+      `${nonCompliantAssetCount} asset(s) in the current ICT system scope are non-compliant.`,
+      `${discoveryCoverageServerGaps.length} server(s) have discovery tool coverage gaps.`,
+      topAction ? `Most frequent remediation action: ${topAction[0]} (${topAction[1]} occurrence(s)).` : "No recurring remediation action pattern in current scope."
+    ]
+  });
 
   const pageTitle = "ICT Systems Remediation Report";
   let pageState = createPage(pdfDoc, pageTitle, fontBold);
