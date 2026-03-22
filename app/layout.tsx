@@ -21,8 +21,8 @@ const navigation = [
   { href: "/networks", label: "Networks" },
   { href: "/systems", label: "ICT Systems" },
   { href: "/discovery-coverage", label: "Discovery" },
-  { href: "/findings", label: "Findings Register" },
   { href: "/measures", label: "Measures" },
+  { href: "/findings", label: "Findings Register" },
   { href: "/report", label: "Briefs & Reports" }
 ];
 

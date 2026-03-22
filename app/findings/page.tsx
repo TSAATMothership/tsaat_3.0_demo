@@ -1,5 +1,5 @@
 import { FilterBar } from "@/components/filter-bar";
-import { FindingsHistoryLineChart } from "@/components/findings-history-line-chart";
+import { FindingsHistoryDrillthrough } from "@/components/findings-history-drillthrough";
 import { FindingsStatusTabs } from "@/components/findings-status-tabs";
 import { FindingsTimelineFilter } from "@/components/findings-timeline-filter";
 import { FindingsTable } from "@/components/findings-table";
@@ -103,6 +103,10 @@ export default async function FindingsPage({
   const selectedSeverity = firstParam(searchParams.severity)?.trim() || undefined;
   const selectedSearchTerm = firstParam(searchParams.search)?.trim() ?? "";
   const normalizedSearchTerm = selectedSearchTerm.toLowerCase();
+  const spiCatalog = Object.keys(SPI_DESCRIPTIONS)
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value))
+    .sort((a, b) => a - b);
 
   const matchesBaseFindingFilters = (finding: Finding) => {
     if (selectedSpi && finding.spiId !== selectedSpi) {
@@ -185,6 +189,74 @@ export default async function FindingsPage({
     cursor = addUtcDays(cursor, 1);
   }
 
+  const spiHistoryState = new Map(
+    spiCatalog.map((spiId) => [
+      spiId,
+      {
+        openedByDate: new Map<string, number>(),
+        closedByDate: new Map<string, number>(),
+        openingBalance: 0
+      }
+    ])
+  );
+
+  for (const finding of historyFindings) {
+    const state = spiHistoryState.get(finding.spiId);
+    if (!state) {
+      continue;
+    }
+    const openedDate = finding.timestamp.slice(0, 10);
+    const closedDate = finding.closedTimestamp?.slice(0, 10);
+
+    if (selectedStatus === "open") {
+      if (openedDate < historyStart) {
+        if (!closedDate || closedDate >= historyStart) {
+          state.openingBalance += 1;
+        }
+      } else if (openedDate <= today) {
+        state.openedByDate.set(openedDate, (state.openedByDate.get(openedDate) ?? 0) + 1);
+      }
+      if (closedDate && closedDate >= historyStart && closedDate <= today) {
+        state.closedByDate.set(closedDate, (state.closedByDate.get(closedDate) ?? 0) + 1);
+      }
+      continue;
+    }
+
+    if (closedDate && closedDate < historyStart && openedDate <= historyStart) {
+      state.openingBalance += 1;
+    }
+    if (closedDate && closedDate >= historyStart && closedDate <= today) {
+      state.closedByDate.set(closedDate, (state.closedByDate.get(closedDate) ?? 0) + 1);
+    }
+  }
+
+  const spiRunningById = new Map(
+    spiCatalog.map((spiId) => [spiId, spiHistoryState.get(spiId)?.openingBalance ?? 0])
+  );
+  const spiHistoryPoints: Array<Record<string, string | number>> = [];
+  let spiCursor = historyStart;
+  while (spiCursor <= today) {
+    const row: Record<string, string | number> = { date: spiCursor };
+    for (const spiId of spiCatalog) {
+      const state = spiHistoryState.get(spiId);
+      if (!state) {
+        continue;
+      }
+      let running = spiRunningById.get(spiId) ?? 0;
+      if (selectedStatus === "open") {
+        running += state.openedByDate.get(spiCursor) ?? 0;
+        running -= state.closedByDate.get(spiCursor) ?? 0;
+      } else {
+        running += state.closedByDate.get(spiCursor) ?? 0;
+      }
+      running = Math.max(0, running);
+      spiRunningById.set(spiId, running);
+      row[`spi${spiId}`] = running;
+    }
+    spiHistoryPoints.push(row);
+    spiCursor = addUtcDays(spiCursor, 1);
+  }
+
   const timelineFindings = analytics.findings.filter((finding) => {
     const timelineStatus = workflowStatusAtAsOf(finding, selectedAsOf);
     if (!timelineStatus) {
@@ -254,10 +326,6 @@ export default async function FindingsPage({
       p1P2Findings: typeFindings.filter((finding) => finding.priorityRank <= 2).length
     };
   });
-  const spiCatalog = Object.keys(SPI_DESCRIPTIONS)
-    .map((value) => Number(value))
-    .filter((value) => Number.isInteger(value))
-    .sort((a, b) => a - b);
   const openFindingsForSpiSummary = timelineFindings.filter(
     (finding) => matchesBaseFindingFilters(finding) && timelineStatusByFindingId.get(finding.id) === "open"
   );
@@ -276,6 +344,10 @@ export default async function FindingsPage({
       otherCount
     };
   });
+  const maxOpenFindingsAcrossSpi = openFindingsBySpiSummary.reduce(
+    (maxValue, row) => Math.max(maxValue, row.totalOpenFindings),
+    0
+  );
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -300,7 +372,18 @@ export default async function FindingsPage({
           <FindingsStatusTabs activeTab={selectedStatus} />
 
           {activeViewTab === "overview" ? (
-            <FindingsHistoryLineChart points={findingsHistoryPoints} status={selectedStatus} />
+            <FindingsHistoryDrillthrough
+              points={findingsHistoryPoints}
+              status={selectedStatus}
+              spiCatalog={spiCatalog}
+              spiHistoryPoints={spiHistoryPoints}
+              selectedAsOf={selectedAsOf}
+              minDate={historyStart}
+              maxDate={today}
+              filterOptions={filterOptions}
+              filters={filters}
+              extraSelectFields={findingsFilterExtraSelects}
+            />
           ) : null}
 
           <FindingsTimelineFilter selectedAsOf={selectedAsOf} minDate={historyStart} maxDate={today} />
@@ -395,8 +478,8 @@ export default async function FindingsPage({
                                         className="bg-red-500/85"
                                         style={{
                                           width: `${
-                                            row.totalOpenFindings
-                                              ? (row.criticalExposureCount / row.totalOpenFindings) * 100
+                                            maxOpenFindingsAcrossSpi
+                                              ? (row.criticalExposureCount / maxOpenFindingsAcrossSpi) * 100
                                               : 0
                                           }%`
                                         }}
@@ -405,7 +488,9 @@ export default async function FindingsPage({
                                         className="bg-orange-500/85"
                                         style={{
                                           width: `${
-                                            row.totalOpenFindings ? (row.highRiskCount / row.totalOpenFindings) * 100 : 0
+                                            maxOpenFindingsAcrossSpi
+                                              ? (row.highRiskCount / maxOpenFindingsAcrossSpi) * 100
+                                              : 0
                                           }%`
                                         }}
                                       />
@@ -413,7 +498,7 @@ export default async function FindingsPage({
                                         className="bg-sky-500/85"
                                         style={{
                                           width: `${
-                                            row.totalOpenFindings ? (row.otherCount / row.totalOpenFindings) * 100 : 0
+                                            maxOpenFindingsAcrossSpi ? (row.otherCount / maxOpenFindingsAcrossSpi) * 100 : 0
                                           }%`
                                         }}
                                       />

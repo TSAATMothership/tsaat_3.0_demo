@@ -25,10 +25,15 @@ function formatDisplayDate(value: string): string {
 
 export function FindingsHistoryLineChart({
   points,
-  status
+  status,
+  titleAction
 }: {
   points: FindingsHistoryPoint[];
   status: "open" | "closed";
+  titleAction?: {
+    label: string;
+    onClick: () => void;
+  };
 }) {
   const currentTotal = points[points.length - 1]?.openFindings ?? 0;
   const isClosed = status === "closed";
@@ -42,7 +47,18 @@ export function FindingsHistoryLineChart({
     <section className="panel p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Findings History (2 Years)</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Findings History (2 Years)</h2>
+            {titleAction ? (
+              <button
+                type="button"
+                onClick={titleAction.onClick}
+                className="text-xs font-semibold text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
+              >
+                {titleAction.label}
+              </button>
+            ) : null}
+          </div>
           <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
         </div>
         <div className="text-right">
