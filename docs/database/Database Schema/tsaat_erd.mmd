@@ -1,0 +1,214 @@
+erDiagram
+  DATASET_SNAPSHOT {
+    bigint snapshot_id PK
+    date snapshot_date UK
+    timestamptz generated_at
+  }
+
+  MANAGED_NETWORK {
+    bigint snapshot_id PK,FK
+    text network_id PK
+    text name
+    criticality_enum criticality
+    text classification
+    network_discovery_status_enum discovery_status
+  }
+
+  ICT_SYSTEM {
+    bigint snapshot_id PK,FK
+    text system_id PK
+    text network_id FK
+    text name
+    bool modelling_status
+    bool diis_defined
+    criticality_enum criticality
+    security_domain_enum security_domain
+  }
+
+  NETWORK_DECLARED_SYSTEM {
+    bigint snapshot_id PK,FK
+    text network_id PK,FK
+    text system_id PK,FK
+  }
+
+  SYSTEM_MISSION_CAPABILITY {
+    bigint snapshot_id PK,FK
+    text system_id PK,FK
+    text mission_capability_id PK
+    text name
+    criticality_enum criticality
+  }
+
+  SYSTEM_BUSINESS_SERVICE {
+    bigint snapshot_id PK,FK
+    text system_id PK,FK
+    text business_service_id PK
+    text name
+    criticality_enum criticality
+  }
+
+  SYSTEM_ENVIRONMENT {
+    bigint snapshot_id PK,FK
+    text system_id PK,FK
+    text environment_id PK
+    text name
+    environment_type_enum environment_type
+  }
+
+  ASSET {
+    bigint snapshot_id PK,FK
+    text asset_id PK
+    text name
+    text hostname
+    asset_type_enum asset_type
+    text network_id FK
+    text system_id FK
+    environment_type_enum environment_type
+    security_domain_enum security_domain
+    eol_status_enum lifecycle_eol_status
+    warranty_status_enum lifecycle_warranty_status
+  }
+
+  NETWORK_DECLARED_ASSET {
+    bigint snapshot_id PK,FK
+    text network_id PK,FK
+    text asset_id PK,FK
+  }
+
+  SYSTEM_ENVIRONMENT_ASSET {
+    bigint snapshot_id PK,FK
+    text system_id PK,FK
+    text environment_id PK,FK
+    environment_type_enum environment_type FK
+    text asset_id PK,FK
+  }
+
+  ASSET_OPERATING_SYSTEM {
+    bigint snapshot_id PK,FK
+    text asset_id PK,FK
+    text family
+    text vendor
+    int major_version
+    text version
+    support_status_enum support_status
+  }
+
+  ASSET_NETWORK_OS {
+    bigint snapshot_id PK,FK
+    text asset_id PK,FK
+    text family
+    text vendor
+    int major_version
+    text version
+    support_status_enum support_status
+  }
+
+  ASSET_PATCH_STATE {
+    bigint snapshot_id PK,FK
+    text asset_id PK,FK
+    bool is_latest
+    date last_patched_date
+  }
+
+  ASSET_INSTALLED_SOFTWARE {
+    bigint snapshot_id PK,FK
+    text asset_id PK,FK
+    int software_ordinal PK
+    text name
+    text version
+    support_status_enum support_status
+  }
+
+  ASSET_VULNERABILITY {
+    bigint snapshot_id PK,FK
+    text asset_id PK,FK
+    text vulnerability_id PK
+    text cve
+    vulnerability_severity_enum severity
+    date detected_date
+    text source
+  }
+
+  FINDING {
+    bigint snapshot_id PK,FK
+    text finding_id PK
+    smallint spi_id
+    int priority_rank
+    finding_severity_enum severity
+    compliance_status_enum compliance_status
+    finding_workflow_status_enum workflow_status
+    text network_id FK
+    text system_id FK
+    environment_type_enum environment_type FK
+    text asset_id FK
+    jsonb evidence
+    timestamptz observed_at
+    timestamptz closed_at
+  }
+
+  DISCOVERY_TOOLS_SETTINGS_VERSION {
+    bigint settings_version_id PK
+    timestamptz updated_at
+  }
+
+  DISCOVERY_TOOL {
+    bigint settings_version_id PK,FK
+    text tool_id PK
+    text name
+    text description
+    text el2_owner
+    text el2_operations_manager
+  }
+
+  DISCOVERY_TOOL_ASSET_SCOPE {
+    bigint settings_version_id PK,FK
+    text tool_id PK,FK
+    asset_type_enum asset_type PK
+    discovery_tool_asset_setting_enum scope_setting
+  }
+
+  MEASURES_SETTINGS_VERSION {
+    bigint settings_version_id PK
+    timestamptz updated_at
+  }
+
+  MEASURES_SEVERITY_MATRIX {
+    bigint settings_version_id PK,FK
+    smallint spi_id PK
+    asset_type_enum asset_type PK
+    finding_severity_enum severity
+  }
+
+  DATASET_SNAPSHOT ||--o{ MANAGED_NETWORK : contains
+  DATASET_SNAPSHOT ||--o{ ICT_SYSTEM : contains
+  DATASET_SNAPSHOT ||--o{ ASSET : contains
+  DATASET_SNAPSHOT ||--o{ FINDING : contains
+
+  MANAGED_NETWORK ||--o{ ICT_SYSTEM : owns
+  MANAGED_NETWORK ||--o{ ASSET : contains
+  MANAGED_NETWORK ||--o{ NETWORK_DECLARED_SYSTEM : declares
+  MANAGED_NETWORK ||--o{ NETWORK_DECLARED_ASSET : declares
+  MANAGED_NETWORK ||--o{ FINDING : scopes
+
+  ICT_SYSTEM ||--o{ NETWORK_DECLARED_SYSTEM : referenced
+  ICT_SYSTEM ||--o{ SYSTEM_MISSION_CAPABILITY : has
+  ICT_SYSTEM ||--o{ SYSTEM_BUSINESS_SERVICE : has
+  ICT_SYSTEM ||--o{ SYSTEM_ENVIRONMENT : has
+  ICT_SYSTEM ||--o{ ASSET : context
+  ICT_SYSTEM ||--o{ FINDING : scopes
+
+  SYSTEM_ENVIRONMENT ||--o{ SYSTEM_ENVIRONMENT_ASSET : maps
+  ASSET ||--o{ SYSTEM_ENVIRONMENT_ASSET : maps
+
+  ASSET ||--o{ NETWORK_DECLARED_ASSET : referenced
+  ASSET ||--o| ASSET_OPERATING_SYSTEM : profile
+  ASSET ||--o| ASSET_NETWORK_OS : profile
+  ASSET ||--o| ASSET_PATCH_STATE : profile
+  ASSET ||--o{ ASSET_INSTALLED_SOFTWARE : has
+  ASSET ||--o{ ASSET_VULNERABILITY : has
+  ASSET ||--o{ FINDING : affects
+
+  DISCOVERY_TOOLS_SETTINGS_VERSION ||--o{ DISCOVERY_TOOL : contains
+  DISCOVERY_TOOL ||--o{ DISCOVERY_TOOL_ASSET_SCOPE : scoped_by
+
+  MEASURES_SETTINGS_VERSION ||--o{ MEASURES_SEVERITY_MATRIX : defines
