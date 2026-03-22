@@ -317,7 +317,7 @@ export function FindingsTable({
   };
 
   return (
-    <div className="panel relative overflow-hidden">
+    <div className="panel relative flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/15 px-4 py-3">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Findings Register</h3>
         <div className="flex gap-2">
@@ -395,9 +395,9 @@ export function FindingsTable({
           ) : null}
         </form>
       </div>
-      <div className="overflow-x-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
               <th className="px-3 py-2">Priority</th>
               <th className="px-3 py-2">SPI</th>

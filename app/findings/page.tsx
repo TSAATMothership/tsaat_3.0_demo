@@ -1,9 +1,9 @@
 import { FilterBar } from "@/components/filter-bar";
 import { FindingsHistoryLineChart } from "@/components/findings-history-line-chart";
-import { FindingsSpiTiles } from "@/components/findings-spi-tiles";
 import { FindingsStatusTabs } from "@/components/findings-status-tabs";
 import { FindingsTimelineFilter } from "@/components/findings-timeline-filter";
 import { FindingsTable } from "@/components/findings-table";
+import { FindingsViewTabId, FindingsViewTabs } from "@/components/findings-view-tabs";
 import { getCoreAppData } from "@/lib/app-data";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
@@ -88,6 +88,8 @@ export default async function FindingsPage({
   const selectedAsOf = isDateOnly(requestedAsOf) ? clampDateOnly(requestedAsOf, historyStart, today) : today;
   const requestedTab = firstParam(searchParams.findingsTab)?.trim().toLowerCase();
   const selectedStatus: "open" | "closed" = requestedTab === "closed" ? "closed" : "open";
+  const requestedViewTab = firstParam(searchParams.findingsViewTab)?.trim().toLowerCase();
+  const activeViewTab: FindingsViewTabId = requestedViewTab === "register" ? "register" : "overview";
 
   const requestedSpi = Number(firstParam(searchParams.spi));
   const selectedSpi = Number.isInteger(requestedSpi) && requestedSpi >= 1 && requestedSpi <= 10 ? requestedSpi : undefined;
@@ -200,6 +202,19 @@ export default async function FindingsPage({
     new Set(timelineFindings.map((finding) => finding.priorityRank).filter((priorityRank) => priorityRank !== 90))
   ).sort((a, b) => a - b);
   const findingsFilterExtraSelects = [
+    ...(activeViewTab === "overview"
+      ? [
+          {
+            key: "spi",
+            label: "Security Posture Indicators",
+            value: selectedSpi ? String(selectedSpi) : undefined,
+            options: spiOptions.map((spi) => ({
+              id: String(spi),
+              label: `SPI ${spi} - ${SPI_DESCRIPTIONS[spi as keyof typeof SPI_DESCRIPTIONS]}`
+            }))
+          }
+        ]
+      : []),
     {
       key: "priority",
       label: "Priority",
@@ -239,126 +254,212 @@ export default async function FindingsPage({
       p1P2Findings: typeFindings.filter((finding) => finding.priorityRank <= 2).length
     };
   });
-  const findingsBySpiForTab = timelineFindings.reduce((map, finding) => {
-    if (timelineStatusByFindingId.get(finding.id) !== selectedStatus) {
-      return map;
-    }
-    map.set(finding.spiId, (map.get(finding.spiId) ?? 0) + 1);
-    return map;
-  }, new Map<number, number>());
   const spiCatalog = Object.keys(SPI_DESCRIPTIONS)
     .map((value) => Number(value))
     .filter((value) => Number.isInteger(value))
     .sort((a, b) => a - b);
-
-  const findingsBySpiRecord = Array.from(findingsBySpiForTab.entries()).reduce<Record<number, number>>(
-    (record, [spiId, count]) => {
-      record[spiId] = count;
-      return record;
-    },
-    {}
+  const openFindingsForSpiSummary = timelineFindings.filter(
+    (finding) => matchesBaseFindingFilters(finding) && timelineStatusByFindingId.get(finding.id) === "open"
   );
+  const openFindingsBySpiSummary = spiCatalog.map((spiId) => {
+    const spiFindings = openFindingsForSpiSummary.filter((finding) => finding.spiId === spiId);
+    const criticalExposureCount = spiFindings.filter((finding) => finding.severity === "Critical Exposure").length;
+    const highRiskCount = spiFindings.filter((finding) => finding.severity === "High Risk").length;
+    const otherCount = Math.max(spiFindings.length - criticalExposureCount - highRiskCount, 0);
+
+    return {
+      spiId,
+      description: SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS],
+      totalOpenFindings: spiFindings.length,
+      criticalExposureCount,
+      highRiskCount,
+      otherCount
+    };
+  });
 
   return (
-    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-4 md:w-[min(2100px,calc(100vw-3rem))]">
-      <section className="panel p-5">
+    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Findings Register</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-100">Findings and Evidence</h1>
-        <p className="mt-2 text-sm text-slate-300/85">
-          Prioritized register with SPI alignment, scope, and remediation guidance. Export full register as JSON or CSV.
+        <h1 className="mt-1 text-2xl font-semibold text-slate-100">Findings and Evidence</h1>
+        <p className="mt-1 text-sm text-slate-300/80">
+          Prioritized register with SPI alignment, scope, and remediation guidance across the current filtered context.
         </p>
       </section>
 
-      <FindingsStatusTabs activeTab={selectedStatus} />
+      <FindingsViewTabs activeTab={activeViewTab} />
 
-      <FindingsHistoryLineChart points={findingsHistoryPoints} status={selectedStatus} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div
+          className={`grid h-full min-h-0 gap-2 ${
+            activeViewTab === "overview"
+              ? "grid-rows-[auto_auto_auto_auto_minmax(0,1fr)]"
+              : "grid-rows-[auto_auto_auto_minmax(0,1fr)]"
+          }`}
+        >
+          <FindingsStatusTabs activeTab={selectedStatus} />
 
-      <FindingsTimelineFilter selectedAsOf={selectedAsOf} minDate={historyStart} maxDate={today} />
+          {activeViewTab === "overview" ? (
+            <FindingsHistoryLineChart points={findingsHistoryPoints} status={selectedStatus} />
+          ) : null}
 
-      <FilterBar
-        options={filterOptions}
-        filters={filters}
-        extraSelectFields={findingsFilterExtraSelects}
-        enableLoadingOverlay
-      />
+          <FindingsTimelineFilter selectedAsOf={selectedAsOf} minDate={historyStart} maxDate={today} />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="panel p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-slate-200">Total Findings</p>
-          <p className="mt-1 text-3xl font-semibold">{totalFindings}</p>
+          <FilterBar
+            options={filterOptions}
+            filters={filters}
+            extraSelectFields={findingsFilterExtraSelects}
+            enableLoadingOverlay
+          />
+
+          {activeViewTab === "overview" ? (
+            <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+              <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="panel p-4">
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-200">Total Findings</p>
+                  <p className="mt-1 text-3xl font-semibold">{totalFindings}</p>
+                </div>
+                <div className="panel p-4">
+                  <p className="text-xs uppercase tracking-[0.14em] text-red-300">Critical Exposure</p>
+                  <p className="mt-1 text-3xl font-semibold">{criticalExposure}</p>
+                </div>
+                <div className="panel p-4">
+                  <p className="text-xs uppercase tracking-[0.14em] text-orange-200">High Risk</p>
+                  <p className="mt-1 text-3xl font-semibold">{highRisk}</p>
+                </div>
+                <div className="panel p-4">
+                  <p className="text-xs uppercase tracking-[0.14em] text-sky-200">P1-P2 Findings</p>
+                  <p className="mt-1 text-3xl font-semibold">{p1P2Findings}</p>
+                </div>
+              </section>
+
+              <div className="min-h-0 overflow-auto pr-1">
+                <section className="grid gap-2 xl:grid-cols-2">
+                  <article className="panel p-4">
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Assets by Asset Type</h2>
+                    <p className="mt-1 text-xs text-slate-300/80">
+                      Findings breakdown by asset type in the current filtered scope.
+                    </p>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-900/60 text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                          <tr>
+                            <th className="px-3 py-2">Asset Type</th>
+                            <th className="px-3 py-2">Total Findings</th>
+                            <th className="px-3 py-2">Critical Exposure</th>
+                            <th className="px-3 py-2">High Risk</th>
+                            <th className="px-3 py-2">P1-P2 Findings</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {assetTypeSummaries.map((summary) => (
+                            <tr key={summary.id} className="border-t border-sky-400/10">
+                              <td className="px-3 py-2 text-slate-100">{summary.label}</td>
+                              <td className="px-3 py-2 text-slate-200">{summary.totalFindings}</td>
+                              <td className="px-3 py-2 text-orange-100">{summary.criticalExposure}</td>
+                              <td className="px-3 py-2 text-red-100">{summary.highRisk}</td>
+                              <td className="px-3 py-2 text-amber-100">{summary.p1P2Findings}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+
+                  <article className="panel p-4">
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+                      Security Posture Indicator Summary
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-300/80">
+                      Total open findings by SPI at the selected findings timeline date.
+                    </p>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-slate-900/60 text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                          <tr>
+                            <th className="px-3 py-2">SPI</th>
+                            <th className="px-3 py-2">Description</th>
+                            <th className="px-3 py-2">Open Findings Mix</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {openFindingsBySpiSummary.map((row) => (
+                            <tr key={row.spiId} className="border-t border-sky-400/10">
+                              <td className="px-3 py-2 text-slate-100">SPI {row.spiId}</td>
+                              <td className="px-3 py-2 text-slate-200">{row.description}</td>
+                              <td className="px-3 py-2">
+                                <div className="w-[260px] max-w-full">
+                                  <div className="overflow-hidden rounded-full border border-sky-300/20 bg-slate-950/60">
+                                    <div className="flex h-2.5 w-full">
+                                      <div
+                                        className="bg-red-500/85"
+                                        style={{
+                                          width: `${
+                                            row.totalOpenFindings
+                                              ? (row.criticalExposureCount / row.totalOpenFindings) * 100
+                                              : 0
+                                          }%`
+                                        }}
+                                      />
+                                      <div
+                                        className="bg-orange-500/85"
+                                        style={{
+                                          width: `${
+                                            row.totalOpenFindings ? (row.highRiskCount / row.totalOpenFindings) * 100 : 0
+                                          }%`
+                                        }}
+                                      />
+                                      <div
+                                        className="bg-sky-500/85"
+                                        style={{
+                                          width: `${
+                                            row.totalOpenFindings ? (row.otherCount / row.totalOpenFindings) * 100 : 0
+                                          }%`
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <p className="mt-1 text-[11px] text-slate-300/80">
+                                    Total {row.totalOpenFindings} | CE {row.criticalExposureCount} | HR {row.highRiskCount}
+                                    {" | "}Other {row.otherCount}
+                                  </p>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                </section>
+              </div>
+            </div>
+          ) : (
+            <div className="min-h-0">
+              <FindingsTable
+                findings={paginatedFindings}
+                findingsForDrillthrough={findings}
+                searchParams={searchParams}
+                selectedAsOf={selectedAsOf}
+                selectedSpi={selectedSpi}
+                selectedStatus={selectedStatus}
+                selectedSearchTerm={selectedSearchTerm}
+                spiOptions={spiOptions}
+                pagination={
+                  shouldPaginateFindings
+                    ? {
+                        currentPage: findingsCurrentPage,
+                        totalPages: findingsTotalPages,
+                        pageSize: openTabPageSize,
+                        totalItems: totalFindings
+                      }
+                    : undefined
+                }
+              />
+            </div>
+          )}
         </div>
-        <div className="panel p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-red-300">High Risk</p>
-          <p className="mt-1 text-3xl font-semibold">{highRisk}</p>
-        </div>
-        <div className="panel p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-orange-200">Critical Exposure</p>
-          <p className="mt-1 text-3xl font-semibold">{criticalExposure}</p>
-        </div>
-        <div className="panel p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-amber-200">P1-P2 Findings</p>
-          <p className="mt-1 text-3xl font-semibold">{p1P2Findings}</p>
-        </div>
-      </section>
-
-      <section className="panel p-4">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Assets by Asset Type</h2>
-        <p className="mt-1 text-xs text-slate-300/80">
-          Findings breakdown by asset type in the current filtered scope.
-        </p>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">Asset Type</th>
-                <th className="px-3 py-2">Total Findings</th>
-                <th className="px-3 py-2">High Risk</th>
-                <th className="px-3 py-2">Critical Exposure</th>
-                <th className="px-3 py-2">P1-P2 Findings</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assetTypeSummaries.map((summary) => (
-                <tr key={summary.id} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{summary.label}</td>
-                  <td className="px-3 py-2 text-slate-200">{summary.totalFindings}</td>
-                  <td className="px-3 py-2 text-red-100">{summary.highRisk}</td>
-                  <td className="px-3 py-2 text-orange-100">{summary.criticalExposure}</td>
-                  <td className="px-3 py-2 text-amber-100">{summary.p1P2Findings}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <FindingsSpiTiles
-        spiCatalog={spiCatalog}
-        selectedSpi={selectedSpi}
-        selectedStatus={selectedStatus}
-        findingsBySpi={findingsBySpiRecord}
-      />
-
-      <FindingsTable
-        findings={paginatedFindings}
-        findingsForDrillthrough={findings}
-        searchParams={searchParams}
-        selectedAsOf={selectedAsOf}
-        selectedSpi={selectedSpi}
-        selectedStatus={selectedStatus}
-        selectedSearchTerm={selectedSearchTerm}
-        spiOptions={spiOptions}
-        pagination={
-          shouldPaginateFindings
-            ? {
-                currentPage: findingsCurrentPage,
-                totalPages: findingsTotalPages,
-                pageSize: openTabPageSize,
-                totalItems: totalFindings
-              }
-            : undefined
-        }
-      />
+      </div>
     </div>
   );
 }
