@@ -1,4 +1,5 @@
 import { Asset, AssetType, Finding, FindingSeverity, SpiId } from "@/lib/types";
+import { SPI_IDS } from "@/lib/spi-metadata";
 
 export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
   "Critical Exposure",
@@ -9,7 +10,7 @@ export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
 ];
 
 export const MEASURES_ASSET_TYPES: AssetType[] = ["server", "workstation", "network-device"];
-export const MEASURES_SPI_IDS: SpiId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+export const MEASURES_SPI_IDS: SpiId[] = [...SPI_IDS];
 
 export interface MeasuresSettings {
   updatedAt: string;

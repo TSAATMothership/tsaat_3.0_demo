@@ -1,6 +1,7 @@
 -- TSAAT relational schema generated from:
 -- data/current.json
 -- data/snapshots/week-*.json
+-- data/spi-definitions.json
 -- data/discovery-tools-settings.json
 -- data/measures-settings.json
 --
@@ -33,6 +34,22 @@ CREATE TABLE dataset_snapshot (
   snapshot_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   snapshot_date DATE NOT NULL UNIQUE,
   generated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE spi_definition (
+  spi_id SMALLINT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  success_measure TEXT NOT NULL,
+  priority_order INTEGER NOT NULL,
+  recommended_action TEXT NOT NULL
+);
+
+CREATE TABLE spi_applicable_asset_type (
+  spi_id SMALLINT NOT NULL,
+  asset_type asset_type_enum NOT NULL,
+  PRIMARY KEY (spi_id, asset_type),
+  FOREIGN KEY (spi_id) REFERENCES spi_definition (spi_id) ON DELETE CASCADE
 );
 
 CREATE TABLE managed_network (
@@ -217,7 +234,7 @@ CREATE TABLE asset_vulnerability (
 CREATE TABLE finding (
   snapshot_id BIGINT NOT NULL,
   finding_id TEXT NOT NULL,
-  spi_id SMALLINT NOT NULL CHECK (spi_id BETWEEN 1 AND 10),
+  spi_id SMALLINT NOT NULL,
   priority_rank INTEGER NOT NULL,
   severity finding_severity_enum NOT NULL,
   compliance_status compliance_status_enum NOT NULL,
@@ -250,7 +267,8 @@ CREATE TABLE finding (
   FOREIGN KEY (snapshot_id, system_id, asset_id)
     REFERENCES asset (snapshot_id, system_id, asset_id) ON DELETE CASCADE,
   FOREIGN KEY (snapshot_id, system_id, environment_type)
-    REFERENCES system_environment (snapshot_id, system_id, environment_type) ON DELETE CASCADE
+    REFERENCES system_environment (snapshot_id, system_id, environment_type) ON DELETE CASCADE,
+  FOREIGN KEY (spi_id) REFERENCES spi_definition (spi_id)
 );
 
 CREATE TABLE discovery_tools_settings_version (
@@ -287,12 +305,13 @@ CREATE TABLE measures_settings_version (
 
 CREATE TABLE measures_severity_matrix (
   settings_version_id BIGINT NOT NULL,
-  spi_id SMALLINT NOT NULL CHECK (spi_id BETWEEN 1 AND 10),
+  spi_id SMALLINT NOT NULL,
   asset_type asset_type_enum NOT NULL,
   severity finding_severity_enum NOT NULL,
   PRIMARY KEY (settings_version_id, spi_id, asset_type),
   FOREIGN KEY (settings_version_id)
-    REFERENCES measures_settings_version (settings_version_id) ON DELETE CASCADE
+    REFERENCES measures_settings_version (settings_version_id) ON DELETE CASCADE,
+  FOREIGN KEY (spi_id) REFERENCES spi_definition (spi_id)
 );
 
 CREATE INDEX idx_ict_system_network ON ict_system (snapshot_id, network_id);

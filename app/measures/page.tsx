@@ -6,7 +6,7 @@ import {
   KpiComplianceChart,
   SecurityPerformanceIndicatorComplianceChart
 } from "@/components/security-performance-indicator-compliance-chart";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { SPI_DESCRIPTIONS, SPI_IDS } from "@/lib/spi-metadata";
 import { buildKpiRows } from "@/lib/measures";
 import { getCoreAppData } from "@/lib/app-data";
 import { FindingSeverity } from "@/lib/types";
@@ -42,8 +42,7 @@ export default async function MeasuresPage({
       options: severityOptions.map((severity) => ({ id: severity, label: severity }))
     }
   ];
-  const spiCompliancePoints = Array.from({ length: 10 }, (_, index) => {
-    const spiId = index + 1;
+  const spiCompliancePoints = SPI_IDS.map((spiId) => {
     const statuses = analytics.evaluations.flatMap((assetEvaluation) =>
       assetEvaluation.evaluations
         .filter((evaluation) => evaluation.spiId === spiId)
@@ -57,7 +56,7 @@ export default async function MeasuresPage({
 
     return {
       label: `SPI ${spiId}`,
-      description: SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS],
+      description: SPI_DESCRIPTIONS[spiId],
       possibleCompliancePercent: possibleCompliance > 0 ? 100 : 0,
       actualCompliancePercent,
       possibleCompliance,

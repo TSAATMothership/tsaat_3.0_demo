@@ -5,6 +5,20 @@ erDiagram
     timestamptz generated_at
   }
 
+  SPI_DEFINITION {
+    smallint spi_id PK
+    text name
+    text description
+    text success_measure
+    int priority_order
+    text recommended_action
+  }
+
+  SPI_APPLICABLE_ASSET_TYPE {
+    smallint spi_id PK,FK
+    asset_type_enum asset_type PK
+  }
+
   MANAGED_NETWORK {
     bigint snapshot_id PK,FK
     text network_id PK
@@ -132,7 +146,7 @@ erDiagram
   FINDING {
     bigint snapshot_id PK,FK
     text finding_id PK
-    smallint spi_id
+    smallint spi_id FK
     int priority_rank
     finding_severity_enum severity
     compliance_status_enum compliance_status
@@ -174,7 +188,7 @@ erDiagram
 
   MEASURES_SEVERITY_MATRIX {
     bigint settings_version_id PK,FK
-    smallint spi_id PK
+    smallint spi_id PK,FK
     asset_type_enum asset_type PK
     finding_severity_enum severity
   }
@@ -183,6 +197,10 @@ erDiagram
   DATASET_SNAPSHOT ||--o{ ICT_SYSTEM : contains
   DATASET_SNAPSHOT ||--o{ ASSET : contains
   DATASET_SNAPSHOT ||--o{ FINDING : contains
+
+  SPI_DEFINITION ||--o{ SPI_APPLICABLE_ASSET_TYPE : applies_to
+  SPI_DEFINITION ||--o{ FINDING : classifies
+  SPI_DEFINITION ||--o{ MEASURES_SEVERITY_MATRIX : referenced_by
 
   MANAGED_NETWORK ||--o{ ICT_SYSTEM : owns
   MANAGED_NETWORK ||--o{ ASSET : contains

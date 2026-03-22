@@ -1,20 +1,7 @@
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { SPI_DESCRIPTIONS, SPI_IDS, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
 import { AnalyticsResult, ComplianceStatus, ICTSystem, ManagedNetwork, SpiId } from "@/lib/types";
 
-export const SPI_IDS: SpiId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-export const SPI_SUCCESS_MEASURES: Record<SpiId, string> = {
-  1: "100% of applicable servers/workstations run vendor-supported OS versions.",
-  2: "100% of applicable servers/workstations are N-2 or better.",
-  3: "0 servers with critical vulnerabilities.",
-  4: "0 production servers with critical vulnerabilities on unsupported OS.",
-  5: "0 production servers with critical vulnerabilities plus unsupported installed software.",
-  6: "0 production-supporting workstations with critical vulnerabilities plus unsupported installed software.",
-  7: "0 network devices with critical vulnerabilities.",
-  8: "100% of network-device OS/firmware versions are supported.",
-  9: "100% of network devices on latest patch level.",
-  10: "0 physical devices in EOL or out-of-warranty state."
-};
+export { SPI_IDS } from "@/lib/spi-metadata";
 
 export interface KpiRow {
   id: string;

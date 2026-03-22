@@ -15,7 +15,8 @@ import {
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
+import { SPI_IDS } from "@/lib/spi-metadata";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
@@ -35,8 +36,6 @@ type KpiFilterKey =
 type DiscoveryToolFilterKey = "ucmdb" | "tanium" | "tenable" | "servicenow";
 
 type NetworkDetailTab = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
-
-const SPI_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 const KPI_FILTER_LABELS: Record<KpiFilterKey, string> = {
   nonCompliantAssets: "Total Non-compliant Assets",
@@ -225,25 +224,8 @@ function fallbackPriorityRank(status: ComplianceStatus, spiId: number): number {
   if (status === "Unknown") {
     return 90;
   }
-  if (spiId === 4 || spiId === 5 || spiId === 6) {
-    return 1;
-  }
-  if (spiId === 3 || spiId === 7) {
-    return 2;
-  }
-  if (spiId === 1 || spiId === 8) {
-    return 3;
-  }
-  if (spiId === 2) {
-    return 4;
-  }
-  if (spiId === 9) {
-    return 6;
-  }
-  if (spiId === 10) {
-    return 7;
-  }
-  return 99;
+  const mapped = PRIORITY_ORDER[spiId as keyof typeof PRIORITY_ORDER];
+  return mapped ?? 99;
 }
 
 function toFindingDateKey(timestamp?: string | null): string | null {
