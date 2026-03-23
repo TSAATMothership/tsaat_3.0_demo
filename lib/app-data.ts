@@ -1,4 +1,4 @@
-import { buildAnalytics } from "@/lib/analytics";
+import { getCachedAnalytics } from "@/lib/analytics-cache";
 import {
   loadDiscoveryToolsSettings,
   loadDatasetForDate,
@@ -18,7 +18,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
   ]);
   const filters = parseFilters(searchParams);
 
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = getCachedAnalytics(dataset, filters, measuresSettings, discoveryToolsSettings);
   const networks = filterNetworks(dataset.managedNetworks, filters);
   const systems = filterSystems(dataset.ictSystems, filters);
   const filterOptions = buildFilterOptions(dataset.managedNetworks, dataset.ictSystems);

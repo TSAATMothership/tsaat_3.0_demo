@@ -537,6 +537,14 @@ export default async function SystemsPage({
     map.set(system.id, score);
     return map;
   }, new Map<string, number>());
+  const discoveryComplianceScoreBySystem = systems.reduce((map, system) => {
+    const relevantEvaluations = analytics.evaluations.filter((evaluation) => evaluation.systemId === system.id);
+    const total = relevantEvaluations.length;
+    const compliant = relevantEvaluations.filter((evaluation) => evaluation.discoveryCoverageCompliant).length;
+    const score = total ? Number(((compliant / total) * 100).toFixed(1)) : 0;
+    map.set(system.id, score);
+    return map;
+  }, new Map<string, number>());
 
   const compliantSystemsCount = systems.filter((system) => {
     const rollups = analytics.systemRollups.filter(
@@ -862,6 +870,7 @@ export default async function SystemsPage({
                 environmentRollups={analytics.environmentRollups}
                 findingsBySystem={findingsBySystem}
                 complianceScoreBySystem={complianceScoreBySystem}
+                discoveryComplianceScoreBySystem={discoveryComplianceScoreBySystem}
                 scrollable
               />
             </div>

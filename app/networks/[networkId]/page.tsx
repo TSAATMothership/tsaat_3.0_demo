@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailTabs } from "@/components/network-detail-tabs";
@@ -1164,9 +1165,13 @@ export default async function NetworkDetailPage({
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href={withDataDate("/networks?networksTab=posture", requestedDataDate)} className="text-xs text-sky-200 underline">
+            <DrillthroughBackLink
+              href={withDataDate("/networks?networksTab=posture", requestedDataDate)}
+              className="text-xs text-sky-200 underline"
+              loadingLabel="Returning to Networks..."
+            >
               Back to Networks
-            </Link>
+            </DrillthroughBackLink>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{network.name}</h1>
             <div className="mt-3 flex flex-wrap gap-3">
               <PostureBadge status={selectedPosture} />

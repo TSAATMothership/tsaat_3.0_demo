@@ -17,6 +17,7 @@ export interface SystemTableRow {
   overallPosture: ComplianceStatus;
   productionPosture: ComplianceStatus;
   complianceScore: number;
+  discoveryComplianceScore: number;
   openFindings: number;
   description: string;
   owner: string;
@@ -124,6 +125,7 @@ export function SystemsTableClient({
                 <th className="w-[170px] px-2.5 py-1.5">Overall Posture</th>
                 <th className="w-[170px] px-2.5 py-1.5">Production Posture</th>
                 <th className="w-[150px] px-2.5 py-1.5">Compliance Score</th>
+                <th className="w-[190px] px-2.5 py-1.5">Discovery Compliance Score</th>
                 <th className="px-2.5 py-1.5">Open Findings</th>
                 <th className="px-2.5 py-1.5">Action</th>
               </tr>
@@ -149,6 +151,7 @@ export function SystemsTableClient({
                     <PostureBadge status={row.productionPosture} />
                   </td>
                   <td className="w-[150px] px-2.5 py-2 text-slate-100">{row.complianceScore.toFixed(1)}%</td>
+                  <td className="w-[190px] px-2.5 py-2 text-slate-100">{row.discoveryComplianceScore.toFixed(1)}%</td>
                   <td className="px-2.5 py-2 text-slate-200">{row.openFindings}</td>
                   <td className="px-2.5 py-2">
                     <Link

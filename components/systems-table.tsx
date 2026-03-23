@@ -89,6 +89,7 @@ export function SystemsTable({
   environmentRollups,
   findingsBySystem,
   complianceScoreBySystem,
+  discoveryComplianceScoreBySystem,
   scrollable = false
 }: {
   systems: ICTSystem[];
@@ -96,6 +97,7 @@ export function SystemsTable({
   environmentRollups: RollupResult[];
   findingsBySystem: Map<string, number>;
   complianceScoreBySystem: Map<string, number>;
+  discoveryComplianceScoreBySystem: Map<string, number>;
   scrollable?: boolean;
 }) {
   const rows: SystemTableRow[] = systems.map((system) => {
@@ -118,6 +120,7 @@ export function SystemsTable({
       overallPosture: deriveOverallStatus(rollups),
       productionPosture: deriveOverallStatus(productionRollups),
       complianceScore: complianceScoreBySystem.get(system.id) ?? 0,
+      discoveryComplianceScore: discoveryComplianceScoreBySystem.get(system.id) ?? 0,
       openFindings: findingsBySystem.get(system.id) ?? 0,
       description: fallbackDescription(system),
       owner: fallbackOwner(system),

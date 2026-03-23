@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
@@ -1403,9 +1404,13 @@ export default async function SystemDetailPage({
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <Link href={withDataDate("/systems?systemsTab=posture", requestedDataDate)} className="text-xs text-sky-200 underline">
+            <DrillthroughBackLink
+              href={withDataDate("/systems?systemsTab=posture", requestedDataDate)}
+              className="text-xs text-sky-200 underline"
+              loadingLabel="Returning to ICT Systems..."
+            >
               Back to ICT Systems
-            </Link>
+            </DrillthroughBackLink>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{system.name}</h1>
             <div className="mt-3 flex flex-wrap gap-2">
               <PostureBadge status={selectedPosture} />
