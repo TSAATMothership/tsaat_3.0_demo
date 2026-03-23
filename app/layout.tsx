@@ -49,7 +49,9 @@ export default function RootLayout({
                 </div>
               </div>
               <div className="min-w-0 flex-1">
-                <MenuNavigation items={navigation} />
+                <Suspense fallback={<div className="h-[38px]" />}>
+                  <MenuNavigation items={navigation} />
+                </Suspense>
               </div>
             </div>
           </div>

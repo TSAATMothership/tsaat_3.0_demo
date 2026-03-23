@@ -123,8 +123,6 @@ export default async function DiscoveryCoveragePage({
     discoveryDataSearchParams
   );
   const toolColumns = discoveryToolsSettings.tools.map((tool) => ({ key: tool.id, label: tool.name }));
-  const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
-  const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const rows: CoverageRow[] = dataset.assets
@@ -189,20 +187,6 @@ export default async function DiscoveryCoveragePage({
     return { id: key, label, covered, missing, applicable, coveragePercent };
   });
 
-  const coverageByToolAssetRows = rows.map((row) => ({
-    assetId: row.assetId,
-    hostname: row.hostname,
-    ipAddress: row.ipAddress,
-    assetType: row.assetType,
-    network: networkNameById.get(row.networkId) ?? row.networkId,
-    ictSystem: row.systemId ? (systemNameById.get(row.systemId) ?? row.systemId) : "-",
-    environment: row.environment,
-    coverage: {
-      toolValues: row.coverage.toolValues,
-      coverageCompliance: row.coverage.coverageCompliance
-    }
-  }));
-
   const assetTotalsByNetwork = rows.reduce(
     (map, asset) => {
       const current = map.get(asset.networkId) ?? { server: 0, workstation: 0, networkDevice: 0 };
@@ -253,7 +237,10 @@ export default async function DiscoveryCoveragePage({
       id: network.id,
       name: network.name,
       ...networkDetailFieldsById.get(network.id)!,
-      discoveryEnabled: network.discoveryStatus === "Discovery Enabled" ? "Enabled" : "Not Enabled",
+      discoveryEnabled:
+        network.discoveryStatus === "Discovery Enabled"
+          ? ("Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"])
+          : ("Not Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"]),
       serverCoverage: coveragePercent(network.totals.server.actual, network.totals.server.target),
       workstationCoverage: coveragePercent(network.totals.workstation.actual, network.totals.workstation.target),
       networkDeviceCoverage: coveragePercent(network.totals.networkDevice.actual, network.totals.networkDevice.target)
@@ -344,7 +331,6 @@ export default async function DiscoveryCoveragePage({
 
               <DiscoveryCoverageByToolSection
                 toolStats={toolStats}
-                assetRows={coverageByToolAssetRows}
                 slideoutScopeId="discovery-coverage-summary-slideout-scope"
                 className="min-h-0 h-[calc(100%-10px)]"
               />
@@ -385,4 +371,3 @@ export default async function DiscoveryCoveragePage({
     </div>
   );
 }
-

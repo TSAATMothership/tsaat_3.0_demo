@@ -1,6 +1,5 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { cache } from "react";
 import { normalizeDataDate, todayDateKey } from "@/lib/data-date";
 import {
   defaultDiscoveryToolsSettings,
@@ -11,100 +10,234 @@ import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } 
 import { Dataset, ReferenceVersions } from "@/lib/types";
 
 const dataDir = path.join(process.cwd(), "data");
+const currentDatasetPath = path.join(dataDir, "current.json");
+const snapshotsDir = path.join(dataDir, "snapshots");
+const referenceVersionsPath = path.join(dataDir, "reference", "versions.json");
 const measuresSettingsPath = path.join(dataDir, "measures-settings.json");
 const discoveryToolsSettingsPath = path.join(dataDir, "discovery-tools-settings.json");
 
+type JsonCacheEntry = {
+  mtimeMs: number;
+  size: number;
+  value: unknown;
+};
+
+type SnapshotIndexEntry = {
+  snapshotDate: string;
+  filepath: string;
+  source: "snapshot" | "current";
+};
+
+const jsonCache = new Map<string, JsonCacheEntry>();
+
+let snapshotIndexSignature = "";
+let snapshotIndexEntries: SnapshotIndexEntry[] | null = null;
+let snapshotIndexPromise: Promise<SnapshotIndexEntry[]> | null = null;
+
+type SnapshotFileInfo = {
+  filename: string;
+  filepath: string;
+  mtimeMs: number;
+  size: number;
+};
+
 async function readJsonFile<T>(filepath: string): Promise<T> {
+  const stat = await fs.stat(filepath);
+  const cached = jsonCache.get(filepath);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.value as T;
+  }
+
   const content = await fs.readFile(filepath, "utf-8");
-  return JSON.parse(content) as T;
+  const parsed = JSON.parse(content) as T;
+  jsonCache.set(filepath, {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    value: parsed
+  });
+  return parsed;
 }
 
-export const loadCurrentDataset = cache(async (): Promise<Dataset> => {
-  return readJsonFile<Dataset>(path.join(dataDir, "current.json"));
-});
+async function primeJsonCache(filepath: string, value: unknown): Promise<void> {
+  const stat = await fs.stat(filepath);
+  jsonCache.set(filepath, {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    value
+  });
+}
 
-export const loadReferenceVersions = cache(async (): Promise<ReferenceVersions> => {
-  return readJsonFile<ReferenceVersions>(path.join(dataDir, "reference", "versions.json"));
-});
-
-export const loadSnapshots = cache(async (): Promise<Dataset[]> => {
-  const snapshotsDir = path.join(dataDir, "snapshots");
+async function listSnapshotFiles(): Promise<SnapshotFileInfo[]> {
   const files = await fs.readdir(snapshotsDir);
-
-  const snapshotFiles = files
-    .filter((file) => file.endsWith(".json"))
+  const snapshotFilenames = files
+    .filter((filename) => filename.endsWith(".json"))
     .sort((a, b) => a.localeCompare(b));
 
-  const snapshots = await Promise.all(
-    snapshotFiles.map((filename) => readJsonFile<Dataset>(path.join(snapshotsDir, filename)))
+  const withStats = await Promise.all(
+    snapshotFilenames.map(async (filename) => {
+      const filepath = path.join(snapshotsDir, filename);
+      const stat = await fs.stat(filepath);
+      return {
+        filename,
+        filepath,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size
+      };
+    })
   );
 
-  return snapshots;
-});
+  return withStats;
+}
 
-export const loadLatestSnapshots = cache(async (limit = 12): Promise<Dataset[]> => {
-  const snapshotsDir = path.join(dataDir, "snapshots");
-  const files = await fs.readdir(snapshotsDir);
+async function buildSnapshotIndexSignature(): Promise<{
+  signature: string;
+  snapshotFiles: SnapshotFileInfo[];
+}> {
+  const [snapshotFiles, currentStat] = await Promise.all([listSnapshotFiles(), fs.stat(currentDatasetPath)]);
+  const snapshotsSignature = snapshotFiles
+    .map((file) => `${file.filename}:${file.mtimeMs}:${file.size}`)
+    .join("|");
 
-  const snapshotFiles = files
-    .filter((file) => file.endsWith(".json"))
-    .sort((a, b) => a.localeCompare(b))
-    .slice(-Math.max(0, limit));
+  return {
+    signature: `current:${currentStat.mtimeMs}:${currentStat.size}|snapshots:${snapshotsSignature}`,
+    snapshotFiles
+  };
+}
 
-  const snapshots = await Promise.all(
-    snapshotFiles.map((filename) => readJsonFile<Dataset>(path.join(snapshotsDir, filename)))
-  );
-
-  return snapshots;
-});
-
-export const loadDatasetTimeline = cache(async (): Promise<Dataset[]> => {
-  const [currentDataset, snapshots] = await Promise.all([loadCurrentDataset(), loadSnapshots()]);
-
-  const snapshotByDate = new Map<string, Dataset>();
-  for (const snapshot of snapshots) {
-    snapshotByDate.set(snapshot.snapshotDate, snapshot);
+async function readSnapshotDate(filepath: string): Promise<string> {
+  const handle = await fs.open(filepath, "r");
+  try {
+    const buffer = new Uint8Array(64 * 1024);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    const header = new TextDecoder("utf-8").decode(buffer.subarray(0, bytesRead));
+    const matched = header.match(/"snapshotDate"\s*:\s*"(\d{4}-\d{2}-\d{2})"/);
+    if (matched?.[1]) {
+      return matched[1];
+    }
+  } finally {
+    await handle.close();
   }
-  snapshotByDate.set(currentDataset.snapshotDate, currentDataset);
 
-  return Array.from(snapshotByDate.values()).sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
-});
+  const parsed = await readJsonFile<Dataset>(filepath);
+  if (!parsed.snapshotDate) {
+    throw new Error(`Dataset at ${filepath} is missing snapshotDate.`);
+  }
+  return parsed.snapshotDate;
+}
+
+async function buildSnapshotIndexEntries(snapshotFiles: SnapshotFileInfo[]): Promise<SnapshotIndexEntry[]> {
+  const [snapshotEntries, currentSnapshotDate] = await Promise.all([
+    Promise.all(
+      snapshotFiles.map(async (file) => ({
+        snapshotDate: await readSnapshotDate(file.filepath),
+        filepath: file.filepath,
+        source: "snapshot" as const
+      }))
+    ),
+    readSnapshotDate(currentDatasetPath)
+  ]);
+
+  const byDate = new Map<string, SnapshotIndexEntry>();
+  for (const entry of snapshotEntries) {
+    byDate.set(entry.snapshotDate, entry);
+  }
+  byDate.set(currentSnapshotDate, {
+    snapshotDate: currentSnapshotDate,
+    filepath: currentDatasetPath,
+    source: "current"
+  });
+
+  return Array.from(byDate.values()).sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
+}
+
+async function getSnapshotIndex(): Promise<SnapshotIndexEntry[]> {
+  const { signature, snapshotFiles } = await buildSnapshotIndexSignature();
+  if (snapshotIndexEntries && snapshotIndexSignature === signature) {
+    return snapshotIndexEntries;
+  }
+  if (snapshotIndexPromise && snapshotIndexSignature === signature) {
+    return snapshotIndexPromise;
+  }
+
+  snapshotIndexSignature = signature;
+  const buildingSignature = signature;
+  snapshotIndexPromise = buildSnapshotIndexEntries(snapshotFiles)
+    .then((entries) => {
+      if (snapshotIndexSignature === buildingSignature) {
+        snapshotIndexEntries = entries;
+        snapshotIndexPromise = null;
+      }
+      return entries;
+    })
+    .catch((error) => {
+      if (snapshotIndexSignature === buildingSignature) {
+        snapshotIndexPromise = null;
+      }
+      throw error;
+    });
+
+  return snapshotIndexPromise;
+}
 
 function targetDateKey(requestedDate: string | undefined): string {
   return normalizeDataDate(requestedDate) ?? todayDateKey();
 }
 
-function selectDatasetByDate(timeline: Dataset[], requestedDate: string | undefined): Dataset {
-  if (!timeline.length) {
+function selectDatasetIndexEntry(entries: SnapshotIndexEntry[], requestedDate: string | undefined): SnapshotIndexEntry {
+  if (!entries.length) {
     throw new Error("No datasets are available in the local timeline.");
   }
 
   const target = targetDateKey(requestedDate);
-  const match = timeline.filter((snapshot) => snapshot.snapshotDate <= target).pop();
-  return match ?? timeline[0];
+  const matching = entries.filter((entry) => entry.snapshotDate <= target);
+  return matching[matching.length - 1] ?? entries[0];
+}
+
+export async function loadCurrentDataset(): Promise<Dataset> {
+  return readJsonFile<Dataset>(currentDatasetPath);
+}
+
+export async function loadReferenceVersions(): Promise<ReferenceVersions> {
+  return readJsonFile<ReferenceVersions>(referenceVersionsPath);
+}
+
+export async function loadSnapshots(): Promise<Dataset[]> {
+  const snapshotFiles = await listSnapshotFiles();
+  return Promise.all(snapshotFiles.map((file) => readJsonFile<Dataset>(file.filepath)));
+}
+
+export async function loadLatestSnapshots(limit = 12): Promise<Dataset[]> {
+  const snapshotFiles = await listSnapshotFiles();
+  const latestFiles = snapshotFiles.slice(-Math.max(0, limit));
+  return Promise.all(latestFiles.map((file) => readJsonFile<Dataset>(file.filepath)));
+}
+
+export async function loadDatasetTimeline(): Promise<Dataset[]> {
+  const entries = await getSnapshotIndex();
+  return Promise.all(entries.map((entry) => readJsonFile<Dataset>(entry.filepath)));
 }
 
 export async function loadDatasetForDate(requestedDate?: string): Promise<Dataset> {
-  const timeline = await loadDatasetTimeline();
-  return selectDatasetByDate(timeline, requestedDate);
+  const entries = await getSnapshotIndex();
+  const selected = selectDatasetIndexEntry(entries, requestedDate);
+  return readJsonFile<Dataset>(selected.filepath);
 }
 
-export const loadLatestSnapshotsForDate = cache(
-  async (requestedDate: string | undefined, limit = 12): Promise<Dataset[]> => {
-    const timeline = await loadDatasetTimeline();
-    const target = targetDateKey(requestedDate);
+export async function loadLatestSnapshotsForDate(requestedDate: string | undefined, limit = 12): Promise<Dataset[]> {
+  const entries = await getSnapshotIndex();
+  const target = targetDateKey(requestedDate);
+  const selectedEntries = entries
+    .filter((entry) => entry.snapshotDate <= target)
+    .slice(-Math.max(0, limit));
 
-    return timeline
-      .filter((snapshot) => snapshot.snapshotDate <= target)
-      .slice(-Math.max(0, limit));
-  }
-);
+  return Promise.all(selectedEntries.map((entry) => readJsonFile<Dataset>(entry.filepath)));
+}
 
 export async function loadMeasuresSettings(): Promise<MeasuresSettings> {
   try {
     const parsed = await readJsonFile<unknown>(measuresSettingsPath);
     return normalizeMeasuresSettings(parsed);
-  } catch (error) {
+  } catch {
     return defaultMeasuresSettings();
   }
 }
@@ -117,6 +250,7 @@ export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSett
   };
 
   await fs.writeFile(measuresSettingsPath, JSON.stringify(persisted, null, 2), "utf-8");
+  await primeJsonCache(measuresSettingsPath, persisted);
   return persisted;
 }
 
@@ -124,7 +258,7 @@ export async function loadDiscoveryToolsSettings(): Promise<DiscoveryToolsSettin
   try {
     const parsed = await readJsonFile<unknown>(discoveryToolsSettingsPath);
     return normalizeDiscoveryToolsSettings(parsed);
-  } catch (error) {
+  } catch {
     return defaultDiscoveryToolsSettings();
   }
 }
@@ -137,5 +271,6 @@ export async function saveDiscoveryToolsSettings(input: unknown): Promise<Discov
   };
 
   await fs.writeFile(discoveryToolsSettingsPath, JSON.stringify(persisted, null, 2), "utf-8");
+  await primeJsonCache(discoveryToolsSettingsPath, persisted);
   return persisted;
 }

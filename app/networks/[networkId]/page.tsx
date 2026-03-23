@@ -472,10 +472,12 @@ export default async function NetworkDetailPage({
   const requestedDetailTab = firstParam(requestParams.networkDetailTab)?.trim().toLowerCase();
   const activeDetailTab: NetworkDetailTab =
     requestedDetailTab === "discovery-compliance"
-        ? "discovery-compliance"
-        : requestedDetailTab === "compliance-overview"
-          ? "compliance-overview"
-        : "network-details";
+      ? "discovery-compliance"
+      : requestedDetailTab === "compliance-overview"
+        ? "compliance-overview"
+        : requestedDetailTab === "cyber-posture"
+          ? "cyber-posture"
+          : "network-details";
   const requestedP12Spi = Number(firstParam(requestParams.p12Spi));
   const selectedP12Spi =
     Number.isInteger(requestedP12Spi) && requestedP12Spi >= 1 && requestedP12Spi <= 10 ? requestedP12Spi : undefined;

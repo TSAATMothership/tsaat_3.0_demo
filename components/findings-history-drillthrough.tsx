@@ -189,17 +189,6 @@ export function FindingsHistoryDrillthrough({
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const legendPayload = useMemo(
-    () =>
-      spiCatalog.map((spiId, index) => ({
-        value: `SPI ${spiId}`,
-        type: "line" as const,
-        id: `spi${spiId}`,
-        color: spiLineColors[index % spiLineColors.length]
-      })),
-    [spiCatalog]
-  );
-
   return (
     <>
       <FindingsHistoryLineChart
@@ -279,7 +268,7 @@ export function FindingsHistoryDrillthrough({
                         formatter={(value, name) => [value ?? 0, String(name).replace(/^spi/, "SPI ")]}
                         labelFormatter={(label: unknown) => `Date: ${formatDisplayDate(String(label ?? ""))}`}
                       />
-                      <Legend payload={legendPayload} />
+                      <Legend />
                       {spiCatalog.map((spiId, index) => (
                         <Line
                           key={spiId}

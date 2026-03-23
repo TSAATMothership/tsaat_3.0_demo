@@ -236,7 +236,7 @@ function buildSystemImpact(
   >();
 
   for (const finding of findings) {
-    if (!finding.scope.systemId || finding.severity !== "Critical Exposure") {
+    if (!finding.scope.systemId) {
       continue;
     }
     const system = systemsById.get(finding.scope.systemId);

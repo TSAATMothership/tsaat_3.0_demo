@@ -9,6 +9,11 @@ import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { Finding } from "@/lib/types";
 
+interface SpiHistoryPoint {
+  date: string;
+  [key: `spi${number}`]: number | string;
+}
+
 function firstParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) {
     return value[0];
@@ -233,10 +238,10 @@ export default async function FindingsPage({
   const spiRunningById = new Map(
     spiCatalog.map((spiId) => [spiId, spiHistoryState.get(spiId)?.openingBalance ?? 0])
   );
-  const spiHistoryPoints: Array<Record<string, string | number>> = [];
+  const spiHistoryPoints: SpiHistoryPoint[] = [];
   let spiCursor = historyStart;
   while (spiCursor <= today) {
-    const row: Record<string, string | number> = { date: spiCursor };
+    const row: SpiHistoryPoint = { date: spiCursor };
     for (const spiId of spiCatalog) {
       const state = spiHistoryState.get(spiId);
       if (!state) {
@@ -523,7 +528,6 @@ export default async function FindingsPage({
             <div className="min-h-0">
               <FindingsTable
                 findings={paginatedFindings}
-                findingsForDrillthrough={findings}
                 searchParams={searchParams}
                 selectedAsOf={selectedAsOf}
                 selectedSpi={selectedSpi}

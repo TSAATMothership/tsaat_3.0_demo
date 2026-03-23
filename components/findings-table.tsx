@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Finding } from "@/lib/types";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
@@ -13,53 +13,6 @@ function formatFindingTimestamp(timestamp: string): string {
 
   const [, year, month, day, hour, minute] = match;
   return `${day}:${month}:${year} ${hour}:${minute}`;
-}
-
-function readEvidenceStringValue(
-  evidence: Record<string, string | number | boolean | null>,
-  candidateKeys: string[]
-): string | null {
-  if (!candidateKeys.length) {
-    return null;
-  }
-
-  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
-  for (const candidateKey of candidateKeys) {
-    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
-    if (!matched) {
-      continue;
-    }
-    const value = matched[1];
-    if (value === null) {
-      continue;
-    }
-    const text = String(value).trim();
-    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
-      continue;
-    }
-    return text;
-  }
-  return null;
-}
-
-function formatAssetTypeLabel(value?: string | null): string {
-  if (!value) {
-    return "Unknown";
-  }
-  if (value === "network-device") {
-    return "Network Device";
-  }
-  if (value === "workstation") {
-    return "Workstation";
-  }
-  if (value === "server") {
-    return "Server";
-  }
-  return value
-    .replace(/[-_]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function escapeCsvValue(value: string | number): string {
@@ -83,9 +36,25 @@ interface AssetDetailsRow {
   owner: string;
 }
 
+interface AssetDetailsResponse {
+  rows: AssetDetailsRow[];
+}
+
+function responseErrorMessage(status: number): string {
+  if (status >= 500) {
+    return "Server error while loading linked asset details.";
+  }
+  if (status === 404) {
+    return "Asset details endpoint not found.";
+  }
+  if (status === 400) {
+    return "Invalid asset details request.";
+  }
+  return "Unable to load linked asset details.";
+}
+
 export function FindingsTable({
   findings,
-  findingsForDrillthrough,
   searchParams,
   selectedAsOf,
   selectedSpi,
@@ -95,7 +64,6 @@ export function FindingsTable({
   pagination
 }: {
   findings: Finding[];
-  findingsForDrillthrough: Finding[];
   searchParams: Record<string, string | string[] | undefined>;
   selectedAsOf: string;
   selectedSpi?: number;
@@ -112,19 +80,27 @@ export function FindingsTable({
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
   const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
   const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
+  const [isAssetDetailsLoading, setIsAssetDetailsLoading] = useState(false);
+  const [assetDetailsError, setAssetDetailsError] = useState<string | null>(null);
+  const [assetDetailsRows, setAssetDetailsRows] = useState<AssetDetailsRow[]>([]);
+  const requestSeqRef = useRef(0);
 
-  const preservedParams = Object.entries(searchParams).flatMap(([key, value]) => {
-    if (key === "spi" || key === "search" || key === "status" || key === "page") {
-      return [];
-    }
-    if (!value) {
-      return [];
-    }
-    if (Array.isArray(value)) {
-      return value.length ? [{ key, value: value[0] }] : [];
-    }
-    return [{ key, value }];
-  });
+  const preservedParams = useMemo(
+    () =>
+      Object.entries(searchParams).flatMap(([key, value]) => {
+        if (key === "spi" || key === "search" || key === "status" || key === "page") {
+          return [];
+        }
+        if (!value) {
+          return [];
+        }
+        if (Array.isArray(value)) {
+          return value.length ? [{ key, value: value[0] }] : [];
+        }
+        return [{ key, value }];
+      }),
+    [searchParams]
+  );
 
   const clearFiltersHref = (() => {
     const params = new URLSearchParams();
@@ -170,8 +146,34 @@ export function FindingsTable({
     return query ? `/findings?${query}` : "/findings";
   };
 
+  const buildAssetDetailsQuery = useCallback(
+    (finding: Finding) => {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(searchParams)) {
+        if (!value) {
+          continue;
+        }
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            params.append(key, item);
+          }
+          continue;
+        }
+        params.append(key, value);
+      }
+      params.set("drillthroughSpiId", String(finding.spiId));
+      params.set("drillthroughTitle", finding.title);
+      params.set("drillthroughFindingId", finding.id);
+      return params;
+    },
+    [searchParams]
+  );
+
   const openAssetDetailsPanel = (finding: Finding) => {
     setSelectedFindingForAssets(finding);
+    setAssetDetailsRows([]);
+    setAssetDetailsError(null);
+    setIsAssetDetailsLoading(true);
     setIsAssetDetailsPanelVisible(true);
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => setIsAssetDetailsPanelOpen(true));
@@ -185,96 +187,66 @@ export function FindingsTable({
     if (typeof window === "undefined") {
       setIsAssetDetailsPanelVisible(false);
       setSelectedFindingForAssets(null);
+      setAssetDetailsRows([]);
+      setAssetDetailsError(null);
+      setIsAssetDetailsLoading(false);
       return;
     }
     window.setTimeout(() => {
       setIsAssetDetailsPanelVisible(false);
       setSelectedFindingForAssets(null);
+      setAssetDetailsRows([]);
+      setAssetDetailsError(null);
+      setIsAssetDetailsLoading(false);
     }, 220);
   };
 
-  const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
-    if (!selectedFindingForAssets) {
-      return [];
+  useEffect(() => {
+    if (!selectedFindingForAssets || !isAssetDetailsPanelVisible) {
+      return;
     }
 
-    const relatedFindings = findingsForDrillthrough.filter(
-      (finding) => finding.spiId === selectedFindingForAssets.spiId && finding.title === selectedFindingForAssets.title
-    );
-    const scopedFindings = relatedFindings.length ? relatedFindings : [selectedFindingForAssets];
-    const byAsset = new Map<string, AssetDetailsRow>();
+    const requestSeq = ++requestSeqRef.current;
+    const abortController = new AbortController();
+    const params = buildAssetDetailsQuery(selectedFindingForAssets);
 
-    for (const finding of scopedFindings) {
-      const assetId = finding.scope.assetId;
-      const existing = byAsset.get(assetId);
-      if (!existing) {
-        const assetName =
-          readEvidenceStringValue(finding.evidence, ["assetName", "asset_name", "hostname", "assetHostname"]) ?? assetId;
-        const assetIpAddress =
-          readEvidenceStringValue(finding.evidence, [
-            "assetIpAddress",
-            "assetIp",
-            "ipAddress",
-            "ip",
-            "ipv4Address",
-            "ipv4",
-            "ip_address"
-          ]) ?? "Not available";
-        const assetType = formatAssetTypeLabel(
-          readEvidenceStringValue(finding.evidence, ["assetType", "asset_type", "type"])
-        );
-        const assetChangeAssignmentGroup =
-          readEvidenceStringValue(finding.evidence, [
-            "assetChangeAssignmentGroup",
-            "changeAssignmentGroup",
-            "changeGroup",
-            "change_assignment_group"
-          ]) ?? "Not assigned";
-        const assetIncidentAssignmentGroup =
-          readEvidenceStringValue(finding.evidence, [
-            "assetIncidentAssignmentGroup",
-            "incidentAssignmentGroup",
-            "incidentGroup",
-            "incident_assignment_group"
-          ]) ?? "Not assigned";
-        const owner =
-          readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ?? "Not assigned";
+    setIsAssetDetailsLoading(true);
+    setAssetDetailsError(null);
 
-        byAsset.set(assetId, {
-          assetId,
-          assetName,
-          assetIpAddress,
-          assetType,
-          criticalExposureFindings: 0,
-          highRiskFindings: 0,
-          totalFindings: 0,
-          assetChangeAssignmentGroup,
-          assetIncidentAssignmentGroup,
-          owner
-        });
-      }
+    fetch(`/api/findings/asset-details?${params.toString()}`, {
+      method: "GET",
+      cache: "no-store",
+      signal: abortController.signal
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(responseErrorMessage(response.status));
+        }
+        const payload = (await response.json()) as AssetDetailsResponse;
+        if (requestSeqRef.current !== requestSeq) {
+          return;
+        }
+        setAssetDetailsRows(payload.rows ?? []);
+      })
+      .catch((error: unknown) => {
+        if (abortController.signal.aborted || requestSeqRef.current !== requestSeq) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : "Unable to load linked asset details.";
+        setAssetDetailsError(message);
+        setAssetDetailsRows([]);
+      })
+      .finally(() => {
+        if (requestSeqRef.current !== requestSeq) {
+          return;
+        }
+        setIsAssetDetailsLoading(false);
+      });
 
-      const row = byAsset.get(assetId);
-      if (!row) {
-        continue;
-      }
-
-      row.totalFindings += 1;
-      if (finding.severity === "Critical Exposure") {
-        row.criticalExposureFindings += 1;
-      }
-      if (finding.severity === "High Risk") {
-        row.highRiskFindings += 1;
-      }
-    }
-
-    return Array.from(byAsset.values()).sort((a, b) => {
-      if (b.totalFindings !== a.totalFindings) {
-        return b.totalFindings - a.totalFindings;
-      }
-      return a.assetName.localeCompare(b.assetName);
-    });
-  }, [findingsForDrillthrough, selectedFindingForAssets]);
+    return () => {
+      abortController.abort();
+    };
+  }, [buildAssetDetailsQuery, isAssetDetailsPanelVisible, selectedFindingForAssets]);
 
   const downloadAssetDetailsCsv = () => {
     if (!selectedFindingForAssets || !assetDetailsRows.length || typeof window === "undefined") {
@@ -531,12 +503,14 @@ export function FindingsTable({
               <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.title}</p>
-                  <p className="mt-1 text-xs text-slate-300/80">Linked Assets: {assetDetailsRows.length}</p>
+                  <p className="mt-1 text-xs text-slate-300/80">
+                    Linked Assets: {isAssetDetailsLoading ? "Loading..." : assetDetailsRows.length}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={downloadAssetDetailsCsv}
-                  disabled={!assetDetailsRows.length}
+                  disabled={!assetDetailsRows.length || isAssetDetailsLoading}
                   className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
                 >
                   Export to CSV
@@ -572,7 +546,21 @@ export function FindingsTable({
                         <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                       </tr>
                     ))}
-                    {assetDetailsRows.length === 0 ? (
+                    {isAssetDetailsLoading ? (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-6 text-center text-sm text-slate-300/90">
+                          Loading linked assets for this finding...
+                        </td>
+                      </tr>
+                    ) : null}
+                    {!isAssetDetailsLoading && assetDetailsError ? (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-6 text-center text-sm text-red-100">
+                          {assetDetailsError}
+                        </td>
+                      </tr>
+                    ) : null}
+                    {!isAssetDetailsLoading && !assetDetailsError && assetDetailsRows.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="px-3 py-6 text-center text-sm text-emerald-200/90">
                           No linked assets found for this finding.
