@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useSearchParams } from "next/navigation";
+import { buildLocationKey, encodeLocationKeyForAttribute, normalizeQuery } from "@/lib/location-key";
 
 const DEFAULT_MESSAGE = "Applying filters...";
+const STALE_OVERLAY_TIMEOUT_MS = 30000;
+const ROUTE_READY_POLL_MS = 16;
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -19,23 +22,14 @@ function nextProgressValue(current: number): number {
   return current + 5;
 }
 
-function normalizeQuery(query: string): string {
-  const params = new URLSearchParams(query);
-  return Array.from(params.entries())
-    .sort(([aKey, aValue], [bKey, bValue]) => {
-      if (aKey === bKey) {
-        return aValue.localeCompare(bValue);
-      }
-      return aKey.localeCompare(bKey);
-    })
-    .map(([key, value]) => `${key}=${value}`)
-    .join("&");
+function shouldWaitForRouteReadyMarker(pathname: string): boolean {
+  return /^\/networks\/[^/]+$/.test(pathname) || /^\/systems\/[^/]+$/.test(pathname);
 }
 
 export function FilterLoadingOverlay() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentLocationKey = `${pathname}?${normalizeQuery(searchParams.toString())}`;
+  const currentLocationKey = buildLocationKey(pathname, searchParams.toString());
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -43,7 +37,10 @@ export function FilterLoadingOverlay() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failsafeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startLocationKeyRef = useRef<string | null>(null);
+  const targetLocationKeyRef = useRef<string | null>(null);
+  const waitForReadyMarkerRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (intervalRef.current) {
@@ -58,6 +55,10 @@ export function FilterLoadingOverlay() {
       clearTimeout(failsafeTimeoutRef.current);
       failsafeTimeoutRef.current = null;
     }
+    if (readyCheckTimeoutRef.current) {
+      clearTimeout(readyCheckTimeoutRef.current);
+      readyCheckTimeoutRef.current = null;
+    }
   }, []);
 
   const closeOverlay = useCallback(() => {
@@ -66,15 +67,25 @@ export function FilterLoadingOverlay() {
     setProgress(0);
     setMessage(DEFAULT_MESSAGE);
     startLocationKeyRef.current = null;
+    targetLocationKeyRef.current = null;
+    waitForReadyMarkerRef.current = false;
   }, [clearTimers]);
 
+  type StartOverlayOptions = {
+    message?: string;
+    targetLocationKey?: string;
+    waitForReadyMarker?: boolean;
+  };
+
   const startOverlay = useCallback(
-    (nextMessage?: string) => {
+    (options: StartOverlayOptions = {}) => {
       clearTimers();
       setIsLoading(true);
       setProgress(0);
-      setMessage(nextMessage || DEFAULT_MESSAGE);
+      setMessage(options.message || DEFAULT_MESSAGE);
       startLocationKeyRef.current = currentLocationKey;
+      targetLocationKeyRef.current = options.targetLocationKey ?? null;
+      waitForReadyMarkerRef.current = options.waitForReadyMarker ?? false;
 
       intervalRef.current = setInterval(() => {
         setProgress((current) => Math.min(96, nextProgressValue(current)));
@@ -82,8 +93,11 @@ export function FilterLoadingOverlay() {
 
       // Guard against stale overlays when navigation does not occur.
       failsafeTimeoutRef.current = setTimeout(() => {
-        closeOverlay();
-      }, 5000);
+        const liveLocationKey = buildLocationKey(window.location.pathname, window.location.search);
+        if (startLocationKeyRef.current && startLocationKeyRef.current === liveLocationKey) {
+          closeOverlay();
+        }
+      }, STALE_OVERLAY_TIMEOUT_MS);
     },
     [clearTimers, closeOverlay, currentLocationKey]
   );
@@ -114,18 +128,59 @@ export function FilterLoadingOverlay() {
     if (!isLoading || !startLocationKeyRef.current) {
       return;
     }
-    if (startLocationKeyRef.current === currentLocationKey) {
+
+    const targetLocationKey = targetLocationKeyRef.current;
+    const reachedTarget = targetLocationKey
+      ? currentLocationKey === targetLocationKey
+      : startLocationKeyRef.current !== currentLocationKey;
+
+    if (!reachedTarget) {
       return;
     }
 
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    const finalizeOverlay = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setProgress(100);
+      closeTimeoutRef.current = setTimeout(() => {
+        closeOverlay();
+      }, 140);
+    };
+
+    if (!waitForReadyMarkerRef.current || !targetLocationKey) {
+      finalizeOverlay();
+      return;
     }
-    setProgress(100);
-    closeTimeoutRef.current = setTimeout(() => {
-      closeOverlay();
-    }, 140);
+
+    const routeReadySelector = `[data-route-ready-key="${encodeLocationKeyForAttribute(targetLocationKey)}"]`;
+    if (document.querySelector(routeReadySelector)) {
+      finalizeOverlay();
+      return;
+    }
+
+    setProgress((current) => Math.max(current, 97));
+    let cancelled = false;
+    const waitForRouteReadyMarker = () => {
+      if (cancelled) {
+        return;
+      }
+      if (document.querySelector(routeReadySelector)) {
+        finalizeOverlay();
+        return;
+      }
+      readyCheckTimeoutRef.current = setTimeout(waitForRouteReadyMarker, ROUTE_READY_POLL_MS);
+    };
+
+    waitForRouteReadyMarker();
+    return () => {
+      cancelled = true;
+      if (readyCheckTimeoutRef.current) {
+        clearTimeout(readyCheckTimeoutRef.current);
+        readyCheckTimeoutRef.current = null;
+      }
+    };
   }, [closeOverlay, currentLocationKey, isLoading]);
 
   useEffect(() => {
@@ -163,7 +218,12 @@ export function FilterLoadingOverlay() {
         return;
       }
 
-      startOverlay(anchor.dataset.filterLoadingMessage || DEFAULT_MESSAGE);
+      const targetLocationKey = buildLocationKey(targetUrl.pathname, targetUrl.search);
+      startOverlay({
+        message: anchor.dataset.filterLoadingMessage || DEFAULT_MESSAGE,
+        targetLocationKey,
+        waitForReadyMarker: shouldWaitForRouteReadyMarker(targetUrl.pathname)
+      });
     };
 
     const onFilterFormSubmit = (event: SubmitEvent) => {
@@ -174,7 +234,9 @@ export function FilterLoadingOverlay() {
       if (form.dataset.filterLoading !== "true") {
         return;
       }
-      startOverlay(form.dataset.filterLoadingMessage || DEFAULT_MESSAGE);
+      startOverlay({
+        message: form.dataset.filterLoadingMessage || DEFAULT_MESSAGE
+      });
     };
 
     document.addEventListener("click", onFilterLinkClick, true);

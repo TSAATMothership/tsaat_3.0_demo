@@ -19,6 +19,7 @@ import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
 import { SPI_IDS } from "@/lib/spi-metadata";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
@@ -1151,9 +1152,13 @@ export default async function NetworkDetailPage({
   const discoveryComplianceChartBackground = discoveryComplianceTotal
     ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${discoveryComplianceCompliantStop}deg, rgba(248,113,113,0.95) ${discoveryComplianceCompliantStop}deg ${discoveryComplianceNonCompliantStop}deg, rgba(148,163,184,0.92) ${discoveryComplianceNonCompliantStop}deg 360deg)`
     : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
+  const routeReadyLocationKey = buildLocationKeyFromParamsRecord(`/networks/${network.id}`, requestParams);
 
   return (
-    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+    <div
+      className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]"
+      data-route-ready-key={encodeLocationKeyForAttribute(routeReadyLocationKey)}
+    >
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
