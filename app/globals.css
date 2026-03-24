@@ -188,13 +188,33 @@ a {
   animation: cyber-cop-nav-pulse 2.47s ease-in-out infinite;
 }
 
+@keyframes topology-core-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(239, 68, 68, 0.24),
+      0 0 20px rgba(239, 68, 68, 0.34);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 7px rgba(239, 68, 68, 0.16),
+      0 0 34px rgba(239, 68, 68, 0.54);
+  }
+}
+
+.topology-core-tile {
+  animation: topology-core-pulse 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .security-accreditation-pulse,
   .menu-cyber-cop-neo-active,
   .menu-active-link,
   .menu-active-dot,
   .menu-cyber-cop,
-  .cyber-cop-pulse-border {
+  .cyber-cop-pulse-border,
+  .topology-core-tile {
     animation: none;
   }
 }

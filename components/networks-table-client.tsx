@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PostureBadge } from "@/components/posture-badge";
 import { ComplianceStatus } from "@/lib/types";
 import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
@@ -44,8 +44,29 @@ export function NetworksTableClient({
   const searchParams = useSearchParams();
   const [selectedRow, setSelectedRow] = useState<NetworkTableRow | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [tableSearchText, setTableSearchText] = useState("");
+  const [isTableSearchFocused, setIsTableSearchFocused] = useState(false);
+  const [selectedSearchRowId, setSelectedSearchRowId] = useState<string>("__all__");
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tableSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tableSearchInputRef = useRef<HTMLInputElement | null>(null);
   const scopedDataDate = normalizeDataDate(searchParams.get(DATA_DATE_PARAM));
+  const tableSearchOptions = useMemo(() => {
+    return [...rows].sort((left, right) => left.name.localeCompare(right.name));
+  }, [rows]);
+  const filteredTableSearchOptions = useMemo(() => {
+    const normalizedSearch = tableSearchText.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return tableSearchOptions;
+    }
+    return tableSearchOptions.filter((row) => row.name.toLowerCase().includes(normalizedSearch));
+  }, [tableSearchOptions, tableSearchText]);
+  const visibleRows = useMemo(() => {
+    if (selectedSearchRowId === "__all__") {
+      return rows;
+    }
+    return rows.filter((row) => row.id === selectedSearchRowId);
+  }, [rows, selectedSearchRowId]);
 
   useEffect(() => {
     return () => {
@@ -53,8 +74,22 @@ export function NetworksTableClient({
         clearTimeout(closeTimerRef.current);
         closeTimerRef.current = null;
       }
+      if (tableSearchBlurTimerRef.current) {
+        clearTimeout(tableSearchBlurTimerRef.current);
+        tableSearchBlurTimerRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedSearchRowId === "__all__") {
+      return;
+    }
+    if (!rows.some((row) => row.id === selectedSearchRowId)) {
+      setSelectedSearchRowId("__all__");
+      setTableSearchText("");
+    }
+  }, [rows, selectedSearchRowId]);
 
   useEffect(() => {
     if (!selectedRow) {
@@ -107,10 +142,97 @@ export function NetworksTableClient({
     }, PANEL_TWEEN_MS);
   };
 
+  const selectTableSearchResult = (row: NetworkTableRow) => {
+    setSelectedSearchRowId(row.id);
+    setTableSearchText(row.name);
+    setIsTableSearchFocused(false);
+  };
+
+  const clearTableSearchSelection = () => {
+    setSelectedSearchRowId("__all__");
+    setTableSearchText("");
+    setIsTableSearchFocused(false);
+  };
+
   return (
     <>
       <div className="panel h-full min-h-0 overflow-hidden">
-        <div className={scrollable ? "h-full min-h-0 overflow-auto" : ""}>
+        <div className="border-b border-sky-400/15 px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <label
+              htmlFor="networks-rollup-table-search"
+              className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80"
+            >
+              Network Search
+            </label>
+            <div className="relative w-[440px] max-w-full">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={tableSearchInputRef}
+                  id="networks-rollup-table-search"
+                  type="search"
+                  value={tableSearchText}
+                  onChange={(event) => setTableSearchText(event.target.value)}
+                  onFocus={() => setIsTableSearchFocused(true)}
+                  onBlur={() => {
+                    tableSearchBlurTimerRef.current = setTimeout(() => {
+                      setIsTableSearchFocused(false);
+                      setTableSearchText((current) => current.trim());
+                      tableSearchBlurTimerRef.current = null;
+                    }, 120);
+                  }}
+                  placeholder="Search networks"
+                  className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-xs text-slate-100 placeholder:text-slate-400/90"
+                />
+                {selectedSearchRowId !== "__all__" ? (
+                  <button
+                    type="button"
+                    onClick={clearTableSearchSelection}
+                    className="rounded-md border border-slate-500/45 bg-slate-900/70 px-2.5 py-1.5 text-xs font-semibold text-slate-200"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              {tableSearchText.trim() && isTableSearchFocused ? (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
+                  {filteredTableSearchOptions.length ? (
+                    <ul className="space-y-1">
+                      {filteredTableSearchOptions.map((row) => (
+                        <li key={`networks-search-${row.id}`}>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              if (tableSearchBlurTimerRef.current) {
+                                clearTimeout(tableSearchBlurTimerRef.current);
+                                tableSearchBlurTimerRef.current = null;
+                              }
+                              selectTableSearchResult(row);
+                              tableSearchInputRef.current?.blur();
+                            }}
+                            className={`w-full rounded-md border px-2 py-1.5 text-left text-xs ${
+                              selectedSearchRowId === row.id
+                                ? "border-violet-300/75 bg-violet-500/15 text-violet-100"
+                                : "border-sky-400/20 bg-slate-900/70 text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
+                            }`}
+                          >
+                            {row.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-300">
+                      No matching networks
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className={scrollable ? "h-[calc(100%-3.5rem)] min-h-0 overflow-auto" : ""}>
           <table className="min-w-full text-sm">
             <thead
               className={`bg-slate-900/60 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80 ${
@@ -132,7 +254,7 @@ export function NetworksTableClient({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id} className="border-t border-sky-400/10">
                   <td className="px-2.5 py-2 text-slate-100">
                     <button
@@ -166,6 +288,13 @@ export function NetworksTableClient({
                   </td>
                 </tr>
               ))}
+              {visibleRows.length === 0 ? (
+                <tr className="border-t border-sky-400/10">
+                  <td colSpan={11} className="px-2.5 py-6 text-center text-sm text-slate-400">
+                    No networks match this search.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

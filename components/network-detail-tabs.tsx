@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { NetworkTopologyView } from "@/components/network-topology-view";
+import type { NetworkTopologyData } from "@/lib/network-topology";
 
 type NetworkDetailTabId = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
 
@@ -25,7 +27,13 @@ const tabs: Array<{ id: NetworkDetailTabId; label: string }> = [
   { id: "discovery-compliance", label: "Discovery Compliance" }
 ];
 
-export function NetworkDetailTabs({ activeTab }: { activeTab: NetworkDetailTabId }) {
+export function NetworkDetailTabs({
+  activeTab,
+  topologyData
+}: {
+  activeTab: NetworkDetailTabId;
+  topologyData: NetworkTopologyData;
+}) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -33,6 +41,7 @@ export function NetworkDetailTabs({ activeTab }: { activeTab: NetworkDetailTabId
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [pendingTab, setPendingTab] = useState<NetworkDetailTabId | null>(null);
+  const [isTopologyOpen, setIsTopologyOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -113,24 +122,35 @@ export function NetworkDetailTabs({ activeTab }: { activeTab: NetworkDetailTabId
     <>
       <section className="panel shrink-0 overflow-hidden">
         <div className="border-b border-sky-400/15 px-4 py-3">
-          <div className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onSelectTab(tab.id)}
-                className={`rounded-md border px-3 py-2 text-xs font-semibold uppercase tracking-[0.13em] transition ${
-                  activeTab === tab.id
-                    ? "border-sky-200/60 bg-sky-500/20 text-sky-100"
-                    : "border-sky-400/20 bg-slate-900/40 text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/70"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => onSelectTab(tab.id)}
+                  className={`rounded-md border px-3 py-2 text-xs font-semibold uppercase tracking-[0.13em] transition ${
+                    activeTab === tab.id
+                      ? "border-sky-200/60 bg-sky-500/20 text-sky-100"
+                      : "border-sky-400/20 bg-slate-900/40 text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/70"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTopologyOpen(true)}
+              className="ml-auto rounded-md border border-cyan-300/45 bg-cyan-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.13em] text-cyan-100 transition hover:bg-cyan-500/22"
+            >
+              Network Topology View
+            </button>
           </div>
         </div>
       </section>
+
+      <NetworkTopologyView isOpen={isTopologyOpen} onClose={() => setIsTopologyOpen(false)} data={topologyData} />
 
       {isMounted && isLoading
         ? createPortal(

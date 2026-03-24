@@ -22,6 +22,7 @@ import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-dat
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
+import { buildNetworkTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
 import { Suspense } from "react";
@@ -465,6 +466,7 @@ export default async function NetworkDetailPage({
     measuresSettings,
     discoveryToolsSettings
   );
+  const topologyData = buildNetworkTopologyData(dataset, analytics, network.id, network.name);
   const assets = dataset.assets.filter((asset) => asset.networkId === network.id);
   const findings = analytics.findings;
   const p12Findings = findings.filter((finding) => finding.priorityRank <= 2);
@@ -1234,7 +1236,7 @@ export default async function NetworkDetailPage({
         </div>
       </section>
 
-      <NetworkDetailTabs activeTab={activeDetailTab} />
+      <NetworkDetailTabs activeTab={activeDetailTab} topologyData={topologyData} />
 
       <div
         className={

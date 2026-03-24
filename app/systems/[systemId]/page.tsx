@@ -21,6 +21,7 @@ import { extractDataDateParam, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
 import { MeasuresSettings } from "@/lib/measures-settings";
+import { buildSystemTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
 import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding, FindingSeverity } from "@/lib/types";
 import { Suspense } from "react";
@@ -604,6 +605,7 @@ export default async function SystemDetailPage({
     measuresSettings,
     discoveryToolsSettings
   );
+  const topologyData = buildSystemTopologyData(dataset, analytics, system.id);
 
   const assets = dataset.assets.filter((asset) => asset.systemContext?.systemId === system.id);
   const assetNameById = new Map(assets.map((asset) => [asset.id, asset.hostname]));
@@ -1477,7 +1479,7 @@ export default async function SystemDetailPage({
         </div>
       </section>
 
-      <SystemDetailTabs activeTab={activeDetailTab} />
+      <SystemDetailTabs activeTab={activeDetailTab} topologyData={topologyData} />
 
       <div
         className={
