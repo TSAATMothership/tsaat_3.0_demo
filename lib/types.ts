@@ -34,6 +34,8 @@ export interface ManagedNetwork {
   id: string;
   name: string;
   criticality: Criticality;
+  parentNetworkId?: string;
+  childNetworkIds?: string[];
   classification?: string;
   description?: string;
   owner?: string;
@@ -57,6 +59,8 @@ export interface SystemEnvironment {
 export interface ICTSystem {
   id: string;
   name: string;
+  parentSystemId?: string;
+  childSystemIds?: string[];
   description?: string;
   diisId?: string;
   owner?: string;

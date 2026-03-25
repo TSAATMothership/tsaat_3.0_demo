@@ -1,4 +1,4 @@
-import { Asset, AnalyticsResult, ComplianceStatus, Dataset, ICTSystem } from "@/lib/types";
+import { Asset, AnalyticsResult, ComplianceStatus, Dataset, EnvironmentType, ICTSystem } from "@/lib/types";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 
 export type TopologyEntityType = "network" | "mission-capability" | "service" | "ict-system";
@@ -31,6 +31,8 @@ export interface CmdbAssetNode {
   name: string;
   hostname: string;
   ipAddress: string;
+  networkId: string;
+  environmentType: EnvironmentType | null;
   type: Asset["type"];
 }
 
@@ -72,6 +74,20 @@ export interface TopologyNodeDetails {
   connectedServices?: string[];
   connectedMissionCapabilities?: string[];
 }
+
+export interface BuildNetworkTopologyOptions {
+  mode?: "dependency" | "full";
+}
+
+interface HierarchyMaps {
+  parentsById: Map<string, Set<string>>;
+  childrenById: Map<string, Set<string>>;
+}
+
+const NETWORK_PARENT_KEYS = ["parentNetworkId", "parentId", "networkParentId", "parentNetwork", "parent"];
+const NETWORK_CHILD_KEYS = ["childNetworkIds", "childIds", "networkChildIds", "children", "childNetworks"];
+const SYSTEM_PARENT_KEYS = ["parentSystemId", "parentId", "ictSystemParentId", "parentIctSystemId", "parent"];
+const SYSTEM_CHILD_KEYS = ["childSystemIds", "childIds", "ictSystemChildIds", "children", "childIctSystems"];
 
 function complianceScore(statuses: ComplianceStatus[]): number {
   if (!statuses.length) {
@@ -232,16 +248,37 @@ function fallbackSystemApmUrl(apmNumber: string): string {
   return `https://apm.defence.gov.au/applications/${encodeURIComponent(apmNumber)}`;
 }
 
-export function buildNetworkTopologyData(
-  dataset: Dataset,
+function createEdgeAccumulator() {
+  const edgeSet = new Set<string>();
+  const edges: TopologyEdge[] = [];
+  const addEdge = (fromNodeId: string | undefined, toNodeId: string | undefined) => {
+    if (!fromNodeId || !toNodeId || fromNodeId === toNodeId) {
+      return;
+    }
+    const key = `${fromNodeId}->${toNodeId}`;
+    if (edgeSet.has(key)) {
+      return;
+    }
+    edgeSet.add(key);
+    edges.push({
+      id: key,
+      fromNodeId,
+      toNodeId
+    });
+  };
+  return { edges, addEdge };
+}
+
+function mapEvaluationsBySystemId(
   analytics: AnalyticsResult,
-  networkId: string,
-  networkName: string
-): NetworkTopologyData {
-  const networkNodeId = `network:${networkId}`;
-  const network = dataset.managedNetworks.find((item) => item.id === networkId);
-  const scopedSystems = dataset.ictSystems.filter((system) => system.networkId === networkId);
-  const scopedSystemIds = new Set(scopedSystems.map((system) => system.id));
+  includedSystemIds: Set<string>
+): Map<
+  string,
+  Array<{
+    statuses: ComplianceStatus[];
+    discoveryCoverageCompliant: boolean;
+  }>
+> {
   const evaluationsBySystemId = new Map<
     string,
     Array<{
@@ -251,7 +288,7 @@ export function buildNetworkTopologyData(
   >();
 
   for (const evaluation of analytics.evaluations) {
-    if (!evaluation.systemId || !scopedSystemIds.has(evaluation.systemId)) {
+    if (!evaluation.systemId || !includedSystemIds.has(evaluation.systemId)) {
       continue;
     }
     const current = evaluationsBySystemId.get(evaluation.systemId) ?? [];
@@ -261,30 +298,285 @@ export function buildNetworkTopologyData(
     });
     evaluationsBySystemId.set(evaluation.systemId, current);
   }
+  return evaluationsBySystemId;
+}
 
-  const missionSystemMap = collectSystemIdsByMission(scopedSystems);
-  const serviceSystemMap = collectSystemIdsByService(scopedSystems);
-  const nodes: TopologyNode[] = [];
-  const missionNodeIdByMissionId = new Map<string, string>();
-  const serviceNodeIdByServiceId = new Map<string, string>();
-  const systemNodeIdBySystemId = new Map<string, string>();
+function summarizeSystems(
+  systemIds: Iterable<string>,
+  evaluationsBySystemId: Map<
+    string,
+    Array<{
+      statuses: ComplianceStatus[];
+      discoveryCoverageCompliant: boolean;
+    }>
+  >
+) {
+  const cyberStatuses: ComplianceStatus[] = [];
+  const discoveryFlags: boolean[] = [];
+  for (const systemId of systemIds) {
+    const evaluations = evaluationsBySystemId.get(systemId) ?? [];
+    for (const evaluation of evaluations) {
+      cyberStatuses.push(...evaluation.statuses);
+      discoveryFlags.push(evaluation.discoveryCoverageCompliant);
+    }
+  }
+  return {
+    cyber: summarizeCyberCompliance(cyberStatuses),
+    discovery: summarizeDiscoveryCompliance(discoveryFlags)
+  };
+}
 
-  const summarizeSystems = (systemIds: Iterable<string>) => {
-    const cyberStatuses: ComplianceStatus[] = [];
-    const discoveryFlags: boolean[] = [];
-    for (const systemId of systemIds) {
-      const evaluations = evaluationsBySystemId.get(systemId) ?? [];
-      for (const evaluation of evaluations) {
-        cyberStatuses.push(...evaluation.statuses);
-        discoveryFlags.push(evaluation.discoveryCoverageCompliant);
+function normalizeHierarchyId(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed;
+}
+
+function extractHierarchyIds(value: unknown): string[] {
+  if (typeof value === "string") {
+    const single = normalizeHierarchyId(value);
+    return single ? [single] : [];
+  }
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item === "string") {
+      const normalized = normalizeHierarchyId(item);
+      if (normalized) {
+        ids.push(normalized);
+      }
+      continue;
+    }
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const objectId = normalizeHierarchyId((item as { id?: unknown }).id);
+    if (objectId) {
+      ids.push(objectId);
+    }
+  }
+  return ids;
+}
+
+function readHierarchyIds(entity: Record<string, unknown>, candidateKeys: string[]): string[] {
+  const ids = new Set<string>();
+  for (const key of candidateKeys) {
+    for (const id of extractHierarchyIds(entity[key])) {
+      ids.add(id);
+    }
+  }
+  return Array.from(ids);
+}
+
+function buildHierarchyMaps<T extends { id: string }>(
+  entities: T[],
+  parentKeys: string[],
+  childKeys: string[]
+): HierarchyMaps {
+  const entityById = new Map(entities.map((entity) => [entity.id, entity]));
+  const parentsById = new Map<string, Set<string>>(entities.map((entity) => [entity.id, new Set<string>()]));
+  const childrenById = new Map<string, Set<string>>(entities.map((entity) => [entity.id, new Set<string>()]));
+
+  const addHierarchyEdge = (parentId: string, childId: string) => {
+    if (parentId === childId || !entityById.has(parentId) || !entityById.has(childId)) {
+      return;
+    }
+    parentsById.get(childId)?.add(parentId);
+    childrenById.get(parentId)?.add(childId);
+  };
+
+  for (const entity of entities) {
+    const asRecord = entity as unknown as Record<string, unknown>;
+    for (const parentId of readHierarchyIds(asRecord, parentKeys)) {
+      addHierarchyEdge(parentId, entity.id);
+    }
+    for (const childId of readHierarchyIds(asRecord, childKeys)) {
+      addHierarchyEdge(entity.id, childId);
+    }
+  }
+
+  return {
+    parentsById,
+    childrenById
+  };
+}
+
+function collectAncestors(nodeId: string, hierarchy: HierarchyMaps): Set<string> {
+  const visited = new Set<string>();
+  const queue = [...(hierarchy.parentsById.get(nodeId) ?? [])];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    for (const parentId of hierarchy.parentsById.get(current) ?? []) {
+      if (!visited.has(parentId)) {
+        queue.push(parentId);
       }
     }
-    return {
-      cyber: summarizeCyberCompliance(cyberStatuses),
-      discovery: summarizeDiscoveryCompliance(discoveryFlags)
-    };
+  }
+  return visited;
+}
+
+function collectDescendants(nodeId: string, hierarchy: HierarchyMaps): Set<string> {
+  const visited = new Set<string>();
+  const queue = [...(hierarchy.childrenById.get(nodeId) ?? [])];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    for (const childId of hierarchy.childrenById.get(current) ?? []) {
+      if (!visited.has(childId)) {
+        queue.push(childId);
+      }
+    }
+  }
+  return visited;
+}
+
+function filterReachableFromRoot(nodes: TopologyNode[], edges: TopologyEdge[], rootNodeId: string) {
+  const adjacency = new Map<string, string[]>();
+  for (const edge of edges) {
+    const current = adjacency.get(edge.fromNodeId) ?? [];
+    current.push(edge.toNodeId);
+    adjacency.set(edge.fromNodeId, current);
+  }
+
+  const reachableNodeIds = new Set<string>([rootNodeId]);
+  const queue: string[] = [rootNodeId];
+  while (queue.length) {
+    const currentNodeId = queue.shift();
+    if (!currentNodeId) {
+      continue;
+    }
+    for (const childNodeId of adjacency.get(currentNodeId) ?? []) {
+      if (reachableNodeIds.has(childNodeId)) {
+        continue;
+      }
+      reachableNodeIds.add(childNodeId);
+      queue.push(childNodeId);
+    }
+  }
+
+  const filteredNodes = nodes.filter((node) => reachableNodeIds.has(node.id));
+  const filteredNodeIds = new Set(filteredNodes.map((node) => node.id));
+  const filteredEdges = edges.filter(
+    (edge) => filteredNodeIds.has(edge.fromNodeId) && filteredNodeIds.has(edge.toNodeId)
+  );
+
+  return {
+    filteredNodes,
+    filteredEdges
   };
-  const networkSummary = summarizeSystems(scopedSystemIds);
+}
+
+function buildCmdbTopologies(
+  dataset: Dataset,
+  scopedSystems: ICTSystem[],
+  includedSystemIds: Set<string>,
+  eligibleNetworkIds: Set<string>
+): CmdbSystemTopology[] {
+  const assetsBySystemId = new Map<string, Asset[]>();
+  for (const asset of dataset.assets) {
+    if (!eligibleNetworkIds.has(asset.networkId)) {
+      continue;
+    }
+    const systemId = asset.systemContext?.systemId;
+    if (!systemId || !includedSystemIds.has(systemId)) {
+      continue;
+    }
+    const current = assetsBySystemId.get(systemId) ?? [];
+    current.push(asset);
+    assetsBySystemId.set(systemId, current);
+  }
+
+  return scopedSystems
+    .filter((system) => includedSystemIds.has(system.id))
+    .map((system) => {
+      const assets = assetsBySystemId.get(system.id) ?? [];
+      const mappedAssets = assets
+        .map((asset) => ({
+          id: asset.id,
+          name: asset.name,
+          hostname: asset.hostname,
+          ipAddress: resolveAssetIpAddress(asset),
+          networkId: asset.networkId,
+          environmentType: asset.systemContext?.environmentType ?? null,
+          type: asset.type
+        }))
+        .sort((a, b) => a.hostname.localeCompare(b.hostname));
+      return {
+        systemId: system.id,
+        systemName: system.name,
+        networkDevices: mappedAssets.filter((asset) => asset.type === "network-device"),
+        workstations: mappedAssets.filter((asset) => asset.type === "workstation"),
+        servers: mappedAssets.filter((asset) => asset.type === "server")
+      };
+    })
+    .sort((a, b) => a.systemName.localeCompare(b.systemName));
+}
+
+function buildSystemNode(
+  system: ICTSystem,
+  summaries: {
+    cyber: TopologyComplianceSummary;
+    discovery: TopologyComplianceSummary;
+  },
+  relatedSystemNames?: string[]
+): TopologyNode {
+  const atoNumber = fallbackSystemAtoNumber(system);
+  const apmNumber = fallbackSystemApmNumber(system);
+
+  return {
+    id: `system:${system.id}`,
+    entityId: system.id,
+    entityType: "ict-system",
+    name: system.name,
+    cyberCompliance: summaries.cyber,
+    discoveryCompliance: summaries.discovery,
+    details: {
+      description: fallbackSystemDescription(system),
+      criticality: system.criticality,
+      securityDomain: system.securityDomain,
+      owner: fallbackSystemOwner(system),
+      supportEmail: fallbackSystemSupportEmail(system),
+      serviceCatalogueUrl: fallbackSystemServiceCatalogueUrl(system),
+      atoNumber,
+      diisId: fallbackSystemDiisId(system),
+      diisUrl: fallbackSystemDiisUrl(system),
+      grcUrl: fallbackSystemGrcUrl(system, atoNumber),
+      apmNumber,
+      apmUrl: fallbackSystemApmUrl(apmNumber),
+      missionCapabilities: system.missionCapabilities.map((mission) => mission.name).sort((a, b) => a.localeCompare(b)),
+      businessServices: system.businessServices.map((service) => service.name).sort((a, b) => a.localeCompare(b)),
+      dependentSystems: relatedSystemNames
+    }
+  };
+}
+
+function buildNetworkNode(
+  dataset: Dataset,
+  networkId: string,
+  networkName: string,
+  summary: {
+    cyber: TopologyComplianceSummary;
+    discovery: TopologyComplianceSummary;
+  },
+  missionNames: string[],
+  serviceNames: string[],
+  dependentSystemNames: string[]
+): TopologyNode {
+  const network = dataset.managedNetworks.find((item) => item.id === networkId);
   const networkDetails = network
     ? resolveNetworkDetailFields(network)
     : {
@@ -296,20 +588,14 @@ export function buildNetworkTopologyData(
         diisUrl: `https://diis.defence.gov.au/networks/${encodeURIComponent(networkId)}`,
         grcUrl: `https://grc.defence.gov.au/ato/${encodeURIComponent(networkId)}`
       };
-  const dependentMissionNames = Array.from(
-    new Set(scopedSystems.flatMap((system) => system.missionCapabilities.map((mission) => mission.name)))
-  ).sort((a, b) => a.localeCompare(b));
-  const dependentServiceNames = Array.from(
-    new Set(scopedSystems.flatMap((system) => system.businessServices.map((service) => service.name)))
-  ).sort((a, b) => a.localeCompare(b));
-  const dependentSystemNames = scopedSystems.map((system) => system.name).sort((a, b) => a.localeCompare(b));
-  nodes.push({
-    id: networkNodeId,
+
+  return {
+    id: `network:${networkId}`,
     entityId: networkId,
     entityType: "network",
     name: networkName,
-    cyberCompliance: networkSummary.cyber,
-    discoveryCompliance: networkSummary.discovery,
+    cyberCompliance: summary.cyber,
+    discoveryCompliance: summary.discovery,
     details: {
       description: networkDetails.description,
       classification: network?.classification ?? "Unknown",
@@ -321,11 +607,175 @@ export function buildNetworkTopologyData(
       atoNumber: networkDetails.atoNumber,
       diisUrl: networkDetails.diisUrl,
       grcUrl: networkDetails.grcUrl,
-      missionCapabilities: dependentMissionNames,
-      businessServices: dependentServiceNames,
+      missionCapabilities: missionNames,
+      businessServices: serviceNames,
       dependentSystems: dependentSystemNames
     }
-  });
+  };
+}
+
+function buildDependencyNetworkTopologyData(
+  dataset: Dataset,
+  analytics: AnalyticsResult,
+  networkId: string,
+  networkName: string
+): NetworkTopologyData {
+  const networkNodeId = `network:${networkId}`;
+  const systemsById = new Map(dataset.ictSystems.map((system) => [system.id, system]));
+
+  const networkHierarchy = buildHierarchyMaps(dataset.managedNetworks, NETWORK_PARENT_KEYS, NETWORK_CHILD_KEYS);
+  const networkScopeIds = new Set<string>([networkId]);
+  for (const ancestorId of collectAncestors(networkId, networkHierarchy)) {
+    networkScopeIds.add(ancestorId);
+  }
+  for (const descendantId of collectDescendants(networkId, networkHierarchy)) {
+    networkScopeIds.add(descendantId);
+  }
+
+  const directDependentSystemIds = new Set<string>();
+  for (const asset of dataset.assets) {
+    if (!networkScopeIds.has(asset.networkId)) {
+      continue;
+    }
+    const systemId = asset.systemContext?.systemId;
+    if (!systemId || !systemsById.has(systemId)) {
+      continue;
+    }
+    directDependentSystemIds.add(systemId);
+  }
+
+  const systemHierarchy = buildHierarchyMaps(dataset.ictSystems, SYSTEM_PARENT_KEYS, SYSTEM_CHILD_KEYS);
+  const dependentSystemIds = new Set<string>(directDependentSystemIds);
+  for (const directSystemId of directDependentSystemIds) {
+    for (const ancestorId of collectAncestors(directSystemId, systemHierarchy)) {
+      dependentSystemIds.add(ancestorId);
+    }
+    for (const descendantId of collectDescendants(directSystemId, systemHierarchy)) {
+      dependentSystemIds.add(descendantId);
+    }
+  }
+
+  const scopedSystems = dataset.ictSystems
+    .filter((system) => dependentSystemIds.has(system.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const scopedSystemIds = new Set(scopedSystems.map((system) => system.id));
+
+  const evaluationsBySystemId = mapEvaluationsBySystemId(analytics, scopedSystemIds);
+  const networkSummary = summarizeSystems(
+    directDependentSystemIds.size ? directDependentSystemIds : scopedSystemIds,
+    evaluationsBySystemId
+  );
+
+  const dependentSystemNames = scopedSystems.map((system) => system.name).sort((a, b) => a.localeCompare(b));
+  const dependentMissionNames = Array.from(
+    new Set(scopedSystems.flatMap((system) => system.missionCapabilities.map((mission) => mission.name)))
+  ).sort((a, b) => a.localeCompare(b));
+  const dependentServiceNames = Array.from(
+    new Set(scopedSystems.flatMap((system) => system.businessServices.map((service) => service.name)))
+  ).sort((a, b) => a.localeCompare(b));
+
+  const nodes: TopologyNode[] = [
+    buildNetworkNode(
+      dataset,
+      networkId,
+      networkName,
+      networkSummary,
+      dependentMissionNames,
+      dependentServiceNames,
+      dependentSystemNames
+    )
+  ];
+  const systemNodeIdBySystemId = new Map<string, string>();
+
+  for (const system of scopedSystems) {
+    const relatedSystemNames = Array.from(
+      new Set([
+        ...(systemHierarchy.parentsById.get(system.id) ?? []),
+        ...(systemHierarchy.childrenById.get(system.id) ?? [])
+      ])
+    )
+      .filter((relatedId) => scopedSystemIds.has(relatedId))
+      .map((relatedId) => systemsById.get(relatedId)?.name ?? relatedId)
+      .sort((a, b) => a.localeCompare(b));
+
+    const summaries = summarizeSystems([system.id], evaluationsBySystemId);
+    const node = buildSystemNode(system, summaries, relatedSystemNames.length ? relatedSystemNames : undefined);
+    nodes.push(node);
+    systemNodeIdBySystemId.set(system.id, node.id);
+  }
+
+  const { edges, addEdge } = createEdgeAccumulator();
+  for (const system of scopedSystems) {
+    addEdge(networkNodeId, systemNodeIdBySystemId.get(system.id));
+  }
+
+  for (const parentSystemId of Array.from(systemHierarchy.childrenById.keys()).sort((a, b) => a.localeCompare(b))) {
+    if (!scopedSystemIds.has(parentSystemId)) {
+      continue;
+    }
+    const childIds = Array.from(systemHierarchy.childrenById.get(parentSystemId) ?? []).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    for (const childSystemId of childIds) {
+      if (!scopedSystemIds.has(childSystemId)) {
+        continue;
+      }
+      addEdge(systemNodeIdBySystemId.get(parentSystemId), systemNodeIdBySystemId.get(childSystemId));
+    }
+  }
+
+  const { filteredNodes, filteredEdges } = filterReachableFromRoot(nodes, edges, networkNodeId);
+  const filteredSystemIds = new Set(
+    filteredNodes.filter((node) => node.entityType === "ict-system").map((node) => node.entityId)
+  );
+  const cmdbTopologies = buildCmdbTopologies(dataset, scopedSystems, filteredSystemIds, networkScopeIds);
+
+  return {
+    networkId,
+    networkName,
+    nodes: filteredNodes,
+    edges: filteredEdges,
+    cmdbTopologies,
+    preferredCoreNodeId: networkNodeId
+  };
+}
+
+function buildMissionServiceNetworkTopologyData(
+  dataset: Dataset,
+  analytics: AnalyticsResult,
+  networkId: string,
+  networkName: string
+): NetworkTopologyData {
+  const networkNodeId = `network:${networkId}`;
+  const scopedSystems = dataset.ictSystems.filter((system) => system.networkId === networkId);
+  const scopedSystemIds = new Set(scopedSystems.map((system) => system.id));
+  const evaluationsBySystemId = mapEvaluationsBySystemId(analytics, scopedSystemIds);
+  const missionSystemMap = collectSystemIdsByMission(scopedSystems);
+  const serviceSystemMap = collectSystemIdsByService(scopedSystems);
+  const nodes: TopologyNode[] = [];
+  const missionNodeIdByMissionId = new Map<string, string>();
+  const serviceNodeIdByServiceId = new Map<string, string>();
+  const systemNodeIdBySystemId = new Map<string, string>();
+
+  const networkSummary = summarizeSystems(scopedSystemIds, evaluationsBySystemId);
+  const dependentMissionNames = Array.from(
+    new Set(scopedSystems.flatMap((system) => system.missionCapabilities.map((mission) => mission.name)))
+  ).sort((a, b) => a.localeCompare(b));
+  const dependentServiceNames = Array.from(
+    new Set(scopedSystems.flatMap((system) => system.businessServices.map((service) => service.name)))
+  ).sort((a, b) => a.localeCompare(b));
+  const dependentSystemNames = scopedSystems.map((system) => system.name).sort((a, b) => a.localeCompare(b));
+  nodes.push(
+    buildNetworkNode(
+      dataset,
+      networkId,
+      networkName,
+      networkSummary,
+      dependentMissionNames,
+      dependentServiceNames,
+      dependentSystemNames
+    )
+  );
 
   const missionById = new Map<string, { id: string; name: string }>();
   for (const system of scopedSystems) {
@@ -346,7 +796,7 @@ export function buildNetworkTopologyData(
 
   for (const mission of Array.from(missionById.values()).sort((a, b) => a.name.localeCompare(b.name))) {
     const systemIds = missionSystemMap.get(mission.id) ?? new Set<string>();
-    const summaries = summarizeSystems(systemIds);
+    const summaries = summarizeSystems(systemIds, evaluationsBySystemId);
     const nodeId = `mission:${mission.id}`;
     missionNodeIdByMissionId.set(mission.id, nodeId);
     nodes.push({
@@ -377,7 +827,7 @@ export function buildNetworkTopologyData(
 
   for (const service of Array.from(serviceById.values()).sort((a, b) => a.name.localeCompare(b.name))) {
     const systemIds = serviceSystemMap.get(service.id) ?? new Set<string>();
-    const summaries = summarizeSystems(systemIds);
+    const summaries = summarizeSystems(systemIds, evaluationsBySystemId);
     const nodeId = `service:${service.id}`;
     serviceNodeIdByServiceId.set(service.id, nodeId);
     nodes.push({
@@ -416,55 +866,13 @@ export function buildNetworkTopologyData(
   }
 
   for (const system of [...scopedSystems].sort((a, b) => a.name.localeCompare(b.name))) {
-    const summaries = summarizeSystems([system.id]);
-    const atoNumber = fallbackSystemAtoNumber(system);
-    const apmNumber = fallbackSystemApmNumber(system);
-    const nodeId = `system:${system.id}`;
-    systemNodeIdBySystemId.set(system.id, nodeId);
-    nodes.push({
-      id: nodeId,
-      entityId: system.id,
-      entityType: "ict-system",
-      name: system.name,
-      cyberCompliance: summaries.cyber,
-      discoveryCompliance: summaries.discovery,
-      details: {
-        description: fallbackSystemDescription(system),
-        criticality: system.criticality,
-        securityDomain: system.securityDomain,
-        owner: fallbackSystemOwner(system),
-        supportEmail: fallbackSystemSupportEmail(system),
-        serviceCatalogueUrl: fallbackSystemServiceCatalogueUrl(system),
-        atoNumber,
-        diisId: fallbackSystemDiisId(system),
-        diisUrl: fallbackSystemDiisUrl(system),
-        grcUrl: fallbackSystemGrcUrl(system, atoNumber),
-        apmNumber,
-        apmUrl: fallbackSystemApmUrl(apmNumber),
-        missionCapabilities: system.missionCapabilities.map((mission) => mission.name).sort((a, b) => a.localeCompare(b)),
-        businessServices: system.businessServices.map((service) => service.name).sort((a, b) => a.localeCompare(b))
-      }
-    });
+    const summaries = summarizeSystems([system.id], evaluationsBySystemId);
+    const node = buildSystemNode(system, summaries);
+    nodes.push(node);
+    systemNodeIdBySystemId.set(system.id, node.id);
   }
 
-  const edgeSet = new Set<string>();
-  const edges: TopologyEdge[] = [];
-  const addEdge = (fromNodeId: string | undefined, toNodeId: string | undefined) => {
-    if (!fromNodeId || !toNodeId || fromNodeId === toNodeId) {
-      return;
-    }
-    const key = `${fromNodeId}->${toNodeId}`;
-    if (edgeSet.has(key)) {
-      return;
-    }
-    edgeSet.add(key);
-    edges.push({
-      id: key,
-      fromNodeId,
-      toNodeId
-    });
-  };
-
+  const { edges, addEdge } = createEdgeAccumulator();
   for (const system of scopedSystems) {
     const systemNodeId = systemNodeIdBySystemId.get(system.id);
     for (const mission of system.missionCapabilities) {
@@ -531,73 +939,11 @@ export function buildNetworkTopologyData(
     }
   }
 
-  const adjacency = new Map<string, string[]>();
-  for (const edge of edges) {
-    const current = adjacency.get(edge.fromNodeId) ?? [];
-    current.push(edge.toNodeId);
-    adjacency.set(edge.fromNodeId, current);
-  }
-  const reachableNodeIds = new Set<string>([networkNodeId]);
-  const queue: string[] = [networkNodeId];
-  while (queue.length) {
-    const currentNodeId = queue.shift();
-    if (!currentNodeId) {
-      continue;
-    }
-    for (const childNodeId of adjacency.get(currentNodeId) ?? []) {
-      if (reachableNodeIds.has(childNodeId)) {
-        continue;
-      }
-      reachableNodeIds.add(childNodeId);
-      queue.push(childNodeId);
-    }
-  }
-
-  const filteredNodes = nodes.filter((node) => reachableNodeIds.has(node.id));
-  const filteredNodeIds = new Set(filteredNodes.map((node) => node.id));
-  const filteredEdges = edges.filter(
-    (edge) => filteredNodeIds.has(edge.fromNodeId) && filteredNodeIds.has(edge.toNodeId)
-  );
-
-  const assetsBySystemId = new Map<string, Asset[]>();
-  for (const asset of dataset.assets) {
-    if (asset.networkId !== networkId) {
-      continue;
-    }
-    const systemId = asset.systemContext?.systemId;
-    if (!systemId || !scopedSystemIds.has(systemId)) {
-      continue;
-    }
-    const current = assetsBySystemId.get(systemId) ?? [];
-    current.push(asset);
-    assetsBySystemId.set(systemId, current);
-  }
-
+  const { filteredNodes, filteredEdges } = filterReachableFromRoot(nodes, edges, networkNodeId);
   const downstreamSystemIds = new Set(
     filteredNodes.filter((node) => node.entityType === "ict-system").map((node) => node.entityId)
   );
-  const cmdbTopologies = scopedSystems
-    .filter((system) => downstreamSystemIds.has(system.id))
-    .map((system) => {
-      const assets = assetsBySystemId.get(system.id) ?? [];
-      const mappedAssets = assets
-        .map((asset) => ({
-          id: asset.id,
-          name: asset.name,
-          hostname: asset.hostname,
-          ipAddress: resolveAssetIpAddress(asset),
-          type: asset.type
-        }))
-        .sort((a, b) => a.hostname.localeCompare(b.hostname));
-      return {
-        systemId: system.id,
-        systemName: system.name,
-        networkDevices: mappedAssets.filter((asset) => asset.type === "network-device"),
-        workstations: mappedAssets.filter((asset) => asset.type === "workstation"),
-        servers: mappedAssets.filter((asset) => asset.type === "server")
-      };
-    })
-    .sort((a, b) => a.systemName.localeCompare(b.systemName));
+  const cmdbTopologies = buildCmdbTopologies(dataset, scopedSystems, downstreamSystemIds, new Set([networkId]));
 
   return {
     networkId,
@@ -609,7 +955,20 @@ export function buildNetworkTopologyData(
   };
 }
 
-export function buildSystemTopologyData(
+export function buildNetworkTopologyData(
+  dataset: Dataset,
+  analytics: AnalyticsResult,
+  networkId: string,
+  networkName: string,
+  options: BuildNetworkTopologyOptions = {}
+): NetworkTopologyData {
+  if (options.mode === "full") {
+    return buildMissionServiceNetworkTopologyData(dataset, analytics, networkId, networkName);
+  }
+  return buildDependencyNetworkTopologyData(dataset, analytics, networkId, networkName);
+}
+
+function buildDependencySystemTopologyData(
   dataset: Dataset,
   analytics: AnalyticsResult,
   systemId: string
@@ -618,7 +977,7 @@ export function buildSystemTopologyData(
   if (!system) {
     return {
       networkId: "unknown-network",
-      networkName: "Unknown Network",
+      networkName: "Unknown ICT System",
       nodes: [],
       edges: [],
       cmdbTopologies: []
@@ -626,80 +985,186 @@ export function buildSystemTopologyData(
   }
 
   const managedNetwork = dataset.managedNetworks.find((network) => network.id === system.networkId);
-  const baseTopology = buildNetworkTopologyData(
-    dataset,
-    analytics,
-    system.networkId,
-    managedNetwork?.name ?? system.networkId
-  );
-  const systemNode = baseTopology.nodes.find(
-    (node) => node.entityType === "ict-system" && node.entityId === systemId
-  );
-  if (!systemNode) {
+  const systemNodeId = `system:${system.id}`;
+  const systemsById = new Map(dataset.ictSystems.map((item) => [item.id, item]));
+  const networkById = new Map(dataset.managedNetworks.map((network) => [network.id, network]));
+
+  const systemHierarchy = buildHierarchyMaps(dataset.ictSystems, SYSTEM_PARENT_KEYS, SYSTEM_CHILD_KEYS);
+  const scopedSystemIds = new Set<string>([system.id]);
+  for (const ancestorId of collectAncestors(system.id, systemHierarchy)) {
+    scopedSystemIds.add(ancestorId);
+  }
+  for (const descendantId of collectDescendants(system.id, systemHierarchy)) {
+    scopedSystemIds.add(descendantId);
+  }
+  const scopedSystems = dataset.ictSystems
+    .filter((item) => scopedSystemIds.has(item.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const evaluationsBySystemId = mapEvaluationsBySystemId(analytics, scopedSystemIds);
+  const relatedSystemNames = Array.from(
+    new Set([
+      ...(systemHierarchy.parentsById.get(system.id) ?? []),
+      ...(systemHierarchy.childrenById.get(system.id) ?? [])
+    ])
+  )
+    .filter((relatedId) => scopedSystemIds.has(relatedId))
+    .map((relatedId) => systemsById.get(relatedId)?.name ?? relatedId)
+    .sort((a, b) => a.localeCompare(b));
+
+  const coreSystemSummary = summarizeSystems([system.id], evaluationsBySystemId);
+  const nodes: TopologyNode[] = [];
+  const systemNodeIdBySystemId = new Map<string, string>();
+  const coreNode = buildSystemNode(system, coreSystemSummary, relatedSystemNames.length ? relatedSystemNames : undefined);
+  nodes.push(coreNode);
+  systemNodeIdBySystemId.set(system.id, coreNode.id);
+  for (const dependentSystem of scopedSystems) {
+    if (dependentSystem.id === system.id) {
+      continue;
+    }
+    const dependentRelatedSystemNames = Array.from(
+      new Set([
+        ...(systemHierarchy.parentsById.get(dependentSystem.id) ?? []),
+        ...(systemHierarchy.childrenById.get(dependentSystem.id) ?? [])
+      ])
+    )
+      .filter((relatedId) => scopedSystemIds.has(relatedId))
+      .map((relatedId) => systemsById.get(relatedId)?.name ?? relatedId)
+      .sort((a, b) => a.localeCompare(b));
+    const dependentSummary = summarizeSystems([dependentSystem.id], evaluationsBySystemId);
+    const node = buildSystemNode(
+      dependentSystem,
+      dependentSummary,
+      dependentRelatedSystemNames.length ? dependentRelatedSystemNames : undefined
+    );
+    nodes.push(node);
+    systemNodeIdBySystemId.set(dependentSystem.id, node.id);
+  }
+
+  const directNetworkIds = new Set<string>();
+  for (const asset of dataset.assets) {
+    const assetSystemId = asset.systemContext?.systemId;
+    if (assetSystemId !== system.id) {
+      continue;
+    }
+    if (networkById.has(asset.networkId)) {
+      directNetworkIds.add(asset.networkId);
+    }
+  }
+  if (!directNetworkIds.size && managedNetwork) {
+    directNetworkIds.add(managedNetwork.id);
+  }
+
+  const networkHierarchy = buildHierarchyMaps(dataset.managedNetworks, NETWORK_PARENT_KEYS, NETWORK_CHILD_KEYS);
+  const scopedNetworkIds = new Set<string>(directNetworkIds);
+  for (const directNetworkId of directNetworkIds) {
+    for (const ancestorId of collectAncestors(directNetworkId, networkHierarchy)) {
+      scopedNetworkIds.add(ancestorId);
+    }
+    for (const descendantId of collectDescendants(directNetworkId, networkHierarchy)) {
+      scopedNetworkIds.add(descendantId);
+    }
+  }
+
+  const systemIdsByNetwork = new Map<string, Set<string>>();
+  for (const asset of dataset.assets) {
+    if (!scopedNetworkIds.has(asset.networkId)) {
+      continue;
+    }
+    const assetSystemId = asset.systemContext?.systemId;
+    if (!assetSystemId || !scopedSystemIds.has(assetSystemId)) {
+      continue;
+    }
+    const current = systemIdsByNetwork.get(asset.networkId) ?? new Set<string>();
+    current.add(assetSystemId);
+    systemIdsByNetwork.set(asset.networkId, current);
+  }
+
+  const summarizeNetworkForScopedSystems = (networkId: string) => {
+    const cyberStatuses: ComplianceStatus[] = [];
+    const discoveryFlags: boolean[] = [];
+    for (const evaluation of analytics.evaluations) {
+      if (evaluation.networkId !== networkId || !evaluation.systemId || !scopedSystemIds.has(evaluation.systemId)) {
+        continue;
+      }
+      cyberStatuses.push(...evaluation.evaluations.map((item) => item.status));
+      discoveryFlags.push(evaluation.discoveryCoverageCompliant);
+    }
     return {
-      ...baseTopology,
-      preferredCoreNodeId: baseTopology.preferredCoreNodeId
+      cyber: summarizeCyberCompliance(cyberStatuses),
+      discovery: summarizeDiscoveryCompliance(discoveryFlags)
     };
+  };
+
+  const scopedNetworks = dataset.managedNetworks
+    .filter((network) => scopedNetworkIds.has(network.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const networkNodeIdByNetworkId = new Map<string, string>();
+  for (const network of scopedNetworks) {
+    const relatedSystems = (Array.from(systemIdsByNetwork.get(network.id) ?? []) as string[])
+      .map((item) => systemsById.get(item))
+      .filter((item): item is ICTSystem => Boolean(item));
+    const dependentMissionNames = Array.from(
+      new Set(relatedSystems.flatMap((item) => item.missionCapabilities.map((mission) => mission.name)))
+    ).sort((a, b) => a.localeCompare(b));
+    const dependentServiceNames = Array.from(
+      new Set(relatedSystems.flatMap((item) => item.businessServices.map((service) => service.name)))
+    ).sort((a, b) => a.localeCompare(b));
+    const dependentSystemNames = relatedSystems.map((item) => item.name).sort((a, b) => a.localeCompare(b));
+    const summaries = summarizeNetworkForScopedSystems(network.id);
+    const node = buildNetworkNode(
+      dataset,
+      network.id,
+      network.name,
+      summaries,
+      dependentMissionNames,
+      dependentServiceNames,
+      dependentSystemNames
+    );
+    nodes.push(node);
+    networkNodeIdByNetworkId.set(network.id, node.id);
   }
 
-  const outgoing = new Map<string, string[]>();
-  const incoming = new Map<string, string[]>();
-  for (const edge of baseTopology.edges) {
-    const fromCurrent = outgoing.get(edge.fromNodeId) ?? [];
-    fromCurrent.push(edge.toNodeId);
-    outgoing.set(edge.fromNodeId, fromCurrent);
-    const toCurrent = incoming.get(edge.toNodeId) ?? [];
-    toCurrent.push(edge.fromNodeId);
-    incoming.set(edge.toNodeId, toCurrent);
-  }
-
-  const descendantNodeIds = new Set<string>([systemNode.id]);
-  const descendantsQueue = [systemNode.id];
-  while (descendantsQueue.length) {
-    const currentNodeId = descendantsQueue.shift();
-    if (!currentNodeId) {
+  const { edges, addEdge } = createEdgeAccumulator();
+  for (const dependentSystem of scopedSystems) {
+    if (dependentSystem.id === system.id) {
       continue;
     }
-    for (const nextNodeId of outgoing.get(currentNodeId) ?? []) {
-      if (descendantNodeIds.has(nextNodeId)) {
-        continue;
-      }
-      descendantNodeIds.add(nextNodeId);
-      descendantsQueue.push(nextNodeId);
-    }
+    addEdge(systemNodeId, systemNodeIdBySystemId.get(dependentSystem.id));
   }
 
-  const ancestorNodeIds = new Set<string>([systemNode.id]);
-  const ancestorsQueue = [systemNode.id];
-  while (ancestorsQueue.length) {
-    const currentNodeId = ancestorsQueue.shift();
-    if (!currentNodeId) {
-      continue;
-    }
-    for (const nextNodeId of incoming.get(currentNodeId) ?? []) {
-      if (ancestorNodeIds.has(nextNodeId)) {
-        continue;
-      }
-      ancestorNodeIds.add(nextNodeId);
-      ancestorsQueue.push(nextNodeId);
-    }
+  for (const network of scopedNetworks) {
+    addEdge(systemNodeId, networkNodeIdByNetworkId.get(network.id));
   }
 
-  const scopedNodeIds = new Set<string>([...ancestorNodeIds, ...descendantNodeIds]);
-  const scopedNodes = baseTopology.nodes.filter((node) => scopedNodeIds.has(node.id));
-  const scopedEdges = baseTopology.edges.filter(
-    (edge) => scopedNodeIds.has(edge.fromNodeId) && scopedNodeIds.has(edge.toNodeId)
+  const { filteredNodes, filteredEdges } = filterReachableFromRoot(nodes, edges, systemNodeId);
+  const filteredNetworkIds = new Set(
+    filteredNodes.filter((node) => node.entityType === "network").map((node) => node.entityId)
   );
-  const scopedSystemIds = new Set(
-    scopedNodes.filter((node) => node.entityType === "ict-system").map((node) => node.entityId)
+  const filteredSystemIds = new Set(
+    filteredNodes.filter((node) => node.entityType === "ict-system").map((node) => node.entityId)
   );
-  const scopedCmdbTopologies = baseTopology.cmdbTopologies.filter((item) => scopedSystemIds.has(item.systemId));
+  const cmdbTopologies = buildCmdbTopologies(
+    dataset,
+    scopedSystems,
+    filteredSystemIds.size ? filteredSystemIds : scopedSystemIds,
+    filteredNetworkIds.size ? filteredNetworkIds : scopedNetworkIds
+  );
 
   return {
-    ...baseTopology,
-    nodes: scopedNodes,
-    edges: scopedEdges,
-    cmdbTopologies: scopedCmdbTopologies,
-    preferredCoreNodeId: systemNode.id
+    networkId: system.networkId,
+    networkName: system.name,
+    nodes: filteredNodes,
+    edges: filteredEdges,
+    cmdbTopologies,
+    preferredCoreNodeId: systemNodeId
   };
+}
+
+export function buildSystemTopologyData(
+  dataset: Dataset,
+  analytics: AnalyticsResult,
+  systemId: string
+): NetworkTopologyData {
+  return buildDependencySystemTopologyData(dataset, analytics, systemId);
 }

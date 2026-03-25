@@ -7,8 +7,12 @@ import type { NetworkTopologyData, TopologyEntityType, TopologyNodeDetails } fro
 
 type ComplianceMode = "cyber" | "discovery";
 type TopologyLayoutMode = "hierarchical" | "partitioned" | "radial";
+type CiAssetType = "network-device" | "workstation" | "server";
+type CiEnvironmentLabel = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
 const MIN_CAMERA_DISTANCE = 260;
 const MAX_CAMERA_DISTANCE = 8200;
+const CI_ASSET_TYPES: CiAssetType[] = ["network-device", "workstation", "server"];
+const CI_ENVIRONMENT_ORDER: CiEnvironmentLabel[] = ["Production", "Development", "UAT", "Test", "Unassigned"];
 
 interface LayoutNode {
   id: string;
@@ -108,6 +112,63 @@ function tileSurfaceClass(entityType: TopologyEntityType): string {
     return "bg-orange-100/95";
   }
   return "bg-sky-100/95";
+}
+
+function legendSwatchClass(entityType: TopologyEntityType): string {
+  if (entityType === "network") {
+    return "bg-white";
+  }
+  if (entityType === "mission-capability") {
+    return "bg-emerald-200";
+  }
+  if (entityType === "service") {
+    return "bg-violet-200";
+  }
+  return "bg-orange-200";
+}
+
+function ciAssetTypeLabel(assetType: CiAssetType): string {
+  if (assetType === "network-device") {
+    return "Network Devices";
+  }
+  if (assetType === "workstation") {
+    return "Workstations";
+  }
+  return "Servers";
+}
+
+function ciSearchKey(nodeId: string, assetType: CiAssetType): string {
+  return `${nodeId}:${assetType}`;
+}
+
+function ciEnvironmentSearchKey(nodeId: string, environment: CiEnvironmentLabel): string {
+  return `${nodeId}:environment:${environment}`;
+}
+
+function ciAssetTypeSingularLabel(assetType: CiAssetType): string {
+  if (assetType === "network-device") {
+    return "Network Device";
+  }
+  if (assetType === "workstation") {
+    return "Workstation";
+  }
+  return "Server";
+}
+
+function normalizeCiEnvironmentLabel(environmentType: string | null | undefined): CiEnvironmentLabel {
+  if (environmentType === "Production") {
+    return "Production";
+  }
+  if (environmentType === "Development") {
+    return "Development";
+  }
+  if (environmentType === "UAT") {
+    return "UAT";
+  }
+  if (environmentType === "Test") {
+    return "Test";
+  }
+  return "Unassigned";
 }
 
 function compliancePercentages(compliance: { compliant: number; nonCompliant: number; other: number }) {
@@ -523,6 +584,9 @@ export function NetworkTopologyView({
   const [renderedDetailNodeId, setRenderedDetailNodeId] = useState<string | null>(null);
   const [isDetailPanelVisible, setIsDetailPanelVisible] = useState(false);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
+  const [expandedNetworkNodeIds, setExpandedNetworkNodeIds] = useState<Set<string>>(new Set());
+  const [networkCiSearchByKey, setNetworkCiSearchByKey] = useState<Record<string, string>>({});
+  const [networkCiEnvironmentSearchByKey, setNetworkCiEnvironmentSearchByKey] = useState<Record<string, string>>({});
   const [rendererInitError, setRendererInitError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -578,6 +642,126 @@ export function NetworkTopologyView({
   }, [selectedDetailNode]);
   const cmdbBySystemId = useMemo(() => new Map(data.cmdbTopologies.map((item) => [item.systemId, item])), [data]);
   const selectedCmdb = selectedSystemId ? cmdbBySystemId.get(selectedSystemId) ?? null : null;
+  const viewedSystemId = useMemo(
+    () => (coreNode?.entityType === "ict-system" ? coreNode.entityId : null),
+    [coreNode?.entityId, coreNode?.entityType]
+  );
+  const isSystemTopologyView = Boolean(viewedSystemId);
+  const viewedSystemCmdb = useMemo(
+    () => (viewedSystemId ? cmdbBySystemId.get(viewedSystemId) ?? null : null),
+    [cmdbBySystemId, viewedSystemId]
+  );
+  const ciAssetsByNetworkNodeId = useMemo(() => {
+    const groupedByNetworkNodeId = new Map<
+      string,
+      Array<{
+        assetType: CiAssetType;
+        items: Array<{
+          id: string;
+          hostname: string;
+          name: string;
+          ipAddress: string;
+          environment: CiEnvironmentLabel;
+          type: CiAssetType;
+        }>;
+      }>
+    >();
+    if (!viewedSystemCmdb) {
+      return groupedByNetworkNodeId;
+    }
+
+    const allAssets = [...viewedSystemCmdb.networkDevices, ...viewedSystemCmdb.workstations, ...viewedSystemCmdb.servers];
+    const assetsByNetworkId = new Map<string, typeof allAssets>();
+    for (const asset of allAssets) {
+      const current = assetsByNetworkId.get(asset.networkId) ?? [];
+      current.push(asset);
+      assetsByNetworkId.set(asset.networkId, current);
+    }
+
+    for (const node of layout.nodes) {
+      if (node.entityType !== "network") {
+        continue;
+      }
+      const networkAssets = assetsByNetworkId.get(node.entityId) ?? [];
+      const groups: Array<{
+        assetType: CiAssetType;
+        items: Array<{
+          id: string;
+          hostname: string;
+          name: string;
+          ipAddress: string;
+          environment: CiEnvironmentLabel;
+          type: CiAssetType;
+        }>;
+      }> = CI_ASSET_TYPES.map((assetType) => ({
+        assetType,
+        items: networkAssets
+          .filter((asset) => asset.type === assetType)
+          .sort((a, b) => a.hostname.localeCompare(b.hostname))
+          .map((asset) => ({
+            id: asset.id,
+            hostname: asset.hostname,
+            name: asset.name,
+            ipAddress: asset.ipAddress,
+            environment: normalizeCiEnvironmentLabel(asset.environmentType),
+            type: asset.type
+          }))
+      }));
+      groupedByNetworkNodeId.set(node.id, groups);
+    }
+
+    return groupedByNetworkNodeId;
+  }, [layout.nodes, viewedSystemCmdb]);
+  const ciEnvironmentGroupsByNetworkNodeId = useMemo(() => {
+    const byNetworkNodeId = new Map<
+      string,
+      Array<{
+        environment: CiEnvironmentLabel;
+        items: Array<{
+          id: string;
+          hostname: string;
+          name: string;
+          ipAddress: string;
+          environment: CiEnvironmentLabel;
+          type: CiAssetType;
+        }>;
+      }>
+    >();
+
+    for (const node of layout.nodes) {
+      if (node.entityType !== "network") {
+        continue;
+      }
+      const typedGroups = ciAssetsByNetworkNodeId.get(node.id) ?? [];
+      const allItems = typedGroups.flatMap((group) => group.items);
+      const byEnvironment = new Map<
+        CiEnvironmentLabel,
+        Array<{
+          id: string;
+          hostname: string;
+          name: string;
+          ipAddress: string;
+          environment: CiEnvironmentLabel;
+          type: CiAssetType;
+        }>
+      >();
+      for (const item of allItems) {
+        const current = byEnvironment.get(item.environment) ?? [];
+        current.push(item);
+        byEnvironment.set(item.environment, current);
+      }
+
+      const environmentGroups = CI_ENVIRONMENT_ORDER.filter((environment) => (byEnvironment.get(environment) ?? []).length)
+        .map((environment) => ({
+          environment,
+          items: (byEnvironment.get(environment) ?? []).sort((a, b) => a.hostname.localeCompare(b.hostname))
+        }));
+
+      byNetworkNodeId.set(node.id, environmentGroups);
+    }
+
+    return byNetworkNodeId;
+  }, [ciAssetsByNetworkNodeId, layout.nodes]);
   const selectedPathEdgeIds = useMemo(() => {
     if (!coreNode?.id || !selectedNodeId || selectedNodeId === coreNode.id) {
       return new Set<string>();
@@ -684,6 +868,10 @@ export function NetworkTopologyView({
   }, [coreNode?.id, data.edges, highlightedEdgeIds, layout.nodes, selectedNodeId, selectedTileFilterId]);
   const isTileFilterActive = selectedTileFilterId !== "__all__";
   const hasTileSearchTerm = tileFilterSearchText.trim().length > 0;
+  const presentEntityTypes = useMemo(
+    () => new Set(layout.nodes.map((node) => node.entityType)),
+    [layout.nodes]
+  );
 
   useEffect(() => {
     if (!coreNode) {
@@ -714,6 +902,9 @@ export function NetworkTopologyView({
       setRenderedDetailNodeId(null);
       setIsDetailPanelVisible(false);
       setSelectedSystemId(null);
+      setExpandedNetworkNodeIds(new Set());
+      setNetworkCiSearchByKey({});
+      setNetworkCiEnvironmentSearchByKey({});
       setSelectedTileFilterId("__all__");
       setTileFilterSearchText("");
       setIsTileSearchFocused(false);
@@ -743,6 +934,9 @@ export function NetworkTopologyView({
     }
     setSelectedDetailNodeId(null);
     setSelectedSystemId(null);
+    setExpandedNetworkNodeIds(new Set());
+    setNetworkCiSearchByKey({});
+    setNetworkCiEnvironmentSearchByKey({});
     if (coreNode?.id) {
       setSelectedNodeId(coreNode.id);
     }
@@ -896,6 +1090,7 @@ export function NetworkTopologyView({
       });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.copy(startPosition);
+      mesh.visible = false;
       nodeGroup.add(mesh);
       runtimeNodes.set(node.id, {
         mesh,
@@ -927,16 +1122,34 @@ export function NetworkTopologyView({
       return new THREE.CubicBezierCurve3(start, control1, control2, end);
     };
 
-    const updateEdgeGeometry = (
-      edgeRuntime: (typeof runtimeEdges)[number],
-      includeTubeRebuild: boolean
-    ) => {
+    const resolveWorldAnchorFromTile = (nodeId: string, runtimeNode: RuntimeNodeState) => {
+      const element = tileRefs.current[nodeId];
+      if (!element || element.style.display === "none") {
+        return runtimeNode.currentPosition.clone();
+      }
+      const viewportRect = viewport.getBoundingClientRect();
+      const tileRect = element.getBoundingClientRect();
+      if (!viewportRect.width || !viewportRect.height || !tileRect.width || !tileRect.height) {
+        return runtimeNode.currentPosition.clone();
+      }
+      const centerX = tileRect.left + tileRect.width / 2;
+      const centerY = tileRect.top + tileRect.height / 2;
+      const ndcX = ((centerX - viewportRect.left) / viewportRect.width) * 2 - 1;
+      const ndcY = -(((centerY - viewportRect.top) / viewportRect.height) * 2 - 1);
+      const projected = runtimeNode.currentPosition.clone().project(camera);
+      const ndcZ = THREE.MathUtils.clamp(projected.z, -0.999, 0.999);
+      return new THREE.Vector3(ndcX, ndcY, ndcZ).unproject(camera);
+    };
+
+    const updateEdgeGeometry = (edgeRuntime: (typeof runtimeEdges)[number], includeTubeRebuild: boolean) => {
       const fromRuntimeNode = runtimeNodes.get(edgeRuntime.fromNodeId);
       const toRuntimeNode = runtimeNodes.get(edgeRuntime.toNodeId);
       if (!fromRuntimeNode || !toRuntimeNode) {
         return;
       }
-      const curve = computeCurve(fromRuntimeNode.currentPosition, toRuntimeNode.currentPosition);
+      const fromAnchor = resolveWorldAnchorFromTile(edgeRuntime.fromNodeId, fromRuntimeNode);
+      const toAnchor = resolveWorldAnchorFromTile(edgeRuntime.toNodeId, toRuntimeNode);
+      const curve = computeCurve(fromAnchor, toAnchor);
       const points = curve.getPoints(34);
       edgeRuntime.line.geometry.setFromPoints(points);
 
@@ -1068,18 +1281,26 @@ export function NetworkTopologyView({
         }
         const distance = camera.position.distanceTo(runtimeNode.currentPosition);
         const scale = THREE.MathUtils.clamp(1700 / Math.max(distance, 1), 0.56, 1.48);
-        element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
+        element.style.left = `${x}px`;
+        element.style.top = `${y}px`;
+        element.style.transform = `translate(-50%, -50%) scale(${scale})`;
       }
     };
 
     let isDisposed = false;
     let animationFrame = 0;
     let hasMovement = true;
+    let hasInitializedEdgeAnchors = false;
+    let previousCameraPosition = camera.position.clone();
+    let previousCameraTarget = controls.target.clone();
     const renderFrame = () => {
       if (isDisposed) {
         return;
       }
       controls.update();
+      const cameraMoved =
+        camera.position.distanceToSquared(previousCameraPosition) > 0.000001 ||
+        controls.target.distanceToSquared(previousCameraTarget) > 0.000001;
       hasMovement = false;
       for (const runtimeNode of runtimeNodes.values()) {
         runtimeNode.currentPosition.lerp(runtimeNode.targetPosition, 0.14);
@@ -1090,15 +1311,17 @@ export function NetworkTopologyView({
         }
         runtimeNode.mesh.position.copy(runtimeNode.currentPosition);
       }
-      for (const [nodeId, runtimeNode] of runtimeNodes.entries()) {
-        runtimeNode.mesh.visible = !isTileFilterActive || filteredTileNodeIds.has(nodeId);
+      for (const runtimeNode of runtimeNodes.values()) {
+        runtimeNode.mesh.visible = false;
       }
-      if (hasMovement || nodePositionsDirtyRef.current) {
-        for (const runtimeEdge of runtimeEdges) {
-          updateEdgeGeometry(runtimeEdge, true);
-        }
-        nodePositionsDirtyRef.current = false;
+      positionTiles();
+      const shouldRebuildTubes =
+        !hasInitializedEdgeAnchors || hasMovement || nodePositionsDirtyRef.current || cameraMoved;
+      for (const runtimeEdge of runtimeEdges) {
+        updateEdgeGeometry(runtimeEdge, shouldRebuildTubes);
       }
+      hasInitializedEdgeAnchors = true;
+      nodePositionsDirtyRef.current = false;
       for (const runtimeEdge of runtimeEdges) {
         const isEdgeVisible = isTileFilterActive
           ? highlightedEdgeIds.has(runtimeEdge.edgeId)
@@ -1129,7 +1352,8 @@ export function NetworkTopologyView({
         }
       }
       renderer.render(scene, camera);
-      positionTiles();
+      previousCameraPosition = camera.position.clone();
+      previousCameraTarget = controls.target.clone();
       animationFrame = window.requestAnimationFrame(renderFrame);
     };
     renderFrame();
@@ -1402,6 +1626,34 @@ export function NetworkTopologyView({
     setSearchQuery("");
   };
 
+  const toggleNetworkCiExpansion = (nodeId: string) => {
+    setExpandedNetworkNodeIds((current) => {
+      const next = new Set(current);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  };
+
+  const setNetworkCiSearch = (nodeId: string, assetType: CiAssetType, value: string) => {
+    const key = ciSearchKey(nodeId, assetType);
+    setNetworkCiSearchByKey((current) => ({
+      ...current,
+      [key]: value
+    }));
+  };
+
+  const setNetworkCiEnvironmentSearch = (nodeId: string, environment: CiEnvironmentLabel, value: string) => {
+    const key = ciEnvironmentSearchKey(nodeId, environment);
+    setNetworkCiEnvironmentSearchByKey((current) => ({
+      ...current,
+      [key]: value
+    }));
+  };
+
   const renderDetailList = (label: string, values?: string[]) => {
     if (typeof values === "undefined") {
       return null;
@@ -1578,18 +1830,14 @@ export function NetworkTopologyView({
             </span>
             <span className="mx-1 h-5 w-px bg-sky-400/20" />
             <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-sm bg-emerald-200" />
-              Mission Capability
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-sm bg-violet-200" />
-              Service
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-sm bg-orange-200" />
-              ICT System
-            </span>
+            {(["network", "mission-capability", "service", "ict-system"] as TopologyEntityType[])
+              .filter((entityType) => presentEntityTypes.has(entityType))
+              .map((entityType) => (
+                <span key={`entity-key-${entityType}`} className="inline-flex items-center gap-1">
+                  <span className={`h-2.5 w-2.5 rounded-sm ${legendSwatchClass(entityType)}`} />
+                  {entityTypeLabel(entityType)}
+                </span>
+              ))}
           </div>
         </div>
 
@@ -1620,6 +1868,12 @@ export function NetworkTopologyView({
                 const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
                 const percentage = compliancePercentages(compliance);
                 const isCoreTile = coreNode?.id === node.id;
+                const isNetworkTile = node.entityType === "network";
+                const shouldShowNetworkExpander = isSystemTopologyView && isNetworkTile;
+                const networkCiGroups = ciAssetsByNetworkNodeId.get(node.id) ?? [];
+                const networkEnvironmentGroups = ciEnvironmentGroupsByNetworkNodeId.get(node.id) ?? [];
+                const networkCiCount = networkCiGroups.reduce((sum, group) => sum + group.items.length, 0);
+                const isNetworkExpanded = expandedNetworkNodeIds.has(node.id);
                 return (
                   <div
                     key={node.id}
@@ -1636,8 +1890,25 @@ export function NetworkTopologyView({
                         : node.id === selectedNodeId
                           ? "border-4 border-violet-500"
                           : "border-2 border-sky-950/90"
-                    } ${draggingNodeId === node.id ? "cursor-grabbing" : "cursor-grab"} select-none touch-none`}
+                    } ${draggingNodeId === node.id ? "cursor-grabbing" : "cursor-grab"} relative origin-center select-none touch-none`}
                   >
+                    {shouldShowNetworkExpander ? (
+                      <button
+                        type="button"
+                        aria-label={`${isNetworkExpanded ? "Collapse" : "Expand"} ${node.name} connected CIs`}
+                        onPointerDown={(event) => {
+                          event.stopPropagation();
+                          event.preventDefault();
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleNetworkCiExpansion(node.id);
+                        }}
+                        className="absolute -right-3 -top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-base font-bold text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
+                      >
+                        {isNetworkExpanded ? "-" : "+"}
+                      </button>
+                    ) : null}
                     <div className="space-y-0.5">
                       <p className="text-sm font-semibold leading-snug text-slate-900">
                         Type: <span className="font-medium">{entityTypeLabel(node.entityType)}</span>
@@ -1656,6 +1927,157 @@ export function NetworkTopologyView({
                     <p className="mt-2 text-center text-base font-medium text-slate-900">
                       {percentage.compliant}% C | {percentage.nonCompliant}% NC | {percentage.other}% O
                     </p>
+                    {shouldShowNetworkExpander && isNetworkExpanded ? (
+                      <div
+                        onPointerDown={(event) => event.stopPropagation()}
+                        className="absolute left-1/2 top-[calc(100%+0.55rem)] z-20 w-[min(66rem,calc(100vw-5rem))] -translate-x-1/2 rounded-2xl border border-slate-700/85 bg-slate-950/96 p-2 shadow-[0_20px_48px_rgba(0,0,0,0.58)]"
+                      >
+                        <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
+                          Connected CIs ({networkCiCount})
+                        </p>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                          {CI_ASSET_TYPES.map((assetType) => {
+                            const group = networkCiGroups.find((item) => item.assetType === assetType);
+                            const searchValue = networkCiSearchByKey[ciSearchKey(node.id, assetType)] ?? "";
+                            const normalizedSearchValue = searchValue.trim().toLowerCase();
+                            const filteredItems = (group?.items ?? []).filter((asset) => {
+                              if (!normalizedSearchValue) {
+                                return true;
+                              }
+                              return `${asset.hostname} ${asset.name} ${asset.ipAddress}`
+                                .toLowerCase()
+                                .includes(normalizedSearchValue);
+                            });
+                            return (
+                              <section
+                                key={`${node.id}-${assetType}`}
+                                className="flex h-64 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-700/75 bg-slate-900/88 p-2"
+                              >
+                                <p className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/90">
+                                  {ciAssetTypeLabel(assetType)} ({filteredItems.length}/{group?.items.length ?? 0})
+                                </p>
+                                <input
+                                  type="search"
+                                  value={searchValue}
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onChange={(event) => setNetworkCiSearch(node.id, assetType, event.target.value)}
+                                  placeholder="Filter CIs"
+                                  className="mt-1 rounded border border-slate-600/80 bg-slate-950/90 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-400"
+                                />
+                                <div className="mt-2 min-h-0 flex-1 overflow-auto">
+                                  <table className="w-full table-fixed border-collapse text-[11px] text-slate-200">
+                                    <thead className="sticky top-0 bg-slate-900/95 text-left uppercase tracking-[0.11em] text-slate-300/85">
+                                      <tr>
+                                        <th className="border-b border-slate-700/80 px-1 py-1">Hostname</th>
+                                        <th className="border-b border-slate-700/80 px-1 py-1">IP</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {filteredItems.length ? (
+                                        filteredItems.map((asset) => (
+                                          <tr key={asset.id} className="align-top">
+                                            <td className="border-b border-slate-800/80 px-1 py-1 break-words">
+                                              {asset.hostname}
+                                            </td>
+                                            <td className="border-b border-slate-800/80 px-1 py-1 break-words">
+                                              {asset.ipAddress}
+                                            </td>
+                                          </tr>
+                                        ))
+                                      ) : (
+                                        <tr>
+                                          <td className="px-1 py-2 text-slate-400" colSpan={2}>
+                                            No matching CIs.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </section>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/65 p-2">
+                          <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
+                            Connected CIs By Environment
+                          </p>
+                          {networkEnvironmentGroups.length ? (
+                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                              {networkEnvironmentGroups.map((group) => {
+                                const searchKey = ciEnvironmentSearchKey(node.id, group.environment);
+                                const searchValue = networkCiEnvironmentSearchByKey[searchKey] ?? "";
+                                const normalizedSearch = searchValue.trim().toLowerCase();
+                                const filteredItems = group.items.filter((asset) => {
+                                  if (!normalizedSearch) {
+                                    return true;
+                                  }
+                                  return `${asset.hostname} ${asset.name} ${asset.ipAddress} ${asset.type}`
+                                    .toLowerCase()
+                                    .includes(normalizedSearch);
+                                });
+                                return (
+                                  <section
+                                    key={`${node.id}-environment-${group.environment}`}
+                                    className="flex h-64 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-700/75 bg-slate-900/88 p-2"
+                                  >
+                                    <p className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/90">
+                                      {group.environment} ({filteredItems.length}/{group.items.length})
+                                    </p>
+                                    <input
+                                      type="search"
+                                      value={searchValue}
+                                      onPointerDown={(event) => event.stopPropagation()}
+                                      onChange={(event) =>
+                                        setNetworkCiEnvironmentSearch(node.id, group.environment, event.target.value)
+                                      }
+                                      placeholder="Filter CIs"
+                                      className="mt-1 rounded border border-slate-600/80 bg-slate-950/90 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-400"
+                                    />
+                                    <div className="mt-2 min-h-0 flex-1 overflow-auto">
+                                      <table className="w-full table-fixed border-collapse text-[11px] text-slate-200">
+                                        <thead className="sticky top-0 bg-slate-900/95 text-left uppercase tracking-[0.11em] text-slate-300/85">
+                                          <tr>
+                                            <th className="border-b border-slate-700/80 px-1 py-1">Hostname</th>
+                                            <th className="border-b border-slate-700/80 px-1 py-1">Type</th>
+                                            <th className="border-b border-slate-700/80 px-1 py-1">IP</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {filteredItems.length ? (
+                                            filteredItems.map((asset) => (
+                                              <tr key={asset.id} className="align-top">
+                                                <td className="border-b border-slate-800/80 px-1 py-1 break-words">
+                                                  {asset.hostname}
+                                                </td>
+                                                <td className="border-b border-slate-800/80 px-1 py-1 break-words">
+                                                  {ciAssetTypeSingularLabel(asset.type)}
+                                                </td>
+                                                <td className="border-b border-slate-800/80 px-1 py-1 break-words">
+                                                  {asset.ipAddress}
+                                                </td>
+                                              </tr>
+                                            ))
+                                          ) : (
+                                            <tr>
+                                              <td className="px-1 py-2 text-slate-400" colSpan={3}>
+                                                No matching CIs.
+                                              </td>
+                                            </tr>
+                                          )}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </section>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p className="mt-2 px-1 text-xs text-slate-400">No environment-linked CIs in this network.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
