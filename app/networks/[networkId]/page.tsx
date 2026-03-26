@@ -767,10 +767,97 @@ export default async function NetworkDetailPage({
   });
 
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
+  const networkAssetsById = new Map(assets.map((asset) => [asset.id, asset]));
   const systemOwnerById = new Map(
     dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""])
   );
   const networkOwnerFallback = network.owner?.trim() || "Not assigned";
+
+  const riskProfileFindings = networkScopedFindings
+    .map((finding) => {
+      const asset = networkAssetsById.get(finding.scope.assetId);
+      const evidence = Object.entries(finding.evidence).map(([key, value]) => ({
+        key,
+        value: toEvidenceString(value)
+      }));
+      const evidencePreview =
+        evidence
+          .slice(0, 2)
+          .map((item) => `${item.key}: ${item.value}`)
+          .join(" | ") || "No evidence captured";
+      const systemId = finding.scope.systemId ?? asset?.systemContext?.systemId ?? null;
+      const environmentType = finding.scope.environmentType ?? asset?.systemContext?.environmentType ?? null;
+      const scopeLabel = [
+        `Asset ${finding.scope.assetId}`,
+        systemId ? `System ${systemId}` : "System n/a",
+        environmentType ? `Env ${environmentType}` : "Env n/a"
+      ].join(" | ");
+      const assetName =
+        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
+        asset?.name ??
+        asset?.hostname ??
+        finding.scope.assetId;
+      const assetType = formatAssetTypeLabel(
+        readEvidenceStringValue(finding.evidence, ["assetType", "asset_type"]) ?? asset?.type ?? null
+      );
+      const assetIpAddress =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIpAddress",
+          "assetIp",
+          "ipAddress",
+          "ip",
+          "ipv4Address",
+          "ipv4",
+          "ip_address"
+        ]) ?? (asset ? resolveAssetIpAddress(asset) : "Not available");
+      const assetChangeAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetChangeAssignmentGroup",
+          "changeAssignmentGroup",
+          "changeGroup",
+          "change_assignment_group"
+        ]) ?? "Not assigned";
+      const assetIncidentAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIncidentAssignmentGroup",
+          "incidentAssignmentGroup",
+          "incidentGroup",
+          "incident_assignment_group"
+        ]) ?? "Not assigned";
+      const owner =
+        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
+        (systemId ? systemOwnerById.get(systemId)?.trim() || networkOwnerFallback : networkOwnerFallback);
+
+      return {
+        id: `risk-${finding.id}`,
+        assetId: finding.scope.assetId,
+        assetName,
+        assetType,
+        assetIpAddress,
+        assetChangeAssignmentGroup,
+        assetIncidentAssignmentGroup,
+        owner,
+        spiId: finding.spiId,
+        timestamp: finding.timestamp,
+        closedTimestamp: finding.closedTimestamp ?? null,
+        timestampLabel: formatTimestamp(finding.timestamp),
+        title: finding.title,
+        priorityRank: finding.priorityRank,
+        severity: finding.severity,
+        workflowStatus: finding.status,
+        scopeLabel,
+        evidencePreview,
+        recommendedAction: finding.recommendedAction
+      };
+    })
+    .sort((a, b) => {
+      if (a.priorityRank !== b.priorityRank) {
+        return a.priorityRank - b.priorityRank;
+      }
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    });
 
   const latestFindingByAssetAndSpi = filteredFindings.reduce((map, finding) => {
     const key = `${finding.scope.assetId}:${finding.spiId}`;
@@ -1350,6 +1437,7 @@ export default async function NetworkDetailPage({
         <section className="panel min-h-0 overflow-hidden p-2.5">
           <NetworkDetailRiskCharts
             layout="stacked"
+            asOfDate={requestedDataDate ?? todayDateKey()}
             riskProfile={{
               openFindings: openNetworkScopedFindings.length,
               p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,
@@ -1358,6 +1446,7 @@ export default async function NetworkDetailPage({
               severitySummary: riskSeveritySummary,
               weeklyTrend: networkDetailWeeklyRiskTrend
             }}
+            findings={riskProfileFindings}
           />
         </section>
       </div>

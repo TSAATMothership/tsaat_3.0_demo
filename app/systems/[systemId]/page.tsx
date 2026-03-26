@@ -1084,6 +1084,90 @@ export default async function SystemDetailPage({
 
   const systemOwnerFallback = system.owner?.trim() || "Not assigned";
 
+  const riskProfileFindings = systemScopedRiskFindings
+    .map((finding) => {
+      const asset = filteredAssetsById.get(finding.scope.assetId);
+      const evidence = Object.entries(finding.evidence).map(([key, value]) => ({
+        key,
+        value: toEvidenceString(value)
+      }));
+      const evidencePreview =
+        evidence
+          .slice(0, 2)
+          .map((item) => `${item.key}: ${item.value}`)
+          .join(" | ") || "No evidence captured";
+      const environmentType = finding.scope.environmentType ?? asset?.systemContext?.environmentType ?? null;
+      const scopeLabel = [
+        `Asset ${finding.scope.assetId}`,
+        `System ${system.id}`,
+        environmentType ? `Env ${environmentType}` : "Env n/a"
+      ].join(" | ");
+      const assetName =
+        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
+        asset?.name ??
+        asset?.hostname ??
+        finding.scope.assetId;
+      const assetType = formatAssetTypeLabel(
+        readEvidenceStringValue(finding.evidence, ["assetType", "asset_type"]) ?? asset?.type ?? null
+      );
+      const assetIpAddress =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIpAddress",
+          "assetIp",
+          "ipAddress",
+          "ip",
+          "ipv4Address",
+          "ipv4",
+          "ip_address"
+        ]) ?? (asset ? resolveAssetIpAddress(asset) : "Not available");
+      const assetChangeAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetChangeAssignmentGroup",
+          "changeAssignmentGroup",
+          "changeGroup",
+          "change_assignment_group"
+        ]) ?? "Not assigned";
+      const assetIncidentAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIncidentAssignmentGroup",
+          "incidentAssignmentGroup",
+          "incidentGroup",
+          "incident_assignment_group"
+        ]) ?? "Not assigned";
+      const owner =
+        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ?? systemOwnerFallback;
+
+      return {
+        id: `risk-${finding.id}`,
+        assetId: finding.scope.assetId,
+        assetName,
+        assetType,
+        assetIpAddress,
+        assetChangeAssignmentGroup,
+        assetIncidentAssignmentGroup,
+        owner,
+        spiId: finding.spiId,
+        timestamp: finding.timestamp,
+        closedTimestamp: finding.closedTimestamp ?? null,
+        timestampLabel: formatTimestamp(finding.timestamp),
+        title: finding.title,
+        priorityRank: finding.priorityRank,
+        severity: finding.severity,
+        workflowStatus: finding.status,
+        scopeLabel,
+        evidencePreview,
+        recommendedAction: finding.recommendedAction
+      };
+    })
+    .sort((a, b) => {
+      if (a.priorityRank !== b.priorityRank) {
+        return a.priorityRank - b.priorityRank;
+      }
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    });
+
   const complianceOverviewFindings = scopedEvaluationRows
     .filter((row) => row.status !== "Compliant")
     .map((row) => {
@@ -1701,6 +1785,7 @@ export default async function SystemDetailPage({
       <section className="panel min-h-0 overflow-hidden p-2.5">
         <NetworkDetailRiskCharts
           layout="stacked"
+          asOfDate={requestedDataDate ?? dataset.snapshotDate}
           scopeDescription="Open findings by severity in current ICT system detail scope."
           riskProfile={{
             openFindings: openSystemScopedRiskFindings.length,
@@ -1710,6 +1795,7 @@ export default async function SystemDetailPage({
             severitySummary: riskSeveritySummary,
             weeklyTrend: systemDetailWeeklyRiskTrend
           }}
+          findings={riskProfileFindings}
         />
       </section>
       </div>
