@@ -936,15 +936,17 @@ export function NetworkDetailRiskCharts({
             aria-modal="true"
             aria-labelledby="risk-findings-slideout-title"
           >
-            <button
-              type="button"
-              onClick={closeFindingsPanel}
-              className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
-            >
-              Close
-            </button>
+            {!isAssetDetailsPanelVisible ? (
+              <button
+                type="button"
+                onClick={closeFindingsPanel}
+                className="absolute right-4 top-4 z-[6] rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
+              >
+                Close
+              </button>
+            ) : null}
 
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="relative flex h-full min-h-0 flex-col">
               <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Risk Detail</p>
               <h4 id="risk-findings-slideout-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
                 Findings
@@ -1270,93 +1272,97 @@ export function NetworkDetailRiskCharts({
                     </tbody>
                   </table>
                 </div>
-
-                {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
-                  <div className="absolute inset-0 z-[3]">
-                    <div
-                      className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
-                        isAssetDetailsPanelOpen ? "opacity-100" : "opacity-0"
-                      }`}
-                      onClick={closeAssetDetailsPanel}
-                    />
-                    <aside
-                      className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
-                        isAssetDetailsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
-                      }`}
-                      role="dialog"
-                      aria-modal="true"
-                      aria-labelledby="risk-affected-devices-slideout-title"
-                    >
-                      <button
-                        type="button"
-                        onClick={closeAssetDetailsPanel}
-                        className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
-                      >
-                        Close
-                      </button>
-
-                      <div className="flex h-full min-h-0 flex-col">
-                        <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Drill Through</p>
-                        <h5 id="risk-affected-devices-slideout-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
-                          Affected CIs
-                        </h5>
-                        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.title}</p>
-                            <p className="mt-1 text-xs text-slate-300/80">Affected CIs: {affectedDeviceRows.length}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={downloadAffectedCisCsv}
-                            disabled={!affectedDeviceRows.length}
-                            className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-                          >
-                            Export CSV
-                          </button>
-                        </div>
-
-                        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-sky-400/15">
-                          <table className="min-w-full text-sm">
-                            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                              <tr>
-                                <th className="px-3 py-2">Device</th>
-                                <th className="px-3 py-2">Asset ID</th>
-                                <th className="px-3 py-2">Asset IP address</th>
-                                <th className="px-3 py-2">Asset Type</th>
-                                <th className="px-3 py-2">Total Open Findings</th>
-                                <th className="px-3 py-2">Asset Change Assignment Group</th>
-                                <th className="px-3 py-2">Asset Incident Assignment Group</th>
-                                <th className="px-3 py-2">Owner</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {affectedDeviceRows.map((device) => (
-                                <tr key={device.assetId} className="border-t border-sky-400/10 align-top">
-                                  <td className="px-3 py-2 text-slate-100">{device.assetName}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{device.assetId}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{device.assetIpAddress}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{device.assetType}</td>
-                                  <td className="px-3 py-2 text-slate-200">{device.totalOpenFindings}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{device.assetChangeAssignmentGroup}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{device.assetIncidentAssignmentGroup}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{device.owner}</td>
-                                </tr>
-                              ))}
-                              {affectedDeviceRows.length === 0 ? (
-                                <tr>
-                                  <td colSpan={8} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                                    No affected devices found for this finding.
-                                  </td>
-                                </tr>
-                              ) : null}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </aside>
-                  </div>
-                ) : null}
               </div>
+
+              {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
+                <div
+                  className={`absolute inset-0 z-[3] ${
+                    isAssetDetailsPanelOpen ? "pointer-events-auto" : "pointer-events-none"
+                  }`}
+                >
+                  <div
+                    className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
+                      isAssetDetailsPanelOpen ? "opacity-100" : "opacity-0"
+                    }`}
+                    onClick={closeAssetDetailsPanel}
+                  />
+                  <aside
+                    className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+                      isAssetDetailsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+                    }`}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="risk-affected-devices-slideout-title"
+                  >
+                    <button
+                      type="button"
+                      onClick={closeAssetDetailsPanel}
+                      className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
+                    >
+                      Close
+                    </button>
+
+                    <div className="flex h-full min-h-0 flex-col">
+                      <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Drill Through</p>
+                      <h5 id="risk-affected-devices-slideout-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
+                        Affected CIs
+                      </h5>
+                      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.title}</p>
+                          <p className="mt-1 text-xs text-slate-300/80">Affected CIs: {affectedDeviceRows.length}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={downloadAffectedCisCsv}
+                          disabled={!affectedDeviceRows.length}
+                          className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
+                        >
+                          Export CSV
+                        </button>
+                      </div>
+
+                      <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-sky-400/15">
+                        <table className="min-w-full text-sm">
+                          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                            <tr>
+                              <th className="px-3 py-2">Device</th>
+                              <th className="px-3 py-2">Asset ID</th>
+                              <th className="px-3 py-2">Asset IP address</th>
+                              <th className="px-3 py-2">Asset Type</th>
+                              <th className="px-3 py-2">Total Open Findings</th>
+                              <th className="px-3 py-2">Asset Change Assignment Group</th>
+                              <th className="px-3 py-2">Asset Incident Assignment Group</th>
+                              <th className="px-3 py-2">Owner</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {affectedDeviceRows.map((device) => (
+                              <tr key={device.assetId} className="border-t border-sky-400/10 align-top">
+                                <td className="px-3 py-2 text-slate-100">{device.assetName}</td>
+                                <td className="px-3 py-2 text-slate-300/85">{device.assetId}</td>
+                                <td className="px-3 py-2 text-slate-300/85">{device.assetIpAddress}</td>
+                                <td className="px-3 py-2 text-slate-300/85">{device.assetType}</td>
+                                <td className="px-3 py-2 text-slate-200">{device.totalOpenFindings}</td>
+                                <td className="px-3 py-2 text-slate-300/85">{device.assetChangeAssignmentGroup}</td>
+                                <td className="px-3 py-2 text-slate-300/85">{device.assetIncidentAssignmentGroup}</td>
+                                <td className="px-3 py-2 text-slate-300/85">{device.owner}</td>
+                              </tr>
+                            ))}
+                            {affectedDeviceRows.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                                  No affected devices found for this finding.
+                                </td>
+                              </tr>
+                            ) : null}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
             </div>
           </aside>
         </div>
