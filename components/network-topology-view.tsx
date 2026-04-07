@@ -574,7 +574,6 @@ export function NetworkTopologyView({
   data: NetworkTopologyData;
 }) {
   const [complianceMode, setComplianceMode] = useState<ComplianceMode>("cyber");
-  const [layoutMode, setLayoutMode] = useState<TopologyLayoutMode>("hierarchical");
   const [selectedTileFilterId, setSelectedTileFilterId] = useState("__all__");
   const [tileFilterSearchText, setTileFilterSearchText] = useState("");
   const [isTileSearchFocused, setIsTileSearchFocused] = useState(false);
@@ -614,7 +613,7 @@ export function NetworkTopologyView({
   const initialCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 120, 2050));
   const initialTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
 
-  const layout = useMemo(() => buildTopologyLayout(data, layoutMode), [data, layoutMode]);
+  const layout = useMemo(() => buildTopologyLayout(data, "hierarchical"), [data]);
   const coreNode = useMemo(
     () =>
       (data.preferredCoreNodeId ? layout.nodes.find((node) => node.id === data.preferredCoreNodeId) : null) ??
@@ -1007,7 +1006,7 @@ export function NetworkTopologyView({
     return () => {
       window.cancelAnimationFrame(raf);
     };
-  }, [isOpen, layoutMode]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1444,31 +1443,6 @@ export function NetworkTopologyView({
     controls.update();
   };
 
-  const changeLayoutMode = (nextMode: TopologyLayoutMode) => {
-    if (nextMode === layoutMode) {
-      return;
-    }
-    suppressPersistedPositionsOnCleanupRef.current = true;
-    manualNodePositionsRef.current = new Map();
-    persistedNodePositionsRef.current = new Map();
-    persistedCameraStateRef.current = null;
-    setDraggingNodeId(null);
-    tileDragStateRef.current = null;
-
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    if (controls) {
-      controls.enabled = true;
-    }
-    if (camera && controls) {
-      camera.position.copy(initialCameraPositionRef.current);
-      controls.target.copy(initialTargetRef.current);
-      controls.update();
-    }
-    centerViewportScroll();
-    setLayoutMode(nextMode);
-  };
-
   const resetView = () => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
@@ -1704,19 +1678,6 @@ export function NetworkTopologyView({
             <option value="cyber">Cyber Security Compliance</option>
             <option value="discovery">Discovery Compliance</option>
           </select>
-          <label className="ml-2 text-slate-300/85" htmlFor="network-topology-layout-mode">
-            Layout
-          </label>
-          <select
-            id="network-topology-layout-mode"
-            value={layoutMode}
-            onChange={(event) => changeLayoutMode(event.target.value as TopologyLayoutMode)}
-            className="max-w-[320px] rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100"
-          >
-            <option value="hierarchical">Hierarchical/Tree Layouts</option>
-            <option value="partitioned">Circular/Partitioned Layouts</option>
-            <option value="radial">Radial/Circular Layouts</option>
-          </select>
           <label className="ml-2 text-slate-300/85" htmlFor="network-topology-tile-filter-search">
             Tile Search
           </label>
@@ -1930,12 +1891,12 @@ export function NetworkTopologyView({
                     {shouldShowNetworkExpander && isNetworkExpanded ? (
                       <div
                         onPointerDown={(event) => event.stopPropagation()}
-                        className="absolute left-1/2 top-[calc(100%+0.55rem)] z-20 w-[min(66rem,calc(100vw-5rem))] -translate-x-1/2 rounded-2xl border border-slate-700/85 bg-slate-950/96 p-2 shadow-[0_20px_48px_rgba(0,0,0,0.58)]"
+                        className="absolute left-1/2 top-[calc(100%+0.55rem)] z-20 w-[min(85.8rem,calc(100vw-3rem))] -translate-x-1/2 rounded-2xl border border-slate-700/85 bg-slate-950/96 p-3 shadow-[0_20px_48px_rgba(0,0,0,0.58)]"
                       >
                         <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
                           Connected CIs ({networkCiCount})
                         </p>
-                        <div className="mt-2 grid grid-cols-3 gap-2">
+                        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                           {CI_ASSET_TYPES.map((assetType) => {
                             const group = networkCiGroups.find((item) => item.assetType === assetType);
                             const searchValue = networkCiSearchByKey[ciSearchKey(node.id, assetType)] ?? "";
@@ -1968,8 +1929,7 @@ export function NetworkTopologyView({
                                   <table className="w-full table-fixed border-collapse text-[11px] text-slate-200">
                                     <thead className="sticky top-0 bg-slate-900/95 text-left uppercase tracking-[0.11em] text-slate-300/85">
                                       <tr>
-                                        <th className="border-b border-slate-700/80 px-1 py-1">Hostname</th>
-                                        <th className="border-b border-slate-700/80 px-1 py-1">IP</th>
+                                        <th className="w-full border-b border-slate-700/80 px-1 py-1">Hostname</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1979,14 +1939,11 @@ export function NetworkTopologyView({
                                             <td className="border-b border-slate-800/80 px-1 py-1 break-words">
                                               {asset.hostname}
                                             </td>
-                                            <td className="border-b border-slate-800/80 px-1 py-1 break-words">
-                                              {asset.ipAddress}
-                                            </td>
                                           </tr>
                                         ))
                                       ) : (
                                         <tr>
-                                          <td className="px-1 py-2 text-slate-400" colSpan={2}>
+                                          <td className="px-1 py-2 text-slate-400" colSpan={1}>
                                             No matching CIs.
                                           </td>
                                         </tr>
@@ -2003,7 +1960,7 @@ export function NetworkTopologyView({
                             Connected CIs By Environment
                           </p>
                           {networkEnvironmentGroups.length ? (
-                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                               {networkEnvironmentGroups.map((group) => {
                                 const searchKey = ciEnvironmentSearchKey(node.id, group.environment);
                                 const searchValue = networkCiEnvironmentSearchByKey[searchKey] ?? "";
@@ -2038,9 +1995,8 @@ export function NetworkTopologyView({
                                       <table className="w-full table-fixed border-collapse text-[11px] text-slate-200">
                                         <thead className="sticky top-0 bg-slate-900/95 text-left uppercase tracking-[0.11em] text-slate-300/85">
                                           <tr>
-                                            <th className="border-b border-slate-700/80 px-1 py-1">Hostname</th>
-                                            <th className="border-b border-slate-700/80 px-1 py-1">Type</th>
-                                            <th className="border-b border-slate-700/80 px-1 py-1">IP</th>
+                                            <th className="w-[70%] border-b border-slate-700/80 px-1 py-1">Hostname</th>
+                                            <th className="w-[30%] border-b border-slate-700/80 px-1 py-1">Type</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -2053,14 +2009,11 @@ export function NetworkTopologyView({
                                                 <td className="border-b border-slate-800/80 px-1 py-1 break-words">
                                                   {ciAssetTypeSingularLabel(asset.type)}
                                                 </td>
-                                                <td className="border-b border-slate-800/80 px-1 py-1 break-words">
-                                                  {asset.ipAddress}
-                                                </td>
                                               </tr>
                                             ))
                                           ) : (
                                             <tr>
-                                              <td className="px-1 py-2 text-slate-400" colSpan={3}>
+                                              <td className="px-1 py-2 text-slate-400" colSpan={2}>
                                                 No matching CIs.
                                               </td>
                                             </tr>
