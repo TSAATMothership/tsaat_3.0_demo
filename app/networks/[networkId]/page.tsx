@@ -17,6 +17,7 @@ import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discove
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
 import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
+import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { SPI_IDS } from "@/lib/spi-metadata";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
@@ -1027,6 +1028,7 @@ export default async function NetworkDetailPage({
     workstationCount: filteredAssets.filter((asset) => asset.type === "workstation").length,
     networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length
   };
+  const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
 
   const snapshotByDate = new Map<string, Dataset>();
   for (const snapshot of snapshots) {
@@ -1447,6 +1449,7 @@ export default async function NetworkDetailPage({
               weeklyTrend: networkDetailWeeklyRiskTrend
             }}
             findings={riskProfileFindings}
+            assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
           />
         </section>
       </div>
@@ -1466,6 +1469,7 @@ export default async function NetworkDetailPage({
         assetTypeSummary={assetTypeSummary}
         measures={complianceMeasureRows}
         findings={complianceOverviewFindings}
+        assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
       />
       ) : null}
 

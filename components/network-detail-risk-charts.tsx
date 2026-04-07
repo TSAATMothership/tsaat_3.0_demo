@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bar,
   BarChart,
@@ -15,7 +16,7 @@ import {
   YAxis
 } from "recharts";
 import { SPI_DESCRIPTIONS, SPI_NAMES } from "@/lib/spi-metadata";
-import { FindingSeverity, FindingWorkflowStatus } from "@/lib/types";
+import { FindingSeverity, FindingWorkflowStatus, HighRiskCveDetail } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
 
@@ -52,6 +53,8 @@ export interface NetworkDetailRiskFindingRow {
   recommendedAction: string;
 }
 
+type AssetHighRiskCveEntry = HighRiskCveDetail;
+
 interface AffectedDeviceRow {
   assetId: string;
   assetName: string;
@@ -61,6 +64,8 @@ interface AffectedDeviceRow {
   assetIncidentAssignmentGroup: string;
   owner: string;
   totalOpenFindings: number;
+  totalHighRiskCveVulnerabilities: number;
+  highRiskCveVulnerabilities: AssetHighRiskCveEntry[];
 }
 
 interface FindingsAgingBucketRow {
@@ -87,6 +92,22 @@ function csvCell(value: string | number): string {
     return text;
   }
   return `"${text.replace(/"/g, "\"\"")}"`;
+}
+
+function formatCapturedTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+  return `${parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC"
+  })} UTC`;
 }
 
 function escapeXml(value: string): string {
@@ -157,7 +178,8 @@ function assetTypeBucket(assetType: string): "server" | "workstation" | "network
 function buildAffectedDeviceRowsForFinding(
   scopedFindings: NetworkDetailRiskFindingRow[],
   openCountByAsset: Map<string, number>,
-  selectedFinding: Pick<NetworkDetailRiskFindingRow, "spiId" | "title">
+  selectedFinding: Pick<NetworkDetailRiskFindingRow, "spiId" | "title">,
+  assetHighRiskCvesByAssetId: Record<string, AssetHighRiskCveEntry[]>
 ): AffectedDeviceRow[] {
   const latestByAsset = new Map<string, NetworkDetailRiskFindingRow>();
 
@@ -188,9 +210,14 @@ function buildAffectedDeviceRowsForFinding(
       assetChangeAssignmentGroup: finding.assetChangeAssignmentGroup,
       assetIncidentAssignmentGroup: finding.assetIncidentAssignmentGroup,
       owner: finding.owner,
-      totalOpenFindings: openCountByAsset.get(finding.assetId) ?? 0
+      totalOpenFindings: openCountByAsset.get(finding.assetId) ?? 0,
+      totalHighRiskCveVulnerabilities: (assetHighRiskCvesByAssetId[finding.assetId] ?? []).length,
+      highRiskCveVulnerabilities: assetHighRiskCvesByAssetId[finding.assetId] ?? []
     }))
     .sort((a, b) => {
+      if (b.totalHighRiskCveVulnerabilities !== a.totalHighRiskCveVulnerabilities) {
+        return b.totalHighRiskCveVulnerabilities - a.totalHighRiskCveVulnerabilities;
+      }
       if (b.totalOpenFindings !== a.totalOpenFindings) {
         return b.totalOpenFindings - a.totalOpenFindings;
       }
@@ -235,6 +262,7 @@ function buildWorkbookXml({
 export function NetworkDetailRiskCharts({
   riskProfile,
   findings = [],
+  assetHighRiskCvesByAssetId = {},
   asOfDate = new Date().toISOString().slice(0, 10),
   scopeDescription = "Open findings by severity in current network detail scope.",
   layout = "side-by-side"
@@ -248,6 +276,7 @@ export function NetworkDetailRiskCharts({
     weeklyTrend: NetworkDetailWeeklyRiskPoint[];
   };
   findings?: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, AssetHighRiskCveEntry[]>;
   asOfDate?: string;
   scopeDescription?: string;
   layout?: "side-by-side" | "stacked";
@@ -262,8 +291,18 @@ export function NetworkDetailRiskCharts({
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<NetworkDetailRiskFindingRow | null>(null);
   const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
   const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
+  const [selectedAssetForCveDetails, setSelectedAssetForCveDetails] = useState<AffectedDeviceRow | null>(null);
+  const [isCveDetailsModalVisible, setIsCveDetailsModalVisible] = useState(false);
+  const [isCveDetailsModalOpen, setIsCveDetailsModalOpen] = useState(false);
+  const [cveSearchTerm, setCveSearchTerm] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const assetDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cveDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -275,6 +314,10 @@ export function NetworkDetailRiskCharts({
         clearTimeout(assetDetailsCloseTimerRef.current);
         assetDetailsCloseTimerRef.current = null;
       }
+      if (cveDetailsCloseTimerRef.current) {
+        clearTimeout(cveDetailsCloseTimerRef.current);
+        cveDetailsCloseTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -284,6 +327,10 @@ export function NetworkDetailRiskCharts({
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (isCveDetailsModalVisible) {
+          closeCveDetailsModal();
+          return;
+        }
         if (isAssetDetailsPanelVisible) {
           closeAssetDetailsPanel();
           return;
@@ -295,7 +342,7 @@ export function NetworkDetailRiskCharts({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isAssetDetailsPanelVisible, isFindingsPanelVisible]);
+  }, [isAssetDetailsPanelVisible, isCveDetailsModalVisible, isFindingsPanelVisible]);
 
   const openFindingsPanel = (severity: FindingSeverity) => {
     if (closeTimerRef.current) {
@@ -306,6 +353,10 @@ export function NetworkDetailRiskCharts({
       clearTimeout(assetDetailsCloseTimerRef.current);
       assetDetailsCloseTimerRef.current = null;
     }
+    if (cveDetailsCloseTimerRef.current) {
+      clearTimeout(cveDetailsCloseTimerRef.current);
+      cveDetailsCloseTimerRef.current = null;
+    }
 
     setSelectedSeverity(severity);
     setSearchTerm("");
@@ -315,6 +366,10 @@ export function NetworkDetailRiskCharts({
     setSelectedFindingForAssets(null);
     setIsAssetDetailsPanelVisible(false);
     setIsAssetDetailsPanelOpen(false);
+    setSelectedAssetForCveDetails(null);
+    setIsCveDetailsModalVisible(false);
+    setIsCveDetailsModalOpen(false);
+    setCveSearchTerm("");
     setIsFindingsPanelVisible(true);
     requestAnimationFrame(() => {
       setIsFindingsPanelOpen(true);
@@ -325,10 +380,18 @@ export function NetworkDetailRiskCharts({
     setIsFindingsPanelOpen(false);
     setIsAssetDetailsPanelOpen(false);
     setIsAssetDetailsPanelVisible(false);
+    setIsCveDetailsModalOpen(false);
+    setIsCveDetailsModalVisible(false);
     setSelectedFindingForAssets(null);
+    setSelectedAssetForCveDetails(null);
+    setCveSearchTerm("");
     if (assetDetailsCloseTimerRef.current) {
       clearTimeout(assetDetailsCloseTimerRef.current);
       assetDetailsCloseTimerRef.current = null;
+    }
+    if (cveDetailsCloseTimerRef.current) {
+      clearTimeout(cveDetailsCloseTimerRef.current);
+      cveDetailsCloseTimerRef.current = null;
     }
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
@@ -345,7 +408,15 @@ export function NetworkDetailRiskCharts({
       clearTimeout(assetDetailsCloseTimerRef.current);
       assetDetailsCloseTimerRef.current = null;
     }
+    if (cveDetailsCloseTimerRef.current) {
+      clearTimeout(cveDetailsCloseTimerRef.current);
+      cveDetailsCloseTimerRef.current = null;
+    }
     setSelectedFindingForAssets(finding);
+    setSelectedAssetForCveDetails(null);
+    setIsCveDetailsModalVisible(false);
+    setIsCveDetailsModalOpen(false);
+    setCveSearchTerm("");
     setIsAssetDetailsPanelVisible(true);
     requestAnimationFrame(() => {
       setIsAssetDetailsPanelOpen(true);
@@ -354,6 +425,14 @@ export function NetworkDetailRiskCharts({
 
   const closeAssetDetailsPanel = () => {
     setIsAssetDetailsPanelOpen(false);
+    setIsCveDetailsModalOpen(false);
+    setIsCveDetailsModalVisible(false);
+    setSelectedAssetForCveDetails(null);
+    setCveSearchTerm("");
+    if (cveDetailsCloseTimerRef.current) {
+      clearTimeout(cveDetailsCloseTimerRef.current);
+      cveDetailsCloseTimerRef.current = null;
+    }
     if (assetDetailsCloseTimerRef.current) {
       clearTimeout(assetDetailsCloseTimerRef.current);
     }
@@ -361,6 +440,35 @@ export function NetworkDetailRiskCharts({
       setIsAssetDetailsPanelVisible(false);
       setSelectedFindingForAssets(null);
       assetDetailsCloseTimerRef.current = null;
+    }, PANEL_TWEEN_MS);
+  };
+
+  const openCveDetailsModal = (device: AffectedDeviceRow) => {
+    if (!device.totalHighRiskCveVulnerabilities) {
+      return;
+    }
+    if (cveDetailsCloseTimerRef.current) {
+      clearTimeout(cveDetailsCloseTimerRef.current);
+      cveDetailsCloseTimerRef.current = null;
+    }
+    setSelectedAssetForCveDetails(device);
+    setCveSearchTerm("");
+    setIsCveDetailsModalVisible(true);
+    requestAnimationFrame(() => {
+      setIsCveDetailsModalOpen(true);
+    });
+  };
+
+  const closeCveDetailsModal = () => {
+    setIsCveDetailsModalOpen(false);
+    if (cveDetailsCloseTimerRef.current) {
+      clearTimeout(cveDetailsCloseTimerRef.current);
+    }
+    cveDetailsCloseTimerRef.current = setTimeout(() => {
+      setIsCveDetailsModalVisible(false);
+      setSelectedAssetForCveDetails(null);
+      setCveSearchTerm("");
+      cveDetailsCloseTimerRef.current = null;
     }, PANEL_TWEEN_MS);
   };
 
@@ -630,8 +738,18 @@ export function NetworkDetailRiskCharts({
     if (!selectedFindingForAssets) {
       return [];
     }
-    return buildAffectedDeviceRowsForFinding(selectedSeverityFindings, openFindingsCountByAsset, selectedFindingForAssets);
-  }, [openFindingsCountByAsset, selectedFindingForAssets, selectedSeverityFindings]);
+    return buildAffectedDeviceRowsForFinding(
+      selectedSeverityFindings,
+      openFindingsCountByAsset,
+      selectedFindingForAssets,
+      assetHighRiskCvesByAssetId
+    );
+  }, [
+    assetHighRiskCvesByAssetId,
+    openFindingsCountByAsset,
+    selectedFindingForAssets,
+    selectedSeverityFindings
+  ]);
 
   const findingGroupMetaByKey = useMemo(() => {
     const map = new Map<string, { extract: string; spiId: number; title: string }>();
@@ -669,10 +787,15 @@ export function NetworkDetailRiskCharts({
     }> = [];
 
     for (const meta of findingGroupMetaByKey.values()) {
-      const linkedCis = buildAffectedDeviceRowsForFinding(selectedSeverityFindings, openFindingsCountByAsset, {
-        spiId: meta.spiId,
-        title: meta.title
-      });
+      const linkedCis = buildAffectedDeviceRowsForFinding(
+        selectedSeverityFindings,
+        openFindingsCountByAsset,
+        {
+          spiId: meta.spiId,
+          title: meta.title
+        },
+        assetHighRiskCvesByAssetId
+      );
       for (const ci of linkedCis) {
         rows.push({
           extract: meta.extract,
@@ -684,7 +807,7 @@ export function NetworkDetailRiskCharts({
     }
 
     return rows;
-  }, [findingGroupMetaByKey, openFindingsCountByAsset, selectedSeverityFindings]);
+  }, [assetHighRiskCvesByAssetId, findingGroupMetaByKey, openFindingsCountByAsset, selectedSeverityFindings]);
 
   const downloadAffectedCisCsv = () => {
     if (!selectedFindingForAssets || !affectedDeviceRows.length) {
@@ -701,6 +824,7 @@ export function NetworkDetailRiskCharts({
       "Asset IP Address",
       "Asset Type",
       "Total Open Findings",
+      "Total High Risk CVE Vulnerabilities",
       "Asset Change Assignment Group",
       "Asset Incident Assignment Group",
       "Owner"
@@ -714,6 +838,7 @@ export function NetworkDetailRiskCharts({
       device.assetIpAddress,
       device.assetType,
       device.totalOpenFindings,
+      device.totalHighRiskCveVulnerabilities,
       device.assetChangeAssignmentGroup,
       device.assetIncidentAssignmentGroup,
       device.owner
@@ -783,6 +908,7 @@ export function NetworkDetailRiskCharts({
       "Asset IP Address",
       "Asset Type",
       "Total Open Findings",
+      "Total High Risk CVE Vulnerabilities",
       "Asset Change Assignment Group",
       "Asset Incident Assignment Group",
       "Owner"
@@ -796,6 +922,7 @@ export function NetworkDetailRiskCharts({
       row.ci.assetIpAddress,
       row.ci.assetType,
       row.ci.totalOpenFindings,
+      row.ci.totalHighRiskCveVulnerabilities,
       row.ci.assetChangeAssignmentGroup,
       row.ci.assetIncidentAssignmentGroup,
       row.ci.owner
@@ -813,6 +940,174 @@ export function NetworkDetailRiskCharts({
       "application/vnd.ms-excel;charset=utf-8;"
     );
   };
+
+  const selectedAssetHighRiskCves = useMemo(() => {
+    if (!selectedAssetForCveDetails) {
+      return [];
+    }
+    return selectedAssetForCveDetails.highRiskCveVulnerabilities;
+  }, [selectedAssetForCveDetails]);
+
+  const filteredAssetHighRiskCves = useMemo(() => {
+    const normalizedSearch = cveSearchTerm.trim().toLowerCase();
+    return selectedAssetHighRiskCves.filter((entry) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+      const searchText = [
+        entry.cve,
+        entry.description,
+        entry.remediationGuidance,
+        entry.criticality,
+        entry.exploitability,
+        entry.capturedAt
+      ]
+        .join(" ")
+        .toLowerCase();
+      return searchText.includes(normalizedSearch);
+    });
+  }, [cveSearchTerm, selectedAssetHighRiskCves]);
+
+  const downloadHighRiskCvesCsv = () => {
+    if (!selectedAssetForCveDetails || !filteredAssetHighRiskCves.length) {
+      return;
+    }
+
+    const headers = ["Asset Name", "Asset ID", "CVE", "Description", "Remediation Guidance", "Criticality", "Timestamp"];
+    const rows = filteredAssetHighRiskCves.map((entry) => [
+      selectedAssetForCveDetails.assetName,
+      selectedAssetForCveDetails.assetId,
+      entry.cve,
+      entry.description,
+      entry.remediationGuidance,
+      entry.criticality,
+      formatCapturedTimestamp(entry.capturedAt)
+    ]);
+    const csvContent = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+
+    const safeAssetLabel =
+      selectedAssetForCveDetails.assetName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "asset-cves";
+    downloadBlob(
+      csvContent,
+      `high-risk-cves-${safeAssetLabel}.csv`,
+      "text/csv;charset=utf-8;"
+    );
+  };
+  const cveDetailsModal =
+    isMounted && isCveDetailsModalVisible && selectedAssetForCveDetails
+      ? createPortal(
+          <div
+            className={`fixed inset-0 z-[10010] ${
+              isCveDetailsModalOpen ? "pointer-events-auto" : "pointer-events-none"
+            }`}
+          >
+            <div
+              className={`absolute inset-0 bg-slate-950/88 backdrop-blur-[1px] transition-opacity duration-200 ${
+                isCveDetailsModalOpen ? "opacity-100" : "opacity-0"
+              }`}
+              onClick={closeCveDetailsModal}
+            />
+            <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6">
+              <section
+                className={`relative flex h-[min(88vh,760px)] w-[min(1380px,95vw)] flex-col rounded-2xl border border-sky-300/35 bg-slate-950 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.65)] transition-all duration-[260ms] ease-out ${
+                  isCveDetailsModalOpen ? "scale-100 opacity-100" : "scale-[0.98] opacity-0"
+                }`}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="risk-asset-cve-details-modal-title"
+              >
+                <button
+                  type="button"
+                  onClick={closeCveDetailsModal}
+                  className="absolute right-4 top-4 rounded-md border border-sky-300/35 px-2 py-1 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100"
+                >
+                  Close
+                </button>
+
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">CVE Details</p>
+                <h6 id="risk-asset-cve-details-modal-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
+                  High Risk CVE Vulnerabilities
+                </h6>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs text-slate-300/80">Asset: {selectedAssetForCveDetails.assetName}</p>
+                    <p className="mt-1 text-xs text-slate-300/80">CVEs in scope: {filteredAssetHighRiskCves.length}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={downloadHighRiskCvesCsv}
+                    disabled={!filteredAssetHighRiskCves.length}
+                    className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
+                  >
+                    Export CSV
+                  </button>
+                </div>
+
+                <div className="mt-3">
+                  <label
+                    htmlFor="risk-asset-cve-search"
+                    className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
+                  >
+                    Text Search
+                  </label>
+                  <input
+                    id="risk-asset-cve-search"
+                    type="search"
+                    value={cveSearchTerm}
+                    onChange={(event) => setCveSearchTerm(event.target.value)}
+                    placeholder="Search CVE, description, remediation, criticality, timestamp..."
+                    className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
+                  />
+                </div>
+
+                <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
+                  <table className="min-w-full text-sm">
+                    <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                      <tr>
+                        <th className="px-3 py-2">CVE Code</th>
+                        <th className="px-3 py-2">Description</th>
+                        <th className="px-3 py-2">Remediation Guidance</th>
+                        <th className="px-3 py-2">Criticality</th>
+                        <th className="px-3 py-2">Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAssetHighRiskCves.map((entry, index) => (
+                        <tr
+                          key={`${selectedAssetForCveDetails.assetId}-${entry.cve}-${entry.capturedAt}-${index}`}
+                          className="border-t border-sky-400/10 align-top"
+                        >
+                          <td className="whitespace-nowrap px-3 py-2 font-medium text-sky-100">{entry.cve}</td>
+                          <td className="px-3 py-2 text-slate-300/85">{entry.description}</td>
+                          <td className="px-3 py-2 text-slate-300/85">{entry.remediationGuidance}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-red-100">{entry.criticality}</td>
+                          <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">
+                            {formatCapturedTimestamp(entry.capturedAt)}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredAssetHighRiskCves.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                            {selectedAssetHighRiskCves.length === 0
+                              ? "No high-risk CVE vulnerabilities for this asset."
+                              : "No CVE records match the active search."}
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
 
   const containerClass =
     layout === "stacked"
@@ -1322,7 +1617,7 @@ export function NetworkDetailRiskCharts({
                         </button>
                       </div>
 
-                      <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-xl border border-sky-400/15">
+                      <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
                         <table className="min-w-full text-sm">
                           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                             <tr>
@@ -1331,6 +1626,7 @@ export function NetworkDetailRiskCharts({
                               <th className="px-3 py-2">Asset IP address</th>
                               <th className="px-3 py-2">Asset Type</th>
                               <th className="px-3 py-2">Total Open Findings</th>
+                              <th className="px-3 py-2">Total High Risk CVE Vulnerabilities</th>
                               <th className="px-3 py-2">Asset Change Assignment Group</th>
                               <th className="px-3 py-2">Asset Incident Assignment Group</th>
                               <th className="px-3 py-2">Owner</th>
@@ -1344,6 +1640,19 @@ export function NetworkDetailRiskCharts({
                                 <td className="px-3 py-2 text-slate-300/85">{device.assetIpAddress}</td>
                                 <td className="px-3 py-2 text-slate-300/85">{device.assetType}</td>
                                 <td className="px-3 py-2 text-slate-200">{device.totalOpenFindings}</td>
+                                <td className="px-3 py-2">
+                                  {device.totalHighRiskCveVulnerabilities > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openCveDetailsModal(device)}
+                                      className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
+                                    >
+                                      {device.totalHighRiskCveVulnerabilities}
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-400/90">0</span>
+                                  )}
+                                </td>
                                 <td className="px-3 py-2 text-slate-300/85">{device.assetChangeAssignmentGroup}</td>
                                 <td className="px-3 py-2 text-slate-300/85">{device.assetIncidentAssignmentGroup}</td>
                                 <td className="px-3 py-2 text-slate-300/85">{device.owner}</td>
@@ -1351,7 +1660,7 @@ export function NetworkDetailRiskCharts({
                             ))}
                             {affectedDeviceRows.length === 0 ? (
                               <tr>
-                                <td colSpan={8} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                                <td colSpan={9} className="px-3 py-6 text-center text-sm text-emerald-200/90">
                                   No affected devices found for this finding.
                                 </td>
                               </tr>
@@ -1367,6 +1676,7 @@ export function NetworkDetailRiskCharts({
           </aside>
         </div>
       ) : null}
+      {cveDetailsModal}
     </>
   );
 }

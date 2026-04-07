@@ -9,6 +9,7 @@ import { ServerStreamHint } from "@/components/server-stream-hint";
 import { SystemDetailTabId, SystemDetailTabs } from "@/components/system-detail-tabs";
 import { buildAnalytics } from "@/lib/analytics";
 import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
+import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { SPI_IDS } from "@/lib/spi-metadata";
 import {
   loadDatasetForDate,
@@ -1301,6 +1302,7 @@ export default async function SystemDetailPage({
     workstationCount: filteredAssets.filter((asset) => asset.type === "workstation").length,
     networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length
   };
+  const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
 
   const selectedComplianceSummaryCounts = selectedStatuses.reduce(
     (accumulator, status) => {
@@ -1588,6 +1590,7 @@ export default async function SystemDetailPage({
         assetTypeSummary={assetTypeSummary}
         measures={complianceMeasureRows}
         findings={complianceOverviewFindings}
+        assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
       />
       ) : null}
 
@@ -1796,6 +1799,7 @@ export default async function SystemDetailPage({
             weeklyTrend: systemDetailWeeklyRiskTrend
           }}
           findings={riskProfileFindings}
+          assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
         />
       </section>
       </div>

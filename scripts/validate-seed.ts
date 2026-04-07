@@ -5,6 +5,13 @@ import { Asset, Dataset } from "../lib/types";
 const SECURITY_DOMAINS = new Set(["Secret", "Protected", "Unclassified"]);
 const SYSTEM_CRITICALITY = new Set(["Critical", "Non-Critical"]);
 const ENTITY_CRITICALITY = new Set(["Critical", "Non-Critical"]);
+const VULNERABILITY_CRITICALITY = new Set(["Low", "Medium", "High", "Critical"]);
+const VULNERABILITY_EXPLOITABILITY = new Set([
+  "No Known Exploit",
+  "Proof of Concept",
+  "Exploitable",
+  "Known Exploited"
+]);
 
 async function readJson<T>(filePath: string): Promise<T> {
   return JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
@@ -33,6 +40,7 @@ async function main() {
   assert(current.ictSystems.length >= 50 && current.ictSystems.length <= 55, "ICT systems must be 50-55.");
   assert(current.assets.length === 22000, "Assets must equal 22000.");
   assert(snapshotFiles.length === 8, "Must include 8 snapshots.");
+  const snapshotAnchor = new Date(`${current.snapshotDate}T23:59:59.999Z`);
 
   for (const network of current.managedNetworks) {
     const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
@@ -61,6 +69,71 @@ async function main() {
   assert(namedWorkstations.length === 2000, "Workstations must equal 2000.");
   assert(desktopAssets.length === 10000, "Desktops must equal 10000.");
   assert(networkAssets.length === 8000, "Network devices must equal 8000.");
+
+  let noVulnerabilityAssets = 0;
+  let criticalExploitableCount = 0;
+  let lowerRiskCount = 0;
+  for (const asset of current.assets) {
+    if (asset.vulnerabilities.length === 0) {
+      noVulnerabilityAssets += 1;
+      continue;
+    }
+
+    for (const vulnerability of asset.vulnerabilities) {
+      assert(vulnerability.assetId === asset.id, `Vulnerability ${vulnerability.id} must reference its parent asset.`);
+      assert(vulnerability.cve.startsWith("CVE-"), `Vulnerability ${vulnerability.id} must use CVE format.`);
+      assert(vulnerability.description.trim().length > 0, `Vulnerability ${vulnerability.id} must include description.`);
+      assert(
+        vulnerability.remediationGuidance.trim().length > 0,
+        `Vulnerability ${vulnerability.id} must include remediation guidance.`
+      );
+      assert(
+        VULNERABILITY_CRITICALITY.has(vulnerability.criticality),
+        `Vulnerability ${vulnerability.id} has invalid criticality.`
+      );
+      assert(
+        VULNERABILITY_CRITICALITY.has(vulnerability.severity),
+        `Vulnerability ${vulnerability.id} has invalid severity.`
+      );
+      assert(
+        VULNERABILITY_EXPLOITABILITY.has(vulnerability.exploitability),
+        `Vulnerability ${vulnerability.id} has invalid exploitability.`
+      );
+
+      const detectedDate = new Date(`${vulnerability.detectedDate}T00:00:00.000Z`);
+      const capturedAt = new Date(vulnerability.capturedAt);
+      assert(!Number.isNaN(detectedDate.getTime()), `Vulnerability ${vulnerability.id} has invalid detectedDate.`);
+      assert(!Number.isNaN(capturedAt.getTime()), `Vulnerability ${vulnerability.id} has invalid capturedAt timestamp.`);
+
+      const detectedAgeDays = daysBetween(snapshotAnchor, detectedDate);
+      const capturedAgeDays = daysBetween(snapshotAnchor, capturedAt);
+      assert(detectedAgeDays >= 0, `Vulnerability ${vulnerability.id} detectedDate cannot be after snapshot.`);
+      assert(capturedAgeDays >= 0, `Vulnerability ${vulnerability.id} capturedAt cannot be after snapshot.`);
+      assert(detectedAgeDays <= 366, `Vulnerability ${vulnerability.id} must be within the last 12 months.`);
+      assert(capturedAgeDays <= 366, `Vulnerability ${vulnerability.id} capture timestamp must be within the last 12 months.`);
+      assert(capturedAt.getTime() >= detectedDate.getTime(), `Vulnerability ${vulnerability.id} capturedAt cannot precede detectedDate.`);
+
+      if (
+        vulnerability.criticality === "Critical" &&
+        (vulnerability.exploitability === "Known Exploited" || vulnerability.exploitability === "Exploitable")
+      ) {
+        criticalExploitableCount += 1;
+      }
+
+      if (vulnerability.criticality === "Low" || vulnerability.criticality === "Medium" || vulnerability.criticality === "High") {
+        lowerRiskCount += 1;
+      }
+    }
+  }
+
+  const noVulnerabilityPercentage = (noVulnerabilityAssets / current.assets.length) * 100;
+  assert(noVulnerabilityPercentage >= 15, "At least 15% of assets must have no vulnerabilities.");
+  assert(noVulnerabilityPercentage <= 70, "No-vulnerability assets percentage should remain realistic.");
+  assert(criticalExploitableCount > 0, "Dataset must include critical exploitable vulnerabilities.");
+  assert(lowerRiskCount > 0, "Dataset must include lower-risk vulnerabilities.");
+  assert(serverAssets.some((asset) => asset.vulnerabilities.length === 0), "Servers must include some assets with no vulnerabilities.");
+  assert(workstationAssets.some((asset) => asset.vulnerabilities.length === 0), "Workstations must include some assets with no vulnerabilities.");
+  assert(networkAssets.some((asset) => asset.vulnerabilities.length === 0), "Network devices must include some assets with no vulnerabilities.");
 
   const productionServers = serverAssets.filter((asset) => asset.systemContext?.environmentType === "Production");
   const productionWorkstations = workstationAssets.filter(
@@ -119,7 +192,6 @@ async function main() {
   assert(current.assets.every((asset) => SECURITY_DOMAINS.has(asset.securityDomain)), "Every asset must include a valid security domain.");
   assert(Array.isArray(current.findings) && current.findings.length > 0, "Current dataset must include findings.");
 
-  const snapshotAnchor = new Date(`${current.snapshotDate}T12:00:00.000Z`);
   const findingsStart = new Date("2024-02-10T00:00:00.000Z");
   let findingsOnStartDate = 0;
   for (const finding of current.findings ?? []) {

@@ -7,6 +7,13 @@ describe("seed dataset", () => {
   const dataset = JSON.parse(
     readFileSync(path.join(process.cwd(), "data", "current.json"), "utf-8")
   ) as Dataset;
+  const vulnerabilityCriticality = new Set(["Low", "Medium", "High", "Critical"]);
+  const vulnerabilityExploitability = new Set([
+    "No Known Exploit",
+    "Proof of Concept",
+    "Exploitable",
+    "Known Exploited"
+  ]);
 
   it("stays within required dataset ranges", () => {
     expect(dataset.managedNetworks.length).toBeGreaterThanOrEqual(11);
@@ -43,6 +50,66 @@ describe("seed dataset", () => {
       expect(["Critical", "Non-Critical"]).toContain(network.criticality);
     }
   });
+
+  it("stores CVE vulnerability history per asset for the last 12 months", () => {
+    const snapshotAnchor = new Date(`${dataset.snapshotDate}T23:59:59.999Z`).getTime();
+    let noVulnerabilityAssets = 0;
+    let criticalExploitable = 0;
+    let lowerRisk = 0;
+
+    for (const asset of dataset.assets) {
+      if (asset.vulnerabilities.length === 0) {
+        noVulnerabilityAssets += 1;
+        continue;
+      }
+
+      for (const vulnerability of asset.vulnerabilities) {
+        expect(vulnerability.assetId).toBe(asset.id);
+        expect(vulnerability.cve.startsWith("CVE-")).toBe(true);
+        expect(vulnerability.description.trim().length).toBeGreaterThan(0);
+        expect(vulnerability.remediationGuidance.trim().length).toBeGreaterThan(0);
+        expect(vulnerabilityCriticality.has(vulnerability.criticality)).toBe(true);
+        expect(vulnerabilityCriticality.has(vulnerability.severity)).toBe(true);
+        expect(vulnerabilityExploitability.has(vulnerability.exploitability)).toBe(true);
+
+        const detectedTime = new Date(`${vulnerability.detectedDate}T00:00:00.000Z`).getTime();
+        const capturedTime = new Date(vulnerability.capturedAt).getTime();
+        expect(Number.isNaN(detectedTime)).toBe(false);
+        expect(Number.isNaN(capturedTime)).toBe(false);
+        expect(capturedTime).toBeGreaterThanOrEqual(detectedTime);
+
+        const detectedAgeDays = Math.floor((snapshotAnchor - detectedTime) / (1000 * 60 * 60 * 24));
+        const capturedAgeDays = Math.floor((snapshotAnchor - capturedTime) / (1000 * 60 * 60 * 24));
+        expect(detectedAgeDays).toBeGreaterThanOrEqual(0);
+        expect(capturedAgeDays).toBeGreaterThanOrEqual(0);
+        expect(detectedAgeDays).toBeLessThanOrEqual(366);
+        expect(capturedAgeDays).toBeLessThanOrEqual(366);
+
+        if (
+          vulnerability.criticality === "Critical" &&
+          (vulnerability.exploitability === "Known Exploited" || vulnerability.exploitability === "Exploitable")
+        ) {
+          criticalExploitable += 1;
+        }
+
+        if (["Low", "Medium", "High"].includes(vulnerability.criticality)) {
+          lowerRisk += 1;
+        }
+      }
+    }
+
+    expect(noVulnerabilityAssets).toBeGreaterThan(0);
+    expect((noVulnerabilityAssets / dataset.assets.length) * 100).toBeGreaterThanOrEqual(15);
+    expect(criticalExploitable).toBeGreaterThan(0);
+    expect(lowerRisk).toBeGreaterThan(0);
+
+    const servers = dataset.assets.filter((asset) => asset.type === "server");
+    const workstations = dataset.assets.filter((asset) => asset.type === "workstation");
+    const networkDevices = dataset.assets.filter((asset) => asset.type === "network-device");
+    expect(servers.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
+    expect(workstations.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
+    expect(networkDevices.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
+  }, 20000);
 
   it("contains production and non-production environments for each ICT system", () => {
     const modelledSystems = dataset.ictSystems.filter((system) => system.modellingStatus === true);

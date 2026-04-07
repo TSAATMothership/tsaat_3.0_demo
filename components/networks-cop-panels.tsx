@@ -4,8 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  LabelList,
   Line,
   LineChart,
   Legend,
@@ -14,7 +12,8 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { FindingSeverity } from "@/lib/types";
+import { NetworkDetailRiskCharts, NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
+import { FindingSeverity, HighRiskCveDetail } from "@/lib/types";
 
 export interface NetworkSeveritySummary {
   severity: FindingSeverity;
@@ -67,14 +66,6 @@ export interface NetworkActionQuickWinRow {
   total: number;
   networkCount: number;
 }
-
-const severityColors: Record<FindingSeverity, string> = {
-  "Critical Exposure": "#ef4444",
-  "High Risk": "#f97316",
-  Major: "#f59e0b",
-  Moderate: "#38bdf8",
-  "Data Gap": "#94a3b8"
-};
 
 function ComplianceTile({ title, score }: { title: string; score: number }) {
   const toneClass =
@@ -365,6 +356,9 @@ export function NetworksOverviewPanel({
   complianceScores,
   modellingCoverage,
   riskProfile,
+  riskFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
   dailyHighRisk,
   dailyCriticalExposure
 }: {
@@ -390,6 +384,9 @@ export function NetworksOverviewPanel({
     severitySummary: NetworkSeveritySummary[];
     weeklyTrend: NetworkWeeklyRiskPoint[];
   };
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
   dailyHighRisk: NetworkDailyTrendPoint[];
   dailyCriticalExposure: NetworkDailyTrendPoint[];
 }) {
@@ -424,90 +421,14 @@ export function NetworksOverviewPanel({
         </div>
       </section>
 
-      <div className="grid min-h-0 gap-2 lg:grid-cols-2">
-        <section className="panel flex min-h-0 flex-col p-3">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h2>
-          <p className="mt-1 text-xs text-slate-300/80">Open finding pressure by severity across scoped networks.</p>
-          <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
-            <div className="panel-alt border-sky-300/25 p-2.5">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{riskProfile.openFindings}</p>
-            </div>
-            <div className="panel-alt border-sky-300/25 p-2.5">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">P1-P2 Findings</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{riskProfile.p1p2Count}</p>
-            </div>
-            <div className="panel-alt border-red-400/25 p-2.5">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Critical Exposure (Open)</p>
-              <p className="mt-1 text-2xl font-semibold text-red-100">{riskProfile.criticalExposureOpenCount}</p>
-            </div>
-            <div className="panel-alt border-orange-400/25 p-2.5">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">High Risk (Open)</p>
-              <p className="mt-1 text-2xl font-semibold text-orange-100">{riskProfile.highRiskOpenCount}</p>
-            </div>
-          </div>
-          <div className="mt-2 min-h-0 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ left: 0, right: 8, top: 2, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <YAxis dataKey="severity" type="category" width={112} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value) => [value, "Open Findings"]}
-                />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]} isAnimationActive={false}>
-                  <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
-                  {riskProfile.severitySummary.map((entry) => (
-                    <Cell key={entry.severity} fill={severityColors[entry.severity]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-
-        <section className="panel flex min-h-0 flex-col p-3">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h2>
-          <p className="mt-1 text-xs text-slate-300/80">
-            Weekly open finding counts for Critical Exposure and High Risk.
-          </p>
-          <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-300/80">
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-orange-400" />
-              High Risk
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-              Critical Exposure
-            </span>
-          </div>
-          <div className="mt-1.5 min-h-0 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value, name) => [
-                    value ?? "-",
-                    name === "highRiskCount" ? "High Risk" : "Critical Exposure"
-                  ]}
-                />
-                <Line type="monotone" dataKey="highRiskCount" stroke="#f97316" strokeWidth={2.2} dot={false} isAnimationActive={false} />
-                <Line
-                  type="monotone"
-                  dataKey="criticalExposureCount"
-                  stroke="#ef4444"
-                  strokeWidth={2.2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
+      <div className="min-h-0">
+        <NetworkDetailRiskCharts
+          asOfDate={asOfDate}
+          scopeDescription="Open finding pressure by severity across scoped networks."
+          riskProfile={riskProfile}
+          findings={riskFindings}
+          assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+        />
       </div>
 
       <div className="grid min-h-0 gap-2 lg:grid-cols-2">

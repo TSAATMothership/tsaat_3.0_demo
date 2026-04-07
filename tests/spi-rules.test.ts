@@ -15,9 +15,15 @@ function baseServer(): ServerAsset {
     vulnerabilities: [
       {
         id: "v1",
+        assetId: "srv-1",
         cve: "CVE-2026-1000",
+        description: "Remote code execution in exposed service endpoint.",
+        remediationGuidance: "Patch to vendor-fixed version and restrict interface exposure.",
+        criticality: "Critical",
         severity: "Critical",
+        exploitability: "Known Exploited",
         detectedDate: "2026-01-01",
+        capturedAt: "2026-01-01T02:15:00.000Z",
         source: "Qualys"
       }
     ],

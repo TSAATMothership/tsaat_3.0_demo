@@ -9,6 +9,11 @@ export type SupportStatus = "Supported" | "OutOfSupport" | "Unknown";
 export type ComplianceStatus = "Compliant" | "Non-compliant" | "Unknown";
 
 export type VulnerabilitySeverity = "Low" | "Medium" | "High" | "Critical";
+export type VulnerabilityExploitability =
+  | "No Known Exploit"
+  | "Proof of Concept"
+  | "Exploitable"
+  | "Known Exploited";
 
 export type EolStatus = "Supported" | "EOL" | "Unknown";
 
@@ -102,10 +107,25 @@ export interface PatchState {
 
 export interface Vulnerability {
   id: string;
+  assetId: string;
   cve: string;
+  description: string;
+  remediationGuidance: string;
+  criticality: VulnerabilitySeverity;
   severity: VulnerabilitySeverity;
+  exploitability: VulnerabilityExploitability;
   detectedDate: string;
+  capturedAt: string;
   source: string;
+}
+
+export interface HighRiskCveDetail {
+  cve: string;
+  description: string;
+  remediationGuidance: string;
+  criticality: VulnerabilitySeverity;
+  exploitability: VulnerabilityExploitability;
+  capturedAt: string;
 }
 
 export interface Lifecycle {

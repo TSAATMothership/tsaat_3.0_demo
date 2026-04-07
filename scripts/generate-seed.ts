@@ -19,6 +19,8 @@ import {
   SystemCriticality,
   SupportStatus,
   SystemEnvironment,
+  VulnerabilityExploitability,
+  VulnerabilitySeverity,
   Vulnerability,
   WorkstationAsset
 } from "../lib/types";
@@ -121,6 +123,179 @@ const SERVER_COUNT = 2000;
 const WORKSTATION_COUNT = 2000;
 const DESKTOP_COUNT = 10000;
 const NETWORK_DEVICE_COUNT = 8000;
+
+type AssetProfile = "server" | "workstation" | "network-device";
+
+interface CveTemplate {
+  cve: string;
+  criticality: VulnerabilitySeverity;
+  exploitability: VulnerabilityExploitability;
+  description: string;
+  remediationGuidance: string;
+}
+
+interface VulnerabilityGenerationProfile {
+  noVulnerabilityChance: number;
+  minCount: number;
+  maxCount: number;
+  severityWeights: VulnerabilitySeverity[];
+  sources: string[];
+}
+
+const VULNERABILITY_GENERATION_PROFILES: Record<AssetProfile, VulnerabilityGenerationProfile> = {
+  server: {
+    noVulnerabilityChance: 0.2,
+    minCount: 1,
+    maxCount: 4,
+    severityWeights: ["Critical", "High", "High", "Medium", "Medium", "Low"],
+    sources: ["Qualys", "Nessus", "OpenVAS", "Defender"]
+  },
+  workstation: {
+    noVulnerabilityChance: 0.42,
+    minCount: 1,
+    maxCount: 3,
+    severityWeights: ["Critical", "High", "Medium", "Medium", "Low", "Low", "Low"],
+    sources: ["Defender", "Qualys", "Nessus", "OpenVAS"]
+  },
+  "network-device": {
+    noVulnerabilityChance: 0.3,
+    minCount: 1,
+    maxCount: 4,
+    severityWeights: ["Critical", "High", "High", "Medium", "Low"],
+    sources: ["Qualys", "Nessus", "OpenVAS"]
+  }
+};
+
+const CVE_TEMPLATES: CveTemplate[] = [
+  {
+    cve: "CVE-2024-39877",
+    criticality: "Critical",
+    exploitability: "Known Exploited",
+    description: "Unauthenticated remote code execution vulnerability in a perimeter service component.",
+    remediationGuidance:
+      "Patch to latest vendor release immediately, restrict edge exposure, and monitor for post-exploitation indicators."
+  },
+  {
+    cve: "CVE-2025-41012",
+    criticality: "Critical",
+    exploitability: "Exploitable",
+    description: "Privilege escalation flaw in endpoint agent update handler allows SYSTEM-level execution.",
+    remediationGuidance:
+      "Deploy hotfix package, rotate privileged credentials used by agents, and validate update channel integrity."
+  },
+  {
+    cve: "CVE-2026-11209",
+    criticality: "Critical",
+    exploitability: "Known Exploited",
+    description: "Authentication bypass in web administration endpoint can expose device control functions.",
+    remediationGuidance:
+      "Disable external administration interfaces, enforce MFA on management plane, and apply firmware update."
+  },
+  {
+    cve: "CVE-2024-45031",
+    criticality: "Critical",
+    exploitability: "Exploitable",
+    description: "Memory corruption in network stack permits code execution through crafted inbound traffic.",
+    remediationGuidance:
+      "Upgrade to fixed network OS build, apply temporary ACL mitigations, and prioritize vulnerable segments."
+  },
+  {
+    cve: "CVE-2025-20716",
+    criticality: "High",
+    exploitability: "Proof of Concept",
+    description: "Directory traversal permits unauthorized read access to application configuration data.",
+    remediationGuidance:
+      "Patch the application service, harden file permissions, and block traversal patterns at reverse proxy."
+  },
+  {
+    cve: "CVE-2026-11844",
+    criticality: "High",
+    exploitability: "Exploitable",
+    description: "Improper input sanitization permits command injection in automation endpoint.",
+    remediationGuidance:
+      "Apply security update, disable exposed automation endpoint until patched, and rotate integration secrets."
+  },
+  {
+    cve: "CVE-2024-33215",
+    criticality: "High",
+    exploitability: "Proof of Concept",
+    description: "Session token leakage vulnerability in API gateway can enable account takeover.",
+    remediationGuidance:
+      "Patch gateway component, invalidate active sessions, and enforce shorter token lifetimes."
+  },
+  {
+    cve: "CVE-2025-28911",
+    criticality: "High",
+    exploitability: "No Known Exploit",
+    description: "TLS certificate validation weakness allows machine-in-the-middle interception.",
+    remediationGuidance:
+      "Update trust chain validation library, enforce certificate pinning where supported, and rotate certificates."
+  },
+  {
+    cve: "CVE-2026-13007",
+    criticality: "High",
+    exploitability: "Exploitable",
+    description: "Local privilege escalation in kernel driver reachable from authenticated user context.",
+    remediationGuidance:
+      "Apply vendor kernel update and restrict local administrative access pending patch rollout."
+  },
+  {
+    cve: "CVE-2025-16221",
+    criticality: "Medium",
+    exploitability: "Proof of Concept",
+    description: "Cross-site scripting in administrative dashboard may expose operator session data.",
+    remediationGuidance:
+      "Patch dashboard version, enable strict content security policy, and sanitize user-provided fields."
+  },
+  {
+    cve: "CVE-2024-27116",
+    criticality: "Medium",
+    exploitability: "No Known Exploit",
+    description: "Information disclosure in verbose error logging reveals internal service topology.",
+    remediationGuidance:
+      "Disable debug logging in production and deploy secure logging profile."
+  },
+  {
+    cve: "CVE-2026-14932",
+    criticality: "Medium",
+    exploitability: "Proof of Concept",
+    description: "Weak default permissions on diagnostic files allow unauthorized data access.",
+    remediationGuidance:
+      "Apply permission hardening baseline and redeploy endpoint policy to affected assets."
+  },
+  {
+    cve: "CVE-2025-30045",
+    criticality: "Medium",
+    exploitability: "No Known Exploit",
+    description: "Denial-of-service condition through malformed protocol requests in network daemon.",
+    remediationGuidance:
+      "Upgrade daemon version and apply rate-limiting controls on exposed listeners."
+  },
+  {
+    cve: "CVE-2025-09014",
+    criticality: "Low",
+    exploitability: "No Known Exploit",
+    description: "Minor information exposure via predictable temporary file naming.",
+    remediationGuidance:
+      "Adopt secure temporary file APIs and remove stale temporary artifacts."
+  },
+  {
+    cve: "CVE-2024-18055",
+    criticality: "Low",
+    exploitability: "No Known Exploit",
+    description: "UI-level validation bypass can produce incorrect audit metadata values.",
+    remediationGuidance:
+      "Apply user interface update and enforce validation at server-side boundary."
+  },
+  {
+    cve: "CVE-2026-15501",
+    criticality: "Low",
+    exploitability: "Proof of Concept",
+    description: "Low-impact configuration disclosure in status endpoint.",
+    remediationGuidance:
+      "Restrict status endpoint visibility and remove sensitive attributes from responses."
+  }
+];
 
 function createRandom(seed: number): Random {
   let value = seed >>> 0;
@@ -343,30 +518,75 @@ function buildSoftware(random: Random, type: "server" | "workstation", versions:
 
 function randomDateWithinDays(random: Random, maxDaysAgo: number): string {
   const date = new Date();
-  date.setDate(date.getDate() - randomInt(random, 1, maxDaysAgo));
+  date.setUTCDate(date.getUTCDate() - randomInt(random, 0, maxDaysAgo));
+  date.setUTCHours(0, 0, 0, 0);
   return date.toISOString().slice(0, 10);
 }
 
-function buildVulnerabilities(
+function randomTimestampForDate(random: Random, dateValue: string): string {
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+  date.setUTCHours(randomInt(random, 0, 23), randomInt(random, 0, 59), randomInt(random, 0, 59), 0);
+  return date.toISOString();
+}
+
+function templatesByCriticality(criticality: VulnerabilitySeverity): CveTemplate[] {
+  return CVE_TEMPLATES.filter((template) => template.criticality === criticality);
+}
+
+function buildVulnerabilityRecord(
   random: Random,
-  profile: "server" | "workstation" | "network-device"
-): Vulnerability[] {
-  const count = randomInt(random, 0, profile === "workstation" ? 2 : 3);
+  assetId: string,
+  profile: AssetProfile,
+  severityOverride?: VulnerabilitySeverity,
+  sourceOverride?: string,
+  maxDaysAgo = 365
+): Vulnerability {
+  const generationProfile = VULNERABILITY_GENERATION_PROFILES[profile];
+  const criticality = severityOverride ?? pick(random, generationProfile.severityWeights);
+  const severityTemplates = templatesByCriticality(criticality);
+  const selectedTemplate = pick(random, severityTemplates.length ? severityTemplates : CVE_TEMPLATES);
+  const detectedDate = randomDateWithinDays(random, maxDaysAgo);
+  const capturedAt = randomTimestampForDate(random, detectedDate);
+  const source = sourceOverride ?? pick(random, generationProfile.sources);
+
+  return {
+    id: `VULN-${randomInt(random, 100000, 999999)}`,
+    assetId,
+    cve: selectedTemplate.cve,
+    description: selectedTemplate.description,
+    remediationGuidance: selectedTemplate.remediationGuidance,
+    criticality,
+    severity: criticality,
+    exploitability:
+      criticality === "Critical"
+        ? pick(random, ["Known Exploited", "Exploitable"] as const)
+        : selectedTemplate.exploitability,
+    detectedDate,
+    capturedAt,
+    source
+  };
+}
+
+function buildVulnerabilities(random: Random, profile: AssetProfile, assetId: string): Vulnerability[] {
+  const generationProfile = VULNERABILITY_GENERATION_PROFILES[profile];
+  if (chance(random, generationProfile.noVulnerabilityChance)) {
+    return [];
+  }
+
+  const count = randomInt(random, generationProfile.minCount, generationProfile.maxCount);
   const vulnerabilities: Vulnerability[] = [];
+  const selectedCves = new Set<string>();
 
   for (let index = 0; index < count; index += 1) {
-    const criticalChance = profile === "server" ? 0.18 : profile === "network-device" ? 0.14 : 0.1;
-    const severity = chance(random, criticalChance)
-      ? "Critical"
-      : pick(random, ["High", "Medium", "Low"] as const);
+    let candidate = buildVulnerabilityRecord(random, assetId, profile);
+    let attempts = 0;
+    while (selectedCves.has(candidate.cve) && attempts < 4) {
+      candidate = buildVulnerabilityRecord(random, assetId, profile);
+      attempts += 1;
+    }
 
-    vulnerabilities.push({
-      id: `VULN-${randomInt(random, 100000, 999999)}`,
-      cve: `CVE-${randomInt(random, 2016, 2026)}-${randomInt(random, 1000, 99999)}`,
-      severity,
-      detectedDate: randomDateWithinDays(random, 180),
-      source: pick(random, ["Nessus", "Qualys", "Defender", "OpenVAS"] as const)
-    });
+    selectedCves.add(candidate.cve);
+    vulnerabilities.push(candidate);
   }
 
   return vulnerabilities;
@@ -556,16 +776,17 @@ function pickEnvironmentTypeForSystem(random: Random, system: ICTSystem): Enviro
 }
 
 function buildServer(random: Random, index: number, networkId: string, systems: ICTSystem[], versions: ReferenceVersions): ServerAsset {
+  const id = `srv-${String(index + 1).padStart(4, "0")}`;
   return {
-    id: `srv-${String(index + 1).padStart(4, "0")}`,
+    id,
     name: `Server ${index + 1}`,
-    hostname: `srv-${String(index + 1).padStart(4, "0")}.dct.local`,
+    hostname: `${id}.dct.local`,
     type: "server",
     networkId,
     securityDomain: "Unclassified",
     systemContext: assignSystemContext(random, networkId, systems),
     lifecycle: buildLifecycle(random),
-    vulnerabilities: buildVulnerabilities(random, "server"),
+    vulnerabilities: buildVulnerabilities(random, "server", id),
     operatingSystem: buildOperatingSystem(random, "server", versions),
     installedSoftware: buildSoftware(random, "server", versions)
   };
@@ -578,16 +799,17 @@ function buildWorkstation(
   systems: ICTSystem[],
   versions: ReferenceVersions
 ): WorkstationAsset {
+  const id = `wks-${String(index + 1).padStart(4, "0")}`;
   return {
-    id: `wks-${String(index + 1).padStart(4, "0")}`,
+    id,
     name: `Workstation ${index + 1}`,
-    hostname: `wks-${String(index + 1).padStart(4, "0")}.dct.local`,
+    hostname: `${id}.dct.local`,
     type: "workstation",
     networkId,
     securityDomain: "Unclassified",
     systemContext: assignSystemContext(random, networkId, systems),
     lifecycle: buildLifecycle(random),
-    vulnerabilities: buildVulnerabilities(random, "workstation"),
+    vulnerabilities: buildVulnerabilities(random, "workstation", id),
     operatingSystem: buildOperatingSystem(random, "workstation", versions),
     installedSoftware: buildSoftware(random, "workstation", versions)
   };
@@ -600,16 +822,17 @@ function buildDesktop(
   systems: ICTSystem[],
   versions: ReferenceVersions
 ): WorkstationAsset {
+  const id = `dsk-${String(index + 1).padStart(5, "0")}`;
   return {
-    id: `dsk-${String(index + 1).padStart(5, "0")}`,
+    id,
     name: `Desktop ${index + 1}`,
-    hostname: `dsk-${String(index + 1).padStart(5, "0")}.dct.local`,
+    hostname: `${id}.dct.local`,
     type: "workstation",
     networkId,
     securityDomain: "Unclassified",
     systemContext: assignSystemContext(random, networkId, systems),
     lifecycle: buildLifecycle(random),
-    vulnerabilities: buildVulnerabilities(random, "workstation"),
+    vulnerabilities: buildVulnerabilities(random, "workstation", id),
     operatingSystem: buildOperatingSystem(random, "workstation", versions),
     installedSoftware: buildSoftware(random, "workstation", versions)
   };
@@ -622,16 +845,17 @@ function buildDevice(
   systems: ICTSystem[],
   versions: ReferenceVersions
 ): NetworkDeviceAsset {
+  const id = `netd-${String(index + 1).padStart(4, "0")}`;
   return {
-    id: `netd-${String(index + 1).padStart(4, "0")}`,
+    id,
     name: `${pick(random, DEVICE_NAMES)} Device ${index + 1}`,
-    hostname: `netd-${String(index + 1).padStart(4, "0")}.dct.local`,
+    hostname: `${id}.dct.local`,
     type: "network-device",
     networkId,
     securityDomain: "Unclassified",
     systemContext: chance(random, 0.35) ? assignSystemContext(random, networkId, systems) : undefined,
     lifecycle: buildLifecycle(random),
-    vulnerabilities: buildVulnerabilities(random, "network-device"),
+    vulnerabilities: buildVulnerabilities(random, "network-device", id),
     networkOs: buildOperatingSystem(random, "network-device", versions),
     patchState: chance(random, 0.04)
       ? null
@@ -744,13 +968,9 @@ function normalizeDerived(asset: Asset, versions: ReferenceVersions) {
 }
 
 function addCriticalVulnerability(asset: Asset, random: Random) {
-  asset.vulnerabilities.push({
-    id: `VULN-${randomInt(random, 100000, 999999)}`,
-    cve: `CVE-${randomInt(random, 2017, 2026)}-${randomInt(random, 10000, 99999)}`,
-    severity: "Critical",
-    detectedDate: randomDateWithinDays(random, 40),
-    source: "Qualys"
-  });
+  const vulnerability = buildVulnerabilityRecord(random, asset.id, asset.type, "Critical", "Qualys", 120);
+  vulnerability.exploitability = pick(random, ["Known Exploited", "Exploitable"] as const);
+  asset.vulnerabilities.push(vulnerability);
 }
 
 function forceOutOfSupportSoftware(asset: ServerAsset | WorkstationAsset) {

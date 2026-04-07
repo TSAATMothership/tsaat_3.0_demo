@@ -14,6 +14,7 @@ import {
 } from "@/components/cyber-cop-dashboard";
 import { FilterBar } from "@/components/filter-bar";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
 import { applyAssetFilters } from "@/lib/selectors";
@@ -123,6 +124,91 @@ function toFindingDateKey(timestamp?: string | null): string | null {
     return null;
   }
   return toUtcDateKey(parsed);
+}
+
+function formatTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+  return `${parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC"
+  })} UTC`;
+}
+
+function toEvidenceString(value: string | number | boolean | null): string {
+  if (value === null) {
+    return "null";
+  }
+  return String(value);
+}
+
+function readEvidenceStringValue(
+  evidence: Record<string, string | number | boolean | null>,
+  candidateKeys: string[]
+): string | null {
+  if (!candidateKeys.length) {
+    return null;
+  }
+  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
+  for (const candidateKey of candidateKeys) {
+    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
+    if (!matched) {
+      continue;
+    }
+    const value = matched[1];
+    if (value === null) {
+      continue;
+    }
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+      continue;
+    }
+    return text;
+  }
+  return null;
+}
+
+function formatAssetTypeLabel(value?: string | null): string {
+  if (!value) {
+    return "Unknown";
+  }
+  if (value === "network-device") {
+    return "Network Device";
+  }
+  if (value === "workstation") {
+    return "Workstation";
+  }
+  if (value === "server") {
+    return "Server";
+  }
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolveAssetIpAddress(asset: Asset): string {
+  const candidate = asset as Asset & {
+    ipAddress?: string | null;
+    ip?: string | null;
+    ipv4?: string | null;
+    ipv4Address?: string | null;
+    primaryIp?: string | null;
+  };
+  const value =
+    candidate.ipAddress ?? candidate.ip ?? candidate.ipv4 ?? candidate.ipv4Address ?? candidate.primaryIp ?? null;
+  if (!value || !String(value).trim()) {
+    return "N/A";
+  }
+  return String(value).trim();
 }
 
 function buildOpenFindingsDailySeries(
@@ -1087,6 +1173,96 @@ export default async function CyberCopPage({
   );
 
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
+  const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
+  const allAssetsById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
+  const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));
+  const networkOwnerById = new Map(dataset.managedNetworks.map((network) => [network.id, network.owner?.trim() ?? ""]));
+  const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
+  const riskProfileFindings = analytics.findings
+    .map((finding) => {
+      const asset = filteredAssetsById.get(finding.scope.assetId) ?? allAssetsById.get(finding.scope.assetId);
+      const evidencePreview =
+        Object.entries(finding.evidence)
+          .slice(0, 2)
+          .map(([key, value]) => `${key}: ${toEvidenceString(value)}`)
+          .join(" | ") || "No evidence captured";
+      const networkId = finding.scope.networkId ?? asset?.networkId ?? null;
+      const systemId = finding.scope.systemId ?? asset?.systemContext?.systemId ?? null;
+      const environmentType = finding.scope.environmentType ?? asset?.systemContext?.environmentType ?? null;
+      const scopeLabel = [
+        `Asset ${finding.scope.assetId}`,
+        networkId ? `Network ${networkId}` : "Network n/a",
+        systemId ? `System ${systemId}` : "System n/a",
+        environmentType ? `Env ${environmentType}` : "Env n/a"
+      ].join(" | ");
+      const assetName =
+        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
+        asset?.name ??
+        asset?.hostname ??
+        finding.scope.assetId;
+      const assetType = formatAssetTypeLabel(
+        readEvidenceStringValue(finding.evidence, ["assetType", "asset_type"]) ?? asset?.type ?? null
+      );
+      const assetIpAddress =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIpAddress",
+          "assetIp",
+          "ipAddress",
+          "ip",
+          "ipv4Address",
+          "ipv4",
+          "ip_address"
+        ]) ?? (asset ? resolveAssetIpAddress(asset) : "N/A");
+      const assetChangeAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetChangeAssignmentGroup",
+          "changeAssignmentGroup",
+          "changeGroup",
+          "change_assignment_group"
+        ]) ?? "Not assigned";
+      const assetIncidentAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIncidentAssignmentGroup",
+          "incidentAssignmentGroup",
+          "incidentGroup",
+          "incident_assignment_group"
+        ]) ?? "Not assigned";
+      const owner =
+        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
+        (systemId
+          ? systemOwnerById.get(systemId)?.trim() || networkOwnerById.get(networkId ?? "")?.trim() || "Not assigned"
+          : networkOwnerById.get(networkId ?? "")?.trim() || "Not assigned");
+
+      return {
+        id: `risk-${finding.id}`,
+        assetId: finding.scope.assetId,
+        assetName,
+        assetType,
+        assetIpAddress,
+        assetChangeAssignmentGroup,
+        assetIncidentAssignmentGroup,
+        owner,
+        spiId: finding.spiId,
+        timestamp: finding.timestamp,
+        closedTimestamp: finding.closedTimestamp ?? null,
+        timestampLabel: formatTimestamp(finding.timestamp),
+        title: finding.title,
+        priorityRank: finding.priorityRank,
+        severity: finding.severity,
+        workflowStatus: finding.status,
+        scopeLabel,
+        evidencePreview,
+        recommendedAction: finding.recommendedAction
+      };
+    })
+    .sort((a, b) => {
+      if (a.priorityRank !== b.priorityRank) {
+        return a.priorityRank - b.priorityRank;
+      }
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    });
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const nonCompliantOs = countNonCompliantOs(filteredAssets, evaluationByAssetId);
   const outOfWarranty = filteredAssets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
@@ -1206,6 +1382,9 @@ export default async function CyberCopPage({
           severitySummary,
           weeklyTrend: weeklyRiskTrend
         }}
+        riskFindings={riskProfileFindings}
+        assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+        asOfDate={chartAnchorDateKey}
         impact={{
           business: businessImpact,
           mission: missionImpact,
