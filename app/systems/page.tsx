@@ -1,8 +1,8 @@
 import { FilterBar } from "@/components/filter-bar";
-import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import {
   SystemsActionPanel,
-  SystemsOverviewPanel
+  SystemsOverviewPanel,
+  SystemsPostureKpiSummary
 } from "@/components/systems-cop-panels";
 import { SystemsTable } from "@/components/systems-table";
 import { SystemsTabs } from "@/components/systems-tabs";
@@ -10,8 +10,7 @@ import { getTrendAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { deriveOverallStatus } from "@/lib/posture";
-import { applyAssetFilters, filterSystems } from "@/lib/selectors";
-import { createSnapshotAnalyticsMemo } from "@/lib/snapshot-analytics-memo";
+import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -554,9 +553,6 @@ export default async function SystemsPage({
     filterOptions,
     filters,
     systems,
-    snapshots,
-    measuresSettings,
-    discoveryToolsSettings,
     dataset
   } = await getTrendAppData(
     systemsOnlySearchParams
@@ -576,41 +572,29 @@ export default async function SystemsPage({
     requestedTab === "action" ? "action" : requestedTab === "posture" ? "posture" : "overview";
 
   const scopedSystemIds = new Set(systems.map((system) => system.id));
+  const totalSystemsCount = systems.length;
+  const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters).filter((asset) => {
+    const systemId = asset.systemContext?.systemId;
+    return Boolean(systemId) && scopedSystemIds.has(systemId as string);
+  });
   const systemScopedFindings = analytics.findings.filter(
     (finding) => Boolean(finding.scope.systemId) && scopedSystemIds.has(finding.scope.systemId as string)
   );
 
   const findingsBySystem = new Map<string, number>();
-  const p12FindingsBySystem = new Map<string, number>();
-  const p12HighRiskFindingsBySystem = new Map<string, number>();
-  const p12CriticalExposureFindingsBySystem = new Map<string, number>();
+  const highRiskP12FindingsBySystem = new Map<string, number>();
 
-  let p12FindingsCount = 0;
   let highRiskP12FindingsCount = 0;
-  let criticalExposureP12FindingsCount = 0;
 
   for (const finding of systemScopedFindings) {
     const systemId = finding.scope.systemId as string;
     findingsBySystem.set(systemId, (findingsBySystem.get(systemId) ?? 0) + 1);
-    if (finding.priorityRank > 2) {
+    if (finding.priorityRank > 2 || finding.severity !== "High Risk") {
       continue;
     }
 
-    p12FindingsCount += 1;
-    p12FindingsBySystem.set(systemId, (p12FindingsBySystem.get(systemId) ?? 0) + 1);
-
-    if (finding.severity === "High Risk") {
-      highRiskP12FindingsCount += 1;
-      p12HighRiskFindingsBySystem.set(systemId, (p12HighRiskFindingsBySystem.get(systemId) ?? 0) + 1);
-    }
-
-    if (finding.severity === "Critical Exposure") {
-      criticalExposureP12FindingsCount += 1;
-      p12CriticalExposureFindingsBySystem.set(
-        systemId,
-        (p12CriticalExposureFindingsBySystem.get(systemId) ?? 0) + 1
-      );
-    }
+    highRiskP12FindingsCount += 1;
+    highRiskP12FindingsBySystem.set(systemId, (highRiskP12FindingsBySystem.get(systemId) ?? 0) + 1);
   }
 
   const complianceScoreBySystem = systems.reduce((map, system) => {
@@ -639,84 +623,36 @@ export default async function SystemsPage({
     return deriveOverallStatus(rollups) === "Compliant";
   }).length;
 
-  const nonCompliantSystemsCount = systems.filter((system) => {
-    const rollups = analytics.systemRollups.filter(
-      (rollup) => rollup.scopeType === "system" && rollup.scopeId === system.id
-    );
-    return deriveOverallStatus(rollups) === "Non-compliant";
+  const systemsMeetingDiscoveryRequirementsCount = systems.filter((system) => {
+    const relevantEvaluations = analytics.evaluations.filter((evaluation) => evaluation.systemId === system.id);
+    return relevantEvaluations.length > 0 && relevantEvaluations.every((evaluation) => evaluation.discoveryCoverageCompliant);
   }).length;
+  const totalFindingsCount = systemScopedFindings.length;
 
-  const scopedSnapshots = snapshots.slice(-12);
-  const getSnapshotAnalytics = createSnapshotAnalyticsMemo(filters, measuresSettings, discoveryToolsSettings);
-  const trendPoints = scopedSnapshots.map((snapshot, index) => {
-    const snapshotAnalytics = getSnapshotAnalytics(snapshot);
-    const snapshotSystems = filterSystems(snapshot.ictSystems, filters);
-    const snapshotSystemIds = new Set(snapshotSystems.map((system) => system.id));
-    const snapshotSystemFindings = snapshotAnalytics.findings.filter(
-      (finding) => Boolean(finding.scope.systemId) && snapshotSystemIds.has(finding.scope.systemId as string)
-    );
-
-    const compliantCount = snapshotSystems.filter((system) => {
-      const rollups = snapshotAnalytics.systemRollups.filter(
-        (rollup) => rollup.scopeType === "system" && rollup.scopeId === system.id
-      );
-      return deriveOverallStatus(rollups) === "Compliant";
-    }).length;
-
-    const nonCompliantCount = snapshotSystems.filter((system) => {
-      const rollups = snapshotAnalytics.systemRollups.filter(
-        (rollup) => rollup.scopeType === "system" && rollup.scopeId === system.id
-      );
-      return deriveOverallStatus(rollups) === "Non-compliant";
-    }).length;
-
-    let snapshotP12FindingsCount = 0;
-    let snapshotHighRiskP12FindingsCount = 0;
-    let snapshotCriticalExposureP12FindingsCount = 0;
-
-    for (const finding of snapshotSystemFindings) {
-      if (finding.priorityRank > 2) {
-        continue;
-      }
-      snapshotP12FindingsCount += 1;
-      if (finding.severity === "High Risk") {
-        snapshotHighRiskP12FindingsCount += 1;
-      }
-      if (finding.severity === "Critical Exposure") {
-        snapshotCriticalExposureP12FindingsCount += 1;
-      }
+  const endpointCountBySystem = filteredAssets.reduce((map, asset) => {
+    const systemId = asset.systemContext?.systemId;
+    if (!systemId || !scopedSystemIds.has(systemId)) {
+      return map;
     }
-
-    return {
-      weekLabel: `W${String(scopedSnapshots.length - index).padStart(2, "0")}`,
-      compliantSystemsCount: compliantCount,
-      nonCompliantSystemsCount: nonCompliantCount,
-      criticalExposureP12FindingsCount: snapshotCriticalExposureP12FindingsCount,
-      highRiskP12FindingsCount: snapshotHighRiskP12FindingsCount,
-      p12FindingsCount: snapshotP12FindingsCount
-    };
-  });
-
-  const compliantSystemsTrend = trendPoints.map((point) => ({
-    label: point.weekLabel,
-    value: point.compliantSystemsCount
-  }));
-  const nonCompliantSystemsTrend = trendPoints.map((point) => ({
-    label: point.weekLabel,
-    value: point.nonCompliantSystemsCount
-  }));
-  const criticalExposureP12Trend = trendPoints.map((point) => ({
-    label: point.weekLabel,
-    value: point.criticalExposureP12FindingsCount
-  }));
-  const highRiskP12Trend = trendPoints.map((point) => ({
-    label: point.weekLabel,
-    value: point.highRiskP12FindingsCount
-  }));
-  const p12FindingsTrend = trendPoints.map((point) => ({
-    label: point.weekLabel,
-    value: point.p12FindingsCount
-  }));
+    map.set(systemId, (map.get(systemId) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+  const blastRadiusPoints = systems
+    .map((system) => ({
+      systemId: system.id,
+      systemName: system.name,
+      endpointCount: endpointCountBySystem.get(system.id) ?? 0,
+      highRiskP12FindingsCount: highRiskP12FindingsBySystem.get(system.id) ?? 0
+    }))
+    .sort((a, b) => {
+      if (b.endpointCount !== a.endpointCount) {
+        return b.endpointCount - a.endpointCount;
+      }
+      if (b.highRiskP12FindingsCount !== a.highRiskP12FindingsCount) {
+        return b.highRiskP12FindingsCount - a.highRiskP12FindingsCount;
+      }
+      return a.systemName.localeCompare(b.systemName);
+    });
 
   const statusesWithEnvironment = analytics.evaluations
     .filter((evaluation) => Boolean(evaluation.systemId) && scopedSystemIds.has(evaluation.systemId as string))
@@ -763,10 +699,6 @@ export default async function SystemsPage({
   );
   const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
 
-  const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters).filter((asset) => {
-    const systemId = asset.systemContext?.systemId;
-    return Boolean(systemId) && scopedSystemIds.has(systemId as string);
-  });
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
   const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
@@ -858,7 +790,6 @@ export default async function SystemsPage({
       scopedSystemIds.has(evaluation.systemId as string) &&
       !evaluation.discoveryCoverageCompliant
   ).length;
-  const totalSystemsCount = systems.length;
   const modelledSystemsCount = systems.filter((system) => system.modellingStatus).length;
   const systemsNotModelled = systems.filter((system) => !system.modellingStatus).length;
   const modelledPercent = totalSystemsCount ? Number(((modelledSystemsCount / totalSystemsCount) * 100).toFixed(1)) : 0;
@@ -992,49 +923,14 @@ export default async function SystemsPage({
               />
             </div>
 
-            <section className="panel p-3">
-              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">ICT Systems KPI Snapshot</h2>
-              <p className="mt-1 text-xs text-slate-300/75">
-                KPI trends over the last 12 weeks in the current filtered scope.
-              </p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                <div className="panel-alt border-emerald-400/25 p-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Total number of compliant ICT Systems
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-emerald-100">{compliantSystemsCount}</p>
-                  <MiniTrendSparkline points={compliantSystemsTrend} stroke="#22c55e" heightClassName="h-16" />
-                </div>
-                <div className="panel-alt border-red-400/25 p-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Total number of non-compliant ICT Systems
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-red-100">{nonCompliantSystemsCount}</p>
-                  <MiniTrendSparkline points={nonCompliantSystemsTrend} stroke="#ef4444" heightClassName="h-16" />
-                </div>
-                <div className="panel-alt border-red-400/25 p-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Total number of Critical Exposure P1-P2 findings
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-red-100">{criticalExposureP12FindingsCount}</p>
-                  <MiniTrendSparkline points={criticalExposureP12Trend} stroke="#ef4444" heightClassName="h-16" />
-                </div>
-                <div className="panel-alt border-red-400/25 p-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Total number of High Risk P1-P2 findings
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-red-100">{highRiskP12FindingsCount}</p>
-                  <MiniTrendSparkline points={highRiskP12Trend} stroke="#f97316" heightClassName="h-16" />
-                </div>
-                <div className="panel-alt border-amber-400/25 p-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
-                    Total number of P1-P2 findings
-                  </p>
-                  <p className="mt-1 text-xl font-semibold text-amber-100">{p12FindingsCount}</p>
-                  <MiniTrendSparkline points={p12FindingsTrend} stroke="#f59e0b" heightClassName="h-16" />
-                </div>
-              </div>
-            </section>
+            <SystemsPostureKpiSummary
+              compliantSystemsCount={compliantSystemsCount}
+              systemsMeetingDiscoveryRequirementsCount={systemsMeetingDiscoveryRequirementsCount}
+              totalSystemsCount={totalSystemsCount}
+              highRiskP12FindingsCount={highRiskP12FindingsCount}
+              totalFindingsCount={totalFindingsCount}
+              blastRadiusPoints={blastRadiusPoints}
+            />
 
             <div className="min-h-0">
               <SystemsTable

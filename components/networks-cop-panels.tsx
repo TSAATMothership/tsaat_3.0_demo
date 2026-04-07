@@ -1,18 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   Legend,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
-  YAxis
+  YAxis,
+  ZAxis
 } from "recharts";
 import { NetworkDetailRiskCharts, NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
+import {
+  dispatchNetworksBlastRadiusSelection,
+  NETWORKS_BLAST_RADIUS_SELECTION_EVENT,
+  NetworksBlastRadiusSelectionDetail
+} from "@/lib/networks-blast-radius-selection";
 import { FindingSeverity, HighRiskCveDetail } from "@/lib/types";
 
 export interface NetworkSeveritySummary {
@@ -65,6 +75,13 @@ export interface NetworkActionQuickWinRow {
   otherCount: number;
   total: number;
   networkCount: number;
+}
+
+export interface NetworkBlastRadiusPoint {
+  networkId: string;
+  networkName: string;
+  endpointCount: number;
+  highRiskP12FindingsCount: number;
 }
 
 function ComplianceTile({ title, score }: { title: string; score: number }) {
@@ -149,6 +166,260 @@ function ActionTile({
       <p className="mt-1.5 text-xl font-semibold">{value}</p>
       <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
     </article>
+  );
+}
+
+function KpiBulletRow({
+  title,
+  primaryLabel,
+  primaryValue,
+  totalValue,
+  tone
+}: {
+  title: string;
+  primaryLabel: string;
+  primaryValue: number;
+  totalValue: number;
+  tone: "good" | "watch" | "critical";
+}) {
+  const safeTotal = Math.max(0, totalValue);
+  const safePrimary = Math.min(Math.max(0, primaryValue), safeTotal);
+  const remainder = Math.max(0, safeTotal - safePrimary);
+  const primaryPercent = safeTotal > 0 ? (safePrimary / safeTotal) * 100 : 0;
+  const primaryToneClass =
+    tone === "good" ? "bg-emerald-400/90" : tone === "watch" ? "bg-cyan-300/90" : "bg-orange-400/90";
+
+  return (
+    <tr className="border-t border-sky-300/10 align-top">
+      <td className="px-3 py-2.5 text-sm text-slate-200">{title}</td>
+      <td className="px-3 py-2.5">
+        <p className="text-sm font-semibold text-slate-100">
+          {safePrimary} / {safeTotal}
+        </p>
+        <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-sky-300/20 bg-slate-900/90">
+          <div className="flex h-full w-full">
+            <div className={`h-full ${primaryToneClass}`} style={{ width: `${primaryPercent}%` }} />
+            <div className="h-full bg-slate-700/75" style={{ width: `${100 - primaryPercent}%` }} />
+          </div>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-300/85">
+          <span>{primaryLabel}: {safePrimary}</span>
+          <span>Rest: {remainder}</span>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function heatMapColorByHighRiskCount(value: number, maxValue: number): string {
+  if (maxValue <= 0) {
+    return "rgb(255, 255, 255)";
+  }
+
+  const ratio = Math.max(0, Math.min(1, value / maxValue));
+  const start = { r: 255, g: 255, b: 255 };
+  const end = { r: 220, g: 20, b: 60 };
+
+  const r = Math.round(start.r + (end.r - start.r) * ratio);
+  const g = Math.round(start.g + (end.g - start.g) * ratio);
+  const b = Math.round(start.b + (end.b - start.b) * ratio);
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function BlastRadiusTooltip({
+  active,
+  payload
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: NetworkBlastRadiusPoint }>;
+}) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const point = payload[0]?.payload;
+  if (!point) {
+    return null;
+  }
+
+  return (
+    <div className="rounded border border-slate-400/50 bg-slate-900 px-3 py-2 text-xs text-white shadow-lg">
+      <p className="font-semibold text-white">{point.networkName}</p>
+      <p className="mt-1 text-white">Endpoints: {point.endpointCount}</p>
+      <p className="text-white">High Risk (P1-P2): {point.highRiskP12FindingsCount}</p>
+    </div>
+  );
+}
+
+export function NetworksPostureKpiSummary({
+  compliantNetworksCount,
+  networksMeetingDiscoveryRequirementsCount,
+  totalNetworksCount,
+  highRiskP12FindingsCount,
+  totalFindingsCount,
+  blastRadiusPoints
+}: {
+  compliantNetworksCount: number;
+  networksMeetingDiscoveryRequirementsCount: number;
+  totalNetworksCount: number;
+  highRiskP12FindingsCount: number;
+  totalFindingsCount: number;
+  blastRadiusPoints: NetworkBlastRadiusPoint[];
+}) {
+  const [selectedBlastRadiusNetworkId, setSelectedBlastRadiusNetworkId] = useState<string | null>(null);
+  const scopedNetworksWithRisk = blastRadiusPoints.filter(
+    (point) => point.endpointCount > 0 || point.highRiskP12FindingsCount > 0
+  );
+  const maxHighRiskCount = scopedNetworksWithRisk.reduce(
+    (maxValue, point) => Math.max(maxValue, point.highRiskP12FindingsCount),
+    0
+  );
+
+  useEffect(() => {
+    const onSelectionChange = (event: Event) => {
+      const { detail } = event as CustomEvent<NetworksBlastRadiusSelectionDetail>;
+      setSelectedBlastRadiusNetworkId(detail?.networkId ?? null);
+    };
+
+    window.addEventListener(NETWORKS_BLAST_RADIUS_SELECTION_EVENT, onSelectionChange as EventListener);
+    return () => {
+      window.removeEventListener(NETWORKS_BLAST_RADIUS_SELECTION_EVENT, onSelectionChange as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedBlastRadiusNetworkId) {
+      return;
+    }
+    const stillVisible = scopedNetworksWithRisk.some((point) => point.networkId === selectedBlastRadiusNetworkId);
+    if (stillVisible) {
+      return;
+    }
+    setSelectedBlastRadiusNetworkId(null);
+    dispatchNetworksBlastRadiusSelection({ networkId: null });
+  }, [scopedNetworksWithRisk, selectedBlastRadiusNetworkId]);
+
+  const onBlastRadiusPointClick = (event: unknown) => {
+    const point = (event as { payload?: NetworkBlastRadiusPoint } | null)?.payload;
+    if (!point) {
+      return;
+    }
+
+    const nextNetworkId = selectedBlastRadiusNetworkId === point.networkId ? null : point.networkId;
+    setSelectedBlastRadiusNetworkId(nextNetworkId);
+    dispatchNetworksBlastRadiusSelection({ networkId: nextNetworkId });
+  };
+
+  return (
+    <section className="grid gap-2 lg:grid-cols-2">
+      <article className="panel flex min-h-[17.5rem] flex-col p-3">
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">KPI Statistics</h2>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Current filtered network outcomes for compliance, discovery, and high-risk pressure.
+        </p>
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+          <table className="min-w-full">
+            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
+              <tr>
+                <th className="px-3 py-2 text-left">KPI</th>
+                <th className="px-3 py-2 text-left">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <KpiBulletRow
+                title="Total number of compliant networks"
+                primaryLabel="Compliant"
+                primaryValue={compliantNetworksCount}
+                totalValue={totalNetworksCount}
+                tone="good"
+              />
+              <KpiBulletRow
+                title="Total number of networks meeting discovery requirements"
+                primaryLabel="Discovery Compliant"
+                primaryValue={networksMeetingDiscoveryRequirementsCount}
+                totalValue={totalNetworksCount}
+                tone="watch"
+              />
+              <KpiBulletRow
+                title="Total high risk findings (P1-P2)"
+                primaryLabel="High Risk (P1-P2)"
+                primaryValue={highRiskP12FindingsCount}
+                totalValue={totalFindingsCount}
+                tone="critical"
+              />
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="panel flex min-h-[17.5rem] flex-col p-3">
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">High Risk Networks</h2>
+        <p className="mt-1 text-xs text-slate-300/75">
+          Networks by total endpoints versus total high risk findings (P1-P2).
+        </p>
+        <div className="mt-2 min-h-0 flex-1">
+          {scopedNetworksWithRisk.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 6, right: 10, bottom: 8, left: 0 }}>
+                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                <XAxis
+                  type="number"
+                  dataKey="endpointCount"
+                  name="Endpoints"
+                  allowDecimals={false}
+                  tick={{ fill: "#a8c6d8", fontSize: 11 }}
+                  label={{ value: "Endpoints", position: "insideBottom", offset: -4, fill: "#a8c6d8", fontSize: 11 }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="highRiskP12FindingsCount"
+                  name="High Risk (P1-P2)"
+                  allowDecimals={false}
+                  tick={{ fill: "#a8c6d8", fontSize: 11 }}
+                  label={{
+                    value: "High Risk (P1-P2)",
+                    angle: -90,
+                    position: "insideLeft",
+                    fill: "#a8c6d8",
+                    fontSize: 11
+                  }}
+                  width={40}
+                />
+                <ZAxis type="number" dataKey="highRiskP12FindingsCount" range={[80, 520]} />
+                <Tooltip
+                  cursor={{ stroke: "rgba(56,189,248,0.5)", strokeWidth: 1 }}
+                  content={<BlastRadiusTooltip />}
+                />
+                <Scatter
+                  name="Networks"
+                  data={scopedNetworksWithRisk}
+                  isAnimationActive={false}
+                  onClick={onBlastRadiusPointClick}
+                >
+                  {scopedNetworksWithRisk.map((point) => (
+                    <Cell
+                      key={point.networkId}
+                      fill={heatMapColorByHighRiskCount(point.highRiskP12FindingsCount, maxHighRiskCount)}
+                      fillOpacity={
+                        selectedBlastRadiusNetworkId && selectedBlastRadiusNetworkId !== point.networkId ? 0.3 : 1
+                      }
+                      stroke={selectedBlastRadiusNetworkId === point.networkId ? "#fef08a" : "rgba(248,250,252,0.88)"}
+                      strokeWidth={selectedBlastRadiusNetworkId === point.networkId ? 2 : 0.7}
+                      style={{ cursor: "pointer" }}
+                    />
+                  ))}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center rounded-lg border border-sky-300/15 bg-slate-950/45 px-4 text-center text-sm text-slate-300/75">
+              No endpoint or P1-P2 high-risk data available in the current filter scope.
+            </div>
+          )}
+        </div>
+      </article>
+    </section>
   );
 }
 

@@ -25,7 +25,6 @@ function complianceScoreFromRollups(rollups: RollupResult[]): number {
 export function NetworksTable({
   networks,
   networkRollups,
-  findingsByNetwork,
   p12FindingsByNetwork,
   p12HighRiskFindingsByNetwork,
   p12CriticalExposureFindingsByNetwork,
@@ -34,7 +33,6 @@ export function NetworksTable({
 }: {
   networks: ManagedNetwork[];
   networkRollups: RollupResult[];
-  findingsByNetwork: Map<string, number>;
   p12FindingsByNetwork: Map<string, number>;
   p12HighRiskFindingsByNetwork: Map<string, number>;
   p12CriticalExposureFindingsByNetwork: Map<string, number>;
@@ -55,7 +53,6 @@ export function NetworksTable({
       classification: network.classification ?? "-",
       assetCount: network.assetIds.length,
       posture,
-      openFindings: findingsByNetwork.get(network.id) ?? 0,
       p12Findings: p12FindingsByNetwork.get(network.id) ?? 0,
       p12HighRiskFindings: p12HighRiskFindingsByNetwork.get(network.id) ?? 0,
       p12CriticalExposureFindings: p12CriticalExposureFindingsByNetwork.get(network.id) ?? 0,

@@ -6,6 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PostureBadge } from "@/components/posture-badge";
 import { ComplianceStatus } from "@/lib/types";
 import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
+import {
+  dispatchSystemsBlastRadiusSelection,
+  SYSTEMS_BLAST_RADIUS_SELECTION_EVENT,
+  SystemsBlastRadiusSelectionDetail
+} from "@/lib/systems-blast-radius-selection";
 
 const PANEL_TWEEN_MS = 260;
 
@@ -35,6 +40,36 @@ function isExternalLink(href: string): boolean {
   return /^https?:\/\//i.test(href);
 }
 
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, value));
+}
+
+function ScoreBullet({
+  value,
+  tone
+}: {
+  value: number;
+  tone: "compliance" | "discovery";
+}) {
+  const percent = clampPercent(value);
+  const fillClass = tone === "compliance" ? "bg-emerald-400/90" : "bg-cyan-300/90";
+
+  return (
+    <div className="min-w-[7.5rem]">
+      <p className="text-right text-slate-100">{percent.toFixed(1)}%</p>
+      <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-sky-300/20 bg-slate-900/90">
+        <div className="flex h-full w-full">
+          <div className={`h-full ${fillClass}`} style={{ width: `${percent}%` }} />
+          <div className="h-full bg-slate-700/75" style={{ width: `${100 - percent}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SystemsTableClient({
   rows,
   scrollable = false
@@ -48,13 +83,20 @@ export function SystemsTableClient({
   const [tableSearchText, setTableSearchText] = useState("");
   const [isTableSearchFocused, setIsTableSearchFocused] = useState(false);
   const [selectedSearchRowId, setSelectedSearchRowId] = useState<string>("__all__");
+  const [chartSelectedRowId, setChartSelectedRowId] = useState<string | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableSearchInputRef = useRef<HTMLInputElement | null>(null);
   const scopedDataDate = normalizeDataDate(searchParams.get(DATA_DATE_PARAM));
+  const chartFilteredRows = useMemo(() => {
+    if (!chartSelectedRowId) {
+      return rows;
+    }
+    return rows.filter((row) => row.id === chartSelectedRowId);
+  }, [rows, chartSelectedRowId]);
   const tableSearchOptions = useMemo(() => {
-    return [...rows].sort((left, right) => left.name.localeCompare(right.name));
-  }, [rows]);
+    return [...chartFilteredRows].sort((left, right) => left.name.localeCompare(right.name));
+  }, [chartFilteredRows]);
   const filteredTableSearchOptions = useMemo(() => {
     const normalizedSearch = tableSearchText.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -64,10 +106,14 @@ export function SystemsTableClient({
   }, [tableSearchOptions, tableSearchText]);
   const visibleRows = useMemo(() => {
     if (selectedSearchRowId === "__all__") {
-      return rows;
+      return chartFilteredRows;
     }
-    return rows.filter((row) => row.id === selectedSearchRowId);
-  }, [rows, selectedSearchRowId]);
+    return chartFilteredRows.filter((row) => row.id === selectedSearchRowId);
+  }, [chartFilteredRows, selectedSearchRowId]);
+  const selectedChartRow = useMemo(
+    () => (chartSelectedRowId ? rows.find((row) => row.id === chartSelectedRowId) ?? null : null),
+    [rows, chartSelectedRowId]
+  );
 
   useEffect(() => {
     return () => {
@@ -91,6 +137,27 @@ export function SystemsTableClient({
       setTableSearchText("");
     }
   }, [rows, selectedSearchRowId]);
+
+  useEffect(() => {
+    if (!chartSelectedRowId) {
+      return;
+    }
+    if (!rows.some((row) => row.id === chartSelectedRowId)) {
+      setChartSelectedRowId(null);
+    }
+  }, [rows, chartSelectedRowId]);
+
+  useEffect(() => {
+    const onBlastRadiusSelectionChange = (event: Event) => {
+      const { detail } = event as CustomEvent<SystemsBlastRadiusSelectionDetail>;
+      setChartSelectedRowId(detail?.systemId ?? null);
+    };
+
+    window.addEventListener(SYSTEMS_BLAST_RADIUS_SELECTION_EVENT, onBlastRadiusSelectionChange as EventListener);
+    return () => {
+      window.removeEventListener(SYSTEMS_BLAST_RADIUS_SELECTION_EVENT, onBlastRadiusSelectionChange as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedRow) {
@@ -153,6 +220,11 @@ export function SystemsTableClient({
     setSelectedSearchRowId("__all__");
     setTableSearchText("");
     setIsTableSearchFocused(false);
+  };
+
+  const clearChartSelection = () => {
+    setChartSelectedRowId(null);
+    dispatchSystemsBlastRadiusSelection({ systemId: null });
   };
 
   return (
@@ -231,6 +303,18 @@ export function SystemsTableClient({
                 </div>
               ) : null}
             </div>
+            {selectedChartRow ? (
+              <div className="ml-auto flex items-center gap-2 rounded-md border border-amber-300/35 bg-amber-500/10 px-2 py-1 text-xs text-amber-100">
+                <span>Blast radius filter: {selectedChartRow.name}</span>
+                <button
+                  type="button"
+                  onClick={clearChartSelection}
+                  className="rounded border border-amber-300/45 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] hover:border-amber-200/70 hover:text-amber-50"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
         <div className={scrollable ? "h-[calc(100%-3.5rem)] min-h-0 overflow-auto" : ""}>
@@ -248,7 +332,6 @@ export function SystemsTableClient({
                 <th className="w-[170px] px-2.5 py-1.5">Production Posture</th>
                 <th className="w-[150px] px-2.5 py-1.5">Compliance Score</th>
                 <th className="w-[190px] px-2.5 py-1.5">Discovery Compliance Score</th>
-                <th className="px-2.5 py-1.5">Open Findings</th>
                 <th className="px-2.5 py-1.5">Action</th>
               </tr>
             </thead>
@@ -272,9 +355,12 @@ export function SystemsTableClient({
                   <td className="w-[170px] px-2.5 py-2">
                     <PostureBadge status={row.productionPosture} />
                   </td>
-                  <td className="w-[150px] px-2.5 py-2 text-slate-100">{row.complianceScore.toFixed(1)}%</td>
-                  <td className="w-[190px] px-2.5 py-2 text-slate-100">{row.discoveryComplianceScore.toFixed(1)}%</td>
-                  <td className="px-2.5 py-2 text-slate-200">{row.openFindings}</td>
+                  <td className="w-[150px] px-2.5 py-2">
+                    <ScoreBullet value={row.complianceScore} tone="compliance" />
+                  </td>
+                  <td className="w-[190px] px-2.5 py-2">
+                    <ScoreBullet value={row.discoveryComplianceScore} tone="discovery" />
+                  </td>
                   <td className="px-2.5 py-2">
                     <Link
                       href={withDataDate(`/systems/${row.id}`, scopedDataDate)}
@@ -289,7 +375,7 @@ export function SystemsTableClient({
               ))}
               {visibleRows.length === 0 ? (
                 <tr className="border-t border-sky-400/10 align-top">
-                  <td colSpan={9} className="px-2.5 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={8} className="px-2.5 py-6 text-center text-sm text-slate-400">
                     No ICT systems match this search.
                   </td>
                 </tr>
