@@ -1,0 +1,929 @@
+import { FilterBar } from "@/components/filter-bar";
+import {
+  NetworksActionPanel,
+  NetworksOverviewPanel,
+  NetworksPostureKpiSummary
+} from "@/components/networks-cop-panels";
+import { NetworksTable } from "@/components/networks-table";
+import { NetworksTabs } from "@/components/networks-tabs";
+import { getTrendAppData } from "@/lib/app-data";
+import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
+import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
+import { deriveOverallStatus } from "@/lib/posture";
+import { applyAssetFilters } from "@/lib/selectors";
+import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
+function toQueryEntries(searchParams: Record<string, string | string[] | undefined>): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        entries.push([key, item]);
+      }
+    } else if (typeof value === "string") {
+      entries.push([key, value]);
+    }
+  }
+  return entries;
+}
+
+function complianceScore(statuses: ComplianceStatus[]): number {
+  if (!statuses.length) {
+    return 0;
+  }
+
+  const compliant = statuses.filter((status) => status === "Compliant").length;
+  return Number(((compliant / statuses.length) * 100).toFixed(1));
+}
+
+function dpeComplianceScore(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): number {
+  return complianceScore(
+    statuses.filter((item) => item.environmentType === "Production").map((item) => item.status)
+  );
+}
+
+function dseComplianceScore(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): number {
+  return complianceScore(
+    statuses
+      .filter((item) => item.environmentType !== null && item.environmentType !== "Production")
+      .map((item) => item.status)
+  );
+}
+
+function complianceFromRollupCounts(
+  rollups: Array<{
+    counts: { compliant: number; nonCompliant: number; unknown: number };
+  }>
+): number {
+  const totals = rollups.reduce(
+    (accumulator, rollup) => {
+      accumulator.compliant += rollup.counts.compliant;
+      accumulator.nonCompliant += rollup.counts.nonCompliant;
+      accumulator.unknown += rollup.counts.unknown;
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
+  );
+
+  const denominator = totals.compliant + totals.nonCompliant + totals.unknown;
+  if (!denominator) {
+    return 0;
+  }
+
+  return Number(((totals.compliant / denominator) * 100).toFixed(1));
+}
+
+function toUtcDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseUtcDateKey(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function formatUtcDay(date: Date): string {
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function toFindingDateKey(timestamp?: string | null): string | null {
+  if (!timestamp) {
+    return null;
+  }
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return toUtcDateKey(parsed);
+}
+
+function formatTimestamp(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+  return `${parsed.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC"
+  })} UTC`;
+}
+
+function toEvidenceString(value: string | number | boolean | null): string {
+  if (value === null) {
+    return "null";
+  }
+  return String(value);
+}
+
+function readEvidenceStringValue(
+  evidence: Record<string, string | number | boolean | null>,
+  candidateKeys: string[]
+): string | null {
+  if (!candidateKeys.length) {
+    return null;
+  }
+  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
+  for (const candidateKey of candidateKeys) {
+    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
+    if (!matched) {
+      continue;
+    }
+    const value = matched[1];
+    if (value === null) {
+      continue;
+    }
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
+      continue;
+    }
+    return text;
+  }
+  return null;
+}
+
+function formatAssetTypeLabel(value?: string | null): string {
+  if (!value) {
+    return "Unknown";
+  }
+  if (value === "network-device") {
+    return "Network Device";
+  }
+  if (value === "workstation") {
+    return "Workstation";
+  }
+  if (value === "server") {
+    return "Server";
+  }
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function resolveAssetIpAddress(asset: Asset): string {
+  const candidate = asset as Asset & {
+    ipAddress?: string | null;
+    ip?: string | null;
+    ipv4?: string | null;
+    ipv4Address?: string | null;
+    primaryIp?: string | null;
+  };
+  const value =
+    candidate.ipAddress ?? candidate.ip ?? candidate.ipv4 ?? candidate.ipv4Address ?? candidate.primaryIp ?? null;
+  if (!value || !String(value).trim()) {
+    return "N/A";
+  }
+  return String(value).trim();
+}
+
+function buildOpenFindingsDailySeries(
+  findings: Finding[],
+  severity: "High Risk" | "Critical Exposure",
+  endDateKey: string,
+  dataAvailableUntilDateKey: string,
+  days = 365
+) {
+  const endDate = parseUtcDateKey(endDateKey);
+  const startDate = addUtcDays(endDate, -(days - 1));
+  const startDateKey = toUtcDateKey(startDate);
+  const effectiveDataEndDateKey =
+    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
+  const events = new Map<string, number>();
+  let openAtWindowStart = 0;
+
+  for (const finding of findings) {
+    if (finding.severity !== severity) {
+      continue;
+    }
+
+    const openedDateKey = toFindingDateKey(finding.timestamp);
+    if (!openedDateKey) {
+      continue;
+    }
+    const closedDateKey = toFindingDateKey(finding.closedTimestamp);
+
+    if (openedDateKey < startDateKey && (!closedDateKey || closedDateKey >= startDateKey)) {
+      openAtWindowStart += 1;
+    }
+
+    if (openedDateKey >= startDateKey && openedDateKey <= effectiveDataEndDateKey) {
+      events.set(openedDateKey, (events.get(openedDateKey) ?? 0) + 1);
+    }
+    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= effectiveDataEndDateKey) {
+      events.set(closedDateKey, (events.get(closedDateKey) ?? 0) - 1);
+    }
+  }
+
+  const points: Array<{ date: string; label: string; count: number | null }> = [];
+  let running = openAtWindowStart;
+  let hasObservedData = openAtWindowStart > 0;
+  for (let offset = 0; offset < days; offset += 1) {
+    const pointDate = addUtcDays(startDate, offset);
+    const pointDateKey = toUtcDateKey(pointDate);
+    if (pointDateKey > effectiveDataEndDateKey) {
+      points.push({
+        date: pointDateKey,
+        label: formatUtcDay(pointDate),
+        count: null
+      });
+      continue;
+    }
+    if (events.has(pointDateKey)) {
+      hasObservedData = true;
+    }
+    running += events.get(pointDateKey) ?? 0;
+    points.push({
+      date: pointDateKey,
+      label: formatUtcDay(pointDate),
+      count: hasObservedData ? Math.max(0, running) : null
+    });
+  }
+
+  return points;
+}
+
+function buildWeeklyRiskTrend(
+  highRiskDaily: Array<{ date: string; count: number | null }>,
+  criticalExposureDaily: Array<{ date: string; count: number | null }>,
+  weeks = 13
+) {
+  const endDateKey = highRiskDaily[highRiskDaily.length - 1]?.date ?? criticalExposureDaily[criticalExposureDaily.length - 1]?.date;
+  if (!endDateKey) {
+    return [];
+  }
+
+  const endDate = parseUtcDateKey(endDateKey);
+  const highRiskByDate = new Map(highRiskDaily.map((point) => [point.date, point.count]));
+  const criticalExposureByDate = new Map(criticalExposureDaily.map((point) => [point.date, point.count]));
+
+  return Array.from({ length: weeks }, (_, index) => {
+    const weekOffset = weeks - 1 - index;
+    const pointDate = addUtcDays(endDate, -weekOffset * 7);
+    const pointDateKey = toUtcDateKey(pointDate);
+    const highRiskCount = highRiskByDate.has(pointDateKey)
+      ? (highRiskByDate.get(pointDateKey) ?? null)
+      : null;
+    const criticalExposureCount = criticalExposureByDate.has(pointDateKey)
+      ? (criticalExposureByDate.get(pointDateKey) ?? null)
+      : null;
+    return {
+      weekLabel: formatUtcDay(pointDate),
+      highRiskCount,
+      criticalExposureCount
+    };
+  });
+}
+
+function differenceInWholeUtcDays(fromDate: Date, toDate: Date): number {
+  const deltaMs = toDate.getTime() - fromDate.getTime();
+  return Math.max(0, Math.floor(deltaMs / 86_400_000));
+}
+
+function throughputWeekIndex(startDate: Date, dateKey: string, weeks: number): number {
+  const date = parseUtcDateKey(dateKey);
+  const diffDays = differenceInWholeUtcDays(startDate, date);
+  if (diffDays < 0 || diffDays >= weeks * 7) {
+    return -1;
+  }
+  return Math.floor(diffDays / 7);
+}
+
+function buildActionThroughput(findings: Finding[], endDateKey: string, weeks = 13) {
+  const endDate = parseUtcDateKey(endDateKey);
+  const startDate = addUtcDays(endDate, -(weeks * 7 - 1));
+
+  const rows = Array.from({ length: weeks }, (_, index) => {
+    const weekEndDate = addUtcDays(startDate, index * 7 + 6);
+    return {
+      weekLabel: formatUtcDay(weekEndDate),
+      openedCount: 0,
+      closedCount: 0,
+      netChange: 0
+    };
+  });
+
+  for (const finding of findings) {
+    const openedDateKey = toFindingDateKey(finding.timestamp);
+    if (openedDateKey) {
+      const openedIndex = throughputWeekIndex(startDate, openedDateKey, weeks);
+      if (openedIndex >= 0) {
+        rows[openedIndex].openedCount += 1;
+      }
+    }
+
+    const closedDateKey = toFindingDateKey(finding.closedTimestamp);
+    if (closedDateKey) {
+      const closedIndex = throughputWeekIndex(startDate, closedDateKey, weeks);
+      if (closedIndex >= 0) {
+        rows[closedIndex].closedCount += 1;
+      }
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    netChange: row.openedCount - row.closedCount
+  }));
+}
+
+const actionAgeBucketBoundaries: Array<{ label: string; minDays: number; maxDays: number | null }> = [
+  { label: "0-30d", minDays: 0, maxDays: 30 },
+  { label: "31-60d", minDays: 31, maxDays: 60 },
+  { label: "61-90d", minDays: 61, maxDays: 90 },
+  { label: "91-180d", minDays: 91, maxDays: 180 },
+  { label: "181d+", minDays: 181, maxDays: null }
+];
+
+function resolveActionAgeBucket(ageDays: number): string {
+  for (const bucket of actionAgeBucketBoundaries) {
+    if (ageDays < bucket.minDays) {
+      continue;
+    }
+    if (bucket.maxDays === null || ageDays <= bucket.maxDays) {
+      return bucket.label;
+    }
+  }
+  return actionAgeBucketBoundaries[actionAgeBucketBoundaries.length - 1].label;
+}
+
+function buildActionAgeBuckets(openFindings: Finding[], endDateKey: string) {
+  const today = parseUtcDateKey(endDateKey);
+  const rowsByLabel = new Map(
+    actionAgeBucketBoundaries.map((bucket) => [
+      bucket.label,
+      {
+        bucketLabel: bucket.label,
+        criticalExposureCount: 0,
+        highRiskCount: 0,
+        otherCount: 0,
+        total: 0
+      }
+    ])
+  );
+
+  for (const finding of openFindings) {
+    const openedDateKey = toFindingDateKey(finding.timestamp);
+    if (!openedDateKey) {
+      continue;
+    }
+
+    const ageDays = differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today);
+    const bucketLabel = resolveActionAgeBucket(ageDays);
+    const row = rowsByLabel.get(bucketLabel);
+    if (!row) {
+      continue;
+    }
+
+    if (finding.severity === "Critical Exposure") {
+      row.criticalExposureCount += 1;
+    } else if (finding.severity === "High Risk") {
+      row.highRiskCount += 1;
+    } else {
+      row.otherCount += 1;
+    }
+    row.total += 1;
+  }
+
+  return actionAgeBucketBoundaries
+    .map((bucket) => rowsByLabel.get(bucket.label))
+    .filter((row): row is { bucketLabel: string; criticalExposureCount: number; highRiskCount: number; otherCount: number; total: number } => Boolean(row));
+}
+
+function formatActionDate(dateKey: string): string {
+  return parseUtcDateKey(dateKey).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC"
+  });
+}
+
+function buildActionOldestOpenFindings(
+  openFindings: Finding[],
+  networkNameById: Map<string, string>,
+  endDateKey: string,
+  topCount = 12
+) {
+  const today = parseUtcDateKey(endDateKey);
+
+  return openFindings
+    .map((finding) => {
+      const openedDateKey = toFindingDateKey(finding.timestamp);
+      if (!openedDateKey) {
+        return null;
+      }
+
+      return {
+        findingId: finding.id,
+        title: finding.title,
+        severity: finding.severity,
+        spiLabel: `SPI ${finding.spiId}`,
+        networkName: networkNameById.get(finding.scope.networkId) ?? "Unassigned",
+        impactedDevices:
+          typeof finding.evidence.assetName === "string" && finding.evidence.assetName.trim().length > 0
+            ? finding.evidence.assetName
+            : finding.scope.assetId,
+        openedDate: formatActionDate(openedDateKey),
+        ageDays: differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today)
+      };
+    })
+    .filter((row): row is { findingId: string; title: string; severity: FindingSeverity; spiLabel: string; networkName: string; impactedDevices: string; openedDate: string; ageDays: number } => Boolean(row))
+    .sort((a, b) => {
+      if (b.ageDays !== a.ageDays) {
+        return b.ageDays - a.ageDays;
+      }
+      return a.findingId.localeCompare(b.findingId);
+    })
+    .slice(0, topCount);
+}
+
+function buildActionQuickWins(openFindings: Finding[], topCount = 10) {
+  const grouped = new Map<
+    string,
+    {
+      actionText: string;
+      criticalExposureCount: number;
+      highRiskCount: number;
+      otherCount: number;
+      total: number;
+      networkIds: Set<string>;
+    }
+  >();
+
+  for (const finding of openFindings) {
+    const actionText = finding.recommendedAction?.trim() || "No recommended action provided";
+    const key = actionText.toLowerCase();
+    const row = grouped.get(key) ?? {
+      actionText,
+      criticalExposureCount: 0,
+      highRiskCount: 0,
+      otherCount: 0,
+      total: 0,
+      networkIds: new Set<string>()
+    };
+
+    if (finding.severity === "Critical Exposure") {
+      row.criticalExposureCount += 1;
+    } else if (finding.severity === "High Risk") {
+      row.highRiskCount += 1;
+    } else {
+      row.otherCount += 1;
+    }
+    row.total += 1;
+    if (finding.scope.networkId) {
+      row.networkIds.add(finding.scope.networkId);
+    }
+    grouped.set(key, row);
+  }
+
+  return Array.from(grouped.values())
+    .sort((a, b) => {
+      const severeA = a.criticalExposureCount + a.highRiskCount;
+      const severeB = b.criticalExposureCount + b.highRiskCount;
+      if (severeB !== severeA) {
+        return severeB - severeA;
+      }
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+      return a.actionText.localeCompare(b.actionText);
+    })
+    .slice(0, topCount)
+    .map((row) => ({
+      actionText: row.actionText,
+      criticalExposureCount: row.criticalExposureCount,
+      highRiskCount: row.highRiskCount,
+      otherCount: row.otherCount,
+      total: row.total,
+      networkCount: row.networkIds.size
+    }));
+}
+
+export default async function NetworksPage({
+  searchParams
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  const selectedDataDate = extractDataDateParam(searchParams);
+  const {
+    analytics,
+    filterOptions,
+    filters,
+    networks,
+    dataset,
+    systems
+  } = await getTrendAppData(
+    searchParams
+  );
+
+  const requestedTab = firstParam(searchParams.networksTab)?.trim().toLowerCase();
+  const activeTab: "overview" | "action" | "posture" =
+    requestedTab === "action" ? "action" : requestedTab === "posture" ? "posture" : "overview";
+  const queryEntries = toQueryEntries(searchParams);
+  const remediationReportHref = (() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of queryEntries) {
+      params.append(key, value);
+    }
+    const query = params.toString();
+    return query ? `/api/networks/remediation-report?${query}` : "/api/networks/remediation-report";
+  })();
+  const filtersSection = (
+    <div className="-mt-4">
+      <FilterBar
+        options={filterOptions}
+        filters={filters}
+        hiddenFields={["ictSystem", "systemCriticality", "environment"]}
+        enableLoadingOverlay
+        actions={
+          <a
+            href={remediationReportHref}
+            className="inline-flex h-[42px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-4 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-500/25"
+          >
+            Generate Remediation Report
+          </a>
+        }
+      />
+    </div>
+  );
+  const filtersSectionWithoutReport = (
+    <div className="-mt-4">
+      <FilterBar
+        options={filterOptions}
+        filters={filters}
+        hiddenFields={["ictSystem", "systemCriticality", "environment"]}
+        enableLoadingOverlay
+      />
+    </div>
+  );
+
+  const scopedNetworkIds = new Set(networks.map((network) => network.id));
+  const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters).filter((asset) =>
+    scopedNetworkIds.has(asset.networkId)
+  );
+  const p12FindingsByNetwork = new Map<string, number>();
+  const highRiskP12FindingsByNetwork = new Map<string, number>();
+  const p12CriticalExposureFindingsByNetwork = new Map<string, number>();
+  const discoveryComplianceScoreByNetwork = new Map<string, number>();
+
+  let highRiskP12FindingsCount = 0;
+
+  for (const finding of analytics.findings) {
+    if (finding.priorityRank > 2) {
+      continue;
+    }
+
+    p12FindingsByNetwork.set(finding.scope.networkId, (p12FindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1);
+
+    if (finding.severity === "High Risk") {
+      highRiskP12FindingsCount += 1;
+      highRiskP12FindingsByNetwork.set(
+        finding.scope.networkId,
+        (highRiskP12FindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
+      );
+    }
+
+    if (finding.severity === "Critical Exposure") {
+      p12CriticalExposureFindingsByNetwork.set(
+        finding.scope.networkId,
+        (p12CriticalExposureFindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
+      );
+    }
+  }
+
+  const discoveryCoverageTotalsByNetwork = new Map<string, { compliant: number; total: number }>();
+  for (const evaluation of analytics.evaluations) {
+    const current = discoveryCoverageTotalsByNetwork.get(evaluation.networkId) ?? { compliant: 0, total: 0 };
+    current.total += 1;
+    if (evaluation.discoveryCoverageCompliant) {
+      current.compliant += 1;
+    }
+    discoveryCoverageTotalsByNetwork.set(evaluation.networkId, current);
+  }
+  for (const [networkId, counts] of discoveryCoverageTotalsByNetwork.entries()) {
+    const score = counts.total ? Number(((counts.compliant / counts.total) * 100).toFixed(1)) : 0;
+    discoveryComplianceScoreByNetwork.set(networkId, score);
+  }
+
+  const compliantNetworksCount = networks.filter((network) => {
+    const rollups = analytics.networkRollups.filter(
+      (rollup) => rollup.scopeType === "network" && rollup.scopeId === network.id
+    );
+    return deriveOverallStatus(rollups) === "Compliant";
+  }).length;
+  const networksMeetingDiscoveryRequirementsCount = networks.filter((network) => {
+    const counts = discoveryCoverageTotalsByNetwork.get(network.id);
+    return Boolean(counts && counts.total > 0 && counts.compliant === counts.total);
+  }).length;
+  const totalFindingsCount = analytics.findings.length;
+  const endpointCountByNetwork = filteredAssets.reduce((map, asset) => {
+    const networkId = asset.networkId;
+    if (!scopedNetworkIds.has(networkId)) {
+      return map;
+    }
+    map.set(networkId, (map.get(networkId) ?? 0) + 1);
+    return map;
+  }, new Map<string, number>());
+  const blastRadiusPoints = networks
+    .map((network) => ({
+      networkId: network.id,
+      networkName: network.name,
+      endpointCount: endpointCountByNetwork.get(network.id) ?? 0,
+      highRiskP12FindingsCount: highRiskP12FindingsByNetwork.get(network.id) ?? 0
+    }))
+    .sort((a, b) => {
+      if (b.endpointCount !== a.endpointCount) {
+        return b.endpointCount - a.endpointCount;
+      }
+      if (b.highRiskP12FindingsCount !== a.highRiskP12FindingsCount) {
+        return b.highRiskP12FindingsCount - a.highRiskP12FindingsCount;
+      }
+      return a.networkName.localeCompare(b.networkName);
+    });
+
+  const statusesWithEnvironment = analytics.evaluations.flatMap((evaluation) =>
+    evaluation.evaluations.map((item) => ({
+      environmentType: evaluation.environmentType,
+      status: item.status
+    }))
+  );
+
+  const scopedNetworkRollups = analytics.networkRollups.filter(
+    (rollup) => rollup.scopeType === "network" && scopedNetworkIds.has(rollup.scopeId)
+  );
+  const networksCompliance = complianceFromRollupCounts(scopedNetworkRollups);
+
+  const openFindings = analytics.findings.filter((finding) => finding.status === "open");
+  const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const severityCounts = openFindings.reduce<Map<FindingSeverity, number>>((accumulator, finding) => {
+    accumulator.set(finding.severity, (accumulator.get(finding.severity) ?? 0) + 1);
+    return accumulator;
+  }, new Map());
+  const severitySummary = severityOrder.map((severity) => ({
+    severity,
+    count: severityCounts.get(severity) ?? 0
+  }));
+
+  const highRiskOpenCount = severityCounts.get("High Risk") ?? 0;
+  const criticalExposureOpenCount = severityCounts.get("Critical Exposure") ?? 0;
+  const p1p2Count = openFindings.filter((finding) => finding.priorityRank <= 2).length;
+
+  const chartAnchorDateKey = selectedDataDate ?? dataset.snapshotDate;
+  const chartWindowEndDateKey = selectedDataDate ?? todayDateKey();
+  const highRiskDaily = buildOpenFindingsDailySeries(
+    analytics.findings,
+    "High Risk",
+    chartWindowEndDateKey,
+    dataset.snapshotDate
+  );
+  const criticalExposureDaily = buildOpenFindingsDailySeries(
+    analytics.findings,
+    "Critical Exposure",
+    chartWindowEndDateKey,
+    dataset.snapshotDate
+  );
+  const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
+
+  const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
+  const networkOwnerById = new Map(dataset.managedNetworks.map((network) => [network.id, network.owner?.trim() ?? ""]));
+  const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));
+  const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
+  const riskProfileFindings = analytics.findings
+    .map((finding) => {
+      const asset = filteredAssetsById.get(finding.scope.assetId);
+      const evidencePreview =
+        Object.entries(finding.evidence)
+          .slice(0, 2)
+          .map(([key, value]) => `${key}: ${toEvidenceString(value)}`)
+          .join(" | ") || "No evidence captured";
+      const networkId = finding.scope.networkId ?? asset?.networkId ?? null;
+      const systemId = finding.scope.systemId ?? asset?.systemContext?.systemId ?? null;
+      const environmentType = finding.scope.environmentType ?? asset?.systemContext?.environmentType ?? null;
+      const scopeLabel = [
+        `Asset ${finding.scope.assetId}`,
+        systemId ? `System ${systemId}` : "System n/a",
+        environmentType ? `Env ${environmentType}` : "Env n/a"
+      ].join(" | ");
+      const assetName =
+        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
+        asset?.name ??
+        asset?.hostname ??
+        finding.scope.assetId;
+      const assetType = formatAssetTypeLabel(
+        readEvidenceStringValue(finding.evidence, ["assetType", "asset_type"]) ?? asset?.type ?? null
+      );
+      const assetIpAddress =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIpAddress",
+          "assetIp",
+          "ipAddress",
+          "ip",
+          "ipv4Address",
+          "ipv4",
+          "ip_address"
+        ]) ?? (asset ? resolveAssetIpAddress(asset) : "N/A");
+      const assetChangeAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetChangeAssignmentGroup",
+          "changeAssignmentGroup",
+          "changeGroup",
+          "change_assignment_group"
+        ]) ?? "Not assigned";
+      const assetIncidentAssignmentGroup =
+        readEvidenceStringValue(finding.evidence, [
+          "assetIncidentAssignmentGroup",
+          "incidentAssignmentGroup",
+          "incidentGroup",
+          "incident_assignment_group"
+        ]) ?? "Not assigned";
+      const owner =
+        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
+        (systemId
+          ? systemOwnerById.get(systemId)?.trim() || networkOwnerById.get(networkId ?? "")?.trim() || "Not assigned"
+          : networkOwnerById.get(networkId ?? "")?.trim() || "Not assigned");
+
+      return {
+        id: `risk-${finding.id}`,
+        assetId: finding.scope.assetId,
+        assetName,
+        assetType,
+        assetIpAddress,
+        assetChangeAssignmentGroup,
+        assetIncidentAssignmentGroup,
+        owner,
+        spiId: finding.spiId,
+        timestamp: finding.timestamp,
+        closedTimestamp: finding.closedTimestamp ?? null,
+        timestampLabel: formatTimestamp(finding.timestamp),
+        title: finding.title,
+        priorityRank: finding.priorityRank,
+        severity: finding.severity,
+        workflowStatus: finding.status,
+        scopeLabel,
+        evidencePreview,
+        recommendedAction: finding.recommendedAction
+      };
+    })
+    .sort((a, b) => {
+      if (a.priorityRank !== b.priorityRank) {
+        return a.priorityRank - b.priorityRank;
+      }
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      return bTime - aTime;
+    });
+  const outOfWarranty = filteredAssets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
+  const discoveryCoverageGaps = analytics.evaluations.filter((evaluation) => !evaluation.discoveryCoverageCompliant).length;
+  const totalNetworksCount = networks.length;
+  const modelledNetworksCount = networks.filter(
+    (network) => network.discoveryStatus !== "Discovery Non Enabled"
+  ).length;
+  const networkNotDiscovered = networks.filter(
+    (network) => network.discoveryStatus === "Discovery Non Enabled"
+  ).length;
+  const modelledPercent = totalNetworksCount
+    ? Number(((modelledNetworksCount / totalNetworksCount) * 100).toFixed(1))
+    : 0;
+  const notModelledPercent = totalNetworksCount
+    ? Number(((networkNotDiscovered / totalNetworksCount) * 100).toFixed(1))
+    : 0;
+
+  const immediateAction = highRiskOpenCount + criticalExposureOpenCount;
+  const plannedRemediation = openFindings.filter(
+    (finding) => finding.priorityRank >= 3 && finding.priorityRank < 90
+  ).length;
+  const nonCompliantOs = analytics.evaluations.filter(
+    (evaluation) =>
+      (evaluation.assetType === "server" || evaluation.assetType === "workstation") &&
+      evaluation.evaluations.some(
+        (evaluationItem) =>
+          (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+      )
+  ).length;
+  const actionThroughput = buildActionThroughput(analytics.findings, chartAnchorDateKey, 13);
+  const actionAgeBuckets = buildActionAgeBuckets(openFindings, chartAnchorDateKey);
+  const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
+  const actionOldestOpenFindings = buildActionOldestOpenFindings(
+    openFindings,
+    networkNameById,
+    chartAnchorDateKey,
+    12
+  );
+  const actionQuickWins = buildActionQuickWins(openFindings, 10);
+
+  return (
+    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel shrink-0 p-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Networks View</p>
+        <h1 className="mt-1 text-2xl font-semibold text-slate-100">Network Cyber Security Posture</h1>
+        <p className="mt-1 text-sm text-slate-300/80">
+          Network-scoped operational posture with Cyber COP aligned overview and action views.
+        </p>
+      </section>
+
+      <NetworksTabs activeTab={activeTab} />
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {activeTab === "overview" ? (
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            {filtersSectionWithoutReport}
+            <div className="min-h-0">
+              <NetworksOverviewPanel
+                snapshotDate={dataset.snapshotDate}
+                complianceScores={{
+                  overall: analytics.overallCompliancePercent,
+                  dse: dseComplianceScore(statusesWithEnvironment),
+                  dpe: dpeComplianceScore(statusesWithEnvironment),
+                  networks: networksCompliance
+                }}
+                modellingCoverage={{
+                  modelledPercent,
+                  notModelledPercent,
+                  modelledCount: modelledNetworksCount,
+                  notModelledCount: networkNotDiscovered,
+                  totalCount: totalNetworksCount
+                }}
+                riskProfile={{
+                  openFindings: openFindings.length,
+                  p1p2Count,
+                  highRiskOpenCount,
+                  criticalExposureOpenCount,
+                  severitySummary,
+                  weeklyTrend: weeklyRiskTrend
+                }}
+                riskFindings={riskProfileFindings}
+                assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+                asOfDate={chartAnchorDateKey}
+                dailyHighRisk={highRiskDaily}
+                dailyCriticalExposure={criticalExposureDaily}
+              />
+            </div>
+          </div>
+        ) : activeTab === "action" ? (
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            {filtersSection}
+            <div className="min-h-0">
+              <NetworksActionPanel
+                actionPlan={{
+                  immediateAction,
+                  plannedRemediation,
+                  nonCompliantOs,
+                  outOfWarranty,
+                  discoveryCoverageGaps,
+                  networkNotDiscovered
+                }}
+                actionThroughput={actionThroughput}
+                actionAgeBuckets={actionAgeBuckets}
+                actionOldestOpenFindings={actionOldestOpenFindings}
+                actionQuickWins={actionQuickWins}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
+            {filtersSectionWithoutReport}
+
+            <NetworksPostureKpiSummary
+              compliantNetworksCount={compliantNetworksCount}
+              networksMeetingDiscoveryRequirementsCount={networksMeetingDiscoveryRequirementsCount}
+              totalNetworksCount={totalNetworksCount}
+              highRiskP12FindingsCount={highRiskP12FindingsCount}
+              totalFindingsCount={totalFindingsCount}
+              blastRadiusPoints={blastRadiusPoints}
+            />
+
+            <div className="min-h-0">
+              <NetworksTable
+                networks={networks}
+                networkRollups={analytics.networkRollups}
+                p12FindingsByNetwork={p12FindingsByNetwork}
+                p12HighRiskFindingsByNetwork={highRiskP12FindingsByNetwork}
+                p12CriticalExposureFindingsByNetwork={p12CriticalExposureFindingsByNetwork}
+                discoveryComplianceScoreByNetwork={discoveryComplianceScoreByNetwork}
+                scrollable
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

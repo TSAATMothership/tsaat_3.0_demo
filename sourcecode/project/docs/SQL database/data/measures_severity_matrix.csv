@@ -1,0 +1,30 @@
+1,1,network-device,Major
+1,1,server,Major
+1,1,workstation,Major
+1,2,network-device,Moderate
+1,2,server,Moderate
+1,2,workstation,Moderate
+1,3,network-device,Critical Exposure
+1,3,server,Critical Exposure
+1,3,workstation,Critical Exposure
+1,4,network-device,High Risk
+1,4,server,High Risk
+1,4,workstation,High Risk
+1,5,network-device,High Risk
+1,5,server,High Risk
+1,5,workstation,High Risk
+1,6,network-device,High Risk
+1,6,server,High Risk
+1,6,workstation,High Risk
+1,7,network-device,Critical Exposure
+1,7,server,Critical Exposure
+1,7,workstation,Critical Exposure
+1,8,network-device,Major
+1,8,server,Major
+1,8,workstation,Major
+1,9,network-device,Moderate
+1,9,server,Moderate
+1,9,workstation,Moderate
+1,10,network-device,Moderate
+1,10,server,Moderate
+1,10,workstation,Moderate

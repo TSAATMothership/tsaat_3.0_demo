@@ -1,0 +1,5 @@
+﻿Offline source mirror for TSAAT
+GeneratedAtUtc: 2026-04-08T09:50:19Z
+ProjectSource: sourcecode\project
+DependencySource: sourcecode\node_modules
+BuildCommand: Dependencies\compile.ps1
