@@ -1,7 +1,0 @@
-1,dsoc-siem,DSOC SIEM,Security event telemetry and correlation coverage.,EL2 SOC Services,EL2 SIEM Operations
-1,elastic,Elastic,Endpoint and system telemetry indexing and observability coverage.,EL2 SOC Services,EL2 Elastic Operations
-1,servicenow,ServiceNow,Service catalogue and lifecycle state integration.,EL2 Service Management,EL2 ITSM Operations
-1,snow,SNOW,ServiceNow asset lifecycle and warranty coverage data.,EL2 Service Management,EL2 ITSM Operations
-1,tanium,Tanium,Endpoint visibility and management telemetry for server and workstation assets.,EL2 Endpoint Security,EL2 Endpoint Operations
-1,tenable,Tenable,Vulnerability scanner coverage and findings for in-scope assets.,EL2 Vulnerability Management,EL2 Vulnerability Operations
-1,ucmdb,UCMDB,Authoritative CMDB records for managed assets and relationships.,EL2 Configuration Management,EL2 CMDB Operations

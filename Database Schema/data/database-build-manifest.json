@@ -1,0 +1,21 @@
+﻿{
+  "applicationDatabaseName": "TSAAT",
+  "schemaName": "tsaat",
+  "packageDataFiles": {
+    "spiDefinitions": "data/spi-definitions.json",
+    "discoveryToolsSettings": "data/discovery-tools-settings.json",
+    "measuresSettings": "data/measures-settings.json",
+    "referenceVersions": "data/reference-versions.json"
+  },
+  "snapshotSourceDirectory": "../data/snapshots",
+  "snapshotFiles": [
+    "week-01.json",
+    "week-02.json",
+    "week-03.json",
+    "week-04.json",
+    "week-05.json",
+    "week-06.json",
+    "week-07.json",
+    "week-08.json"
+  ]
+}

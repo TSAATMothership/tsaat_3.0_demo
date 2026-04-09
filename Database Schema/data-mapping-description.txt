@@ -1,0 +1,136 @@
+﻿TSAAT Database Data Mapping Description
+======================================
+
+Canonical Package Root
+----------------------
+- Database Schema/
+  - database-schema.sql
+  - migrations/*.sql
+  - data/*.json
+  - loaders/*.sql, *.ps1, *.cmd
+
+Discovered Application Database Name
+------------------------------------
+- TSAAT
+- Discovery rule used by loader:
+  1) data/database-build-manifest.json.applicationDatabaseName
+  2) fallback: schema name from database-schema.sql (CREATE SCHEMA [tsaat] -> TSAAT)
+
+SQL Server Target
+-----------------
+- Server: localhost\SQLEXPRESS
+- Admin database for bootstrap: master
+- Application database created/used: TSAAT
+- Application schema: tsaat
+
+Source Data Artefacts
+---------------------
+Package-local files:
+- data/spi-definitions.json
+- data/discovery-tools-settings.json
+- data/measures-settings.json
+- data/reference-versions.json
+- data/database-build-manifest.json
+
+Repository source snapshots:
+- ../data/snapshots/week-01.json ... week-08.json
+
+Load Order (Deterministic)
+--------------------------
+1. reference_version_set
+2. reference_os_current_major
+3. reference_software_supported_version
+4. spi_definition
+5. spi_applicable_asset_type
+6. discovery_tools_settings_version
+7. discovery_tool
+8. discovery_tool_asset_scope
+9. measures_settings_version
+10. measures_severity_matrix
+11. dataset_snapshot
+12. managed_network
+13. managed_network_hierarchy
+14. ict_system
+15. ict_system_hierarchy
+16. network_declared_system
+17. system_mission_capability
+18. system_business_service
+19. system_environment
+20. asset
+21. network_declared_asset
+22. system_environment_asset
+23. asset_operating_system
+24. asset_network_os
+25. asset_patch_state
+26. asset_installed_software
+27. asset_vulnerability
+28. finding
+
+Field-Level Mapping Summary
+---------------------------
+Reference and settings:
+- data/reference-versions.json.osCurrentMajor -> tsaat.reference_os_current_major
+- data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
+- data/spi-definitions.json.spis[] -> tsaat.spi_definition
+- data/spi-definitions.json.spis[].applicableAssetTypes[] -> tsaat.spi_applicable_asset_type
+- data/discovery-tools-settings.json.updatedAt -> tsaat.discovery_tools_settings_version.updated_at
+- data/discovery-tools-settings.json.tools[] -> tsaat.discovery_tool
+- data/discovery-tools-settings.json.tools[].assetTypeScope object -> tsaat.discovery_tool_asset_scope
+- data/measures-settings.json.updatedAt -> tsaat.measures_settings_version.updated_at
+- data/measures-settings.json.severityMatrix object key "spiId:assetType" -> tsaat.measures_severity_matrix
+
+Snapshots and domain entities:
+- snapshot root:
+  - generatedAt -> dataset_snapshot.generated_at
+  - snapshotDate -> dataset_snapshot.snapshot_date
+  - source_label = snapshot file name
+
+- managedNetworks[]:
+  - id,name,criticality,classification,description,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,discoveryStatus
+    -> managed_network
+  - parentNetworkId + childNetworkIds[] -> managed_network_hierarchy
+  - ictSystemIds[] -> network_declared_system
+  - assetIds[] -> network_declared_asset
+
+- ictSystems[]:
+  - id,networkId,name,description,diisId,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,modellingStatus,diisDefined,criticality,securityDomain
+    -> ict_system
+  - parentSystemId + childSystemIds[] -> ict_system_hierarchy
+  - missionCapabilities[] -> system_mission_capability
+  - businessServices[] -> system_business_service
+  - environments[] -> system_environment
+  - environments[].assetIds[] -> system_environment_asset
+
+- assets[]:
+  - id,name,hostname,ipAddress,type,networkId,securityDomain,systemContext.systemId,systemContext.environmentType,lifecycle.eolStatus,lifecycle.warrantyStatus
+    -> asset
+  - operatingSystem -> asset_operating_system
+  - networkOs -> asset_network_os
+  - patchState -> asset_patch_state
+  - installedSoftware[] -> asset_installed_software (ordinal = array index + 1)
+  - vulnerabilities[] -> asset_vulnerability
+
+- findings[]:
+  - id,spiId,priorityRank,severity,complianceStatus,scope.networkId,scope.systemId,scope.environmentType,scope.assetId,title,evidence,recommendedAction,status,timestamp,closedTimestamp
+    -> finding
+
+Identity and deterministic key policy:
+- reference_version_set.version_set_id = 1
+- discovery_tools_settings_version.settings_version_id = 1
+- measures_settings_version.settings_version_id = 1
+- dataset_snapshot.snapshot_id = 1..8 mapped to week-01..week-08
+
+Normalization rule applied for relational integrity:
+- If ictSystems[].networkId is empty string, loader maps it to synthetic networkId `net-unassigned`.
+- Loader inserts one synthetic managed_network row per snapshot:
+  - network_id = `net-unassigned`
+  - name = `Unassigned Systems`
+  - criticality = `Non-Critical`
+  - discovery_status = `Discovery Non Enabled`
+
+Validation Rules Applied by loader/validator
+--------------------------------------------
+- Exactly 8 dataset snapshots required
+- Exactly 10 SPI definitions required
+- Non-empty asset, finding, discovery_tool, measures_severity_matrix tables required
+- Full row-count summary emitted after load
