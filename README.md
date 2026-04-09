@@ -19,12 +19,15 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - TypeScript
 - Tailwind CSS
 - Recharts
-- In-repo JSON data (`data/current.json` + `data/snapshots/*.json`)
+- Microsoft SQL Server (runtime data store, schema under `Database Schema/`)
 
 ## Prerequisites
 
 - Node.js `>=18.17` recommended for Next.js 14
 - npm `>=8`
+- SQL Server Express instance (`localhost\SQLEXPRESS`)
+- `sqlcmd` available in `PATH`
+- Windows PowerShell available in `PATH`
 
 ## Install
 
@@ -32,14 +35,75 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 npm install --legacy-peer-deps
 ```
 
-## Offline Compile (Windows)
+## Offline Build and Database Setup (Windows)
 
-Use the scripts in `Dependencies/` to mirror all clear-text source into `sourcecode/` and compile without internet access:
+### Step 1: Run Offline App Compile
 
-1. Connected machine: `Dependencies\sync-sourcecode.ps1`
-2. Offline machine: `Dependencies\compile.ps1`
+Run:
 
-Detailed workflow: `Dependencies/README.md`.
+```bat
+compileApp.cmd
+```
+
+What it does:
+
+- Restores vendored dependencies from `Dependencies/node_modules`
+- Runs `npm rebuild --offline`
+- Runs `npm run build --offline`
+- Validates that required SQL data is already present
+
+If it fails with missing/empty `tsaat.dataset_snapshot`, continue with database setup below.
+
+### Step 2: Create SQL Server Database (SQLEXPRESS)
+
+Connect to `localhost\SQLEXPRESS` and run:
+
+```sql
+CREATE DATABASE TSAAT;
+```
+
+You can run this from SSMS or `sqlcmd` against `master`.
+
+### Step 3: Update DB_config
+
+Open `DB_config` and set the admin connection string (default):
+
+```ini
+Server=localhost\SQLEXPRESS;Database=master;Trusted_Connection=True;
+```
+
+Optional override if your app database is not `TSAAT`:
+
+```ini
+APP_DATABASE=YourDatabaseName
+```
+
+### Step 4: Build Schema and Load Data
+
+Run:
+
+```bat
+CreateDB.cmd
+```
+
+What it does:
+
+- Reads SQL connection details from `DB_config`
+- Creates/updates the application database
+- Applies `Database Schema/database-schema.sql`
+- Applies migrations under `Database Schema/migrations/`
+- Loads seed/reference/application data
+- Runs validation and writes `Database Schema/loaders/last-build-summary.txt`
+
+### Step 5: Re-run Offline App Compile
+
+Run again:
+
+```bat
+compileApp.cmd
+```
+
+At this point, offline app build and SQL-backed runtime data should both be ready.
 
 ## Run
 
@@ -125,5 +189,5 @@ Use **Written Report** page (`/report`) and click **Print / Save PDF**.
 
 ## Notes
 
-- Data is local demo data only (no external integrations).
+- Runtime data is SQL Server-backed; packaged seed/reference data is loaded from repository artefacts.
 - The app is optimized for desktop and mobile layouts.
