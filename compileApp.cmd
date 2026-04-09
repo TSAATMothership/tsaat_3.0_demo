@@ -4,7 +4,11 @@ setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%.") do set "REPO_ROOT=%%~fI"
 set "DEPS_DIR=%REPO_ROOT%\Dependencies"
+set "VENDORED_NODE_RUNTIME_DIR=%DEPS_DIR%\runtime\nodejs\win-x64"
+set "VENDORED_NODE_EXE=%VENDORED_NODE_RUNTIME_DIR%\node.exe"
+set "VENDORED_NPM_CMD=%VENDORED_NODE_RUNTIME_DIR%\npm.cmd"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
+set "VENDORED_NEXT_PACKAGE=%VENDORED_NODE_MODULES%\next\package.json"
 set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
@@ -18,10 +22,16 @@ echo [INFO] Dependency bundle: %DEPS_DIR%
 if not exist "%REPO_ROOT%\package.json" call :fail "Missing repository package.json: %REPO_ROOT%\package.json"
 if not exist "%REPO_ROOT%\package-lock.json" call :fail "Missing repository package-lock.json: %REPO_ROOT%\package-lock.json"
 if not exist "%DEPS_DIR%\" call :fail "Missing dependency directory: %DEPS_DIR%"
+if not exist "%VENDORED_NODE_RUNTIME_DIR%\" call :fail "Missing vendored Node.js runtime directory: %VENDORED_NODE_RUNTIME_DIR%"
+if not exist "%VENDORED_NODE_EXE%" call :fail "Missing vendored Node.js executable: %VENDORED_NODE_EXE%"
+if not exist "%VENDORED_NPM_CMD%" call :fail "Missing vendored npm command: %VENDORED_NPM_CMD%"
 if not exist "%VENDORED_NODE_MODULES%\" call :fail "Missing vendored dependency tree: %VENDORED_NODE_MODULES%"
+if not exist "%VENDORED_NEXT_PACKAGE%" call :fail "Missing vendored Next.js package: %VENDORED_NEXT_PACKAGE%"
 if not exist "%VENDORED_PACKAGE%" call :fail "Missing vendored package snapshot: %VENDORED_PACKAGE%"
 if not exist "%VENDORED_LOCK%" call :fail "Missing vendored lockfile snapshot: %VENDORED_LOCK%"
 if not exist "%DEPENDENCY_MANIFEST%" call :fail "Missing dependency manifest: %DEPENDENCY_MANIFEST%"
+
+set "PATH=%VENDORED_NODE_RUNTIME_DIR%;%PATH%"
 
 echo [INFO] Validating required commands...
 where node >nul 2>nul
@@ -35,8 +45,8 @@ if errorlevel 1 call :fail "Required command not found in PATH: fc"
 where sqlcmd >nul 2>nul
 if errorlevel 1 call :fail "Required command not found in PATH: sqlcmd"
 
-for /f "usebackq delims=" %%I in (`node --version 2^>nul`) do set "NODE_VERSION_TEXT=%%I"
-for /f "usebackq delims=" %%I in (`npm --version 2^>nul`) do set "NPM_VERSION_TEXT=%%I"
+for /f "usebackq delims=" %%I in (`"%VENDORED_NODE_EXE%" --version 2^>nul`) do set "NODE_VERSION_TEXT=%%I"
+for /f "usebackq delims=" %%I in (`"%VENDORED_NPM_CMD%" --version 2^>nul`) do set "NPM_VERSION_TEXT=%%I"
 
 if not defined NODE_VERSION_TEXT call :fail "Unable to determine Node.js version."
 if not defined NPM_VERSION_TEXT call :fail "Unable to determine npm version."
@@ -61,6 +71,7 @@ if %NODE_MAJ% LSS 18 call :fail "Node.js version %NODE_VERSION_TEXT% is below re
 if %NODE_MAJ% EQU 18 if %NODE_MIN% LSS 17 call :fail "Node.js version %NODE_VERSION_TEXT% is below required minimum 18.17.0."
 if %NPM_MAJ% LSS 8 call :fail "npm version %NPM_VERSION_TEXT% is below required minimum 8.0.0."
 
+echo [INFO] Bundled Node runtime: %VENDORED_NODE_RUNTIME_DIR%
 echo [INFO] Node.js: %NODE_VERSION_TEXT%
 echo [INFO] npm:     %NPM_VERSION_TEXT%
 echo [INFO] SQL Server instance: %TSAAT_SQL_SERVER%
@@ -91,11 +102,11 @@ robocopy "%VENDORED_NODE_MODULES%" "%REPO_ROOT%\node_modules" /MIR /R:1 /W:1 /NF
 if errorlevel 8 call :fail "robocopy failed while restoring dependencies from Dependencies\node_modules."
 
 echo [INFO] Step 2/3 - Building dependencies offline (npm rebuild)...
-call npm rebuild --offline --no-audit --fund=false --loglevel=error
+call "%VENDORED_NPM_CMD%" rebuild --offline --no-audit --fund=false --loglevel=error
 if errorlevel 1 call :fail "npm rebuild failed during offline dependency build step."
 
 echo [INFO] Step 3/3 - Building application offline (npm run build)...
-call npm run build --offline --no-audit --fund=false --loglevel=error
+call "%VENDORED_NPM_CMD%" run build --offline --no-audit --fund=false --loglevel=error
 if errorlevel 1 call :fail "npm run build failed during offline application build step."
 
 echo [SUCCESS] Offline dependency build and application build completed successfully.

@@ -23,8 +23,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 
 ## Prerequisites
 
-- Node.js `>=18.17` recommended for Next.js 14
-- npm `>=8`
+- Bundled Node.js runtime is included at `Dependencies/runtime/nodejs/win-x64` for offline compile
 - SQL Server Express instance (`localhost\SQLEXPRESS`)
 - `sqlcmd` available in `PATH`
 - Windows PowerShell available in `PATH`
@@ -42,15 +41,18 @@ npm install --legacy-peer-deps
 Run:
 
 ```bat
-compileApp.cmd
+compile.cmd
 ```
 
 What it does:
 
+- Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
 - Restores vendored dependencies from `Dependencies/node_modules`
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`
 - Validates that required SQL data is already present
+
+`compileApp.cmd` remains available as the explicit entrypoint and `compile.cmd` is a compatibility wrapper.
 
 If it fails with missing/empty `tsaat.dataset_snapshot`, continue with database setup below.
 
@@ -100,7 +102,7 @@ What it does:
 Run again:
 
 ```bat
-compileApp.cmd
+compile.cmd
 ```
 
 At this point, offline app build and SQL-backed runtime data should both be ready.

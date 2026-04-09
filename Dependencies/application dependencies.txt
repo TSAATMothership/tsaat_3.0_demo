@@ -1,7 +1,7 @@
 TSAAT Offline Build Dependency Manifest
 =======================================
 
-Generated (UTC): 2026-04-09T08:39:47.648Z
+Generated (UTC): 2026-04-10T04:30:00.000Z
 Repository root: C:\ShuffyNet\VS Code\TSAAT
 Project: dct-cyber-posture-report@1.0.0
 Lockfile: package-lock.json (lockfileVersion=2)
@@ -13,13 +13,14 @@ Languages: TypeScript, JavaScript, CSS
 Frameworks/Libraries: Next.js 14 (App Router), React 18, Tailwind CSS, Recharts, Vitest
 Package manager: npm (lockfile driven)
 Primary build command: npm run build (next build)
+Offline Node.js runtime used by compileApp.cmd: Dependencies\runtime\nodejs\win-x64
 Offline dependency source used by compileApp.cmd: Dependencies\node_modules
 
 Unavoidable prerequisites (validated by compileApp.cmd)
 --------------------------------------------------------
 1. Windows environment with standard cmd utilities (where, fc, robocopy).
-2. Node.js >= 18.17.0 installed locally.
-3. npm >= 8.0.0 installed locally.
+2. Vendored Node.js runtime bundle present at Dependencies\runtime\nodejs\win-x64.
+3. Vendored npm command present at Dependencies\runtime\nodejs\win-x64\npm.cmd.
 4. sqlcmd available in PATH (SQL Server command-line tools).
 5. Reachable SQL Server instance with trusted authentication.
 6. Populated TSAAT application database (default: Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True) with table tsaat.dataset_snapshot containing at least one row.
@@ -1395,7 +1396,8 @@ Order source: SCC-aware topological order of lockfile dependency graph (dependen
 Offline compile sequence enforced by compileApp.cmd
 -----------------------------------------------
 1. Validate required local tools/files.
-2. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
-3. Restore node_modules from Dependencies\node_modules (local mirror only).
-4. Rebuild npm dependency artifacts offline (npm rebuild --offline).
-5. Build the application offline (npm run build).
+2. Configure PATH to use vendored Node.js runtime at Dependencies\runtime\nodejs\win-x64.
+3. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
+4. Restore node_modules from Dependencies\node_modules (local mirror only).
+5. Rebuild npm dependency artifacts offline (npm rebuild --offline).
+6. Build the application offline (npm run build).
