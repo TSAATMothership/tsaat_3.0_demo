@@ -5,6 +5,9 @@ set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%.") do set "REPO_ROOT=%%~fI"
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
 set "BUILD_DATABASE_CMD=%REPO_ROOT%\buildDatabase.cmd"
+set "DEPS_DIR=%REPO_ROOT%\Dependencies"
+set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
+set "LOCAL_NODE_MODULES=%REPO_ROOT%\node_modules"
 
 set "DB_SERVER="
 set "DB_ADMIN_DATABASE="
@@ -23,6 +26,14 @@ if not exist "%BUILD_DATABASE_CMD%" (
   call :fail "Missing database build entrypoint: %BUILD_DATABASE_CMD%"
   exit /b 1
 )
+if not exist "%DEPS_DIR%\" (
+  call :fail "Missing dependency directory: %DEPS_DIR%"
+  exit /b 1
+)
+if not exist "%VENDORED_NODE_MODULES%\" (
+  call :fail "Missing offline dependency bundle: %VENDORED_NODE_MODULES%"
+  exit /b 1
+)
 
 where powershell >nul 2>nul
 if errorlevel 1 (
@@ -34,6 +45,20 @@ if errorlevel 1 (
   call :fail "Required command not found in PATH: sqlcmd"
   exit /b 1
 )
+where robocopy >nul 2>nul
+if errorlevel 1 (
+  call :fail "Required command not found in PATH: robocopy"
+  exit /b 1
+)
+
+echo [INFO] Ensuring local node_modules exists from offline dependency bundle...
+if not exist "%LOCAL_NODE_MODULES%\" mkdir "%LOCAL_NODE_MODULES%" >nul 2>nul
+robocopy "%VENDORED_NODE_MODULES%" "%LOCAL_NODE_MODULES%" /MIR /R:1 /W:1 /NFL /NDL /NP /NJH /NJS >nul
+if errorlevel 8 (
+  call :fail "Failed to restore local node_modules from %VENDORED_NODE_MODULES%."
+  exit /b 1
+)
+echo [INFO] Local node_modules is ready for offline use.
 
 for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $map[$matches[1].Trim().ToLowerInvariant()] = $matches[2].Trim() } }; if(-not $map['server']){ throw 'DB_config connection string missing Server=...'; }; if(-not $map['database']){ throw 'DB_config connection string missing Database=...'; }; if(-not $map['trusted_connection']){ throw 'DB_config connection string missing Trusted_Connection=...'; }; Write-Output ('set DB_SERVER=' + $map['server']); Write-Output ('set DB_ADMIN_DATABASE=' + $map['database']); Write-Output ('set DB_TRUSTED_CONNECTION=' + $map['trusted_connection']);"`) do %%I
 if errorlevel 1 (
