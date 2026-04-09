@@ -8,6 +8,8 @@ set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
 set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
+if "%TSAAT_SQL_SERVER%"=="" set "TSAAT_SQL_SERVER=localhost\SQLEXPRESS"
+if "%TSAAT_APP_DATABASE%"=="" set "TSAAT_APP_DATABASE=TSAAT"
 
 echo [INFO] Offline build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -30,6 +32,8 @@ where robocopy >nul 2>nul
 if errorlevel 1 call :fail "Required command not found in PATH: robocopy"
 where fc >nul 2>nul
 if errorlevel 1 call :fail "Required command not found in PATH: fc"
+where sqlcmd >nul 2>nul
+if errorlevel 1 call :fail "Required command not found in PATH: sqlcmd"
 
 for /f "usebackq delims=" %%I in (`node --version 2^>nul`) do set "NODE_VERSION_TEXT=%%I"
 for /f "usebackq delims=" %%I in (`npm --version 2^>nul`) do set "NPM_VERSION_TEXT=%%I"
@@ -59,6 +63,12 @@ if %NPM_MAJ% LSS 8 call :fail "npm version %NPM_VERSION_TEXT% is below required 
 
 echo [INFO] Node.js: %NODE_VERSION_TEXT%
 echo [INFO] npm:     %NPM_VERSION_TEXT%
+echo [INFO] SQL Server instance: %TSAAT_SQL_SERVER%
+echo [INFO] SQL Server database: %TSAAT_APP_DATABASE%
+
+echo [INFO] Validating SQL connectivity and required seeded tables...
+sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" -E -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
+if errorlevel 1 call :fail "Unable to validate required database state at %TSAAT_SQL_SERVER% / %TSAAT_APP_DATABASE%. Ensure the TSAAT database schema and seed data are loaded before offline build."
 
 echo [INFO] Validating vendored package snapshots match repository sources...
 fc /b "%REPO_ROOT%\package.json" "%VENDORED_PACKAGE%" >nul

@@ -20,8 +20,11 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 1. Windows environment with standard cmd utilities (where, fc, robocopy).
 2. Node.js >= 18.17.0 installed locally.
 3. npm >= 8.0.0 installed locally.
-4. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
-5. Repository source code present locally (no network fetch in compile stage).
+4. sqlcmd available in PATH (SQL Server command-line tools).
+5. Reachable SQL Server instance with trusted authentication.
+6. Populated TSAAT application database (default: Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True) with table tsaat.dataset_snapshot containing at least one row.
+7. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
+8. Repository source code present locally (no network fetch in compile stage).
 
 Direct runtime dependencies (from package.json)
 ----------------------------------------------
