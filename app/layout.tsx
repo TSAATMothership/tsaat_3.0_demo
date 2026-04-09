@@ -20,11 +20,7 @@ export const metadata: Metadata = {
 const navigation = [
   { href: "/cyber-cop", label: "Cyber COP" },
   { href: "/networks", label: "Networks" },
-  { href: "/systems", label: "ICT Systems" },
-  { href: "/discovery-coverage", label: "Discovery" },
-  { href: "/measures", label: "Measures" },
-  { href: "/findings", label: "Findings Register" },
-  { href: "/report", label: "Briefs & Reports" }
+  { href: "/systems", label: "ICT Systems" }
 ];
 
 export default function RootLayout({
