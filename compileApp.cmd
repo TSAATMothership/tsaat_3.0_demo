@@ -4,12 +4,15 @@ setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%.") do set "REPO_ROOT=%%~fI"
 set "DEPS_DIR=%REPO_ROOT%\Dependencies"
+set "EXTERNAL_DEPS_DIR=%DEPS_DIR%\external"
 set "VENDORED_NODE_RUNTIME_DIR=%DEPS_DIR%\runtime\nodejs\win-x64"
 set "VENDORED_NODE_EXE=%VENDORED_NODE_RUNTIME_DIR%\node.exe"
 set "VENDORED_NPM_CMD=%VENDORED_NODE_RUNTIME_DIR%\npm.cmd"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
-set "VENDORED_NODE_MODULES_ARCHIVE=%DEPS_DIR%\node_modules-win-x64.zip"
+set "VENDORED_NODE_MODULES_ARCHIVE=%EXTERNAL_DEPS_DIR%\node_modules-win-x64.zip"
 set "VENDORED_NEXT_PACKAGE=%VENDORED_NODE_MODULES%\next\package.json"
+set "EXPECTED_SWC_PACKAGE_BINARY=%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
+set "EXPECTED_SWC_FALLBACK_BINARY=%REPO_ROOT%\node_modules\next\next-swc-fallback\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
@@ -61,7 +64,9 @@ set "DEPENDENCY_SOURCE="
 if exist "%VENDORED_NEXT_PACKAGE%" set "DEPENDENCY_SOURCE=folder"
 if not defined DEPENDENCY_SOURCE if exist "%VENDORED_NODE_MODULES_ARCHIVE%" set "DEPENDENCY_SOURCE=archive"
 if not defined DEPENDENCY_SOURCE (
-    echo [ERROR] Missing vendored dependencies. Provide %VENDORED_NODE_MODULES% with Next.js or %VENDORED_NODE_MODULES_ARCHIVE%.
+    echo [ERROR] Missing vendored dependencies.
+    echo [ERROR] Provide %VENDORED_NODE_MODULES% with Next.js or pre-stage %VENDORED_NODE_MODULES_ARCHIVE%.
+    echo [ERROR] See README.md ^> Offline Build and Database Setup ^(Windows^) ^> Step 0.
     exit /b 1
 )
 
@@ -188,6 +193,8 @@ set "npm_config_audit=false"
 set "npm_config_fund=false"
 set "npm_config_update_notifier=false"
 set "NEXT_TELEMETRY_DISABLED=1"
+set "NEXT_DISABLE_SWC_DOWNLOAD=1"
+set "NEXT_SKIP_SWC_DOWNLOAD=1"
 
 echo [INFO] Step 1/3 - Restoring dependency tree from local bundle...
 if /I "%DEPENDENCY_SOURCE%"=="folder" (
@@ -214,6 +221,14 @@ if /I "%DEPENDENCY_SOURCE%"=="folder" (
 if not exist "%REPO_ROOT%\node_modules\next\package.json" (
     echo [ERROR] Restored dependency tree is missing Next.js package metadata at %REPO_ROOT%\node_modules\next\package.json.
     exit /b 1
+)
+if not exist "%EXPECTED_SWC_PACKAGE_BINARY%" (
+    if not exist "%EXPECTED_SWC_FALLBACK_BINARY%" (
+        echo [ERROR] Missing required Next.js SWC binary for win32-x64.
+        echo [ERROR] Expected either %EXPECTED_SWC_PACKAGE_BINARY% or %EXPECTED_SWC_FALLBACK_BINARY%.
+        echo [ERROR] Re-stage the full offline dependency bundle before running compileApp.cmd.
+        exit /b 1
+    )
 )
 
 echo [INFO] Step 2/3 - Building dependencies offline (npm rebuild)...

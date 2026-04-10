@@ -27,6 +27,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - SQL Server Express instance (`localhost\SQLEXPRESS`)
 - `sqlcmd` available in `PATH`
 - Windows PowerShell available in `PATH`
+- External dependency bundle for clean/offline builds: `Dependencies/external/node_modules-win-x64.zip`
 
 ## Install
 
@@ -35,6 +36,30 @@ npm install --legacy-peer-deps
 ```
 
 ## Offline Build and Database Setup (Windows)
+
+### Step 0: Stage External Large Dependencies (>100 MB)
+
+Before running `compile.cmd` on a machine without internet access, download and stage these large dependencies on an internet-connected machine first:
+
+1. TSAAT Node dependency bundle (required for clean clones)
+   - File: `node_modules-win-x64.zip` (large archive, typically >100 MB)
+   - Download from: the TSAAT release artefact package for this repository snapshot (the same internal release location where the source snapshot was distributed).
+   - Place at: `Dependencies/external/node_modules-win-x64.zip`
+   - Must include the Windows x64 Next SWC native binary (`@next/swc-win32-x64-msvc/.../next-swc.win32-x64-msvc.node`).
+   - Do not remove large files from this external bundle; `compileApp.cmd` validates SWC binary presence and fails fast if missing.
+   - Alternative (if release artefact is not available): build the bundle on an internet-connected Windows x64 machine from this repo:
+
+```powershell
+npm ci --legacy-peer-deps
+powershell -NoLogo -NoProfile -Command "Compress-Archive -LiteralPath .\\node_modules -DestinationPath .\\node_modules-win-x64.zip -Force"
+```
+
+   - Then copy `node_modules-win-x64.zip` to `Dependencies/external/` on the offline target machine.
+
+2. SQL Server Express installer (required only when SQL Server is not already installed)
+   - File: `SQLEXPR_x64_ENU.exe` (typically >100 MB)
+   - Download from: Microsoft SQL Server downloads page (`https://www.microsoft.com/sql-server/sql-server-downloads`) and choose the Express edition installer.
+   - Install using a default `SQLEXPRESS` instance with Windows authentication.
 
 ### Step 1: Run Offline App Compile
 
@@ -48,7 +73,7 @@ What it does:
 
 - Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
 - Restores vendored dependencies from `Dependencies/node_modules` when present
-- Falls back to extracting `Dependencies/node_modules-win-x64.zip` on clean clones/new machines
+- Falls back to extracting `Dependencies/external/node_modules-win-x64.zip` on clean clones/new machines
 - Verifies `next` and the full dependency tree are restored before build
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`

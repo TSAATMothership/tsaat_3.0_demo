@@ -1,7 +1,7 @@
 TSAAT Offline Build Dependency Manifest
 =======================================
 
-Generated (UTC): 2026-04-10T06:54:47.196Z
+Generated (UTC): 2026-04-10T08:10:00.000Z
 Repository root: C:\ShuffyNet\VS Code\TSAAT
 Project: dct-cyber-posture-report@1.0.0
 Lockfile: package-lock.json (lockfileVersion=2)
@@ -14,7 +14,7 @@ Frameworks/Libraries: Next.js 14 (App Router), React 18, Tailwind CSS, Recharts,
 Package manager: npm (lockfile driven)
 Primary build command: npm run build (next build)
 Offline Node.js runtime used by compileApp.cmd: Dependencies\runtime\nodejs\win-x64
-Offline dependency source used by compileApp.cmd: Dependencies\node_modules (preferred) or Dependencies\node_modules-win-x64.zip (fallback)
+Offline dependency source used by compileApp.cmd: Dependencies\node_modules (preferred) or Dependencies\external\node_modules-win-x64.zip (fallback)
 
 Unavoidable prerequisites (validated by compileApp.cmd)
 --------------------------------------------------------
@@ -26,13 +26,13 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 6. Populated TSAAT application database (default: Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True) with table tsaat.dataset_snapshot containing at least one row.
 7. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
 8. Repository source code present locally (no network fetch in compile stage).
+9. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
 
-Tracked offline dependency bundle artifact
-------------------------------------------
-Archive path: Dependencies\node_modules-win-x64.zip
-Archive size (bytes): 177751841
-Archive size (MiB): 169.52
-Archive SHA256: B73C2DA35C491AE44B61519DDDD23BE4032DB334C87171AE5DE43A39C52759B5
+External offline dependency bundle requirement (not committed)
+--------------------------------------------------------------
+Archive path expected by compileApp.cmd: Dependencies\external\node_modules-win-x64.zip
+Provisioning source: TSAAT release artefact package for this repository snapshot (same distribution channel as the source bundle).
+Expected archive content root: node_modules\
 
 Direct runtime dependencies (from package.json)
 ----------------------------------------------
@@ -1405,6 +1405,7 @@ Offline compile sequence enforced by compileApp.cmd
 1. Validate required local tools/files.
 2. Configure PATH to use vendored Node.js runtime at Dependencies\runtime\nodejs\win-x64.
 3. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
-4. Restore node_modules from Dependencies\node_modules (preferred local mirror) or extract Dependencies\node_modules-win-x64.zip (fallback bundle).
-5. Rebuild npm dependency artifacts offline (npm rebuild --offline).
-6. Build the application offline (npm run build).
+4. Restore node_modules from Dependencies\node_modules (preferred local mirror) or extract Dependencies\external\node_modules-win-x64.zip (fallback bundle).
+5. Validate Next.js SWC win32-x64 native binary exists in restored dependencies.
+6. Rebuild npm dependency artifacts offline (npm rebuild --offline).
+7. Build the application offline (npm run build).
