@@ -9,10 +9,10 @@ set "VENDORED_NODE_RUNTIME_DIR=%DEPS_DIR%\runtime\nodejs\win-x64"
 set "VENDORED_NODE_EXE=%VENDORED_NODE_RUNTIME_DIR%\node.exe"
 set "VENDORED_NPM_CMD=%VENDORED_NODE_RUNTIME_DIR%\npm.cmd"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
-set "VENDORED_NODE_MODULES_ARCHIVE=%EXTERNAL_DEPS_DIR%\node_modules-win-x64.zip"
 set "VENDORED_NEXT_PACKAGE=%VENDORED_NODE_MODULES%\next\package.json"
-set "EXPECTED_SWC_PACKAGE_BINARY=%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
-set "EXPECTED_SWC_FALLBACK_BINARY=%REPO_ROOT%\node_modules\next\next-swc-fallback\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
+set "STAGED_SWC_BINARY=%EXTERNAL_DEPS_DIR%\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
+set "RESTORED_SWC_PACKAGE_BINARY=%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
+set "RESTORED_SWC_FALLBACK_BINARY=%REPO_ROOT%\node_modules\next\next-swc-fallback\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
@@ -59,14 +59,12 @@ if not exist "%DEPENDENCY_MANIFEST%" (
     echo [ERROR] Missing dependency manifest: %DEPENDENCY_MANIFEST%
     exit /b 1
 )
-
-set "DEPENDENCY_SOURCE="
-if exist "%VENDORED_NEXT_PACKAGE%" set "DEPENDENCY_SOURCE=folder"
-if not defined DEPENDENCY_SOURCE if exist "%VENDORED_NODE_MODULES_ARCHIVE%" set "DEPENDENCY_SOURCE=archive"
-if not defined DEPENDENCY_SOURCE (
-    echo [ERROR] Missing vendored dependencies.
-    echo [ERROR] Provide %VENDORED_NODE_MODULES% with Next.js or pre-stage %VENDORED_NODE_MODULES_ARCHIVE%.
-    echo [ERROR] See README.md ^> Offline Build and Database Setup ^(Windows^) ^> Step 0.
+if not exist "%VENDORED_NODE_MODULES%\" (
+    echo [ERROR] Missing vendored dependency tree: %VENDORED_NODE_MODULES%
+    exit /b 1
+)
+if not exist "%VENDORED_NEXT_PACKAGE%" (
+    echo [ERROR] Missing vendored Next.js package metadata: %VENDORED_NEXT_PACKAGE%
     exit /b 1
 )
 
@@ -97,13 +95,6 @@ where sqlcmd >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] Required command not found in PATH: sqlcmd
     exit /b 1
-)
-if /I "%DEPENDENCY_SOURCE%"=="archive" (
-    where powershell >nul 2>nul
-    if errorlevel 1 (
-        echo [ERROR] Required command not found in PATH: powershell
-        exit /b 1
-    )
 )
 
 for /f "usebackq delims=" %%I in (`"%VENDORED_NODE_EXE%" --version 2^>nul`) do set "NODE_VERSION_TEXT=%%I"
@@ -152,11 +143,8 @@ if %NPM_MAJ% LSS 8 (
 echo [INFO] Bundled Node runtime: %VENDORED_NODE_RUNTIME_DIR%
 echo [INFO] Node.js: %NODE_VERSION_TEXT%
 echo [INFO] npm:     %NPM_VERSION_TEXT%
-if /I "%DEPENDENCY_SOURCE%"=="folder" (
-    echo [INFO] Vendored dependency source: %VENDORED_NODE_MODULES%
-) else (
-    echo [INFO] Vendored dependency source: %VENDORED_NODE_MODULES_ARCHIVE%
-)
+echo [INFO] Vendored dependency source: %VENDORED_NODE_MODULES%
+echo [INFO] External staged SWC binary path (if needed): %STAGED_SWC_BINARY%
 echo [INFO] SQL Server instance: %TSAAT_SQL_SERVER%
 echo [INFO] SQL Server database: %TSAAT_APP_DATABASE%
 
@@ -197,36 +185,34 @@ set "NEXT_DISABLE_SWC_DOWNLOAD=1"
 set "NEXT_SKIP_SWC_DOWNLOAD=1"
 
 echo [INFO] Step 1/3 - Restoring dependency tree from local bundle...
-if /I "%DEPENDENCY_SOURCE%"=="folder" (
-    if not exist "%REPO_ROOT%\node_modules\" mkdir "%REPO_ROOT%\node_modules" >nul 2>nul
-    robocopy "%VENDORED_NODE_MODULES%" "%REPO_ROOT%\node_modules" /MIR /R:1 /W:1 /NFL /NDL /NP /NJH /NJS >nul
-    if errorlevel 8 (
-        echo [ERROR] robocopy failed while restoring dependencies from Dependencies\node_modules.
-        exit /b 1
-    )
-) else (
-    if exist "%REPO_ROOT%\node_modules\" (
-        rmdir /s /q "%REPO_ROOT%\node_modules"
-        if exist "%REPO_ROOT%\node_modules\" (
-            echo [ERROR] Unable to clean existing node_modules before archive restore.
-            exit /b 1
-        )
-    )
-    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath '%VENDORED_NODE_MODULES_ARCHIVE%' -DestinationPath '%REPO_ROOT%' -Force"
-    if errorlevel 1 (
-        echo [ERROR] Failed to extract vendored dependency archive: %VENDORED_NODE_MODULES_ARCHIVE%
-        exit /b 1
-    )
+if not exist "%REPO_ROOT%\node_modules\" mkdir "%REPO_ROOT%\node_modules" >nul 2>nul
+robocopy "%VENDORED_NODE_MODULES%" "%REPO_ROOT%\node_modules" /MIR /R:1 /W:1 /NFL /NDL /NP /NJH /NJS >nul
+if errorlevel 8 (
+    echo [ERROR] robocopy failed while restoring dependencies from Dependencies\node_modules.
+    exit /b 1
 )
 if not exist "%REPO_ROOT%\node_modules\next\package.json" (
     echo [ERROR] Restored dependency tree is missing Next.js package metadata at %REPO_ROOT%\node_modules\next\package.json.
     exit /b 1
 )
-if not exist "%EXPECTED_SWC_PACKAGE_BINARY%" (
-    if not exist "%EXPECTED_SWC_FALLBACK_BINARY%" (
+if not exist "%RESTORED_SWC_PACKAGE_BINARY%" (
+    if not exist "%RESTORED_SWC_FALLBACK_BINARY%" (
+        if exist "%STAGED_SWC_BINARY%" (
+            if not exist "%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\" mkdir "%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc" >nul 2>nul
+            copy /y "%STAGED_SWC_BINARY%" "%RESTORED_SWC_PACKAGE_BINARY%" >nul
+            if errorlevel 1 (
+                echo [ERROR] Failed to copy staged SWC binary from %STAGED_SWC_BINARY%.
+                exit /b 1
+            )
+        )
+    )
+)
+if not exist "%RESTORED_SWC_PACKAGE_BINARY%" (
+    if not exist "%RESTORED_SWC_FALLBACK_BINARY%" (
         echo [ERROR] Missing required Next.js SWC binary for win32-x64.
-        echo [ERROR] Expected either %EXPECTED_SWC_PACKAGE_BINARY% or %EXPECTED_SWC_FALLBACK_BINARY%.
-        echo [ERROR] Re-stage the full offline dependency bundle before running compileApp.cmd.
+        echo [ERROR] Expected either %RESTORED_SWC_PACKAGE_BINARY% or %RESTORED_SWC_FALLBACK_BINARY%.
+        echo [ERROR] Pre-stage %STAGED_SWC_BINARY% before running compileApp.cmd.
+        echo [ERROR] See README.md ^> Offline Build and Database Setup ^(Windows^) ^> Step 0.
         exit /b 1
     )
 )

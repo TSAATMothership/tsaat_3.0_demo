@@ -27,7 +27,8 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - SQL Server Express instance (`localhost\SQLEXPRESS`)
 - `sqlcmd` available in `PATH`
 - Windows PowerShell available in `PATH`
-- External dependency bundle for clean/offline builds: `Dependencies/external/node_modules-win-x64.zip`
+- Pre-staged external large dependency artifact (if SWC binary is not already present in `Dependencies/node_modules`):
+  - `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node`
 
 ## Install
 
@@ -39,22 +40,28 @@ npm install --legacy-peer-deps
 
 ### Step 0: Stage External Large Dependencies (>100 MB)
 
-Before running `compile.cmd` on a machine without internet access, download and stage these large dependencies on an internet-connected machine first:
+Before running `compile.cmd` on a machine without internet access, pre-stage any required >100 MB dependency artifacts outside source control.
 
-1. TSAAT Node dependency bundle (required for clean clones)
-   - File: `node_modules-win-x64.zip` (large archive, typically >100 MB)
-   - Download from: the TSAAT release artefact package for this repository snapshot (the same internal release location where the source snapshot was distributed).
-   - Place at: `Dependencies/external/node_modules-win-x64.zip`
-   - Must include the Windows x64 Next SWC native binary (`@next/swc-win32-x64-msvc/.../next-swc.win32-x64-msvc.node`).
-   - Do not remove large files from this external bundle; `compileApp.cmd` validates SWC binary presence and fails fast if missing.
-   - Alternative (if release artefact is not available): build the bundle on an internet-connected Windows x64 machine from this repo:
+1. Next.js SWC win32-x64 native binary (required only if missing from `Dependencies/node_modules`)
+   - Required file path expected by `compileApp.cmd`:
+     - `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node`
+   - Version required by this repo:
+     - `@next/swc-win32-x64-msvc@14.2.33`
+   - Download source:
+     - npm registry package: `https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz`
+   - Extract and stage on an internet-connected Windows machine:
 
 ```powershell
-npm ci --legacy-peer-deps
-powershell -NoLogo -NoProfile -Command "Compress-Archive -LiteralPath .\\node_modules -DestinationPath .\\node_modules-win-x64.zip -Force"
+New-Item -ItemType Directory -Path .\Dependencies\external\@next\swc-win32-x64-msvc -Force | Out-Null
+Invoke-WebRequest -Uri "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz" -OutFile ".\swc-win32-x64-msvc-14.2.33.tgz"
+tar -xf ".\swc-win32-x64-msvc-14.2.33.tgz"
+Copy-Item ".\package\next-swc.win32-x64-msvc.node" ".\Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node" -Force
+Remove-Item ".\swc-win32-x64-msvc-14.2.33.tgz" -Force
+Remove-Item ".\package" -Recurse -Force
 ```
 
-   - Then copy `node_modules-win-x64.zip` to `Dependencies/external/` on the offline target machine.
+   - Copy the staged file to the same path on the offline target machine.
+   - `compileApp.cmd` will copy this file into restored `node_modules` only when required, and will exit with a clear error if it is missing.
 
 2. SQL Server Express installer (required only when SQL Server is not already installed)
    - File: `SQLEXPR_x64_ENU.exe` (typically >100 MB)
@@ -72,9 +79,9 @@ compile.cmd
 What it does:
 
 - Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
-- Restores vendored dependencies from `Dependencies/node_modules` when present
-- Falls back to extracting `Dependencies/external/node_modules-win-x64.zip` on clean clones/new machines
+- Restores vendored dependencies from `Dependencies/node_modules`
 - Verifies `next` and the full dependency tree are restored before build
+- Verifies required Next.js SWC binary is available, and copies it from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`
 - Validates that required SQL data is already present
