@@ -27,7 +27,7 @@ const tabs: Array<{ id: DiscoveryCoverageTabId; label: string }> = [
 
 export function DiscoveryCoverageTabs({ activeTab }: { activeTab: DiscoveryCoverageTabId }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,7 +90,7 @@ export function DiscoveryCoverageTabs({ activeTab }: { activeTab: DiscoveryCover
       setProgress((current) => Math.min(96, nextProgressValue(current)));
     }, 85);
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.set("discoveryCoverageTab", tab);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);

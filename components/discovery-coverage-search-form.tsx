@@ -40,7 +40,7 @@ export function DiscoveryCoverageSearchForm({
   placeholder: string;
 }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [draftValue, setDraftValue] = useState(searchValue);
   const [isMounted, setIsMounted] = useState(false);
@@ -74,7 +74,7 @@ export function DiscoveryCoverageSearchForm({
       return;
     }
 
-    if (normalizeQuery(searchParams.toString()) !== normalizeQuery(pendingQuery)) {
+    if (normalizeQuery((searchParams?.toString() ?? "")) !== normalizeQuery(pendingQuery)) {
       return;
     }
 
@@ -109,7 +109,7 @@ export function DiscoveryCoverageSearchForm({
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     const trimmed = draftValue.trim();
     if (trimmed) {
       params.set(searchParamKey, trimmed);
@@ -120,7 +120,7 @@ export function DiscoveryCoverageSearchForm({
   };
 
   const onClear = () => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.delete(searchParamKey);
     setDraftValue("");
     startNavigation(params.toString());

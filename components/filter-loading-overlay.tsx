@@ -27,9 +27,9 @@ function shouldWaitForRouteReadyMarker(pathname: string): boolean {
 }
 
 export function FilterLoadingOverlay() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
-  const currentLocationKey = buildLocationKey(pathname, searchParams.toString());
+  const currentLocationKey = buildLocationKey(pathname, (searchParams?.toString() ?? ""));
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -212,7 +212,7 @@ export function FilterLoadingOverlay() {
         return;
       }
 
-      const currentQuery = normalizeQuery(searchParams.toString());
+      const currentQuery = normalizeQuery((searchParams?.toString() ?? ""));
       const nextQuery = normalizeQuery(targetUrl.search);
       if (targetUrl.pathname === pathname && currentQuery === nextQuery && targetUrl.hash === window.location.hash) {
         return;

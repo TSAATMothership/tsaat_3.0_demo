@@ -85,9 +85,9 @@ export function FindingsHistoryDrillthrough({
   extraSelectFields: ExtraSelectField[];
 }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
-  const isPanelRequested = searchParams.get("historyDrillthrough") === "1";
+  const isPanelRequested = searchParams?.get("historyDrillthrough") === "1";
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -171,7 +171,7 @@ export function FindingsHistoryDrillthrough({
     if (isPanelRequested) {
       return;
     }
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.set("historyDrillthrough", "1");
     const query = params.toString();
     beginTransitionLoading(true);
@@ -182,7 +182,7 @@ export function FindingsHistoryDrillthrough({
     if (!isPanelRequested) {
       return;
     }
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.delete("historyDrillthrough");
     const query = params.toString();
     beginTransitionLoading(false);

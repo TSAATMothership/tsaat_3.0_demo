@@ -71,7 +71,7 @@ export function FindingsTimelineFilter({
   maxDate: string;
 }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -114,7 +114,7 @@ export function FindingsTimelineFilter({
       return;
     }
 
-    if (normalizeQuery(searchParams.toString()) !== normalizeQuery(pendingQuery)) {
+    if (normalizeQuery((searchParams?.toString() ?? "")) !== normalizeQuery(pendingQuery)) {
       return;
     }
 
@@ -134,7 +134,7 @@ export function FindingsTimelineFilter({
   const hasPendingChanges = pendingDate !== activeDate;
 
   const applyAsOf = () => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     const nextAsOf = clampDate(pendingDate, minDate, maxDate);
 
     if (nextAsOf === maxDate) {

@@ -202,7 +202,7 @@ export function FilterBar({
   actions?: ReactNode;
 }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const hidden = useMemo(() => new Set(hiddenFields), [hiddenFields]);
   const [isMounted, setIsMounted] = useState(false);
@@ -212,7 +212,7 @@ export function FilterBar({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const params = useMemo(() => new URLSearchParams(searchParams.toString()), [searchParams]);
+  const params = useMemo(() => new URLSearchParams((searchParams?.toString() ?? "")), [searchParams]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -234,7 +234,7 @@ export function FilterBar({
       return;
     }
 
-    if (normalizeQuery(searchParams.toString()) !== normalizeQuery(pendingQuery)) {
+    if (normalizeQuery((searchParams?.toString() ?? "")) !== normalizeQuery(pendingQuery)) {
       return;
     }
 

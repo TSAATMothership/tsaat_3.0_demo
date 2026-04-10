@@ -19,7 +19,7 @@ function nextProgressValue(current: number): number {
 
 export function FindingsStatusTabs({ activeTab }: { activeTab: "open" | "closed" }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -82,7 +82,7 @@ export function FindingsStatusTabs({ activeTab }: { activeTab: "open" | "closed"
       setProgress((current) => Math.min(96, nextProgressValue(current)));
     }, 85);
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.delete("status");
     params.set("findingsTab", tab);
     const query = params.toString();

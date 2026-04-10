@@ -43,7 +43,7 @@ export function FindingsSpiTiles({
   findingsBySpi: Record<number, number>;
 }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +72,7 @@ export function FindingsSpiTiles({
       return;
     }
 
-    if (normalizeQuery(searchParams.toString()) !== normalizeQuery(pendingQuery)) {
+    if (normalizeQuery((searchParams?.toString() ?? "")) !== normalizeQuery(pendingQuery)) {
       return;
     }
 
@@ -89,7 +89,7 @@ export function FindingsSpiTiles({
   }, [isLoading, pendingQuery, searchParams]);
 
   const baseParams = useMemo(() => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.delete("kpiFilter");
     params.delete("status");
     return params;

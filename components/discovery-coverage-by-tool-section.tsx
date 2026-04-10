@@ -230,7 +230,7 @@ export function DiscoveryCoverageByToolSection({
 
   const buildQueryParams = useCallback(
     (toolId: string, page: number, pageSize: number, search: string, toolAssetType: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
       params.set("toolId", toolId);
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));

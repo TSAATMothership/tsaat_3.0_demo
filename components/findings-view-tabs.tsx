@@ -26,7 +26,7 @@ const tabs: Array<{ id: FindingsViewTabId; label: string }> = [
 
 export function FindingsViewTabs({ activeTab }: { activeTab: FindingsViewTabId }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,7 +89,7 @@ export function FindingsViewTabs({ activeTab }: { activeTab: FindingsViewTabId }
       setProgress((current) => Math.min(96, nextProgressValue(current)));
     }, 85);
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.set("findingsViewTab", tab);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);

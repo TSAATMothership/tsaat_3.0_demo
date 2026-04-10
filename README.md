@@ -47,7 +47,9 @@ compile.cmd
 What it does:
 
 - Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
-- Restores vendored dependencies from `Dependencies/node_modules`
+- Restores vendored dependencies from `Dependencies/node_modules` when present
+- Falls back to extracting `Dependencies/node_modules-win-x64.zip` on clean clones/new machines
+- Verifies `next` and the full dependency tree are restored before build
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`
 - Validates that required SQL data is already present

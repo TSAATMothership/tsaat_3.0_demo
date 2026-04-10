@@ -87,7 +87,7 @@ export function SystemsTableClient({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const scopedDataDate = normalizeDataDate(searchParams.get(DATA_DATE_PARAM));
+  const scopedDataDate = normalizeDataDate(searchParams?.get(DATA_DATE_PARAM));
   const chartFilteredRows = useMemo(() => {
     if (!chartSelectedRowId) {
       return rows;

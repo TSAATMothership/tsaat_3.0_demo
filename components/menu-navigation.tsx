@@ -60,7 +60,7 @@ const operationsMenuItems: MenuItem[] = [
 ];
 
 export function MenuNavigation({ items }: { items: MenuItem[] }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -78,7 +78,7 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
   const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   const showDataDatePicker = isDataDateScopedPath(pathname);
-  const queryDataDate = normalizeDataDate(searchParams.get(DATA_DATE_PARAM));
+  const queryDataDate = normalizeDataDate(searchParams?.get(DATA_DATE_PARAM));
   const selectedDataDate = useMemo(() => {
     if (queryDataDate) {
       return queryDataDate;
@@ -165,7 +165,7 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
       return;
     }
 
-    if (pendingQuery !== null && normalizeQuery(searchParams.toString()) !== pendingQuery) {
+    if (pendingQuery !== null && normalizeQuery((searchParams?.toString() ?? "")) !== pendingQuery) {
       return;
     }
 
@@ -211,7 +211,7 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
       return;
     }
 
-    const nextParams = new URLSearchParams(searchParams.toString());
+    const nextParams = new URLSearchParams((searchParams?.toString() ?? ""));
     const normalizedDataDate = normalizeDataDate(nextDataDate);
 
     if (normalizedDataDate) {
@@ -223,7 +223,7 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
 
     const query = nextParams.toString();
     const normalizedNextQuery = normalizeQuery(query);
-    const normalizedCurrentQuery = normalizeQuery(searchParams.toString());
+    const normalizedCurrentQuery = normalizeQuery((searchParams?.toString() ?? ""));
     if (normalizedNextQuery === normalizedCurrentQuery) {
       return;
     }

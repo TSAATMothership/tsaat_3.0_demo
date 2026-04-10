@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 
 export function SiteFooter() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const isCyberCopPage = Boolean(pathname?.startsWith("/cyber-cop"));
   const isMeasuresPage = Boolean(pathname?.startsWith("/measures"));
   const isDiscoveryCoveragePage = Boolean(pathname?.startsWith("/discovery-coverage"));
