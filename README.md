@@ -27,10 +27,13 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - SQL Server Express instance (`localhost\SQLEXPRESS`)
 - `sqlcmd` available in `PATH`
 - Windows PowerShell available in `PATH`
-- Pre-staged external large dependency artifact (if SWC binary is not already present in `Dependencies/node_modules`):
+- Offline compile entrypoint is `compileApp.cmd` (single supported compile command)
+- Pre-staged external large dependency artifact (required because SWC is intentionally not vendored in `Dependencies/node_modules`):
   - `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node`
 
 ## Install
+
+For online developer setup only (not required for offline compile):
 
 ```bash
 npm install --legacy-peer-deps
@@ -40,7 +43,7 @@ npm install --legacy-peer-deps
 
 ### Step 0: Stage External Large Dependencies (>100 MB)
 
-Before running `compile.cmd` on a machine without internet access, pre-stage any required >100 MB dependency artifacts outside source control.
+Before running `compileApp.cmd` on a machine without internet access, pre-stage any required >100 MB dependency artifacts outside source control.
 
 1. Next.js SWC win32-x64 native binary (required for this repository because it is intentionally excluded from `Dependencies/node_modules` due size)
    - Required file path expected by `compileApp.cmd`:
@@ -74,7 +77,7 @@ Remove-Item ".\package" -Recurse -Force
 Run:
 
 ```bat
-compile.cmd
+compileApp.cmd
 ```
 
 What it does:
@@ -86,8 +89,6 @@ What it does:
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`
 - Validates that required SQL data is already present
-
-`compileApp.cmd` remains available as the explicit entrypoint and `compile.cmd` is a compatibility wrapper.
 
 If it fails with missing/empty `tsaat.dataset_snapshot`, continue with database setup below.
 
@@ -137,7 +138,7 @@ What it does:
 Run again:
 
 ```bat
-compile.cmd
+compileApp.cmd
 ```
 
 At this point, offline app build and SQL-backed runtime data should both be ready.
