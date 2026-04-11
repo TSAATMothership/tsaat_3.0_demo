@@ -21,15 +21,18 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 1. Windows environment with standard cmd utilities (where, fc, robocopy).
 2. Vendored Node.js runtime bundle present at Dependencies\runtime\nodejs\win-x64.
 3. Vendored npm command present at Dependencies\runtime\nodejs\win-x64\npm.cmd.
-4. sqlcmd available in PATH (SQL Server command-line tools).
-5. Reachable SQL Server instance with trusted authentication.
-6. Populated TSAAT application database (default: Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True) with table tsaat.dataset_snapshot containing at least one row.
-7. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
-8. Repository source code present locally (no network fetch in compile stage).
-9. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
+4. Vendored npm CLI payload present at Dependencies\runtime\nodejs\win-x64\node_modules\npm\bin\npm-cli.js.
+5. sqlcmd available in PATH (SQL Server command-line tools).
+6. Reachable SQL Server instance with trusted authentication.
+7. Populated TSAAT application database (default: Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True) with table tsaat.dataset_snapshot containing at least one row.
+8. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
+9. Repository source code present locally (no network fetch in compile stage).
+10. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
 
 External large dependency artifact requirement (not committed)
 -------------------------------------------------------------
+The SWC native binary exceeds 100 MB and is intentionally excluded from Dependencies\node_modules.
+compileApp.cmd enforces this by rejecting dependency bundles that vendor the SWC binary under Dependencies\node_modules.
 Staged path expected by compileApp.cmd (when SWC binary is not in Dependencies\node_modules):
 Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node
 Provisioning source: npm package @next/swc-win32-x64-msvc@14.2.33 (download and stage out-of-band).

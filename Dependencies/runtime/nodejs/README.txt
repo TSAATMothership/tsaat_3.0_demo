@@ -9,6 +9,7 @@ fully offline on Windows without requiring a machine-level Node.js install.
 Runtime path used by compile scripts
 ------------------------------------
 Dependencies\runtime\nodejs\win-x64
+Required npm payload path: Dependencies\runtime\nodejs\win-x64\node_modules\npm\bin\npm-cli.js
 
 Included runtime version
 ------------------------

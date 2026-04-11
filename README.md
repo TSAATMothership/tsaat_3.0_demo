@@ -23,7 +23,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 
 ## Prerequisites
 
-- Bundled Node.js runtime is included at `Dependencies/runtime/nodejs/win-x64` for offline compile
+- Bundled Node.js runtime is included at `Dependencies/runtime/nodejs/win-x64` for offline compile (including `node_modules/npm/bin/npm-cli.js`)
 - SQL Server Express instance (`localhost\SQLEXPRESS`)
 - `sqlcmd` available in `PATH`
 - Windows PowerShell available in `PATH`
@@ -42,7 +42,7 @@ npm install --legacy-peer-deps
 
 Before running `compile.cmd` on a machine without internet access, pre-stage any required >100 MB dependency artifacts outside source control.
 
-1. Next.js SWC win32-x64 native binary (required only if missing from `Dependencies/node_modules`)
+1. Next.js SWC win32-x64 native binary (required for this repository because it is intentionally excluded from `Dependencies/node_modules` due size)
    - Required file path expected by `compileApp.cmd`:
      - `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node`
    - Version required by this repo:
@@ -62,6 +62,7 @@ Remove-Item ".\package" -Recurse -Force
 
    - Copy the staged file to the same path on the offline target machine.
    - `compileApp.cmd` will copy this file into restored `node_modules` only when required, and will exit with a clear error if it is missing.
+   - `compileApp.cmd` will also fail if this >100 MB binary is vendored inside `Dependencies/node_modules`; it must remain pre-staged under `Dependencies/external`.
 
 2. SQL Server Express installer (required only when SQL Server is not already installed)
    - File: `SQLEXPR_x64_ENU.exe` (typically >100 MB)

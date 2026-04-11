@@ -8,8 +8,10 @@ set "EXTERNAL_DEPS_DIR=%DEPS_DIR%\external"
 set "VENDORED_NODE_RUNTIME_DIR=%DEPS_DIR%\runtime\nodejs\win-x64"
 set "VENDORED_NODE_EXE=%VENDORED_NODE_RUNTIME_DIR%\node.exe"
 set "VENDORED_NPM_CMD=%VENDORED_NODE_RUNTIME_DIR%\npm.cmd"
+set "VENDORED_NPM_CLI_JS=%VENDORED_NODE_RUNTIME_DIR%\node_modules\npm\bin\npm-cli.js"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
 set "VENDORED_NEXT_PACKAGE=%VENDORED_NODE_MODULES%\next\package.json"
+set "VENDORED_SWC_BINARY=%VENDORED_NODE_MODULES%\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "STAGED_SWC_BINARY=%EXTERNAL_DEPS_DIR%\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "RESTORED_SWC_PACKAGE_BINARY=%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "RESTORED_SWC_FALLBACK_BINARY=%REPO_ROOT%\node_modules\next\next-swc-fallback\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
@@ -47,6 +49,11 @@ if not exist "%VENDORED_NPM_CMD%" (
     echo [ERROR] Missing vendored npm command: %VENDORED_NPM_CMD%
     exit /b 1
 )
+if not exist "%VENDORED_NPM_CLI_JS%" (
+    echo [ERROR] Missing vendored npm CLI payload: %VENDORED_NPM_CLI_JS%
+    echo [ERROR] Refresh Dependencies\runtime\nodejs\win-x64 from an official Node.js Windows x64 bundle.
+    exit /b 1
+)
 if not exist "%VENDORED_PACKAGE%" (
     echo [ERROR] Missing vendored package snapshot: %VENDORED_PACKAGE%
     exit /b 1
@@ -66,6 +73,14 @@ if not exist "%VENDORED_NODE_MODULES%\" (
 if not exist "%VENDORED_NEXT_PACKAGE%" (
     echo [ERROR] Missing vendored Next.js package metadata: %VENDORED_NEXT_PACKAGE%
     exit /b 1
+)
+if exist "%VENDORED_SWC_BINARY%" (
+    for %%I in ("%VENDORED_SWC_BINARY%") do if %%~zI GTR 104857600 (
+        echo [ERROR] Large SWC binary detected in Dependencies\node_modules: %VENDORED_SWC_BINARY%
+        echo [ERROR] Files over 100 MB must not be stored in repository dependency bundles.
+        echo [ERROR] Move it to pre-staged external path: %STAGED_SWC_BINARY%
+        exit /b 1
+    )
 )
 
 set "PATH=%VENDORED_NODE_RUNTIME_DIR%;%PATH%"
