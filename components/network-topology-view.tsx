@@ -30,11 +30,14 @@ const DETAILED_SECTION_GAP = 70;
 const DETAILED_CANVAS_PADDING_X = 130;
 const DETAILED_CANVAS_PADDING_Y = 120;
 const CI_FLOW_MAX_RELATED_NODES = 110;
-const CI_FLOW_BASE_RADIUS = 260;
-const CI_FLOW_RADIUS_STEP = 170;
-const CI_FLOW_NODE_HEIGHT = 96;
-const CI_FLOW_NOT_MODELLED_WIDTH = 240;
-const CI_FLOW_NOT_MODELLED_HEIGHT = 82;
+const CI_FLOW_BASE_RADIUS = 420;
+const CI_FLOW_RADIUS_STEP = 260;
+const CI_FLOW_NODE_HEIGHT = 142;
+const CI_FLOW_NODE_MIN_WIDTH = 760;
+const CI_FLOW_NODE_MAX_WIDTH = 1320;
+const CI_FLOW_NOT_MODELLED_WIDTH = 360;
+const CI_FLOW_NOT_MODELLED_HEIGHT = 124;
+const CI_FLOW_VIEWPORT_PADDING = 320;
 
 interface ScopedCiItem {
   id: string;
@@ -479,6 +482,11 @@ function estimateDetailedCiTileWidth(firstLineLabel: string): number {
   );
 }
 
+function estimateCiFlowTileWidth(firstLineLabel: string): number {
+  const detailedWidth = estimateDetailedCiTileWidth(firstLineLabel);
+  return Math.max(CI_FLOW_NODE_MIN_WIDTH, Math.min(CI_FLOW_NODE_MAX_WIDTH, Math.round(detailedWidth * 1.45)));
+}
+
 function escapeSvgText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -901,6 +909,7 @@ export function NetworkTopologyView({
   const tileSearchInputRef = useRef<HTMLInputElement | null>(null);
   const detailedTileSearchInputRef = useRef<HTMLInputElement | null>(null);
   const detailedScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const ciFlowScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const detailedSvgRef = useRef<SVGSVGElement | null>(null);
   const tileRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -928,6 +937,8 @@ export function NetworkTopologyView({
   const suppressDetailedNodeClickRef = useRef(false);
   const detailedNodeClickSuppressTimerRef = useRef<number | null>(null);
   const ciFlowTweenFrameRef = useRef<number | null>(null);
+  const detailedZoomBeforeCiFlowRef = useRef<number | null>(null);
+  const ciFlowAutoFitPendingRef = useRef(false);
   const persistedCameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const persistedNodePositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
   const manualNodePositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
@@ -1364,12 +1375,19 @@ export function NetworkTopologyView({
       }
     }
 
-    const initialCenterX =
-      ciFlowViewportCenter?.x ??
-      (detailedTree ? detailedTree.width / 2 : DETAILED_CANVAS_PADDING_X + DETAILED_TILE_WIDTH);
-    const initialCenterY =
-      ciFlowViewportCenter?.y ??
-      (detailedTree ? detailedTree.height / 2 : DETAILED_CANVAS_PADDING_Y + DETAILED_TILE_HEIGHT);
+    const rootScopedCi = scopedCiItemByAssetId.get(focusedCiFlowRootAssetId);
+    const rootFirstLine = `Type: CI | Name: ${rootFlowNode.hostname}`;
+    const rootWidth = estimateCiFlowTileWidth(rootFirstLine);
+    const defaultCenterX =
+      DETAILED_CANVAS_PADDING_X +
+      Math.max(rootWidth, CI_FLOW_NOT_MODELLED_WIDTH) / 2 +
+      Math.max(CI_FLOW_BASE_RADIUS * 0.72, 240);
+    const defaultCenterY =
+      DETAILED_CANVAS_PADDING_Y +
+      CI_FLOW_NODE_HEIGHT / 2 +
+      Math.max(CI_FLOW_BASE_RADIUS * 0.55, 180);
+    const initialCenterX = ciFlowViewportCenter?.x ?? defaultCenterX;
+    const initialCenterY = ciFlowViewportCenter?.y ?? defaultCenterY;
 
     const ciNodes: CiFlowNodeLayout[] = [];
     const groupedByDepth = new Map<number, string[]>();
@@ -1383,9 +1401,6 @@ export function NetworkTopologyView({
       groupedByDepth.set(depth, current);
     }
 
-    const rootScopedCi = scopedCiItemByAssetId.get(focusedCiFlowRootAssetId);
-    const rootFirstLine = `Type: CI | Name: ${rootFlowNode.hostname}`;
-    const rootWidth = estimateDetailedCiTileWidth(rootFirstLine);
     ciNodes.push({
       id: ciFlowNodeIdForAsset(focusedCiFlowRootAssetId),
       assetId: focusedCiFlowRootAssetId,
@@ -1426,7 +1441,7 @@ export function NetworkTopologyView({
             ? `Model: ${flowNode.systemName}`
             : "Not Modelled";
         const firstLine = `Type: CI | Name: ${flowNode.hostname}`;
-        const nodeWidth = estimateDetailedCiTileWidth(firstLine);
+        const nodeWidth = estimateCiFlowTileWidth(firstLine);
         const angle = groupedAssetIds.length === 1 ? -Math.PI / 2 : (index / groupedAssetIds.length) * Math.PI * 2 - Math.PI / 2;
         const centerX = initialCenterX + Math.cos(angle) * radius;
         const centerY = initialCenterY + Math.sin(angle) * radius;
@@ -1517,8 +1532,8 @@ export function NetworkTopologyView({
       maxY += offsetY;
     }
 
-    const width = Math.max(detailedTree?.width ?? 0, Math.ceil(maxX + DETAILED_CANVAS_PADDING_X));
-    const height = Math.max(detailedTree?.height ?? 0, Math.ceil(maxY + DETAILED_CANVAS_PADDING_Y));
+    const width = Math.max(1, Math.ceil(maxX + DETAILED_CANVAS_PADDING_X));
+    const height = Math.max(1, Math.ceil(maxY + DETAILED_CANVAS_PADDING_Y));
 
     return {
       rootAssetId: focusedCiFlowRootAssetId,
@@ -1533,7 +1548,6 @@ export function NetworkTopologyView({
     ciFlowViewportCenter?.x,
     ciFlowViewportCenter?.y,
     data.ciDependencies,
-    detailedTree,
     flowCiNodeByAssetId,
     focusedCiFlowRootAssetId,
     modelAssetIdSet,
@@ -1547,6 +1561,7 @@ export function NetworkTopologyView({
   }, [ciFlowGraph?.nodes]);
   const ciFlowRootNodeId = ciFlowGraph ? ciFlowNodeIdForAsset(ciFlowGraph.rootAssetId) : null;
   const isCiFlowMode = Boolean(ciFlowGraph && focusedCiFlowRootAssetId);
+  const isCiFlowFocusPanelOpen = Boolean(isDetailedTopologyOpen && isCiFlowMode);
   const detailedSelectedPathEdgeIds = useMemo(() => {
     if (!detailedTree || !detailedSelectedNodeId || detailedSelectedNodeId === detailedTree.rootNodeId) {
       return new Set<string>();
@@ -1673,7 +1688,7 @@ export function NetworkTopologyView({
   const detailedTileDropdownOptions = useMemo<
     Array<{ id: string; entityType: DetailedTileEntityType; name: string; subtitle: string; level: number }>
   >(() => {
-    if (isCiFlowMode && ciFlowGraph) {
+    if (isCiFlowFocusPanelOpen && ciFlowGraph) {
       return [...ciFlowGraph.nodes]
         .map((node) => ({
           id: node.id,
@@ -1708,7 +1723,7 @@ export function NetworkTopologyView({
         }
         return left.name.localeCompare(right.name);
       });
-  }, [ciFlowGraph, ciFlowRootNodeId, detailedTree, isCiFlowMode]);
+  }, [ciFlowGraph, ciFlowRootNodeId, detailedTree, isCiFlowFocusPanelOpen]);
   const filteredDetailedTileDropdownOptions = useMemo(() => {
     const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -1724,7 +1739,7 @@ export function NetworkTopologyView({
     });
   }, [detailedTileFilterSearchText, detailedTileDropdownOptions]);
   const detailedFilteredNodeIds = useMemo(() => {
-    if (isCiFlowMode && ciFlowGraph) {
+    if (isCiFlowFocusPanelOpen && ciFlowGraph) {
       if (detailedSelectedTileFilterId === "__all__") {
         return new Set(ciFlowGraph.nodes.map((node) => node.id));
       }
@@ -1777,17 +1792,17 @@ export function NetworkTopologyView({
     detailedSelectedNodeId,
     detailedSelectedTileFilterId,
     detailedTree,
-    isCiFlowMode,
+    isCiFlowFocusPanelOpen,
     selectedCiFlowNodeId
   ]);
   const isDetailedTileFilterActive = detailedSelectedTileFilterId !== "__all__";
   const hasDetailedTileSearchTerm = detailedTileFilterSearchText.trim().length > 0;
   const detailedPresentEntityTypes = useMemo(() => {
-    if (isCiFlowMode && ciFlowGraph) {
+    if (isCiFlowFocusPanelOpen && ciFlowGraph) {
       return new Set(ciFlowGraph.nodes.map((node) => node.entityType));
     }
     return new Set((detailedTree?.nodes ?? []).map((node) => node.entityType));
-  }, [ciFlowGraph, detailedTree?.nodes, isCiFlowMode]);
+  }, [ciFlowGraph, detailedTree?.nodes, isCiFlowFocusPanelOpen]);
   const selectedPathEdgeIds = useMemo(() => {
     if (!coreNode?.id || !selectedNodeId || selectedNodeId === coreNode.id) {
       return new Set<string>();
@@ -1954,6 +1969,8 @@ export function NetworkTopologyView({
       setCiFlowOriginCenter(null);
       setCiFlowViewportCenter(null);
       setCiFlowTweenProgress(0);
+      ciFlowAutoFitPendingRef.current = false;
+      detailedZoomBeforeCiFlowRef.current = null;
       setSelectedTileFilterId("__all__");
       setTileFilterSearchText("");
       setIsTileSearchFocused(false);
@@ -2012,6 +2029,8 @@ export function NetworkTopologyView({
     setCiFlowOriginCenter(null);
     setCiFlowViewportCenter(null);
     setCiFlowTweenProgress(0);
+    ciFlowAutoFitPendingRef.current = false;
+    detailedZoomBeforeCiFlowRef.current = null;
     if (coreNode?.id) {
       setSelectedNodeId(coreNode.id);
     }
@@ -2084,28 +2103,28 @@ export function NetworkTopologyView({
   }, [layout.nodes, selectedTileFilterId]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || !detailedTree || isCiFlowMode) {
+    if (!isDetailedTopologyOpen || !detailedTree || isCiFlowFocusPanelOpen) {
       return;
     }
     setDetailedSelectedNodeId(detailedTree.rootNodeId);
-  }, [detailedTree, isCiFlowMode, isDetailedTopologyOpen]);
+  }, [detailedTree, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || !ciFlowRootNodeId || !isCiFlowMode) {
+    if (!isDetailedTopologyOpen || !ciFlowRootNodeId || !isCiFlowFocusPanelOpen) {
       return;
     }
     setSelectedCiFlowNodeId(ciFlowRootNodeId);
-  }, [ciFlowRootNodeId, isCiFlowMode, isDetailedTopologyOpen]);
+  }, [ciFlowRootNodeId, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
 
   useEffect(() => {
-    if (isCiFlowMode) {
+    if (isCiFlowFocusPanelOpen) {
       return;
     }
     setSelectedCiFlowNodeId(null);
-  }, [isCiFlowMode]);
+  }, [isCiFlowFocusPanelOpen]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || (!detailedTree && !ciFlowGraph)) {
+    if (!isDetailedTopologyOpen || !detailedTree || isCiFlowFocusPanelOpen) {
       return;
     }
     const raf = window.requestAnimationFrame(() => {
@@ -2114,22 +2133,41 @@ export function NetworkTopologyView({
     return () => {
       window.cancelAnimationFrame(raf);
     };
-  }, [ciFlowGraph, detailedRootNodeId, detailedTree, isDetailedTopologyOpen]);
+  }, [detailedRootNodeId, detailedTree, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || !isCiFlowMode || !ciFlowGraph) {
+    if (!isDetailedTopologyOpen || !isCiFlowFocusPanelOpen || !ciFlowGraph) {
       return;
     }
-    const container = detailedScrollContainerRef.current;
+    const container = ciFlowScrollContainerRef.current;
     if (!container) {
       return;
     }
+    if (ciFlowAutoFitPendingRef.current && container.clientWidth > 0 && container.clientHeight > 0) {
+      const fitViewportWidth = Math.max(1, container.clientWidth - CI_FLOW_VIEWPORT_PADDING * 2);
+      const fitViewportHeight = Math.max(1, container.clientHeight - CI_FLOW_VIEWPORT_PADDING * 2);
+      const fitByWidth = fitViewportWidth / Math.max(1, ciFlowGraph.width);
+      const fitByHeight = fitViewportHeight / Math.max(1, ciFlowGraph.height);
+      const fitZoom = Number((Math.min(fitByWidth, fitByHeight) * 0.94).toFixed(4));
+      const normalizedFitZoom = Number(Math.max(0.22, Math.min(1.2, fitZoom)).toFixed(4));
+      ciFlowAutoFitPendingRef.current = false;
+      if (Number.isFinite(normalizedFitZoom) && Math.abs(normalizedFitZoom - detailedZoom) > 0.005) {
+        setDetailedZoom(normalizedFitZoom);
+        return;
+      }
+    }
     const zoom = detailedZoom > 0 ? detailedZoom : 1;
-    const nextLeft = Math.max(0, ciFlowGraph.viewCenterX * zoom - container.clientWidth / 2);
-    const nextTop = Math.max(0, ciFlowGraph.viewCenterY * zoom - container.clientHeight / 2);
+    const nextLeft = Math.max(
+      0,
+      ciFlowGraph.viewCenterX * zoom + CI_FLOW_VIEWPORT_PADDING - container.clientWidth / 2
+    );
+    const nextTop = Math.max(
+      0,
+      ciFlowGraph.viewCenterY * zoom + CI_FLOW_VIEWPORT_PADDING - container.clientHeight / 2
+    );
     container.scrollLeft = nextLeft;
     container.scrollTop = nextTop;
-  }, [ciFlowGraph, detailedZoom, isCiFlowMode, isDetailedTopologyOpen]);
+  }, [ciFlowGraph, detailedZoom, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
 
   useEffect(() => {
     if (detailedSelectedTileFilterId === "__all__") {
@@ -2170,6 +2208,11 @@ export function NetworkTopologyView({
           setCiFlowOriginCenter(null);
           setCiFlowViewportCenter(null);
           setCiFlowTweenProgress(0);
+          ciFlowAutoFitPendingRef.current = false;
+          if (detailedZoomBeforeCiFlowRef.current !== null) {
+            setDetailedZoom(detailedZoomBeforeCiFlowRef.current);
+            detailedZoomBeforeCiFlowRef.current = null;
+          }
           return;
         }
         if (isDetailedTopologyOpen) {
@@ -2800,21 +2843,15 @@ export function NetworkTopologyView({
     if (node.entityType !== "ci" || !node.ciAssetId) {
       return;
     }
-    const scrollContainer = detailedScrollContainerRef.current;
-    const effectiveZoom = detailedZoom > 0 ? detailedZoom : 1;
-    const viewportCenterX = scrollContainer
-      ? (scrollContainer.scrollLeft + scrollContainer.clientWidth / 2) / effectiveZoom
-      : detailedTree?.width ?? 0;
-    const viewportCenterY = scrollContainer
-      ? (scrollContainer.scrollTop + scrollContainer.clientHeight / 2) / effectiveZoom
-      : detailedTree?.height ?? 0;
 
     setFocusedCiFlowRootAssetId(node.ciAssetId);
     setSelectedCiFlowNodeId(ciFlowNodeIdForAsset(node.ciAssetId));
     setDetailedSelectedTileFilterId("__all__");
     setDetailedTileFilterSearchText("");
+    detailedZoomBeforeCiFlowRef.current = detailedZoom;
+    ciFlowAutoFitPendingRef.current = true;
     setCiFlowOriginCenter({ x: node.x + node.width / 2, y: node.y + node.height / 2 });
-    setCiFlowViewportCenter({ x: viewportCenterX, y: viewportCenterY });
+    setCiFlowViewportCenter(null);
     setCiFlowTweenProgress(0);
     window.requestAnimationFrame(() => {
       animateCiFlowTween(0, 1, 520);
@@ -2832,6 +2869,11 @@ export function NetworkTopologyView({
       setCiFlowOriginCenter(null);
       setCiFlowViewportCenter(null);
       setCiFlowTweenProgress(0);
+      ciFlowAutoFitPendingRef.current = false;
+      if (detailedZoomBeforeCiFlowRef.current !== null) {
+        setDetailedZoom(detailedZoomBeforeCiFlowRef.current);
+        detailedZoomBeforeCiFlowRef.current = null;
+      }
     });
   };
 
@@ -2858,6 +2900,8 @@ export function NetworkTopologyView({
     setCiFlowOriginCenter(null);
     setCiFlowViewportCenter(null);
     setCiFlowTweenProgress(0);
+    ciFlowAutoFitPendingRef.current = false;
+    detailedZoomBeforeCiFlowRef.current = null;
     setIsDetailedTopologyOpen(true);
   };
 
@@ -2883,12 +2927,14 @@ export function NetworkTopologyView({
     setCiFlowOriginCenter(null);
     setCiFlowViewportCenter(null);
     setCiFlowTweenProgress(0);
+    ciFlowAutoFitPendingRef.current = false;
+    detailedZoomBeforeCiFlowRef.current = null;
   };
 
   const selectDetailedTileFilter = (nextId: string) => {
     setDetailedSelectedTileFilterId(nextId);
     if (nextId !== "__all__") {
-      if (isCiFlowMode && ciFlowGraph) {
+      if (isCiFlowFocusPanelOpen && ciFlowGraph) {
         setSelectedCiFlowNodeId(nextId);
         const selectedFlowNode = ciFlowNodeById.get(nextId);
         if (selectedFlowNode) {
@@ -2913,7 +2959,7 @@ export function NetworkTopologyView({
     setDetailedSelectedTileFilterId("__all__");
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
-    if (isCiFlowMode && ciFlowRootNodeId) {
+    if (isCiFlowFocusPanelOpen && ciFlowRootNodeId) {
       setSelectedCiFlowNodeId(ciFlowRootNodeId);
       return;
     }
@@ -2928,7 +2974,7 @@ export function NetworkTopologyView({
 
   const resetDetailedTopologyView = () => {
     setDetailedZoom(1);
-    if (isCiFlowMode && ciFlowRootNodeId) {
+    if (isCiFlowFocusPanelOpen && ciFlowRootNodeId) {
       setDetailedSelectedTileFilterId("__all__");
       setSelectedCiFlowNodeId(ciFlowRootNodeId);
     } else if (detailedTree?.rootNodeId) {
@@ -3001,7 +3047,7 @@ export function NetworkTopologyView({
   };
 
   const exportDetailedTopologyAsPng = async () => {
-    const isFlowExport = isCiFlowMode && Boolean(ciFlowGraph);
+    const isFlowExport = isCiFlowFocusPanelOpen && Boolean(ciFlowGraph);
     if (!isFlowExport && !detailedTree) {
       return;
     }
@@ -3049,41 +3095,47 @@ export function NetworkTopologyView({
           const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
           const percentages = compliancePercentages(compliance);
           const isSelected = selectedCiFlowNodeId === node.id;
+          const flowHorizontalPadding = 20;
+          const flowProgressHeight = 14;
+          const flowScoreReserve = 235;
           if (node.entityType === "not-modelled") {
             return `
               <g>
                 <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="16" fill="#fda4af" stroke="#ef4444" stroke-width="${isSelected ? 4 : 3}" />
-                <text x="${node.x + node.width / 2}" y="${node.y + 30}" text-anchor="middle" font-size="15" font-weight="700" fill="#7f1d1d">Not Modelled</text>
-                <text x="${node.x + node.width / 2}" y="${node.y + 52}" text-anchor="middle" font-size="11" font-weight="600" fill="#7f1d1d">${escapeSvgText(
-                  truncateLabel(node.subtitle, 46)
+                <text x="${node.x + node.width / 2}" y="${node.y + 44}" text-anchor="middle" font-size="20" font-weight="700" fill="#7f1d1d">Not Modelled</text>
+                <text x="${node.x + node.width / 2}" y="${node.y + 72}" text-anchor="middle" font-size="14" font-weight="600" fill="#7f1d1d">${escapeSvgText(
+                  truncateLabel(node.subtitle, 52)
                 )}</text>
               </g>
             `.trim();
           }
           const firstLineLabel = `Type: CI | Name: ${node.name}`;
-          const firstLineMaxChars = Math.max(62, Math.floor((node.width - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH));
+          const firstLineMaxChars = Math.max(
+            70,
+            Math.floor((node.width - 2 * flowHorizontalPadding) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH)
+          );
           const ciProgressWidth = Math.max(
-            140,
+            240,
             Math.min(
-              DETAILED_CI_PROGRESS_WIDTH,
-              node.width - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+              440,
+              node.width - 2 * flowHorizontalPadding - flowScoreReserve
             )
           );
           const borderColor = node.isInModelScope ? "#22c55e" : "#ef4444";
           return `
             <g>
               <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="14" fill="#e2e8f0" stroke="${borderColor}" stroke-width="${isSelected ? 4 : 2.6}" />
-              <text x="${node.x + 14}" y="${node.y + 22}" font-size="11.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+              <text x="${node.x + flowHorizontalPadding}" y="${node.y + 36}" font-size="16" font-weight="700" fill="#0f172a">${escapeSvgText(
                 truncateLabel(firstLineLabel, firstLineMaxChars)
               )}</text>
-              <text x="${node.x + 14}" y="${node.y + 38}" font-size="10.5" font-weight="600" fill="#334155">${escapeSvgText(
+              <text x="${node.x + flowHorizontalPadding}" y="${node.y + 58}" font-size="13" font-weight="600" fill="#334155">${escapeSvgText(
                 truncateLabel(node.modelLabel, firstLineMaxChars)
               )}</text>
-              <rect x="${node.x + 14}" y="${node.y + node.height - 26}" width="${ciProgressWidth}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#cbd5e1" />
-              <rect x="${node.x + 14}" y="${node.y + node.height - 26}" width="${(ciProgressWidth * percentages.compliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#16a34a" />
-              <rect x="${node.x + 14 + (ciProgressWidth * percentages.compliant) / 100}" y="${node.y + node.height - 26}" width="${(ciProgressWidth * percentages.nonCompliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#ef4444" />
-              <rect x="${node.x + 14 + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${node.y + node.height - 26}" width="${(ciProgressWidth * percentages.other) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#94a3b8" />
-              <text x="${node.x + node.width - 14}" y="${node.y + node.height - 16}" text-anchor="end" font-size="10.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+              <rect x="${node.x + flowHorizontalPadding}" y="${node.y + node.height - 38}" width="${ciProgressWidth}" height="${flowProgressHeight}" rx="3" fill="#cbd5e1" />
+              <rect x="${node.x + flowHorizontalPadding}" y="${node.y + node.height - 38}" width="${(ciProgressWidth * percentages.compliant) / 100}" height="${flowProgressHeight}" rx="3" fill="#16a34a" />
+              <rect x="${node.x + flowHorizontalPadding + (ciProgressWidth * percentages.compliant) / 100}" y="${node.y + node.height - 38}" width="${(ciProgressWidth * percentages.nonCompliant) / 100}" height="${flowProgressHeight}" fill="#ef4444" />
+              <rect x="${node.x + flowHorizontalPadding + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${node.y + node.height - 38}" width="${(ciProgressWidth * percentages.other) / 100}" height="${flowProgressHeight}" fill="#94a3b8" />
+              <text x="${node.x + node.width - flowHorizontalPadding}" y="${node.y + node.height - 18}" text-anchor="end" font-size="13" font-weight="700" fill="#0f172a">${escapeSvgText(
                 `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
               )}</text>
             </g>
@@ -3326,10 +3378,20 @@ export function NetworkTopologyView({
     );
   };
 
-  const activeDetailedWidth = isCiFlowMode && ciFlowGraph ? ciFlowGraph.width : detailedTree?.width ?? 1;
-  const activeDetailedHeight = isCiFlowMode && ciFlowGraph ? ciFlowGraph.height : detailedTree?.height ?? 1;
-  const detailedCanvasWidth = Math.max(1, Math.ceil(activeDetailedWidth * detailedZoom));
-  const detailedCanvasHeight = Math.max(1, Math.ceil(activeDetailedHeight * detailedZoom));
+  const detailedViewWidth = detailedTree?.width ?? 1;
+  const detailedViewHeight = detailedTree?.height ?? 1;
+  const detailedCanvasWidth = Math.max(1, Math.ceil(detailedViewWidth * detailedZoom));
+  const detailedCanvasHeight = Math.max(1, Math.ceil(detailedViewHeight * detailedZoom));
+  const ciFlowViewWidth = ciFlowGraph?.width ?? 1;
+  const ciFlowViewHeight = ciFlowGraph?.height ?? 1;
+  const ciFlowCanvasWidth = Math.max(
+    1,
+    Math.ceil(ciFlowViewWidth * detailedZoom) + CI_FLOW_VIEWPORT_PADDING * 2
+  );
+  const ciFlowCanvasHeight = Math.max(
+    1,
+    Math.ceil(ciFlowViewHeight * detailedZoom) + CI_FLOW_VIEWPORT_PADDING * 2
+  );
   const detailedZoomPercent = Math.round(detailedZoom * 100);
   const ciFlowRootTile = ciFlowRootNodeId ? ciFlowNodeById.get(ciFlowRootNodeId) ?? null : null;
 
@@ -3539,7 +3601,7 @@ export function NetworkTopologyView({
                       node.entityType
                     )} ${
                       isCoreTile
-                        ? "topology-core-tile border-4 border-red-500"
+                        ? "border-4 border-red-500"
                         : node.id === selectedNodeId
                           ? "border-4 border-violet-500"
                         : "border-2 border-sky-950/90"
@@ -3908,10 +3970,10 @@ export function NetworkTopologyView({
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-400/20 px-4 py-3">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">
-                      {isCiFlowMode ? "Detailed Toplogy View - CI Flow Focus" : "Detailed Toplogy View"}
+                      Detailed Toplogy View
                     </p>
                     <h3 className="text-base font-semibold text-sky-100">
-                      {(isCiFlowMode ? ciFlowRootTile?.name : detailedRootNode?.name) ?? "Topology Root"}
+                      {detailedRootNode?.name ?? "Topology Root"}
                     </h3>
                   </div>
                 <div className="flex items-center gap-2">
@@ -4059,26 +4121,6 @@ export function NetworkTopologyView({
                     <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
                     Grey other
                   </span>
-                  {isCiFlowMode ? (
-                    <>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                        Flow dependency
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />
-                        Logical dependency
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400 bg-slate-200" />
-                        In-model CI
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2.5 w-2.5 rounded-sm border border-red-400 bg-slate-200" />
-                        Out-of-model CI
-                      </span>
-                    </>
-                  ) : null}
                   <span className="mx-1 h-5 w-px bg-sky-400/20" />
                   <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
                   {(
@@ -4114,9 +4156,7 @@ export function NetworkTopologyView({
                 className="min-h-0 flex-1 overflow-auto cursor-grab select-none touch-none active:cursor-grabbing"
               >
                 <div
-                  className={`relative min-h-full min-w-full overflow-hidden bg-slate-950/75 ${
-                    isCiFlowMode ? "detailed-topology-flow-neon" : ""
-                  }`}
+                  className="relative min-h-full min-w-full overflow-hidden bg-slate-950/75"
                   style={{
                     width: `max(${detailedCanvasWidth}px, 100%)`,
                     height: `max(${detailedCanvasHeight}px, 100%)`
@@ -4124,17 +4164,17 @@ export function NetworkTopologyView({
                 >
                   <svg
                     ref={detailedSvgRef}
-                    width={detailedTree?.width ?? activeDetailedWidth}
-                    height={detailedTree?.height ?? activeDetailedHeight}
-                    viewBox={`0 0 ${detailedTree?.width ?? activeDetailedWidth} ${detailedTree?.height ?? activeDetailedHeight}`}
-                    className={`absolute left-0 top-0 ${isCiFlowMode ? "pointer-events-none opacity-0" : "opacity-100"}`}
+                    width={detailedViewWidth}
+                    height={detailedViewHeight}
+                    viewBox={`0 0 ${detailedViewWidth} ${detailedViewHeight}`}
+                    className="absolute left-0 top-0"
                     style={{ transform: `scale(${detailedZoom})`, transformOrigin: "top left" }}
                   >
                     <rect
                       x={0}
                       y={0}
-                      width={detailedTree?.width ?? activeDetailedWidth}
-                      height={detailedTree?.height ?? activeDetailedHeight}
+                      width={detailedViewWidth}
+                      height={detailedViewHeight}
                       fill="#020617"
                     />
 
@@ -4240,8 +4280,22 @@ export function NetworkTopologyView({
                                     openCiFlowFocusForNode(node);
                                   }}
                                 >
-                                  <circle cx={node.x + 13} cy={node.y + 13} r={11} fill="#020617" stroke="#0ea5e9" strokeWidth={1.5} />
-                                  <text x={node.x + 13} y={node.y + 16.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#e0f2fe">
+                                  <circle
+                                    cx={node.x + tileWidth - 13}
+                                    cy={node.y + 13}
+                                    r={11}
+                                    fill="#020617"
+                                    stroke="#0ea5e9"
+                                    strokeWidth={1.5}
+                                  />
+                                  <text
+                                    x={node.x + tileWidth - 13}
+                                    y={node.y + 16.5}
+                                    textAnchor="middle"
+                                    fontSize={10}
+                                    fontWeight={700}
+                                    fill="#e0f2fe"
+                                  >
                                     F
                                   </text>
                                 </g>
@@ -4352,13 +4406,237 @@ export function NetworkTopologyView({
                       })}
                     </g>
                   </svg>
-                  {isCiFlowMode && ciFlowGraph ? (
+                </div>
+              </div>
+              </div>
+            </aside>
+          ) : null}
+
+          {isCiFlowFocusPanelOpen && ciFlowGraph ? (
+            <aside className="absolute inset-0 z-[60] bg-slate-950">
+              <div className="flex h-full flex-col">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-400/20 px-4 py-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">
+                      Detailed Toplogy View - CI Flow Focus
+                    </p>
+                    <h3 className="text-base font-semibold text-sky-100">
+                      {ciFlowRootTile?.name ?? "Topology Root"}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={exportDetailedTopologyAsPng}
+                      className="rounded-md border border-emerald-300/45 bg-emerald-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100 hover:bg-emerald-500/25"
+                    >
+                      Export PNG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeCiFlowFocus}
+                      className="rounded-md border border-red-300/45 bg-red-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25"
+                    >
+                      Close Focus
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 border-b border-sky-400/15 px-4 py-3 text-xs">
+                  <label className="text-slate-300/85" htmlFor="ci-flow-topology-compliance-mode">
+                    Compliance
+                  </label>
+                  <select
+                    id="ci-flow-topology-compliance-mode"
+                    value={complianceMode}
+                    onChange={(event) => setComplianceMode(event.target.value as ComplianceMode)}
+                    className="rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100"
+                  >
+                    <option value="cyber">Cyber Security Compliance</option>
+                    <option value="discovery">Discovery Compliance</option>
+                  </select>
+                  <label className="ml-2 text-slate-300/85" htmlFor="ci-flow-topology-tile-filter-search">
+                    Tile Search
+                  </label>
+                  <div className="relative w-[440px] max-w-full">
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={detailedTileSearchInputRef}
+                        id="ci-flow-topology-tile-filter-search"
+                        type="search"
+                        value={detailedTileFilterSearchText}
+                        onChange={(event) => setDetailedTileFilterSearchText(event.target.value)}
+                        onFocus={() => setIsDetailedTileSearchFocused(true)}
+                        onBlur={() => {
+                          detailedTileSearchBlurTimerRef.current = window.setTimeout(() => {
+                            setIsDetailedTileSearchFocused(false);
+                            setDetailedTileFilterSearchText((currentText) => currentText.trim());
+                            detailedTileSearchBlurTimerRef.current = null;
+                          }, 120);
+                        }}
+                        placeholder="Search tile type or name"
+                        className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100 placeholder:text-slate-400/90"
+                      />
+                      {detailedSelectedTileFilterId !== "__all__" ? (
+                        <button
+                          type="button"
+                          onClick={clearDetailedTileSearchSelection}
+                          className="rounded-md border border-slate-500/45 bg-slate-900/70 px-2.5 py-1.5 font-semibold text-slate-200"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    {hasDetailedTileSearchTerm && isDetailedTileSearchFocused ? (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
+                        {filteredDetailedTileDropdownOptions.length ? (
+                          <ul className="space-y-1">
+                            {filteredDetailedTileDropdownOptions.map((node) => (
+                              <li key={`ci-flow-tile-search-result-${node.id}`}>
+                                <button
+                                  type="button"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    if (detailedTileSearchBlurTimerRef.current !== null) {
+                                      window.clearTimeout(detailedTileSearchBlurTimerRef.current);
+                                      detailedTileSearchBlurTimerRef.current = null;
+                                    }
+                                    selectDetailedTileFilter(node.id);
+                                    detailedTileSearchInputRef.current?.blur();
+                                  }}
+                                  className={`w-full rounded-md border px-2 py-1.5 text-left text-xs ${
+                                    detailedSelectedTileFilterId === node.id
+                                      ? "border-violet-300/75 bg-violet-500/15 text-violet-100"
+                                      : "border-sky-400/20 bg-slate-900/70 text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
+                                  }`}
+                                >
+                                  {detailedEntityTypeLabel(node.entityType)}: {node.name}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-300">
+                            No matching tiles
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                  <span className="mx-1 h-5 w-px bg-sky-400/20" />
+                  <button
+                    type="button"
+                    onClick={() => zoomDetailedBy(1.14)}
+                    className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
+                  >
+                    Zoom In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => zoomDetailedBy(0.88)}
+                    className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
+                  >
+                    Zoom Out
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-sky-200/70 bg-sky-500/18 px-2.5 py-1.5 font-semibold text-sky-100"
+                    aria-pressed="true"
+                  >
+                    Panning
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetDetailedTopologyView}
+                    className="rounded-md border border-slate-400/45 bg-slate-800/70 px-2.5 py-1.5 font-semibold text-slate-100"
+                  >
+                    Reset View
+                  </button>
+                  <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
+                    Zoom {detailedZoomPercent}%
+                  </span>
+
+                  <div className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                      Green compliant
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                      Red non-compliant
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+                      Grey other
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                      Flow dependency
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />
+                      Logical dependency
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400 bg-slate-200" />
+                      In-model CI
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm border border-red-400 bg-slate-200" />
+                      Out-of-model CI
+                    </span>
+                    <span className="mx-1 h-5 w-px bg-sky-400/20" />
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
+                    {(
+                      [
+                        "network",
+                        "mission-capability",
+                        "service",
+                        "ict-system",
+                        "environment",
+                        "ci",
+                        "not-modelled"
+                      ] as DetailedTileEntityType[]
+                    )
+                      .filter((entityType) => detailedPresentEntityTypes.has(entityType))
+                      .map((entityType) => (
+                        <span key={`ci-flow-entity-key-${entityType}`} className="inline-flex items-center gap-1">
+                          <span
+                            className="h-2.5 w-2.5 rounded-sm"
+                            style={{ backgroundColor: detailedTileColor(entityType) }}
+                          />
+                          {detailedEntityTypeLabel(entityType)}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+
+                <div
+                  ref={ciFlowScrollContainerRef}
+                  onPointerDown={beginDetailedCanvasPan}
+                  onPointerMove={moveDetailedCanvasPan}
+                  onPointerUp={endDetailedCanvasPan}
+                  onPointerCancel={endDetailedCanvasPan}
+                  className="min-h-0 flex-1 overflow-auto cursor-grab select-none touch-none active:cursor-grabbing"
+                >
+                  <div
+                    className="relative min-h-full min-w-full overflow-hidden bg-slate-950/75"
+                    style={{
+                      width: `max(${ciFlowCanvasWidth}px, 100%)`,
+                      height: `max(${ciFlowCanvasHeight}px, 100%)`
+                    }}
+                  >
                     <svg
-                      width={ciFlowGraph.width}
-                      height={ciFlowGraph.height}
-                      viewBox={`0 0 ${ciFlowGraph.width} ${ciFlowGraph.height}`}
-                      className="absolute left-0 top-0"
-                      style={{ transform: `scale(${detailedZoom})`, transformOrigin: "top left" }}
+                      width={ciFlowViewWidth}
+                      height={ciFlowViewHeight}
+                      viewBox={`0 0 ${ciFlowViewWidth} ${ciFlowViewHeight}`}
+                      className="absolute"
+                      style={{
+                        left: `${CI_FLOW_VIEWPORT_PADDING}px`,
+                        top: `${CI_FLOW_VIEWPORT_PADDING}px`,
+                        transform: `scale(${detailedZoom})`,
+                        transformOrigin: "top left"
+                      }}
                     >
                       <defs>
                         <marker
@@ -4395,7 +4673,7 @@ export function NetworkTopologyView({
                           <path d="M0,0 L0,7 L8.2,3.5 z" fill="#fb7185" />
                         </marker>
                       </defs>
-                      <rect x={0} y={0} width={ciFlowGraph.width} height={ciFlowGraph.height} fill="#020617" />
+                      <rect x={0} y={0} width={ciFlowViewWidth} height={ciFlowViewHeight} fill="#020617" />
 
                       <g>
                         {ciFlowGraph.edges.map((edge) => {
@@ -4427,7 +4705,7 @@ export function NetworkTopologyView({
                                 : "ci-flow-arrow-attachment";
                           return (
                             <path
-                              key={`ci-flow-edge-${edge.id}`}
+                              key={`ci-flow-overlay-edge-${edge.id}`}
                               d={ciFlowEdgePath(fromNode, toNode)}
                               fill="none"
                               stroke={strokeColor}
@@ -4450,15 +4728,18 @@ export function NetworkTopologyView({
                           const isRootNode = node.id === ciFlowRootNodeId;
                           const isSelected = selectedCiFlowNodeId === node.id;
                           const firstLineLabel = `Type: CI | Name: ${node.name}`;
+                          const flowHorizontalPadding = 20;
+                          const flowProgressHeight = 14;
+                          const flowScoreReserve = 235;
                           const firstLineMaxChars = Math.max(
-                            62,
-                            Math.floor((node.width - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH)
+                            70,
+                            Math.floor((node.width - 2 * flowHorizontalPadding) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH)
                           );
                           const ciProgressWidth = Math.max(
-                            140,
+                            240,
                             Math.min(
-                              DETAILED_CI_PROGRESS_WIDTH,
-                              node.width - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+                              440,
+                              node.width - 2 * flowHorizontalPadding - flowScoreReserve
                             )
                           );
                           const opacity = isRootNode ? 1 : Math.max(0, Math.min(1, ciFlowTweenProgress));
@@ -4481,7 +4762,7 @@ export function NetworkTopologyView({
                           if (node.entityType === "not-modelled") {
                             return (
                               <g
-                                key={`ci-flow-node-${node.id}`}
+                                key={`ci-flow-overlay-node-${node.id}`}
                                 onClick={() => {
                                   if (suppressDetailedNodeClickRef.current) {
                                     suppressDetailedNodeClickRef.current = false;
@@ -4504,9 +4785,9 @@ export function NetworkTopologyView({
                                 />
                                 <text
                                   x={renderX + node.width / 2}
-                                  y={renderY + 30}
+                                  y={renderY + 44}
                                   textAnchor="middle"
-                                  fontSize={15}
+                                  fontSize={20}
                                   fontWeight={700}
                                   fill="#7f1d1d"
                                 >
@@ -4514,13 +4795,13 @@ export function NetworkTopologyView({
                                 </text>
                                 <text
                                   x={renderX + node.width / 2}
-                                  y={renderY + 52}
+                                  y={renderY + 72}
                                   textAnchor="middle"
-                                  fontSize={11}
+                                  fontSize={14}
                                   fontWeight={600}
                                   fill="#7f1d1d"
                                 >
-                                  {truncateLabel(node.subtitle, 46)}
+                                  {truncateLabel(node.subtitle, 52)}
                                 </text>
                               </g>
                             );
@@ -4529,7 +4810,7 @@ export function NetworkTopologyView({
                           const borderColor = node.isInModelScope ? "#22c55e" : "#ef4444";
                           return (
                             <g
-                              key={`ci-flow-node-${node.id}`}
+                              key={`ci-flow-overlay-node-${node.id}`}
                               onClick={() => {
                                 if (suppressDetailedNodeClickRef.current) {
                                   suppressDetailedNodeClickRef.current = false;
@@ -4550,47 +4831,63 @@ export function NetworkTopologyView({
                                 stroke={borderColor}
                                 strokeWidth={isRootNode || isSelected ? 4 : 2.6}
                               />
-                              <text x={renderX + 14} y={renderY + 22} fontSize={11.5} fontWeight={700} fill="#0f172a">
+                              <text
+                                x={renderX + flowHorizontalPadding}
+                                y={renderY + 36}
+                                fontSize={16}
+                                fontWeight={700}
+                                fill="#0f172a"
+                              >
                                 {truncateLabel(firstLineLabel, firstLineMaxChars)}
                               </text>
-                              <text x={renderX + 14} y={renderY + 38} fontSize={10.5} fontWeight={600} fill="#334155">
+                              <text
+                                x={renderX + flowHorizontalPadding}
+                                y={renderY + 58}
+                                fontSize={13}
+                                fontWeight={600}
+                                fill="#334155"
+                              >
                                 {truncateLabel(node.modelLabel, firstLineMaxChars)}
                               </text>
                               <rect
-                                x={renderX + 14}
-                                y={renderY + node.height - 26}
+                                x={renderX + flowHorizontalPadding}
+                                y={renderY + node.height - 38}
                                 width={ciProgressWidth}
-                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                height={flowProgressHeight}
                                 rx={3}
                                 fill="#cbd5e1"
                               />
                               <rect
-                                x={renderX + 14}
-                                y={renderY + node.height - 26}
+                                x={renderX + flowHorizontalPadding}
+                                y={renderY + node.height - 38}
                                 width={(ciProgressWidth * percentages.compliant) / 100}
-                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                height={flowProgressHeight}
                                 rx={3}
                                 fill="#16a34a"
                               />
                               <rect
-                                x={renderX + 14 + (ciProgressWidth * percentages.compliant) / 100}
-                                y={renderY + node.height - 26}
+                                x={renderX + flowHorizontalPadding + (ciProgressWidth * percentages.compliant) / 100}
+                                y={renderY + node.height - 38}
                                 width={(ciProgressWidth * percentages.nonCompliant) / 100}
-                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                height={flowProgressHeight}
                                 fill="#ef4444"
                               />
                               <rect
-                                x={renderX + 14 + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}
-                                y={renderY + node.height - 26}
+                                x={
+                                  renderX +
+                                  flowHorizontalPadding +
+                                  (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100
+                                }
+                                y={renderY + node.height - 38}
                                 width={(ciProgressWidth * percentages.other) / 100}
-                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                height={flowProgressHeight}
                                 fill="#94a3b8"
                               />
                               <text
-                                x={renderX + node.width - 14}
-                                y={renderY + node.height - 16}
+                                x={renderX + node.width - flowHorizontalPadding}
+                                y={renderY + node.height - 18}
                                 textAnchor="end"
-                                fontSize={10.5}
+                                fontSize={13}
                                 fontWeight={700}
                                 fill="#0f172a"
                               >
@@ -4601,18 +4898,8 @@ export function NetworkTopologyView({
                         })}
                       </g>
                     </svg>
-                  ) : null}
-                  {isCiFlowMode ? (
-                    <button
-                      type="button"
-                      onClick={closeCiFlowFocus}
-                      className="absolute right-3 top-3 z-20 rounded-md border border-sky-300/70 bg-slate-950/92 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-100 transition hover:border-cyan-200 hover:text-cyan-100"
-                    >
-                      Close Focus
-                    </button>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
               </div>
             </aside>
           ) : null}

@@ -188,60 +188,13 @@ a {
   animation: cyber-cop-nav-pulse 2.47s ease-in-out infinite;
 }
 
-@keyframes topology-core-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 0 rgba(239, 68, 68, 0.24),
-      0 0 20px rgba(239, 68, 68, 0.34);
-  }
-
-  50% {
-    box-shadow:
-      0 0 0 7px rgba(239, 68, 68, 0.16),
-      0 0 34px rgba(239, 68, 68, 0.54);
-  }
-}
-
-.topology-core-tile {
-  animation: topology-core-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes detailed-topology-flow-neon-pulse {
-  0%,
-  100% {
-    box-shadow:
-      inset 0 0 0 2px rgba(56, 189, 248, 0.62),
-      0 0 20px rgba(14, 165, 233, 0.4),
-      0 0 44px rgba(56, 189, 248, 0.24);
-  }
-
-  50% {
-    box-shadow:
-      inset 0 0 0 2px rgba(125, 211, 252, 0.88),
-      0 0 28px rgba(14, 165, 233, 0.6),
-      0 0 58px rgba(56, 189, 248, 0.38);
-  }
-}
-
-.detailed-topology-flow-neon {
-  border: 2px solid rgba(56, 189, 248, 0.88);
-  box-shadow:
-    inset 0 0 0 2px rgba(56, 189, 248, 0.62),
-    0 0 20px rgba(14, 165, 233, 0.4),
-    0 0 44px rgba(56, 189, 248, 0.24);
-  animation: detailed-topology-flow-neon-pulse 1.45s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .security-accreditation-pulse,
   .menu-cyber-cop-neo-active,
   .menu-active-link,
   .menu-active-dot,
   .menu-cyber-cop,
-  .cyber-cop-pulse-border,
-  .topology-core-tile,
-  .detailed-topology-flow-neon {
+  .cyber-cop-pulse-border {
     animation: none;
   }
 }
