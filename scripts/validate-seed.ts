@@ -12,6 +12,7 @@ const VULNERABILITY_EXPLOITABILITY = new Set([
   "Exploitable",
   "Known Exploited"
 ]);
+const CI_DEPENDENCY_TYPES = new Set(["Logical Dependency", "Flow Dependency"]);
 
 async function readJson<T>(filePath: string): Promise<T> {
   return JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
@@ -40,6 +41,7 @@ async function main() {
   assert(current.ictSystems.length >= 50 && current.ictSystems.length <= 55, "ICT systems must be 50-55.");
   assert(current.assets.length === 22000, "Assets must equal 22000.");
   assert(snapshotFiles.length === 8, "Must include 8 snapshots.");
+  assert(Array.isArray(current.ciDependencies ?? []), "ciDependencies must be an array when present.");
   const snapshotAnchor = new Date(`${current.snapshotDate}T23:59:59.999Z`);
 
   for (const network of current.managedNetworks) {
@@ -246,6 +248,20 @@ async function main() {
   );
   for (const system of unmodelledSystems) {
     assert(!assetSystemIds.has(system.id), `Unmodelled system ${system.id} must have no linked assets.`);
+  }
+
+  const assetIds = new Set(current.assets.map((asset) => asset.id));
+  for (const dependency of current.ciDependencies ?? []) {
+    assert(assetIds.has(dependency.sourceAssetId), `Dependency ${dependency.id} has unknown source asset.`);
+    assert(assetIds.has(dependency.targetAssetId), `Dependency ${dependency.id} has unknown target asset.`);
+    assert(
+      CI_DEPENDENCY_TYPES.has(dependency.dependencyType),
+      `Dependency ${dependency.id} has unsupported dependency type.`
+    );
+    assert(
+      dependency.sourceAssetId !== dependency.targetAssetId,
+      `Dependency ${dependency.id} cannot self-reference the same asset.`
+    );
   }
 
   console.log("Seed validation passed.");

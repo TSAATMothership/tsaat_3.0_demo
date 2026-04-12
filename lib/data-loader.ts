@@ -149,6 +149,18 @@ type AssetVulnerabilityRow = {
   source: string;
 };
 
+type CiDependencyRow = {
+  id: string;
+  sourceAssetId: string;
+  targetAssetId: string;
+  dependencyType: "Logical Dependency" | "Flow Dependency";
+  protocol: string | null;
+  sourcePort: number | null;
+  targetPort: number | null;
+  observationMethod: string | null;
+  observedAt: string | null;
+};
+
 type FindingRow = {
   id: string;
   spiId: number;
@@ -184,6 +196,7 @@ type SnapshotPayload = {
   assetPatchStates: AssetPatchStateRow[];
   assetInstalledSoftware: AssetInstalledSoftwareRow[];
   assetVulnerabilities: AssetVulnerabilityRow[];
+  ciDependencies: CiDependencyRow[];
   findings: FindingRow[];
 };
 
@@ -519,6 +532,22 @@ SELECT
   )) AS [assetVulnerabilities],
   JSON_QUERY((
     SELECT
+      d.[dependency_id] AS [id],
+      d.[source_asset_id] AS [sourceAssetId],
+      d.[target_asset_id] AS [targetAssetId],
+      d.[dependency_type] AS [dependencyType],
+      d.[flow_protocol] AS [protocol],
+      d.[source_port] AS [sourcePort],
+      d.[target_port] AS [targetPort],
+      d.[observation_method] AS [observationMethod],
+      CONVERT(NVARCHAR(40), d.[observed_at], 127) AS [observedAt]
+    FROM [${DATA_SCHEMA}].[ci_dependency] d
+    WHERE d.[snapshot_id] = @snapshotId
+    ORDER BY d.[dependency_id]
+    FOR JSON PATH
+  )) AS [ciDependencies],
+  JSON_QUERY((
+    SELECT
       f.[finding_id] AS [id],
       f.[spi_id] AS [spiId],
       f.[priority_rank] AS [priorityRank],
@@ -559,6 +588,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     assetPatchStates: Array.isArray(raw.assetPatchStates) ? raw.assetPatchStates : [],
     assetInstalledSoftware: Array.isArray(raw.assetInstalledSoftware) ? raw.assetInstalledSoftware : [],
     assetVulnerabilities: Array.isArray(raw.assetVulnerabilities) ? raw.assetVulnerabilities : [],
+    ciDependencies: Array.isArray(raw.ciDependencies) ? raw.ciDependencies : [],
     findings: Array.isArray(raw.findings) ? raw.findings : []
   };
 }
@@ -813,12 +843,25 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       recommendedAction: row.recommendedAction
     }));
 
+  const ciDependencies = payload.ciDependencies.map((row) => ({
+    id: row.id,
+    sourceAssetId: row.sourceAssetId,
+    targetAssetId: row.targetAssetId,
+    dependencyType: row.dependencyType,
+    ...(row.protocol ? { protocol: row.protocol } : {}),
+    ...(typeof row.sourcePort === "number" ? { sourcePort: row.sourcePort } : {}),
+    ...(typeof row.targetPort === "number" ? { targetPort: row.targetPort } : {}),
+    ...(row.observationMethod ? { observationMethod: row.observationMethod } : {}),
+    ...(row.observedAt ? { observedAt: coerceIsoTimestamp(row.observedAt) } : {})
+  }));
+
   return {
     generatedAt: coerceIsoTimestamp(snapshot.generatedAt),
     snapshotDate: coerceDateKey(snapshot.snapshotDate),
     managedNetworks,
     ictSystems,
     assets,
+    ciDependencies,
     findings
   };
 }

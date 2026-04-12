@@ -756,6 +756,331 @@ BEGIN
   ) AS a
   CROSS APPLY OPENJSON(a.[vulnerabilities]) AS vuln;
 
+  ;WITH dependency_source AS (
+    SELECT
+      COALESCE(
+        NULLIF(dep.[id], N''),
+        CONCAT(
+          N'dep-',
+          @SnapshotId,
+          N'-',
+          RIGHT(
+            N'000000' + CONVERT(
+              NVARCHAR(6),
+              ROW_NUMBER() OVER (ORDER BY dep.[source_asset_id], dep.[target_asset_id], dep.[dependency_type])
+            ),
+            6
+          )
+        )
+      ) AS [dependency_id],
+      dep.[source_asset_id] AS [source_asset_id],
+      dep.[target_asset_id] AS [target_asset_id],
+      dep.[dependency_type] AS [dependency_type],
+      NULLIF(dep.[flow_protocol], N'') AS [flow_protocol],
+      dep.[source_port] AS [source_port],
+      dep.[target_port] AS [target_port],
+      NULLIF(dep.[observation_method], N'') AS [observation_method],
+      TRY_CONVERT(DATETIMEOFFSET(7), dep.[observed_at]) AS [observed_at]
+    FROM OPENJSON(@Json, '$.ciDependencies') WITH (
+      [id] NVARCHAR(255) '$.id',
+      [source_asset_id] NVARCHAR(255) '$.sourceAssetId',
+      [target_asset_id] NVARCHAR(255) '$.targetAssetId',
+      [dependency_type] NVARCHAR(30) '$.dependencyType',
+      [flow_protocol] NVARCHAR(20) '$.protocol',
+      [source_port] INT '$.sourcePort',
+      [target_port] INT '$.targetPort',
+      [observation_method] NVARCHAR(255) '$.observationMethod',
+      [observed_at] NVARCHAR(40) '$.observedAt'
+    ) AS dep
+  )
+  INSERT INTO [tsaat].[ci_dependency] (
+    [snapshot_id],
+    [dependency_id],
+    [source_asset_id],
+    [target_asset_id],
+    [dependency_type],
+    [flow_protocol],
+    [source_port],
+    [target_port],
+    [observation_method],
+    [observed_at]
+  )
+  SELECT
+    @SnapshotId,
+    ds.[dependency_id],
+    ds.[source_asset_id],
+    ds.[target_asset_id],
+    ds.[dependency_type],
+    ds.[flow_protocol],
+    ds.[source_port],
+    ds.[target_port],
+    ds.[observation_method],
+    ds.[observed_at]
+  FROM dependency_source AS ds
+  WHERE ds.[source_asset_id] IS NOT NULL
+    AND ds.[target_asset_id] IS NOT NULL
+    AND ds.[source_asset_id] <> ds.[target_asset_id]
+    AND ds.[dependency_type] IN (N'Logical Dependency', N'Flow Dependency')
+    AND EXISTS (
+      SELECT 1
+      FROM [tsaat].[asset] AS src
+      WHERE src.[snapshot_id] = @SnapshotId
+        AND src.[asset_id] = ds.[source_asset_id]
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM [tsaat].[asset] AS tgt
+      WHERE tgt.[snapshot_id] = @SnapshotId
+        AND tgt.[asset_id] = ds.[target_asset_id]
+    );
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM [tsaat].[ci_dependency] AS d
+    WHERE d.[snapshot_id] = @SnapshotId
+  )
+  BEGIN
+    ;WITH environment_assets AS (
+      SELECT
+        sea.[system_id],
+        sea.[environment_id],
+        sea.[environment_type],
+        sea.[asset_id],
+        ROW_NUMBER() OVER (
+          PARTITION BY sea.[system_id], sea.[environment_id]
+          ORDER BY sea.[asset_id]
+        ) AS [rn]
+      FROM [tsaat].[system_environment_asset] AS sea
+      WHERE sea.[snapshot_id] = @SnapshotId
+    ),
+    logical_edges AS (
+      SELECT
+        CONCAT(
+          N'auto-logical-env-',
+          left_env.[system_id],
+          N'-',
+          left_env.[environment_id],
+          N'-',
+          left_env.[rn]
+        ) AS [dependency_id],
+        left_env.[asset_id] AS [source_asset_id],
+        right_env.[asset_id] AS [target_asset_id],
+        N'Logical Dependency' AS [dependency_type],
+        CAST(NULL AS NVARCHAR(20)) AS [flow_protocol],
+        CAST(NULL AS INT) AS [source_port],
+        CAST(NULL AS INT) AS [target_port],
+        CAST(N'Synthetic load generation' AS NVARCHAR(255)) AS [observation_method]
+      FROM environment_assets AS left_env
+      INNER JOIN environment_assets AS right_env
+        ON right_env.[system_id] = left_env.[system_id]
+       AND right_env.[environment_id] = left_env.[environment_id]
+       AND right_env.[rn] = left_env.[rn] + 1
+      WHERE left_env.[rn] <= 4
+    ),
+    app_assets AS (
+      SELECT
+        sea.[system_id],
+        sea.[environment_id],
+        sea.[asset_id],
+        ROW_NUMBER() OVER (
+          PARTITION BY sea.[system_id], sea.[environment_id]
+          ORDER BY sea.[asset_id]
+        ) AS [rn]
+      FROM [tsaat].[system_environment_asset] AS sea
+      INNER JOIN [tsaat].[asset] AS a
+        ON a.[snapshot_id] = sea.[snapshot_id]
+       AND a.[asset_id] = sea.[asset_id]
+      WHERE sea.[snapshot_id] = @SnapshotId
+        AND a.[asset_type] IN (N'server', N'workstation')
+    ),
+    network_device_assets AS (
+      SELECT
+        sea.[system_id],
+        sea.[environment_id],
+        sea.[asset_id],
+        ROW_NUMBER() OVER (
+          PARTITION BY sea.[system_id], sea.[environment_id]
+          ORDER BY sea.[asset_id]
+        ) AS [rn]
+      FROM [tsaat].[system_environment_asset] AS sea
+      INNER JOIN [tsaat].[asset] AS a
+        ON a.[snapshot_id] = sea.[snapshot_id]
+       AND a.[asset_id] = sea.[asset_id]
+      WHERE sea.[snapshot_id] = @SnapshotId
+        AND a.[asset_type] = N'network-device'
+    ),
+    flow_edges_environment AS (
+      SELECT
+        CONCAT(
+          N'auto-flow-env-',
+          app.[system_id],
+          N'-',
+          app.[environment_id]
+        ) AS [dependency_id],
+        app.[asset_id] AS [source_asset_id],
+        dev.[asset_id] AS [target_asset_id],
+        N'Flow Dependency' AS [dependency_type],
+        CAST(N'TCP' AS NVARCHAR(20)) AS [flow_protocol],
+        CAST(54000 AS INT) AS [source_port],
+        CAST(443 AS INT) AS [target_port],
+        CAST(N'Synthetic load generation' AS NVARCHAR(255)) AS [observation_method]
+      FROM app_assets AS app
+      INNER JOIN network_device_assets AS dev
+        ON dev.[system_id] = app.[system_id]
+       AND dev.[environment_id] = app.[environment_id]
+      WHERE app.[rn] = 1
+        AND dev.[rn] = 1
+    ),
+    network_system_assets AS (
+      SELECT
+        a.[network_id],
+        a.[system_id],
+        MIN(a.[asset_id]) AS [first_asset_id]
+      FROM [tsaat].[asset] AS a
+      INNER JOIN [tsaat].[ict_system] AS s
+        ON s.[snapshot_id] = a.[snapshot_id]
+       AND s.[system_id] = a.[system_id]
+      WHERE a.[snapshot_id] = @SnapshotId
+        AND a.[system_id] IS NOT NULL
+        AND s.[modelling_status] = 1
+      GROUP BY a.[network_id], a.[system_id]
+    ),
+    network_ordered AS (
+      SELECT
+        nsa.[network_id],
+        nsa.[system_id],
+        nsa.[first_asset_id],
+        ROW_NUMBER() OVER (
+          PARTITION BY nsa.[network_id]
+          ORDER BY nsa.[system_id]
+        ) AS [rn]
+      FROM network_system_assets AS nsa
+    ),
+    flow_edges_network AS (
+      SELECT
+        CONCAT(
+          N'auto-flow-net-',
+          current_net.[network_id],
+          N'-',
+          current_net.[rn]
+        ) AS [dependency_id],
+        current_net.[first_asset_id] AS [source_asset_id],
+        next_net.[first_asset_id] AS [target_asset_id],
+        N'Flow Dependency' AS [dependency_type],
+        CAST(N'TCP' AS NVARCHAR(20)) AS [flow_protocol],
+        CAST(55000 AS INT) AS [source_port],
+        CAST(8443 AS INT) AS [target_port],
+        CAST(N'Synthetic load generation' AS NVARCHAR(255)) AS [observation_method]
+      FROM network_ordered AS current_net
+      INNER JOIN network_ordered AS next_net
+        ON next_net.[network_id] = current_net.[network_id]
+       AND next_net.[rn] = current_net.[rn] + 1
+    ),
+    modelled_assets AS (
+      SELECT
+        a.[asset_id],
+        ROW_NUMBER() OVER (ORDER BY a.[asset_id]) AS [rn]
+      FROM [tsaat].[asset] AS a
+      INNER JOIN [tsaat].[ict_system] AS s
+        ON s.[snapshot_id] = a.[snapshot_id]
+       AND s.[system_id] = a.[system_id]
+      WHERE a.[snapshot_id] = @SnapshotId
+        AND s.[modelling_status] = 1
+    ),
+    unmodelled_assets AS (
+      SELECT
+        a.[asset_id],
+        ROW_NUMBER() OVER (ORDER BY a.[asset_id]) AS [rn]
+      FROM [tsaat].[asset] AS a
+      LEFT JOIN [tsaat].[ict_system] AS s
+        ON s.[snapshot_id] = a.[snapshot_id]
+       AND s.[system_id] = a.[system_id]
+      WHERE a.[snapshot_id] = @SnapshotId
+        AND (a.[system_id] IS NULL OR s.[modelling_status] = 0 OR s.[system_id] IS NULL)
+    ),
+    logical_edges_unmodelled AS (
+      SELECT
+        CONCAT(N'auto-logical-unmodelled-', unm.[rn]) AS [dependency_id],
+        mdl.[asset_id] AS [source_asset_id],
+        unm.[asset_id] AS [target_asset_id],
+        N'Logical Dependency' AS [dependency_type],
+        CAST(NULL AS NVARCHAR(20)) AS [flow_protocol],
+        CAST(NULL AS INT) AS [source_port],
+        CAST(NULL AS INT) AS [target_port],
+        CAST(N'Synthetic load generation' AS NVARCHAR(255)) AS [observation_method]
+      FROM modelled_assets AS mdl
+      INNER JOIN unmodelled_assets AS unm
+        ON unm.[rn] = mdl.[rn]
+      WHERE unm.[rn] <= 140
+    ),
+    all_edges AS (
+      SELECT * FROM logical_edges
+      UNION ALL
+      SELECT * FROM flow_edges_environment
+      UNION ALL
+      SELECT * FROM flow_edges_network
+      UNION ALL
+      SELECT * FROM logical_edges_unmodelled
+    ),
+    deduped AS (
+      SELECT
+        ae.[dependency_id],
+        ae.[source_asset_id],
+        ae.[target_asset_id],
+        ae.[dependency_type],
+        ae.[flow_protocol],
+        ae.[source_port],
+        ae.[target_port],
+        ae.[observation_method],
+        ROW_NUMBER() OVER (
+          PARTITION BY ae.[source_asset_id], ae.[target_asset_id], ae.[dependency_type]
+          ORDER BY ae.[dependency_id]
+        ) AS [dedupe_rank]
+      FROM all_edges AS ae
+      WHERE ae.[source_asset_id] <> ae.[target_asset_id]
+    )
+    INSERT INTO [tsaat].[ci_dependency] (
+      [snapshot_id],
+      [dependency_id],
+      [source_asset_id],
+      [target_asset_id],
+      [dependency_type],
+      [flow_protocol],
+      [source_port],
+      [target_port],
+      [observation_method],
+      [observed_at]
+    )
+    SELECT
+      @SnapshotId,
+      deduped.[dependency_id],
+      deduped.[source_asset_id],
+      deduped.[target_asset_id],
+      deduped.[dependency_type],
+      deduped.[flow_protocol],
+      deduped.[source_port],
+      deduped.[target_port],
+      deduped.[observation_method],
+      COALESCE(
+        TRY_CONVERT(DATETIMEOFFSET(7), JSON_VALUE(@Json, '$.generatedAt')),
+        SYSDATETIMEOFFSET()
+      )
+    FROM deduped
+    WHERE deduped.[dedupe_rank] = 1
+      AND EXISTS (
+        SELECT 1
+        FROM [tsaat].[asset] AS src
+        WHERE src.[snapshot_id] = @SnapshotId
+          AND src.[asset_id] = deduped.[source_asset_id]
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM [tsaat].[asset] AS tgt
+        WHERE tgt.[snapshot_id] = @SnapshotId
+          AND tgt.[asset_id] = deduped.[target_asset_id]
+      );
+  END;
+
   INSERT INTO [tsaat].[finding] (
     [snapshot_id],
     [finding_id],

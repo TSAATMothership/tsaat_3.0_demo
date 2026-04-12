@@ -3,6 +3,7 @@ import path from "path";
 import {
   Asset,
   BusinessService,
+  CiDependency,
   Criticality,
   Dataset,
   EnvironmentType,
@@ -1059,6 +1060,138 @@ function injectIssues(random: Random, assets: Asset[], versions: ReferenceVersio
   });
 }
 
+function randomObservedAt(random: Random, maxDaysAgo: number): string {
+  const observedDate = randomDateWithinDays(random, maxDaysAgo);
+  return randomTimestampForDate(random, observedDate);
+}
+
+function buildCiDependencies(random: Random, systems: ICTSystem[], assets: Asset[]): CiDependency[] {
+  const dependencies: CiDependency[] = [];
+  const seen = new Set<string>();
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const systemById = new Map(systems.map((system) => [system.id, system]));
+  let counter = 1;
+
+  const addDependency = (
+    sourceAssetId: string | undefined,
+    targetAssetId: string | undefined,
+    dependencyType: CiDependency["dependencyType"]
+  ) => {
+    if (!sourceAssetId || !targetAssetId || sourceAssetId === targetAssetId) {
+      return;
+    }
+    if (!assetById.has(sourceAssetId) || !assetById.has(targetAssetId)) {
+      return;
+    }
+    const dedupeKey = `${sourceAssetId}->${targetAssetId}:${dependencyType}`;
+    if (seen.has(dedupeKey)) {
+      return;
+    }
+    seen.add(dedupeKey);
+
+    const base: CiDependency = {
+      id: `dep-${String(counter).padStart(6, "0")}`,
+      sourceAssetId,
+      targetAssetId,
+      dependencyType
+    };
+    counter += 1;
+
+    if (dependencyType === "Flow Dependency") {
+      dependencies.push({
+        ...base,
+        protocol: "TCP",
+        sourcePort: randomInt(random, 49152, 65535),
+        targetPort: pick(random, [22, 443, 8443, 1433, 1521, 5432]),
+        observationMethod: "Synthetic network telemetry",
+        observedAt: randomObservedAt(random, 60)
+      });
+      return;
+    }
+
+    dependencies.push({
+      ...base,
+      observationMethod: "Model relationship mapping",
+      observedAt: randomObservedAt(random, 120)
+    });
+  };
+
+  const modelledSystems = systems.filter((system) => system.modellingStatus);
+  const modelledAssetIds = assets
+    .filter((asset) => {
+      const ownerSystemId = asset.systemContext?.systemId;
+      if (!ownerSystemId) {
+        return false;
+      }
+      const ownerSystem = systemById.get(ownerSystemId);
+      return ownerSystem?.modellingStatus === true;
+    })
+    .map((asset) => asset.id);
+
+  const unmodelledAssetIds = assets
+    .filter((asset) => {
+      const ownerSystemId = asset.systemContext?.systemId;
+      if (!ownerSystemId) {
+        return true;
+      }
+      const ownerSystem = systemById.get(ownerSystemId);
+      return ownerSystem?.modellingStatus !== true;
+    })
+    .map((asset) => asset.id);
+
+  for (const system of modelledSystems) {
+    for (const environment of system.environments) {
+      const envAssets = environment.assetIds.filter((assetId) => assetById.has(assetId));
+      const envSlice = envAssets.slice(0, 10);
+
+      for (let index = 0; index < envSlice.length - 1 && index < 5; index += 1) {
+        addDependency(envSlice[index], envSlice[index + 1], "Logical Dependency");
+      }
+
+      const flowSource = envSlice.find((assetId) => {
+        const asset = assetById.get(assetId);
+        return asset?.type === "server" || asset?.type === "workstation";
+      });
+      const flowTarget = envSlice.find((assetId) => {
+        const asset = assetById.get(assetId);
+        return asset?.type === "network-device";
+      });
+      addDependency(flowSource, flowTarget, "Flow Dependency");
+    }
+  }
+
+  const modelledSystemsByNetwork = new Map<string, ICTSystem[]>();
+  for (const system of modelledSystems) {
+    const current = modelledSystemsByNetwork.get(system.networkId) ?? [];
+    current.push(system);
+    modelledSystemsByNetwork.set(system.networkId, current);
+  }
+
+  for (const systemsInNetwork of modelledSystemsByNetwork.values()) {
+    const ordered = [...systemsInNetwork].sort((left, right) => left.id.localeCompare(right.id));
+    const representativeAssetIds = ordered
+      .map((system) =>
+        assets
+          .filter((asset) => asset.systemContext?.systemId === system.id)
+          .sort((left, right) => left.id.localeCompare(right.id))[0]?.id
+      )
+      .filter((assetId): assetId is string => Boolean(assetId));
+
+    for (let index = 0; index < representativeAssetIds.length - 1; index += 1) {
+      addDependency(representativeAssetIds[index], representativeAssetIds[index + 1], "Flow Dependency");
+    }
+  }
+
+  const pairCount = Math.min(180, modelledAssetIds.length, unmodelledAssetIds.length);
+  const modelledSelection = pickMany(random, modelledAssetIds, pairCount);
+  const unmodelledSelection = pickMany(random, unmodelledAssetIds, pairCount);
+  for (let index = 0; index < pairCount; index += 1) {
+    addDependency(modelledSelection[index], unmodelledSelection[index], "Logical Dependency");
+  }
+
+  return dependencies;
+}
+
 function cloneDataset(dataset: Dataset): Dataset {
   return JSON.parse(JSON.stringify(dataset)) as Dataset;
 }
@@ -1219,13 +1352,15 @@ async function main() {
   injectIssues(random, assets, versions);
 
   const systems = [...modelledSystems, ...buildUnmodelledSystems(modelledSystems.length, UNMODELLED_SYSTEM_COUNT)];
+  const ciDependencies = buildCiDependencies(random, systems, assets);
 
   const currentDataset: Dataset = {
     generatedAt: new Date().toISOString(),
     snapshotDate: offsetWeeks(0),
     managedNetworks: networks,
     ictSystems: systems,
-    assets
+    assets,
+    ciDependencies
   };
 
   const snapshots: Dataset[] = [];

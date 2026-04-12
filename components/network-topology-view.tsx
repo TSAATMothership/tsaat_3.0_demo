@@ -29,6 +29,12 @@ const DETAILED_ROW_GAP = 42;
 const DETAILED_SECTION_GAP = 70;
 const DETAILED_CANVAS_PADDING_X = 130;
 const DETAILED_CANVAS_PADDING_Y = 120;
+const CI_FLOW_MAX_RELATED_NODES = 110;
+const CI_FLOW_BASE_RADIUS = 260;
+const CI_FLOW_RADIUS_STEP = 170;
+const CI_FLOW_NODE_HEIGHT = 96;
+const CI_FLOW_NOT_MODELLED_WIDTH = 240;
+const CI_FLOW_NOT_MODELLED_HEIGHT = 82;
 
 interface ScopedCiItem {
   id: string;
@@ -85,11 +91,12 @@ interface RuntimeNodeState {
   targetPosition: THREE.Vector3;
 }
 
-type DetailedTileEntityType = TopologyEntityType | "environment" | "ci";
+type DetailedTileEntityType = TopologyEntityType | "environment" | "ci" | "not-modelled";
 
 interface DetailedTreeNode {
   id: string;
   sourceNodeId?: string;
+  ciAssetId?: string;
   entityType: DetailedTileEntityType;
   name: string;
   subtitle: string;
@@ -121,6 +128,50 @@ interface DetailedTreeData {
   rootNodeId: string;
   nodes: DetailedTreeNode[];
   edges: DetailedTreeEdge[];
+  width: number;
+  height: number;
+}
+
+interface CiFlowNodeLayout {
+  id: string;
+  assetId?: string;
+  entityType: "ci" | "not-modelled";
+  name: string;
+  subtitle: string;
+  typeLabel: string;
+  modelLabel: string;
+  cyberCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  discoveryCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  isInModelScope: boolean;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
+interface CiFlowEdgeLayout {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  dependencyType: "Logical Dependency" | "Flow Dependency" | "Unmodelled Attachment";
+}
+
+interface CiFlowGraphData {
+  rootAssetId: string;
+  nodes: CiFlowNodeLayout[];
+  edges: CiFlowEdgeLayout[];
+  viewCenterX: number;
+  viewCenterY: number;
   width: number;
   height: number;
 }
@@ -213,6 +264,9 @@ function detailedEntityTypeLabel(entityType: DetailedTileEntityType): string {
   if (entityType === "ci") {
     return "Configuration Item";
   }
+  if (entityType === "not-modelled") {
+    return "Not Modelled";
+  }
   return entityTypeLabel(entityType);
 }
 
@@ -232,6 +286,9 @@ function detailedTileColor(entityType: DetailedTileEntityType): string {
   if (entityType === "environment") {
     return "#dbeafe";
   }
+  if (entityType === "not-modelled") {
+    return "#fda4af";
+  }
   return "#e2e8f0";
 }
 
@@ -250,6 +307,9 @@ function detailedTileStrokeColor(entityType: DetailedTileEntityType): string {
   }
   if (entityType === "environment") {
     return "#38bdf8";
+  }
+  if (entityType === "not-modelled") {
+    return "#ef4444";
   }
   return "#94a3b8";
 }
@@ -337,6 +397,26 @@ function ciAssetTypeSingularLabel(assetType: CiAssetType): string {
   return "Server";
 }
 
+function ciFlowNodeIdForAsset(assetId: string): string {
+  return `ci-flow:ci:${assetId}`;
+}
+
+function ciFlowNodeIdForNotModelled(): string {
+  return "ci-flow:not-modelled";
+}
+
+function ciFlowDependencyColor(
+  dependencyType: "Logical Dependency" | "Flow Dependency" | "Unmodelled Attachment"
+): string {
+  if (dependencyType === "Flow Dependency") {
+    return "#22c55e";
+  }
+  if (dependencyType === "Logical Dependency") {
+    return "#f97316";
+  }
+  return "#fb7185";
+}
+
 function normalizeCiEnvironmentLabel(environmentType: string | null | undefined): CiEnvironmentLabel {
   if (environmentType === "Production") {
     return "Production";
@@ -380,7 +460,10 @@ function truncateLabel(value: string, maxLength = 46): string {
   if (value.length <= maxLength) {
     return value;
   }
-  return `${value.slice(0, maxLength - 1)}…`;
+  if (maxLength <= 3) {
+    return value.slice(0, maxLength);
+  }
+  return `${value.slice(0, maxLength - 3)}...`;
 }
 
 function estimateDetailedCiTileWidth(firstLineLabel: string): number {
@@ -804,6 +887,11 @@ export function NetworkTopologyView({
   const [detailedTileFilterSearchText, setDetailedTileFilterSearchText] = useState("");
   const [isDetailedTileSearchFocused, setIsDetailedTileSearchFocused] = useState(false);
   const [detailedZoom, setDetailedZoom] = useState(1);
+  const [focusedCiFlowRootAssetId, setFocusedCiFlowRootAssetId] = useState<string | null>(null);
+  const [selectedCiFlowNodeId, setSelectedCiFlowNodeId] = useState<string | null>(null);
+  const [ciFlowTweenProgress, setCiFlowTweenProgress] = useState(0);
+  const [ciFlowViewportCenter, setCiFlowViewportCenter] = useState<{ x: number; y: number } | null>(null);
+  const [ciFlowOriginCenter, setCiFlowOriginCenter] = useState<{ x: number; y: number } | null>(null);
   const [rendererInitError, setRendererInitError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -839,6 +927,7 @@ export function NetworkTopologyView({
   } | null>(null);
   const suppressDetailedNodeClickRef = useRef(false);
   const detailedNodeClickSuppressTimerRef = useRef<number | null>(null);
+  const ciFlowTweenFrameRef = useRef<number | null>(null);
   const persistedCameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const persistedNodePositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
   const manualNodePositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
@@ -894,6 +983,13 @@ export function NetworkTopologyView({
     }
     return items;
   }, [data.cmdbTopologies]);
+  const scopedCiItemByAssetId = useMemo(() => {
+    return new Map(allScopedCiItems.map((item) => [item.id, item]));
+  }, [allScopedCiItems]);
+  const flowCiNodeByAssetId = useMemo(() => {
+    return new Map(data.ciNodes.map((node) => [node.id, node]));
+  }, [data.ciNodes]);
+  const modelAssetIdSet = useMemo(() => new Set(data.modelAssetIds), [data.modelAssetIds]);
   const ciItemsBySystemId = useMemo(() => {
     const map = new Map<string, ScopedCiItem[]>();
     for (const item of allScopedCiItems) {
@@ -1157,6 +1253,7 @@ export function NetworkTopologyView({
           maxCiTileWidth = Math.max(maxCiTileWidth, ciTileWidth);
           nodes.push({
             id: ciNodeId,
+            ciAssetId: item.id,
             entityType: "ci",
             name: item.hostname,
             subtitle: ciSubtitle,
@@ -1186,9 +1283,270 @@ export function NetworkTopologyView({
       height: bodyHeight + DETAILED_CANVAS_PADDING_Y * 2
     };
   }, [ciItemsByNodeId, complianceMode, detailedRootNode]);
+  const ciFlowGraph = useMemo<CiFlowGraphData | null>(() => {
+    if (!focusedCiFlowRootAssetId) {
+      return null;
+    }
+    const rootFlowNode = flowCiNodeByAssetId.get(focusedCiFlowRootAssetId);
+    if (!rootFlowNode) {
+      return null;
+    }
+
+    const undirectedAdjacency = new Map<string, Set<string>>();
+    const dependencies: Array<{
+      id: string;
+      sourceAssetId: string;
+      targetAssetId: string;
+      dependencyType: "Logical Dependency" | "Flow Dependency";
+    }> = [];
+    for (const dependency of data.ciDependencies) {
+      if (!flowCiNodeByAssetId.has(dependency.sourceAssetId) || !flowCiNodeByAssetId.has(dependency.targetAssetId)) {
+        continue;
+      }
+      if (dependency.sourceAssetId === dependency.targetAssetId) {
+        continue;
+      }
+      dependencies.push({
+        id: dependency.id,
+        sourceAssetId: dependency.sourceAssetId,
+        targetAssetId: dependency.targetAssetId,
+        dependencyType: dependency.dependencyType
+      });
+      const sourceAdjacency = undirectedAdjacency.get(dependency.sourceAssetId) ?? new Set<string>();
+      sourceAdjacency.add(dependency.targetAssetId);
+      undirectedAdjacency.set(dependency.sourceAssetId, sourceAdjacency);
+      const targetAdjacency = undirectedAdjacency.get(dependency.targetAssetId) ?? new Set<string>();
+      targetAdjacency.add(dependency.sourceAssetId);
+      undirectedAdjacency.set(dependency.targetAssetId, targetAdjacency);
+    }
+
+    const includedAssetIds = new Set<string>([focusedCiFlowRootAssetId]);
+    const traversalQueue = [focusedCiFlowRootAssetId];
+    while (traversalQueue.length && includedAssetIds.size < CI_FLOW_MAX_RELATED_NODES) {
+      const currentAssetId = traversalQueue.shift();
+      if (!currentAssetId) {
+        continue;
+      }
+      for (const relatedAssetId of undirectedAdjacency.get(currentAssetId) ?? []) {
+        if (includedAssetIds.has(relatedAssetId)) {
+          continue;
+        }
+        includedAssetIds.add(relatedAssetId);
+        traversalQueue.push(relatedAssetId);
+        if (includedAssetIds.size >= CI_FLOW_MAX_RELATED_NODES) {
+          break;
+        }
+      }
+    }
+
+    const includedDependencies = dependencies.filter(
+      (dependency) => includedAssetIds.has(dependency.sourceAssetId) && includedAssetIds.has(dependency.targetAssetId)
+    );
+    const depthByAssetId = new Map<string, number>([[focusedCiFlowRootAssetId, 0]]);
+    const depthQueue = [focusedCiFlowRootAssetId];
+    while (depthQueue.length) {
+      const currentAssetId = depthQueue.shift();
+      if (!currentAssetId) {
+        continue;
+      }
+      const currentDepth = depthByAssetId.get(currentAssetId) ?? 0;
+      for (const relatedAssetId of undirectedAdjacency.get(currentAssetId) ?? []) {
+        if (!includedAssetIds.has(relatedAssetId) || depthByAssetId.has(relatedAssetId)) {
+          continue;
+        }
+        depthByAssetId.set(relatedAssetId, currentDepth + 1);
+        depthQueue.push(relatedAssetId);
+      }
+    }
+    for (const assetId of includedAssetIds) {
+      if (!depthByAssetId.has(assetId)) {
+        depthByAssetId.set(assetId, 1);
+      }
+    }
+
+    const initialCenterX =
+      ciFlowViewportCenter?.x ??
+      (detailedTree ? detailedTree.width / 2 : DETAILED_CANVAS_PADDING_X + DETAILED_TILE_WIDTH);
+    const initialCenterY =
+      ciFlowViewportCenter?.y ??
+      (detailedTree ? detailedTree.height / 2 : DETAILED_CANVAS_PADDING_Y + DETAILED_TILE_HEIGHT);
+
+    const ciNodes: CiFlowNodeLayout[] = [];
+    const groupedByDepth = new Map<number, string[]>();
+    for (const assetId of includedAssetIds) {
+      if (assetId === focusedCiFlowRootAssetId) {
+        continue;
+      }
+      const depth = Math.max(1, depthByAssetId.get(assetId) ?? 1);
+      const current = groupedByDepth.get(depth) ?? [];
+      current.push(assetId);
+      groupedByDepth.set(depth, current);
+    }
+
+    const rootScopedCi = scopedCiItemByAssetId.get(focusedCiFlowRootAssetId);
+    const rootFirstLine = `Type: CI | Name: ${rootFlowNode.hostname}`;
+    const rootWidth = estimateDetailedCiTileWidth(rootFirstLine);
+    ciNodes.push({
+      id: ciFlowNodeIdForAsset(focusedCiFlowRootAssetId),
+      assetId: focusedCiFlowRootAssetId,
+      entityType: "ci",
+      name: rootFlowNode.hostname,
+      subtitle: `${ciAssetTypeSingularLabel(rootFlowNode.type)} | ${normalizeCiEnvironmentLabel(rootFlowNode.environmentType)}`,
+      typeLabel: "Configuration Item",
+      modelLabel: "Model Scope: Focus CI",
+      cyberCompliance: rootScopedCi?.cyberCompliance ?? emptyComplianceSummary(),
+      discoveryCompliance: rootScopedCi?.discoveryCompliance ?? emptyComplianceSummary(),
+      isInModelScope: true,
+      width: rootWidth,
+      height: CI_FLOW_NODE_HEIGHT,
+      x: initialCenterX - rootWidth / 2,
+      y: initialCenterY - CI_FLOW_NODE_HEIGHT / 2
+    });
+
+    const depthLevels = Array.from(groupedByDepth.keys()).sort((left, right) => left - right);
+    for (const depthLevel of depthLevels) {
+      const groupedAssetIds = (groupedByDepth.get(depthLevel) ?? [])
+        .map((assetId) => flowCiNodeByAssetId.get(assetId))
+        .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
+        .sort((left, right) => left.hostname.localeCompare(right.hostname))
+        .map((asset) => asset.id);
+      const radius = CI_FLOW_BASE_RADIUS + (depthLevel - 1) * CI_FLOW_RADIUS_STEP;
+      for (let index = 0; index < groupedAssetIds.length; index += 1) {
+        const assetId = groupedAssetIds[index];
+        const flowNode = flowCiNodeByAssetId.get(assetId);
+        if (!flowNode) {
+          continue;
+        }
+        const scopedCi = scopedCiItemByAssetId.get(assetId);
+        const isInModelScope = modelAssetIdSet.has(assetId);
+        const hasExplicitModel = Boolean(flowNode.systemId && flowNode.systemName && flowNode.systemModelled);
+        const modelLabel = isInModelScope
+          ? "Model Scope: In Scope"
+          : hasExplicitModel
+            ? `Model: ${flowNode.systemName}`
+            : "Not Modelled";
+        const firstLine = `Type: CI | Name: ${flowNode.hostname}`;
+        const nodeWidth = estimateDetailedCiTileWidth(firstLine);
+        const angle = groupedAssetIds.length === 1 ? -Math.PI / 2 : (index / groupedAssetIds.length) * Math.PI * 2 - Math.PI / 2;
+        const centerX = initialCenterX + Math.cos(angle) * radius;
+        const centerY = initialCenterY + Math.sin(angle) * radius;
+        ciNodes.push({
+          id: ciFlowNodeIdForAsset(assetId),
+          assetId,
+          entityType: "ci",
+          name: flowNode.hostname,
+          subtitle: `${ciAssetTypeSingularLabel(flowNode.type)} | ${normalizeCiEnvironmentLabel(flowNode.environmentType)}`,
+          typeLabel: "Configuration Item",
+          modelLabel,
+          cyberCompliance: scopedCi?.cyberCompliance ?? emptyComplianceSummary(),
+          discoveryCompliance: scopedCi?.discoveryCompliance ?? emptyComplianceSummary(),
+          isInModelScope,
+          width: nodeWidth,
+          height: CI_FLOW_NODE_HEIGHT,
+          x: centerX - nodeWidth / 2,
+          y: centerY - CI_FLOW_NODE_HEIGHT / 2
+        });
+      }
+    }
+
+    const ciFlowEdges: CiFlowEdgeLayout[] = includedDependencies.map((dependency) => ({
+      id: `ci-flow-edge:${dependency.id}:${dependency.sourceAssetId}->${dependency.targetAssetId}`,
+      fromNodeId: ciFlowNodeIdForAsset(dependency.sourceAssetId),
+      toNodeId: ciFlowNodeIdForAsset(dependency.targetAssetId),
+      dependencyType: dependency.dependencyType
+    }));
+
+    const unmodelledNodes = ciNodes.filter(
+      (node) => node.entityType === "ci" && !node.isInModelScope && node.modelLabel === "Not Modelled"
+    );
+    if (unmodelledNodes.length) {
+      const aggregatedCyber = combineComplianceSummaries(unmodelledNodes.map((node) => node.cyberCompliance));
+      const aggregatedDiscovery = combineComplianceSummaries(unmodelledNodes.map((node) => node.discoveryCompliance));
+      const notModelledCenterY =
+        Math.max(
+          ...ciNodes.map((node) => node.y + node.height / 2),
+          initialCenterY + CI_FLOW_BASE_RADIUS + CI_FLOW_RADIUS_STEP * 0.4
+        ) + 160;
+      const notModelledNodeId = ciFlowNodeIdForNotModelled();
+      ciNodes.push({
+        id: notModelledNodeId,
+        entityType: "not-modelled",
+        name: "Not Modelled",
+        subtitle: `${unmodelledNodes.length} related CI${unmodelledNodes.length === 1 ? "" : "s"} with no model`,
+        typeLabel: "Grouping Tile",
+        modelLabel: "Not Modelled",
+        cyberCompliance: aggregatedCyber,
+        discoveryCompliance: aggregatedDiscovery,
+        isInModelScope: false,
+        width: CI_FLOW_NOT_MODELLED_WIDTH,
+        height: CI_FLOW_NOT_MODELLED_HEIGHT,
+        x: initialCenterX - CI_FLOW_NOT_MODELLED_WIDTH / 2,
+        y: notModelledCenterY - CI_FLOW_NOT_MODELLED_HEIGHT / 2
+      });
+      for (const node of unmodelledNodes) {
+        ciFlowEdges.push({
+          id: `ci-flow-edge:not-modelled:${node.id}`,
+          fromNodeId: notModelledNodeId,
+          toNodeId: node.id,
+          dependencyType: "Unmodelled Attachment"
+        });
+      }
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const node of ciNodes) {
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + node.width);
+      maxY = Math.max(maxY, node.y + node.height);
+    }
+
+    const offsetX = minX < DETAILED_CANVAS_PADDING_X ? DETAILED_CANVAS_PADDING_X - minX : 0;
+    const offsetY = minY < DETAILED_CANVAS_PADDING_Y ? DETAILED_CANVAS_PADDING_Y - minY : 0;
+    if (offsetX || offsetY) {
+      for (const node of ciNodes) {
+        node.x += offsetX;
+        node.y += offsetY;
+      }
+      minX += offsetX;
+      minY += offsetY;
+      maxX += offsetX;
+      maxY += offsetY;
+    }
+
+    const width = Math.max(detailedTree?.width ?? 0, Math.ceil(maxX + DETAILED_CANVAS_PADDING_X));
+    const height = Math.max(detailedTree?.height ?? 0, Math.ceil(maxY + DETAILED_CANVAS_PADDING_Y));
+
+    return {
+      rootAssetId: focusedCiFlowRootAssetId,
+      nodes: ciNodes,
+      edges: ciFlowEdges,
+      viewCenterX: initialCenterX + offsetX,
+      viewCenterY: initialCenterY + offsetY,
+      width,
+      height
+    };
+  }, [
+    ciFlowViewportCenter?.x,
+    ciFlowViewportCenter?.y,
+    data.ciDependencies,
+    detailedTree,
+    flowCiNodeByAssetId,
+    focusedCiFlowRootAssetId,
+    modelAssetIdSet,
+    scopedCiItemByAssetId
+  ]);
   const detailedNodeById = useMemo(() => {
     return new Map((detailedTree?.nodes ?? []).map((node) => [node.id, node]));
   }, [detailedTree?.nodes]);
+  const ciFlowNodeById = useMemo(() => {
+    return new Map((ciFlowGraph?.nodes ?? []).map((node) => [node.id, node]));
+  }, [ciFlowGraph?.nodes]);
+  const ciFlowRootNodeId = ciFlowGraph ? ciFlowNodeIdForAsset(ciFlowGraph.rootAssetId) : null;
+  const isCiFlowMode = Boolean(ciFlowGraph && focusedCiFlowRootAssetId);
   const detailedSelectedPathEdgeIds = useMemo(() => {
     if (!detailedTree || !detailedSelectedNodeId || detailedSelectedNodeId === detailedTree.rootNodeId) {
       return new Set<string>();
@@ -1249,27 +1607,108 @@ export function NetworkTopologyView({
   const detailedHighlightedEdgeIds = useMemo(() => {
     return new Set<string>([...detailedSelectedPathEdgeIds, ...detailedSelectedConnectedEdgeIds]);
   }, [detailedSelectedConnectedEdgeIds, detailedSelectedPathEdgeIds]);
-  const detailedTileDropdownOptions = useMemo(() => {
+  const ciFlowSelectedPathEdgeIds = useMemo(() => {
+    if (!ciFlowGraph || !ciFlowRootNodeId || !selectedCiFlowNodeId || selectedCiFlowNodeId === ciFlowRootNodeId) {
+      return new Set<string>();
+    }
+    const adjacency = new Map<string, Array<{ toNodeId: string; edgeId: string }>>();
+    for (const edge of ciFlowGraph.edges) {
+      const fromCurrent = adjacency.get(edge.fromNodeId) ?? [];
+      fromCurrent.push({ toNodeId: edge.toNodeId, edgeId: edge.id });
+      adjacency.set(edge.fromNodeId, fromCurrent);
+      const toCurrent = adjacency.get(edge.toNodeId) ?? [];
+      toCurrent.push({ toNodeId: edge.fromNodeId, edgeId: edge.id });
+      adjacency.set(edge.toNodeId, toCurrent);
+    }
+
+    const queue = [ciFlowRootNodeId];
+    const visited = new Set<string>([ciFlowRootNodeId]);
+    const previousByNodeId = new Map<string, { nodeId: string; edgeId: string }>();
+    while (queue.length) {
+      const currentNodeId = queue.shift();
+      if (!currentNodeId) {
+        continue;
+      }
+      if (currentNodeId === selectedCiFlowNodeId) {
+        break;
+      }
+      for (const next of adjacency.get(currentNodeId) ?? []) {
+        if (visited.has(next.toNodeId)) {
+          continue;
+        }
+        visited.add(next.toNodeId);
+        previousByNodeId.set(next.toNodeId, { nodeId: currentNodeId, edgeId: next.edgeId });
+        queue.push(next.toNodeId);
+      }
+    }
+
+    if (!visited.has(selectedCiFlowNodeId)) {
+      return new Set<string>();
+    }
+    const edgeIds = new Set<string>();
+    let cursor = selectedCiFlowNodeId;
+    while (cursor !== ciFlowRootNodeId) {
+      const previous = previousByNodeId.get(cursor);
+      if (!previous) {
+        break;
+      }
+      edgeIds.add(previous.edgeId);
+      cursor = previous.nodeId;
+    }
+    return edgeIds;
+  }, [ciFlowGraph, ciFlowRootNodeId, selectedCiFlowNodeId]);
+  const ciFlowSelectedConnectedEdgeIds = useMemo(() => {
+    if (!ciFlowGraph || !selectedCiFlowNodeId) {
+      return new Set<string>();
+    }
+    return new Set(
+      ciFlowGraph.edges
+        .filter((edge) => edge.fromNodeId === selectedCiFlowNodeId || edge.toNodeId === selectedCiFlowNodeId)
+        .map((edge) => edge.id)
+    );
+  }, [ciFlowGraph, selectedCiFlowNodeId]);
+  const ciFlowHighlightedEdgeIds = useMemo(() => {
+    return new Set<string>([...ciFlowSelectedPathEdgeIds, ...ciFlowSelectedConnectedEdgeIds]);
+  }, [ciFlowSelectedConnectedEdgeIds, ciFlowSelectedPathEdgeIds]);
+  const detailedTileDropdownOptions = useMemo<
+    Array<{ id: string; entityType: DetailedTileEntityType; name: string; subtitle: string; level: number }>
+  >(() => {
+    if (isCiFlowMode && ciFlowGraph) {
+      return [...ciFlowGraph.nodes]
+        .map((node) => ({
+          id: node.id,
+          entityType: node.entityType,
+          name: node.name,
+          subtitle: node.subtitle,
+          level: node.entityType === "not-modelled" ? 2 : node.id === ciFlowRootNodeId ? 0 : 1
+        }))
+        .sort((left, right) => {
+          const levelDelta = left.level - right.level;
+          if (levelDelta !== 0) {
+            return levelDelta;
+          }
+          return left.name.localeCompare(right.name);
+        });
+    }
     if (!detailedTree) {
       return [];
     }
-    const levelForNode = (node: DetailedTreeNode) => {
-      if (node.entityType === "environment") {
-        return 1;
-      }
-      if (node.entityType === "ci") {
-        return 2;
-      }
-      return 0;
-    };
-    return [...detailedTree.nodes].sort((left, right) => {
-      const levelDelta = levelForNode(left) - levelForNode(right);
-      if (levelDelta !== 0) {
-        return levelDelta;
-      }
-      return left.name.localeCompare(right.name);
-    });
-  }, [detailedTree]);
+    return [...detailedTree.nodes]
+      .map((node) => ({
+        id: node.id,
+        entityType: node.entityType,
+        name: node.name,
+        subtitle: node.subtitle,
+        level: node.entityType === "environment" ? 1 : node.entityType === "ci" ? 2 : 0
+      }))
+      .sort((left, right) => {
+        const levelDelta = left.level - right.level;
+        if (levelDelta !== 0) {
+          return levelDelta;
+        }
+        return left.name.localeCompare(right.name);
+      });
+  }, [ciFlowGraph, ciFlowRootNodeId, detailedTree, isCiFlowMode]);
   const filteredDetailedTileDropdownOptions = useMemo(() => {
     const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -1285,6 +1724,29 @@ export function NetworkTopologyView({
     });
   }, [detailedTileFilterSearchText, detailedTileDropdownOptions]);
   const detailedFilteredNodeIds = useMemo(() => {
+    if (isCiFlowMode && ciFlowGraph) {
+      if (detailedSelectedTileFilterId === "__all__") {
+        return new Set(ciFlowGraph.nodes.map((node) => node.id));
+      }
+      const visibleNodeIds = new Set<string>();
+      for (const edge of ciFlowGraph.edges) {
+        if (!ciFlowHighlightedEdgeIds.has(edge.id)) {
+          continue;
+        }
+        visibleNodeIds.add(edge.fromNodeId);
+        visibleNodeIds.add(edge.toNodeId);
+      }
+      if (ciFlowRootNodeId) {
+        visibleNodeIds.add(ciFlowRootNodeId);
+      }
+      if (selectedCiFlowNodeId) {
+        visibleNodeIds.add(selectedCiFlowNodeId);
+      }
+      if (!visibleNodeIds.size) {
+        visibleNodeIds.add(detailedSelectedTileFilterId);
+      }
+      return visibleNodeIds;
+    }
     if (!detailedTree) {
       return new Set<string>();
     }
@@ -1307,12 +1769,25 @@ export function NetworkTopologyView({
       visibleNodeIds.add(detailedSelectedTileFilterId);
     }
     return visibleNodeIds;
-  }, [detailedHighlightedEdgeIds, detailedSelectedNodeId, detailedSelectedTileFilterId, detailedTree]);
+  }, [
+    ciFlowGraph,
+    ciFlowHighlightedEdgeIds,
+    ciFlowRootNodeId,
+    detailedHighlightedEdgeIds,
+    detailedSelectedNodeId,
+    detailedSelectedTileFilterId,
+    detailedTree,
+    isCiFlowMode,
+    selectedCiFlowNodeId
+  ]);
   const isDetailedTileFilterActive = detailedSelectedTileFilterId !== "__all__";
   const hasDetailedTileSearchTerm = detailedTileFilterSearchText.trim().length > 0;
   const detailedPresentEntityTypes = useMemo(() => {
+    if (isCiFlowMode && ciFlowGraph) {
+      return new Set(ciFlowGraph.nodes.map((node) => node.entityType));
+    }
     return new Set((detailedTree?.nodes ?? []).map((node) => node.entityType));
-  }, [detailedTree?.nodes]);
+  }, [ciFlowGraph, detailedTree?.nodes, isCiFlowMode]);
   const selectedPathEdgeIds = useMemo(() => {
     if (!coreNode?.id || !selectedNodeId || selectedNodeId === coreNode.id) {
       return new Set<string>();
@@ -1474,6 +1949,11 @@ export function NetworkTopologyView({
       setDetailedTileFilterSearchText("");
       setIsDetailedTileSearchFocused(false);
       setDetailedZoom(1);
+      setFocusedCiFlowRootAssetId(null);
+      setSelectedCiFlowNodeId(null);
+      setCiFlowOriginCenter(null);
+      setCiFlowViewportCenter(null);
+      setCiFlowTweenProgress(0);
       setSelectedTileFilterId("__all__");
       setTileFilterSearchText("");
       setIsTileSearchFocused(false);
@@ -1497,6 +1977,10 @@ export function NetworkTopologyView({
       if (detailedNodeClickSuppressTimerRef.current !== null) {
         window.clearTimeout(detailedNodeClickSuppressTimerRef.current);
         detailedNodeClickSuppressTimerRef.current = null;
+      }
+      if (ciFlowTweenFrameRef.current !== null) {
+        window.cancelAnimationFrame(ciFlowTweenFrameRef.current);
+        ciFlowTweenFrameRef.current = null;
       }
       detailedPanStateRef.current = null;
       suppressDetailedNodeClickRef.current = false;
@@ -1523,6 +2007,11 @@ export function NetworkTopologyView({
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
     setDetailedZoom(1);
+    setFocusedCiFlowRootAssetId(null);
+    setSelectedCiFlowNodeId(null);
+    setCiFlowOriginCenter(null);
+    setCiFlowViewportCenter(null);
+    setCiFlowTweenProgress(0);
     if (coreNode?.id) {
       setSelectedNodeId(coreNode.id);
     }
@@ -1563,6 +2052,10 @@ export function NetworkTopologyView({
       if (detailedNodeClickSuppressTimerRef.current !== null) {
         window.clearTimeout(detailedNodeClickSuppressTimerRef.current);
       }
+      if (ciFlowTweenFrameRef.current !== null) {
+        window.cancelAnimationFrame(ciFlowTweenFrameRef.current);
+        ciFlowTweenFrameRef.current = null;
+      }
       detailedPanStateRef.current = null;
       suppressDetailedNodeClickRef.current = false;
     };
@@ -1591,14 +2084,28 @@ export function NetworkTopologyView({
   }, [layout.nodes, selectedTileFilterId]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || !detailedTree) {
+    if (!isDetailedTopologyOpen || !detailedTree || isCiFlowMode) {
       return;
     }
     setDetailedSelectedNodeId(detailedTree.rootNodeId);
-  }, [detailedTree, isDetailedTopologyOpen]);
+  }, [detailedTree, isCiFlowMode, isDetailedTopologyOpen]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || !detailedTree) {
+    if (!isDetailedTopologyOpen || !ciFlowRootNodeId || !isCiFlowMode) {
+      return;
+    }
+    setSelectedCiFlowNodeId(ciFlowRootNodeId);
+  }, [ciFlowRootNodeId, isCiFlowMode, isDetailedTopologyOpen]);
+
+  useEffect(() => {
+    if (isCiFlowMode) {
+      return;
+    }
+    setSelectedCiFlowNodeId(null);
+  }, [isCiFlowMode]);
+
+  useEffect(() => {
+    if (!isDetailedTopologyOpen || (!detailedTree && !ciFlowGraph)) {
       return;
     }
     const raf = window.requestAnimationFrame(() => {
@@ -1607,17 +2114,32 @@ export function NetworkTopologyView({
     return () => {
       window.cancelAnimationFrame(raf);
     };
-  }, [detailedRootNodeId, detailedTree, isDetailedTopologyOpen]);
+  }, [ciFlowGraph, detailedRootNodeId, detailedTree, isDetailedTopologyOpen]);
 
   useEffect(() => {
-    if (!detailedTree || detailedSelectedTileFilterId === "__all__") {
+    if (!isDetailedTopologyOpen || !isCiFlowMode || !ciFlowGraph) {
       return;
     }
-    const selectedExists = detailedTree.nodes.some((node) => node.id === detailedSelectedTileFilterId);
+    const container = detailedScrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+    const zoom = detailedZoom > 0 ? detailedZoom : 1;
+    const nextLeft = Math.max(0, ciFlowGraph.viewCenterX * zoom - container.clientWidth / 2);
+    const nextTop = Math.max(0, ciFlowGraph.viewCenterY * zoom - container.clientHeight / 2);
+    container.scrollLeft = nextLeft;
+    container.scrollTop = nextTop;
+  }, [ciFlowGraph, detailedZoom, isCiFlowMode, isDetailedTopologyOpen]);
+
+  useEffect(() => {
+    if (detailedSelectedTileFilterId === "__all__") {
+      return;
+    }
+    const selectedExists = detailedTileDropdownOptions.some((node) => node.id === detailedSelectedTileFilterId);
     if (!selectedExists) {
       setDetailedSelectedTileFilterId("__all__");
     }
-  }, [detailedSelectedTileFilterId, detailedTree]);
+  }, [detailedSelectedTileFilterId, detailedTileDropdownOptions]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1638,6 +2160,18 @@ export function NetworkTopologyView({
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (focusedCiFlowRootAssetId) {
+          if (ciFlowTweenFrameRef.current !== null) {
+            window.cancelAnimationFrame(ciFlowTweenFrameRef.current);
+            ciFlowTweenFrameRef.current = null;
+          }
+          setFocusedCiFlowRootAssetId(null);
+          setSelectedCiFlowNodeId(null);
+          setCiFlowOriginCenter(null);
+          setCiFlowViewportCenter(null);
+          setCiFlowTweenProgress(0);
+          return;
+        }
         if (isDetailedTopologyOpen) {
           setIsDetailedTopologyOpen(false);
           return;
@@ -1653,7 +2187,7 @@ export function NetworkTopologyView({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isDetailedTopologyOpen, isOpen, onClose, selectedSystemId]);
+  }, [focusedCiFlowRootAssetId, isDetailedTopologyOpen, isOpen, onClose, selectedSystemId]);
 
   useEffect(() => {
     if (!isOpen || !canvasRef.current || !viewportRef.current) {
@@ -2226,6 +2760,81 @@ export function NetworkTopologyView({
     setSearchQuery("");
   };
 
+  const stopCiFlowTween = () => {
+    if (ciFlowTweenFrameRef.current !== null) {
+      window.cancelAnimationFrame(ciFlowTweenFrameRef.current);
+      ciFlowTweenFrameRef.current = null;
+    }
+  };
+
+  const animateCiFlowTween = (
+    from: number,
+    to: number,
+    durationMs: number,
+    onComplete?: () => void
+  ) => {
+    stopCiFlowTween();
+    const start = performance.now();
+    const tick = (timestamp: number) => {
+      const elapsed = timestamp - start;
+      const progress = Math.max(0, Math.min(1, elapsed / durationMs));
+      const eased =
+        progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      const nextValue = from + (to - from) * eased;
+      setCiFlowTweenProgress(nextValue);
+      if (progress >= 1) {
+        ciFlowTweenFrameRef.current = null;
+        if (onComplete) {
+          onComplete();
+        }
+        return;
+      }
+      ciFlowTweenFrameRef.current = window.requestAnimationFrame(tick);
+    };
+    ciFlowTweenFrameRef.current = window.requestAnimationFrame(tick);
+  };
+
+  const openCiFlowFocusForNode = (node: DetailedTreeNode) => {
+    if (node.entityType !== "ci" || !node.ciAssetId) {
+      return;
+    }
+    const scrollContainer = detailedScrollContainerRef.current;
+    const effectiveZoom = detailedZoom > 0 ? detailedZoom : 1;
+    const viewportCenterX = scrollContainer
+      ? (scrollContainer.scrollLeft + scrollContainer.clientWidth / 2) / effectiveZoom
+      : detailedTree?.width ?? 0;
+    const viewportCenterY = scrollContainer
+      ? (scrollContainer.scrollTop + scrollContainer.clientHeight / 2) / effectiveZoom
+      : detailedTree?.height ?? 0;
+
+    setFocusedCiFlowRootAssetId(node.ciAssetId);
+    setSelectedCiFlowNodeId(ciFlowNodeIdForAsset(node.ciAssetId));
+    setDetailedSelectedTileFilterId("__all__");
+    setDetailedTileFilterSearchText("");
+    setCiFlowOriginCenter({ x: node.x + node.width / 2, y: node.y + node.height / 2 });
+    setCiFlowViewportCenter({ x: viewportCenterX, y: viewportCenterY });
+    setCiFlowTweenProgress(0);
+    window.requestAnimationFrame(() => {
+      animateCiFlowTween(0, 1, 520);
+    });
+  };
+
+  const closeCiFlowFocus = () => {
+    if (!focusedCiFlowRootAssetId) {
+      return;
+    }
+    const from = ciFlowTweenProgress;
+    animateCiFlowTween(from, 0, 320, () => {
+      setFocusedCiFlowRootAssetId(null);
+      setSelectedCiFlowNodeId(null);
+      setCiFlowOriginCenter(null);
+      setCiFlowViewportCenter(null);
+      setCiFlowTweenProgress(0);
+    });
+  };
+
   const openDetailsPanelForNode = (nodeId: string) => {
     if (!nodeById.has(nodeId)) {
       return;
@@ -2244,10 +2853,16 @@ export function NetworkTopologyView({
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
     setDetailedZoom(1);
+    setFocusedCiFlowRootAssetId(null);
+    setSelectedCiFlowNodeId(null);
+    setCiFlowOriginCenter(null);
+    setCiFlowViewportCenter(null);
+    setCiFlowTweenProgress(0);
     setIsDetailedTopologyOpen(true);
   };
 
   const closeDetailedTopologyView = () => {
+    stopCiFlowTween();
     if (detailedTileSearchBlurTimerRef.current !== null) {
       window.clearTimeout(detailedTileSearchBlurTimerRef.current);
       detailedTileSearchBlurTimerRef.current = null;
@@ -2263,15 +2878,30 @@ export function NetworkTopologyView({
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
     setDetailedZoom(1);
+    setFocusedCiFlowRootAssetId(null);
+    setSelectedCiFlowNodeId(null);
+    setCiFlowOriginCenter(null);
+    setCiFlowViewportCenter(null);
+    setCiFlowTweenProgress(0);
   };
 
   const selectDetailedTileFilter = (nextId: string) => {
     setDetailedSelectedTileFilterId(nextId);
     if (nextId !== "__all__") {
-      setDetailedSelectedNodeId(nextId);
-      const selectedNode = detailedNodeById.get(nextId);
-      if (selectedNode) {
-        setDetailedTileFilterSearchText(`${detailedEntityTypeLabel(selectedNode.entityType)}: ${selectedNode.name}`);
+      if (isCiFlowMode && ciFlowGraph) {
+        setSelectedCiFlowNodeId(nextId);
+        const selectedFlowNode = ciFlowNodeById.get(nextId);
+        if (selectedFlowNode) {
+          setDetailedTileFilterSearchText(
+            `${detailedEntityTypeLabel(selectedFlowNode.entityType)}: ${selectedFlowNode.name}`
+          );
+        }
+      } else {
+        setDetailedSelectedNodeId(nextId);
+        const selectedNode = detailedNodeById.get(nextId);
+        if (selectedNode) {
+          setDetailedTileFilterSearchText(`${detailedEntityTypeLabel(selectedNode.entityType)}: ${selectedNode.name}`);
+        }
       }
     } else {
       setDetailedTileFilterSearchText("");
@@ -2283,6 +2913,10 @@ export function NetworkTopologyView({
     setDetailedSelectedTileFilterId("__all__");
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
+    if (isCiFlowMode && ciFlowRootNodeId) {
+      setSelectedCiFlowNodeId(ciFlowRootNodeId);
+      return;
+    }
     if (detailedTree?.rootNodeId) {
       setDetailedSelectedNodeId(detailedTree.rootNodeId);
     }
@@ -2294,7 +2928,10 @@ export function NetworkTopologyView({
 
   const resetDetailedTopologyView = () => {
     setDetailedZoom(1);
-    if (detailedTree?.rootNodeId) {
+    if (isCiFlowMode && ciFlowRootNodeId) {
+      setDetailedSelectedTileFilterId("__all__");
+      setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    } else if (detailedTree?.rootNodeId) {
       setDetailedSelectedNodeId(detailedTree.rootNodeId);
     }
     window.requestAnimationFrame(() => {
@@ -2364,100 +3001,220 @@ export function NetworkTopologyView({
   };
 
   const exportDetailedTopologyAsPng = async () => {
-    if (!detailedTree) {
+    const isFlowExport = isCiFlowMode && Boolean(ciFlowGraph);
+    if (!isFlowExport && !detailedTree) {
       return;
     }
-    const detailedNodeById = new Map(detailedTree.nodes.map((node) => [node.id, node]));
-    const edgeMarkup = detailedTree.edges
-      .map((edge) => {
-        const fromNode = detailedNodeById.get(edge.fromNodeId);
-        const toNode = detailedNodeById.get(edge.toNodeId);
-        if (!fromNode || !toNode) {
-          return "";
-        }
-        const isPathEdge = detailedSelectedPathEdgeIds.has(edge.id);
-        const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
-        const strokeColor = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : "#38bdf8";
-        const strokeWidth = isPathEdge ? 4 : isConnectedEdge ? 3.2 : 2.1;
-        const opacity = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
-        return `<path d="${detailedEdgePath(fromNode, toNode)}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" opacity="${opacity}" stroke-linecap="round" />`;
-      })
-      .join("");
 
-    const nodeMarkup = detailedTree.nodes
-      .map((node) => {
-        const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
-        const percentages = compliancePercentages(compliance);
-        const isRootNode = node.id === detailedTree.rootNodeId;
-        const isCiNode = node.entityType === "ci";
-        const isSelectedNode = detailedSelectedNodeId === node.id;
-        const tileWidth = node.width;
-        const tileHeight = node.height;
-        const tileRadius = isCiNode ? 14 : 24;
-        const strokeColor = isRootNode ? "#ef4444" : isSelectedNode ? "#a855f7" : detailedTileStrokeColor(node.entityType);
-        const strokeWidth = isRootNode || isSelectedNode ? 4 : 2;
+    let serializedSvg = "";
+    let exportWidth = 1;
+    let exportHeight = 1;
 
-        if (isCiNode) {
-          const ciFirstLineLabel = `Type: CI | Name: ${node.name} | ${node.subtitle}`;
-          const ciFirstLineMaxChars = Math.max(62, Math.floor((tileWidth - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH));
+    if (isFlowExport && ciFlowGraph) {
+      const visibleNodeIds = isDetailedTileFilterActive
+        ? detailedFilteredNodeIds
+        : new Set(ciFlowGraph.nodes.map((node) => node.id));
+      const edgeMarkup = ciFlowGraph.edges
+        .map((edge) => {
+          if (
+            !visibleNodeIds.has(edge.fromNodeId) ||
+            !visibleNodeIds.has(edge.toNodeId)
+          ) {
+            return "";
+          }
+          const fromNode = ciFlowNodeById.get(edge.fromNodeId);
+          const toNode = ciFlowNodeById.get(edge.toNodeId);
+          if (!fromNode || !toNode) {
+            return "";
+          }
+          const edgeColor = ciFlowDependencyColor(edge.dependencyType);
+          const isHighlighted = ciFlowHighlightedEdgeIds.has(edge.id);
+          const strokeWidth = edge.dependencyType === "Unmodelled Attachment" ? 2.4 : isHighlighted ? 4.1 : 2.9;
+          const opacity = isHighlighted ? 0.98 : 0.74;
+          const markerId =
+            edge.dependencyType === "Flow Dependency"
+              ? "ci-flow-arrow-flow"
+              : edge.dependencyType === "Logical Dependency"
+                ? "ci-flow-arrow-logical"
+                : "ci-flow-arrow-attachment";
+          return `<path d="${ciFlowEdgePath(fromNode, toNode)}" fill="none" stroke="${edgeColor}" stroke-width="${strokeWidth}" opacity="${opacity}" stroke-linecap="round" marker-end="url(#${markerId})" />`;
+        })
+        .join("");
+
+      const nodeMarkup = ciFlowGraph.nodes
+        .map((node) => {
+          if (!visibleNodeIds.has(node.id)) {
+            return "";
+          }
+          const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
+          const percentages = compliancePercentages(compliance);
+          const isSelected = selectedCiFlowNodeId === node.id;
+          if (node.entityType === "not-modelled") {
+            return `
+              <g>
+                <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="16" fill="#fda4af" stroke="#ef4444" stroke-width="${isSelected ? 4 : 3}" />
+                <text x="${node.x + node.width / 2}" y="${node.y + 30}" text-anchor="middle" font-size="15" font-weight="700" fill="#7f1d1d">Not Modelled</text>
+                <text x="${node.x + node.width / 2}" y="${node.y + 52}" text-anchor="middle" font-size="11" font-weight="600" fill="#7f1d1d">${escapeSvgText(
+                  truncateLabel(node.subtitle, 46)
+                )}</text>
+              </g>
+            `.trim();
+          }
+          const firstLineLabel = `Type: CI | Name: ${node.name}`;
+          const firstLineMaxChars = Math.max(62, Math.floor((node.width - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH));
           const ciProgressWidth = Math.max(
             140,
             Math.min(
               DETAILED_CI_PROGRESS_WIDTH,
-              tileWidth - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+              node.width - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
             )
           );
-          const ciBarBaseX = node.x + 14;
-          const ciBarY = node.y + tileHeight - 24;
+          const borderColor = node.isInModelScope ? "#22c55e" : "#ef4444";
           return `
             <g>
-              <rect x="${node.x}" y="${node.y}" width="${tileWidth}" height="${tileHeight}" rx="${tileRadius}" fill="${detailedTileColor(node.entityType)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
-              <text x="${node.x + 14}" y="${node.y + 24}" font-size="11.5" font-weight="700" fill="#0f172a">${escapeSvgText(
-                truncateLabel(ciFirstLineLabel, ciFirstLineMaxChars)
+              <rect x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}" rx="14" fill="#e2e8f0" stroke="${borderColor}" stroke-width="${isSelected ? 4 : 2.6}" />
+              <text x="${node.x + 14}" y="${node.y + 22}" font-size="11.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+                truncateLabel(firstLineLabel, firstLineMaxChars)
               )}</text>
-              <rect x="${ciBarBaseX}" y="${ciBarY}" width="${ciProgressWidth}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#cbd5e1" />
-              <rect x="${ciBarBaseX}" y="${ciBarY}" width="${(ciProgressWidth * percentages.compliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#16a34a" />
-              <rect x="${ciBarBaseX + (ciProgressWidth * percentages.compliant) / 100}" y="${ciBarY}" width="${(ciProgressWidth * percentages.nonCompliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#ef4444" />
-              <rect x="${ciBarBaseX + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${ciBarY}" width="${(ciProgressWidth * percentages.other) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#94a3b8" />
-              <text x="${node.x + tileWidth - 14}" y="${node.y + tileHeight - 16}" text-anchor="end" font-size="10.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+              <text x="${node.x + 14}" y="${node.y + 38}" font-size="10.5" font-weight="600" fill="#334155">${escapeSvgText(
+                truncateLabel(node.modelLabel, firstLineMaxChars)
+              )}</text>
+              <rect x="${node.x + 14}" y="${node.y + node.height - 26}" width="${ciProgressWidth}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#cbd5e1" />
+              <rect x="${node.x + 14}" y="${node.y + node.height - 26}" width="${(ciProgressWidth * percentages.compliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#16a34a" />
+              <rect x="${node.x + 14 + (ciProgressWidth * percentages.compliant) / 100}" y="${node.y + node.height - 26}" width="${(ciProgressWidth * percentages.nonCompliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#ef4444" />
+              <rect x="${node.x + 14 + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${node.y + node.height - 26}" width="${(ciProgressWidth * percentages.other) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#94a3b8" />
+              <text x="${node.x + node.width - 14}" y="${node.y + node.height - 16}" text-anchor="end" font-size="10.5" font-weight="700" fill="#0f172a">${escapeSvgText(
                 `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
               )}</text>
             </g>
           `.trim();
-        }
+        })
+        .join("");
 
-        const barWidth = tileWidth - 36;
-        return `
-          <g>
-            <rect x="${node.x}" y="${node.y}" width="${tileWidth}" height="${tileHeight}" rx="${tileRadius}" fill="${detailedTileColor(node.entityType)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
-            <text x="${node.x + 18}" y="${node.y + 30}" font-size="14" font-weight="700" fill="#0f172a">${escapeSvgText(
-              truncateLabel(`Type: ${detailedEntityTypeLabel(node.entityType)}`, 44)
-            )}</text>
-            <text x="${node.x + 18}" y="${node.y + 52}" font-size="14" font-weight="700" fill="#0f172a">${escapeSvgText(
-              truncateLabel(`Name: ${node.name}`, 44)
-            )}</text>
-            <text x="${node.x + 18}" y="${node.y + 72}" font-size="12" fill="#334155">${escapeSvgText(
-              truncateLabel(node.subtitle, 49)
-            )}</text>
-            <rect x="${node.x + 18}" y="${node.y + 88}" width="${barWidth}" height="12" rx="3" fill="#cbd5e1" />
-            <rect x="${node.x + 18}" y="${node.y + 88}" width="${(barWidth * percentages.compliant) / 100}" height="12" rx="3" fill="#16a34a" />
-            <rect x="${node.x + 18 + (barWidth * percentages.compliant) / 100}" y="${node.y + 88}" width="${(barWidth * percentages.nonCompliant) / 100}" height="12" fill="#ef4444" />
-            <rect x="${node.x + 18 + (barWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${node.y + 88}" width="${(barWidth * percentages.other) / 100}" height="12" fill="#94a3b8" />
-            <text x="${node.x + tileWidth / 2}" y="${node.y + 123}" text-anchor="middle" font-size="16" font-weight="600" fill="#0f172a">${escapeSvgText(
-              `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
-            )}</text>
-          </g>
-        `.trim();
-      })
-      .join("");
+      exportWidth = Math.max(1, Math.ceil(ciFlowGraph.width));
+      exportHeight = Math.max(1, Math.ceil(ciFlowGraph.height));
+      serializedSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${exportWidth}" height="${exportHeight}" viewBox="0 0 ${exportWidth} ${exportHeight}">
+          <defs>
+            <marker id="ci-flow-arrow-logical" markerWidth="9" markerHeight="7" refX="8.2" refY="3.5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,7 L8.2,3.5 z" fill="#f97316" />
+            </marker>
+            <marker id="ci-flow-arrow-flow" markerWidth="9" markerHeight="7" refX="8.2" refY="3.5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,7 L8.2,3.5 z" fill="#22c55e" />
+            </marker>
+            <marker id="ci-flow-arrow-attachment" markerWidth="9" markerHeight="7" refX="8.2" refY="3.5" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,7 L8.2,3.5 z" fill="#fb7185" />
+            </marker>
+          </defs>
+          <rect x="0" y="0" width="${exportWidth}" height="${exportHeight}" fill="#020617" />
+          <g>${edgeMarkup}</g>
+          <g>${nodeMarkup}</g>
+        </svg>
+      `.trim();
+    } else if (detailedTree) {
+      const visibleNodeIds = isDetailedTileFilterActive
+        ? detailedFilteredNodeIds
+        : new Set(detailedTree.nodes.map((node) => node.id));
+      const localNodeById = new Map(detailedTree.nodes.map((node) => [node.id, node]));
+      const edgeMarkup = detailedTree.edges
+        .map((edge) => {
+          if (!visibleNodeIds.has(edge.fromNodeId) || !visibleNodeIds.has(edge.toNodeId)) {
+            return "";
+          }
+          const fromNode = localNodeById.get(edge.fromNodeId);
+          const toNode = localNodeById.get(edge.toNodeId);
+          if (!fromNode || !toNode) {
+            return "";
+          }
+          const isPathEdge = detailedSelectedPathEdgeIds.has(edge.id);
+          const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
+          const strokeColor = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : "#38bdf8";
+          const strokeWidth = isPathEdge ? 4 : isConnectedEdge ? 3.2 : 2.1;
+          const opacity = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
+          return `<path d="${detailedEdgePath(fromNode, toNode)}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" opacity="${opacity}" stroke-linecap="round" />`;
+        })
+        .join("");
 
-    const serializedSvg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${detailedTree.width}" height="${detailedTree.height}" viewBox="0 0 ${detailedTree.width} ${detailedTree.height}">
-        <rect x="0" y="0" width="${detailedTree.width}" height="${detailedTree.height}" fill="#020617" />
-        <g>${edgeMarkup}</g>
-        <g>${nodeMarkup}</g>
-      </svg>
-    `.trim();
+      const nodeMarkup = detailedTree.nodes
+        .map((node) => {
+          if (!visibleNodeIds.has(node.id)) {
+            return "";
+          }
+          const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
+          const percentages = compliancePercentages(compliance);
+          const isRootNode = node.id === detailedTree.rootNodeId;
+          const isCiNode = node.entityType === "ci";
+          const isSelectedNode = detailedSelectedNodeId === node.id;
+          const tileWidth = node.width;
+          const tileHeight = node.height;
+          const tileRadius = isCiNode ? 14 : 24;
+          const strokeColor = isRootNode ? "#ef4444" : isSelectedNode ? "#a855f7" : detailedTileStrokeColor(node.entityType);
+          const strokeWidth = isRootNode || isSelectedNode ? 4 : 2;
+
+          if (isCiNode) {
+            const ciFirstLineLabel = `Type: CI | Name: ${node.name} | ${node.subtitle}`;
+            const ciFirstLineMaxChars = Math.max(62, Math.floor((tileWidth - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH));
+            const ciProgressWidth = Math.max(
+              140,
+              Math.min(
+                DETAILED_CI_PROGRESS_WIDTH,
+                tileWidth - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+              )
+            );
+            const ciBarBaseX = node.x + 14;
+            const ciBarY = node.y + tileHeight - 24;
+            return `
+              <g>
+                <rect x="${node.x}" y="${node.y}" width="${tileWidth}" height="${tileHeight}" rx="${tileRadius}" fill="${detailedTileColor(node.entityType)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
+                <text x="${node.x + 14}" y="${node.y + 24}" font-size="11.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+                  truncateLabel(ciFirstLineLabel, ciFirstLineMaxChars)
+                )}</text>
+                <rect x="${ciBarBaseX}" y="${ciBarY}" width="${ciProgressWidth}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#cbd5e1" />
+                <rect x="${ciBarBaseX}" y="${ciBarY}" width="${(ciProgressWidth * percentages.compliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#16a34a" />
+                <rect x="${ciBarBaseX + (ciProgressWidth * percentages.compliant) / 100}" y="${ciBarY}" width="${(ciProgressWidth * percentages.nonCompliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#ef4444" />
+                <rect x="${ciBarBaseX + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${ciBarY}" width="${(ciProgressWidth * percentages.other) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#94a3b8" />
+                <text x="${node.x + tileWidth - 14}" y="${node.y + tileHeight - 16}" text-anchor="end" font-size="10.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+                  `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
+                )}</text>
+              </g>
+            `.trim();
+          }
+
+          const barWidth = tileWidth - 36;
+          return `
+            <g>
+              <rect x="${node.x}" y="${node.y}" width="${tileWidth}" height="${tileHeight}" rx="${tileRadius}" fill="${detailedTileColor(node.entityType)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
+              <text x="${node.x + 18}" y="${node.y + 30}" font-size="14" font-weight="700" fill="#0f172a">${escapeSvgText(
+                truncateLabel(`Type: ${detailedEntityTypeLabel(node.entityType)}`, 44)
+              )}</text>
+              <text x="${node.x + 18}" y="${node.y + 52}" font-size="14" font-weight="700" fill="#0f172a">${escapeSvgText(
+                truncateLabel(`Name: ${node.name}`, 44)
+              )}</text>
+              <text x="${node.x + 18}" y="${node.y + 72}" font-size="12" fill="#334155">${escapeSvgText(
+                truncateLabel(node.subtitle, 49)
+              )}</text>
+              <rect x="${node.x + 18}" y="${node.y + 88}" width="${barWidth}" height="12" rx="3" fill="#cbd5e1" />
+              <rect x="${node.x + 18}" y="${node.y + 88}" width="${(barWidth * percentages.compliant) / 100}" height="12" rx="3" fill="#16a34a" />
+              <rect x="${node.x + 18 + (barWidth * percentages.compliant) / 100}" y="${node.y + 88}" width="${(barWidth * percentages.nonCompliant) / 100}" height="12" fill="#ef4444" />
+              <rect x="${node.x + 18 + (barWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${node.y + 88}" width="${(barWidth * percentages.other) / 100}" height="12" fill="#94a3b8" />
+              <text x="${node.x + tileWidth / 2}" y="${node.y + 123}" text-anchor="middle" font-size="16" font-weight="600" fill="#0f172a">${escapeSvgText(
+                `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
+              )}</text>
+            </g>
+          `.trim();
+        })
+        .join("");
+
+      exportWidth = Math.max(1, Math.ceil(detailedTree.width));
+      exportHeight = Math.max(1, Math.ceil(detailedTree.height));
+      serializedSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${exportWidth}" height="${exportHeight}" viewBox="0 0 ${exportWidth} ${exportHeight}">
+          <rect x="0" y="0" width="${exportWidth}" height="${exportHeight}" fill="#020617" />
+          <g>${edgeMarkup}</g>
+          <g>${nodeMarkup}</g>
+        </svg>
+      `.trim();
+    }
     const svgBlob = new Blob([serializedSvg], { type: "image/svg+xml;charset=utf-8" });
     const objectUrl = URL.createObjectURL(svgBlob);
     let pngObjectUrl: string | null = null;
@@ -2471,8 +3228,8 @@ export function NetworkTopologyView({
       });
 
       const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.ceil(detailedTree.width));
-      canvas.height = Math.max(1, Math.ceil(detailedTree.height));
+      canvas.width = exportWidth;
+      canvas.height = exportHeight;
       const context = canvas.getContext("2d");
       if (!context) {
         return;
@@ -2491,7 +3248,7 @@ export function NetworkTopologyView({
       const link = document.createElement("a");
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       link.href = pngObjectUrl;
-      link.download = `detailed-toplogy-view-${timestamp}.png`;
+      link.download = `detailed-topology-view-${timestamp}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -2542,6 +3299,21 @@ export function NetworkTopologyView({
     return `M ${startX} ${startY} C ${startX + horizontalDelta} ${startY}, ${endX - horizontalDelta} ${endY}, ${endX} ${endY}`;
   };
 
+  const ciFlowEdgePath = (fromNode: CiFlowNodeLayout, toNode: CiFlowNodeLayout) => {
+    const startX = fromNode.x + fromNode.width / 2;
+    const startY = fromNode.y + fromNode.height / 2;
+    const endX = toNode.x + toNode.width / 2;
+    const endY = toNode.y + toNode.height / 2;
+    const horizontalGap = endX - startX;
+    const controlOffsetX = Math.max(50, Math.abs(horizontalGap) * 0.36);
+    const controlOffsetY = Math.max(18, Math.abs(endY - startY) * 0.24);
+    const control1X = startX + (horizontalGap >= 0 ? controlOffsetX : -controlOffsetX);
+    const control2X = endX - (horizontalGap >= 0 ? controlOffsetX : -controlOffsetX);
+    const control1Y = startY - controlOffsetY;
+    const control2Y = endY + controlOffsetY;
+    return `M ${startX} ${startY} C ${control1X} ${control1Y}, ${control2X} ${control2Y}, ${endX} ${endY}`;
+  };
+
   const renderDetailList = (label: string, values?: string[]) => {
     if (typeof values === "undefined") {
       return null;
@@ -2554,9 +3326,12 @@ export function NetworkTopologyView({
     );
   };
 
-  const detailedCanvasWidth = detailedTree ? Math.max(1, Math.ceil(detailedTree.width * detailedZoom)) : 1;
-  const detailedCanvasHeight = detailedTree ? Math.max(1, Math.ceil(detailedTree.height * detailedZoom)) : 1;
+  const activeDetailedWidth = isCiFlowMode && ciFlowGraph ? ciFlowGraph.width : detailedTree?.width ?? 1;
+  const activeDetailedHeight = isCiFlowMode && ciFlowGraph ? ciFlowGraph.height : detailedTree?.height ?? 1;
+  const detailedCanvasWidth = Math.max(1, Math.ceil(activeDetailedWidth * detailedZoom));
+  const detailedCanvasHeight = Math.max(1, Math.ceil(activeDetailedHeight * detailedZoom));
   const detailedZoomPercent = Math.round(detailedZoom * 100);
+  const ciFlowRootTile = ciFlowRootNodeId ? ciFlowNodeById.get(ciFlowRootNodeId) ?? null : null;
 
   return (
     <div
@@ -3132,8 +3907,12 @@ export function NetworkTopologyView({
               <div className="flex h-full flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-400/20 px-4 py-3">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Detailed Toplogy View</p>
-                    <h3 className="text-base font-semibold text-sky-100">{detailedRootNode?.name ?? "Topology Root"}</h3>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">
+                      {isCiFlowMode ? "Detailed Toplogy View - CI Flow Focus" : "Detailed Toplogy View"}
+                    </p>
+                    <h3 className="text-base font-semibold text-sky-100">
+                      {(isCiFlowMode ? ciFlowRootTile?.name : detailedRootNode?.name) ?? "Topology Root"}
+                    </h3>
                   </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -3280,6 +4059,26 @@ export function NetworkTopologyView({
                     <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
                     Grey other
                   </span>
+                  {isCiFlowMode ? (
+                    <>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                        Flow dependency
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />
+                        Logical dependency
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400 bg-slate-200" />
+                        In-model CI
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded-sm border border-red-400 bg-slate-200" />
+                        Out-of-model CI
+                      </span>
+                    </>
+                  ) : null}
                   <span className="mx-1 h-5 w-px bg-sky-400/20" />
                   <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
                   {(
@@ -3289,7 +4088,8 @@ export function NetworkTopologyView({
                       "service",
                       "ict-system",
                       "environment",
-                      "ci"
+                      "ci",
+                      "not-modelled"
                     ] as DetailedTileEntityType[]
                   )
                     .filter((entityType) => detailedPresentEntityTypes.has(entityType))
@@ -3314,7 +4114,9 @@ export function NetworkTopologyView({
                 className="min-h-0 flex-1 overflow-auto cursor-grab select-none touch-none active:cursor-grabbing"
               >
                 <div
-                  className="relative min-h-full min-w-full overflow-hidden bg-slate-950/75"
+                  className={`relative min-h-full min-w-full overflow-hidden bg-slate-950/75 ${
+                    isCiFlowMode ? "detailed-topology-flow-neon" : ""
+                  }`}
                   style={{
                     width: `max(${detailedCanvasWidth}px, 100%)`,
                     height: `max(${detailedCanvasHeight}px, 100%)`
@@ -3322,13 +4124,19 @@ export function NetworkTopologyView({
                 >
                   <svg
                     ref={detailedSvgRef}
-                    width={detailedTree.width}
-                    height={detailedTree.height}
-                    viewBox={`0 0 ${detailedTree.width} ${detailedTree.height}`}
-                    className="absolute left-0 top-0"
+                    width={detailedTree?.width ?? activeDetailedWidth}
+                    height={detailedTree?.height ?? activeDetailedHeight}
+                    viewBox={`0 0 ${detailedTree?.width ?? activeDetailedWidth} ${detailedTree?.height ?? activeDetailedHeight}`}
+                    className={`absolute left-0 top-0 ${isCiFlowMode ? "pointer-events-none opacity-0" : "opacity-100"}`}
                     style={{ transform: `scale(${detailedZoom})`, transformOrigin: "top left" }}
                   >
-                    <rect x={0} y={0} width={detailedTree.width} height={detailedTree.height} fill="#020617" />
+                    <rect
+                      x={0}
+                      y={0}
+                      width={detailedTree?.width ?? activeDetailedWidth}
+                      height={detailedTree?.height ?? activeDetailedHeight}
+                      fill="#020617"
+                    />
 
                     <g>
                       {detailedTree.edges.map((edge) => {
@@ -3425,7 +4233,19 @@ export function NetworkTopologyView({
                             />
                             {isCiNode ? (
                               <>
-                                <text x={node.x + 14} y={node.y + 24} fontSize={11.5} fontWeight={700} fill="#0f172a">
+                                <g
+                                  data-no-pan="true"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openCiFlowFocusForNode(node);
+                                  }}
+                                >
+                                  <circle cx={node.x + 13} cy={node.y + 13} r={11} fill="#020617" stroke="#0ea5e9" strokeWidth={1.5} />
+                                  <text x={node.x + 13} y={node.y + 16.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="#e0f2fe">
+                                    F
+                                  </text>
+                                </g>
+                                <text x={node.x + 30} y={node.y + 24} fontSize={11.5} fontWeight={700} fill="#0f172a">
                                   {truncateLabel(ciFirstLineLabel, ciFirstLineMaxChars)}
                                 </text>
                                 <rect
@@ -3532,6 +4352,265 @@ export function NetworkTopologyView({
                       })}
                     </g>
                   </svg>
+                  {isCiFlowMode && ciFlowGraph ? (
+                    <svg
+                      width={ciFlowGraph.width}
+                      height={ciFlowGraph.height}
+                      viewBox={`0 0 ${ciFlowGraph.width} ${ciFlowGraph.height}`}
+                      className="absolute left-0 top-0"
+                      style={{ transform: `scale(${detailedZoom})`, transformOrigin: "top left" }}
+                    >
+                      <defs>
+                        <marker
+                          id="ci-flow-arrow-logical"
+                          markerWidth="9"
+                          markerHeight="7"
+                          refX="8.2"
+                          refY="3.5"
+                          orient="auto"
+                          markerUnits="strokeWidth"
+                        >
+                          <path d="M0,0 L0,7 L8.2,3.5 z" fill="#f97316" />
+                        </marker>
+                        <marker
+                          id="ci-flow-arrow-flow"
+                          markerWidth="9"
+                          markerHeight="7"
+                          refX="8.2"
+                          refY="3.5"
+                          orient="auto"
+                          markerUnits="strokeWidth"
+                        >
+                          <path d="M0,0 L0,7 L8.2,3.5 z" fill="#22c55e" />
+                        </marker>
+                        <marker
+                          id="ci-flow-arrow-attachment"
+                          markerWidth="9"
+                          markerHeight="7"
+                          refX="8.2"
+                          refY="3.5"
+                          orient="auto"
+                          markerUnits="strokeWidth"
+                        >
+                          <path d="M0,0 L0,7 L8.2,3.5 z" fill="#fb7185" />
+                        </marker>
+                      </defs>
+                      <rect x={0} y={0} width={ciFlowGraph.width} height={ciFlowGraph.height} fill="#020617" />
+
+                      <g>
+                        {ciFlowGraph.edges.map((edge) => {
+                          if (
+                            isDetailedTileFilterActive &&
+                            (!detailedFilteredNodeIds.has(edge.fromNodeId) || !detailedFilteredNodeIds.has(edge.toNodeId))
+                          ) {
+                            return null;
+                          }
+                          const fromNode = ciFlowNodeById.get(edge.fromNodeId);
+                          const toNode = ciFlowNodeById.get(edge.toNodeId);
+                          if (!fromNode || !toNode) {
+                            return null;
+                          }
+                          const strokeColor = ciFlowDependencyColor(edge.dependencyType);
+                          const isHighlighted = ciFlowHighlightedEdgeIds.has(edge.id);
+                          const progressOpacity = Math.max(0, Math.min(1, ciFlowTweenProgress));
+                          if (progressOpacity <= 0.01) {
+                            return null;
+                          }
+                          const opacity = (isHighlighted ? 0.98 : 0.74) * progressOpacity;
+                          const strokeWidth =
+                            edge.dependencyType === "Unmodelled Attachment" ? 2.4 : isHighlighted ? 4.1 : 2.9;
+                          const markerId =
+                            edge.dependencyType === "Flow Dependency"
+                              ? "ci-flow-arrow-flow"
+                              : edge.dependencyType === "Logical Dependency"
+                                ? "ci-flow-arrow-logical"
+                                : "ci-flow-arrow-attachment";
+                          return (
+                            <path
+                              key={`ci-flow-edge-${edge.id}`}
+                              d={ciFlowEdgePath(fromNode, toNode)}
+                              fill="none"
+                              stroke={strokeColor}
+                              strokeWidth={strokeWidth}
+                              opacity={opacity}
+                              strokeLinecap="round"
+                              markerEnd={`url(#${markerId})`}
+                            />
+                          );
+                        })}
+                      </g>
+
+                      <g>
+                        {ciFlowGraph.nodes.map((node) => {
+                          if (isDetailedTileFilterActive && !detailedFilteredNodeIds.has(node.id)) {
+                            return null;
+                          }
+                          const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
+                          const percentages = compliancePercentages(compliance);
+                          const isRootNode = node.id === ciFlowRootNodeId;
+                          const isSelected = selectedCiFlowNodeId === node.id;
+                          const firstLineLabel = `Type: CI | Name: ${node.name}`;
+                          const firstLineMaxChars = Math.max(
+                            62,
+                            Math.floor((node.width - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH)
+                          );
+                          const ciProgressWidth = Math.max(
+                            140,
+                            Math.min(
+                              DETAILED_CI_PROGRESS_WIDTH,
+                              node.width - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+                            )
+                          );
+                          const opacity = isRootNode ? 1 : Math.max(0, Math.min(1, ciFlowTweenProgress));
+                          if (!isRootNode && opacity <= 0.01) {
+                            return null;
+                          }
+                          const centerX = node.x + node.width / 2;
+                          const centerY = node.y + node.height / 2;
+                          const animatedCenterX =
+                            isRootNode && ciFlowOriginCenter
+                              ? ciFlowOriginCenter.x + (centerX - ciFlowOriginCenter.x) * ciFlowTweenProgress
+                              : centerX;
+                          const animatedCenterY =
+                            isRootNode && ciFlowOriginCenter
+                              ? ciFlowOriginCenter.y + (centerY - ciFlowOriginCenter.y) * ciFlowTweenProgress
+                              : centerY;
+                          const renderX = animatedCenterX - node.width / 2;
+                          const renderY = animatedCenterY - node.height / 2;
+
+                          if (node.entityType === "not-modelled") {
+                            return (
+                              <g
+                                key={`ci-flow-node-${node.id}`}
+                                onClick={() => {
+                                  if (suppressDetailedNodeClickRef.current) {
+                                    suppressDetailedNodeClickRef.current = false;
+                                    return;
+                                  }
+                                  setSelectedCiFlowNodeId(node.id);
+                                }}
+                                style={{ cursor: "pointer" }}
+                                opacity={opacity}
+                              >
+                                <rect
+                                  x={renderX}
+                                  y={renderY}
+                                  width={node.width}
+                                  height={node.height}
+                                  rx={16}
+                                  fill="#fda4af"
+                                  stroke="#ef4444"
+                                  strokeWidth={isSelected ? 4 : 3}
+                                />
+                                <text
+                                  x={renderX + node.width / 2}
+                                  y={renderY + 30}
+                                  textAnchor="middle"
+                                  fontSize={15}
+                                  fontWeight={700}
+                                  fill="#7f1d1d"
+                                >
+                                  Not Modelled
+                                </text>
+                                <text
+                                  x={renderX + node.width / 2}
+                                  y={renderY + 52}
+                                  textAnchor="middle"
+                                  fontSize={11}
+                                  fontWeight={600}
+                                  fill="#7f1d1d"
+                                >
+                                  {truncateLabel(node.subtitle, 46)}
+                                </text>
+                              </g>
+                            );
+                          }
+
+                          const borderColor = node.isInModelScope ? "#22c55e" : "#ef4444";
+                          return (
+                            <g
+                              key={`ci-flow-node-${node.id}`}
+                              onClick={() => {
+                                if (suppressDetailedNodeClickRef.current) {
+                                  suppressDetailedNodeClickRef.current = false;
+                                  return;
+                                }
+                                setSelectedCiFlowNodeId(node.id);
+                              }}
+                              style={{ cursor: "pointer" }}
+                              opacity={opacity}
+                            >
+                              <rect
+                                x={renderX}
+                                y={renderY}
+                                width={node.width}
+                                height={node.height}
+                                rx={14}
+                                fill="#e2e8f0"
+                                stroke={borderColor}
+                                strokeWidth={isRootNode || isSelected ? 4 : 2.6}
+                              />
+                              <text x={renderX + 14} y={renderY + 22} fontSize={11.5} fontWeight={700} fill="#0f172a">
+                                {truncateLabel(firstLineLabel, firstLineMaxChars)}
+                              </text>
+                              <text x={renderX + 14} y={renderY + 38} fontSize={10.5} fontWeight={600} fill="#334155">
+                                {truncateLabel(node.modelLabel, firstLineMaxChars)}
+                              </text>
+                              <rect
+                                x={renderX + 14}
+                                y={renderY + node.height - 26}
+                                width={ciProgressWidth}
+                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                rx={3}
+                                fill="#cbd5e1"
+                              />
+                              <rect
+                                x={renderX + 14}
+                                y={renderY + node.height - 26}
+                                width={(ciProgressWidth * percentages.compliant) / 100}
+                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                rx={3}
+                                fill="#16a34a"
+                              />
+                              <rect
+                                x={renderX + 14 + (ciProgressWidth * percentages.compliant) / 100}
+                                y={renderY + node.height - 26}
+                                width={(ciProgressWidth * percentages.nonCompliant) / 100}
+                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                fill="#ef4444"
+                              />
+                              <rect
+                                x={renderX + 14 + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}
+                                y={renderY + node.height - 26}
+                                width={(ciProgressWidth * percentages.other) / 100}
+                                height={DETAILED_CI_PROGRESS_HEIGHT}
+                                fill="#94a3b8"
+                              />
+                              <text
+                                x={renderX + node.width - 14}
+                                y={renderY + node.height - 16}
+                                textAnchor="end"
+                                fontSize={10.5}
+                                fontWeight={700}
+                                fill="#0f172a"
+                              >
+                                {`${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </g>
+                    </svg>
+                  ) : null}
+                  {isCiFlowMode ? (
+                    <button
+                      type="button"
+                      onClick={closeCiFlowFocus}
+                      className="absolute right-3 top-3 z-20 rounded-md border border-sky-300/70 bg-slate-950/92 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-100 transition hover:border-cyan-200 hover:text-cyan-100"
+                    >
+                      Close Focus
+                    </button>
+                  ) : null}
                 </div>
               </div>
               </div>

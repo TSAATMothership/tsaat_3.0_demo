@@ -1,4 +1,4 @@
-import { Asset, AnalyticsResult, ComplianceStatus, Dataset, EnvironmentType, ICTSystem } from "@/lib/types";
+import { Asset, AnalyticsResult, CiDependencyType, ComplianceStatus, Dataset, EnvironmentType, ICTSystem } from "@/lib/types";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 
 export type TopologyEntityType = "network" | "mission-capability" | "service" | "ict-system";
@@ -46,12 +46,35 @@ export interface CmdbSystemTopology {
   servers: CmdbAssetNode[];
 }
 
+export interface TopologyCiNode {
+  id: string;
+  name: string;
+  hostname: string;
+  ipAddress: string;
+  type: Asset["type"];
+  networkId: string;
+  environmentType: EnvironmentType | null;
+  systemId: string | null;
+  systemName: string | null;
+  systemModelled: boolean;
+}
+
+export interface TopologyCiDependency {
+  id: string;
+  sourceAssetId: string;
+  targetAssetId: string;
+  dependencyType: CiDependencyType;
+}
+
 export interface NetworkTopologyData {
   networkId: string;
   networkName: string;
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   cmdbTopologies: CmdbSystemTopology[];
+  ciNodes: TopologyCiNode[];
+  ciDependencies: TopologyCiDependency[];
+  modelAssetIds: string[];
   preferredCoreNodeId?: string;
 }
 
@@ -592,6 +615,98 @@ function buildCmdbTopologies(
     .sort((a, b) => a.systemName.localeCompare(b.systemName));
 }
 
+function buildCiDependencyTopologyData(
+  dataset: Dataset,
+  scopedAssetIds: Set<string>,
+  modelAssetIds: Set<string>
+): {
+  ciNodes: TopologyCiNode[];
+  ciDependencies: TopologyCiDependency[];
+  modelAssetIds: string[];
+} {
+  const assetById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
+  const systemById = new Map(dataset.ictSystems.map((system) => [system.id, system]));
+  const sourceDependencies = dataset.ciDependencies ?? [];
+  const expandedAssetIds = new Set<string>(scopedAssetIds);
+  const ciDependencyById = new Map<string, TopologyCiDependency>();
+
+  // Expand two hops from in-scope CIs so focused CI flow can include related out-of-model neighbours.
+  for (let depth = 0; depth < 2; depth += 1) {
+    let addedDependency = false;
+    for (const dependency of sourceDependencies) {
+      const sourceAsset = assetById.get(dependency.sourceAssetId);
+      const targetAsset = assetById.get(dependency.targetAssetId);
+      if (!sourceAsset || !targetAsset || sourceAsset.id === targetAsset.id) {
+        continue;
+      }
+      const touchesKnownScope =
+        expandedAssetIds.has(sourceAsset.id) || expandedAssetIds.has(targetAsset.id);
+      if (!touchesKnownScope) {
+        continue;
+      }
+      const dependencyId =
+        dependency.id?.trim() || `${sourceAsset.id}->${targetAsset.id}:${dependency.dependencyType}`;
+      if (!ciDependencyById.has(dependencyId)) {
+        ciDependencyById.set(dependencyId, {
+          id: dependencyId,
+          sourceAssetId: sourceAsset.id,
+          targetAssetId: targetAsset.id,
+          dependencyType: dependency.dependencyType
+        });
+        addedDependency = true;
+      }
+      expandedAssetIds.add(sourceAsset.id);
+      expandedAssetIds.add(targetAsset.id);
+    }
+    if (!addedDependency) {
+      break;
+    }
+  }
+
+  const ciNodes = Array.from(expandedAssetIds)
+    .map((assetId) => assetById.get(assetId))
+    .filter((asset): asset is Asset => Boolean(asset))
+    .map((asset) => {
+      const ownerSystemId = asset.systemContext?.systemId ?? null;
+      const ownerSystem = ownerSystemId ? systemById.get(ownerSystemId) : undefined;
+      return {
+        id: asset.id,
+        name: asset.name,
+        hostname: asset.hostname,
+        ipAddress: resolveAssetIpAddress(asset),
+        type: asset.type,
+        networkId: asset.networkId,
+        environmentType: asset.systemContext?.environmentType ?? null,
+        systemId: ownerSystemId,
+        systemName: ownerSystem?.name ?? null,
+        systemModelled: ownerSystem?.modellingStatus ?? false
+      };
+    })
+    .sort((left, right) => left.hostname.localeCompare(right.hostname));
+
+  return {
+    ciNodes,
+    ciDependencies: Array.from(ciDependencyById.values()).sort((left, right) => left.id.localeCompare(right.id)),
+    modelAssetIds: Array.from(modelAssetIds).sort((left, right) => left.localeCompare(right))
+  };
+}
+
+function collectCmdbAssetIds(cmdbTopologies: CmdbSystemTopology[]): Set<string> {
+  const assetIds = new Set<string>();
+  for (const topology of cmdbTopologies) {
+    for (const asset of topology.networkDevices) {
+      assetIds.add(asset.id);
+    }
+    for (const asset of topology.workstations) {
+      assetIds.add(asset.id);
+    }
+    for (const asset of topology.servers) {
+      assetIds.add(asset.id);
+    }
+  }
+  return assetIds;
+}
+
 function buildSystemNode(
   system: ICTSystem,
   summaries: {
@@ -802,6 +917,8 @@ function buildDependencyNetworkTopologyData(
     networkScopeIds,
     evaluationsByAssetId
   );
+  const cmdbAssetIds = collectCmdbAssetIds(cmdbTopologies);
+  const ciDependencyData = buildCiDependencyTopologyData(dataset, cmdbAssetIds, cmdbAssetIds);
 
   return {
     networkId,
@@ -809,6 +926,9 @@ function buildDependencyNetworkTopologyData(
     nodes: filteredNodes,
     edges: filteredEdges,
     cmdbTopologies,
+    ciNodes: ciDependencyData.ciNodes,
+    ciDependencies: ciDependencyData.ciDependencies,
+    modelAssetIds: ciDependencyData.modelAssetIds,
     preferredCoreNodeId: networkNodeId
   };
 }
@@ -1024,6 +1144,8 @@ function buildMissionServiceNetworkTopologyData(
     new Set([networkId]),
     evaluationsByAssetId
   );
+  const cmdbAssetIds = collectCmdbAssetIds(cmdbTopologies);
+  const ciDependencyData = buildCiDependencyTopologyData(dataset, cmdbAssetIds, cmdbAssetIds);
 
   return {
     networkId,
@@ -1031,6 +1153,9 @@ function buildMissionServiceNetworkTopologyData(
     nodes: filteredNodes,
     edges: filteredEdges,
     cmdbTopologies,
+    ciNodes: ciDependencyData.ciNodes,
+    ciDependencies: ciDependencyData.ciDependencies,
+    modelAssetIds: ciDependencyData.modelAssetIds,
     preferredCoreNodeId: networkNodeId
   };
 }
@@ -1060,7 +1185,10 @@ function buildDependencySystemTopologyData(
       networkName: "Unknown ICT System",
       nodes: [],
       edges: [],
-      cmdbTopologies: []
+      cmdbTopologies: [],
+      ciNodes: [],
+      ciDependencies: [],
+      modelAssetIds: []
     };
   }
 
@@ -1237,6 +1365,7 @@ function buildDependencySystemTopologyData(
     evaluationsByAssetId,
     cmdbScopedAssetIds
   );
+  const ciDependencyData = buildCiDependencyTopologyData(dataset, cmdbScopedAssetIds, modelAssetIds);
 
   return {
     networkId: system.networkId,
@@ -1244,6 +1373,9 @@ function buildDependencySystemTopologyData(
     nodes: filteredNodes,
     edges: filteredEdges,
     cmdbTopologies,
+    ciNodes: ciDependencyData.ciNodes,
+    ciDependencies: ciDependencyData.ciDependencies,
+    modelAssetIds: ciDependencyData.modelAssetIds,
     preferredCoreNodeId: systemNodeId
   };
 }

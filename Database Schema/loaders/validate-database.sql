@@ -5,6 +5,7 @@ DECLARE @SnapshotCount INT = (SELECT COUNT(*) FROM [tsaat].[dataset_snapshot]);
 DECLARE @SpiCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_definition]);
 DECLARE @AssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[asset]);
 DECLARE @FindingCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[finding]);
+DECLARE @CiDependencyCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[ci_dependency]);
 DECLARE @DiscoveryToolCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_tool]);
 DECLARE @MeasureCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_severity_matrix]);
 
@@ -19,6 +20,9 @@ IF @AssetCount <= 0
 
 IF @FindingCount <= 0
   THROW 52000, 'Validation failed: finding table is empty.', 1;
+
+IF @CiDependencyCount <= 0
+  THROW 52000, 'Validation failed: ci_dependency table is empty.', 1;
 
 IF @DiscoveryToolCount <= 0
   THROW 52000, 'Validation failed: discovery_tool table is empty.', 1;
@@ -45,6 +49,7 @@ SELECT
   @SpiCount AS [spi_definition_count],
   @AssetCount AS [asset_count],
   @FindingCount AS [finding_count],
+  @CiDependencyCount AS [ci_dependency_count],
   @DiscoveryToolCount AS [discovery_tool_count],
   @MeasureCount AS [measures_severity_matrix_count],
   CAST(1 AS BIT) AS [ready_for_application];

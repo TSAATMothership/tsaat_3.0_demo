@@ -174,12 +174,27 @@ export interface ReferenceVersions {
   softwareSupportMatrix: Record<string, string[]>;
 }
 
+export type CiDependencyType = "Logical Dependency" | "Flow Dependency";
+
+export interface CiDependency {
+  id: string;
+  sourceAssetId: string;
+  targetAssetId: string;
+  dependencyType: CiDependencyType;
+  protocol?: string | null;
+  sourcePort?: number | null;
+  targetPort?: number | null;
+  observationMethod?: string | null;
+  observedAt?: string | null;
+}
+
 export interface Dataset {
   generatedAt: string;
   snapshotDate: string;
   managedNetworks: ManagedNetwork[];
   ictSystems: ICTSystem[];
   assets: Asset[];
+  ciDependencies?: CiDependency[];
   findings?: Finding[];
 }
 

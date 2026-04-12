@@ -1,0 +1,87 @@
+TSAAT Database Schema Description
+================================
+
+Overview
+--------
+The TSAAT schema (`tsaat`) stores snapshot-based cyber posture data for:
+- managed networks and hierarchy
+- ICT systems and hierarchy
+- assets, environments, vulnerabilities, and findings
+- discovery/measures/reference settings
+- CI-to-CI dependency graph data used by topology views
+
+Snapshot model
+--------------
+- Core domain tables are keyed by `snapshot_id`.
+- This preserves historical state per snapshot and supports timeline analysis.
+
+Key domain groups
+-----------------
+1) Governance/reference:
+- `reference_version_set`
+- `reference_os_current_major`
+- `reference_software_supported_version`
+- `spi_definition`
+- `spi_applicable_asset_type`
+- `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope`
+- `measures_settings_version`, `measures_severity_matrix`
+
+2) Snapshot root:
+- `dataset_snapshot`
+
+3) Network/system topology:
+- `managed_network`, `managed_network_hierarchy`
+- `ict_system`, `ict_system_hierarchy`
+- `network_declared_system`, `network_declared_asset`
+- `system_mission_capability`, `system_business_service`
+- `system_environment`, `system_environment_asset`
+
+4) Asset posture:
+- `asset`
+- `asset_operating_system`
+- `asset_network_os`
+- `asset_patch_state`
+- `asset_installed_software`
+- `asset_vulnerability`
+
+5) Findings:
+- `finding`
+
+6) CI dependency graph:
+- `ci_dependency`
+  - Directed edge from `source_asset_id` to `target_asset_id`
+  - `dependency_type` in:
+    - `Logical Dependency`
+    - `Flow Dependency`
+  - Optional flow metadata:
+    - `flow_protocol`
+    - `source_port`
+    - `target_port`
+    - `observation_method`
+    - `observed_at`
+
+Data integrity highlights
+-------------------------
+- Enum-like values are enforced via `CHECK` constraints.
+- Snapshot-aware foreign keys preserve cross-table referential integrity.
+- `ci_dependency` enforces:
+  - valid snapshot + asset references
+  - no self-referential edge (`source_asset_id <> target_asset_id`)
+  - valid dependency type
+  - optional port bounds (1..65535)
+
+Indexes (selected)
+------------------
+- Asset lookup:
+  - `IX_asset_network`
+  - `IX_asset_system`
+  - `IX_asset_type`
+- Finding lookup:
+  - `IX_finding_scope`
+  - `IX_finding_spi`
+  - `IX_finding_status`
+  - `IX_finding_timeline`
+- CI dependency lookup:
+  - `IX_ci_dependency_source`
+  - `IX_ci_dependency_target`
+  - `IX_ci_dependency_type`

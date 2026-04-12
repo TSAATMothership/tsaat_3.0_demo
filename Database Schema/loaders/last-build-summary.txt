@@ -4,6 +4,7 @@ tsaat.asset_network_os|62088
 tsaat.asset_operating_system|108824
 tsaat.asset_patch_state|62260
 tsaat.asset_vulnerability|275894
+tsaat.ci_dependency|3200
 tsaat.dataset_snapshot|8
 tsaat.discovery_tool|7
 tsaat.discovery_tool_asset_scope|21

@@ -156,6 +156,23 @@ function buildDataset(): Dataset {
         installedSoftware: [],
         systemContext: { systemId: "sys-dep", environmentType: "Production" }
       }
+    ],
+    ciDependencies: [
+      {
+        id: "dep-core-flow",
+        sourceAssetId: "asset-core-1",
+        targetAssetId: "asset-dep-in-model",
+        dependencyType: "Flow Dependency",
+        protocol: "TCP",
+        sourcePort: 55221,
+        targetPort: 443
+      },
+      {
+        id: "dep-dep-logical",
+        sourceAssetId: "asset-dep-in-model",
+        targetAssetId: "asset-dep-out-of-model",
+        dependencyType: "Logical Dependency"
+      }
     ]
   };
 }
@@ -190,5 +207,13 @@ describe("buildSystemTopologyData model-scoped dependencies", () => {
     expect(depCmdb?.servers[0]?.cyberCompliance.nonCompliant).toBe(1);
     expect(depCmdb?.servers[0]?.discoveryCompliance.compliant).toBe(0);
     expect(depCmdb?.servers[0]?.discoveryCompliance.nonCompliant).toBe(1);
+
+    expect(topology.ciDependencies.map((item) => item.id).sort()).toEqual(["dep-core-flow", "dep-dep-logical"]);
+    expect(topology.ciNodes.map((item) => item.id).sort()).toEqual([
+      "asset-core-1",
+      "asset-dep-in-model",
+      "asset-dep-out-of-model"
+    ]);
+    expect(topology.modelAssetIds.sort()).toEqual(["asset-core-1", "asset-dep-in-model"]);
   });
 });

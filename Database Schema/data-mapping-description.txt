@@ -64,7 +64,8 @@ Load Order (Deterministic)
 25. asset_patch_state
 26. asset_installed_software
 27. asset_vulnerability
-28. finding
+28. ci_dependency
+29. finding
 
 Field-Level Mapping Summary
 ---------------------------
@@ -110,6 +111,10 @@ Snapshots and domain entities:
   - installedSoftware[] -> asset_installed_software (ordinal = array index + 1)
   - vulnerabilities[] -> asset_vulnerability
 
+- ciDependencies[] (optional):
+  - id,sourceAssetId,targetAssetId,dependencyType,protocol,sourcePort,targetPort,observationMethod,observedAt
+    -> ci_dependency
+
 - findings[]:
   - id,spiId,priorityRank,severity,complianceStatus,scope.networkId,scope.systemId,scope.environmentType,scope.assetId,title,evidence,recommendedAction,status,timestamp,closedTimestamp
     -> finding
@@ -127,6 +132,10 @@ Normalization rule applied for relational integrity:
   - name = `Unassigned Systems`
   - criticality = `Non-Critical`
   - discovery_status = `Discovery Non Enabled`
+- If ciDependencies[] is absent for a snapshot, loader synthesizes deterministic dependency examples:
+  - environment-level Logical Dependency chains
+  - environment/network-level Flow Dependency links
+  - links from modelled CIs to unmodelled CIs for Not Modelled scenarios
 
 Validation Rules Applied by loader/validator
 --------------------------------------------
