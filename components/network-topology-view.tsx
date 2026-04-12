@@ -13,6 +13,45 @@ const MIN_CAMERA_DISTANCE = 260;
 const MAX_CAMERA_DISTANCE = 8200;
 const CI_ASSET_TYPES: CiAssetType[] = ["network-device", "workstation", "server"];
 const CI_ENVIRONMENT_ORDER: CiEnvironmentLabel[] = ["Production", "Development", "UAT", "Test", "Unassigned"];
+const DETAILED_TILE_WIDTH = 352;
+const DETAILED_TILE_HEIGHT = 160;
+const DETAILED_CI_TILE_WIDTH = 520;
+const DETAILED_CI_TILE_HEIGHT = 82;
+const DETAILED_CI_ROW_GAP = 16;
+const DETAILED_CI_TILE_MAX_WIDTH = 980;
+const DETAILED_CI_TEXT_AVG_CHAR_WIDTH = 6.7;
+const DETAILED_CI_PROGRESS_WIDTH = 186;
+const DETAILED_CI_PROGRESS_HEIGHT = 10;
+const DETAILED_CI_PROGRESS_TO_TEXT_GAP = 16;
+const DETAILED_CI_SCORE_TEXT_RESERVE = 165;
+const DETAILED_COLUMN_GAP = 220;
+const DETAILED_ROW_GAP = 42;
+const DETAILED_SECTION_GAP = 70;
+const DETAILED_CANVAS_PADDING_X = 130;
+const DETAILED_CANVAS_PADDING_Y = 120;
+
+interface ScopedCiItem {
+  id: string;
+  hostname: string;
+  name: string;
+  ipAddress: string;
+  environment: CiEnvironmentLabel;
+  type: CiAssetType;
+  systemId: string;
+  networkId: string;
+  cyberCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  discoveryCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+}
 
 interface LayoutNode {
   id: string;
@@ -44,6 +83,46 @@ interface RuntimeNodeState {
   mesh: THREE.Mesh;
   currentPosition: THREE.Vector3;
   targetPosition: THREE.Vector3;
+}
+
+type DetailedTileEntityType = TopologyEntityType | "environment" | "ci";
+
+interface DetailedTreeNode {
+  id: string;
+  sourceNodeId?: string;
+  entityType: DetailedTileEntityType;
+  name: string;
+  subtitle: string;
+  cyberCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  discoveryCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
+interface DetailedTreeEdge {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+}
+
+interface DetailedTreeData {
+  rootNodeId: string;
+  nodes: DetailedTreeNode[];
+  edges: DetailedTreeEdge[];
+  width: number;
+  height: number;
 }
 
 function entityTypeLabel(entityType: TopologyEntityType): string {
@@ -127,6 +206,109 @@ function legendSwatchClass(entityType: TopologyEntityType): string {
   return "bg-orange-200";
 }
 
+function detailedEntityTypeLabel(entityType: DetailedTileEntityType): string {
+  if (entityType === "environment") {
+    return "Environment Group";
+  }
+  if (entityType === "ci") {
+    return "Configuration Item";
+  }
+  return entityTypeLabel(entityType);
+}
+
+function detailedTileColor(entityType: DetailedTileEntityType): string {
+  if (entityType === "network") {
+    return "#ffffff";
+  }
+  if (entityType === "mission-capability") {
+    return "#d1fae5";
+  }
+  if (entityType === "service") {
+    return "#ede9fe";
+  }
+  if (entityType === "ict-system") {
+    return "#ffedd5";
+  }
+  if (entityType === "environment") {
+    return "#dbeafe";
+  }
+  return "#e2e8f0";
+}
+
+function detailedTileStrokeColor(entityType: DetailedTileEntityType): string {
+  if (entityType === "network") {
+    return "#facc15";
+  }
+  if (entityType === "mission-capability") {
+    return "#34d399";
+  }
+  if (entityType === "service") {
+    return "#a78bfa";
+  }
+  if (entityType === "ict-system") {
+    return "#fb923c";
+  }
+  if (entityType === "environment") {
+    return "#38bdf8";
+  }
+  return "#94a3b8";
+}
+
+function combineComplianceSummaries(
+  summaries: Array<{ compliant: number; nonCompliant: number; other: number }>
+): { score: number; compliant: number; nonCompliant: number; other: number } {
+  const totals = summaries.reduce(
+    (accumulator, summary) => {
+      return {
+        compliant: accumulator.compliant + summary.compliant,
+        nonCompliant: accumulator.nonCompliant + summary.nonCompliant,
+        other: accumulator.other + summary.other
+      };
+    },
+    { compliant: 0, nonCompliant: 0, other: 0 }
+  );
+  const total = totals.compliant + totals.nonCompliant + totals.other;
+  if (!total) {
+    return {
+      score: 0,
+      compliant: 0,
+      nonCompliant: 0,
+      other: 1
+    };
+  }
+  return {
+    score: Number(((totals.compliant / total) * 100).toFixed(1)),
+    compliant: totals.compliant,
+    nonCompliant: totals.nonCompliant,
+    other: totals.other
+  };
+}
+
+function emptyComplianceSummary() {
+  return {
+    score: 0,
+    compliant: 0,
+    nonCompliant: 0,
+    other: 1
+  };
+}
+
+function ciComplianceForMode(item: ScopedCiItem, mode: ComplianceMode) {
+  return mode === "cyber" ? item.cyberCompliance : item.discoveryCompliance;
+}
+
+function compareCiByCompliance(left: ScopedCiItem, right: ScopedCiItem, mode: ComplianceMode) {
+  const leftSummary = ciComplianceForMode(left, mode);
+  const rightSummary = ciComplianceForMode(right, mode);
+  if (leftSummary.score !== rightSummary.score) {
+    return leftSummary.score - rightSummary.score;
+  }
+  if (leftSummary.nonCompliant !== rightSummary.nonCompliant) {
+    return rightSummary.nonCompliant - leftSummary.nonCompliant;
+  }
+  return left.hostname.localeCompare(right.hostname);
+}
+
 function ciAssetTypeLabel(assetType: CiAssetType): string {
   if (assetType === "network-device") {
     return "Network Devices";
@@ -192,6 +374,35 @@ function compliancePercentages(compliance: { compliant: number; nonCompliant: nu
 
 function isExternalLink(href: string): boolean {
   return /^https?:\/\//i.test(href);
+}
+
+function truncateLabel(value: string, maxLength = 46): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
+function estimateDetailedCiTileWidth(firstLineLabel: string): number {
+  const firstLineEstimatedWidth = Math.ceil(firstLineLabel.length * DETAILED_CI_TEXT_AVG_CHAR_WIDTH) + 28;
+  const secondLineMinimumWidth =
+    DETAILED_CI_PROGRESS_WIDTH +
+    DETAILED_CI_PROGRESS_TO_TEXT_GAP +
+    DETAILED_CI_SCORE_TEXT_RESERVE +
+    28;
+  return Math.max(
+    DETAILED_CI_TILE_WIDTH,
+    Math.min(DETAILED_CI_TILE_MAX_WIDTH, Math.max(firstLineEstimatedWidth, secondLineMinimumWidth))
+  );
+}
+
+function escapeSvgText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function zPositionForEntity(entityType: TopologyEntityType): number {
@@ -583,9 +794,16 @@ export function NetworkTopologyView({
   const [renderedDetailNodeId, setRenderedDetailNodeId] = useState<string | null>(null);
   const [isDetailPanelVisible, setIsDetailPanelVisible] = useState(false);
   const [selectedSystemId, setSelectedSystemId] = useState<string | null>(null);
-  const [expandedNetworkNodeIds, setExpandedNetworkNodeIds] = useState<Set<string>>(new Set());
-  const [networkCiSearchByKey, setNetworkCiSearchByKey] = useState<Record<string, string>>({});
-  const [networkCiEnvironmentSearchByKey, setNetworkCiEnvironmentSearchByKey] = useState<Record<string, string>>({});
+  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+  const [nodeCiSearchByKey, setNodeCiSearchByKey] = useState<Record<string, string>>({});
+  const [nodeCiEnvironmentSearchByKey, setNodeCiEnvironmentSearchByKey] = useState<Record<string, string>>({});
+  const [isDetailedTopologyOpen, setIsDetailedTopologyOpen] = useState(false);
+  const [detailedRootNodeId, setDetailedRootNodeId] = useState<string | null>(null);
+  const [detailedSelectedNodeId, setDetailedSelectedNodeId] = useState<string | null>(null);
+  const [detailedSelectedTileFilterId, setDetailedSelectedTileFilterId] = useState("__all__");
+  const [detailedTileFilterSearchText, setDetailedTileFilterSearchText] = useState("");
+  const [isDetailedTileSearchFocused, setIsDetailedTileSearchFocused] = useState(false);
+  const [detailedZoom, setDetailedZoom] = useState(1);
   const [rendererInitError, setRendererInitError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -593,6 +811,9 @@ export function NetworkTopologyView({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const tileSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const detailedTileSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const detailedScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const detailedSvgRef = useRef<SVGSVGElement | null>(null);
   const tileRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
@@ -607,6 +828,17 @@ export function NetworkTopologyView({
   } | null>(null);
   const detailPanelCloseTimerRef = useRef<number | null>(null);
   const tileSearchBlurTimerRef = useRef<number | null>(null);
+  const detailedTileSearchBlurTimerRef = useRef<number | null>(null);
+  const detailedPanStateRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+    hasMoved: boolean;
+  } | null>(null);
+  const suppressDetailedNodeClickRef = useRef(false);
+  const detailedNodeClickSuppressTimerRef = useRef<number | null>(null);
   const persistedCameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const persistedNodePositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
   const manualNodePositionsRef = useRef<Map<string, THREE.Vector3>>(new Map());
@@ -641,110 +873,156 @@ export function NetworkTopologyView({
   }, [selectedDetailNode]);
   const cmdbBySystemId = useMemo(() => new Map(data.cmdbTopologies.map((item) => [item.systemId, item])), [data]);
   const selectedCmdb = selectedSystemId ? cmdbBySystemId.get(selectedSystemId) ?? null : null;
-  const viewedSystemId = useMemo(
-    () => (coreNode?.entityType === "ict-system" ? coreNode.entityId : null),
-    [coreNode?.entityId, coreNode?.entityType]
-  );
-  const isSystemTopologyView = Boolean(viewedSystemId);
-  const viewedSystemCmdb = useMemo(
-    () => (viewedSystemId ? cmdbBySystemId.get(viewedSystemId) ?? null : null),
-    [cmdbBySystemId, viewedSystemId]
-  );
-  const ciAssetsByNetworkNodeId = useMemo(() => {
-    const groupedByNetworkNodeId = new Map<
-      string,
-      Array<{
-        assetType: CiAssetType;
-        items: Array<{
-          id: string;
-          hostname: string;
-          name: string;
-          ipAddress: string;
-          environment: CiEnvironmentLabel;
-          type: CiAssetType;
-        }>;
-      }>
-    >();
-    if (!viewedSystemCmdb) {
-      return groupedByNetworkNodeId;
+  const allScopedCiItems = useMemo(() => {
+    const items: ScopedCiItem[] = [];
+    for (const topology of data.cmdbTopologies) {
+      const systemAssets = [...topology.networkDevices, ...topology.workstations, ...topology.servers];
+      for (const asset of systemAssets) {
+        items.push({
+          id: asset.id,
+          hostname: asset.hostname,
+          name: asset.name,
+          ipAddress: asset.ipAddress,
+          environment: normalizeCiEnvironmentLabel(asset.environmentType),
+          type: asset.type,
+          systemId: topology.systemId,
+          networkId: asset.networkId,
+          cyberCompliance: asset.cyberCompliance ?? emptyComplianceSummary(),
+          discoveryCompliance: asset.discoveryCompliance ?? emptyComplianceSummary()
+        });
+      }
     }
-
-    const allAssets = [...viewedSystemCmdb.networkDevices, ...viewedSystemCmdb.workstations, ...viewedSystemCmdb.servers];
-    const assetsByNetworkId = new Map<string, typeof allAssets>();
-    for (const asset of allAssets) {
-      const current = assetsByNetworkId.get(asset.networkId) ?? [];
-      current.push(asset);
-      assetsByNetworkId.set(asset.networkId, current);
+    return items;
+  }, [data.cmdbTopologies]);
+  const ciItemsBySystemId = useMemo(() => {
+    const map = new Map<string, ScopedCiItem[]>();
+    for (const item of allScopedCiItems) {
+      const current = map.get(item.systemId) ?? [];
+      current.push(item);
+      map.set(item.systemId, current);
+    }
+    return map;
+  }, [allScopedCiItems]);
+  const ciItemsByNetworkId = useMemo(() => {
+    const map = new Map<string, ScopedCiItem[]>();
+    for (const item of allScopedCiItems) {
+      const current = map.get(item.networkId) ?? [];
+      current.push(item);
+      map.set(item.networkId, current);
+    }
+    return map;
+  }, [allScopedCiItems]);
+  const dependentSystemIdsByNodeId = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    const adjacency = new Map<string, string[]>();
+    for (const edge of data.edges) {
+      const current = adjacency.get(edge.fromNodeId) ?? [];
+      current.push(edge.toNodeId);
+      adjacency.set(edge.fromNodeId, current);
     }
 
     for (const node of layout.nodes) {
-      if (node.entityType !== "network") {
+      if (node.entityType === "ict-system") {
+        map.set(node.id, new Set([node.entityId]));
         continue;
       }
-      const networkAssets = assetsByNetworkId.get(node.entityId) ?? [];
-      const groups: Array<{
-        assetType: CiAssetType;
-        items: Array<{
-          id: string;
-          hostname: string;
-          name: string;
-          ipAddress: string;
-          environment: CiEnvironmentLabel;
-          type: CiAssetType;
-        }>;
-      }> = CI_ASSET_TYPES.map((assetType) => ({
-        assetType,
-        items: networkAssets
-          .filter((asset) => asset.type === assetType)
-          .sort((a, b) => a.hostname.localeCompare(b.hostname))
-          .map((asset) => ({
-            id: asset.id,
-            hostname: asset.hostname,
-            name: asset.name,
-            ipAddress: asset.ipAddress,
-            environment: normalizeCiEnvironmentLabel(asset.environmentType),
-            type: asset.type
-          }))
-      }));
-      groupedByNetworkNodeId.set(node.id, groups);
+      if (node.entityType === "network") {
+        map.set(node.id, new Set());
+        continue;
+      }
+
+      const dependentSystemIds = new Set<string>();
+      const visitedNodeIds = new Set<string>([node.id]);
+      const queue = [...(adjacency.get(node.id) ?? [])];
+      while (queue.length) {
+        const currentNodeId = queue.shift();
+        if (!currentNodeId || visitedNodeIds.has(currentNodeId)) {
+          continue;
+        }
+        visitedNodeIds.add(currentNodeId);
+        const currentNode = nodeById.get(currentNodeId);
+        if (!currentNode) {
+          continue;
+        }
+        if (currentNode.entityType === "ict-system") {
+          dependentSystemIds.add(currentNode.entityId);
+        }
+        for (const nextNodeId of adjacency.get(currentNodeId) ?? []) {
+          if (!visitedNodeIds.has(nextNodeId)) {
+            queue.push(nextNodeId);
+          }
+        }
+      }
+      map.set(node.id, dependentSystemIds);
     }
 
-    return groupedByNetworkNodeId;
-  }, [layout.nodes, viewedSystemCmdb]);
-  const ciEnvironmentGroupsByNetworkNodeId = useMemo(() => {
-    const byNetworkNodeId = new Map<
+    return map;
+  }, [data.edges, layout.nodes, nodeById]);
+  const ciItemsByNodeId = useMemo(() => {
+    const map = new Map<string, ScopedCiItem[]>();
+    for (const node of layout.nodes) {
+      if (node.entityType === "network") {
+        map.set(node.id, [...(ciItemsByNetworkId.get(node.entityId) ?? [])]);
+        continue;
+      }
+      if (node.entityType === "ict-system") {
+        map.set(node.id, [...(ciItemsBySystemId.get(node.entityId) ?? [])]);
+        continue;
+      }
+
+      const nodeItems: ScopedCiItem[] = [];
+      for (const dependentSystemId of dependentSystemIdsByNodeId.get(node.id) ?? []) {
+        nodeItems.push(...(ciItemsBySystemId.get(dependentSystemId) ?? []));
+      }
+
+      const deduplicatedItems: ScopedCiItem[] = [];
+      const seenAssetIds = new Set<string>();
+      for (const item of nodeItems) {
+        if (seenAssetIds.has(item.id)) {
+          continue;
+        }
+        seenAssetIds.add(item.id);
+        deduplicatedItems.push(item);
+      }
+      map.set(node.id, deduplicatedItems);
+    }
+    return map;
+  }, [ciItemsByNetworkId, ciItemsBySystemId, dependentSystemIdsByNodeId, layout.nodes]);
+  const ciAssetsByNodeId = useMemo(() => {
+    const groupedByNodeId = new Map<
+      string,
+      Array<{
+        assetType: CiAssetType;
+        items: ScopedCiItem[];
+      }>
+    >();
+
+    for (const node of layout.nodes) {
+      const nodeItems = ciItemsByNodeId.get(node.id) ?? [];
+      groupedByNodeId.set(
+        node.id,
+        CI_ASSET_TYPES.map((assetType) => ({
+          assetType,
+          items: nodeItems
+            .filter((item) => item.type === assetType)
+            .sort((left, right) => left.hostname.localeCompare(right.hostname))
+        }))
+      );
+    }
+    return groupedByNodeId;
+  }, [ciItemsByNodeId, layout.nodes]);
+  const ciEnvironmentGroupsByNodeId = useMemo(() => {
+    const byNodeId = new Map<
       string,
       Array<{
         environment: CiEnvironmentLabel;
-        items: Array<{
-          id: string;
-          hostname: string;
-          name: string;
-          ipAddress: string;
-          environment: CiEnvironmentLabel;
-          type: CiAssetType;
-        }>;
+        items: ScopedCiItem[];
       }>
     >();
 
     for (const node of layout.nodes) {
-      if (node.entityType !== "network") {
-        continue;
-      }
-      const typedGroups = ciAssetsByNetworkNodeId.get(node.id) ?? [];
-      const allItems = typedGroups.flatMap((group) => group.items);
-      const byEnvironment = new Map<
-        CiEnvironmentLabel,
-        Array<{
-          id: string;
-          hostname: string;
-          name: string;
-          ipAddress: string;
-          environment: CiEnvironmentLabel;
-          type: CiAssetType;
-        }>
-      >();
-      for (const item of allItems) {
+      const byEnvironment = new Map<CiEnvironmentLabel, ScopedCiItem[]>();
+      for (const item of ciItemsByNodeId.get(node.id) ?? []) {
         const current = byEnvironment.get(item.environment) ?? [];
         current.push(item);
         byEnvironment.set(item.environment, current);
@@ -753,14 +1031,288 @@ export function NetworkTopologyView({
       const environmentGroups = CI_ENVIRONMENT_ORDER.filter((environment) => (byEnvironment.get(environment) ?? []).length)
         .map((environment) => ({
           environment,
-          items: (byEnvironment.get(environment) ?? []).sort((a, b) => a.hostname.localeCompare(b.hostname))
+          items: (byEnvironment.get(environment) ?? []).sort((left, right) =>
+            compareCiByCompliance(left, right, complianceMode)
+          )
         }));
-
-      byNetworkNodeId.set(node.id, environmentGroups);
+      byNodeId.set(node.id, environmentGroups);
     }
 
-    return byNetworkNodeId;
-  }, [ciAssetsByNetworkNodeId, layout.nodes]);
+    return byNodeId;
+  }, [ciItemsByNodeId, complianceMode, layout.nodes]);
+  const detailedRootNode = useMemo(() => {
+    if (detailedRootNodeId) {
+      const explicitRoot = nodeById.get(detailedRootNodeId);
+      if (explicitRoot) {
+        return explicitRoot;
+      }
+    }
+    return coreNode ?? layout.nodes[0] ?? null;
+  }, [coreNode, detailedRootNodeId, layout.nodes, nodeById]);
+  const detailedTree = useMemo<DetailedTreeData | null>(() => {
+    if (!detailedRootNode) {
+      return null;
+    }
+
+    const rootCiItems = [...(ciItemsByNodeId.get(detailedRootNode.id) ?? [])].sort((left, right) =>
+      compareCiByCompliance(left, right, complianceMode)
+    );
+    const ciItemsByEnvironment = new Map<CiEnvironmentLabel, ScopedCiItem[]>();
+    for (const item of rootCiItems) {
+      const current = ciItemsByEnvironment.get(item.environment) ?? [];
+      current.push(item);
+      ciItemsByEnvironment.set(item.environment, current);
+    }
+
+    const orderedEnvironments = CI_ENVIRONMENT_ORDER.filter((environment) =>
+      ciItemsByEnvironment.has(environment)
+    );
+    if (!orderedEnvironments.length) {
+      orderedEnvironments.push("Unassigned");
+    }
+
+    const resolveCiCompliance = (item: ScopedCiItem) => ({
+      cyber: item.cyberCompliance,
+      discovery: item.discoveryCompliance
+    });
+    const rootCyberCompliance = combineComplianceSummaries(rootCiItems.map((item) => item.cyberCompliance));
+    const rootDiscoveryCompliance = combineComplianceSummaries(rootCiItems.map((item) => item.discoveryCompliance));
+
+    const environmentSections = orderedEnvironments.map((environment) => {
+      const ciItems = [...(ciItemsByEnvironment.get(environment) ?? [])].sort((left, right) =>
+        compareCiByCompliance(left, right, complianceMode)
+      );
+      const ciRowsHeight = ciItems.length
+        ? ciItems.length * DETAILED_CI_TILE_HEIGHT + (ciItems.length - 1) * DETAILED_CI_ROW_GAP
+        : DETAILED_CI_TILE_HEIGHT;
+      return {
+        environment,
+        ciItems,
+        sectionHeight: Math.max(DETAILED_TILE_HEIGHT, ciRowsHeight),
+        ciRowsHeight
+      };
+    });
+
+    const bodyHeight =
+      environmentSections.reduce((sum, section) => sum + section.sectionHeight, 0) +
+      Math.max(0, environmentSections.length - 1) * DETAILED_SECTION_GAP;
+
+    const rootNodeId = `detailed:root:${detailedRootNode.id}`;
+    const nodes: DetailedTreeNode[] = [];
+    const edges: DetailedTreeEdge[] = [];
+
+    nodes.push({
+      id: rootNodeId,
+      sourceNodeId: detailedRootNode.id,
+      entityType: detailedRootNode.entityType,
+      name: detailedRootNode.name,
+      subtitle: detailedEntityTypeLabel(detailedRootNode.entityType),
+      cyberCompliance: rootCyberCompliance,
+      discoveryCompliance: rootDiscoveryCompliance,
+      width: DETAILED_TILE_WIDTH,
+      height: DETAILED_TILE_HEIGHT,
+      x: DETAILED_CANVAS_PADDING_X,
+      y: DETAILED_CANVAS_PADDING_Y + (bodyHeight - DETAILED_TILE_HEIGHT) / 2
+    });
+
+    const environmentColumnX = DETAILED_CANVAS_PADDING_X + DETAILED_TILE_WIDTH + DETAILED_COLUMN_GAP;
+    const ciColumnX = environmentColumnX + DETAILED_TILE_WIDTH + DETAILED_COLUMN_GAP;
+    let maxCiTileWidth = DETAILED_CI_TILE_WIDTH;
+    let cursorY = DETAILED_CANVAS_PADDING_Y;
+
+    for (const section of environmentSections) {
+      const environmentNodeId = `detailed:environment:${rootNodeId}:${section.environment}`;
+      const environmentNodeY = cursorY + (section.sectionHeight - DETAILED_TILE_HEIGHT) / 2;
+      const environmentCyberCompliance = combineComplianceSummaries(section.ciItems.map((item) => item.cyberCompliance));
+      const environmentDiscoveryCompliance = combineComplianceSummaries(
+        section.ciItems.map((item) => item.discoveryCompliance)
+      );
+
+      nodes.push({
+        id: environmentNodeId,
+        entityType: "environment",
+        name: section.environment,
+        subtitle: "Environment Group",
+        cyberCompliance: environmentCyberCompliance,
+        discoveryCompliance: environmentDiscoveryCompliance,
+        width: DETAILED_TILE_WIDTH,
+        height: DETAILED_TILE_HEIGHT,
+        x: environmentColumnX,
+        y: environmentNodeY
+      });
+      edges.push({
+        id: `${rootNodeId}->${environmentNodeId}`,
+        fromNodeId: rootNodeId,
+        toNodeId: environmentNodeId
+      });
+
+      if (section.ciItems.length) {
+        const ciRowsTop = cursorY + (section.sectionHeight - section.ciRowsHeight) / 2;
+        section.ciItems.forEach((item, index) => {
+          const ciNodeId = `detailed:ci:${environmentNodeId}:${item.id}`;
+          const ciCompliance = resolveCiCompliance(item);
+          const ciSubtitle = `${ciAssetTypeSingularLabel(item.type)} | ${item.environment}`;
+          const ciFirstLineLabel = `Type: CI | Name: ${item.hostname} | ${ciSubtitle}`;
+          const ciTileWidth = estimateDetailedCiTileWidth(ciFirstLineLabel);
+          maxCiTileWidth = Math.max(maxCiTileWidth, ciTileWidth);
+          nodes.push({
+            id: ciNodeId,
+            entityType: "ci",
+            name: item.hostname,
+            subtitle: ciSubtitle,
+            cyberCompliance: ciCompliance.cyber,
+            discoveryCompliance: ciCompliance.discovery,
+            width: ciTileWidth,
+            height: DETAILED_CI_TILE_HEIGHT,
+            x: ciColumnX,
+            y: ciRowsTop + index * (DETAILED_CI_TILE_HEIGHT + DETAILED_CI_ROW_GAP)
+          });
+          edges.push({
+            id: `${environmentNodeId}->${ciNodeId}`,
+            fromNodeId: environmentNodeId,
+            toNodeId: ciNodeId
+          });
+        });
+      }
+
+      cursorY += section.sectionHeight + DETAILED_SECTION_GAP;
+    }
+
+    return {
+      rootNodeId,
+      nodes,
+      edges,
+      width: ciColumnX + maxCiTileWidth + DETAILED_CANVAS_PADDING_X,
+      height: bodyHeight + DETAILED_CANVAS_PADDING_Y * 2
+    };
+  }, [ciItemsByNodeId, complianceMode, detailedRootNode]);
+  const detailedNodeById = useMemo(() => {
+    return new Map((detailedTree?.nodes ?? []).map((node) => [node.id, node]));
+  }, [detailedTree?.nodes]);
+  const detailedSelectedPathEdgeIds = useMemo(() => {
+    if (!detailedTree || !detailedSelectedNodeId || detailedSelectedNodeId === detailedTree.rootNodeId) {
+      return new Set<string>();
+    }
+    const adjacency = new Map<string, Array<{ toNodeId: string; edgeId: string }>>();
+    for (const edge of detailedTree.edges) {
+      const current = adjacency.get(edge.fromNodeId) ?? [];
+      current.push({ toNodeId: edge.toNodeId, edgeId: edge.id });
+      adjacency.set(edge.fromNodeId, current);
+    }
+
+    const queue = [detailedTree.rootNodeId];
+    const visited = new Set<string>([detailedTree.rootNodeId]);
+    const previousByNodeId = new Map<string, { nodeId: string; edgeId: string }>();
+    while (queue.length) {
+      const currentNodeId = queue.shift();
+      if (!currentNodeId) {
+        continue;
+      }
+      if (currentNodeId === detailedSelectedNodeId) {
+        break;
+      }
+      for (const next of adjacency.get(currentNodeId) ?? []) {
+        if (visited.has(next.toNodeId)) {
+          continue;
+        }
+        visited.add(next.toNodeId);
+        previousByNodeId.set(next.toNodeId, { nodeId: currentNodeId, edgeId: next.edgeId });
+        queue.push(next.toNodeId);
+      }
+    }
+
+    if (!visited.has(detailedSelectedNodeId)) {
+      return new Set<string>();
+    }
+    const edgeIds = new Set<string>();
+    let cursor = detailedSelectedNodeId;
+    while (cursor !== detailedTree.rootNodeId) {
+      const previous = previousByNodeId.get(cursor);
+      if (!previous) {
+        break;
+      }
+      edgeIds.add(previous.edgeId);
+      cursor = previous.nodeId;
+    }
+    return edgeIds;
+  }, [detailedSelectedNodeId, detailedTree]);
+  const detailedSelectedConnectedEdgeIds = useMemo(() => {
+    if (!detailedTree || !detailedSelectedNodeId) {
+      return new Set<string>();
+    }
+    return new Set(
+      detailedTree.edges
+        .filter((edge) => edge.fromNodeId === detailedSelectedNodeId || edge.toNodeId === detailedSelectedNodeId)
+        .map((edge) => edge.id)
+    );
+  }, [detailedSelectedNodeId, detailedTree]);
+  const detailedHighlightedEdgeIds = useMemo(() => {
+    return new Set<string>([...detailedSelectedPathEdgeIds, ...detailedSelectedConnectedEdgeIds]);
+  }, [detailedSelectedConnectedEdgeIds, detailedSelectedPathEdgeIds]);
+  const detailedTileDropdownOptions = useMemo(() => {
+    if (!detailedTree) {
+      return [];
+    }
+    const levelForNode = (node: DetailedTreeNode) => {
+      if (node.entityType === "environment") {
+        return 1;
+      }
+      if (node.entityType === "ci") {
+        return 2;
+      }
+      return 0;
+    };
+    return [...detailedTree.nodes].sort((left, right) => {
+      const levelDelta = levelForNode(left) - levelForNode(right);
+      if (levelDelta !== 0) {
+        return levelDelta;
+      }
+      return left.name.localeCompare(right.name);
+    });
+  }, [detailedTree]);
+  const filteredDetailedTileDropdownOptions = useMemo(() => {
+    const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return detailedTileDropdownOptions;
+    }
+    return detailedTileDropdownOptions.filter((node) => {
+      const type = detailedEntityTypeLabel(node.entityType).toLowerCase();
+      return (
+        node.name.toLowerCase().includes(normalizedSearch) ||
+        node.subtitle.toLowerCase().includes(normalizedSearch) ||
+        type.includes(normalizedSearch)
+      );
+    });
+  }, [detailedTileFilterSearchText, detailedTileDropdownOptions]);
+  const detailedFilteredNodeIds = useMemo(() => {
+    if (!detailedTree) {
+      return new Set<string>();
+    }
+    if (detailedSelectedTileFilterId === "__all__") {
+      return new Set(detailedTree.nodes.map((node) => node.id));
+    }
+    const visibleNodeIds = new Set<string>();
+    for (const edge of detailedTree.edges) {
+      if (!detailedHighlightedEdgeIds.has(edge.id)) {
+        continue;
+      }
+      visibleNodeIds.add(edge.fromNodeId);
+      visibleNodeIds.add(edge.toNodeId);
+    }
+    visibleNodeIds.add(detailedTree.rootNodeId);
+    if (detailedSelectedNodeId) {
+      visibleNodeIds.add(detailedSelectedNodeId);
+    }
+    if (!visibleNodeIds.size) {
+      visibleNodeIds.add(detailedSelectedTileFilterId);
+    }
+    return visibleNodeIds;
+  }, [detailedHighlightedEdgeIds, detailedSelectedNodeId, detailedSelectedTileFilterId, detailedTree]);
+  const isDetailedTileFilterActive = detailedSelectedTileFilterId !== "__all__";
+  const hasDetailedTileSearchTerm = detailedTileFilterSearchText.trim().length > 0;
+  const detailedPresentEntityTypes = useMemo(() => {
+    return new Set((detailedTree?.nodes ?? []).map((node) => node.entityType));
+  }, [detailedTree?.nodes]);
   const selectedPathEdgeIds = useMemo(() => {
     if (!coreNode?.id || !selectedNodeId || selectedNodeId === coreNode.id) {
       return new Set<string>();
@@ -894,6 +1446,17 @@ export function NetworkTopologyView({
     scrollContainer.scrollTop = nextScrollTop;
   };
 
+  const centerDetailedViewportScroll = () => {
+    const scrollContainer = detailedScrollContainerRef.current;
+    if (!scrollContainer) {
+      return;
+    }
+    const nextScrollLeft = Math.max(0, (scrollContainer.scrollWidth - scrollContainer.clientWidth) / 2);
+    const nextScrollTop = Math.max(0, (scrollContainer.scrollHeight - scrollContainer.clientHeight) / 2);
+    scrollContainer.scrollLeft = nextScrollLeft;
+    scrollContainer.scrollTop = nextScrollTop;
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setRendererInitError(null);
@@ -901,9 +1464,16 @@ export function NetworkTopologyView({
       setRenderedDetailNodeId(null);
       setIsDetailPanelVisible(false);
       setSelectedSystemId(null);
-      setExpandedNetworkNodeIds(new Set());
-      setNetworkCiSearchByKey({});
-      setNetworkCiEnvironmentSearchByKey({});
+      setExpandedNodeIds(new Set());
+      setNodeCiSearchByKey({});
+      setNodeCiEnvironmentSearchByKey({});
+      setIsDetailedTopologyOpen(false);
+      setDetailedRootNodeId(null);
+      setDetailedSelectedNodeId(null);
+      setDetailedSelectedTileFilterId("__all__");
+      setDetailedTileFilterSearchText("");
+      setIsDetailedTileSearchFocused(false);
+      setDetailedZoom(1);
       setSelectedTileFilterId("__all__");
       setTileFilterSearchText("");
       setIsTileSearchFocused(false);
@@ -920,6 +1490,16 @@ export function NetworkTopologyView({
         window.clearTimeout(tileSearchBlurTimerRef.current);
         tileSearchBlurTimerRef.current = null;
       }
+      if (detailedTileSearchBlurTimerRef.current !== null) {
+        window.clearTimeout(detailedTileSearchBlurTimerRef.current);
+        detailedTileSearchBlurTimerRef.current = null;
+      }
+      if (detailedNodeClickSuppressTimerRef.current !== null) {
+        window.clearTimeout(detailedNodeClickSuppressTimerRef.current);
+        detailedNodeClickSuppressTimerRef.current = null;
+      }
+      detailedPanStateRef.current = null;
+      suppressDetailedNodeClickRef.current = false;
       persistedCameraStateRef.current = null;
       persistedNodePositionsRef.current = new Map();
       manualNodePositionsRef.current = new Map();
@@ -933,9 +1513,16 @@ export function NetworkTopologyView({
     }
     setSelectedDetailNodeId(null);
     setSelectedSystemId(null);
-    setExpandedNetworkNodeIds(new Set());
-    setNetworkCiSearchByKey({});
-    setNetworkCiEnvironmentSearchByKey({});
+    setExpandedNodeIds(new Set());
+    setNodeCiSearchByKey({});
+    setNodeCiEnvironmentSearchByKey({});
+    setIsDetailedTopologyOpen(false);
+    setDetailedRootNodeId(null);
+    setDetailedSelectedNodeId(null);
+    setDetailedSelectedTileFilterId("__all__");
+    setDetailedTileFilterSearchText("");
+    setIsDetailedTileSearchFocused(false);
+    setDetailedZoom(1);
     if (coreNode?.id) {
       setSelectedNodeId(coreNode.id);
     }
@@ -970,6 +1557,14 @@ export function NetworkTopologyView({
       if (tileSearchBlurTimerRef.current !== null) {
         window.clearTimeout(tileSearchBlurTimerRef.current);
       }
+      if (detailedTileSearchBlurTimerRef.current !== null) {
+        window.clearTimeout(detailedTileSearchBlurTimerRef.current);
+      }
+      if (detailedNodeClickSuppressTimerRef.current !== null) {
+        window.clearTimeout(detailedNodeClickSuppressTimerRef.current);
+      }
+      detailedPanStateRef.current = null;
+      suppressDetailedNodeClickRef.current = false;
     };
   }, []);
 
@@ -996,6 +1591,35 @@ export function NetworkTopologyView({
   }, [layout.nodes, selectedTileFilterId]);
 
   useEffect(() => {
+    if (!isDetailedTopologyOpen || !detailedTree) {
+      return;
+    }
+    setDetailedSelectedNodeId(detailedTree.rootNodeId);
+  }, [detailedTree, isDetailedTopologyOpen]);
+
+  useEffect(() => {
+    if (!isDetailedTopologyOpen || !detailedTree) {
+      return;
+    }
+    const raf = window.requestAnimationFrame(() => {
+      centerDetailedViewportScroll();
+    });
+    return () => {
+      window.cancelAnimationFrame(raf);
+    };
+  }, [detailedRootNodeId, detailedTree, isDetailedTopologyOpen]);
+
+  useEffect(() => {
+    if (!detailedTree || detailedSelectedTileFilterId === "__all__") {
+      return;
+    }
+    const selectedExists = detailedTree.nodes.some((node) => node.id === detailedSelectedTileFilterId);
+    if (!selectedExists) {
+      setDetailedSelectedTileFilterId("__all__");
+    }
+  }, [detailedSelectedTileFilterId, detailedTree]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -1014,6 +1638,10 @@ export function NetworkTopologyView({
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (isDetailedTopologyOpen) {
+          setIsDetailedTopologyOpen(false);
+          return;
+        }
         if (selectedSystemId) {
           setSelectedSystemId(null);
           return;
@@ -1025,7 +1653,7 @@ export function NetworkTopologyView({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [isOpen, onClose, selectedSystemId]);
+  }, [isDetailedTopologyOpen, isOpen, onClose, selectedSystemId]);
 
   useEffect(() => {
     if (!isOpen || !canvasRef.current || !viewportRef.current) {
@@ -1515,7 +2143,6 @@ export function NetworkTopologyView({
         setSelectedTileFilterId(nodeId);
       }
       setSelectedNodeId(nodeId);
-      setSelectedDetailNodeId(nodeId);
       tileDragStateRef.current = {
         nodeId,
         pointerId: event.pointerId,
@@ -1570,7 +2197,6 @@ export function NetworkTopologyView({
     if (nextId !== "__all__") {
       setSelectedNodeId(nextId);
       setSelectedSystemId(null);
-      setSelectedDetailNodeId(nextId);
       const selectedNode = nodeById.get(nextId);
       if (selectedNode) {
         setTileFilterSearchText(`${entityTypeLabel(selectedNode.entityType)}: ${selectedNode.name}`);
@@ -1600,8 +2226,287 @@ export function NetworkTopologyView({
     setSearchQuery("");
   };
 
-  const toggleNetworkCiExpansion = (nodeId: string) => {
-    setExpandedNetworkNodeIds((current) => {
+  const openDetailsPanelForNode = (nodeId: string) => {
+    if (!nodeById.has(nodeId)) {
+      return;
+    }
+    setSelectedDetailNodeId(nodeId);
+    setSelectedSystemId(null);
+  };
+
+  const openDetailedTopologyForNode = (nodeId: string) => {
+    const node = nodeById.get(nodeId);
+    if (!node) {
+      return;
+    }
+    setDetailedRootNodeId(node.id);
+    setDetailedSelectedTileFilterId("__all__");
+    setDetailedTileFilterSearchText("");
+    setIsDetailedTileSearchFocused(false);
+    setDetailedZoom(1);
+    setIsDetailedTopologyOpen(true);
+  };
+
+  const closeDetailedTopologyView = () => {
+    if (detailedTileSearchBlurTimerRef.current !== null) {
+      window.clearTimeout(detailedTileSearchBlurTimerRef.current);
+      detailedTileSearchBlurTimerRef.current = null;
+    }
+    if (detailedNodeClickSuppressTimerRef.current !== null) {
+      window.clearTimeout(detailedNodeClickSuppressTimerRef.current);
+      detailedNodeClickSuppressTimerRef.current = null;
+    }
+    detailedPanStateRef.current = null;
+    suppressDetailedNodeClickRef.current = false;
+    setIsDetailedTopologyOpen(false);
+    setDetailedSelectedTileFilterId("__all__");
+    setDetailedTileFilterSearchText("");
+    setIsDetailedTileSearchFocused(false);
+    setDetailedZoom(1);
+  };
+
+  const selectDetailedTileFilter = (nextId: string) => {
+    setDetailedSelectedTileFilterId(nextId);
+    if (nextId !== "__all__") {
+      setDetailedSelectedNodeId(nextId);
+      const selectedNode = detailedNodeById.get(nextId);
+      if (selectedNode) {
+        setDetailedTileFilterSearchText(`${detailedEntityTypeLabel(selectedNode.entityType)}: ${selectedNode.name}`);
+      }
+    } else {
+      setDetailedTileFilterSearchText("");
+    }
+    setIsDetailedTileSearchFocused(false);
+  };
+
+  const clearDetailedTileSearchSelection = () => {
+    setDetailedSelectedTileFilterId("__all__");
+    setDetailedTileFilterSearchText("");
+    setIsDetailedTileSearchFocused(false);
+    if (detailedTree?.rootNodeId) {
+      setDetailedSelectedNodeId(detailedTree.rootNodeId);
+    }
+  };
+
+  const zoomDetailedBy = (factor: number) => {
+    setDetailedZoom((current) => Number((current * factor).toFixed(4)));
+  };
+
+  const resetDetailedTopologyView = () => {
+    setDetailedZoom(1);
+    if (detailedTree?.rootNodeId) {
+      setDetailedSelectedNodeId(detailedTree.rootNodeId);
+    }
+    window.requestAnimationFrame(() => {
+      centerDetailedViewportScroll();
+    });
+  };
+
+  const beginDetailedCanvasPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 && event.pointerType !== "touch") {
+      return;
+    }
+    const targetElement = event.target instanceof Element ? event.target : null;
+    if (targetElement?.closest("button,input,select,textarea,a,label,[role='button'],[data-no-pan='true']")) {
+      return;
+    }
+    const container = event.currentTarget;
+    detailedPanStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startScrollLeft: container.scrollLeft,
+      startScrollTop: container.scrollTop,
+      hasMoved: false
+    };
+    container.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const moveDetailedCanvasPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const panState = detailedPanStateRef.current;
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return;
+    }
+    const deltaX = event.clientX - panState.startClientX;
+    const deltaY = event.clientY - panState.startClientY;
+    if (!panState.hasMoved && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
+      panState.hasMoved = true;
+    }
+    event.currentTarget.scrollLeft = panState.startScrollLeft - deltaX;
+    event.currentTarget.scrollTop = panState.startScrollTop - deltaY;
+    if (panState.hasMoved) {
+      suppressDetailedNodeClickRef.current = true;
+    }
+    event.preventDefault();
+  };
+
+  const endDetailedCanvasPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const panState = detailedPanStateRef.current;
+    if (!panState || panState.pointerId !== event.pointerId) {
+      return;
+    }
+    detailedPanStateRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (!panState.hasMoved) {
+      return;
+    }
+    suppressDetailedNodeClickRef.current = true;
+    if (detailedNodeClickSuppressTimerRef.current !== null) {
+      window.clearTimeout(detailedNodeClickSuppressTimerRef.current);
+    }
+    detailedNodeClickSuppressTimerRef.current = window.setTimeout(() => {
+      suppressDetailedNodeClickRef.current = false;
+      detailedNodeClickSuppressTimerRef.current = null;
+    }, 0);
+  };
+
+  const exportDetailedTopologyAsPng = async () => {
+    if (!detailedTree) {
+      return;
+    }
+    const detailedNodeById = new Map(detailedTree.nodes.map((node) => [node.id, node]));
+    const edgeMarkup = detailedTree.edges
+      .map((edge) => {
+        const fromNode = detailedNodeById.get(edge.fromNodeId);
+        const toNode = detailedNodeById.get(edge.toNodeId);
+        if (!fromNode || !toNode) {
+          return "";
+        }
+        const isPathEdge = detailedSelectedPathEdgeIds.has(edge.id);
+        const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
+        const strokeColor = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : "#38bdf8";
+        const strokeWidth = isPathEdge ? 4 : isConnectedEdge ? 3.2 : 2.1;
+        const opacity = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
+        return `<path d="${detailedEdgePath(fromNode, toNode)}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" opacity="${opacity}" stroke-linecap="round" />`;
+      })
+      .join("");
+
+    const nodeMarkup = detailedTree.nodes
+      .map((node) => {
+        const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
+        const percentages = compliancePercentages(compliance);
+        const isRootNode = node.id === detailedTree.rootNodeId;
+        const isCiNode = node.entityType === "ci";
+        const isSelectedNode = detailedSelectedNodeId === node.id;
+        const tileWidth = node.width;
+        const tileHeight = node.height;
+        const tileRadius = isCiNode ? 14 : 24;
+        const strokeColor = isRootNode ? "#ef4444" : isSelectedNode ? "#a855f7" : detailedTileStrokeColor(node.entityType);
+        const strokeWidth = isRootNode || isSelectedNode ? 4 : 2;
+
+        if (isCiNode) {
+          const ciFirstLineLabel = `Type: CI | Name: ${node.name} | ${node.subtitle}`;
+          const ciFirstLineMaxChars = Math.max(62, Math.floor((tileWidth - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH));
+          const ciProgressWidth = Math.max(
+            140,
+            Math.min(
+              DETAILED_CI_PROGRESS_WIDTH,
+              tileWidth - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+            )
+          );
+          const ciBarBaseX = node.x + 14;
+          const ciBarY = node.y + tileHeight - 24;
+          return `
+            <g>
+              <rect x="${node.x}" y="${node.y}" width="${tileWidth}" height="${tileHeight}" rx="${tileRadius}" fill="${detailedTileColor(node.entityType)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
+              <text x="${node.x + 14}" y="${node.y + 24}" font-size="11.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+                truncateLabel(ciFirstLineLabel, ciFirstLineMaxChars)
+              )}</text>
+              <rect x="${ciBarBaseX}" y="${ciBarY}" width="${ciProgressWidth}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#cbd5e1" />
+              <rect x="${ciBarBaseX}" y="${ciBarY}" width="${(ciProgressWidth * percentages.compliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" rx="3" fill="#16a34a" />
+              <rect x="${ciBarBaseX + (ciProgressWidth * percentages.compliant) / 100}" y="${ciBarY}" width="${(ciProgressWidth * percentages.nonCompliant) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#ef4444" />
+              <rect x="${ciBarBaseX + (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${ciBarY}" width="${(ciProgressWidth * percentages.other) / 100}" height="${DETAILED_CI_PROGRESS_HEIGHT}" fill="#94a3b8" />
+              <text x="${node.x + tileWidth - 14}" y="${node.y + tileHeight - 16}" text-anchor="end" font-size="10.5" font-weight="700" fill="#0f172a">${escapeSvgText(
+                `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
+              )}</text>
+            </g>
+          `.trim();
+        }
+
+        const barWidth = tileWidth - 36;
+        return `
+          <g>
+            <rect x="${node.x}" y="${node.y}" width="${tileWidth}" height="${tileHeight}" rx="${tileRadius}" fill="${detailedTileColor(node.entityType)}" stroke="${strokeColor}" stroke-width="${strokeWidth}" />
+            <text x="${node.x + 18}" y="${node.y + 30}" font-size="14" font-weight="700" fill="#0f172a">${escapeSvgText(
+              truncateLabel(`Type: ${detailedEntityTypeLabel(node.entityType)}`, 44)
+            )}</text>
+            <text x="${node.x + 18}" y="${node.y + 52}" font-size="14" font-weight="700" fill="#0f172a">${escapeSvgText(
+              truncateLabel(`Name: ${node.name}`, 44)
+            )}</text>
+            <text x="${node.x + 18}" y="${node.y + 72}" font-size="12" fill="#334155">${escapeSvgText(
+              truncateLabel(node.subtitle, 49)
+            )}</text>
+            <rect x="${node.x + 18}" y="${node.y + 88}" width="${barWidth}" height="12" rx="3" fill="#cbd5e1" />
+            <rect x="${node.x + 18}" y="${node.y + 88}" width="${(barWidth * percentages.compliant) / 100}" height="12" rx="3" fill="#16a34a" />
+            <rect x="${node.x + 18 + (barWidth * percentages.compliant) / 100}" y="${node.y + 88}" width="${(barWidth * percentages.nonCompliant) / 100}" height="12" fill="#ef4444" />
+            <rect x="${node.x + 18 + (barWidth * (percentages.compliant + percentages.nonCompliant)) / 100}" y="${node.y + 88}" width="${(barWidth * percentages.other) / 100}" height="12" fill="#94a3b8" />
+            <text x="${node.x + tileWidth / 2}" y="${node.y + 123}" text-anchor="middle" font-size="16" font-weight="600" fill="#0f172a">${escapeSvgText(
+              `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`
+            )}</text>
+          </g>
+        `.trim();
+      })
+      .join("");
+
+    const serializedSvg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${detailedTree.width}" height="${detailedTree.height}" viewBox="0 0 ${detailedTree.width} ${detailedTree.height}">
+        <rect x="0" y="0" width="${detailedTree.width}" height="${detailedTree.height}" fill="#020617" />
+        <g>${edgeMarkup}</g>
+        <g>${nodeMarkup}</g>
+      </svg>
+    `.trim();
+    const svgBlob = new Blob([serializedSvg], { type: "image/svg+xml;charset=utf-8" });
+    const objectUrl = URL.createObjectURL(svgBlob);
+    let pngObjectUrl: string | null = null;
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const nextImage = new Image();
+        nextImage.onload = () => resolve(nextImage);
+        nextImage.onerror = () => reject(new Error("Failed to render detailed topology image"));
+        nextImage.src = objectUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.ceil(detailedTree.width));
+      canvas.height = Math.max(1, Math.ceil(detailedTree.height));
+      const context = canvas.getContext("2d");
+      if (!context) {
+        return;
+      }
+      context.fillStyle = "#020617";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      const pngBlob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/png");
+      });
+      if (!pngBlob) {
+        return;
+      }
+      pngObjectUrl = URL.createObjectURL(pngBlob);
+      const link = document.createElement("a");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      link.href = pngObjectUrl;
+      link.download = `detailed-toplogy-view-${timestamp}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Failed to export detailed topology PNG", error);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      if (pngObjectUrl) {
+        URL.revokeObjectURL(pngObjectUrl);
+      }
+    }
+  };
+
+  const toggleNodeCiExpansion = (nodeId: string) => {
+    setExpandedNodeIds((current) => {
       const next = new Set(current);
       if (next.has(nodeId)) {
         next.delete(nodeId);
@@ -1612,20 +2517,29 @@ export function NetworkTopologyView({
     });
   };
 
-  const setNetworkCiSearch = (nodeId: string, assetType: CiAssetType, value: string) => {
+  const setNodeCiSearch = (nodeId: string, assetType: CiAssetType, value: string) => {
     const key = ciSearchKey(nodeId, assetType);
-    setNetworkCiSearchByKey((current) => ({
+    setNodeCiSearchByKey((current) => ({
       ...current,
       [key]: value
     }));
   };
 
-  const setNetworkCiEnvironmentSearch = (nodeId: string, environment: CiEnvironmentLabel, value: string) => {
+  const setNodeCiEnvironmentSearch = (nodeId: string, environment: CiEnvironmentLabel, value: string) => {
     const key = ciEnvironmentSearchKey(nodeId, environment);
-    setNetworkCiEnvironmentSearchByKey((current) => ({
+    setNodeCiEnvironmentSearchByKey((current) => ({
       ...current,
       [key]: value
     }));
+  };
+
+  const detailedEdgePath = (fromNode: DetailedTreeNode, toNode: DetailedTreeNode) => {
+    const startX = fromNode.x + fromNode.width;
+    const startY = fromNode.y + fromNode.height / 2;
+    const endX = toNode.x;
+    const endY = toNode.y + toNode.height / 2;
+    const horizontalDelta = Math.max(45, (endX - startX) * 0.5);
+    return `M ${startX} ${startY} C ${startX + horizontalDelta} ${startY}, ${endX - horizontalDelta} ${endY}, ${endX} ${endY}`;
   };
 
   const renderDetailList = (label: string, values?: string[]) => {
@@ -1639,6 +2553,10 @@ export function NetworkTopologyView({
       </div>
     );
   };
+
+  const detailedCanvasWidth = detailedTree ? Math.max(1, Math.ceil(detailedTree.width * detailedZoom)) : 1;
+  const detailedCanvasHeight = detailedTree ? Math.max(1, Math.ceil(detailedTree.height * detailedZoom)) : 1;
+  const detailedZoomPercent = Math.round(detailedZoom * 100);
 
   return (
     <div
@@ -1802,18 +2720,19 @@ export function NetworkTopologyView({
           </div>
         </div>
 
-        <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-auto px-4 py-4">
-          <div
-            ref={viewportRef}
-            onWheel={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const factor = event.deltaY > 0 ? 1.1 : 0.9;
-              zoomBy(factor);
-            }}
-            className="relative overflow-hidden rounded-xl border border-sky-400/20 bg-slate-950/65"
-            style={{ width: layout.size.width, height: layout.size.height }}
-          >
+        <div className="relative min-h-0 flex-1">
+          <div ref={scrollContainerRef} className="h-full overflow-auto px-4 py-4">
+            <div
+              ref={viewportRef}
+              onWheel={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const factor = event.deltaY > 0 ? 1.1 : 0.9;
+                zoomBy(factor);
+              }}
+              className="relative overflow-hidden rounded-xl border border-sky-400/20 bg-slate-950/65"
+              style={{ width: layout.size.width, height: layout.size.height }}
+            >
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
             {rendererInitError ? (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 p-6 text-center">
@@ -1829,12 +2748,10 @@ export function NetworkTopologyView({
                 const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
                 const percentage = compliancePercentages(compliance);
                 const isCoreTile = coreNode?.id === node.id;
-                const isNetworkTile = node.entityType === "network";
-                const shouldShowNetworkExpander = isSystemTopologyView && isNetworkTile;
-                const networkCiGroups = ciAssetsByNetworkNodeId.get(node.id) ?? [];
-                const networkEnvironmentGroups = ciEnvironmentGroupsByNetworkNodeId.get(node.id) ?? [];
-                const networkCiCount = networkCiGroups.reduce((sum, group) => sum + group.items.length, 0);
-                const isNetworkExpanded = expandedNetworkNodeIds.has(node.id);
+                const nodeCiGroups = ciAssetsByNodeId.get(node.id) ?? [];
+                const nodeEnvironmentGroups = ciEnvironmentGroupsByNodeId.get(node.id) ?? [];
+                const nodeCiCount = nodeCiGroups.reduce((sum, group) => sum + group.items.length, 0);
+                const isNodeExpanded = expandedNodeIds.has(node.id);
                 return (
                   <div
                     key={node.id}
@@ -1850,26 +2767,95 @@ export function NetworkTopologyView({
                         ? "topology-core-tile border-4 border-red-500"
                         : node.id === selectedNodeId
                           ? "border-4 border-violet-500"
-                          : "border-2 border-sky-950/90"
+                        : "border-2 border-sky-950/90"
                     } ${draggingNodeId === node.id ? "cursor-grabbing" : "cursor-grab"} relative origin-center select-none touch-none`}
                   >
-                    {shouldShowNetworkExpander ? (
-                      <button
-                        type="button"
-                        aria-label={`${isNetworkExpanded ? "Collapse" : "Expand"} ${node.name} connected CIs`}
-                        onPointerDown={(event) => {
-                          event.stopPropagation();
-                          event.preventDefault();
-                        }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleNetworkCiExpansion(node.id);
-                        }}
-                        className="absolute -right-3 -top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-base font-bold text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
+                    <button
+                      type="button"
+                      aria-label={`${isNodeExpanded ? "Collapse" : "Expand"} ${node.name} CIs in scope`}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        event.preventDefault();
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleNodeCiExpansion(node.id);
+                      }}
+                      className="absolute -right-3 -top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
+                    >
+                      {isNodeExpanded ? (
+                        <svg
+                          viewBox="0 0 12 12"
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M2 6h8" />
+                        </svg>
+                      ) : (
+                        <svg
+                          viewBox="0 0 12 12"
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 2v8" />
+                          <path d="M2 6h8" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      title="Detailed Toplogy View"
+                      aria-label={`Open Detailed Toplogy View for ${node.name}`}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        event.preventDefault();
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openDetailedTopologyForNode(node.id);
+                      }}
+                      className="absolute -right-3 -bottom-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
+                    >
+                      <svg
+                        viewBox="0 0 12 12"
+                        className="h-3.5 w-3.5"
+                        aria-hidden="true"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        {isNetworkExpanded ? "-" : "+"}
-                      </button>
-                    ) : null}
+                        <path d="M6 2v8" />
+                        <path d="M2 6h8" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      title="Tile Details"
+                      aria-label={`Open details for ${node.name}`}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        event.preventDefault();
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openDetailsPanelForNode(node.id);
+                      }}
+                      className="absolute -left-3 -bottom-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
+                    >
+                      <span className="text-[11px] font-bold leading-none">D</span>
+                    </button>
                     <div className="space-y-0.5">
                       <p className="text-sm font-semibold leading-snug text-slate-900">
                         Type: <span className="font-medium">{entityTypeLabel(node.entityType)}</span>
@@ -1888,18 +2874,18 @@ export function NetworkTopologyView({
                     <p className="mt-2 text-center text-base font-medium text-slate-900">
                       {percentage.compliant}% C | {percentage.nonCompliant}% NC | {percentage.other}% O
                     </p>
-                    {shouldShowNetworkExpander && isNetworkExpanded ? (
+                    {isNodeExpanded ? (
                       <div
                         onPointerDown={(event) => event.stopPropagation()}
                         className="absolute left-1/2 top-[calc(100%+0.55rem)] z-20 w-[min(85.8rem,calc(100vw-3rem))] -translate-x-1/2 rounded-2xl border border-slate-700/85 bg-slate-950/96 p-3 shadow-[0_20px_48px_rgba(0,0,0,0.58)]"
                       >
                         <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
-                          Connected CIs ({networkCiCount})
+                          CIs In Scope ({nodeCiCount})
                         </p>
                         <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                           {CI_ASSET_TYPES.map((assetType) => {
-                            const group = networkCiGroups.find((item) => item.assetType === assetType);
-                            const searchValue = networkCiSearchByKey[ciSearchKey(node.id, assetType)] ?? "";
+                            const group = nodeCiGroups.find((item) => item.assetType === assetType);
+                            const searchValue = nodeCiSearchByKey[ciSearchKey(node.id, assetType)] ?? "";
                             const normalizedSearchValue = searchValue.trim().toLowerCase();
                             const filteredItems = (group?.items ?? []).filter((asset) => {
                               if (!normalizedSearchValue) {
@@ -1921,7 +2907,7 @@ export function NetworkTopologyView({
                                   type="search"
                                   value={searchValue}
                                   onPointerDown={(event) => event.stopPropagation()}
-                                  onChange={(event) => setNetworkCiSearch(node.id, assetType, event.target.value)}
+                                  onChange={(event) => setNodeCiSearch(node.id, assetType, event.target.value)}
                                   placeholder="Filter CIs"
                                   className="mt-1 rounded border border-slate-600/80 bg-slate-950/90 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-400"
                                 />
@@ -1957,13 +2943,13 @@ export function NetworkTopologyView({
                         </div>
                         <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/65 p-2">
                           <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
-                            Connected CIs By Environment
+                            CIs In Scope By Environment
                           </p>
-                          {networkEnvironmentGroups.length ? (
+                          {nodeEnvironmentGroups.length ? (
                             <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                              {networkEnvironmentGroups.map((group) => {
+                              {nodeEnvironmentGroups.map((group) => {
                                 const searchKey = ciEnvironmentSearchKey(node.id, group.environment);
-                                const searchValue = networkCiEnvironmentSearchByKey[searchKey] ?? "";
+                                const searchValue = nodeCiEnvironmentSearchByKey[searchKey] ?? "";
                                 const normalizedSearch = searchValue.trim().toLowerCase();
                                 const filteredItems = group.items.filter((asset) => {
                                   if (!normalizedSearch) {
@@ -1986,7 +2972,7 @@ export function NetworkTopologyView({
                                       value={searchValue}
                                       onPointerDown={(event) => event.stopPropagation()}
                                       onChange={(event) =>
-                                        setNetworkCiEnvironmentSearch(node.id, group.environment, event.target.value)
+                                        setNodeCiEnvironmentSearch(node.id, group.environment, event.target.value)
                                       }
                                       placeholder="Filter CIs"
                                       className="mt-1 rounded border border-slate-600/80 bg-slate-950/90 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-400"
@@ -2026,7 +3012,7 @@ export function NetworkTopologyView({
                               })}
                             </div>
                           ) : (
-                            <p className="mt-2 px-1 text-xs text-slate-400">No environment-linked CIs in this network.</p>
+                            <p className="mt-2 px-1 text-xs text-slate-400">No environment-linked CIs in this scope.</p>
                           )}
                         </div>
                       </div>
@@ -2137,8 +3123,420 @@ export function NetworkTopologyView({
                 </div>
               </div>
             </aside>
+            </div>
           </div>
         </div>
+
+          {isDetailedTopologyOpen && detailedTree ? (
+            <aside className="absolute inset-0 z-50 bg-slate-950">
+              <div className="flex h-full flex-col">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-400/20 px-4 py-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Detailed Toplogy View</p>
+                    <h3 className="text-base font-semibold text-sky-100">{detailedRootNode?.name ?? "Topology Root"}</h3>
+                  </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={exportDetailedTopologyAsPng}
+                    className="rounded-md border border-emerald-300/45 bg-emerald-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100 hover:bg-emerald-500/25"
+                  >
+                    Export PNG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeDetailedTopologyView}
+                    className="rounded-md border border-red-300/45 bg-red-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 border-b border-sky-400/15 px-4 py-3 text-xs">
+                <label className="text-slate-300/85" htmlFor="detailed-topology-compliance-mode">
+                  Compliance
+                </label>
+                <select
+                  id="detailed-topology-compliance-mode"
+                  value={complianceMode}
+                  onChange={(event) => setComplianceMode(event.target.value as ComplianceMode)}
+                  className="rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100"
+                >
+                  <option value="cyber">Cyber Security Compliance</option>
+                  <option value="discovery">Discovery Compliance</option>
+                </select>
+                <label className="ml-2 text-slate-300/85" htmlFor="detailed-topology-tile-filter-search">
+                  Tile Search
+                </label>
+                <div className="relative w-[440px] max-w-full">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={detailedTileSearchInputRef}
+                      id="detailed-topology-tile-filter-search"
+                      type="search"
+                      value={detailedTileFilterSearchText}
+                      onChange={(event) => setDetailedTileFilterSearchText(event.target.value)}
+                      onFocus={() => setIsDetailedTileSearchFocused(true)}
+                      onBlur={() => {
+                        detailedTileSearchBlurTimerRef.current = window.setTimeout(() => {
+                          setIsDetailedTileSearchFocused(false);
+                          setDetailedTileFilterSearchText((currentText) => currentText.trim());
+                          detailedTileSearchBlurTimerRef.current = null;
+                        }, 120);
+                      }}
+                      placeholder="Search tile type or name"
+                      className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100 placeholder:text-slate-400/90"
+                    />
+                    {detailedSelectedTileFilterId !== "__all__" ? (
+                      <button
+                        type="button"
+                        onClick={clearDetailedTileSearchSelection}
+                        className="rounded-md border border-slate-500/45 bg-slate-900/70 px-2.5 py-1.5 font-semibold text-slate-200"
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                  {hasDetailedTileSearchTerm && isDetailedTileSearchFocused ? (
+                    <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
+                      {filteredDetailedTileDropdownOptions.length ? (
+                        <ul className="space-y-1">
+                          {filteredDetailedTileDropdownOptions.map((node) => (
+                            <li key={`detailed-tile-search-result-${node.id}`}>
+                              <button
+                                type="button"
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  if (detailedTileSearchBlurTimerRef.current !== null) {
+                                    window.clearTimeout(detailedTileSearchBlurTimerRef.current);
+                                    detailedTileSearchBlurTimerRef.current = null;
+                                  }
+                                  selectDetailedTileFilter(node.id);
+                                  detailedTileSearchInputRef.current?.blur();
+                                }}
+                                className={`w-full rounded-md border px-2 py-1.5 text-left text-xs ${
+                                  detailedSelectedTileFilterId === node.id
+                                    ? "border-violet-300/75 bg-violet-500/15 text-violet-100"
+                                    : "border-sky-400/20 bg-slate-900/70 text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
+                                }`}
+                              >
+                                {detailedEntityTypeLabel(node.entityType)}: {node.name}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-300">
+                          No matching tiles
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                <span className="mx-1 h-5 w-px bg-sky-400/20" />
+                <button
+                  type="button"
+                  onClick={() => zoomDetailedBy(1.14)}
+                  className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
+                >
+                  Zoom In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => zoomDetailedBy(0.88)}
+                  className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
+                >
+                  Zoom Out
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-sky-200/70 bg-sky-500/18 px-2.5 py-1.5 font-semibold text-sky-100"
+                  aria-pressed="true"
+                >
+                  Panning
+                </button>
+                <button
+                  type="button"
+                  onClick={resetDetailedTopologyView}
+                  className="rounded-md border border-slate-400/45 bg-slate-800/70 px-2.5 py-1.5 font-semibold text-slate-100"
+                >
+                  Reset View
+                </button>
+                <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
+                  Zoom {detailedZoomPercent}%
+                </span>
+
+                <div className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                    Green compliant
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                    Red non-compliant
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+                    Grey other
+                  </span>
+                  <span className="mx-1 h-5 w-px bg-sky-400/20" />
+                  <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
+                  {(
+                    [
+                      "network",
+                      "mission-capability",
+                      "service",
+                      "ict-system",
+                      "environment",
+                      "ci"
+                    ] as DetailedTileEntityType[]
+                  )
+                    .filter((entityType) => detailedPresentEntityTypes.has(entityType))
+                    .map((entityType) => (
+                      <span key={`detailed-entity-key-${entityType}`} className="inline-flex items-center gap-1">
+                        <span
+                          className="h-2.5 w-2.5 rounded-sm"
+                          style={{ backgroundColor: detailedTileColor(entityType) }}
+                        />
+                        {detailedEntityTypeLabel(entityType)}
+                      </span>
+                    ))}
+                </div>
+              </div>
+
+              <div
+                ref={detailedScrollContainerRef}
+                onPointerDown={beginDetailedCanvasPan}
+                onPointerMove={moveDetailedCanvasPan}
+                onPointerUp={endDetailedCanvasPan}
+                onPointerCancel={endDetailedCanvasPan}
+                className="min-h-0 flex-1 overflow-auto cursor-grab select-none touch-none active:cursor-grabbing"
+              >
+                <div
+                  className="relative min-h-full min-w-full overflow-hidden bg-slate-950/75"
+                  style={{
+                    width: `max(${detailedCanvasWidth}px, 100%)`,
+                    height: `max(${detailedCanvasHeight}px, 100%)`
+                  }}
+                >
+                  <svg
+                    ref={detailedSvgRef}
+                    width={detailedTree.width}
+                    height={detailedTree.height}
+                    viewBox={`0 0 ${detailedTree.width} ${detailedTree.height}`}
+                    className="absolute left-0 top-0"
+                    style={{ transform: `scale(${detailedZoom})`, transformOrigin: "top left" }}
+                  >
+                    <rect x={0} y={0} width={detailedTree.width} height={detailedTree.height} fill="#020617" />
+
+                    <g>
+                      {detailedTree.edges.map((edge) => {
+                        if (isDetailedTileFilterActive) {
+                          if (
+                            !detailedFilteredNodeIds.has(edge.fromNodeId) ||
+                            !detailedFilteredNodeIds.has(edge.toNodeId)
+                          ) {
+                            return null;
+                          }
+                        }
+                        const fromNode = detailedNodeById.get(edge.fromNodeId);
+                        const toNode = detailedNodeById.get(edge.toNodeId);
+                        if (!fromNode || !toNode) {
+                          return null;
+                        }
+                        const isPathEdge = detailedSelectedPathEdgeIds.has(edge.id);
+                        const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
+                        const strokeColor = isPathEdge
+                          ? "#9333ea"
+                          : isConnectedEdge
+                            ? "#eab308"
+                            : "#38bdf8";
+                        const strokeWidth = isPathEdge ? 4 : isConnectedEdge ? 3.2 : 2.1;
+                        const opacity = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
+
+                        return (
+                          <path
+                            key={`detailed-edge-${edge.id}`}
+                            d={detailedEdgePath(fromNode, toNode)}
+                            fill="none"
+                            stroke={strokeColor}
+                            strokeWidth={strokeWidth}
+                            opacity={opacity}
+                            strokeLinecap="round"
+                          />
+                        );
+                      })}
+                    </g>
+
+                    <g>
+                      {detailedTree.nodes.map((node) => {
+                        if (isDetailedTileFilterActive && !detailedFilteredNodeIds.has(node.id)) {
+                          return null;
+                        }
+                        const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
+                        const percentages = compliancePercentages(compliance);
+                        const isRootNode = node.id === detailedTree.rootNodeId;
+                        const isCiNode = node.entityType === "ci";
+                        const isSelectedNode = detailedSelectedNodeId === node.id;
+                        const tileWidth = node.width;
+                        const tileHeight = node.height;
+                        const tileRadius = isCiNode ? 14 : 24;
+                        const ciFirstLineLabel = `Type: CI | Name: ${node.name} | ${node.subtitle}`;
+                        const ciFirstLineMaxChars = Math.max(
+                          62,
+                          Math.floor((tileWidth - 28) / DETAILED_CI_TEXT_AVG_CHAR_WIDTH)
+                        );
+                        const ciProgressWidth = Math.max(
+                          140,
+                          Math.min(
+                            DETAILED_CI_PROGRESS_WIDTH,
+                            tileWidth - 28 - DETAILED_CI_PROGRESS_TO_TEXT_GAP - DETAILED_CI_SCORE_TEXT_RESERVE
+                          )
+                        );
+                        const strokeColor = isRootNode
+                          ? "#ef4444"
+                          : isSelectedNode
+                            ? "#a855f7"
+                            : detailedTileStrokeColor(node.entityType);
+                        const strokeWidth = isRootNode || isSelectedNode ? 4 : 2;
+
+                        return (
+                          <g
+                            key={`detailed-node-${node.id}`}
+                            onClick={() => {
+                              if (suppressDetailedNodeClickRef.current) {
+                                suppressDetailedNodeClickRef.current = false;
+                                return;
+                              }
+                              setDetailedSelectedNodeId(node.id);
+                            }}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <rect
+                              x={node.x}
+                              y={node.y}
+                              width={tileWidth}
+                              height={tileHeight}
+                              rx={tileRadius}
+                              fill={detailedTileColor(node.entityType)}
+                              stroke={strokeColor}
+                              strokeWidth={strokeWidth}
+                            />
+                            {isCiNode ? (
+                              <>
+                                <text x={node.x + 14} y={node.y + 24} fontSize={11.5} fontWeight={700} fill="#0f172a">
+                                  {truncateLabel(ciFirstLineLabel, ciFirstLineMaxChars)}
+                                </text>
+                                <rect
+                                  x={node.x + 14}
+                                  y={node.y + tileHeight - 24}
+                                  width={ciProgressWidth}
+                                  height={DETAILED_CI_PROGRESS_HEIGHT}
+                                  rx={3}
+                                  fill="#cbd5e1"
+                                />
+                                <rect
+                                  x={node.x + 14}
+                                  y={node.y + tileHeight - 24}
+                                  width={(ciProgressWidth * percentages.compliant) / 100}
+                                  height={DETAILED_CI_PROGRESS_HEIGHT}
+                                  rx={3}
+                                  fill="#16a34a"
+                                />
+                                <rect
+                                  x={node.x + 14 + (ciProgressWidth * percentages.compliant) / 100}
+                                  y={node.y + tileHeight - 24}
+                                  width={(ciProgressWidth * percentages.nonCompliant) / 100}
+                                  height={DETAILED_CI_PROGRESS_HEIGHT}
+                                  fill="#ef4444"
+                                />
+                                <rect
+                                  x={
+                                    node.x +
+                                    14 +
+                                    (ciProgressWidth * (percentages.compliant + percentages.nonCompliant)) / 100
+                                  }
+                                  y={node.y + tileHeight - 24}
+                                  width={(ciProgressWidth * percentages.other) / 100}
+                                  height={DETAILED_CI_PROGRESS_HEIGHT}
+                                  fill="#94a3b8"
+                                />
+                                <text
+                                  x={node.x + tileWidth - 14}
+                                  y={node.y + tileHeight - 16}
+                                  textAnchor="end"
+                                  fontSize={10.5}
+                                  fontWeight={700}
+                                  fill="#0f172a"
+                                >
+                                  {`${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`}
+                                </text>
+                              </>
+                            ) : (
+                              <>
+                                <text x={node.x + 18} y={node.y + 30} fontSize={14} fontWeight={700} fill="#0f172a">
+                                  {truncateLabel(`Type: ${detailedEntityTypeLabel(node.entityType)}`, 44)}
+                                </text>
+                                <text x={node.x + 18} y={node.y + 52} fontSize={14} fontWeight={700} fill="#0f172a">
+                                  {truncateLabel(`Name: ${node.name}`, 44)}
+                                </text>
+                                <text x={node.x + 18} y={node.y + 72} fontSize={12} fill="#334155">
+                                  {truncateLabel(node.subtitle, 49)}
+                                </text>
+
+                                <rect
+                                  x={node.x + 18}
+                                  y={node.y + 88}
+                                  width={tileWidth - 36}
+                                  height={12}
+                                  rx={3}
+                                  fill="#cbd5e1"
+                                />
+                                <rect
+                                  x={node.x + 18}
+                                  y={node.y + 88}
+                                  width={((tileWidth - 36) * percentages.compliant) / 100}
+                                  height={12}
+                                  rx={3}
+                                  fill="#16a34a"
+                                />
+                                <rect
+                                  x={node.x + 18 + ((tileWidth - 36) * percentages.compliant) / 100}
+                                  y={node.y + 88}
+                                  width={((tileWidth - 36) * percentages.nonCompliant) / 100}
+                                  height={12}
+                                  fill="#ef4444"
+                                />
+                                <rect
+                                  x={node.x + 18 + ((tileWidth - 36) * (percentages.compliant + percentages.nonCompliant)) / 100}
+                                  y={node.y + 88}
+                                  width={((tileWidth - 36) * percentages.other) / 100}
+                                  height={12}
+                                  fill="#94a3b8"
+                                />
+                                <text
+                                  x={node.x + tileWidth / 2}
+                                  y={node.y + 123}
+                                  textAnchor="middle"
+                                  fontSize={16}
+                                  fontWeight={600}
+                                  fill="#0f172a"
+                                >
+                                  {`${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`}
+                                </text>
+                              </>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </g>
+                  </svg>
+                </div>
+              </div>
+              </div>
+            </aside>
+          ) : null}
 
         {selectedDetailNode ? (
             <aside
@@ -2391,3 +3789,4 @@ export function NetworkTopologyView({
     </div>
   );
 }
+
