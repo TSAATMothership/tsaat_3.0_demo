@@ -151,6 +151,13 @@ npm run dev
 
 Open: `http://localhost:3000`
 
+Notes for offline Windows dev:
+- `npm run dev` now runs `scripts/run-next-dev-offline.cjs`, which:
+  - sets `NEXT_DISABLE_SWC_DOWNLOAD=1` and `NEXT_SKIP_SWC_DOWNLOAD=1`
+  - checks for `node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` (or Next fallback path)
+  - copies the staged SWC file from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
+- If the staged SWC binary is missing, startup exits with a clear local error instead of trying to download from npm.
+
 ## Build and Start
 
 ```bash
