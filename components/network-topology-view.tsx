@@ -700,6 +700,15 @@ function csvCell(value: string | number | boolean | null | undefined): string {
   return `"${escaped}"`;
 }
 
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 function safeCsvFilenameSegment(value: string): string {
   const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return normalized || "ci-flow";
@@ -1746,13 +1755,14 @@ export function NetworkTopologyView({
           continue;
         }
         const scopedCi = scopedCiItemByAssetId.get(assetId);
-        const isInModelScope = modelAssetIdSet.has(assetId);
-        const hasExplicitModel = Boolean(flowNode.systemId && flowNode.systemName && flowNode.systemModelled);
-        const modelLabel = isInModelScope
-          ? "Model Scope: In Scope"
-          : hasExplicitModel
-            ? `Model: ${flowNode.systemName}`
-            : "Not Modelled";
+        const isModelled = modelAssetIdSet.has(assetId) || flowNode.systemModelled;
+        const modelLabel = isModelled
+          ? modelAssetIdSet.has(assetId)
+            ? "Model Scope: In Scope"
+            : flowNode.systemName
+              ? `Modelled: ${flowNode.systemName}`
+              : "Modelled"
+          : "Not Modelled";
         const firstLine = `Type: CI | Name: ${flowNode.hostname}`;
         const nodeWidth = estimateCiFlowTileWidth(firstLine);
         const angle = groupedAssetIds.length === 1 ? -Math.PI / 2 : (index / groupedAssetIds.length) * Math.PI * 2 - Math.PI / 2;
@@ -1769,7 +1779,7 @@ export function NetworkTopologyView({
           modelLabel,
           cyberCompliance: scopedCi?.cyberCompliance ?? emptyComplianceSummary(),
           discoveryCompliance: scopedCi?.discoveryCompliance ?? emptyComplianceSummary(),
-          isInModelScope,
+          isInModelScope: isModelled,
           width: nodeWidth,
           height: CI_FLOW_NODE_HEIGHT,
           x: centerX - nodeWidth / 2,
@@ -5218,16 +5228,278 @@ export function NetworkTopologyView({
   const selectedCiFlowModelTile = selectedCiFlowModelTileId
     ? ciFlowModelTileById.get(selectedCiFlowModelTileId) ?? null
     : null;
+  const presentedDetailedNodes = useMemo<DetailedDisplayNode[]>(() => {
+    if (isCiFlowFocusPanelOpen) {
+      return detailedDisplayNodes.filter((node) => detailedFilteredNodeIds.has(node.id));
+    }
+    if (!isDetailedTileFilterActive) {
+      return detailedDisplayNodes;
+    }
+    return detailedDisplayNodes.filter((node) => detailedFilteredNodeIds.has(node.id));
+  }, [detailedDisplayNodes, detailedFilteredNodeIds, isCiFlowFocusPanelOpen, isDetailedTileFilterActive]);
+  const presentedDetailedNodeIdSet = useMemo(() => {
+    return new Set(presentedDetailedNodes.map((node) => node.id));
+  }, [presentedDetailedNodes]);
+  const presentedDetailedEdges = useMemo<DetailedDisplayEdge[]>(() => {
+    if (isCiFlowFocusPanelOpen) {
+      const hasFlowSelection = Boolean(ciFlowActiveSelectionNodeId);
+      return detailedDisplayEdges.filter(
+        (edge) =>
+          presentedDetailedNodeIdSet.has(edge.fromNodeId) &&
+          presentedDetailedNodeIdSet.has(edge.toNodeId) &&
+          (!hasFlowSelection || ciFlowHighlightedEdgeIds.has(edge.id))
+      );
+    }
+    return detailedDisplayEdges.filter(
+      (edge) => presentedDetailedNodeIdSet.has(edge.fromNodeId) && presentedDetailedNodeIdSet.has(edge.toNodeId)
+    );
+  }, [
+    ciFlowActiveSelectionNodeId,
+    ciFlowHighlightedEdgeIds,
+    detailedDisplayEdges,
+    isCiFlowFocusPanelOpen,
+    presentedDetailedNodeIdSet
+  ]);
+  const exportDetailedTopologyCsv = useCallback(() => {
+    if (!presentedDetailedNodes.length) {
+      return;
+    }
+    const headers = [
+      "Record Type",
+      "ID",
+      "Entity Type",
+      "Type Label",
+      "Name",
+      "Subtitle",
+      "Model Label",
+      "From Node ID",
+      "To Node ID",
+      "Dependency Type",
+      "X",
+      "Y",
+      "Z",
+      "Width",
+      "Height"
+    ];
+    const nodeRows = presentedDetailedNodes.map((node) => {
+      const typeLabel = "typeLabel" in node ? node.typeLabel : detailedEntityTypeLabel(node.entityType);
+      const modelLabel = "modelLabel" in node ? node.modelLabel : "";
+      const z = "z" in node ? node.z : 0;
+      return [
+        "Node",
+        node.id,
+        node.entityType,
+        typeLabel,
+        node.name,
+        node.subtitle,
+        modelLabel,
+        "",
+        "",
+        "",
+        node.x,
+        node.y,
+        z,
+        node.width,
+        node.height
+      ];
+    });
+    const edgeRows = presentedDetailedEdges.map((edge) => {
+      const dependencyType = "dependencyType" in edge ? edge.dependencyType : "Topology Link";
+      return [
+        "Edge",
+        edge.id,
+        "",
+        "",
+        "",
+        "",
+        "",
+        edge.fromNodeId,
+        edge.toNodeId,
+        dependencyType,
+        "",
+        "",
+        "",
+        "",
+        ""
+      ];
+    });
+    const csv = [headers, ...nodeRows, ...edgeRows]
+      .map((row) => row.map((value) => csvCell(value)).join(","))
+      .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const scopeName = isCiFlowFocusPanelOpen
+      ? (ciFlowRootTile?.name ?? "ci-flow-focus")
+      : (detailedRootNode?.name ?? "detailed-topology");
+    const filePrefix = isCiFlowFocusPanelOpen ? "ci-flow-focus" : "detailed-topology";
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${filePrefix}-${safeCsvFilenameSegment(scopeName)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+  }, [ciFlowRootTile?.name, detailedRootNode?.name, isCiFlowFocusPanelOpen, presentedDetailedEdges, presentedDetailedNodes]);
+  const exportDetailedTopologySvg = useCallback(() => {
+    if (!presentedDetailedNodes.length) {
+      return;
+    }
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const node of presentedDetailedNodes) {
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + node.width);
+      maxY = Math.max(maxY, node.y + node.height);
+    }
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+      return;
+    }
+    const pad = 80;
+    const offsetX = pad - minX;
+    const offsetY = pad - minY;
+    const svgWidth = Math.max(1, Math.ceil(maxX - minX + pad * 2));
+    const svgHeight = Math.max(1, Math.ceil(maxY - minY + pad * 2));
+    const n = (value: number) => Number(value.toFixed(2));
+    const nodeById = new Map(presentedDetailedNodes.map((node) => [node.id, node]));
+
+    const edgeElements = presentedDetailedEdges
+      .map((edge) => {
+        const fromNode = nodeById.get(edge.fromNodeId);
+        const toNode = nodeById.get(edge.toNodeId);
+        if (!fromNode || !toNode) {
+          return null;
+        }
+        if (isCiFlowFocusPanelOpen) {
+          const x1 = n(fromNode.x + fromNode.width / 2 + offsetX);
+          const y1 = n(fromNode.y + fromNode.height / 2 + offsetY);
+          const x2 = n(toNode.x + toNode.width / 2 + offsetX);
+          const y2 = n(toNode.y + toNode.height / 2 + offsetY);
+          const stroke = "dependencyType" in edge ? ciFlowDependencyColor(edge.dependencyType) : "#38bdf8";
+          return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-opacity="0.82" stroke-width="2.6" stroke-linecap="round" />`;
+        }
+        const curve = detailedEdgeCurvePoints(fromNode, toNode);
+        const isPathEdge = detailedSelectedPathEdgeIds.has(edge.id);
+        const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
+        const stroke = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : "#38bdf8";
+        const strokeWidth = isPathEdge ? 3.6 : isConnectedEdge ? 3 : 2;
+        const d = [
+          `M ${n(curve.startX + offsetX)} ${n(curve.startY + offsetY)}`,
+          `C ${n(curve.control1X + offsetX)} ${n(curve.control1Y + offsetY)},`,
+          `${n(curve.control2X + offsetX)} ${n(curve.control2Y + offsetY)},`,
+          `${n(curve.endX + offsetX)} ${n(curve.endY + offsetY)}`
+        ].join(" ");
+        return `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="0.86" stroke-width="${strokeWidth}" stroke-linecap="round" />`;
+      })
+      .filter((element): element is string => Boolean(element))
+      .join("\n");
+
+    const nodeElements = presentedDetailedNodes
+      .map((node) => {
+        const isRootNode = node.id === detailedDisplayRootNodeId;
+        const isSelectedNode = node.id === detailedDisplaySelectedNodeId;
+        const x = n(node.x + offsetX);
+        const y = n(node.y + offsetY);
+        const width = n(node.width);
+        const height = n(node.height);
+        if (isCiFlowFocusPanelOpen) {
+          const cx = n(node.x + node.width / 2 + offsetX);
+          const cy = n(node.y + node.height / 2 + offsetY);
+          const baseRadius = 32;
+          const isRootCi = node.entityType === "ci" && node.id === ciFlowRootNodeId;
+          const isInModelScope = "isInModelScope" in node ? node.isInModelScope : false;
+          const stroke = isRootCi ? "#a855f7" : ciFlowNodeStrokeColor(node.entityType, isInModelScope);
+          const fill = isRootCi ? "#c084fc" : isInModelScope ? "#4ade80" : "#f87171";
+          const assetType = "assetType" in node ? (node.assetType ?? "server") : "server";
+          let shape = "";
+          if (assetType === "workstation") {
+            const size = baseRadius * 1.9;
+            const half = size / 2;
+            shape = `<rect x="${n(cx - half)}" y="${n(cy - half)}" width="${n(size)}" height="${n(size)}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" rx="6" />`;
+          } else if (assetType === "network-device") {
+            const h = baseRadius * 2;
+            const halfBase = baseRadius;
+            const p1 = `${n(cx)} ${n(cy - h * 0.55)}`;
+            const p2 = `${n(cx - halfBase)} ${n(cy + h * 0.45)}`;
+            const p3 = `${n(cx + halfBase)} ${n(cy + h * 0.45)}`;
+            shape = `<polygon points="${p1} ${p2} ${p3}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
+          } else {
+            shape = `<circle cx="${cx}" cy="${cy}" r="${baseRadius}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
+          }
+          const label = xmlEscape(truncateLabel(node.name, 30));
+          return [
+            `<g>`,
+            shape,
+            `<text x="${cx}" y="${n(cy + baseRadius + 18)}" text-anchor="middle" font-size="12" fill="#e2e8f0" font-family="sans-serif">${label}</text>`,
+            `</g>`
+          ].join("\n");
+        }
+        const stroke = isRootNode ? "#ef4444" : isSelectedNode ? "#a855f7" : detailedTileStrokeColor(node.entityType);
+        const fill = detailedTileColor(node.entityType);
+        const typeLabel = xmlEscape(detailedEntityTypeLabel(node.entityType));
+        const nameLabel = xmlEscape(truncateLabel(node.name, 54));
+        return [
+          `<g>`,
+          `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${node.entityType === "ci" ? 12 : 18}" fill="${fill}" stroke="${stroke}" stroke-width="${isRootNode || isSelectedNode ? 3.2 : 2}" />`,
+          `<text x="${n(x + 14)}" y="${n(y + 23)}" font-size="12" fill="#0f172a" font-family="sans-serif">Type: ${typeLabel}</text>`,
+          `<text x="${n(x + 14)}" y="${n(y + 42)}" font-size="12" fill="#0f172a" font-family="sans-serif">Name: ${nameLabel}</text>`,
+          `</g>`
+        ].join("\n");
+      })
+      .join("\n");
+
+    const svg = [
+      `<?xml version="1.0" encoding="UTF-8"?>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`,
+      `<rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" fill="#020617" />`,
+      `<g>`,
+      edgeElements,
+      `</g>`,
+      `<g>`,
+      nodeElements,
+      `</g>`,
+      `</svg>`
+    ].join("\n");
+
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const scopeName = isCiFlowFocusPanelOpen
+      ? (ciFlowRootTile?.name ?? "ci-flow-focus")
+      : (detailedRootNode?.name ?? "detailed-topology");
+    const filePrefix = isCiFlowFocusPanelOpen ? "ci-flow-focus" : "detailed-topology";
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${filePrefix}-${safeCsvFilenameSegment(scopeName)}.svg`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+  }, [
+    ciFlowRootNodeId,
+    ciFlowRootTile?.name,
+    detailedDisplayRootNodeId,
+    detailedDisplaySelectedNodeId,
+    detailedRootNode?.name,
+    detailedSelectedConnectedEdgeIds,
+    detailedSelectedPathEdgeIds,
+    isCiFlowFocusPanelOpen,
+    presentedDetailedEdges,
+    presentedDetailedNodes
+  ]);
   const presentedNonModelledCiRows = useMemo(() => {
-    if (!isCiFlowFocusPanelOpen || !ciFlowGraph) {
+    if (!isCiFlowFocusPanelOpen) {
       return [];
     }
-    return ciFlowGraph.nodes
+    return presentedDetailedNodes
       .filter(
-        (node) =>
-          node.entityType === "ci" &&
-          !node.isInModelScope &&
-          detailedFilteredNodeIds.has(node.id)
+        (node): node is DetailedDisplayNode & { entityType: "ci"; isInModelScope: boolean; assetId?: string } =>
+          node.entityType === "ci" && "isInModelScope" in node && !node.isInModelScope
       )
       .map((node) => {
         const sourceCi = node.assetId ? flowCiNodeByAssetId.get(node.assetId) ?? null : null;
@@ -5243,7 +5515,7 @@ export function NetworkTopologyView({
           networkName: networkId ? (networkNameById.get(networkId) ?? networkId) : "",
           ictSystemId: sourceCi?.systemId ?? "",
           ictSystemName: sourceCi?.systemName ?? "",
-          modelStatus: node.modelLabel
+          modelStatus: "modelLabel" in node ? node.modelLabel : "Not Modelled"
         };
       })
       .sort((left, right) => {
@@ -5254,11 +5526,10 @@ export function NetworkTopologyView({
         return left.ciId.localeCompare(right.ciId);
       });
   }, [
-    ciFlowGraph,
-    detailedFilteredNodeIds,
     flowCiNodeByAssetId,
     isCiFlowFocusPanelOpen,
-    networkNameById
+    networkNameById,
+    presentedDetailedNodes
   ]);
   const exportPresentedNonModelledCis = useCallback(() => {
     if (!presentedNonModelledCiRows.length) {
@@ -6015,6 +6286,22 @@ export function NetworkTopologyView({
                 >
                   Reset View
                 </button>
+                <button
+                  type="button"
+                  onClick={exportDetailedTopologyCsv}
+                  disabled={!presentedDetailedNodes.length}
+                  className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={exportDetailedTopologySvg}
+                  disabled={!presentedDetailedNodes.length}
+                  className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                >
+                  Export SVG
+                </button>
                 <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
                   Zoom {detailedZoomPercent}%
                 </span>
@@ -6205,6 +6492,22 @@ export function NetworkTopologyView({
                   >
                     Reset View
                   </button>
+                  <button
+                    type="button"
+                    onClick={exportDetailedTopologyCsv}
+                    disabled={!presentedDetailedNodes.length}
+                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportDetailedTopologySvg}
+                    disabled={!presentedDetailedNodes.length}
+                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                  >
+                    Export SVG
+                  </button>
                   <span className="rounded-md border border-sky-400/25 bg-slate-900/75 px-2 py-1 text-[11px] text-slate-200">
                     Left drag: rotate | Middle/right drag: move | Wheel: zoom
                   </span>
@@ -6251,10 +6554,6 @@ export function NetworkTopologyView({
                       Flow dependency
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" />
-                      Logical dependency
-                    </span>
-                    <span className="inline-flex items-center gap-1">
                       <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400 bg-slate-200" />
                       In-model CI
                     </span>
@@ -6263,7 +6562,6 @@ export function NetworkTopologyView({
                       Out-of-model CI
                     </span>
                     <span className="mx-1 h-5 w-px bg-sky-400/20" />
-                    <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
                     {(
                       [
                         "network",
@@ -6271,7 +6569,6 @@ export function NetworkTopologyView({
                         "service",
                         "ict-system",
                         "environment",
-                        "ci",
                         "not-modelled"
                       ] as DetailedTileEntityType[]
                     )
@@ -6461,7 +6758,7 @@ export function NetworkTopologyView({
                                     <button
                                       type="button"
                                       onClick={clearCiFlowModelTileSelection}
-                                      className="absolute right-2 top-2 rounded-md border border-yellow-200/80 bg-yellow-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-yellow-100 shadow-[0_0_16px_rgba(253,224,71,0.68)]"
+                                      className="absolute right-2 top-2 rounded-md border border-yellow-100/90 bg-yellow-300/75 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-950 shadow-[0_0_16px_rgba(253,224,71,0.68)]"
                                     >
                                       Clear
                                     </button>
