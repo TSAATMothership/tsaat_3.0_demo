@@ -1140,35 +1140,37 @@ export function NetworkDetailRiskCharts({
             </div>
           </div>
           <div className="mt-1.5 min-h-0 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <YAxis dataKey="severity" type="category" width={112} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value) => [value, "Open Findings"]}
-                />
-                <Bar
-                  dataKey="count"
-                  radius={[0, 6, 6, 0]}
-                  isAnimationActive={false}
-                >
-                  <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
-                  {riskProfile.severitySummary.map((entry) => (
-                    <Cell
-                      key={entry.severity}
-                      fill={severityColors[entry.severity]}
-                      opacity={selectedSeverity && selectedSeverity !== entry.severity ? 0.58 : 1}
-                      stroke={selectedSeverity === entry.severity ? "#e2e8f0" : "transparent"}
-                      strokeWidth={selectedSeverity === entry.severity ? 1.4 : 0}
-                      className="cursor-pointer"
-                      onClick={() => openFindingsPanel(entry.severity)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {isMounted ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                  <YAxis dataKey="severity" type="category" width={112} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                    formatter={(value) => [value, "Open Findings"]}
+                  />
+                  <Bar
+                    dataKey="count"
+                    radius={[0, 6, 6, 0]}
+                    isAnimationActive={false}
+                  >
+                    <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
+                    {riskProfile.severitySummary.map((entry) => (
+                      <Cell
+                        key={entry.severity}
+                        fill={severityColors[entry.severity]}
+                        opacity={selectedSeverity && selectedSeverity !== entry.severity ? 0.58 : 1}
+                        stroke={selectedSeverity === entry.severity ? "#e2e8f0" : "transparent"}
+                        strokeWidth={selectedSeverity === entry.severity ? 1.4 : 0}
+                        className="cursor-pointer"
+                        onClick={() => openFindingsPanel(entry.severity)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : null}
           </div>
         </section>
 
@@ -1188,29 +1190,31 @@ export function NetworkDetailRiskCharts({
             </span>
           </div>
           <div className="mt-1.5 min-h-0 flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-                  formatter={(value, name) => [
-                    value ?? "-",
-                    name === "highRiskCount" ? "High Risk" : "Critical Exposure"
-                  ]}
-                />
-                <Line type="monotone" dataKey="highRiskCount" stroke="#f97316" strokeWidth={2.2} dot={false} isAnimationActive={false} />
-                <Line
-                  type="monotone"
-                  dataKey="criticalExposureCount"
-                  stroke="#ef4444"
-                  strokeWidth={2.2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {isMounted ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+                  <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} width={30} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+                    formatter={(value, name) => [
+                      value ?? "-",
+                      name === "highRiskCount" ? "High Risk" : "Critical Exposure"
+                    ]}
+                  />
+                  <Line type="monotone" dataKey="highRiskCount" stroke="#f97316" strokeWidth={2.2} dot={false} isAnimationActive={false} />
+                  <Line
+                    type="monotone"
+                    dataKey="criticalExposureCount"
+                    stroke="#ef4444"
+                    strokeWidth={2.2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : null}
           </div>
         </section>
       </div>
@@ -1289,8 +1293,9 @@ export function NetworkDetailRiskCharts({
                       </span>
                     </div>
                     <div className="mt-3 h-52 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={openFindingsAgingBuckets} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
+                      {isMounted ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                          <BarChart data={openFindingsAgingBuckets} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
                           <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                           <XAxis dataKey="bucketLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
                           <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -1376,24 +1381,25 @@ export function NetworkDetailRiskCharts({
                               />
                             ))}
                           </Bar>
-                          <Bar
-                            dataKey="otherCount"
-                            stackId="severity"
-                            name="Other"
-                            fill="#38bdf8"
-                            isAnimationActive={false}
-                          >
-                            {openFindingsAgingBuckets.map((row) => (
-                              <Cell
-                                key={`age-other-${row.bucketLabel}`}
-                                className="cursor-pointer"
-                                fillOpacity={selectedAgingBucketFilter && selectedAgingBucketFilter !== row.bucketLabel ? 0.35 : 1}
-                                onClick={() => toggleAgingBucketFilter(row.bucketLabel)}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                            <Bar
+                              dataKey="otherCount"
+                              stackId="severity"
+                              name="Other"
+                              fill="#38bdf8"
+                              isAnimationActive={false}
+                            >
+                              {openFindingsAgingBuckets.map((row) => (
+                                <Cell
+                                  key={`age-other-${row.bucketLabel}`}
+                                  className="cursor-pointer"
+                                  fillOpacity={selectedAgingBucketFilter && selectedAgingBucketFilter !== row.bucketLabel ? 0.35 : 1}
+                                  onClick={() => toggleAgingBucketFilter(row.bucketLabel)}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : null}
                     </div>
                     {selectedAgingBucketFilter ? (
                       <div className="mt-2 flex items-center justify-between gap-2">
@@ -1419,8 +1425,9 @@ export function NetworkDetailRiskCharts({
                       All closed findings up to {selectedAsOfDate} in this risk scope.
                     </p>
                     <div className="mt-3 h-52 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={closedFindingsBySpiChartRows} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
+                      {isMounted ? (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                          <BarChart data={closedFindingsBySpiChartRows} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
                           <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                           <XAxis dataKey="spiLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} interval={0} />
                           <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -1444,9 +1451,10 @@ export function NetworkDetailRiskCharts({
                               );
                             }}
                           />
-                          <Bar dataKey="count" fill="#22d3ee" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                            <Bar dataKey="count" fill="#22d3ee" radius={[6, 6, 0, 0]} isAnimationActive={false} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : null}
                     </div>
                   </div>
                 </div>
