@@ -120,10 +120,14 @@ const DEVICE_NAMES = ["Edge", "Switch", "Gateway", "Firewall", "Router", "Core"]
 const ENV_TYPES: EnvironmentType[] = ["Development", "UAT", "Test"];
 const SECURITY_DOMAINS: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
 
-const SERVER_COUNT = 2000;
-const WORKSTATION_COUNT = 2000;
-const DESKTOP_COUNT = 10000;
-const NETWORK_DEVICE_COUNT = 8000;
+const TOTAL_ASSET_COUNT = 1000;
+const MODELLED_ASSET_RATIO = 0.7;
+const SERVER_COUNT = 780;
+const WORKSTATION_COUNT = 140;
+const NETWORK_DEVICE_COUNT = 80;
+const MODELLED_SYSTEM_COUNT = 20;
+const MODELLED_SYSTEM_MIN_SERVERS = 20;
+const MODELLED_SYSTEM_MAX_SERVERS = 300;
 
 type AssetProfile = "server" | "workstation" | "network-device";
 
@@ -619,13 +623,15 @@ function networkCriticalityForClassification(
 }
 
 function buildNetworks(random: Random): ManagedNetwork[] {
-  const count = randomInt(random, 4, 6);
+  const count = randomInt(random, 5, 6);
   const baselineNetworks = NETWORK_NAMES.slice(0, count).map((name, index) => {
     const classification = pick(random, ["Official", "Protected", "Restricted"] as const);
     return {
       id: `net-${index + 1}`,
       name,
       criticality: networkCriticalityForClassification(classification),
+      adfPlatform: chance(random, 0.4),
+      enterprisePlatform: chance(random, 0.35),
       classification,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
@@ -638,6 +644,8 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       id: `net-new-${index + 1}`,
       name,
       criticality: networkCriticalityForClassification(classification),
+      adfPlatform: chance(random, 0.4),
+      enterprisePlatform: chance(random, 0.35),
       classification,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
@@ -659,7 +667,7 @@ function securityDomainForNetwork(network: ManagedNetwork): SecurityDomain {
 }
 
 function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
-  const count = randomInt(random, 10, 15);
+  const count = Math.max(MODELLED_SYSTEM_COUNT, 1);
   const systems: ICTSystem[] = [];
 
   for (let index = 0; index < count; index += 1) {
@@ -702,7 +710,9 @@ function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
 
     systems.push({
       id: `sys-${index + 1}`,
-      name: SYSTEM_NAMES[index],
+      name: SYSTEM_NAMES[index] ?? `Mission System ${index + 1}`,
+      adfPlatform: chance(random, 0.35),
+      enterprisePlatform: chance(random, 0.35),
       modellingStatus: true,
       diisDefined: true,
       networkId: network.id,
@@ -719,12 +729,14 @@ function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
   return systems;
 }
 
-function buildUnmodelledSystems(startIndex: number, count: number): ICTSystem[] {
+function buildUnmodelledSystems(random: Random, startIndex: number, count: number): ICTSystem[] {
   return Array.from({ length: count }, (_, index) => {
     const systemNumber = startIndex + index + 1;
     return {
       id: `sys-${systemNumber}`,
       name: `Unmodelled ICT System ${String(index + 1).padStart(2, "0")}`,
+      adfPlatform: chance(random, 0.2),
+      enterprisePlatform: chance(random, 0.2),
       modellingStatus: false,
       diisDefined: true,
       networkId: "",
@@ -776,7 +788,7 @@ function pickEnvironmentTypeForSystem(random: Random, system: ICTSystem): Enviro
   return "Production";
 }
 
-function buildServer(random: Random, index: number, networkId: string, systems: ICTSystem[], versions: ReferenceVersions): ServerAsset {
+function buildServer(random: Random, index: number, networkId: string, versions: ReferenceVersions): ServerAsset {
   const id = `srv-${String(index + 1).padStart(4, "0")}`;
   return {
     id,
@@ -785,7 +797,6 @@ function buildServer(random: Random, index: number, networkId: string, systems: 
     type: "server",
     networkId,
     securityDomain: "Unclassified",
-    systemContext: assignSystemContext(random, networkId, systems),
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "server", id),
     operatingSystem: buildOperatingSystem(random, "server", versions),
@@ -797,7 +808,6 @@ function buildWorkstation(
   random: Random,
   index: number,
   networkId: string,
-  systems: ICTSystem[],
   versions: ReferenceVersions
 ): WorkstationAsset {
   const id = `wks-${String(index + 1).padStart(4, "0")}`;
@@ -808,7 +818,6 @@ function buildWorkstation(
     type: "workstation",
     networkId,
     securityDomain: "Unclassified",
-    systemContext: assignSystemContext(random, networkId, systems),
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "workstation", id),
     operatingSystem: buildOperatingSystem(random, "workstation", versions),
@@ -820,7 +829,6 @@ function buildDesktop(
   random: Random,
   index: number,
   networkId: string,
-  systems: ICTSystem[],
   versions: ReferenceVersions
 ): WorkstationAsset {
   const id = `dsk-${String(index + 1).padStart(5, "0")}`;
@@ -831,7 +839,6 @@ function buildDesktop(
     type: "workstation",
     networkId,
     securityDomain: "Unclassified",
-    systemContext: assignSystemContext(random, networkId, systems),
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "workstation", id),
     operatingSystem: buildOperatingSystem(random, "workstation", versions),
@@ -843,7 +850,6 @@ function buildDevice(
   random: Random,
   index: number,
   networkId: string,
-  systems: ICTSystem[],
   versions: ReferenceVersions
 ): NetworkDeviceAsset {
   const id = `netd-${String(index + 1).padStart(4, "0")}`;
@@ -854,7 +860,6 @@ function buildDevice(
     type: "network-device",
     networkId,
     securityDomain: "Unclassified",
-    systemContext: chance(random, 0.35) ? assignSystemContext(random, networkId, systems) : undefined,
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "network-device", id),
     networkOs: buildOperatingSystem(random, "network-device", versions),
@@ -996,6 +1001,7 @@ function injectIssues(random: Random, assets: Asset[], versions: ReferenceVersio
   const productionWorkstations = workstations.filter(
     (asset) => asset.systemContext?.environmentType === "Production"
   );
+  const workstationIssueTargets = productionWorkstations.length ? productionWorkstations : workstations;
 
   pickMany(random, [...servers, ...workstations], 30).forEach((asset) => {
     if (asset.operatingSystem) {
@@ -1020,7 +1026,7 @@ function injectIssues(random: Random, assets: Asset[], versions: ReferenceVersio
     forceOutOfSupportSoftware(server);
   });
 
-  pickMany(random, productionWorkstations, 12).forEach((workstation) => {
+  pickMany(random, workstationIssueTargets, 12).forEach((workstation) => {
     addCriticalVulnerability(workstation, random);
     forceOutOfSupportSoftware(workstation);
   });
@@ -1065,128 +1071,153 @@ function randomObservedAt(random: Random, maxDaysAgo: number): string {
   return randomTimestampForDate(random, observedDate);
 }
 
+function buildModelledServerAllocation(random: Random, systemCount: number, targetServerCount: number): number[] {
+  if (systemCount <= 0) {
+    throw new Error("Modelled server allocation requires at least one ICT system.");
+  }
+  if (targetServerCount < systemCount * MODELLED_SYSTEM_MIN_SERVERS) {
+    throw new Error(
+      `Insufficient modelled servers (${targetServerCount}) for ${systemCount} systems with minimum ${MODELLED_SYSTEM_MIN_SERVERS}.`
+    );
+  }
+
+  const allocation = Array.from({ length: systemCount }, () => MODELLED_SYSTEM_MIN_SERVERS);
+  let remaining = targetServerCount - systemCount * MODELLED_SYSTEM_MIN_SERVERS;
+
+  const preferredCap = 49;
+  while (remaining > 0) {
+    const candidates = allocation
+      .map((value, index) => ({ value, index }))
+      .filter((entry) => entry.value < preferredCap);
+    if (!candidates.length) {
+      break;
+    }
+
+    const selected = pick(random, candidates);
+    allocation[selected.index] += 1;
+    remaining -= 1;
+  }
+
+  while (remaining > 0) {
+    const candidates = allocation
+      .map((value, index) => ({ value, index }))
+      .filter((entry) => entry.value < MODELLED_SYSTEM_MAX_SERVERS);
+    if (!candidates.length) {
+      throw new Error("Unable to distribute servers within ICT system max constraint.");
+    }
+
+    const selected = pick(random, candidates);
+    allocation[selected.index] += 1;
+    remaining -= 1;
+  }
+
+  return allocation;
+}
+
+function buildFlowDependencyTargets(random: Random, assetCount: number): number[] {
+  if (assetCount <= 1) {
+    return Array.from({ length: assetCount }, () => 0);
+  }
+
+  const result = Array.from({ length: assetCount }, () => 0);
+  const shuffled = shuffledIndices(random, assetCount);
+  const zeroCount = Math.floor(assetCount * 0.1);
+  const highCount = Math.floor(assetCount * 0.7);
+  const mediumCount = Math.floor(assetCount * 0.19);
+  const burstCount = assetCount - zeroCount - highCount - mediumCount;
+
+  let cursor = 0;
+  for (let index = 0; index < zeroCount; index += 1) {
+    result[shuffled[cursor]] = 0;
+    cursor += 1;
+  }
+
+  for (let index = 0; index < highCount; index += 1) {
+    result[shuffled[cursor]] = randomInt(random, 20, Math.min(50, assetCount - 1));
+    cursor += 1;
+  }
+
+  for (let index = 0; index < mediumCount; index += 1) {
+    result[shuffled[cursor]] = randomInt(random, 3, Math.min(19, assetCount - 1));
+    cursor += 1;
+  }
+
+  for (let index = 0; index < burstCount; index += 1) {
+    const lowerBound = Math.min(51, assetCount - 1);
+    const upperBound = Math.min(150, assetCount - 1);
+    result[shuffled[cursor]] = lowerBound > upperBound ? upperBound : randomInt(random, lowerBound, upperBound);
+    cursor += 1;
+  }
+
+  return result;
+}
+
 function buildCiDependencies(random: Random, systems: ICTSystem[], assets: Asset[]): CiDependency[] {
+  void systems;
+
   const dependencies: CiDependency[] = [];
-  const seen = new Set<string>();
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
-  const systemById = new Map(systems.map((system) => [system.id, system]));
+  const allAssetIds = assets.map((asset) => asset.id);
+  const flowTargetsBySource = buildFlowDependencyTargets(random, allAssetIds.length);
   let counter = 1;
 
-  const addDependency = (
-    sourceAssetId: string | undefined,
-    targetAssetId: string | undefined,
-    dependencyType: CiDependency["dependencyType"]
-  ) => {
-    if (!sourceAssetId || !targetAssetId || sourceAssetId === targetAssetId) {
-      return;
+  for (let sourceIndex = 0; sourceIndex < allAssetIds.length; sourceIndex += 1) {
+    const sourceAssetId = allAssetIds[sourceIndex];
+    const sourceAsset = assetById.get(sourceAssetId);
+    if (!sourceAsset) {
+      continue;
     }
-    if (!assetById.has(sourceAssetId) || !assetById.has(targetAssetId)) {
-      return;
-    }
-    const dedupeKey = `${sourceAssetId}->${targetAssetId}:${dependencyType}`;
-    if (seen.has(dedupeKey)) {
-      return;
-    }
-    seen.add(dedupeKey);
 
-    const base: CiDependency = {
-      id: `dep-${String(counter).padStart(6, "0")}`,
-      sourceAssetId,
-      targetAssetId,
-      dependencyType
-    };
-    counter += 1;
+    const desiredCount = Math.min(flowTargetsBySource[sourceIndex] ?? 0, Math.max(0, allAssetIds.length - 1));
+    if (desiredCount <= 0) {
+      continue;
+    }
 
-    if (dependencyType === "Flow Dependency") {
+    const sameNetworkTargets = shuffledIndices(random, allAssetIds.length)
+      .map((targetIndex) => allAssetIds[targetIndex])
+      .filter((targetId) => {
+        if (targetId === sourceAssetId) {
+          return false;
+        }
+        const targetAsset = assetById.get(targetId);
+        return targetAsset?.networkId === sourceAsset.networkId;
+      });
+    const crossNetworkTargets = shuffledIndices(random, allAssetIds.length)
+      .map((targetIndex) => allAssetIds[targetIndex])
+      .filter((targetId) => {
+        if (targetId === sourceAssetId) {
+          return false;
+        }
+        const targetAsset = assetById.get(targetId);
+        return targetAsset?.networkId !== sourceAsset.networkId;
+      });
+
+    const orderedTargets = [...sameNetworkTargets, ...crossNetworkTargets];
+    const seenTargets = new Set<string>();
+
+    for (const targetAssetId of orderedTargets) {
+      if (seenTargets.has(targetAssetId)) {
+        continue;
+      }
+
+      seenTargets.add(targetAssetId);
       dependencies.push({
-        ...base,
-        protocol: "TCP",
+        id: `dep-${String(counter).padStart(6, "0")}`,
+        sourceAssetId,
+        targetAssetId,
+        dependencyType: "Flow Dependency",
+        protocol: pick(random, ["TCP", "UDP"] as const),
         sourcePort: randomInt(random, 49152, 65535),
-        targetPort: pick(random, [22, 443, 8443, 1433, 1521, 5432]),
+        targetPort: pick(random, [22, 53, 80, 443, 1433, 1521, 3389, 5432, 8443]),
         observationMethod: "Synthetic network telemetry",
-        observedAt: randomObservedAt(random, 60)
+        observedAt: randomObservedAt(random, 90)
       });
-      return;
-    }
+      counter += 1;
 
-    dependencies.push({
-      ...base,
-      observationMethod: "Model relationship mapping",
-      observedAt: randomObservedAt(random, 120)
-    });
-  };
-
-  const modelledSystems = systems.filter((system) => system.modellingStatus);
-  const modelledAssetIds = assets
-    .filter((asset) => {
-      const ownerSystemId = asset.systemContext?.systemId;
-      if (!ownerSystemId) {
-        return false;
+      if (seenTargets.size >= desiredCount) {
+        break;
       }
-      const ownerSystem = systemById.get(ownerSystemId);
-      return ownerSystem?.modellingStatus === true;
-    })
-    .map((asset) => asset.id);
-
-  const unmodelledAssetIds = assets
-    .filter((asset) => {
-      const ownerSystemId = asset.systemContext?.systemId;
-      if (!ownerSystemId) {
-        return true;
-      }
-      const ownerSystem = systemById.get(ownerSystemId);
-      return ownerSystem?.modellingStatus !== true;
-    })
-    .map((asset) => asset.id);
-
-  for (const system of modelledSystems) {
-    for (const environment of system.environments) {
-      const envAssets = environment.assetIds.filter((assetId) => assetById.has(assetId));
-      const envSlice = envAssets.slice(0, 10);
-
-      for (let index = 0; index < envSlice.length - 1 && index < 5; index += 1) {
-        addDependency(envSlice[index], envSlice[index + 1], "Logical Dependency");
-      }
-
-      const flowSource = envSlice.find((assetId) => {
-        const asset = assetById.get(assetId);
-        return asset?.type === "server" || asset?.type === "workstation";
-      });
-      const flowTarget = envSlice.find((assetId) => {
-        const asset = assetById.get(assetId);
-        return asset?.type === "network-device";
-      });
-      addDependency(flowSource, flowTarget, "Flow Dependency");
     }
-  }
-
-  const modelledSystemsByNetwork = new Map<string, ICTSystem[]>();
-  for (const system of modelledSystems) {
-    const current = modelledSystemsByNetwork.get(system.networkId) ?? [];
-    current.push(system);
-    modelledSystemsByNetwork.set(system.networkId, current);
-  }
-
-  for (const systemsInNetwork of modelledSystemsByNetwork.values()) {
-    const ordered = [...systemsInNetwork].sort((left, right) => left.id.localeCompare(right.id));
-    const representativeAssetIds = ordered
-      .map((system) =>
-        assets
-          .filter((asset) => asset.systemContext?.systemId === system.id)
-          .sort((left, right) => left.id.localeCompare(right.id))[0]?.id
-      )
-      .filter((assetId): assetId is string => Boolean(assetId));
-
-    for (let index = 0; index < representativeAssetIds.length - 1; index += 1) {
-      addDependency(representativeAssetIds[index], representativeAssetIds[index + 1], "Flow Dependency");
-    }
-  }
-
-  const pairCount = Math.min(180, modelledAssetIds.length, unmodelledAssetIds.length);
-  const modelledSelection = pickMany(random, modelledAssetIds, pairCount);
-  const unmodelledSelection = pickMany(random, unmodelledAssetIds, pairCount);
-  for (let index = 0; index < pairCount; index += 1) {
-    addDependency(modelledSelection[index], unmodelledSelection[index], "Logical Dependency");
   }
 
   return dependencies;
@@ -1285,73 +1316,71 @@ async function main() {
   const provisionedNetworks = networks.filter((network) => !network.id.startsWith("net-new-"));
   const modelledSystems = buildSystems(random, provisionedNetworks);
 
-  const assets: Asset[] = [];
-  const serverChunksBySystem = buildChunkAllocation(random, SERVER_COUNT, modelledSystems.length, 50, 250);
-  const workstationChunksBySystem = buildChunkAllocation(random, WORKSTATION_COUNT, modelledSystems.length, 20, 140);
-  const desktopChunksBySystem = buildChunkAllocation(random, DESKTOP_COUNT, modelledSystems.length, 80, 900);
-  const deviceChunksByNetwork = buildChunkAllocation(random, NETWORK_DEVICE_COUNT, provisionedNetworks.length, 500, 3000);
+  if (SERVER_COUNT + WORKSTATION_COUNT + NETWORK_DEVICE_COUNT !== TOTAL_ASSET_COUNT) {
+    throw new Error(
+      `Asset count mismatch: expected ${TOTAL_ASSET_COUNT} but configured ${
+        SERVER_COUNT + WORKSTATION_COUNT + NETWORK_DEVICE_COUNT
+      }.`
+    );
+  }
 
-  let serverIndex = 0;
+  const assets: Asset[] = [];
+
+  for (let serverIndex = 0; serverIndex < SERVER_COUNT; serverIndex += 1) {
+    const networkId = pick(random, networks).id;
+    assets.push(buildServer(random, serverIndex, networkId, versions));
+  }
+
+  for (let workstationIndex = 0; workstationIndex < WORKSTATION_COUNT; workstationIndex += 1) {
+    const networkId = pick(random, networks).id;
+    assets.push(buildWorkstation(random, workstationIndex, networkId, versions));
+  }
+
+  for (let deviceIndex = 0; deviceIndex < NETWORK_DEVICE_COUNT; deviceIndex += 1) {
+    const networkId = pick(random, networks).id;
+    assets.push(buildDevice(random, deviceIndex, networkId, versions));
+  }
+
+  const targetModelledAssetCount = Math.round(TOTAL_ASSET_COUNT * MODELLED_ASSET_RATIO);
+  const servers = assets.filter((asset): asset is ServerAsset => asset.type === "server");
+  const targetModelledServerCount = Math.min(targetModelledAssetCount, servers.length);
+  const modelledServerAllocation = buildModelledServerAllocation(
+    random,
+    modelledSystems.length,
+    targetModelledServerCount
+  );
+  const selectedModelledServers = pickMany(random, servers, targetModelledServerCount);
+
+  let allocationCursor = 0;
   for (let systemIndex = 0; systemIndex < modelledSystems.length; systemIndex += 1) {
     const system = modelledSystems[systemIndex];
-    const chunkSize = serverChunksBySystem[systemIndex] ?? 0;
-    for (let chunkIndex = 0; chunkIndex < chunkSize; chunkIndex += 1) {
-      const server = buildServer(random, serverIndex, system.networkId, modelledSystems, versions);
+    const serverCountForSystem = modelledServerAllocation[systemIndex] ?? 0;
+    for (let assigned = 0; assigned < serverCountForSystem; assigned += 1) {
+      const server = selectedModelledServers[allocationCursor];
+      if (!server) {
+        break;
+      }
+      server.networkId = system.networkId;
       server.systemContext = {
         systemId: system.id,
         environmentType: pickEnvironmentTypeForSystem(random, system)
       };
-      assets.push(server);
-      serverIndex += 1;
+      allocationCursor += 1;
     }
   }
 
-  let workstationIndex = 0;
-  for (let systemIndex = 0; systemIndex < modelledSystems.length; systemIndex += 1) {
-    const system = modelledSystems[systemIndex];
-    const chunkSize = workstationChunksBySystem[systemIndex] ?? 0;
-    for (let chunkIndex = 0; chunkIndex < chunkSize; chunkIndex += 1) {
-      const workstation = buildWorkstation(random, workstationIndex, system.networkId, modelledSystems, versions);
-      workstation.systemContext = {
-        systemId: system.id,
-        environmentType: pickEnvironmentTypeForSystem(random, system)
-      };
-      assets.push(workstation);
-      workstationIndex += 1;
+  const modelledServerIds = new Set(selectedModelledServers.map((server) => server.id));
+  for (const server of servers) {
+    if (!modelledServerIds.has(server.id)) {
+      server.systemContext = undefined;
     }
   }
 
-  let desktopIndex = 0;
-  for (let systemIndex = 0; systemIndex < modelledSystems.length; systemIndex += 1) {
-    const system = modelledSystems[systemIndex];
-    const chunkSize = desktopChunksBySystem[systemIndex] ?? 0;
-    for (let chunkIndex = 0; chunkIndex < chunkSize; chunkIndex += 1) {
-      const desktop = buildDesktop(random, desktopIndex, system.networkId, modelledSystems, versions);
-      desktop.systemContext = {
-        systemId: system.id,
-        environmentType: pickEnvironmentTypeForSystem(random, system)
-      };
-      assets.push(desktop);
-      desktopIndex += 1;
-    }
-  }
-
-  let deviceIndex = 0;
-  for (let networkIndex = 0; networkIndex < provisionedNetworks.length; networkIndex += 1) {
-    const network = provisionedNetworks[networkIndex];
-    const chunkSize = deviceChunksByNetwork[networkIndex] ?? 0;
-    for (let chunkIndex = 0; chunkIndex < chunkSize; chunkIndex += 1) {
-      assets.push(buildDevice(random, deviceIndex, network.id, modelledSystems, versions));
-      deviceIndex += 1;
-    }
-  }
-
-  ensureEnvironmentAssignments(random, modelledSystems, assets);
   syncRelationshipIndexes(networks, modelledSystems, assets);
   syncSecurityDomains(networks, modelledSystems, assets);
   injectIssues(random, assets, versions);
 
-  const systems = [...modelledSystems, ...buildUnmodelledSystems(modelledSystems.length, UNMODELLED_SYSTEM_COUNT)];
+  const systems = [...modelledSystems, ...buildUnmodelledSystems(random, modelledSystems.length, UNMODELLED_SYSTEM_COUNT)];
   const ciDependencies = buildCiDependencies(random, systems, assets);
 
   const currentDataset: Dataset = {

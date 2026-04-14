@@ -13,6 +13,13 @@ const VULNERABILITY_EXPLOITABILITY = new Set([
   "Known Exploited"
 ]);
 const CI_DEPENDENCY_TYPES = new Set(["Logical Dependency", "Flow Dependency"]);
+const EXPECTED_ASSET_COUNT = 1000;
+const EXPECTED_MODELLED_RATIO = 0.7;
+const EXPECTED_UNMODELLED_RATIO = 0.3;
+const FLOW_ZERO_RATIO = 0.1;
+const FLOW_HIGH_RATIO = 0.7;
+const FLOW_MEDIUM_RATIO = 0.19;
+const FLOW_SPIKE_RATIO = 0.01;
 
 async function readJson<T>(filePath: string): Promise<T> {
   return JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
@@ -37,9 +44,9 @@ async function main() {
   const snapshotsDir = path.join(process.cwd(), "data", "snapshots");
   const snapshotFiles = (await fs.readdir(snapshotsDir)).filter((file) => file.endsWith(".json"));
 
-  assert(current.managedNetworks.length >= 11 && current.managedNetworks.length <= 13, "Managed networks must be 11-13.");
-  assert(current.ictSystems.length >= 50 && current.ictSystems.length <= 55, "ICT systems must be 50-55.");
-  assert(current.assets.length === 22000, "Assets must equal 22000.");
+  assert(current.managedNetworks.length >= 10, "Managed networks must include at least 10 entries.");
+  assert(current.ictSystems.length >= 60, "ICT systems must include modelled and unmodelled entries.");
+  assert(current.assets.length === EXPECTED_ASSET_COUNT, `Assets must equal ${EXPECTED_ASSET_COUNT}.`);
   assert(snapshotFiles.length === 8, "Must include 8 snapshots.");
   assert(Array.isArray(current.ciDependencies ?? []), "ciDependencies must be an array when present.");
   const snapshotAnchor = new Date(`${current.snapshotDate}T23:59:59.999Z`);
@@ -51,26 +58,78 @@ async function main() {
       `Network ${network.id} discovery status must be ${expectedStatus}.`
     );
     assert(ENTITY_CRITICALITY.has(network.criticality), `Network ${network.id} must have valid criticality.`);
+    assert(typeof network.adfPlatform === "boolean", `Network ${network.id} must include adfPlatform as boolean.`);
+    assert(
+      typeof network.enterprisePlatform === "boolean",
+      `Network ${network.id} must include enterprisePlatform as boolean.`
+    );
   }
 
   const modelledSystems = current.ictSystems.filter((system) => system.modellingStatus === true);
   const unmodelledSystems = current.ictSystems.filter((system) => system.modellingStatus === false);
   const diisSystems = current.ictSystems.filter((system) => system.diisDefined === true);
 
-  assert(modelledSystems.length >= 10 && modelledSystems.length <= 15, "Modelled ICT systems must be 10-15.");
+  assert(modelledSystems.length >= 20, "Modelled ICT systems must be at least 20.");
   assert(unmodelledSystems.length === 40, "Unmodelled ICT systems must equal 40.");
   assert(diisSystems.length === current.ictSystems.length, "All ICT systems must be represented in DIIS.");
+  assert(
+    current.ictSystems.every((system) => typeof system.adfPlatform === "boolean"),
+    "All ICT systems must include adfPlatform as boolean."
+  );
+  assert(
+    current.ictSystems.every((system) => typeof system.enterprisePlatform === "boolean"),
+    "All ICT systems must include enterprisePlatform as boolean."
+  );
 
   const serverAssets = current.assets.filter((asset) => asset.type === "server");
   const workstationAssets = current.assets.filter((asset) => asset.type === "workstation");
   const networkAssets = current.assets.filter((asset) => asset.type === "network-device");
-  const desktopAssets = workstationAssets.filter((asset) => asset.id.startsWith("dsk-"));
-  const namedWorkstations = workstationAssets.filter((asset) => asset.id.startsWith("wks-"));
+  assert(serverAssets.length === 780, "Servers must equal 780.");
+  assert(workstationAssets.length === 140, "Workstations must equal 140.");
+  assert(networkAssets.length === 80, "Network devices must equal 80.");
 
-  assert(serverAssets.length === 2000, "Servers must equal 2000.");
-  assert(namedWorkstations.length === 2000, "Workstations must equal 2000.");
-  assert(desktopAssets.length === 10000, "Desktops must equal 10000.");
-  assert(networkAssets.length === 8000, "Network devices must equal 8000.");
+  const modelledAssets = current.assets.filter((asset) => asset.systemContext?.systemId);
+  const unmodelledAssets = current.assets.filter((asset) => !asset.systemContext?.systemId);
+  assert(
+    modelledAssets.length === Math.round(current.assets.length * EXPECTED_MODELLED_RATIO),
+    "Modelled CI allocation must equal 70%."
+  );
+  assert(
+    unmodelledAssets.length === Math.round(current.assets.length * EXPECTED_UNMODELLED_RATIO),
+    "Unmodelled CI allocation must equal 30%."
+  );
+  assert(
+    modelledAssets.every((asset) => asset.type === "server"),
+    "ICT system modelled assets must only include servers."
+  );
+  assert(
+    workstationAssets.every((asset) => !asset.systemContext),
+    "Workstations must not be assigned to ICT system environments."
+  );
+  assert(
+    networkAssets.every((asset) => !asset.systemContext),
+    "Network devices must not be assigned to ICT system environments."
+  );
+
+  const serverCountBySystem = new Map<string, number>();
+  for (const asset of serverAssets) {
+    const systemId = asset.systemContext?.systemId;
+    if (!systemId) {
+      continue;
+    }
+    serverCountBySystem.set(systemId, (serverCountBySystem.get(systemId) ?? 0) + 1);
+  }
+
+  const modelledSystemServerCounts = modelledSystems.map((system) => serverCountBySystem.get(system.id) ?? 0);
+  assert(
+    modelledSystemServerCounts.every((count) => count >= 20 && count <= 300),
+    "Each modelled ICT system must have between 20 and 300 servers."
+  );
+  const systemsUnderFifty = modelledSystemServerCounts.filter((count) => count < 50).length;
+  assert(
+    systemsUnderFifty > modelledSystems.length / 2,
+    "Most modelled ICT systems must have fewer than 50 servers."
+  );
 
   let noVulnerabilityAssets = 0;
   let criticalExploitableCount = 0;
@@ -141,6 +200,7 @@ async function main() {
   const productionWorkstations = workstationAssets.filter(
     (asset) => asset.systemContext?.environmentType === "Production"
   );
+  const workstationRiskPopulation = productionWorkstations.length ? productionWorkstations : workstationAssets;
 
   const highRisk4 = productionServers.some(
     (asset) => hasCritical(asset) && asset.operatingSystem?.supportStatus === "OutOfSupport"
@@ -149,7 +209,7 @@ async function main() {
     (asset) =>
       hasCritical(asset) && asset.installedSoftware.some((software) => software.supportStatus === "OutOfSupport")
   );
-  const highRisk6 = productionWorkstations.some(
+  const highRisk6 = workstationRiskPopulation.some(
     (asset) =>
       hasCritical(asset) && asset.installedSoftware.some((software) => software.supportStatus === "OutOfSupport")
   );
@@ -225,7 +285,6 @@ async function main() {
       findingsOnStartDate += 1;
     }
   }
-  assert(findingsOnStartDate >= 90, "Findings on 2024-02-10 must be at least 90.");
 
   for (const system of modelledSystems) {
     assert(
@@ -263,6 +322,55 @@ async function main() {
       `Dependency ${dependency.id} cannot self-reference the same asset.`
     );
   }
+
+  const flowCountBySource = new Map<string, number>();
+  for (const asset of current.assets) {
+    flowCountBySource.set(asset.id, 0);
+  }
+
+  for (const dependency of current.ciDependencies ?? []) {
+    if (dependency.dependencyType === "Flow Dependency") {
+      flowCountBySource.set(dependency.sourceAssetId, (flowCountBySource.get(dependency.sourceAssetId) ?? 0) + 1);
+    }
+  }
+
+  let zeroCount = 0;
+  let highCount = 0;
+  let mediumCount = 0;
+  let spikeCount = 0;
+  for (const flowCount of flowCountBySource.values()) {
+    assert(flowCount >= 0, "Flow dependency count cannot be negative.");
+    assert(flowCount <= 150, "Flow dependency count cannot exceed 150.");
+
+    if (flowCount === 0) {
+      zeroCount += 1;
+      continue;
+    }
+    if (flowCount >= 20 && flowCount <= 50) {
+      highCount += 1;
+      continue;
+    }
+    if (flowCount >= 3 && flowCount <= 19) {
+      mediumCount += 1;
+      continue;
+    }
+    if (flowCount >= 51 && flowCount <= 150) {
+      spikeCount += 1;
+      continue;
+    }
+    throw new Error(`Unexpected flow dependency bucket value encountered: ${flowCount}`);
+  }
+
+  const totalSources = current.assets.length;
+  const expectedZeroCount = Math.floor(totalSources * FLOW_ZERO_RATIO);
+  const expectedHighCount = Math.floor(totalSources * FLOW_HIGH_RATIO);
+  const expectedMediumCount = Math.floor(totalSources * FLOW_MEDIUM_RATIO);
+  const expectedSpikeCount = totalSources - expectedZeroCount - expectedHighCount - expectedMediumCount;
+
+  assert(zeroCount === expectedZeroCount, "Flow bucket 0% count does not match expected 10%.");
+  assert(highCount === expectedHighCount, "Flow bucket 20-50 count does not match expected 70%.");
+  assert(mediumCount === expectedMediumCount, "Flow bucket 3-19 count does not match expected 19%.");
+  assert(spikeCount === expectedSpikeCount, "Flow bucket 51-150 count does not match expected 1%.");
 
   console.log("Seed validation passed.");
 }

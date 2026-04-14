@@ -63,6 +63,8 @@ function buildDataset(): Dataset {
         id: "net-core",
         name: "Core Network",
         criticality: "Critical",
+        adfPlatform: false,
+        enterprisePlatform: false,
         discoveryStatus: "Discovery Enabled",
         ictSystemIds: ["sys-core"],
         assetIds: ["asset-core-1"]
@@ -71,6 +73,8 @@ function buildDataset(): Dataset {
         id: "net-dep",
         name: "Dependent Network",
         criticality: "Critical",
+        adfPlatform: false,
+        enterprisePlatform: false,
         discoveryStatus: "Discovery Enabled",
         ictSystemIds: ["sys-dep"],
         assetIds: ["asset-dep-in-model", "asset-dep-out-of-model"]
@@ -80,6 +84,8 @@ function buildDataset(): Dataset {
       {
         id: "sys-core",
         name: "Core ICT System",
+        adfPlatform: false,
+        enterprisePlatform: false,
         modellingStatus: true,
         diisDefined: true,
         networkId: "net-core",
@@ -99,6 +105,8 @@ function buildDataset(): Dataset {
       {
         id: "sys-dep",
         name: "Dependent ICT System",
+        adfPlatform: false,
+        enterprisePlatform: false,
         modellingStatus: true,
         diisDefined: true,
         networkId: "net-dep",

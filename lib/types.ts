@@ -39,6 +39,8 @@ export interface ManagedNetwork {
   id: string;
   name: string;
   criticality: Criticality;
+  adfPlatform: boolean;
+  enterprisePlatform: boolean;
   parentNetworkId?: string;
   childNetworkIds?: string[];
   classification?: string;
@@ -64,6 +66,8 @@ export interface SystemEnvironment {
 export interface ICTSystem {
   id: string;
   name: string;
+  adfPlatform: boolean;
+  enterprisePlatform: boolean;
   parentSystemId?: string;
   childSystemIds?: string[];
   description?: string;

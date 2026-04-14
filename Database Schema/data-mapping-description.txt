@@ -92,14 +92,14 @@ Snapshots and domain entities:
   - source_label = snapshot file name
 
 - managedNetworks[]:
-  - id,name,criticality,classification,description,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,discoveryStatus
+  - id,name,criticality,adfPlatform,enterprisePlatform,classification,description,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,discoveryStatus
     -> managed_network
   - parentNetworkId + childNetworkIds[] -> managed_network_hierarchy
   - ictSystemIds[] -> network_declared_system
   - assetIds[] -> network_declared_asset
 
 - ictSystems[]:
-  - id,networkId,name,description,diisId,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,modellingStatus,diisDefined,criticality,securityDomain
+  - id,networkId,name,adfPlatform,enterprisePlatform,description,diisId,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,modellingStatus,diisDefined,criticality,securityDomain
     -> ict_system
   - parentSystemId + childSystemIds[] -> ict_system_hierarchy
   - missionCapabilities[] -> system_mission_capability
@@ -148,3 +148,12 @@ Validation Rules Applied by loader/validator
 - Exactly 10 SPI definitions required
 - Non-empty asset, finding, discovery_tool, measures_severity_matrix tables required
 - Full row-count summary emitted after load
+- Seed profile constraints validated in `scripts/validate-seed.ts`:
+  - 70% of assets modelled to ICT systems, 30% left unmodelled
+  - ICT systems map server assets only (no workstations/network devices)
+  - Per-system server count bounded to 20..300, with most systems < 50
+  - Flow dependency distribution per source CI:
+    - 10% with 0 edges
+    - 70% with 20..50 edges
+    - 19% with 3..19 edges
+    - 1% with 51..150 edges

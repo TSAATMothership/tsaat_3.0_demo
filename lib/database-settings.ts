@@ -69,7 +69,11 @@ const REQUIRED_TABLES: string[] = [
 const REQUIRED_COLUMNS: Array<{ tableName: string; columnName: string }> = [
   { tableName: "dataset_snapshot", columnName: "snapshot_date" },
   { tableName: "managed_network", columnName: "network_id" },
+  { tableName: "managed_network", columnName: "adf_platform" },
+  { tableName: "managed_network", columnName: "enterprise_platform" },
   { tableName: "ict_system", columnName: "system_id" },
+  { tableName: "ict_system", columnName: "adf_platform" },
+  { tableName: "ict_system", columnName: "enterprise_platform" },
   { tableName: "asset", columnName: "asset_id" },
   { tableName: "asset", columnName: "asset_type" },
   { tableName: "finding", columnName: "finding_id" },

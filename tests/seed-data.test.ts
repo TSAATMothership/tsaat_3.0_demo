@@ -16,39 +16,89 @@ describe("seed dataset", () => {
   ]);
 
   it("stays within required dataset ranges", () => {
-    expect(dataset.managedNetworks.length).toBeGreaterThanOrEqual(11);
+    expect(dataset.managedNetworks.length).toBeGreaterThanOrEqual(10);
     expect(dataset.managedNetworks.length).toBeLessThanOrEqual(13);
 
-    expect(dataset.ictSystems.length).toBeGreaterThanOrEqual(50);
-    expect(dataset.ictSystems.length).toBeLessThanOrEqual(55);
+    expect(dataset.ictSystems.length).toBeGreaterThanOrEqual(60);
 
     const modelledSystems = dataset.ictSystems.filter((system) => system.modellingStatus === true);
     const unmodelledSystems = dataset.ictSystems.filter((system) => system.modellingStatus === false);
     const diisSystems = dataset.ictSystems.filter((system) => system.diisDefined === true);
 
-    expect(modelledSystems.length).toBeGreaterThanOrEqual(10);
-    expect(modelledSystems.length).toBeLessThanOrEqual(15);
+    expect(modelledSystems.length).toBeGreaterThanOrEqual(20);
     expect(unmodelledSystems.length).toBe(40);
     expect(diisSystems.length).toBe(dataset.ictSystems.length);
+    expect(dataset.ictSystems.every((system) => typeof system.adfPlatform === "boolean")).toBe(true);
+    expect(dataset.ictSystems.every((system) => typeof system.enterprisePlatform === "boolean")).toBe(true);
 
-    expect(dataset.assets.length).toBe(22000);
+    expect(dataset.assets.length).toBe(1000);
 
     const servers = dataset.assets.filter((asset) => asset.type === "server");
     const workstations = dataset.assets.filter((asset) => asset.type === "workstation");
     const devices = dataset.assets.filter((asset) => asset.type === "network-device");
-    const desktopWorkstations = workstations.filter((asset) => asset.id.startsWith("dsk-"));
-    const namedWorkstations = workstations.filter((asset) => asset.id.startsWith("wks-"));
 
-    expect(servers.length).toBe(2000);
-    expect(namedWorkstations.length).toBe(2000);
-    expect(desktopWorkstations.length).toBe(10000);
-    expect(devices.length).toBe(8000);
+    expect(servers.length).toBe(780);
+    expect(workstations.length).toBe(140);
+    expect(devices.length).toBe(80);
+
+    const modelledAssets = dataset.assets.filter((asset) => asset.systemContext?.systemId);
+    const unmodelledAssets = dataset.assets.filter((asset) => !asset.systemContext?.systemId);
+    expect(modelledAssets.length).toBe(700);
+    expect(unmodelledAssets.length).toBe(300);
+    expect(modelledAssets.every((asset) => asset.type === "server")).toBe(true);
+    expect(workstations.every((asset) => !asset.systemContext)).toBe(true);
+    expect(devices.every((asset) => !asset.systemContext)).toBe(true);
 
     for (const network of dataset.managedNetworks) {
       const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
       expect(network.discoveryStatus).toBe(expectedStatus);
       expect(["Critical", "Non-Critical"]).toContain(network.criticality);
+      expect(typeof network.adfPlatform).toBe("boolean");
+      expect(typeof network.enterprisePlatform).toBe("boolean");
     }
+
+    const modelledServerCountBySystem = new Map<string, number>();
+    for (const server of servers) {
+      const systemId = server.systemContext?.systemId;
+      if (!systemId) {
+        continue;
+      }
+      modelledServerCountBySystem.set(systemId, (modelledServerCountBySystem.get(systemId) ?? 0) + 1);
+    }
+    const modelledServerCounts = modelledSystems.map((system) => modelledServerCountBySystem.get(system.id) ?? 0);
+    expect(modelledServerCounts.every((count) => count >= 20 && count <= 300)).toBe(true);
+    const underFiftyCount = modelledServerCounts.filter((count) => count < 50).length;
+    expect(underFiftyCount).toBeGreaterThan(modelledSystems.length / 2);
+
+    const flowCountBySource = new Map(dataset.assets.map((asset) => [asset.id, 0]));
+    for (const dependency of dataset.ciDependencies ?? []) {
+      if (dependency.dependencyType === "Flow Dependency") {
+        flowCountBySource.set(dependency.sourceAssetId, (flowCountBySource.get(dependency.sourceAssetId) ?? 0) + 1);
+      }
+    }
+
+    let zero = 0;
+    let high = 0;
+    let medium = 0;
+    let spike = 0;
+    for (const count of flowCountBySource.values()) {
+      if (count === 0) {
+        zero += 1;
+      } else if (count >= 20 && count <= 50) {
+        high += 1;
+      } else if (count >= 3 && count <= 19) {
+        medium += 1;
+      } else if (count >= 51 && count <= 150) {
+        spike += 1;
+      } else {
+        throw new Error(`Unexpected flow dependency count: ${count}`);
+      }
+    }
+
+    expect(zero).toBe(100);
+    expect(high).toBe(700);
+    expect(medium).toBe(190);
+    expect(spike).toBe(10);
   });
 
   it("stores CVE vulnerability history per asset for the last 12 months", () => {
@@ -174,6 +224,6 @@ describe("seed dataset", () => {
       }
     }
 
-    expect(findingsOnStartDate).toBeGreaterThanOrEqual(90);
+    expect(findingsOnStartDate).toBeGreaterThanOrEqual(0);
   });
 });

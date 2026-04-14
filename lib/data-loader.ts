@@ -20,6 +20,8 @@ type ManagedNetworkRow = {
   id: string;
   name: string;
   criticality: "Critical" | "Non-Critical";
+  adfPlatform: boolean;
+  enterprisePlatform: boolean;
   classification: string | null;
   description: string | null;
   owner: string | null;
@@ -50,6 +52,8 @@ type SystemRow = {
   id: string;
   networkId: string;
   name: string;
+  adfPlatform: boolean;
+  enterprisePlatform: boolean;
   description: string | null;
   diisId: string | null;
   owner: string | null;
@@ -327,6 +331,8 @@ SELECT
       n.[network_id] AS [id],
       n.[name] AS [name],
       n.[criticality] AS [criticality],
+      n.[adf_platform] AS [adfPlatform],
+      n.[enterprise_platform] AS [enterprisePlatform],
       n.[classification] AS [classification],
       n.[description] AS [description],
       n.[owner] AS [owner],
@@ -373,6 +379,8 @@ SELECT
       s.[system_id] AS [id],
       s.[network_id] AS [networkId],
       s.[name] AS [name],
+      s.[adf_platform] AS [adfPlatform],
+      s.[enterprise_platform] AS [enterprisePlatform],
       s.[description] AS [description],
       s.[diis_id] AS [diisId],
       s.[owner] AS [owner],
@@ -631,6 +639,8 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       id: network.id,
       name: network.name,
       criticality: network.criticality,
+      adfPlatform: Boolean(network.adfPlatform),
+      enterprisePlatform: Boolean(network.enterprisePlatform),
       ...(networkParentByChild.get(network.id) ? { parentNetworkId: networkParentByChild.get(network.id) } : {}),
       ...(childNetworkIds.length ? { childNetworkIds } : {}),
       ...(network.classification ? { classification: network.classification } : {}),
@@ -694,6 +704,8 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
     return {
       id: system.id,
       name: system.name,
+      adfPlatform: Boolean(system.adfPlatform),
+      enterprisePlatform: Boolean(system.enterprisePlatform),
       ...(systemParentByChild.get(system.id) ? { parentSystemId: systemParentByChild.get(system.id) } : {}),
       ...(childSystemIds.length ? { childSystemIds } : {}),
       ...(system.description ? { description: system.description } : {}),

@@ -38,6 +38,8 @@ describe("analytics findings filtering", () => {
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
+          adfPlatform: false,
+          enterprisePlatform: false,
           discoveryStatus: "Discovery Enabled",
           ictSystemIds: ["sys-1"],
           assetIds: ["srv-1", "wks-1"]
@@ -47,6 +49,8 @@ describe("analytics findings filtering", () => {
         {
           id: "sys-1",
           name: "System 1",
+          adfPlatform: false,
+          enterprisePlatform: false,
           modellingStatus: true,
           diisDefined: true,
           networkId: "net-1",
@@ -107,6 +111,8 @@ describe("analytics findings filtering", () => {
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
+          adfPlatform: false,
+          enterprisePlatform: false,
           discoveryStatus: "Discovery Enabled",
           ictSystemIds: ["sys-1"],
           assetIds: ["srv-1", "wks-1"]
@@ -116,6 +122,8 @@ describe("analytics findings filtering", () => {
         {
           id: "sys-1",
           name: "System 1",
+          adfPlatform: false,
+          enterprisePlatform: false,
           modellingStatus: true,
           diisDefined: true,
           networkId: "net-1",
@@ -203,6 +211,8 @@ describe("analytics findings filtering", () => {
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
+          adfPlatform: false,
+          enterprisePlatform: false,
           discoveryStatus: "Discovery Enabled",
           ictSystemIds: ["sys-1"],
           assetIds: ["srv-1"]
@@ -212,6 +222,8 @@ describe("analytics findings filtering", () => {
         {
           id: "sys-1",
           name: "System 1",
+          adfPlatform: false,
+          enterprisePlatform: false,
           modellingStatus: true,
           diisDefined: true,
           networkId: "net-1",

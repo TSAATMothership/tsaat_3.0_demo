@@ -41,3 +41,9 @@ erDiagram
 
 ## Operational Notes
 - Connection/auth settings are external to this ERD and are configured in repository root `DB_config`.
+- `managed_network` includes platform flags:
+  - `adf_platform` (`BIT`)
+  - `enterprise_platform` (`BIT`)
+- `ict_system` includes platform flags:
+  - `adf_platform` (`BIT`)
+  - `enterprise_platform` (`BIT`)

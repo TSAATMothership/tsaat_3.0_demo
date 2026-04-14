@@ -42,6 +42,9 @@ Key domain groups
 - `network_declared_system`, `network_declared_asset`
 - `system_mission_capability`, `system_business_service`
 - `system_environment`, `system_environment_asset`
+  - platform flags on both network and system entities:
+    - `adf_platform` (BIT)
+    - `enterprise_platform` (BIT)
 
 4) Asset posture:
 - `asset`

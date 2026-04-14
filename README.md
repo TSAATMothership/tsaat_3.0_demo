@@ -234,13 +234,17 @@ npm test
 
 ## Data Model (Short)
 
-- `ManagedNetwork` -> contains `assetIds` and linked `ictSystemIds`
-- `ICTSystem` -> includes mission capabilities, business services, and environments
+- `ManagedNetwork` -> contains `assetIds`, linked `ictSystemIds`, and platform flags (`adfPlatform`, `enterprisePlatform`)
+- `ICTSystem` -> includes mission capabilities, business services, environments, and platform flags (`adfPlatform`, `enterprisePlatform`)
 - `Environment` -> Production required, non-prod optional (Development/UAT/Test)
 - `Asset` union:
   - `server`
   - `workstation`
   - `network-device`
+- Seed profile:
+  - 70% of assets are mapped to ICT system models (server-only in systems)
+  - 30% remain unmodelled (no ICT system context)
+  - Flow dependency distribution per source CI: 10%=`0`, 70%=`20..50`, 19%=`3..19`, 1%=`51..150`
 - Physical assets include lifecycle (`EOL`, `warranty`)
 - Vulnerabilities include severity (including `Critical`)
 
