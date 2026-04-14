@@ -1197,6 +1197,10 @@ export function NetworkTopologyView({
   const ciFlowAutoFitPendingRef = useRef(false);
   const ciFlowNodeDragOffsetsRef = useRef<Record<string, { x: number; y: number }>>({});
   const ciFlowTweenProgressRef = useRef(0);
+  const ciFlowOuterShellSpinAngleRef = useRef(0);
+  const ciFlowOuterShellSpinLastTimestampRef = useRef<number | null>(null);
+  const ciFlowHoverLocalPointRef = useRef<{ x: number; y: number } | null>(null);
+  const ciFlowHoveredNodeIdRef = useRef<string | null>(null);
   const ciFlowNodeDragStateRef = useRef<{
     nodeId: string;
     pointerId: number;
@@ -2122,10 +2126,31 @@ export function NetworkTopologyView({
     if (!ciFlowGraph) {
       return new Set<string>();
     }
-    return ciFlowRootScopeNodeIds.size
+    const rootScopeNodeIds = ciFlowRootScopeNodeIds.size
       ? ciFlowRootScopeNodeIds
       : new Set(ciFlowGraph.nodes.map((node) => node.id));
-  }, [ciFlowGraph, ciFlowRootScopeNodeIds]);
+    if (!ciFlowActiveSelectionNodeId || ciFlowActiveSelectionNodeId === ciFlowRootNodeId) {
+      return rootScopeNodeIds;
+    }
+    const selectedNode = ciFlowNodeById.get(ciFlowActiveSelectionNodeId);
+    if (!selectedNode || selectedNode.entityType !== "ci") {
+      return rootScopeNodeIds;
+    }
+    const visibleNodeIds = new Set<string>();
+    if (ciFlowRootNodeId && rootScopeNodeIds.has(ciFlowRootNodeId)) {
+      visibleNodeIds.add(ciFlowRootNodeId);
+    }
+    if (rootScopeNodeIds.has(ciFlowActiveSelectionNodeId)) {
+      visibleNodeIds.add(ciFlowActiveSelectionNodeId);
+    }
+    return visibleNodeIds;
+  }, [
+    ciFlowActiveSelectionNodeId,
+    ciFlowGraph,
+    ciFlowNodeById,
+    ciFlowRootNodeId,
+    ciFlowRootScopeNodeIds
+  ]);
   const detailedTileDropdownOptions = useMemo<
     Array<{ id: string; entityType: DetailedTileEntityType; name: string; subtitle: string; level: number }>
   >(() => {
@@ -3534,6 +3559,21 @@ export function NetworkTopologyView({
       detailedCanvasRenderRequestedRef.current = false;
       const { width, height, pixelRatio } = resizeCanvas();
       if (isFlowMode) {
+        const now = performance.now();
+        const previous = ciFlowOuterShellSpinLastTimestampRef.current ?? now;
+        const deltaSeconds = Math.max(0, Math.min(0.05, (now - previous) / 1000));
+        ciFlowOuterShellSpinLastTimestampRef.current = now;
+        const shouldPauseSpin = Boolean(ciFlowHoveredNodeIdRef.current);
+        if (!shouldPauseSpin) {
+          const spinSpeedRadiansPerSecond = 0.16;
+          ciFlowOuterShellSpinAngleRef.current =
+            (ciFlowOuterShellSpinAngleRef.current + deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
+        }
+      } else {
+        ciFlowOuterShellSpinLastTimestampRef.current = null;
+        ciFlowHoveredNodeIdRef.current = null;
+      }
+      if (isFlowMode) {
         if (!viewState.initialized) {
           viewState.initialized = true;
           setDetailedZoom(ciFlow3DViewStateRef.current.zoom);
@@ -3634,12 +3674,28 @@ export function NetworkTopologyView({
         }
       >();
       if (isFlowMode && ciFlowGraph) {
+        const rootRenderNode = latestNodes.find((node) => node.id === ciFlowRootNodeId) ?? null;
+        const spinPivotX = rootRenderNode ? rootRenderNode.x + rootRenderNode.width / 2 : ciFlowGraph.viewCenterX;
+        const spinPivotY = rootRenderNode ? rootRenderNode.y + rootRenderNode.height / 2 : ciFlowGraph.viewCenterY;
+        const spinPivotZ = rootRenderNode?.z ?? 0;
+        const spinAngle = ciFlowOuterShellSpinAngleRef.current;
+        const spinCos = Math.cos(spinAngle);
+        const spinSin = Math.sin(spinAngle);
         for (const node of latestNodes) {
           const isRootNode = node.id === detailedDisplayRootNodeId;
           const isSelected = node.id === detailedDisplaySelectedNodeId;
-          const centerWorldX = node.x + node.width / 2;
+          let centerWorldX = node.x + node.width / 2;
           const centerWorldY = node.y + node.height / 2;
-          const projection = projectFlowPoint(centerWorldX, centerWorldY, node.z, width, height);
+          let centerWorldZ = node.z;
+          const isOuterShellCi =
+            node.entityType === "ci" && node.id !== ciFlowRootNodeId && !node.isInModelScope;
+          if (isOuterShellCi) {
+            const relativeX = centerWorldX - spinPivotX;
+            const relativeZ = centerWorldZ - spinPivotZ;
+            centerWorldX = spinPivotX + relativeX * spinCos - relativeZ * spinSin;
+            centerWorldZ = spinPivotZ + relativeX * spinSin + relativeZ * spinCos;
+          }
+          const projection = projectFlowPoint(centerWorldX, centerWorldY, centerWorldZ, width, height);
           if (!projection) {
             continue;
           }
@@ -3667,6 +3723,21 @@ export function NetworkTopologyView({
           latestFlowProjectedNodes.push(projected);
           flowProjectedNodeById.set(node.id, projected);
         }
+        const hoverPoint = ciFlowHoverLocalPointRef.current;
+        let hoveredNodeId: string | null = null;
+        if (hoverPoint) {
+          let bestProjection: (typeof latestFlowProjectedNodes)[number] | null = null;
+          for (const projected of latestFlowProjectedNodes) {
+            if (!pointInCircle(projected.centerX, projected.centerY, projected.radius, hoverPoint.x, hoverPoint.y)) {
+              continue;
+            }
+            if (!bestProjection || projected.depth < bestProjection.depth) {
+              bestProjection = projected;
+            }
+          }
+          hoveredNodeId = bestProjection?.node.id ?? null;
+        }
+        ciFlowHoveredNodeIdRef.current = hoveredNodeId;
       }
 
       if (isFlowMode && ciFlowGraph) {
@@ -3716,7 +3787,8 @@ export function NetworkTopologyView({
               fillColor: string,
               strokeColor: string,
               fillAlpha: number,
-              strokeAlpha: number
+              strokeAlpha: number,
+              spinArcAngle?: number
             ) => {
               if (!radiusWorld) {
                 return;
@@ -3737,9 +3809,33 @@ export function NetworkTopologyView({
               context.strokeStyle = strokeColor;
               context.lineWidth = Math.max(1, radiusScreen * 0.0013);
               context.stroke();
+              if (typeof spinArcAngle === "number") {
+                const arcLength = Math.PI * 0.42;
+                context.beginPath();
+                context.arc(
+                  rootProjection.x,
+                  rootProjection.y,
+                  radiusScreen,
+                  spinArcAngle,
+                  spinArcAngle + arcLength
+                );
+                context.globalAlpha = Math.min(1, strokeAlpha * 2);
+                context.strokeStyle = "#fda4af";
+                context.lineWidth = Math.max(1.8, radiusScreen * 0.0022);
+                context.shadowColor = "#f87171";
+                context.shadowBlur = Math.max(8, radiusScreen * 0.032);
+                context.stroke();
+              }
               context.restore();
             };
-            drawFlowShell(outerShellRadiusWorld, "#ef4444", "#fca5a5", 0.045, 0.11);
+            drawFlowShell(
+              outerShellRadiusWorld,
+              "#ef4444",
+              "#fca5a5",
+              0.045,
+              0.11,
+              ciFlowOuterShellSpinAngleRef.current
+            );
             drawFlowShell(innerShellRadiusWorld, "#22c55e", "#86efac", 0.055, 0.13);
           }
         }
@@ -4075,6 +4171,7 @@ export function NetworkTopologyView({
       }
       if (isFlowMode) {
         const local = clientToLocal(event.clientX, event.clientY);
+        ciFlowHoverLocalPointRef.current = { x: local.x, y: local.y };
         const hitNode = hitTestFlowNode(local.x, local.y);
         if (hitNode) {
           setSelectedCiFlowModelTileId(null);
@@ -4185,7 +4282,14 @@ export function NetworkTopologyView({
 
     const onPointerMove = (event: PointerEvent) => {
       const interaction = detailedCanvasInteractionRef.current;
-      if (!interaction || interaction.pointerId !== event.pointerId) {
+      if (isFlowMode) {
+        const local = clientToLocal(event.clientX, event.clientY);
+        ciFlowHoverLocalPointRef.current = { x: local.x, y: local.y };
+        if (!interaction || interaction.pointerId !== event.pointerId) {
+          requestDraw();
+          return;
+        }
+      } else if (!interaction || interaction.pointerId !== event.pointerId) {
         return;
       }
       const deltaX = event.clientX - interaction.startClientX;
@@ -4238,6 +4342,15 @@ export function NetworkTopologyView({
       event.preventDefault();
     };
 
+    const onPointerLeave = () => {
+      if (!isFlowMode) {
+        return;
+      }
+      ciFlowHoverLocalPointRef.current = null;
+      ciFlowHoveredNodeIdRef.current = null;
+      requestDraw();
+    };
+
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       if (isFlowMode) {
@@ -4271,6 +4384,7 @@ export function NetworkTopologyView({
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", onPointerEnd);
     canvas.addEventListener("pointercancel", onPointerEnd);
+    canvas.addEventListener("pointerleave", onPointerLeave);
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("contextmenu", onContextMenu);
 
@@ -4295,6 +4409,7 @@ export function NetworkTopologyView({
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerEnd);
       canvas.removeEventListener("pointercancel", onPointerEnd);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
       resizeObserver.disconnect();
