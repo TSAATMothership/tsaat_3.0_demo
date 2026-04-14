@@ -424,6 +424,183 @@ function ciFlowEdgeCurvePoints(
   };
 }
 
+function applyForceDirectedCiFlowLayout(
+  nodes: CiFlowNodeLayout[],
+  edges: CiFlowEdgeLayout[],
+  centerX: number,
+  centerY: number,
+  pinnedNodeId: string
+) {
+  if (nodes.length <= 1) {
+    return;
+  }
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const centersById = new Map<string, { x: number; y: number }>();
+  const velocitiesById = new Map<string, { x: number; y: number }>();
+  const nodeIds = nodes.map((node) => node.id);
+
+  for (const node of nodes) {
+    centersById.set(node.id, {
+      x: node.x + node.width / 2,
+      y: node.y + node.height / 2
+    });
+    velocitiesById.set(node.id, { x: 0, y: 0 });
+  }
+
+  const iterationCount = Math.max(180, Math.min(360, nodes.length * 3));
+  const repulsionStrength = 460000;
+  const springStrength = 0.0065;
+  const centeringStrength = 0.0028;
+  const damping = 0.86;
+  const maxStep = 60;
+  const maxRadiusFromCenter = Math.max(
+    CI_FLOW_BASE_RADIUS * 2.1,
+    Math.sqrt(nodes.length) * (CI_FLOW_RADIUS_STEP * 0.7)
+  );
+
+  for (let iteration = 0; iteration < iterationCount; iteration += 1) {
+    const forcesById = new Map<string, { x: number; y: number }>();
+    for (const nodeId of nodeIds) {
+      forcesById.set(nodeId, { x: 0, y: 0 });
+    }
+
+    for (let leftIndex = 0; leftIndex < nodeIds.length; leftIndex += 1) {
+      const leftNodeId = nodeIds[leftIndex];
+      const leftNode = nodeById.get(leftNodeId);
+      const leftCenter = centersById.get(leftNodeId);
+      if (!leftNode || !leftCenter) {
+        continue;
+      }
+
+      for (let rightIndex = leftIndex + 1; rightIndex < nodeIds.length; rightIndex += 1) {
+        const rightNodeId = nodeIds[rightIndex];
+        const rightNode = nodeById.get(rightNodeId);
+        const rightCenter = centersById.get(rightNodeId);
+        if (!rightNode || !rightCenter) {
+          continue;
+        }
+
+        let dx = rightCenter.x - leftCenter.x;
+        let dy = rightCenter.y - leftCenter.y;
+        let distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared < 1) {
+          dx = Math.random() - 0.5;
+          dy = Math.random() - 0.5;
+          distanceSquared = dx * dx + dy * dy;
+        }
+        const distance = Math.sqrt(distanceSquared);
+        const unitX = dx / distance;
+        const unitY = dy / distance;
+
+        const preferredSpacingX = (leftNode.width + rightNode.width) / 2 + 56;
+        const preferredSpacingY = (leftNode.height + rightNode.height) / 2 + 36;
+        const preferredDistance = Math.hypot(preferredSpacingX, preferredSpacingY);
+        const overlapFactor =
+          distance < preferredDistance ? 1 + ((preferredDistance - distance) / preferredDistance) * 3.6 : 1;
+        const repulsion = (repulsionStrength / distanceSquared) * overlapFactor;
+
+        const leftForce = forcesById.get(leftNodeId);
+        const rightForce = forcesById.get(rightNodeId);
+        if (!leftForce || !rightForce) {
+          continue;
+        }
+
+        leftForce.x -= unitX * repulsion;
+        leftForce.y -= unitY * repulsion;
+        rightForce.x += unitX * repulsion;
+        rightForce.y += unitY * repulsion;
+      }
+    }
+
+    for (const edge of edges) {
+      const fromNode = nodeById.get(edge.fromNodeId);
+      const toNode = nodeById.get(edge.toNodeId);
+      const fromCenter = centersById.get(edge.fromNodeId);
+      const toCenter = centersById.get(edge.toNodeId);
+      if (!fromNode || !toNode || !fromCenter || !toCenter) {
+        continue;
+      }
+
+      let dx = toCenter.x - fromCenter.x;
+      let dy = toCenter.y - fromCenter.y;
+      let distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < 1) {
+        dx = Math.random() - 0.5;
+        dy = Math.random() - 0.5;
+        distanceSquared = dx * dx + dy * dy;
+      }
+      const distance = Math.sqrt(distanceSquared);
+      const unitX = dx / distance;
+      const unitY = dy / distance;
+      const restDistance = Math.max(360, Math.min(980, Math.max(fromNode.width, toNode.width) * 0.7));
+      const springForce = (distance - restDistance) * springStrength;
+
+      const fromForce = forcesById.get(edge.fromNodeId);
+      const toForce = forcesById.get(edge.toNodeId);
+      if (!fromForce || !toForce) {
+        continue;
+      }
+
+      fromForce.x += unitX * springForce;
+      fromForce.y += unitY * springForce;
+      toForce.x -= unitX * springForce;
+      toForce.y -= unitY * springForce;
+    }
+
+    for (const nodeId of nodeIds) {
+      const center = centersById.get(nodeId);
+      const velocity = velocitiesById.get(nodeId);
+      const force = forcesById.get(nodeId);
+      if (!center || !velocity || !force) {
+        continue;
+      }
+
+      if (nodeId === pinnedNodeId) {
+        center.x = centerX;
+        center.y = centerY;
+        velocity.x = 0;
+        velocity.y = 0;
+        continue;
+      }
+
+      force.x += (centerX - center.x) * centeringStrength;
+      force.y += (centerY - center.y) * centeringStrength;
+
+      velocity.x = (velocity.x + force.x) * damping;
+      velocity.y = (velocity.y + force.y) * damping;
+
+      const speed = Math.hypot(velocity.x, velocity.y);
+      if (speed > maxStep) {
+        const scale = maxStep / speed;
+        velocity.x *= scale;
+        velocity.y *= scale;
+      }
+
+      center.x += velocity.x;
+      center.y += velocity.y;
+
+      const deltaX = center.x - centerX;
+      const deltaY = center.y - centerY;
+      const radialDistance = Math.hypot(deltaX, deltaY);
+      if (radialDistance > maxRadiusFromCenter) {
+        const clampScale = maxRadiusFromCenter / radialDistance;
+        center.x = centerX + deltaX * clampScale;
+        center.y = centerY + deltaY * clampScale;
+      }
+    }
+  }
+
+  for (const node of nodes) {
+    const center = centersById.get(node.id);
+    if (!center) {
+      continue;
+    }
+    node.x = center.x - node.width / 2;
+    node.y = center.y - node.height / 2;
+  }
+}
+
 function combineComplianceSummaries(
   summaries: Array<{ compliant: number; nonCompliant: number; other: number }>
 ): { score: number; compliant: number; nonCompliant: number; other: number } {
@@ -1653,6 +1830,15 @@ export function NetworkTopologyView({
         });
       }
     }
+
+    const ciFlowRootLayoutNodeId = ciFlowNodeIdForAsset(focusedCiFlowRootAssetId);
+    applyForceDirectedCiFlowLayout(
+      ciNodes,
+      ciFlowEdges,
+      initialCenterX,
+      initialCenterY,
+      ciFlowRootLayoutNodeId
+    );
 
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
