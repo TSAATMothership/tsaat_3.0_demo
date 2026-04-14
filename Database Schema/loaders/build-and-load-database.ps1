@@ -2,19 +2,41 @@
 param(
   [string]$ServerInstance = 'localhost\SQLEXPRESS',
   [string]$AdminDatabase = 'master',
-  [string]$DatabaseName
+  [string]$DatabaseName,
+  [string]$SqlUser,
+  [string]$SqlPassword,
+  [switch]$UseTrustedConnection
 )
 
 $ErrorActionPreference = 'Stop'
+
+$hasSqlUser = -not [string]::IsNullOrWhiteSpace($SqlUser)
+$hasSqlPassword = -not [string]::IsNullOrWhiteSpace($SqlPassword)
+
+if ($hasSqlUser -xor $hasSqlPassword) {
+  throw 'Both SqlUser and SqlPassword must be provided for SQL authentication.'
+}
+
+[string[]]$sqlAuthArgs = @()
+$sqlAuthMode = 'trusted'
+if ($hasSqlUser -and $hasSqlPassword) {
+  $sqlAuthMode = 'sql'
+  $sqlAuthArgs = @('-U', $SqlUser, '-P', $SqlPassword)
+} elseif ($UseTrustedConnection.IsPresent -or (-not $hasSqlUser -and -not $hasSqlPassword)) {
+  $sqlAuthMode = 'trusted'
+  $sqlAuthArgs = @('-E')
+}
 
 function Invoke-SqlText {
   param(
     [Parameter(Mandatory = $true)][string]$Server,
     [Parameter(Mandatory = $true)][string]$Database,
-    [Parameter(Mandatory = $true)][string]$SqlText
+    [Parameter(Mandatory = $true)][string]$SqlText,
+    [Parameter(Mandatory = $true)][string[]]$AuthArgs
   )
 
-  & sqlcmd -S $Server -d $Database -E -Q $SqlText -b
+  $args = @('-S', $Server, '-d', $Database) + $AuthArgs + @('-Q', $SqlText, '-b')
+  & sqlcmd @args
   if ($LASTEXITCODE -ne 0) {
     throw "sqlcmd failed for inline query against [$Database]."
   }
@@ -25,6 +47,7 @@ function Invoke-SqlFile {
     [Parameter(Mandatory = $true)][string]$Server,
     [Parameter(Mandatory = $true)][string]$Database,
     [Parameter(Mandatory = $true)][string]$File,
+    [Parameter(Mandatory = $true)][string[]]$AuthArgs,
     [hashtable]$Variables
   )
 
@@ -32,7 +55,7 @@ function Invoke-SqlFile {
     throw "SQL file not found: $File"
   }
 
-  $args = @('-S', $Server, '-d', $Database, '-E', '-i', $File, '-b')
+  $args = @('-S', $Server, '-d', $Database) + $AuthArgs + @('-i', $File, '-b')
   if ($Variables) {
     $args += '-v'
     foreach ($key in $Variables.Keys) {
@@ -132,6 +155,7 @@ foreach ($snapshotFile in $manifest.snapshotFiles) {
 Write-Host "Discovered application database name: $DatabaseName"
 Write-Host "Server: $ServerInstance"
 Write-Host "Admin database: $AdminDatabase"
+Write-Host "Authentication mode: $sqlAuthMode"
 Write-Host "Package root: $packageRoot"
 Write-Host "Snapshots root: $snapshotsRoot"
 
@@ -147,10 +171,10 @@ BEGIN
   PRINT 'Database [$DatabaseName] already exists';
 END
 "@
-Invoke-SqlText -Server $ServerInstance -Database $AdminDatabase -SqlText $createDbSql
+Invoke-SqlText -Server $ServerInstance -Database $AdminDatabase -SqlText $createDbSql -AuthArgs $sqlAuthArgs
 
 Write-Host 'Applying base schema...'
-Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $schemaFile
+Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $schemaFile -AuthArgs $sqlAuthArgs
 
 Write-Host 'Applying migrations (if any)...'
 $migrationFiles = @()
@@ -163,18 +187,18 @@ if ($migrationFiles.Count -eq 0) {
 } else {
   foreach ($migration in $migrationFiles) {
     Write-Host "Applying migration: $($migration.Name)"
-    Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $migration.FullName
+    Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $migration.FullName -AuthArgs $sqlAuthArgs
   }
 }
 
 Write-Host 'Loading seed/reference/application data...'
-Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $loadDataSql -Variables @{
+Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -Variables @{
   PackageDataRoot = $packageDataRoot
   SnapshotsRoot = $snapshotsRoot
 }
 
 Write-Host 'Running validation checks...'
-Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $validateSql
+Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $validateSql -AuthArgs $sqlAuthArgs
 
 $summarySql = @"
 SET NOCOUNT ON;
@@ -189,7 +213,8 @@ GROUP BY s.name, t.name
 ORDER BY s.name, t.name;
 "@
 
-$summaryOutput = & sqlcmd -S $ServerInstance -d $DatabaseName -E -Q $summarySql -W -s '|' -h -1
+$summaryArgs = @('-S', $ServerInstance, '-d', $DatabaseName) + $sqlAuthArgs + @('-Q', $summarySql, '-W', '-s', '|', '-h', '-1')
+$summaryOutput = & sqlcmd @summaryArgs
 if ($LASTEXITCODE -ne 0) {
   throw 'Failed to collect final summary row counts.'
 }

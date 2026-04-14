@@ -18,9 +18,14 @@ Discovered Application Database Name
 
 SQL Server Target
 -----------------
-- Server: localhost\SQLEXPRESS
+- Server: configured in `DB_config` (`Server=...`)
+- Application database: configured in `DB_config` (`Database=...`)
+- Authentication:
+  - Controlled by `Trusted_Connection=True|False` in `DB_config`
+  - `Trusted_Connection=True` => Windows trusted auth
+  - `Trusted_Connection=False` => SQL login via `User Id=...;Password=...;`
+  - Runtime override for loaders/compile scripts: `TSAAT_SQL_TRUSTED_CONNECTION=true`
 - Admin database for bootstrap: master
-- Application database created/used: TSAAT
 - Application schema: tsaat
 
 Source Data Artefacts

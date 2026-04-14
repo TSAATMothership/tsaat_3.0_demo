@@ -38,3 +38,6 @@ erDiagram
   - `dependency_type`: `Logical Dependency` or `Flow Dependency`
   - Optional flow metadata: protocol/ports/observation fields.
 - The model supports both ICT System model and Network model flow visualisations.
+
+## Operational Notes
+- Connection/auth settings are external to this ERD and are configured in repository root `DB_config`.

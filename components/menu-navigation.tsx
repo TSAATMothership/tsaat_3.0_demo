@@ -56,7 +56,8 @@ const operationsMenuItems: MenuItem[] = [
   { href: "/discovery-coverage", label: "Discovery" },
   { href: "/measures", label: "Measures" },
   { href: "/findings", label: "Findings Register" },
-  { href: "/report", label: "Briefs & Reports" }
+  { href: "/report", label: "Briefs & Reports" },
+  { href: "/settings", label: "Settings" }
 ];
 
 export function MenuNavigation({ items }: { items: MenuItem[] }) {
@@ -108,16 +109,24 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
   }, []);
 
   useEffect(() => {
-    if (!isMounted || (!isLoading && !isOperationsMenuOpen)) {
+    if (!isMounted || !isOperationsMenuOpen) {
       return;
     }
 
     const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
     document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
     };
-  }, [isLoading, isMounted, isOperationsMenuOpen]);
+  }, [isMounted, isOperationsMenuOpen]);
 
   useEffect(() => {
     if (!isOperationsMenuOpen) {

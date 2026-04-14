@@ -10,6 +10,13 @@ The TSAAT schema (`tsaat`) stores snapshot-based cyber posture data for:
 - discovery/measures/reference settings
 - CI-to-CI dependency graph data used by topology views
 
+Connection/bootstrap notes
+--------------------------
+- Runtime DB connection settings are stored in repository root `DB_config` using:
+  `Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;`
+- `Trusted_Connection=True` selects Windows trusted auth.
+- `Trusted_Connection=False` selects SQL auth with `User Id` and `Password`.
+
 Snapshot model
 --------------
 - Core domain tables are keyed by `snapshot_id`.

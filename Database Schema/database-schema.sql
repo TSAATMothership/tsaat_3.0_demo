@@ -15,6 +15,7 @@
   1) Enum-like fields are enforced with CHECK constraints.
   2) Snapshot-aware composite keys preserve historical integrity per snapshot.
   3) Evidence payloads are stored as NVARCHAR(MAX) and validated with ISJSON.
+  4) SQL connection/auth mode is configured externally via repository root DB_config.
 */
 
 SET ANSI_NULLS ON;

@@ -10,9 +10,10 @@ set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
 set "LOCAL_NODE_MODULES=%REPO_ROOT%\node_modules"
 
 set "DB_SERVER="
-set "DB_ADMIN_DATABASE="
-set "DB_TRUSTED_CONNECTION="
 set "DB_APP_DATABASE="
+set "DB_AUTH_MODE="
+set "DB_USER_ID="
+set "DB_PASSWORD="
 
 echo [INFO] Offline database build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -60,48 +61,50 @@ if errorlevel 8 (
 )
 echo [INFO] Local node_modules is ready for offline use.
 
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $map[$matches[1].Trim().ToLowerInvariant()] = $matches[2].Trim() } }; if(-not $map['server']){ throw 'DB_config connection string missing Server=...'; }; if(-not $map['database']){ throw 'DB_config connection string missing Database=...'; }; if(-not $map['trusted_connection']){ throw 'DB_config connection string missing Trusted_Connection=...'; }; Write-Output ('set DB_SERVER=' + $map['server']); Write-Output ('set DB_ADMIN_DATABASE=' + $map['database']); Write-Output ('set DB_TRUSTED_CONNECTION=' + $map['trusted_connection']);"`) do %%I
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = $map['trustedconnection']; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; $isTrusted = $trusted -and $trusted.ToLowerInvariant() -in @('true','1','yes','y','sspi'); Write-Output ('set DB_SERVER=' + $server); Write-Output ('set DB_APP_DATABASE=' + $database); if($isTrusted){ Write-Output 'set DB_AUTH_MODE=trusted' } elseif(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output 'set DB_AUTH_MODE=sql'; Write-Output ('set DB_USER_ID=' + $userId); Write-Output ('set DB_PASSWORD=' + $password) } else { throw 'DB_config must provide Trusted_Connection=True or User Id/Password.' }"`) do %%I
 if errorlevel 1 (
   call :fail "Unable to parse DB_config connection string."
   exit /b 1
+)
+
+if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
+  set "DB_AUTH_MODE=trusted"
+  set "DB_USER_ID="
+  set "DB_PASSWORD="
 )
 
 if not defined DB_SERVER (
   call :fail "DB_config parsing did not produce DB_SERVER."
   exit /b 1
 )
-if not defined DB_ADMIN_DATABASE (
-  call :fail "DB_config parsing did not produce DB_ADMIN_DATABASE."
+if not defined DB_APP_DATABASE (
+  call :fail "DB_config parsing did not produce DB_APP_DATABASE."
   exit /b 1
 )
-if not defined DB_TRUSTED_CONNECTION (
-  call :fail "DB_config parsing did not produce DB_TRUSTED_CONNECTION."
+if not defined DB_AUTH_MODE (
+  call :fail "DB_config parsing did not produce DB_AUTH_MODE."
   exit /b 1
 )
-if /I not "%DB_TRUSTED_CONNECTION%"=="True" (
-  call :fail "DB_config requires Trusted_Connection=True."
-  exit /b 1
+if /I "%DB_AUTH_MODE%"=="sql" (
+  if not defined DB_USER_ID (
+    call :fail "DB_config SQL authentication requires User Id."
+    exit /b 1
+  )
+  if not defined DB_PASSWORD (
+    call :fail "DB_config SQL authentication requires Password."
+    exit /b 1
+  )
 )
-
-for /f "usebackq tokens=1,* delims==" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$extra = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -Skip 1; foreach($line in $extra){ if($line -match '^(?<k>APP_DATABASE|APPLICATION_DATABASE|TSAAT_APP_DATABASE)\s*=\s*(?<v>.+)$'){ Write-Output ($matches['k'] + '=' + $matches['v'].Trim()) } }"`) do set "%%A=%%B"
-
-if defined APP_DATABASE set "DB_APP_DATABASE=%APP_DATABASE%"
-if defined APPLICATION_DATABASE set "DB_APP_DATABASE=%APPLICATION_DATABASE%"
-if defined TSAAT_APP_DATABASE set "DB_APP_DATABASE=%TSAAT_APP_DATABASE%"
 
 echo [INFO] SQL Server instance: %DB_SERVER%
-echo [INFO] SQL admin database: %DB_ADMIN_DATABASE%
-if defined DB_APP_DATABASE (
-  echo [INFO] Application database override: %DB_APP_DATABASE%
-) else (
-  echo [INFO] Application database override: ^(not set, auto-discover from repository manifest^)
-)
+echo [INFO] Application database: %DB_APP_DATABASE%
+echo [INFO] Authentication mode: %DB_AUTH_MODE%
 
 echo [INFO] Building schema and loading data...
-if defined DB_APP_DATABASE (
-  call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "%DB_ADMIN_DATABASE%" -DatabaseName "%DB_APP_DATABASE%"
+if /I "%DB_AUTH_MODE%"=="sql" (
+  call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
 ) else (
-  call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "%DB_ADMIN_DATABASE%"
+  call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
 )
 if errorlevel 1 (
   call :fail "Database build/load failed."

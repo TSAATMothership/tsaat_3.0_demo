@@ -92,28 +92,66 @@ What it does:
 
 If it fails with missing/empty `tsaat.dataset_snapshot`, continue with database setup below.
 
-### Step 2: Create SQL Server Database (SQLEXPRESS)
+### Step 2: Create SQL Server Database and SQL Login (SQLEXPRESS)
 
 Connect to `localhost\SQLEXPRESS` and run:
 
 ```sql
 CREATE DATABASE TSAAT;
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'shuffydog')
+BEGIN
+  CREATE LOGIN [shuffydog] WITH PASSWORD = N'bones123', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;
+END
+ELSE
+BEGIN
+  ALTER LOGIN [shuffydog] WITH PASSWORD = N'bones123', CHECK_POLICY = OFF, CHECK_EXPIRATION = OFF;
+END
+GO
+IF IS_SRVROLEMEMBER(N'sysadmin', N'shuffydog') <> 1
+BEGIN
+  ALTER SERVER ROLE [sysadmin] ADD MEMBER [shuffydog];
+END
+GO
+USE [TSAAT];
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'shuffydog')
+BEGIN
+  CREATE USER [shuffydog] FOR LOGIN [shuffydog];
+END
+GO
+IF IS_ROLEMEMBER(N'db_owner', N'shuffydog') <> 1
+BEGIN
+  ALTER ROLE [db_owner] ADD MEMBER [shuffydog];
+END
 ```
 
 You can run this from SSMS or `sqlcmd` against `master`.
 
 ### Step 3: Update DB_config
 
-Open `DB_config` and set the admin connection string (default):
+Open `DB_config` and set runtime connection settings. You can switch auth mode by toggling `Trusted_Connection`:
 
 ```ini
-Server=localhost\SQLEXPRESS;Database=master;Trusted_Connection=True;
+Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;
 ```
 
-Optional override if your app database is not `TSAAT`:
+Required format:
 
 ```ini
-APP_DATABASE=YourDatabaseName
+Server=<server>;Database=<database>;Trusted_Connection=True|False;User Id=<user>;Password=<password>;
+```
+
+Mode behavior:
+- `Trusted_Connection=True`: Windows trusted auth is used (User Id/Password ignored by runtime).
+- `Trusted_Connection=False`: SQL auth is used and `User Id` + `Password` are required.
+
+If SQL Server is running in Windows-auth-only mode (`SERVERPROPERTY('IsIntegratedSecurityOnly') = 1`), SQL logins cannot authenticate until mixed mode is enabled and the SQL Server service is restarted. Temporary compatibility fallback for scripts:
+
+```powershell
+$env:TSAAT_SQL_TRUSTED_CONNECTION='true'
+cmd /c CreateDB.cmd
+cmd /c compileApp.cmd
 ```
 
 ### Step 4: Build Schema and Load Data
@@ -127,6 +165,7 @@ CreateDB.cmd
 What it does:
 
 - Reads SQL connection details from `DB_config`
+- Connects with SQL authentication (`User Id` / `Password`) or trusted auth fallback
 - Creates/updates the application database
 - Applies `Database Schema/database-schema.sql`
 - Applies migrations under `Database Schema/migrations/`
@@ -157,6 +196,8 @@ Notes for offline Windows dev:
   - checks for `node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` (or Next fallback path)
   - copies the staged SWC file from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
 - If the staged SWC binary is missing, startup exits with a clear local error instead of trying to download from npm.
+- Database connectivity can be updated at runtime via `/settings` -> `Database Settings` and persisted to `DB_config` after successful connection + schema checks.
+- If runtime SQL auth from `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
 
 ## Build and Start
 

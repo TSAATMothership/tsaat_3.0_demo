@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Image from "next/image";
 import { Suspense } from "react";
 import "./globals.css";
@@ -64,3 +64,4 @@ export default function RootLayout({
     </html>
   );
 }
+
