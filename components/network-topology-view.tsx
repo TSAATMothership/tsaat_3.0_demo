@@ -34,8 +34,6 @@ const CI_FLOW_RADIUS_STEP = 260;
 const CI_FLOW_NODE_HEIGHT = 142;
 const CI_FLOW_NODE_MIN_WIDTH = 760;
 const CI_FLOW_NODE_MAX_WIDTH = 1320;
-const CI_FLOW_NOT_MODELLED_WIDTH = 360;
-const CI_FLOW_NOT_MODELLED_HEIGHT = 124;
 const CI_FLOW_VIEWPORT_PADDING = 320;
 const CI_FLOW_3D_DEFAULT_YAW = 0.58;
 const CI_FLOW_3D_DEFAULT_PITCH = -0.26;
@@ -224,6 +222,30 @@ interface CiFlow3DViewState {
   panX: number;
   panY: number;
   zoom: number;
+}
+
+type CiFlowModelTileType = "ict-system-model" | "network-model";
+
+interface CiFlowModelTile {
+  id: string;
+  modelId: string;
+  modelType: CiFlowModelTileType;
+  typeLabel: string;
+  name: string;
+  subtitle: string;
+  linkedCiNodeIds: string[];
+  cyberCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  discoveryCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
 }
 
 function createDefaultCiFlow3DViewState(): CiFlow3DViewState {
@@ -468,301 +490,59 @@ function applyForceDirectedCiFlowLayout(
   centerY: number,
   pinnedNodeId: string
 ) {
-  if (nodes.length <= 1) {
-    const onlyNode = nodes[0];
-    if (onlyNode) {
-      onlyNode.x = centerX - onlyNode.width / 2;
-      onlyNode.y = centerY - onlyNode.height / 2;
-      onlyNode.z = 0;
-    }
+  void edges;
+  if (!nodes.length) {
+    return;
+  }
+  const rootNode = nodes.find((node) => node.id === pinnedNodeId) ?? nodes[0];
+  if (!rootNode) {
     return;
   }
 
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const nodeIds = nodes.map((node) => node.id);
-  const centersById = new Map<string, { x: number; y: number; z: number }>();
-  const velocitiesById = new Map<string, { x: number; y: number; z: number }>();
-  const nonPinnedNodeIds = nodeIds.filter((nodeId) => nodeId !== pinnedNodeId);
+  rootNode.x = centerX - rootNode.width / 2;
+  rootNode.y = centerY - rootNode.height / 2;
+  rootNode.z = 0;
 
-  const spacingEstimate = Math.max(260, Math.min(520, CI_FLOW_NODE_MIN_WIDTH * 0.36));
-  const idealSphereRadius = Math.sqrt(
-    (Math.max(1, nonPinnedNodeIds.length) * spacingEstimate * spacingEstimate * 1.4) / (4 * Math.PI)
-  );
-  const sphereRadius = Math.max(CI_FLOW_BASE_RADIUS * 2.3, idealSphereRadius);
-  const maxRadiusFromCenter = sphereRadius * 1.25;
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
-  if (nodeById.has(pinnedNodeId)) {
-    centersById.set(pinnedNodeId, { x: 0, y: 0, z: 0 });
-    velocitiesById.set(pinnedNodeId, { x: 0, y: 0, z: 0 });
-  }
-  for (let index = 0; index < nonPinnedNodeIds.length; index += 1) {
-    const nodeId = nonPinnedNodeIds[index];
-    const count = Math.max(1, nonPinnedNodeIds.length);
-    const ratio = (index + 0.5) / count;
-    const yUnit = 1 - ratio * 2;
-    const radialUnit = Math.sqrt(Math.max(0, 1 - yUnit * yUnit));
-    const theta = goldenAngle * (index + 0.5);
-    const xUnit = Math.cos(theta) * radialUnit;
-    const zUnit = Math.sin(theta) * radialUnit;
-    centersById.set(nodeId, {
-      x: xUnit * sphereRadius,
-      y: yUnit * sphereRadius * 0.9,
-      z: zUnit * sphereRadius
-    });
-    velocitiesById.set(nodeId, { x: 0, y: 0, z: 0 });
-  }
-
-  const iterationCount = Math.max(260, Math.min(520, nodes.length * 6));
-  const repulsionStrength = 1_360_000;
-  const springStrength = 0.0032;
-  const centeringStrength = 0.0016;
-  const damping = 0.84;
-  const maxStep = 84;
-
-  for (let iteration = 0; iteration < iterationCount; iteration += 1) {
-    const forcesById = new Map<string, { x: number; y: number; z: number }>();
-    for (const nodeId of nodeIds) {
-      forcesById.set(nodeId, { x: 0, y: 0, z: 0 });
+  const computeShellRadius = (nodeCount: number, minimumRadius: number, targetSpacing: number) => {
+    if (nodeCount <= 0) {
+      return 0;
     }
-
-    for (let leftIndex = 0; leftIndex < nodeIds.length; leftIndex += 1) {
-      const leftNodeId = nodeIds[leftIndex];
-      const leftNode = nodeById.get(leftNodeId);
-      const leftCenter = centersById.get(leftNodeId);
-      if (!leftNode || !leftCenter) {
-        continue;
-      }
-
-      for (let rightIndex = leftIndex + 1; rightIndex < nodeIds.length; rightIndex += 1) {
-        const rightNodeId = nodeIds[rightIndex];
-        const rightNode = nodeById.get(rightNodeId);
-        const rightCenter = centersById.get(rightNodeId);
-        if (!rightNode || !rightCenter) {
-          continue;
-        }
-
-        let dx = rightCenter.x - leftCenter.x;
-        let dy = rightCenter.y - leftCenter.y;
-        let dz = rightCenter.z - leftCenter.z;
-        let distanceSquared = dx * dx + dy * dy + dz * dz;
-        if (distanceSquared < 1) {
-          const deterministicAngle = (leftIndex + 1) * 1.73 + (rightIndex + 1) * 2.11;
-          dx = Math.cos(deterministicAngle);
-          dy = Math.sin(deterministicAngle);
-          dz = Math.cos(deterministicAngle * 0.67);
-          distanceSquared = dx * dx + dy * dy + dz * dz;
-        }
-        const distance = Math.sqrt(distanceSquared);
-        const unitX = dx / distance;
-        const unitY = dy / distance;
-        const unitZ = dz / distance;
-
-        const preferredDistance = Math.max(spacingEstimate, (leftNode.width + rightNode.width) / 2 + 110);
-        const overlapFactor =
-          distance < preferredDistance ? 1 + ((preferredDistance - distance) / preferredDistance) * 6.2 : 1;
-        const repulsion = (repulsionStrength / distanceSquared) * overlapFactor;
-
-        const leftForce = forcesById.get(leftNodeId);
-        const rightForce = forcesById.get(rightNodeId);
-        if (!leftForce || !rightForce) {
-          continue;
-        }
-
-        leftForce.x -= unitX * repulsion;
-        leftForce.y -= unitY * repulsion;
-        leftForce.z -= unitZ * repulsion;
-        rightForce.x += unitX * repulsion;
-        rightForce.y += unitY * repulsion;
-        rightForce.z += unitZ * repulsion;
-      }
+    const densityRadius = Math.sqrt((nodeCount * targetSpacing * targetSpacing) / (4 * Math.PI));
+    return Math.max(minimumRadius, densityRadius);
+  };
+  const placeNodesOnShell = (shellNodes: CiFlowNodeLayout[], radius: number, seedOffset: number) => {
+    if (!shellNodes.length || radius <= 0) {
+      return;
     }
-
-    for (const edge of edges) {
-      const fromNode = nodeById.get(edge.fromNodeId);
-      const toNode = nodeById.get(edge.toNodeId);
-      const fromCenter = centersById.get(edge.fromNodeId);
-      const toCenter = centersById.get(edge.toNodeId);
-      if (!fromNode || !toNode || !fromCenter || !toCenter) {
-        continue;
-      }
-
-      let dx = toCenter.x - fromCenter.x;
-      let dy = toCenter.y - fromCenter.y;
-      let dz = toCenter.z - fromCenter.z;
-      let distanceSquared = dx * dx + dy * dy + dz * dz;
-      if (distanceSquared < 1) {
-        const deterministicAngle = edge.fromNodeId.length * 0.61 + edge.toNodeId.length * 0.47;
-        dx = Math.cos(deterministicAngle);
-        dy = Math.sin(deterministicAngle);
-        dz = Math.cos(deterministicAngle * 0.67);
-        distanceSquared = dx * dx + dy * dy + dz * dz;
-      }
-      const distance = Math.sqrt(distanceSquared);
-      const unitX = dx / distance;
-      const unitY = dy / distance;
-      const unitZ = dz / distance;
-      const restDistance = Math.max(
-        spacingEstimate * 0.95,
-        Math.min(sphereRadius * 0.9, Math.max(fromNode.width, toNode.width) * 0.82 + 180)
-      );
-      const springForce = (distance - restDistance) * springStrength;
-
-      const fromForce = forcesById.get(edge.fromNodeId);
-      const toForce = forcesById.get(edge.toNodeId);
-      if (!fromForce || !toForce) {
-        continue;
-      }
-
-      fromForce.x += unitX * springForce;
-      fromForce.y += unitY * springForce;
-      fromForce.z += unitZ * springForce;
-      toForce.x -= unitX * springForce;
-      toForce.y -= unitY * springForce;
-      toForce.z -= unitZ * springForce;
+    for (let index = 0; index < shellNodes.length; index += 1) {
+      const node = shellNodes[index];
+      const ratio = (index + 0.5) / shellNodes.length;
+      const yUnit = 1 - ratio * 2;
+      const radialUnit = Math.sqrt(Math.max(0, 1 - yUnit * yUnit));
+      const theta = goldenAngle * (index + 1 + seedOffset);
+      const xUnit = Math.cos(theta) * radialUnit;
+      const zUnit = Math.sin(theta) * radialUnit;
+      node.x = centerX + xUnit * radius - node.width / 2;
+      node.y = centerY + yUnit * radius - node.height / 2;
+      node.z = zUnit * radius;
     }
+  };
 
-    for (const nodeId of nodeIds) {
-      const center = centersById.get(nodeId);
-      const velocity = velocitiesById.get(nodeId);
-      const force = forcesById.get(nodeId);
-      if (!center || !velocity || !force) {
-        continue;
-      }
+  const shellNodes = nodes.filter((node) => node.id !== rootNode.id);
+  const modelledNodes = shellNodes.filter((node) => node.entityType === "ci" && node.isInModelScope);
+  const nonModelledNodes = shellNodes.filter((node) => !(node.entityType === "ci" && node.isInModelScope));
 
-      if (nodeId === pinnedNodeId) {
-        center.x = 0;
-        center.y = 0;
-        center.z = 0;
-        velocity.x = 0;
-        velocity.y = 0;
-        velocity.z = 0;
-        continue;
-      }
+  const innerShellRadius = computeShellRadius(
+    modelledNodes.length,
+    Math.max(CI_FLOW_BASE_RADIUS * 1.55, 620),
+    260
+  );
+  const outerShellMinimumRadius = Math.max(innerShellRadius + 280, CI_FLOW_BASE_RADIUS * 2.45);
+  const outerShellRadius = computeShellRadius(nonModelledNodes.length, outerShellMinimumRadius, 280);
 
-      force.x += -center.x * centeringStrength;
-      force.y += -center.y * centeringStrength;
-      force.z += -center.z * centeringStrength;
-
-      velocity.x = (velocity.x + force.x) * damping;
-      velocity.y = (velocity.y + force.y) * damping;
-      velocity.z = (velocity.z + force.z) * damping;
-
-      const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
-      if (speed > maxStep) {
-        const scale = maxStep / speed;
-        velocity.x *= scale;
-        velocity.y *= scale;
-        velocity.z *= scale;
-      }
-
-      center.x += velocity.x;
-      center.y += velocity.y;
-      center.z += velocity.z;
-
-      const radialDistance = Math.hypot(center.x, center.y, center.z);
-      if (radialDistance > maxRadiusFromCenter) {
-        const clampScale = maxRadiusFromCenter / radialDistance;
-        center.x *= clampScale;
-        center.y *= clampScale;
-        center.z *= clampScale;
-      }
-    }
-  }
-
-  const relaxationPasses = 16;
-  for (let pass = 0; pass < relaxationPasses; pass += 1) {
-    let moved = false;
-    for (let leftIndex = 0; leftIndex < nodeIds.length; leftIndex += 1) {
-      const leftNodeId = nodeIds[leftIndex];
-      const leftNode = nodeById.get(leftNodeId);
-      const leftCenter = centersById.get(leftNodeId);
-      if (!leftNode || !leftCenter) {
-        continue;
-      }
-      for (let rightIndex = leftIndex + 1; rightIndex < nodeIds.length; rightIndex += 1) {
-        const rightNodeId = nodeIds[rightIndex];
-        const rightNode = nodeById.get(rightNodeId);
-        const rightCenter = centersById.get(rightNodeId);
-        if (!rightNode || !rightCenter) {
-          continue;
-        }
-        let dx = rightCenter.x - leftCenter.x;
-        let dy = rightCenter.y - leftCenter.y;
-        let dz = rightCenter.z - leftCenter.z;
-        let distanceSquared = dx * dx + dy * dy + dz * dz;
-        if (distanceSquared < 1) {
-          const deterministicAngle = (leftIndex + 3) * 0.91 + (rightIndex + 7) * 1.31;
-          dx = Math.cos(deterministicAngle);
-          dy = Math.sin(deterministicAngle);
-          dz = Math.cos(deterministicAngle * 0.67);
-          distanceSquared = dx * dx + dy * dy + dz * dz;
-        }
-        const distance = Math.sqrt(distanceSquared);
-        const minimumDistance = Math.max(spacingEstimate * 0.96, (leftNode.width + rightNode.width) / 2 + 95);
-        if (distance >= minimumDistance) {
-          continue;
-        }
-        const overlap = minimumDistance - distance;
-        const unitX = dx / distance;
-        const unitY = dy / distance;
-        const unitZ = dz / distance;
-        const leftPinned = leftNodeId === pinnedNodeId;
-        const rightPinned = rightNodeId === pinnedNodeId;
-        if (leftPinned && rightPinned) {
-          continue;
-        }
-        if (leftPinned) {
-          rightCenter.x += unitX * overlap;
-          rightCenter.y += unitY * overlap;
-          rightCenter.z += unitZ * overlap;
-          moved = true;
-          continue;
-        }
-        if (rightPinned) {
-          leftCenter.x -= unitX * overlap;
-          leftCenter.y -= unitY * overlap;
-          leftCenter.z -= unitZ * overlap;
-          moved = true;
-          continue;
-        }
-        const halfOverlap = overlap * 0.5;
-        leftCenter.x -= unitX * halfOverlap;
-        leftCenter.y -= unitY * halfOverlap;
-        leftCenter.z -= unitZ * halfOverlap;
-        rightCenter.x += unitX * halfOverlap;
-        rightCenter.y += unitY * halfOverlap;
-        rightCenter.z += unitZ * halfOverlap;
-        moved = true;
-      }
-    }
-    for (const nodeId of nonPinnedNodeIds) {
-      const center = centersById.get(nodeId);
-      if (!center) {
-        continue;
-      }
-      const radialDistance = Math.hypot(center.x, center.y, center.z);
-      if (radialDistance > maxRadiusFromCenter) {
-        const clampScale = maxRadiusFromCenter / radialDistance;
-        center.x *= clampScale;
-        center.y *= clampScale;
-        center.z *= clampScale;
-      }
-    }
-    if (!moved) {
-      break;
-    }
-  }
-
-  for (const node of nodes) {
-    const center = centersById.get(node.id);
-    if (!center) {
-      continue;
-    }
-    node.x = centerX + center.x - node.width / 2;
-    node.y = centerY + center.y - node.height / 2;
-    node.z = center.z;
-  }
+  placeNodesOnShell(modelledNodes, innerShellRadius, 0);
+  placeNodesOnShell(nonModelledNodes, outerShellRadius, 97);
 }
 
 function combineComplianceSummaries(
@@ -852,10 +632,6 @@ function ciFlowNodeIdForAsset(assetId: string): string {
   return `ci-flow:ci:${assetId}`;
 }
 
-function ciFlowNodeIdForNotModelled(): string {
-  return "ci-flow:not-modelled";
-}
-
 function ciFlowDependencyColor(
   dependencyType: "Logical Dependency" | "Flow Dependency" | "Unmodelled Attachment"
 ): string {
@@ -915,6 +691,17 @@ function truncateLabel(value: string, maxLength = 46): string {
     return value.slice(0, maxLength);
   }
   return `${value.slice(0, maxLength - 3)}...`;
+}
+
+function csvCell(value: string | number | boolean | null | undefined): string {
+  const normalized = value === null || typeof value === "undefined" ? "" : String(value);
+  const escaped = normalized.replace(/"/g, "\"\"");
+  return `"${escaped}"`;
+}
+
+function safeCsvFilenameSegment(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "ci-flow";
 }
 
 function estimateDetailedCiTileWidth(firstLineLabel: string): number {
@@ -1336,6 +1123,7 @@ export function NetworkTopologyView({
   const [detailedZoom, setDetailedZoom] = useState(1);
   const [focusedCiFlowRootAssetId, setFocusedCiFlowRootAssetId] = useState<string | null>(null);
   const [selectedCiFlowNodeId, setSelectedCiFlowNodeId] = useState<string | null>(null);
+  const [selectedCiFlowModelTileId, setSelectedCiFlowModelTileId] = useState<string | null>(null);
   const [draggingCiFlowNodeId, setDraggingCiFlowNodeId] = useState<string | null>(null);
   const [ciFlowNodeDragOffsets, setCiFlowNodeDragOffsets] = useState<Record<string, { x: number; y: number }>>({});
   const [ciFlowTweenProgress, setCiFlowTweenProgress] = useState(0);
@@ -1489,6 +1277,18 @@ export function NetworkTopologyView({
     return new Map(data.ciNodes.map((node) => [node.id, node]));
   }, [data.ciNodes]);
   const modelAssetIdSet = useMemo(() => new Set(data.modelAssetIds), [data.modelAssetIds]);
+  const networkNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    if (data.networkId && data.networkName) {
+      map.set(data.networkId, data.networkName);
+    }
+    for (const node of data.nodes) {
+      if (node.entityType === "network") {
+        map.set(node.entityId, node.name);
+      }
+    }
+    return map;
+  }, [data.networkId, data.networkName, data.nodes]);
   const ciItemsBySystemId = useMemo(() => {
     const map = new Map<string, ScopedCiItem[]>();
     for (const item of allScopedCiItems) {
@@ -1868,7 +1668,7 @@ export function NetworkTopologyView({
     const rootWidth = estimateCiFlowTileWidth(rootFirstLine);
     const defaultCenterX =
       DETAILED_CANVAS_PADDING_X +
-      Math.max(rootWidth, CI_FLOW_NOT_MODELLED_WIDTH) / 2 +
+      rootWidth / 2 +
       Math.max(CI_FLOW_BASE_RADIUS * 0.72, 240);
     const defaultCenterY =
       DETAILED_CANVAS_PADDING_Y +
@@ -1960,44 +1760,6 @@ export function NetworkTopologyView({
       toNodeId: ciFlowNodeIdForAsset(dependency.targetAssetId),
       dependencyType: dependency.dependencyType
     }));
-
-    const unmodelledNodes = ciNodes.filter(
-      (node) => node.entityType === "ci" && !node.isInModelScope && node.modelLabel === "Not Modelled"
-    );
-    if (unmodelledNodes.length) {
-      const aggregatedCyber = combineComplianceSummaries(unmodelledNodes.map((node) => node.cyberCompliance));
-      const aggregatedDiscovery = combineComplianceSummaries(unmodelledNodes.map((node) => node.discoveryCompliance));
-      const notModelledCenterY =
-        Math.max(
-          ...ciNodes.map((node) => node.y + node.height / 2),
-          initialCenterY + CI_FLOW_BASE_RADIUS + CI_FLOW_RADIUS_STEP * 0.4
-        ) + 160;
-      const notModelledNodeId = ciFlowNodeIdForNotModelled();
-      ciNodes.push({
-        id: notModelledNodeId,
-        entityType: "not-modelled",
-        name: "Not Modelled",
-        subtitle: `${unmodelledNodes.length} related CI${unmodelledNodes.length === 1 ? "" : "s"} with no model`,
-        typeLabel: "Grouping Tile",
-        modelLabel: "Not Modelled",
-        cyberCompliance: aggregatedCyber,
-        discoveryCompliance: aggregatedDiscovery,
-        isInModelScope: false,
-        width: CI_FLOW_NOT_MODELLED_WIDTH,
-        height: CI_FLOW_NOT_MODELLED_HEIGHT,
-        x: initialCenterX - CI_FLOW_NOT_MODELLED_WIDTH / 2,
-        y: notModelledCenterY - CI_FLOW_NOT_MODELLED_HEIGHT / 2,
-        z: 0
-      });
-      for (const node of unmodelledNodes) {
-        ciFlowEdges.push({
-          id: `ci-flow-edge:not-modelled:${node.id}`,
-          fromNodeId: notModelledNodeId,
-          toNodeId: node.id,
-          dependencyType: "Unmodelled Attachment"
-        });
-      }
-    }
 
     const ciFlowRootLayoutNodeId = ciFlowNodeIdForAsset(focusedCiFlowRootAssetId);
     applyForceDirectedCiFlowLayout(
@@ -2157,18 +1919,171 @@ export function NetworkTopologyView({
   const detailedHighlightedEdgeIds = useMemo(() => {
     return new Set<string>([...detailedSelectedPathEdgeIds, ...detailedSelectedConnectedEdgeIds]);
   }, [detailedSelectedConnectedEdgeIds, detailedSelectedPathEdgeIds]);
-  const ciFlowSelectedDirectEdgeIds = useMemo(() => {
-    if (!ciFlowGraph || !selectedCiFlowNodeId) {
-      return new Set<string>();
-    }
-    const selectedNodeById = new Map(ciFlowGraph.nodes.map((node) => [node.id, node]));
-    const selectedNode = selectedNodeById.get(selectedCiFlowNodeId);
-    if (!selectedNode) {
+  const ciFlowActiveSelectionNodeId = selectedCiFlowNodeId ?? ciFlowRootNodeId ?? null;
+  const ciFlowRootDirectEdgeIds = useMemo(() => {
+    if (!ciFlowGraph || !ciFlowRootNodeId) {
       return new Set<string>();
     }
     return new Set(
       ciFlowGraph.edges
-        .filter((edge) => edge.fromNodeId === selectedCiFlowNodeId || edge.toNodeId === selectedCiFlowNodeId)
+        .filter(
+          (edge) =>
+            edge.dependencyType === "Flow Dependency" &&
+            (edge.fromNodeId === ciFlowRootNodeId || edge.toNodeId === ciFlowRootNodeId)
+        )
+        .map((edge) => edge.id)
+    );
+  }, [ciFlowGraph, ciFlowRootNodeId]);
+  const ciFlowRootScopeNodeIds = useMemo(() => {
+    if (!ciFlowGraph || !ciFlowRootNodeId) {
+      return new Set<string>();
+    }
+    const nodeIds = new Set<string>([ciFlowRootNodeId]);
+    for (const edge of ciFlowGraph.edges) {
+      if (!ciFlowRootDirectEdgeIds.has(edge.id)) {
+        continue;
+      }
+      nodeIds.add(edge.fromNodeId);
+      nodeIds.add(edge.toNodeId);
+    }
+    return nodeIds;
+  }, [ciFlowGraph, ciFlowRootDirectEdgeIds, ciFlowRootNodeId]);
+  const ciFlowModelTiles = useMemo<CiFlowModelTile[]>(() => {
+    if (!ciFlowGraph) {
+      return [];
+    }
+    const ictModelById = new Map<
+      string,
+      {
+        name: string;
+        nodeIds: Set<string>;
+        cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+        discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+      }
+    >();
+    const networkModelById = new Map<
+      string,
+      {
+        name: string;
+        nodeIds: Set<string>;
+        cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+        discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+      }
+    >();
+
+    for (const node of ciFlowGraph.nodes) {
+      if (node.entityType !== "ci" || !node.isInModelScope || !node.assetId) {
+        continue;
+      }
+      if (ciFlowRootScopeNodeIds.size && !ciFlowRootScopeNodeIds.has(node.id)) {
+        continue;
+      }
+      const sourceCi = flowCiNodeByAssetId.get(node.assetId);
+      if (!sourceCi) {
+        continue;
+      }
+      if (sourceCi.systemId) {
+        const current = ictModelById.get(sourceCi.systemId) ?? {
+          name: sourceCi.systemName ?? sourceCi.systemId,
+          nodeIds: new Set<string>(),
+          cyberSummaries: [],
+          discoverySummaries: []
+        };
+        current.nodeIds.add(node.id);
+        current.cyberSummaries.push(node.cyberCompliance);
+        current.discoverySummaries.push(node.discoveryCompliance);
+        ictModelById.set(sourceCi.systemId, current);
+      }
+      if (sourceCi.networkId) {
+        const current = networkModelById.get(sourceCi.networkId) ?? {
+          name: networkNameById.get(sourceCi.networkId) ?? sourceCi.networkId,
+          nodeIds: new Set<string>(),
+          cyberSummaries: [],
+          discoverySummaries: []
+        };
+        current.nodeIds.add(node.id);
+        current.cyberSummaries.push(node.cyberCompliance);
+        current.discoverySummaries.push(node.discoveryCompliance);
+        networkModelById.set(sourceCi.networkId, current);
+      }
+    }
+
+    const tiles: CiFlowModelTile[] = [];
+    for (const [modelId, model] of ictModelById.entries()) {
+      tiles.push({
+        id: `ci-flow-model:ict:${modelId}`,
+        modelId,
+        modelType: "ict-system-model",
+        typeLabel: "ICT System Model",
+        name: model.name,
+        subtitle: `${model.nodeIds.size} in-scope CI${model.nodeIds.size === 1 ? "" : "s"} linked`,
+        linkedCiNodeIds: Array.from(model.nodeIds),
+        cyberCompliance: combineComplianceSummaries(model.cyberSummaries),
+        discoveryCompliance: combineComplianceSummaries(model.discoverySummaries)
+      });
+    }
+    for (const [modelId, model] of networkModelById.entries()) {
+      tiles.push({
+        id: `ci-flow-model:network:${modelId}`,
+        modelId,
+        modelType: "network-model",
+        typeLabel: "Network Model",
+        name: model.name,
+        subtitle: `${model.nodeIds.size} in-scope CI${model.nodeIds.size === 1 ? "" : "s"} linked`,
+        linkedCiNodeIds: Array.from(model.nodeIds),
+        cyberCompliance: combineComplianceSummaries(model.cyberSummaries),
+        discoveryCompliance: combineComplianceSummaries(model.discoverySummaries)
+      });
+    }
+    return tiles.sort((left, right) => {
+      if (left.modelType !== right.modelType) {
+        return left.modelType.localeCompare(right.modelType);
+      }
+      return left.name.localeCompare(right.name);
+    });
+  }, [ciFlowGraph, ciFlowRootScopeNodeIds, flowCiNodeByAssetId, networkNameById]);
+  const ciFlowModelTileById = useMemo(() => {
+    return new Map(ciFlowModelTiles.map((tile) => [tile.id, tile]));
+  }, [ciFlowModelTiles]);
+  const filteredCiFlowModelTiles = useMemo(() => {
+    if (!isCiFlowFocusPanelOpen) {
+      return ciFlowModelTiles;
+    }
+    const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return ciFlowModelTiles;
+    }
+    return ciFlowModelTiles.filter((tile) =>
+      `${tile.typeLabel} ${tile.name} ${tile.subtitle}`.toLowerCase().includes(normalizedSearch)
+    );
+  }, [ciFlowModelTiles, detailedTileFilterSearchText, isCiFlowFocusPanelOpen]);
+  const ciFlowSelectedModelNodeIds = useMemo(() => {
+    const selectedModelTile = selectedCiFlowModelTileId ? ciFlowModelTileById.get(selectedCiFlowModelTileId) : null;
+    if (!selectedModelTile) {
+      return null;
+    }
+    return new Set<string>(selectedModelTile.linkedCiNodeIds);
+  }, [ciFlowModelTileById, selectedCiFlowModelTileId]);
+  const ciFlowSelectedDirectEdgeIds = useMemo(() => {
+    if (!ciFlowGraph || !ciFlowActiveSelectionNodeId) {
+      return new Set<string>();
+    }
+    const selectedNodeById = new Map(ciFlowGraph.nodes.map((node) => [node.id, node]));
+    const selectedNode = selectedNodeById.get(ciFlowActiveSelectionNodeId);
+    if (!selectedNode) {
+      return new Set<string>();
+    }
+    const rootScopeNodeIds = ciFlowRootScopeNodeIds.size
+      ? ciFlowRootScopeNodeIds
+      : new Set(ciFlowGraph.nodes.map((node) => node.id));
+    return new Set(
+      ciFlowGraph.edges
+        .filter(
+          (edge) =>
+            (edge.fromNodeId === ciFlowActiveSelectionNodeId || edge.toNodeId === ciFlowActiveSelectionNodeId) &&
+            rootScopeNodeIds.has(edge.fromNodeId) &&
+            rootScopeNodeIds.has(edge.toNodeId)
+        )
         .filter((edge) => {
           if (selectedNode.entityType !== "ci") {
             return true;
@@ -2177,7 +2092,7 @@ export function NetworkTopologyView({
         })
         .map((edge) => edge.id)
     );
-  }, [ciFlowGraph, selectedCiFlowNodeId]);
+  }, [ciFlowActiveSelectionNodeId, ciFlowGraph, ciFlowRootScopeNodeIds]);
   const ciFlowHighlightedEdgeIds = useMemo(() => {
     return new Set<string>(ciFlowSelectedDirectEdgeIds);
   }, [ciFlowSelectedDirectEdgeIds]);
@@ -2185,36 +2100,42 @@ export function NetworkTopologyView({
     if (!ciFlowGraph) {
       return new Set<string>();
     }
-    if (!selectedCiFlowNodeId) {
-      return new Set(ciFlowGraph.nodes.map((node) => node.id));
+    const rootScopeNodeIds = ciFlowRootScopeNodeIds.size
+      ? ciFlowRootScopeNodeIds
+      : new Set(ciFlowGraph.nodes.map((node) => node.id));
+    if (!ciFlowActiveSelectionNodeId) {
+      return rootScopeNodeIds;
     }
     const nodeById = new Map(ciFlowGraph.nodes.map((node) => [node.id, node]));
-    const selectedNode = nodeById.get(selectedCiFlowNodeId);
+    const selectedNode = nodeById.get(ciFlowActiveSelectionNodeId);
     if (!selectedNode) {
-      return new Set(ciFlowGraph.nodes.map((node) => node.id));
+      return rootScopeNodeIds;
     }
     if (selectedNode.entityType !== "ci") {
-      return new Set<string>([selectedCiFlowNodeId]);
+      return rootScopeNodeIds.has(ciFlowActiveSelectionNodeId)
+        ? new Set<string>([ciFlowActiveSelectionNodeId])
+        : new Set<string>();
     }
 
-    const visibleNodeIds = new Set<string>([selectedCiFlowNodeId]);
+    const visibleNodeIds = new Set<string>([ciFlowActiveSelectionNodeId]);
     for (const edge of ciFlowGraph.edges) {
       if (!ciFlowHighlightedEdgeIds.has(edge.id)) {
         continue;
       }
-      const relatedNodeId = edge.fromNodeId === selectedCiFlowNodeId ? edge.toNodeId : edge.fromNodeId;
+      const relatedNodeId = edge.fromNodeId === ciFlowActiveSelectionNodeId ? edge.toNodeId : edge.fromNodeId;
       const relatedNode = nodeById.get(relatedNodeId);
-      if (selectedNode.entityType !== "ci" || relatedNode?.entityType === "ci") {
+      if ((selectedNode.entityType !== "ci" || relatedNode?.entityType === "ci") && rootScopeNodeIds.has(relatedNodeId)) {
         visibleNodeIds.add(relatedNodeId);
       }
     }
     return visibleNodeIds;
-  }, [ciFlowGraph, ciFlowHighlightedEdgeIds, selectedCiFlowNodeId]);
+  }, [ciFlowActiveSelectionNodeId, ciFlowGraph, ciFlowHighlightedEdgeIds, ciFlowRootScopeNodeIds]);
   const detailedTileDropdownOptions = useMemo<
     Array<{ id: string; entityType: DetailedTileEntityType; name: string; subtitle: string; level: number }>
   >(() => {
     if (isCiFlowFocusPanelOpen && ciFlowGraph) {
       return [...ciFlowGraph.nodes]
+        .filter((node) => (ciFlowRootScopeNodeIds.size ? ciFlowRootScopeNodeIds.has(node.id) : true))
         .map((node) => ({
           id: node.id,
           entityType: node.entityType,
@@ -2248,7 +2169,7 @@ export function NetworkTopologyView({
         }
         return left.name.localeCompare(right.name);
       });
-  }, [ciFlowGraph, ciFlowRootNodeId, detailedTree, isCiFlowFocusPanelOpen]);
+  }, [ciFlowGraph, ciFlowRootNodeId, ciFlowRootScopeNodeIds, detailedTree, isCiFlowFocusPanelOpen]);
   const filteredDetailedTileDropdownOptions = useMemo(() => {
     const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -2265,15 +2186,24 @@ export function NetworkTopologyView({
   }, [detailedTileFilterSearchText, detailedTileDropdownOptions]);
   const detailedFilteredNodeIds = useMemo(() => {
     if (isCiFlowFocusPanelOpen && ciFlowGraph) {
-      if (selectedCiFlowNodeId) {
-        return ciFlowRelationshipNodeIds;
+      const baseNodeIds = ciFlowRelationshipNodeIds.size
+        ? ciFlowRelationshipNodeIds
+        : ciFlowRootScopeNodeIds.size
+          ? ciFlowRootScopeNodeIds
+          : new Set<string>(ciFlowGraph.nodes.map((node) => node.id));
+      if (ciFlowSelectedModelNodeIds) {
+        const filteredNodeIds = new Set<string>();
+        for (const nodeId of baseNodeIds) {
+          if (ciFlowSelectedModelNodeIds.has(nodeId)) {
+            filteredNodeIds.add(nodeId);
+          }
+        }
+        if (ciFlowRootNodeId) {
+          filteredNodeIds.add(ciFlowRootNodeId);
+        }
+        return filteredNodeIds;
       }
-      if (detailedSelectedTileFilterId === "__all__") {
-        return new Set<string>(ciFlowGraph.nodes.map((node) => node.id));
-      }
-      return ciFlowNodeById.has(detailedSelectedTileFilterId)
-        ? new Set<string>([detailedSelectedTileFilterId])
-        : new Set<string>(ciFlowGraph.nodes.map((node) => node.id));
+      return baseNodeIds;
     }
     if (!detailedTree) {
       return new Set<string>();
@@ -2299,16 +2229,18 @@ export function NetworkTopologyView({
     return visibleNodeIds;
   }, [
     ciFlowGraph,
-    ciFlowNodeById,
     ciFlowRelationshipNodeIds,
+    ciFlowRootNodeId,
+    ciFlowRootScopeNodeIds,
+    ciFlowSelectedModelNodeIds,
     detailedHighlightedEdgeIds,
     detailedSelectedNodeId,
     detailedSelectedTileFilterId,
     detailedTree,
-    isCiFlowFocusPanelOpen,
-    selectedCiFlowNodeId
+    isCiFlowFocusPanelOpen
   ]);
-  const isDetailedTileFilterActive = detailedSelectedTileFilterId !== "__all__";
+  const isDetailedTileFilterActive =
+    detailedSelectedTileFilterId !== "__all__" || (isCiFlowFocusPanelOpen && Boolean(selectedCiFlowModelTileId));
   const hasDetailedTileSearchTerm = detailedTileFilterSearchText.trim().length > 0;
   const detailedPresentEntityTypes = useMemo(() => {
     if (isCiFlowFocusPanelOpen && ciFlowGraph) {
@@ -2533,6 +2465,7 @@ export function NetworkTopologyView({
       ciFlow3DViewStateRef.current = createDefaultCiFlow3DViewState();
       setFocusedCiFlowRootAssetId(null);
       setSelectedCiFlowNodeId(null);
+      setSelectedCiFlowModelTileId(null);
       setDraggingCiFlowNodeId(null);
       setDraggingDetailedNodeId(null);
       setCiFlowNodeDragOffsets({});
@@ -2614,6 +2547,7 @@ export function NetworkTopologyView({
     detailedManualNodePositionsRef.current = new Map();
     setFocusedCiFlowRootAssetId(null);
     setSelectedCiFlowNodeId(null);
+    setSelectedCiFlowModelTileId(null);
     setDraggingCiFlowNodeId(null);
     setDraggingDetailedNodeId(null);
     setCiFlowNodeDragOffsets({});
@@ -2708,6 +2642,7 @@ export function NetworkTopologyView({
       return;
     }
     setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    setSelectedCiFlowModelTileId(null);
   }, [ciFlowRootNodeId, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
 
   useEffect(() => {
@@ -2715,6 +2650,7 @@ export function NetworkTopologyView({
       return;
     }
     setSelectedCiFlowNodeId(null);
+    setSelectedCiFlowModelTileId(null);
   }, [isCiFlowFocusPanelOpen]);
 
   useEffect(() => {
@@ -2774,6 +2710,15 @@ export function NetworkTopologyView({
   }, [detailedSelectedTileFilterId, detailedTileDropdownOptions]);
 
   useEffect(() => {
+    if (!selectedCiFlowModelTileId) {
+      return;
+    }
+    if (!ciFlowModelTileById.has(selectedCiFlowModelTileId)) {
+      setSelectedCiFlowModelTileId(null);
+    }
+  }, [ciFlowModelTileById, selectedCiFlowModelTileId]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -2799,6 +2744,7 @@ export function NetworkTopologyView({
           }
           setFocusedCiFlowRootAssetId(null);
           setSelectedCiFlowNodeId(null);
+          setSelectedCiFlowModelTileId(null);
           setDraggingCiFlowNodeId(null);
           setDraggingDetailedNodeId(null);
           setCiFlowNodeDragOffsets({});
@@ -3726,7 +3672,81 @@ export function NetworkTopologyView({
       }
 
       if (isFlowMode && ciFlowGraph) {
-        const hasFlowSelection = Boolean(selectedCiFlowNodeId);
+        const rootNode = detailedDisplayRootNodeId
+          ? latestNodes.find((node) => node.id === detailedDisplayRootNodeId) ?? null
+          : null;
+        if (rootNode) {
+          const rootCenterWorldX = rootNode.x + rootNode.width / 2;
+          const rootCenterWorldY = rootNode.y + rootNode.height / 2;
+          const rootProjection = projectFlowPoint(rootCenterWorldX, rootCenterWorldY, rootNode.z, width, height);
+          if (rootProjection) {
+            const shellRadiusWorldForNodes = (nodes: RenderNode[]) => {
+              if (!nodes.length) {
+                return null;
+              }
+              let maxDistance = 0;
+              for (const node of nodes) {
+                const nodeCenterWorldX = node.x + node.width / 2;
+                const nodeCenterWorldY = node.y + node.height / 2;
+                const distance = Math.hypot(
+                  nodeCenterWorldX - rootCenterWorldX,
+                  nodeCenterWorldY - rootCenterWorldY,
+                  node.z - rootNode.z
+                );
+                maxDistance = Math.max(maxDistance, distance + ciFlowSphereRadiusWorld(node) * 0.95);
+              }
+              return maxDistance + 76;
+            };
+            const innerShellRadiusWorld = shellRadiusWorldForNodes(
+              latestNodes.filter(
+                (node) =>
+                  node.entityType === "ci" &&
+                  node.id !== rootNode.id &&
+                  node.isInModelScope
+              )
+            );
+            const outerShellRadiusWorld = shellRadiusWorldForNodes(
+              latestNodes.filter(
+                (node) =>
+                  node.entityType === "ci" &&
+                  node.id !== rootNode.id &&
+                  !node.isInModelScope
+              )
+            );
+            const drawFlowShell = (
+              radiusWorld: number | null,
+              fillColor: string,
+              strokeColor: string,
+              fillAlpha: number,
+              strokeAlpha: number
+            ) => {
+              if (!radiusWorld) {
+                return;
+              }
+              const radiusScreen = radiusWorld * rootProjection.perspective;
+              if (!Number.isFinite(radiusScreen) || radiusScreen <= 2) {
+                return;
+              }
+              context.save();
+              context.beginPath();
+              context.arc(rootProjection.x, rootProjection.y, radiusScreen, 0, Math.PI * 2);
+              context.globalAlpha = fillAlpha;
+              context.fillStyle = fillColor;
+              context.fill();
+              context.beginPath();
+              context.arc(rootProjection.x, rootProjection.y, radiusScreen, 0, Math.PI * 2);
+              context.globalAlpha = strokeAlpha;
+              context.strokeStyle = strokeColor;
+              context.lineWidth = Math.max(1, radiusScreen * 0.0013);
+              context.stroke();
+              context.restore();
+            };
+            drawFlowShell(outerShellRadiusWorld, "#ef4444", "#fca5a5", 0.045, 0.11);
+            drawFlowShell(innerShellRadiusWorld, "#22c55e", "#86efac", 0.055, 0.13);
+          }
+        }
+
+        const hasFlowSelection = Boolean(ciFlowActiveSelectionNodeId);
         for (const edge of ciFlowGraph.edges) {
           if (!detailedFilteredNodeIds.has(edge.fromNodeId) || !detailedFilteredNodeIds.has(edge.toNodeId)) {
             continue;
@@ -3798,8 +3818,13 @@ export function NetworkTopologyView({
           }
           const center = { x: projected.centerX, y: projected.centerY };
           const radius = projected.radius;
-          const isFilterRootCi = node.entityType === "ci" && projected.isSelected;
-          const strokeColor = isFilterRootCi ? "#a855f7" : ciFlowNodeStrokeColor(node.entityType, node.isInModelScope);
+          const isRootCi = node.entityType === "ci" && node.id === ciFlowRootNodeId;
+          const isSelectedCi = node.entityType === "ci" && projected.isSelected;
+          const isModelRelatedCi =
+            node.entityType === "ci" &&
+            !isRootCi &&
+            Boolean(ciFlowSelectedModelNodeIds?.has(node.id));
+          const strokeColor = isRootCi ? "#a855f7" : ciFlowNodeStrokeColor(node.entityType, node.isInModelScope);
           const depthOpacity = Math.max(0.3, Math.min(1, CI_FLOW_3D_CAMERA_DISTANCE / projected.depth));
           context.globalAlpha = Math.max(0.12, Math.min(1, node.opacity * depthOpacity));
           context.beginPath();
@@ -3812,7 +3837,7 @@ export function NetworkTopologyView({
             center.y,
             Math.max(3, radius)
           );
-          if (isFilterRootCi) {
+          if (isRootCi) {
             gradient.addColorStop(0, "#f5d0fe");
             gradient.addColorStop(0.5, "#c084fc");
             gradient.addColorStop(1, "#581c87");
@@ -3830,7 +3855,7 @@ export function NetworkTopologyView({
           context.lineWidth = projected.isSelected ? 3.8 : projected.isRootNode ? 3.2 : 2.4;
           context.strokeStyle = strokeColor;
           context.stroke();
-          if (isFilterRootCi) {
+          if (isRootCi) {
             const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.009);
             const neonRadius = radius + 7 + pulse * 7;
             context.save();
@@ -3843,12 +3868,33 @@ export function NetworkTopologyView({
             context.strokeStyle = "#c084fc";
             context.stroke();
             context.restore();
-          } else if (projected.isSelected) {
+          } else if (isSelectedCi) {
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.0105 + 1.4);
+            const neonRadius = radius + 6 + pulse * 5;
+            context.save();
+            context.globalAlpha = 0.48 + pulse * 0.36;
+            context.shadowColor = "#fb923c";
+            context.shadowBlur = 12 + pulse * 18;
             context.beginPath();
-            context.arc(center.x, center.y, radius + 5, 0, Math.PI * 2);
-            context.lineWidth = 2.2;
-            context.strokeStyle = "rgba(248,250,252,0.92)";
+            context.arc(center.x, center.y, neonRadius, 0, Math.PI * 2);
+            context.lineWidth = 2 + pulse * 1.5;
+            context.strokeStyle = "#fb923c";
             context.stroke();
+            context.restore();
+          }
+          if (isModelRelatedCi) {
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.0088 + 0.9);
+            const neonRadius = radius + 7 + pulse * 5;
+            context.save();
+            context.globalAlpha = 0.42 + pulse * 0.32;
+            context.shadowColor = "#facc15";
+            context.shadowBlur = 14 + pulse * 20;
+            context.beginPath();
+            context.arc(center.x, center.y, neonRadius, 0, Math.PI * 2);
+            context.lineWidth = 2 + pulse * 1.3;
+            context.strokeStyle = "#facc15";
+            context.stroke();
+            context.restore();
           }
 
           const flowZoom = ciFlow3DViewStateRef.current.zoom;
@@ -3940,7 +3986,11 @@ export function NetworkTopologyView({
       context.globalAlpha = 1;
 
       const shouldAnimateFlowPulse =
-        isFlowMode && latestFlowProjectedNodes.some((projected) => projected.isSelected && projected.node.entityType === "ci");
+        isFlowMode &&
+        latestFlowProjectedNodes.some(
+          (projected) =>
+            projected.node.entityType === "ci" && (projected.isRootNode || projected.isSelected)
+        );
       if (shouldContinueAnimation || shouldAnimateFlowPulse) {
         requestDraw();
       }
@@ -4002,6 +4052,7 @@ export function NetworkTopologyView({
         const local = clientToLocal(event.clientX, event.clientY);
         const hitNode = hitTestFlowNode(local.x, local.y);
         if (hitNode) {
+          setSelectedCiFlowModelTileId(null);
           setSelectedCiFlowNodeId(hitNode.id);
           if (isDetailedTileFilterActive) {
             setDetailedSelectedTileFilterId(hitNode.id);
@@ -4059,6 +4110,7 @@ export function NetworkTopologyView({
           : null;
       if (hitNode) {
         if (isFlowMode) {
+          setSelectedCiFlowModelTileId(null);
           setSelectedCiFlowNodeId(hitNode.id);
         } else {
           setDetailedSelectedNodeId(hitNode.id);
@@ -4234,6 +4286,7 @@ export function NetworkTopologyView({
     ciFlowGraph,
     ciFlowHighlightedEdgeIds,
     ciFlowRenderedNodes,
+    ciFlowSelectedModelNodeIds,
     complianceMode,
     detailedNodeById,
     detailedDisplayRootNodeId,
@@ -4337,6 +4390,7 @@ export function NetworkTopologyView({
       return;
     }
     if (isCiFlowFocusPanelOpen) {
+      setSelectedCiFlowModelTileId(null);
       setSelectedCiFlowNodeId(nodeId);
     } else {
       setDetailedSelectedNodeId(nodeId);
@@ -4579,6 +4633,7 @@ export function NetworkTopologyView({
     ciFlow3DViewStateRef.current = createDefaultCiFlow3DViewState();
     setFocusedCiFlowRootAssetId(node.ciAssetId);
     setSelectedCiFlowNodeId(ciFlowNodeIdForAsset(node.ciAssetId));
+    setSelectedCiFlowModelTileId(null);
     setDraggingCiFlowNodeId(null);
     setDraggingDetailedNodeId(null);
     setCiFlowNodeDragOffsets({});
@@ -4608,6 +4663,7 @@ export function NetworkTopologyView({
     animateCiFlowTween(from, 0, 320, () => {
       setFocusedCiFlowRootAssetId(null);
       setSelectedCiFlowNodeId(null);
+      setSelectedCiFlowModelTileId(null);
       setDraggingCiFlowNodeId(null);
       setDraggingDetailedNodeId(null);
       setCiFlowNodeDragOffsets({});
@@ -4648,6 +4704,7 @@ export function NetworkTopologyView({
     ciFlow3DViewStateRef.current = createDefaultCiFlow3DViewState();
     setFocusedCiFlowRootAssetId(null);
     setSelectedCiFlowNodeId(null);
+    setSelectedCiFlowModelTileId(null);
     setDraggingCiFlowNodeId(null);
     setDraggingDetailedNodeId(null);
     setCiFlowNodeDragOffsets({});
@@ -4688,6 +4745,7 @@ export function NetworkTopologyView({
     ciFlow3DViewStateRef.current = createDefaultCiFlow3DViewState();
     setFocusedCiFlowRootAssetId(null);
     setSelectedCiFlowNodeId(null);
+    setSelectedCiFlowModelTileId(null);
     setDraggingCiFlowNodeId(null);
     setDraggingDetailedNodeId(null);
     setCiFlowNodeDragOffsets({});
@@ -4702,6 +4760,7 @@ export function NetworkTopologyView({
 
   const selectDetailedTileFilter = (nextId: string) => {
     setDetailedSelectedTileFilterId(nextId);
+    setSelectedCiFlowModelTileId(null);
     if (nextId !== "__all__") {
       if (isCiFlowFocusPanelOpen && ciFlowGraph) {
         setSelectedCiFlowNodeId(nextId);
@@ -4724,8 +4783,18 @@ export function NetworkTopologyView({
     setIsDetailedTileSearchFocused(false);
   };
 
+  const selectCiFlowModelTile = (modelTileId: string) => {
+    setSelectedCiFlowModelTileId((current) => (current === modelTileId ? null : modelTileId));
+    setDetailedSelectedTileFilterId("__all__");
+    if (ciFlowRootNodeId) {
+      setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    }
+    setIsDetailedTileSearchFocused(false);
+  };
+
   const clearDetailedTileSearchSelection = () => {
     setDetailedSelectedTileFilterId("__all__");
+    setSelectedCiFlowModelTileId(null);
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
     if (isCiFlowFocusPanelOpen && ciFlowRootNodeId) {
@@ -4775,6 +4844,7 @@ export function NetworkTopologyView({
     }
     if (isCiFlowFocusPanelOpen && ciFlowRootNodeId) {
       setDetailedSelectedTileFilterId("__all__");
+      setSelectedCiFlowModelTileId(null);
       setSelectedCiFlowNodeId(ciFlowRootNodeId);
     } else if (detailedTree?.rootNodeId) {
       setDetailedSelectedNodeId(detailedTree.rootNodeId);
@@ -4957,8 +5027,19 @@ export function NetworkTopologyView({
 
   const detailedZoomPercent = Math.round(detailedZoom * 100);
   const ciFlowRootTile = ciFlowRootNodeId ? ciFlowNodeById.get(ciFlowRootNodeId) ?? null : null;
+  const rootCiFlowFocusNode = isCiFlowFocusPanelOpen ? ciFlowRootTile : null;
+  const rootCiFlowFocusCompliance = rootCiFlowFocusNode
+    ? complianceMode === "cyber"
+      ? rootCiFlowFocusNode.cyberCompliance
+      : rootCiFlowFocusNode.discoveryCompliance
+    : null;
+  const rootCiFlowFocusPercentages = rootCiFlowFocusCompliance
+    ? compliancePercentages(rootCiFlowFocusCompliance)
+    : null;
   const selectedCiFlowFocusNode =
-    isCiFlowFocusPanelOpen && selectedCiFlowNodeId ? ciFlowNodeById.get(selectedCiFlowNodeId) ?? null : null;
+    isCiFlowFocusPanelOpen && selectedCiFlowNodeId && selectedCiFlowNodeId !== ciFlowRootNodeId
+      ? ciFlowNodeById.get(selectedCiFlowNodeId) ?? null
+      : null;
   const selectedCiFlowFocusCompliance = selectedCiFlowFocusNode
     ? complianceMode === "cyber"
       ? selectedCiFlowFocusNode.cyberCompliance
@@ -4967,6 +5048,95 @@ export function NetworkTopologyView({
   const selectedCiFlowFocusPercentages = selectedCiFlowFocusCompliance
     ? compliancePercentages(selectedCiFlowFocusCompliance)
     : null;
+  const selectedCiFlowModelTile = selectedCiFlowModelTileId
+    ? ciFlowModelTileById.get(selectedCiFlowModelTileId) ?? null
+    : null;
+  const presentedNonModelledCiRows = useMemo(() => {
+    if (!isCiFlowFocusPanelOpen || !ciFlowGraph) {
+      return [];
+    }
+    return ciFlowGraph.nodes
+      .filter(
+        (node) =>
+          node.entityType === "ci" &&
+          !node.isInModelScope &&
+          detailedFilteredNodeIds.has(node.id)
+      )
+      .map((node) => {
+        const sourceCi = node.assetId ? flowCiNodeByAssetId.get(node.assetId) ?? null : null;
+        const networkId = sourceCi?.networkId ?? "";
+        return {
+          ciId: node.assetId ?? "",
+          ciName: node.name,
+          hostName: sourceCi?.hostname ?? node.name,
+          ipAddress: sourceCi?.ipAddress ?? "",
+          assetType: sourceCi ? ciAssetTypeSingularLabel(sourceCi.type) : "",
+          environment: normalizeCiEnvironmentLabel(sourceCi?.environmentType),
+          networkId,
+          networkName: networkId ? (networkNameById.get(networkId) ?? networkId) : "",
+          ictSystemId: sourceCi?.systemId ?? "",
+          ictSystemName: sourceCi?.systemName ?? "",
+          modelStatus: node.modelLabel
+        };
+      })
+      .sort((left, right) => {
+        const hostDelta = left.hostName.localeCompare(right.hostName);
+        if (hostDelta !== 0) {
+          return hostDelta;
+        }
+        return left.ciId.localeCompare(right.ciId);
+      });
+  }, [
+    ciFlowGraph,
+    detailedFilteredNodeIds,
+    flowCiNodeByAssetId,
+    isCiFlowFocusPanelOpen,
+    networkNameById
+  ]);
+  const exportPresentedNonModelledCis = useCallback(() => {
+    if (!presentedNonModelledCiRows.length) {
+      return;
+    }
+    const headers = [
+      "CI ID",
+      "CI Name",
+      "Hostname",
+      "IP Address",
+      "Asset Type",
+      "Environment",
+      "Network ID",
+      "Network Name",
+      "ICT System ID",
+      "ICT System Name",
+      "Model Status"
+    ];
+    const dataRows = presentedNonModelledCiRows.map((row) => [
+      row.ciId,
+      row.ciName,
+      row.hostName,
+      row.ipAddress,
+      row.assetType,
+      row.environment,
+      row.networkId,
+      row.networkName,
+      row.ictSystemId,
+      row.ictSystemName,
+      row.modelStatus
+    ]);
+    const csv = [headers, ...dataRows].map((row) => row.map((value) => csvCell(value)).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const rootName = ciFlowRootTile?.name ?? "ci-flow";
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `non-modelled-cis-${safeCsvFilenameSegment(rootName)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+  }, [ciFlowRootTile?.name, presentedNonModelledCiRows]);
 
   return (
     <div
@@ -5603,7 +5773,7 @@ export function NetworkTopologyView({
                       placeholder="Search tile type or name"
                       className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100 placeholder:text-slate-400/90"
                     />
-                    {detailedSelectedTileFilterId !== "__all__" ? (
+                    {isDetailedTileFilterActive ? (
                       <button
                         type="button"
                         onClick={clearDetailedTileSearchSelection}
@@ -5793,7 +5963,7 @@ export function NetworkTopologyView({
                         placeholder="Search tile type or name"
                         className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100 placeholder:text-slate-400/90"
                       />
-                      {detailedSelectedTileFilterId !== "__all__" ? (
+                      {isDetailedTileFilterActive ? (
                         <button
                           type="button"
                           onClick={clearDetailedTileSearchSelection}
@@ -5939,59 +6109,189 @@ export function NetworkTopologyView({
                       </p>
                     </div>
                   ) : null}
-                  {selectedCiFlowFocusNode && selectedCiFlowFocusPercentages ? (
-                    <article
-                      className="pointer-events-auto absolute right-4 top-4 z-30 w-[22rem] rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
-                      style={{
-                        borderColor:
-                          selectedCiFlowFocusNode.entityType === "ci" && selectedCiFlowNodeId === selectedCiFlowFocusNode.id
-                            ? "#a855f7"
-                            : ciFlowNodeStrokeColor(
-                                selectedCiFlowFocusNode.entityType,
-                                selectedCiFlowFocusNode.isInModelScope
-                              ),
-                        backgroundColor: detailedTileColor(selectedCiFlowFocusNode.entityType)
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedCiFlowNodeId(null);
-                          setDetailedSelectedTileFilterId("__all__");
-                          setDetailedTileFilterSearchText("");
-                          setIsDetailedTileSearchFocused(false);
+                  {rootCiFlowFocusNode && rootCiFlowFocusPercentages ? (
+                    <>
+                      <div className="pointer-events-auto absolute right-4 top-4 z-30 flex w-[22rem] flex-col gap-3">
+                      <article
+                        className="rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
+                        style={{
+                          borderColor: "#a855f7",
+                          backgroundColor: detailedTileColor(rootCiFlowFocusNode.entityType)
                         }}
-                        className="absolute right-3 top-3 rounded-md border border-slate-500/45 bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-100"
                       >
-                        Close
-                      </button>
-                      <div className="space-y-0.5 pr-12">
-                        <p className="text-sm font-semibold leading-snug text-slate-900">
-                          Type: <span className="font-medium">{selectedCiFlowFocusNode.typeLabel}</span>
-                        </p>
-                        <p className="text-sm font-semibold leading-snug text-slate-900">
-                          Name: <span className="font-medium">{selectedCiFlowFocusNode.name}</span>
-                        </p>
-                        <p className="text-xs font-medium leading-snug text-slate-800">
-                          {selectedCiFlowFocusNode.modelLabel}
-                        </p>
-                      </div>
-                      <div className="mt-3 h-3 w-full overflow-hidden rounded-sm bg-slate-300/95">
-                        <div className="flex h-full w-full">
-                          <div className="h-full bg-emerald-600" style={{ width: `${selectedCiFlowFocusPercentages.compliant}%` }} />
-                          <div
-                            className="h-full bg-red-500"
-                            style={{ width: `${selectedCiFlowFocusPercentages.nonCompliant}%` }}
-                          />
-                          <div className="h-full bg-slate-400" style={{ width: `${selectedCiFlowFocusPercentages.other}%` }} />
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-semibold leading-snug text-slate-900">
+                            Type: <span className="font-medium">{rootCiFlowFocusNode.typeLabel}</span>
+                          </p>
+                          <p className="text-sm font-semibold leading-snug text-slate-900">
+                            Name: <span className="font-medium">{rootCiFlowFocusNode.name}</span>
+                          </p>
+                          <p className="text-xs font-medium leading-snug text-slate-800">
+                            {rootCiFlowFocusNode.modelLabel}
+                          </p>
                         </div>
+                        <div className="mt-3 h-3 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                          <div className="flex h-full w-full">
+                            <div className="h-full bg-emerald-600" style={{ width: `${rootCiFlowFocusPercentages.compliant}%` }} />
+                            <div
+                              className="h-full bg-red-500"
+                              style={{ width: `${rootCiFlowFocusPercentages.nonCompliant}%` }}
+                            />
+                            <div className="h-full bg-slate-400" style={{ width: `${rootCiFlowFocusPercentages.other}%` }} />
+                          </div>
+                        </div>
+                        <p className="mt-2 text-center text-base font-medium text-slate-900">
+                          {rootCiFlowFocusPercentages.compliant}% C | {rootCiFlowFocusPercentages.nonCompliant}% NC |{" "}
+                          {rootCiFlowFocusPercentages.other}% O
+                        </p>
+                      </article>
+                      {selectedCiFlowFocusNode && selectedCiFlowFocusPercentages ? (
+                        <article
+                          className="relative rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
+                          style={{
+                            borderColor:
+                              selectedCiFlowFocusNode.entityType === "ci"
+                                ? "#fb923c"
+                                : ciFlowNodeStrokeColor(selectedCiFlowFocusNode.entityType, selectedCiFlowFocusNode.isInModelScope),
+                            backgroundColor: detailedTileColor(selectedCiFlowFocusNode.entityType)
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCiFlowNodeId(null);
+                              setDetailedSelectedTileFilterId("__all__");
+                              setDetailedTileFilterSearchText("");
+                              setIsDetailedTileSearchFocused(false);
+                            }}
+                            className="absolute right-3 top-3 rounded-md border border-slate-500/45 bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-100"
+                          >
+                            Close
+                          </button>
+                          <div className="space-y-0.5 pr-12">
+                            <p className="text-sm font-semibold leading-snug text-slate-900">
+                              Type: <span className="font-medium">{selectedCiFlowFocusNode.typeLabel}</span>
+                            </p>
+                            <p className="text-sm font-semibold leading-snug text-slate-900">
+                              Name: <span className="font-medium">{selectedCiFlowFocusNode.name}</span>
+                            </p>
+                            <p className="text-xs font-medium leading-snug text-slate-800">
+                              {selectedCiFlowFocusNode.modelLabel}
+                            </p>
+                          </div>
+                          <div className="mt-3 h-3 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                            <div className="flex h-full w-full">
+                              <div className="h-full bg-emerald-600" style={{ width: `${selectedCiFlowFocusPercentages.compliant}%` }} />
+                              <div
+                                className="h-full bg-red-500"
+                                style={{ width: `${selectedCiFlowFocusPercentages.nonCompliant}%` }}
+                              />
+                              <div className="h-full bg-slate-400" style={{ width: `${selectedCiFlowFocusPercentages.other}%` }} />
+                            </div>
+                          </div>
+                          <p className="mt-2 text-center text-base font-medium text-slate-900">
+                            {selectedCiFlowFocusPercentages.compliant}% C | {selectedCiFlowFocusPercentages.nonCompliant}% NC |{" "}
+                            {selectedCiFlowFocusPercentages.other}% O
+                          </p>
+                        </article>
+                      ) : null}
                       </div>
-                      <p className="mt-2 text-center text-base font-medium text-slate-900">
-                        {selectedCiFlowFocusPercentages.compliant}% C | {selectedCiFlowFocusPercentages.nonCompliant}% NC |{" "}
-                        {selectedCiFlowFocusPercentages.other}% O
-                      </p>
-                    </article>
+                      <section className="pointer-events-auto absolute bottom-4 left-4 top-4 z-30 flex w-[min(26rem,44vw)] flex-col rounded-3xl border border-sky-300/30 bg-slate-950/85 p-3 text-slate-100 shadow-[0_14px_30px_rgba(0,0,0,0.4)]">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-100">
+                            Linked Models
+                          </h4>
+                          <span className="text-[11px] text-slate-300">
+                            {filteredCiFlowModelTiles.length} shown
+                          </span>
+                        </div>
+                        <div
+                          className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-scroll pr-1"
+                          style={{ scrollbarGutter: "stable" }}
+                        >
+                          {filteredCiFlowModelTiles.length ? (
+                            filteredCiFlowModelTiles.map((modelTile) => {
+                              const modelCompliance =
+                                complianceMode === "cyber"
+                                  ? modelTile.cyberCompliance
+                                  : modelTile.discoveryCompliance;
+                              const modelPercentages = compliancePercentages(modelCompliance);
+                              const isModelSelected = selectedCiFlowModelTile?.id === modelTile.id;
+                              const modelEntityType: DetailedTileEntityType =
+                                modelTile.modelType === "ict-system-model" ? "ict-system" : "network";
+                              const modelBorderColor =
+                                modelTile.modelType === "ict-system-model" ? "#fb923c" : "#facc15";
+                              return (
+                                <button
+                                  key={modelTile.id}
+                                  type="button"
+                                  onClick={() => selectCiFlowModelTile(modelTile.id)}
+                                  className="w-full text-left"
+                                  data-no-pan="true"
+                                >
+                                  <article
+                                    className="rounded-2xl border-2 px-3 py-2.5 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)] transition-colors duration-150"
+                                    style={{
+                                      borderColor: isModelSelected ? "#facc15" : modelBorderColor,
+                                      backgroundColor: detailedTileColor(modelEntityType),
+                                      boxShadow: isModelSelected
+                                        ? "0 0 0 1px rgba(250,204,21,0.7), 0 0 18px rgba(250,204,21,0.6), 0 0 34px rgba(250,204,21,0.34)"
+                                        : undefined
+                                    }}
+                                  >
+                                    <div className="space-y-0.5">
+                                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">
+                                        {modelTile.typeLabel}
+                                      </p>
+                                      <p className="text-sm font-semibold leading-snug text-slate-900">
+                                        {modelTile.name}
+                                      </p>
+                                      <p className="text-xs font-medium leading-snug text-slate-800">
+                                        {modelTile.subtitle}
+                                      </p>
+                                    </div>
+                                    <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                                      <div className="flex h-full w-full">
+                                        <div className="h-full bg-emerald-600" style={{ width: `${modelPercentages.compliant}%` }} />
+                                        <div
+                                          className="h-full bg-red-500"
+                                          style={{ width: `${modelPercentages.nonCompliant}%` }}
+                                        />
+                                        <div className="h-full bg-slate-400" style={{ width: `${modelPercentages.other}%` }} />
+                                      </div>
+                                    </div>
+                                    <p className="mt-1.5 text-center text-xs font-medium text-slate-900">
+                                      {modelPercentages.compliant}% C | {modelPercentages.nonCompliant}% NC |{" "}
+                                      {modelPercentages.other}% O
+                                    </p>
+                                  </article>
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p className="rounded-lg border border-slate-700/70 bg-slate-900/70 px-2 py-2 text-xs text-slate-300">
+                              No matching model tiles
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    </>
                   ) : null}
+                  <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      onClick={exportPresentedNonModelledCis}
+                      disabled={!presentedNonModelledCiRows.length}
+                      className="rounded-full border border-cyan-300/55 bg-cyan-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-cyan-100 shadow-[0_12px_26px_rgba(0,0,0,0.44)] transition hover:bg-cyan-500/32 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                      data-no-pan="true"
+                    >
+                      Export Non-Modelled CIs
+                    </button>
+                    <p className="rounded-md border border-slate-600/50 bg-slate-950/85 px-2 py-0.5 text-[11px] text-slate-200">
+                      {presentedNonModelledCiRows.length} non-modelled CI
+                      {presentedNonModelledCiRows.length === 1 ? "" : "s"} in current view
+                    </p>
+                  </div>
                 </div>
               </div>
             </aside>
