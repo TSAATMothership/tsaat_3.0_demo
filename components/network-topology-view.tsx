@@ -146,6 +146,7 @@ interface DetailedTreeData {
 interface CiFlowNodeLayout {
   id: string;
   assetId?: string;
+  assetType?: CiAssetType;
   entityType: "ci" | "not-modelled";
   name: string;
   subtitle: string;
@@ -1124,6 +1125,9 @@ export function NetworkTopologyView({
   const [focusedCiFlowRootAssetId, setFocusedCiFlowRootAssetId] = useState<string | null>(null);
   const [selectedCiFlowNodeId, setSelectedCiFlowNodeId] = useState<string | null>(null);
   const [selectedCiFlowModelTileId, setSelectedCiFlowModelTileId] = useState<string | null>(null);
+  const [ciFlowIncludedAssetTypes, setCiFlowIncludedAssetTypes] = useState<Set<CiAssetType>>(
+    () => new Set<CiAssetType>(["server"])
+  );
   const [draggingCiFlowNodeId, setDraggingCiFlowNodeId] = useState<string | null>(null);
   const [ciFlowNodeDragOffsets, setCiFlowNodeDragOffsets] = useState<Record<string, { x: number; y: number }>>({});
   const [ciFlowTweenProgress, setCiFlowTweenProgress] = useState(0);
@@ -1638,8 +1642,23 @@ export function NetworkTopologyView({
       }
     }
 
+    const visibleAssetIds = new Set<string>();
+    for (const assetId of includedAssetIds) {
+      if (assetId === focusedCiFlowRootAssetId) {
+        visibleAssetIds.add(assetId);
+        continue;
+      }
+      const flowNode = flowCiNodeByAssetId.get(assetId);
+      if (!flowNode) {
+        continue;
+      }
+      if (ciFlowIncludedAssetTypes.has(flowNode.type)) {
+        visibleAssetIds.add(assetId);
+      }
+    }
+
     const includedDependencies = dependencies.filter(
-      (dependency) => includedAssetIds.has(dependency.sourceAssetId) && includedAssetIds.has(dependency.targetAssetId)
+      (dependency) => visibleAssetIds.has(dependency.sourceAssetId) && visibleAssetIds.has(dependency.targetAssetId)
     );
     const depthByAssetId = new Map<string, number>([[focusedCiFlowRootAssetId, 0]]);
     const depthQueue = [focusedCiFlowRootAssetId];
@@ -1650,14 +1669,14 @@ export function NetworkTopologyView({
       }
       const currentDepth = depthByAssetId.get(currentAssetId) ?? 0;
       for (const relatedAssetId of undirectedAdjacency.get(currentAssetId) ?? []) {
-        if (!includedAssetIds.has(relatedAssetId) || depthByAssetId.has(relatedAssetId)) {
+        if (!visibleAssetIds.has(relatedAssetId) || depthByAssetId.has(relatedAssetId)) {
           continue;
         }
         depthByAssetId.set(relatedAssetId, currentDepth + 1);
         depthQueue.push(relatedAssetId);
       }
     }
-    for (const assetId of includedAssetIds) {
+    for (const assetId of visibleAssetIds) {
       if (!depthByAssetId.has(assetId)) {
         depthByAssetId.set(assetId, 1);
       }
@@ -1679,7 +1698,7 @@ export function NetworkTopologyView({
 
     const ciNodes: CiFlowNodeLayout[] = [];
     const groupedByDepth = new Map<number, string[]>();
-    for (const assetId of includedAssetIds) {
+    for (const assetId of visibleAssetIds) {
       if (assetId === focusedCiFlowRootAssetId) {
         continue;
       }
@@ -1692,6 +1711,7 @@ export function NetworkTopologyView({
     ciNodes.push({
       id: ciFlowNodeIdForAsset(focusedCiFlowRootAssetId),
       assetId: focusedCiFlowRootAssetId,
+      assetType: rootFlowNode.type,
       entityType: "ci",
       name: rootFlowNode.hostname,
       subtitle: `${ciAssetTypeSingularLabel(rootFlowNode.type)} | ${normalizeCiEnvironmentLabel(rootFlowNode.environmentType)}`,
@@ -1737,6 +1757,7 @@ export function NetworkTopologyView({
         ciNodes.push({
           id: ciFlowNodeIdForAsset(assetId),
           assetId,
+          assetType: flowNode.type,
           entityType: "ci",
           name: flowNode.hostname,
           subtitle: `${ciAssetTypeSingularLabel(flowNode.type)} | ${normalizeCiEnvironmentLabel(flowNode.environmentType)}`,
@@ -1807,6 +1828,7 @@ export function NetworkTopologyView({
       height
     };
   }, [
+    ciFlowIncludedAssetTypes,
     ciFlowViewportCenter?.x,
     ciFlowViewportCenter?.y,
     data.ciDependencies,
@@ -2100,36 +2122,10 @@ export function NetworkTopologyView({
     if (!ciFlowGraph) {
       return new Set<string>();
     }
-    const rootScopeNodeIds = ciFlowRootScopeNodeIds.size
+    return ciFlowRootScopeNodeIds.size
       ? ciFlowRootScopeNodeIds
       : new Set(ciFlowGraph.nodes.map((node) => node.id));
-    if (!ciFlowActiveSelectionNodeId) {
-      return rootScopeNodeIds;
-    }
-    const nodeById = new Map(ciFlowGraph.nodes.map((node) => [node.id, node]));
-    const selectedNode = nodeById.get(ciFlowActiveSelectionNodeId);
-    if (!selectedNode) {
-      return rootScopeNodeIds;
-    }
-    if (selectedNode.entityType !== "ci") {
-      return rootScopeNodeIds.has(ciFlowActiveSelectionNodeId)
-        ? new Set<string>([ciFlowActiveSelectionNodeId])
-        : new Set<string>();
-    }
-
-    const visibleNodeIds = new Set<string>([ciFlowActiveSelectionNodeId]);
-    for (const edge of ciFlowGraph.edges) {
-      if (!ciFlowHighlightedEdgeIds.has(edge.id)) {
-        continue;
-      }
-      const relatedNodeId = edge.fromNodeId === ciFlowActiveSelectionNodeId ? edge.toNodeId : edge.fromNodeId;
-      const relatedNode = nodeById.get(relatedNodeId);
-      if ((selectedNode.entityType !== "ci" || relatedNode?.entityType === "ci") && rootScopeNodeIds.has(relatedNodeId)) {
-        visibleNodeIds.add(relatedNodeId);
-      }
-    }
-    return visibleNodeIds;
-  }, [ciFlowActiveSelectionNodeId, ciFlowGraph, ciFlowHighlightedEdgeIds, ciFlowRootScopeNodeIds]);
+  }, [ciFlowGraph, ciFlowRootScopeNodeIds]);
   const detailedTileDropdownOptions = useMemo<
     Array<{ id: string; entityType: DetailedTileEntityType; name: string; subtitle: string; level: number }>
   >(() => {
@@ -3258,6 +3254,7 @@ export function NetworkTopologyView({
       name: string;
       subtitle: string;
       modelLabel?: string;
+      assetType?: CiAssetType;
       cyberCompliance: { score: number; compliant: number; nonCompliant: number; other: number };
       discoveryCompliance: { score: number; compliant: number; nonCompliant: number; other: number };
       isInModelScope?: boolean;
@@ -3338,6 +3335,7 @@ export function NetworkTopologyView({
               name: node.name,
               subtitle: node.subtitle,
               modelLabel: node.modelLabel,
+              assetType: node.assetType,
               cyberCompliance: node.cyberCompliance,
               discoveryCompliance: node.discoveryCompliance,
               isInModelScope: node.isInModelScope,
@@ -3825,31 +3823,52 @@ export function NetworkTopologyView({
             !isRootCi &&
             Boolean(ciFlowSelectedModelNodeIds?.has(node.id));
           const strokeColor = isRootCi ? "#a855f7" : ciFlowNodeStrokeColor(node.entityType, node.isInModelScope);
+          const flowAssetType = node.assetType ?? "server";
           const depthOpacity = Math.max(0.3, Math.min(1, CI_FLOW_3D_CAMERA_DISTANCE / projected.depth));
           context.globalAlpha = Math.max(0.12, Math.min(1, node.opacity * depthOpacity));
-          context.beginPath();
-          context.arc(center.x, center.y, radius, 0, Math.PI * 2);
-          const gradient = context.createRadialGradient(
-            center.x - radius * 0.34,
-            center.y - radius * 0.42,
-            Math.max(2, radius * 0.12),
-            center.x,
-            center.y,
-            Math.max(3, radius)
-          );
-          if (isRootCi) {
-            gradient.addColorStop(0, "#f5d0fe");
-            gradient.addColorStop(0.5, "#c084fc");
-            gradient.addColorStop(1, "#581c87");
-          } else if (strokeColor === "#22c55e") {
-            gradient.addColorStop(0, "#dcfce7");
-            gradient.addColorStop(0.48, "#4ade80");
-            gradient.addColorStop(1, "#166534");
+          const gradientStops = isRootCi
+            ? ["#f5d0fe", "#c084fc", "#581c87"]
+            : strokeColor === "#22c55e"
+              ? ["#dcfce7", "#4ade80", "#166534"]
+              : ["#fee2e2", "#f87171", "#7f1d1d"];
+          let gradient: CanvasGradient;
+          if (flowAssetType === "server") {
+            context.beginPath();
+            context.arc(center.x, center.y, radius, 0, Math.PI * 2);
+            gradient = context.createRadialGradient(
+              center.x - radius * 0.34,
+              center.y - radius * 0.42,
+              Math.max(2, radius * 0.12),
+              center.x,
+              center.y,
+              Math.max(3, radius)
+            );
+          } else if (flowAssetType === "workstation") {
+            const size = radius * 1.8;
+            const halfSize = size / 2;
+            context.beginPath();
+            context.rect(center.x - halfSize, center.y - halfSize, size, size);
+            gradient = context.createLinearGradient(
+              center.x - halfSize,
+              center.y - halfSize,
+              center.x + halfSize,
+              center.y + halfSize
+            );
           } else {
-            gradient.addColorStop(0, "#fee2e2");
-            gradient.addColorStop(0.48, "#f87171");
-            gradient.addColorStop(1, "#7f1d1d");
+            const height = radius * 1.95;
+            const halfBase = radius * 0.98;
+            const topY = center.y - height * 0.55;
+            const bottomY = center.y + height * 0.45;
+            context.beginPath();
+            context.moveTo(center.x, topY);
+            context.lineTo(center.x - halfBase, bottomY);
+            context.lineTo(center.x + halfBase, bottomY);
+            context.closePath();
+            gradient = context.createLinearGradient(center.x, topY, center.x, bottomY);
           }
+          gradient.addColorStop(0, gradientStops[0]);
+          gradient.addColorStop(0.5, gradientStops[1]);
+          gradient.addColorStop(1, gradientStops[2]);
           context.fillStyle = gradient;
           context.fill();
           context.lineWidth = projected.isSelected ? 3.8 : projected.isRootNode ? 3.2 : 2.4;
@@ -3884,15 +3903,21 @@ export function NetworkTopologyView({
           }
           if (isModelRelatedCi) {
             const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.0088 + 0.9);
-            const neonRadius = radius + 7 + pulse * 5;
+            const neonRadius = radius + 9 + pulse * 7;
             context.save();
-            context.globalAlpha = 0.42 + pulse * 0.32;
-            context.shadowColor = "#facc15";
-            context.shadowBlur = 14 + pulse * 20;
+            context.globalAlpha = 0.68 + pulse * 0.28;
+            context.shadowColor = "#fde047";
+            context.shadowBlur = 22 + pulse * 30;
             context.beginPath();
             context.arc(center.x, center.y, neonRadius, 0, Math.PI * 2);
-            context.lineWidth = 2 + pulse * 1.3;
-            context.strokeStyle = "#facc15";
+            context.lineWidth = 3 + pulse * 2;
+            context.strokeStyle = "#fde047";
+            context.stroke();
+            context.beginPath();
+            context.arc(center.x, center.y, neonRadius + 4 + pulse * 2, 0, Math.PI * 2);
+            context.globalAlpha = 0.34 + pulse * 0.18;
+            context.lineWidth = 1.8;
+            context.strokeStyle = "#fde047";
             context.stroke();
             context.restore();
           }
@@ -4790,6 +4815,33 @@ export function NetworkTopologyView({
       setSelectedCiFlowNodeId(ciFlowRootNodeId);
     }
     setIsDetailedTileSearchFocused(false);
+  };
+
+  const clearCiFlowModelTileSelection = () => {
+    setSelectedCiFlowModelTileId(null);
+    if (ciFlowRootNodeId) {
+      setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    }
+    setDetailedSelectedTileFilterId("__all__");
+    setIsDetailedTileSearchFocused(false);
+  };
+
+  const toggleCiFlowIncludedAssetType = (assetType: CiAssetType) => {
+    setCiFlowIncludedAssetTypes((current) => {
+      const next = new Set(current);
+      if (next.has(assetType)) {
+        if (next.size === 1) {
+          return current;
+        }
+        next.delete(assetType);
+      } else {
+        next.add(assetType);
+      }
+      return next;
+    });
+    setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    setSelectedCiFlowModelTileId(null);
+    setDetailedSelectedTileFilterId("__all__");
   };
 
   const clearDetailedTileSearchSelection = () => {
@@ -6044,6 +6096,27 @@ export function NetworkTopologyView({
                   <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
                     Zoom {detailedZoomPercent}%
                   </span>
+                  <span className="mx-1 h-5 w-px bg-sky-400/20" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-300/85">CI Types</span>
+                    {(CI_ASSET_TYPES as CiAssetType[]).map((assetType) => {
+                      const isEnabled = ciFlowIncludedAssetTypes.has(assetType);
+                      return (
+                        <button
+                          key={`ci-flow-asset-type-filter-${assetType}`}
+                          type="button"
+                          onClick={() => toggleCiFlowIncludedAssetType(assetType)}
+                          className={`rounded-md border px-2 py-1 font-semibold ${
+                            isEnabled
+                              ? "border-cyan-200/80 bg-cyan-500/20 text-cyan-100"
+                              : "border-slate-500/45 bg-slate-900/65 text-slate-300 hover:border-slate-300/55 hover:text-slate-100"
+                          }`}
+                        >
+                          {ciAssetTypeLabel(assetType)}
+                        </button>
+                      );
+                    })}
+                  </div>
 
                   <div className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
                     <span className="inline-flex items-center gap-1">
@@ -6222,50 +6295,63 @@ export function NetworkTopologyView({
                               const modelBorderColor =
                                 modelTile.modelType === "ict-system-model" ? "#fb923c" : "#facc15";
                               return (
-                                <button
+                                <article
                                   key={modelTile.id}
-                                  type="button"
-                                  onClick={() => selectCiFlowModelTile(modelTile.id)}
-                                  className="w-full text-left"
+                                  className="relative"
                                   data-no-pan="true"
                                 >
-                                  <article
-                                    className="rounded-2xl border-2 px-3 py-2.5 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)] transition-colors duration-150"
-                                    style={{
-                                      borderColor: isModelSelected ? "#facc15" : modelBorderColor,
-                                      backgroundColor: detailedTileColor(modelEntityType),
-                                      boxShadow: isModelSelected
-                                        ? "0 0 0 1px rgba(250,204,21,0.7), 0 0 18px rgba(250,204,21,0.6), 0 0 34px rgba(250,204,21,0.34)"
-                                        : undefined
-                                    }}
+                                  <button
+                                    type="button"
+                                    onClick={() => selectCiFlowModelTile(modelTile.id)}
+                                    className="w-full text-left"
                                   >
-                                    <div className="space-y-0.5">
-                                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">
-                                        {modelTile.typeLabel}
-                                      </p>
-                                      <p className="text-sm font-semibold leading-snug text-slate-900">
-                                        {modelTile.name}
-                                      </p>
-                                      <p className="text-xs font-medium leading-snug text-slate-800">
-                                        {modelTile.subtitle}
-                                      </p>
-                                    </div>
-                                    <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-sm bg-slate-300/95">
-                                      <div className="flex h-full w-full">
-                                        <div className="h-full bg-emerald-600" style={{ width: `${modelPercentages.compliant}%` }} />
-                                        <div
-                                          className="h-full bg-red-500"
-                                          style={{ width: `${modelPercentages.nonCompliant}%` }}
-                                        />
-                                        <div className="h-full bg-slate-400" style={{ width: `${modelPercentages.other}%` }} />
+                                    <div
+                                      className="rounded-2xl border-2 px-3 py-2.5 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)] transition-colors duration-150"
+                                      style={{
+                                        borderColor: isModelSelected ? "#fde047" : modelBorderColor,
+                                        backgroundColor: detailedTileColor(modelEntityType),
+                                        boxShadow: isModelSelected
+                                          ? "0 0 0 2px rgba(253,224,71,0.96), 0 0 28px rgba(253,224,71,0.95), 0 0 52px rgba(253,224,71,0.7), inset 0 0 14px rgba(253,224,71,0.36)"
+                                          : undefined
+                                      }}
+                                    >
+                                      <div className="space-y-0.5">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">
+                                          {modelTile.typeLabel}
+                                        </p>
+                                        <p className="text-sm font-semibold leading-snug text-slate-900">
+                                          {modelTile.name}
+                                        </p>
+                                        <p className="text-xs font-medium leading-snug text-slate-800">
+                                          {modelTile.subtitle}
+                                        </p>
                                       </div>
+                                      <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                                        <div className="flex h-full w-full">
+                                          <div className="h-full bg-emerald-600" style={{ width: `${modelPercentages.compliant}%` }} />
+                                          <div
+                                            className="h-full bg-red-500"
+                                            style={{ width: `${modelPercentages.nonCompliant}%` }}
+                                          />
+                                          <div className="h-full bg-slate-400" style={{ width: `${modelPercentages.other}%` }} />
+                                        </div>
+                                      </div>
+                                      <p className="mt-1.5 text-center text-xs font-medium text-slate-900">
+                                        {modelPercentages.compliant}% C | {modelPercentages.nonCompliant}% NC |{" "}
+                                        {modelPercentages.other}% O
+                                      </p>
                                     </div>
-                                    <p className="mt-1.5 text-center text-xs font-medium text-slate-900">
-                                      {modelPercentages.compliant}% C | {modelPercentages.nonCompliant}% NC |{" "}
-                                      {modelPercentages.other}% O
-                                    </p>
-                                  </article>
-                                </button>
+                                  </button>
+                                  {isModelSelected ? (
+                                    <button
+                                      type="button"
+                                      onClick={clearCiFlowModelTileSelection}
+                                      className="absolute right-2 top-2 rounded-md border border-yellow-200/80 bg-yellow-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-yellow-100 shadow-[0_0_16px_rgba(253,224,71,0.68)]"
+                                    >
+                                      Clear
+                                    </button>
+                                  ) : null}
+                                </article>
                               );
                             })
                           ) : (
