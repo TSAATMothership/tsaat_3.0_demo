@@ -46,6 +46,7 @@ const DETAILED_MIN_CAMERA_DISTANCE = 120;
 const DETAILED_MAX_CAMERA_DISTANCE = 28000;
 const DETAILED_EDGE_CURVE_MIN = 44;
 const DETAILED_EDGE_CURVE_FACTOR = 0.36;
+const DETAILED_MODEL_OVERLAY_NODE_PREFIX = "detailed-model-overlay:";
 
 interface ScopedCiItem {
   id: string;
@@ -226,6 +227,7 @@ interface CiFlow3DViewState {
 }
 
 type CiFlowModelTileType = "ict-system-model" | "network-model";
+type CiFlowModelLinkKind = "scope" | "shared-resource" | "related-model";
 
 interface CiFlowModelTile {
   id: string;
@@ -235,6 +237,9 @@ interface CiFlowModelTile {
   name: string;
   subtitle: string;
   linkedCiNodeIds: string[];
+  scopeLinkedCiNodeIds: string[];
+  sharedResourceCiNodeIds: string[];
+  relatedModelCiNodeIds: string[];
   cyberCompliance: {
     score: number;
     compliant: number;
@@ -247,6 +252,44 @@ interface CiFlowModelTile {
     nonCompliant: number;
     other: number;
   };
+}
+
+interface DetailedModelOverlayTile {
+  id: string;
+  modelId: string;
+  modelType: CiFlowModelTileType;
+  entityType: DetailedTileEntityType;
+  typeLabel: string;
+  name: string;
+  subtitle: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  sharedCount: number;
+  relatedCount: number;
+  cyberCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+  discoveryCompliance: {
+    score: number;
+    compliant: number;
+    nonCompliant: number;
+    other: number;
+  };
+}
+
+interface DetailedModelOverlayLink {
+  ciNodeId: string;
+  tileId: string;
+  kind: "shared-resource" | "related-model";
+}
+
+function isDetailedModelOverlayNodeId(nodeId: string): boolean {
+  return nodeId.startsWith(DETAILED_MODEL_OVERLAY_NODE_PREFIX);
 }
 
 function createDefaultCiFlow3DViewState(): CiFlow3DViewState {
@@ -1137,6 +1180,10 @@ export function NetworkTopologyView({
   const [ciFlowIncludedAssetTypes, setCiFlowIncludedAssetTypes] = useState<Set<CiAssetType>>(
     () => new Set<CiAssetType>(["server"])
   );
+  const ciFlowShowSharedResources = false;
+  const ciFlowShowRelatedModels = false;
+  const [detailedShowSharedResources, setDetailedShowSharedResources] = useState(false);
+  const [detailedShowRelatedModels, setDetailedShowRelatedModels] = useState(false);
   const [draggingCiFlowNodeId, setDraggingCiFlowNodeId] = useState<string | null>(null);
   const [ciFlowNodeDragOffsets, setCiFlowNodeDragOffsets] = useState<Record<string, { x: number; y: number }>>({});
   const [ciFlowTweenProgress, setCiFlowTweenProgress] = useState(0);
@@ -1599,6 +1646,252 @@ export function NetworkTopologyView({
       height: bodyHeight + DETAILED_CANVAS_PADDING_Y * 2
     };
   }, [ciItemsByNodeId, complianceMode, detailedRootNode]);
+  const detailedModelOverlay = useMemo<{
+    tiles: DetailedModelOverlayTile[];
+    links: DetailedModelOverlayLink[];
+    width: number;
+    height: number;
+  }>(() => {
+    const baseWidth = detailedTree?.width ?? 1;
+    const baseHeight = detailedTree?.height ?? 1;
+    if (
+      !detailedTree ||
+      !detailedRootNode ||
+      Boolean(focusedCiFlowRootAssetId) ||
+      (!detailedShowSharedResources && !detailedShowRelatedModels)
+    ) {
+      return { tiles: [], links: [], width: baseWidth, height: baseHeight };
+    }
+
+    const detailedCiNodes = detailedTree.nodes.filter(
+      (node): node is DetailedTreeNode & { entityType: "ci"; ciAssetId: string } =>
+        node.entityType === "ci" && Boolean(node.ciAssetId)
+    );
+    if (!detailedCiNodes.length) {
+      return { tiles: [], links: [], width: baseWidth, height: baseHeight };
+    }
+
+    const excludedSystemId = detailedRootNode.entityType === "ict-system" ? detailedRootNode.entityId : null;
+    const excludedNetworkId = detailedRootNode.entityType === "network" ? detailedRootNode.entityId : null;
+    const ciNodeById = new Map(detailedTree.nodes.map((node) => [node.id, node]));
+    const flowNeighboursByAssetId = new Map<string, Set<string>>();
+    if (detailedShowRelatedModels) {
+      for (const dependency of data.ciDependencies) {
+        if (dependency.dependencyType !== "Flow Dependency") {
+          continue;
+        }
+        const left = flowNeighboursByAssetId.get(dependency.sourceAssetId) ?? new Set<string>();
+        left.add(dependency.targetAssetId);
+        flowNeighboursByAssetId.set(dependency.sourceAssetId, left);
+        const right = flowNeighboursByAssetId.get(dependency.targetAssetId) ?? new Set<string>();
+        right.add(dependency.sourceAssetId);
+        flowNeighboursByAssetId.set(dependency.targetAssetId, right);
+      }
+    }
+
+    type ModelAccumulator = {
+      modelId: string;
+      modelType: CiFlowModelTileType;
+      typeLabel: string;
+      name: string;
+      sharedCiNodeIds: Set<string>;
+      relatedCiNodeIds: Set<string>;
+      summaryCiNodeIds: Set<string>;
+      cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+      discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+    };
+    const modelAccumulatorByKey = new Map<string, ModelAccumulator>();
+    const links: DetailedModelOverlayLink[] = [];
+    const linkKeySet = new Set<string>();
+    const modelLinkKindsByKey = new Map<string, Set<DetailedModelOverlayLink["kind"]>>();
+
+    const addModelLink = (
+      sourceCiNodeId: string,
+      modelType: CiFlowModelTileType,
+      modelId: string,
+      modelName: string,
+      kind: DetailedModelOverlayLink["kind"]
+    ) => {
+      if (!modelId) {
+        return;
+      }
+      if (modelType === "ict-system-model" && excludedSystemId && modelId === excludedSystemId) {
+        return;
+      }
+      if (modelType === "network-model" && excludedNetworkId && modelId === excludedNetworkId) {
+        return;
+      }
+      const modelKey = `${modelType}:${modelId}`;
+      const currentKinds = modelLinkKindsByKey.get(modelKey) ?? new Set<DetailedModelOverlayLink["kind"]>();
+      currentKinds.add(kind);
+      modelLinkKindsByKey.set(modelKey, currentKinds);
+      const existing = modelAccumulatorByKey.get(modelKey);
+      const accumulator =
+        existing ??
+        ({
+          modelId,
+          modelType,
+          typeLabel: modelType === "ict-system-model" ? "ICT System Model" : "Network Model",
+          name: modelName,
+          sharedCiNodeIds: new Set<string>(),
+          relatedCiNodeIds: new Set<string>(),
+          summaryCiNodeIds: new Set<string>(),
+          cyberSummaries: [],
+          discoverySummaries: []
+        } as ModelAccumulator);
+      if (!existing) {
+        modelAccumulatorByKey.set(modelKey, accumulator);
+      }
+      if (!accumulator.summaryCiNodeIds.has(sourceCiNodeId)) {
+        const sourceCiNode = ciNodeById.get(sourceCiNodeId);
+        if (sourceCiNode) {
+          accumulator.summaryCiNodeIds.add(sourceCiNodeId);
+          accumulator.cyberSummaries.push(sourceCiNode.cyberCompliance);
+          accumulator.discoverySummaries.push(sourceCiNode.discoveryCompliance);
+        }
+      }
+      if (kind === "shared-resource") {
+        accumulator.sharedCiNodeIds.add(sourceCiNodeId);
+      } else {
+        accumulator.relatedCiNodeIds.add(sourceCiNodeId);
+      }
+      const linkKey = `${sourceCiNodeId}:${modelKey}:${kind}`;
+      if (linkKeySet.has(linkKey)) {
+        return;
+      }
+      linkKeySet.add(linkKey);
+      links.push({
+        ciNodeId: sourceCiNodeId,
+        tileId: `${DETAILED_MODEL_OVERLAY_NODE_PREFIX}${modelKey}`,
+        kind
+      });
+    };
+
+    for (const ciNode of detailedCiNodes) {
+      const sourceCi = flowCiNodeByAssetId.get(ciNode.ciAssetId);
+      if (!sourceCi) {
+        continue;
+      }
+      if (detailedShowSharedResources) {
+        if (sourceCi.systemId) {
+          addModelLink(
+            ciNode.id,
+            "ict-system-model",
+            sourceCi.systemId,
+            sourceCi.systemName ?? sourceCi.systemId,
+            "shared-resource"
+          );
+        }
+        if (sourceCi.networkId) {
+          addModelLink(
+            ciNode.id,
+            "network-model",
+            sourceCi.networkId,
+            networkNameById.get(sourceCi.networkId) ?? sourceCi.networkId,
+            "shared-resource"
+          );
+        }
+      }
+      if (!detailedShowRelatedModels) {
+        continue;
+      }
+      for (const relatedAssetId of flowNeighboursByAssetId.get(ciNode.ciAssetId) ?? []) {
+        const relatedCi = flowCiNodeByAssetId.get(relatedAssetId);
+        if (!relatedCi) {
+          continue;
+        }
+        if (relatedCi.systemId && relatedCi.systemId !== sourceCi.systemId) {
+          addModelLink(
+            ciNode.id,
+            "ict-system-model",
+            relatedCi.systemId,
+            relatedCi.systemName ?? relatedCi.systemId,
+            "related-model"
+          );
+        }
+        if (relatedCi.networkId && relatedCi.networkId !== sourceCi.networkId) {
+          addModelLink(
+            ciNode.id,
+            "network-model",
+            relatedCi.networkId,
+            networkNameById.get(relatedCi.networkId) ?? relatedCi.networkId,
+            "related-model"
+          );
+        }
+      }
+    }
+
+    const orderedModels = Array.from(modelAccumulatorByKey.values()).sort((left, right) => {
+      if (left.modelType !== right.modelType) {
+        return left.modelType.localeCompare(right.modelType);
+      }
+      return left.name.localeCompare(right.name);
+    });
+    if (!orderedModels.length) {
+      return { tiles: [], links: [], width: baseWidth, height: baseHeight };
+    }
+
+    const maxCiX = Math.max(...detailedCiNodes.map((node) => node.x + node.width));
+    const minCiY = Math.min(...detailedCiNodes.map((node) => node.y));
+    const tileWidth = DETAILED_TILE_WIDTH;
+    const tileHeight = DETAILED_TILE_HEIGHT;
+    const tileGap = 14;
+    const tileColumnX = maxCiX + 270;
+    let tileCursorY = minCiY;
+    const tiles: DetailedModelOverlayTile[] = [];
+    for (const model of orderedModels) {
+      const tileId = `${DETAILED_MODEL_OVERLAY_NODE_PREFIX}${model.modelType}:${model.modelId}`;
+      const linkedKinds = modelLinkKindsByKey.get(`${model.modelType}:${model.modelId}`) ?? new Set<
+        DetailedModelOverlayLink["kind"]
+      >();
+      const relationshipLabel =
+        linkedKinds.size === 2
+          ? "Shared Resources + Related Models"
+          : linkedKinds.has("related-model")
+            ? "Related Models"
+            : "Shared Resources";
+      const modelKindLabel = model.modelType === "ict-system-model" ? "ICT System" : "Network";
+      tiles.push({
+        id: tileId,
+        modelId: model.modelId,
+        modelType: model.modelType,
+        entityType: model.modelType === "ict-system-model" ? "ict-system" : "network",
+        typeLabel: relationshipLabel,
+        name: model.name,
+        subtitle: modelKindLabel,
+        x: tileColumnX,
+        y: tileCursorY,
+        width: tileWidth,
+        height: tileHeight,
+        sharedCount: model.sharedCiNodeIds.size,
+        relatedCount: model.relatedCiNodeIds.size,
+        cyberCompliance: combineComplianceSummaries(model.cyberSummaries),
+        discoveryCompliance: combineComplianceSummaries(model.discoverySummaries)
+      });
+      tileCursorY += tileHeight + tileGap;
+    }
+
+    const overlayHeight = Math.max(baseHeight, tileCursorY + DETAILED_CANVAS_PADDING_Y);
+    const overlayWidth = Math.max(baseWidth, tileColumnX + tileWidth + DETAILED_CANVAS_PADDING_X);
+    return {
+      tiles,
+      links: links.filter(
+        (link) =>
+          ciNodeById.has(link.ciNodeId) && tiles.some((tile) => tile.id === link.tileId)
+      ),
+      width: overlayWidth,
+      height: overlayHeight
+    };
+  }, [
+    data.ciDependencies,
+    detailedRootNode,
+    detailedShowRelatedModels,
+    detailedShowSharedResources,
+    detailedTree,
+    flowCiNodeByAssetId,
+    focusedCiFlowRootAssetId,
+    networkNameById
+  ]);
   const ciFlowGraph = useMemo<CiFlowGraphData | null>(() => {
     if (!focusedCiFlowRootAssetId) {
       return null;
@@ -1955,6 +2248,127 @@ export function NetworkTopologyView({
   const detailedHighlightedEdgeIds = useMemo(() => {
     return new Set<string>([...detailedSelectedPathEdgeIds, ...detailedSelectedConnectedEdgeIds]);
   }, [detailedSelectedConnectedEdgeIds, detailedSelectedPathEdgeIds]);
+  const detailedCiSelectionFocus = useMemo<{
+    linkedNodeIds: Set<string>;
+    linkedTreeEdgeIds: Set<string>;
+    linkedOverlayTileIds: Set<string>;
+    linkedOverlayLinkKeys: Set<string>;
+  } | null>(() => {
+    if (!detailedTree || !detailedSelectedNodeId || isCiFlowFocusPanelOpen) {
+      return null;
+    }
+    const isOverlaySelection = isDetailedModelOverlayNodeId(detailedSelectedNodeId);
+    const selectedTreeNode = detailedNodeById.get(detailedSelectedNodeId);
+    if (!selectedTreeNode && !isOverlaySelection) {
+      return null;
+    }
+
+    const childEdgesByNodeId = new Map<string, DetailedTreeEdge[]>();
+    for (const edge of detailedTree.edges) {
+      const currentChildren = childEdgesByNodeId.get(edge.fromNodeId) ?? [];
+      currentChildren.push(edge);
+      childEdgesByNodeId.set(edge.fromNodeId, currentChildren);
+    }
+    const previousByNodeId = new Map<string, { nodeId: string; edgeId: string }>();
+    const visitedFromRoot = new Set<string>([detailedTree.rootNodeId]);
+    const traversalQueue = [detailedTree.rootNodeId];
+    while (traversalQueue.length) {
+      const currentNodeId = traversalQueue.shift();
+      if (!currentNodeId) {
+        continue;
+      }
+      for (const edge of childEdgesByNodeId.get(currentNodeId) ?? []) {
+        if (visitedFromRoot.has(edge.toNodeId)) {
+          continue;
+        }
+        visitedFromRoot.add(edge.toNodeId);
+        previousByNodeId.set(edge.toNodeId, { nodeId: currentNodeId, edgeId: edge.id });
+        traversalQueue.push(edge.toNodeId);
+      }
+    }
+
+    const linkedTreeEdgeIds = new Set<string>();
+    const linkedNodeIds = new Set<string>([detailedSelectedNodeId]);
+    const linkedOverlayTileIds = new Set<string>();
+    const linkedOverlayLinkKeys = new Set<string>();
+
+    const includePathFromRoot = (targetNodeId: string) => {
+      linkedNodeIds.add(targetNodeId);
+      if (targetNodeId === detailedTree.rootNodeId) {
+        linkedNodeIds.add(detailedTree.rootNodeId);
+        return;
+      }
+      let cursorNodeId = targetNodeId;
+      const guardNodeIds = new Set<string>();
+      while (cursorNodeId !== detailedTree.rootNodeId) {
+        if (guardNodeIds.has(cursorNodeId)) {
+          break;
+        }
+        guardNodeIds.add(cursorNodeId);
+        const previous = previousByNodeId.get(cursorNodeId);
+        if (!previous) {
+          break;
+        }
+        linkedTreeEdgeIds.add(previous.edgeId);
+        linkedNodeIds.add(previous.nodeId);
+        linkedNodeIds.add(cursorNodeId);
+        cursorNodeId = previous.nodeId;
+      }
+    };
+
+    if (isOverlaySelection) {
+      linkedOverlayTileIds.add(detailedSelectedNodeId);
+      for (const link of detailedModelOverlay.links) {
+        if (link.tileId !== detailedSelectedNodeId) {
+          continue;
+        }
+        linkedOverlayLinkKeys.add(`${link.ciNodeId}|${link.tileId}|${link.kind}`);
+        linkedNodeIds.add(link.ciNodeId);
+        includePathFromRoot(link.ciNodeId);
+      }
+    } else if (selectedTreeNode) {
+      includePathFromRoot(detailedSelectedNodeId);
+      const descendantNodeIdsQueue = [detailedSelectedNodeId];
+      const visitedDescendantNodeIds = new Set<string>([detailedSelectedNodeId]);
+      while (descendantNodeIdsQueue.length) {
+        const currentNodeId = descendantNodeIdsQueue.shift();
+        if (!currentNodeId) {
+          continue;
+        }
+        for (const edge of childEdgesByNodeId.get(currentNodeId) ?? []) {
+          linkedTreeEdgeIds.add(edge.id);
+          linkedNodeIds.add(edge.fromNodeId);
+          linkedNodeIds.add(edge.toNodeId);
+          if (visitedDescendantNodeIds.has(edge.toNodeId)) {
+            continue;
+          }
+          visitedDescendantNodeIds.add(edge.toNodeId);
+          descendantNodeIdsQueue.push(edge.toNodeId);
+        }
+      }
+      for (const link of detailedModelOverlay.links) {
+        if (!linkedNodeIds.has(link.ciNodeId)) {
+          continue;
+        }
+        linkedOverlayTileIds.add(link.tileId);
+        linkedNodeIds.add(link.tileId);
+        linkedOverlayLinkKeys.add(`${link.ciNodeId}|${link.tileId}|${link.kind}`);
+      }
+    }
+
+    return {
+      linkedNodeIds,
+      linkedTreeEdgeIds,
+      linkedOverlayTileIds,
+      linkedOverlayLinkKeys
+    };
+  }, [
+    detailedModelOverlay.links,
+    detailedNodeById,
+    detailedSelectedNodeId,
+    detailedTree,
+    isCiFlowFocusPanelOpen
+  ]);
   const ciFlowActiveSelectionNodeId = selectedCiFlowNodeId ?? ciFlowRootNodeId ?? null;
   const ciFlowRootDirectEdgeIds = useMemo(() => {
     if (!ciFlowGraph || !ciFlowRootNodeId) {
@@ -1988,24 +2402,79 @@ export function NetworkTopologyView({
     if (!ciFlowGraph) {
       return [];
     }
+    const ciFlowNodeById = new Map(ciFlowGraph.nodes.map((node) => [node.id, node]));
+    const rootCi = flowCiNodeByAssetId.get(ciFlowGraph.rootAssetId);
+    const rootSystemId = rootCi?.systemId ?? null;
+    const rootNetworkId = rootCi?.networkId ?? null;
+    const rootScopeNodeIds = ciFlowRootScopeNodeIds.size
+      ? ciFlowRootScopeNodeIds
+      : new Set(ciFlowGraph.nodes.map((node) => node.id));
+    type ModelAccumulator = {
+      name: string;
+      nodeIds: Set<string>;
+      scopeNodeIds: Set<string>;
+      sharedResourceNodeIds: Set<string>;
+      relatedModelNodeIds: Set<string>;
+      cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+      discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+      summaryNodeIds: Set<string>;
+    };
     const ictModelById = new Map<
       string,
-      {
-        name: string;
-        nodeIds: Set<string>;
-        cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
-        discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
-      }
+      ModelAccumulator
     >();
     const networkModelById = new Map<
       string,
-      {
-        name: string;
-        nodeIds: Set<string>;
-        cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
-        discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
-      }
+      ModelAccumulator
     >();
+    const ensureAccumulator = (map: Map<string, ModelAccumulator>, modelId: string, modelName: string) => {
+      const existing = map.get(modelId);
+      if (existing) {
+        return existing;
+      }
+      const created: ModelAccumulator = {
+        name: modelName,
+        nodeIds: new Set<string>(),
+        scopeNodeIds: new Set<string>(),
+        sharedResourceNodeIds: new Set<string>(),
+        relatedModelNodeIds: new Set<string>(),
+        cyberSummaries: [],
+        discoverySummaries: [],
+        summaryNodeIds: new Set<string>()
+      };
+      map.set(modelId, created);
+      return created;
+    };
+    const appendSummaryIfNeeded = (
+      accumulator: ModelAccumulator,
+      sourceNode: CiFlowNodeLayout
+    ) => {
+      if (accumulator.summaryNodeIds.has(sourceNode.id)) {
+        return;
+      }
+      accumulator.summaryNodeIds.add(sourceNode.id);
+      accumulator.cyberSummaries.push(sourceNode.cyberCompliance);
+      accumulator.discoverySummaries.push(sourceNode.discoveryCompliance);
+    };
+    const linkNodeToModel = (
+      modelType: CiFlowModelTileType,
+      modelId: string,
+      modelName: string,
+      sourceNode: CiFlowNodeLayout,
+      linkKind: CiFlowModelLinkKind
+    ) => {
+      const targetMap = modelType === "ict-system-model" ? ictModelById : networkModelById;
+      const accumulator = ensureAccumulator(targetMap, modelId, modelName);
+      accumulator.nodeIds.add(sourceNode.id);
+      if (linkKind === "scope") {
+        accumulator.scopeNodeIds.add(sourceNode.id);
+      } else if (linkKind === "shared-resource") {
+        accumulator.sharedResourceNodeIds.add(sourceNode.id);
+      } else if (linkKind === "related-model") {
+        accumulator.relatedModelNodeIds.add(sourceNode.id);
+      }
+      appendSummaryIfNeeded(accumulator, sourceNode);
+    };
 
     for (const node of ciFlowGraph.nodes) {
       if (node.entityType !== "ci" || !node.isInModelScope || !node.assetId) {
@@ -2019,32 +2488,117 @@ export function NetworkTopologyView({
         continue;
       }
       if (sourceCi.systemId) {
-        const current = ictModelById.get(sourceCi.systemId) ?? {
-          name: sourceCi.systemName ?? sourceCi.systemId,
-          nodeIds: new Set<string>(),
-          cyberSummaries: [],
-          discoverySummaries: []
-        };
-        current.nodeIds.add(node.id);
-        current.cyberSummaries.push(node.cyberCompliance);
-        current.discoverySummaries.push(node.discoveryCompliance);
-        ictModelById.set(sourceCi.systemId, current);
+        linkNodeToModel(
+          "ict-system-model",
+          sourceCi.systemId,
+          sourceCi.systemName ?? sourceCi.systemId,
+          node,
+          "scope"
+        );
       }
       if (sourceCi.networkId) {
-        const current = networkModelById.get(sourceCi.networkId) ?? {
-          name: networkNameById.get(sourceCi.networkId) ?? sourceCi.networkId,
-          nodeIds: new Set<string>(),
-          cyberSummaries: [],
-          discoverySummaries: []
-        };
-        current.nodeIds.add(node.id);
-        current.cyberSummaries.push(node.cyberCompliance);
-        current.discoverySummaries.push(node.discoveryCompliance);
-        networkModelById.set(sourceCi.networkId, current);
+        linkNodeToModel(
+          "network-model",
+          sourceCi.networkId,
+          networkNameById.get(sourceCi.networkId) ?? sourceCi.networkId,
+          node,
+          "scope"
+        );
+      }
+      if (ciFlowShowSharedResources) {
+        if (sourceCi.systemId && sourceCi.systemId !== rootSystemId) {
+          linkNodeToModel(
+            "ict-system-model",
+            sourceCi.systemId,
+            sourceCi.systemName ?? sourceCi.systemId,
+            node,
+            "shared-resource"
+          );
+        }
+        if (sourceCi.networkId && sourceCi.networkId !== rootNetworkId) {
+          linkNodeToModel(
+            "network-model",
+            sourceCi.networkId,
+            networkNameById.get(sourceCi.networkId) ?? sourceCi.networkId,
+            node,
+            "shared-resource"
+          );
+        }
+      }
+    }
+
+    if (ciFlowShowRelatedModels) {
+      for (const edge of ciFlowGraph.edges) {
+        if (edge.dependencyType !== "Flow Dependency") {
+          continue;
+        }
+        const fromInRootScope = rootScopeNodeIds.has(edge.fromNodeId);
+        const toInRootScope = rootScopeNodeIds.has(edge.toNodeId);
+        if (fromInRootScope === toInRootScope) {
+          continue;
+        }
+        const sourceNode = ciFlowNodeById.get(fromInRootScope ? edge.fromNodeId : edge.toNodeId);
+        const relatedNode = ciFlowNodeById.get(fromInRootScope ? edge.toNodeId : edge.fromNodeId);
+        if (
+          !sourceNode ||
+          !relatedNode ||
+          sourceNode.entityType !== "ci" ||
+          relatedNode.entityType !== "ci" ||
+          !sourceNode.assetId ||
+          !relatedNode.assetId ||
+          !relatedNode.isInModelScope
+        ) {
+          continue;
+        }
+        const relatedCi = flowCiNodeByAssetId.get(relatedNode.assetId);
+        const sourceCi = flowCiNodeByAssetId.get(sourceNode.assetId);
+        if (!relatedCi || !sourceCi) {
+          continue;
+        }
+        if (relatedCi.systemId && relatedCi.systemId !== sourceCi.systemId) {
+          linkNodeToModel(
+            "ict-system-model",
+            relatedCi.systemId,
+            relatedCi.systemName ?? relatedCi.systemId,
+            sourceNode,
+            "related-model"
+          );
+        }
+        if (relatedCi.networkId && relatedCi.networkId !== sourceCi.networkId) {
+          linkNodeToModel(
+            "network-model",
+            relatedCi.networkId,
+            networkNameById.get(relatedCi.networkId) ?? relatedCi.networkId,
+            sourceNode,
+            "related-model"
+          );
+        }
       }
     }
 
     const tiles: CiFlowModelTile[] = [];
+    const subtitleForAccumulator = (accumulator: ModelAccumulator) => {
+      const parts: string[] = [];
+      if (accumulator.scopeNodeIds.size) {
+        parts.push(
+          `${accumulator.scopeNodeIds.size} in-scope CI${accumulator.scopeNodeIds.size === 1 ? "" : "s"} linked`
+        );
+      }
+      if (ciFlowShowSharedResources && accumulator.sharedResourceNodeIds.size) {
+        parts.push(
+          `${accumulator.sharedResourceNodeIds.size} shared CI${accumulator.sharedResourceNodeIds.size === 1 ? "" : "s"}`
+        );
+      }
+      if (ciFlowShowRelatedModels && accumulator.relatedModelNodeIds.size) {
+        parts.push(
+          `${accumulator.relatedModelNodeIds.size} related CI${accumulator.relatedModelNodeIds.size === 1 ? "" : "s"}`
+        );
+      }
+      if (!parts.length) {
+        parts.push(`${accumulator.nodeIds.size} CI${accumulator.nodeIds.size === 1 ? "" : "s"} linked`);
+      }
+      return parts.join(" | ");
+    };
     for (const [modelId, model] of ictModelById.entries()) {
       tiles.push({
         id: `ci-flow-model:ict:${modelId}`,
@@ -2052,8 +2606,11 @@ export function NetworkTopologyView({
         modelType: "ict-system-model",
         typeLabel: "ICT System Model",
         name: model.name,
-        subtitle: `${model.nodeIds.size} in-scope CI${model.nodeIds.size === 1 ? "" : "s"} linked`,
+        subtitle: subtitleForAccumulator(model),
         linkedCiNodeIds: Array.from(model.nodeIds),
+        scopeLinkedCiNodeIds: Array.from(model.scopeNodeIds),
+        sharedResourceCiNodeIds: Array.from(model.sharedResourceNodeIds),
+        relatedModelCiNodeIds: Array.from(model.relatedModelNodeIds),
         cyberCompliance: combineComplianceSummaries(model.cyberSummaries),
         discoveryCompliance: combineComplianceSummaries(model.discoverySummaries)
       });
@@ -2065,8 +2622,11 @@ export function NetworkTopologyView({
         modelType: "network-model",
         typeLabel: "Network Model",
         name: model.name,
-        subtitle: `${model.nodeIds.size} in-scope CI${model.nodeIds.size === 1 ? "" : "s"} linked`,
+        subtitle: subtitleForAccumulator(model),
         linkedCiNodeIds: Array.from(model.nodeIds),
+        scopeLinkedCiNodeIds: Array.from(model.scopeNodeIds),
+        sharedResourceCiNodeIds: Array.from(model.sharedResourceNodeIds),
+        relatedModelCiNodeIds: Array.from(model.relatedModelNodeIds),
         cyberCompliance: combineComplianceSummaries(model.cyberSummaries),
         discoveryCompliance: combineComplianceSummaries(model.discoverySummaries)
       });
@@ -2077,7 +2637,14 @@ export function NetworkTopologyView({
       }
       return left.name.localeCompare(right.name);
     });
-  }, [ciFlowGraph, ciFlowRootScopeNodeIds, flowCiNodeByAssetId, networkNameById]);
+  }, [
+    ciFlowGraph,
+    ciFlowRootScopeNodeIds,
+    ciFlowShowRelatedModels,
+    ciFlowShowSharedResources,
+    flowCiNodeByAssetId,
+    networkNameById
+  ]);
   const ciFlowModelTileById = useMemo(() => {
     return new Map(ciFlowModelTiles.map((tile) => [tile.id, tile]));
   }, [ciFlowModelTiles]);
@@ -3233,8 +3800,14 @@ export function NetworkTopologyView({
     setRendererInitError(null);
 
     const isFlowMode = isCiFlowFocusPanelOpen && Boolean(ciFlowGraph);
-    const graphWidth = Math.max(1, isFlowMode ? (ciFlowGraph?.width ?? 1) : (detailedTree?.width ?? 1));
-    const graphHeight = Math.max(1, isFlowMode ? (ciFlowGraph?.height ?? 1) : (detailedTree?.height ?? 1));
+    const graphWidth = Math.max(
+      1,
+      isFlowMode ? (ciFlowGraph?.width ?? 1) : (detailedModelOverlay.width || detailedTree?.width || 1)
+    );
+    const graphHeight = Math.max(
+      1,
+      isFlowMode ? (ciFlowGraph?.height ?? 1) : (detailedModelOverlay.height || detailedTree?.height || 1)
+    );
     const graphKey = isFlowMode ? `flow:${ciFlowGraph?.rootAssetId ?? ""}` : `detailed:${detailedTree?.rootNodeId ?? ""}`;
     const viewState = detailedCanvasViewStateRef.current;
     if (viewState.graphKey !== graphKey) {
@@ -3381,25 +3954,57 @@ export function NetworkTopologyView({
               height: node.height,
               opacity: node.renderOpacity
             }))
-        : (detailedTree?.nodes ?? [])
-            .filter((node) => !isDetailedTileFilterActive || detailedFilteredNodeIds.has(node.id))
-            .map<RenderNode>((node) => {
-              const offset = detailedCanvasNodeOffsetsRef.current[node.id] ?? { x: 0, y: 0 };
-              return {
-                id: node.id,
-                entityType: node.entityType,
-                name: node.name,
-                subtitle: node.subtitle,
-                cyberCompliance: node.cyberCompliance,
-                discoveryCompliance: node.discoveryCompliance,
-                x: node.x + offset.x,
-                y: node.y + offset.y,
-                z: 0,
-                width: node.width,
-                height: node.height,
-                opacity: 1
-              };
-            });
+        : (() => {
+            const baseDetailedNodes = (detailedTree?.nodes ?? [])
+              .filter((node) => !isDetailedTileFilterActive || detailedFilteredNodeIds.has(node.id))
+              .map<RenderNode>((node) => {
+                const offset = detailedCanvasNodeOffsetsRef.current[node.id] ?? { x: 0, y: 0 };
+                return {
+                  id: node.id,
+                  entityType: node.entityType,
+                  name: node.name,
+                  subtitle: node.subtitle,
+                  cyberCompliance: node.cyberCompliance,
+                  discoveryCompliance: node.discoveryCompliance,
+                  x: node.x + offset.x,
+                  y: node.y + offset.y,
+                  z: 0,
+                  width: node.width,
+                  height: node.height,
+                  opacity: 1
+                };
+              });
+            if (!detailedModelOverlay.tiles.length) {
+              return baseDetailedNodes;
+            }
+            const visibleOverlayTileIds = new Set<string>();
+            for (const link of detailedModelOverlay.links) {
+              if (detailedFilteredNodeIds.has(link.ciNodeId)) {
+                visibleOverlayTileIds.add(link.tileId);
+              }
+            }
+            const overlayNodes = detailedModelOverlay.tiles
+              .filter((tile) => visibleOverlayTileIds.has(tile.id))
+              .map<RenderNode>((tile) => {
+                const offset = detailedCanvasNodeOffsetsRef.current[tile.id] ?? { x: 0, y: 0 };
+                return {
+                  id: tile.id,
+                  entityType: tile.entityType,
+                  name: tile.name,
+                  subtitle: tile.subtitle,
+                  modelLabel: tile.typeLabel,
+                  cyberCompliance: tile.cyberCompliance,
+                  discoveryCompliance: tile.discoveryCompliance,
+                  x: tile.x + offset.x,
+                  y: tile.y + offset.y,
+                  z: 0,
+                  width: tile.width,
+                  height: tile.height,
+                  opacity: 1
+                };
+              });
+            return [...baseDetailedNodes, ...overlayNodes];
+          })();
 
       const clusterProgress = detailedFilterClusterProgressRef.current;
       if (clusterProgress <= 0.0001 || baseNodes.length <= 1) {
@@ -3893,14 +4498,134 @@ export function NetworkTopologyView({
           const end = worldToScreen(curve.endX, curve.endY);
           const isPathEdge = detailedSelectedPathEdgeIds.has(edge.id);
           const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
+          const isFocusedTreeEdge = detailedCiSelectionFocus?.linkedTreeEdgeIds.has(edge.id) ?? false;
+          const edgeOpacity = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
           context.beginPath();
           context.moveTo(start.x, start.y);
           context.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, end.x, end.y);
           context.strokeStyle = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : "#38bdf8";
-          context.globalAlpha = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
+          context.globalAlpha =
+            detailedCiSelectionFocus && !isFocusedTreeEdge ? edgeOpacity * 0.2 : edgeOpacity;
           context.lineWidth = isPathEdge ? 3.6 : isConnectedEdge ? 3 : 2;
           context.lineCap = "round";
           context.stroke();
+        }
+        if (detailedModelOverlay.tiles.length) {
+          const visibleTileIds = new Set<string>();
+          for (const link of detailedModelOverlay.links) {
+            if (!detailedFilteredNodeIds.has(link.ciNodeId)) {
+              continue;
+            }
+            const sourceNode = nodeById.get(link.ciNodeId);
+            const targetNode = nodeById.get(link.tileId);
+            if (!sourceNode || !targetNode) {
+              continue;
+            }
+            visibleTileIds.add(link.tileId);
+            const sourcePoint = worldToScreen(sourceNode.x + sourceNode.width, sourceNode.y + sourceNode.height / 2);
+            const targetPoint = worldToScreen(targetNode.x, targetNode.y + targetNode.height / 2);
+            const controlOffset = Math.max(44, (targetPoint.x - sourcePoint.x) * 0.28);
+            context.beginPath();
+            context.moveTo(sourcePoint.x, sourcePoint.y);
+            context.bezierCurveTo(
+              sourcePoint.x + controlOffset,
+              sourcePoint.y,
+              targetPoint.x - controlOffset,
+              targetPoint.y,
+              targetPoint.x,
+              targetPoint.y
+            );
+            context.strokeStyle = link.kind === "shared-resource" ? "#ef4444" : "#f97316";
+            const overlayLinkKey = `${link.ciNodeId}|${link.tileId}|${link.kind}`;
+            const isFocusedOverlayLink = detailedCiSelectionFocus?.linkedOverlayLinkKeys.has(overlayLinkKey) ?? false;
+            context.globalAlpha = detailedCiSelectionFocus && !isFocusedOverlayLink ? 0.172 : 0.86;
+            context.lineWidth = 2.2;
+            context.lineCap = "round";
+            context.stroke();
+          }
+          for (const tile of detailedModelOverlay.tiles) {
+            if (!visibleTileIds.has(tile.id)) {
+              continue;
+            }
+            const runtimeTileNode = nodeById.get(tile.id);
+            if (!runtimeTileNode) {
+              continue;
+            }
+            const topLeft = worldToScreen(runtimeTileNode.x, runtimeTileNode.y);
+            const tileWidth = runtimeTileNode.width * viewState.zoom;
+            const tileHeight = runtimeTileNode.height * viewState.zoom;
+            if (
+              topLeft.x + tileWidth < -20 ||
+              topLeft.x > width + 20 ||
+              topLeft.y + tileHeight < -20 ||
+              topLeft.y > height + 20
+            ) {
+              continue;
+            }
+            const fillColor = detailedTileColor(tile.entityType);
+            const strokeColor = detailedTileStrokeColor(tile.entityType);
+            const compliance = complianceMode === "cyber" ? tile.cyberCompliance : tile.discoveryCompliance;
+            const percentages = compliancePercentages(compliance);
+            const isFocusedOverlayTile = detailedCiSelectionFocus?.linkedOverlayTileIds.has(tile.id) ?? false;
+            context.globalAlpha = detailedCiSelectionFocus && !isFocusedOverlayTile ? 0.196 : 0.98;
+            roundedRectPath(context, topLeft.x, topLeft.y, tileWidth, tileHeight, 18);
+            context.fillStyle = fillColor;
+            context.fill();
+            context.lineWidth = 2.2;
+            context.strokeStyle = strokeColor;
+            context.stroke();
+            const textScale = Math.max(0.78, Math.min(1.2, viewState.zoom));
+            drawText(
+              `Type: ${tile.typeLabel}`,
+              topLeft.x + 12 * textScale,
+              topLeft.y + 22 * textScale,
+              tileWidth - 20 * textScale,
+              `${Math.round(12 * textScale)}px sans-serif`,
+              "#0f172a"
+            );
+            drawText(
+              `Name: ${tile.name}`,
+              topLeft.x + 12 * textScale,
+              topLeft.y + 40 * textScale,
+              tileWidth - 20 * textScale,
+              `${Math.round(12 * textScale)}px sans-serif`,
+              "#0f172a"
+            );
+            drawText(
+              tile.subtitle,
+              topLeft.x + 12 * textScale,
+              topLeft.y + 58 * textScale,
+              tileWidth - 20 * textScale,
+              `${Math.round(10 * textScale)}px sans-serif`,
+              "#334155"
+            );
+            const progressY = topLeft.y + tileHeight - 18 * textScale;
+            const progressWidth = Math.max(80, tileWidth - 26 * textScale);
+            roundedRectPath(context, topLeft.x + 13 * textScale, progressY, progressWidth, 9 * textScale, 3);
+            context.fillStyle = "#cbd5e1";
+            context.fill();
+            context.fillStyle = "#16a34a";
+            context.fillRect(
+              topLeft.x + 13 * textScale,
+              progressY,
+              (progressWidth * percentages.compliant) / 100,
+              9 * textScale
+            );
+            context.fillStyle = "#ef4444";
+            context.fillRect(
+              topLeft.x + 13 * textScale + (progressWidth * percentages.compliant) / 100,
+              progressY,
+              (progressWidth * percentages.nonCompliant) / 100,
+              9 * textScale
+            );
+            context.fillStyle = "#94a3b8";
+            context.fillRect(
+              topLeft.x + 13 * textScale + (progressWidth * (percentages.compliant + percentages.nonCompliant)) / 100,
+              progressY,
+              (progressWidth * percentages.other) / 100,
+              9 * textScale
+            );
+          }
         }
       }
 
@@ -3911,6 +4636,9 @@ export function NetworkTopologyView({
           )
         : latestNodes;
       for (const node of nodesToRender) {
+        if (!isFlowMode && isDetailedModelOverlayNodeId(node.id)) {
+          continue;
+        }
         const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
         const percentages = compliancePercentages(compliance);
         const isRootNode = node.id === detailedDisplayRootNodeId;
@@ -4070,8 +4798,11 @@ export function NetworkTopologyView({
             ? "#a855f7"
             : detailedTileStrokeColor(node.entityType);
         const fillColor = detailedTileColor(node.entityType);
+        const isFocusedNode = detailedCiSelectionFocus?.linkedNodeIds.has(node.id) ?? false;
+        const nodeBaseOpacity = Math.max(0.1, Math.min(1, node.opacity));
+        const nodeOpacity = detailedCiSelectionFocus && !isFocusedNode ? nodeBaseOpacity * 0.2 : nodeBaseOpacity;
 
-        context.globalAlpha = Math.max(0.1, Math.min(1, node.opacity));
+        context.globalAlpha = nodeOpacity;
         roundedRectPath(context, topLeft.x, topLeft.y, nodeWidth, nodeHeight, node.entityType === "ci" ? 12 : 18);
         context.fillStyle = fillColor;
         context.fill();
@@ -4240,6 +4971,7 @@ export function NetworkTopologyView({
               offsetY: viewState.offsetY
             }
           : null;
+      const isOverlayHitNode = Boolean(hitNode && !isFlowMode && isDetailedModelOverlayNodeId(hitNode.id));
       if (hitNode) {
         if (isFlowMode) {
           setSelectedCiFlowModelTileId(null);
@@ -4247,7 +4979,7 @@ export function NetworkTopologyView({
         } else {
           setDetailedSelectedNodeId(hitNode.id);
         }
-        if (isDetailedTileFilterActive) {
+        if (isDetailedTileFilterActive && !isOverlayHitNode) {
           setDetailedSelectedTileFilterId(hitNode.id);
         }
       }
@@ -4441,7 +5173,9 @@ export function NetworkTopologyView({
     detailedNodeById,
     detailedDisplayRootNodeId,
     detailedDisplaySelectedNodeId,
+    detailedCiSelectionFocus,
     detailedFilteredNodeIds,
+    detailedModelOverlay,
     detailedSelectedConnectedEdgeIds,
     detailedSelectedPathEdgeIds,
     detailedTree,
@@ -5346,6 +6080,17 @@ export function NetworkTopologyView({
     if (!presentedDetailedNodes.length) {
       return;
     }
+    const presentedNodeIdSet = new Set(presentedDetailedNodes.map((node) => node.id));
+    const overlayExportLinks =
+      !isCiFlowFocusPanelOpen && detailedModelOverlay.tiles.length
+        ? detailedModelOverlay.links.filter((link) => presentedNodeIdSet.has(link.ciNodeId))
+        : [];
+    const overlayExportTileIdSet = new Set(overlayExportLinks.map((link) => link.tileId));
+    const overlayExportTiles =
+      !isCiFlowFocusPanelOpen && detailedModelOverlay.tiles.length
+        ? detailedModelOverlay.tiles.filter((tile) => overlayExportTileIdSet.has(tile.id))
+        : [];
+
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let maxX = Number.NEGATIVE_INFINITY;
@@ -5356,21 +6101,43 @@ export function NetworkTopologyView({
       maxX = Math.max(maxX, node.x + node.width);
       maxY = Math.max(maxY, node.y + node.height);
     }
+    for (const tile of overlayExportTiles) {
+      minX = Math.min(minX, tile.x);
+      minY = Math.min(minY, tile.y);
+      maxX = Math.max(maxX, tile.x + tile.width);
+      maxY = Math.max(maxY, tile.y + tile.height);
+    }
     if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
       return;
     }
-    const pad = 80;
+    const pad = isCiFlowFocusPanelOpen ? 260 : 100;
     const offsetX = pad - minX;
     const offsetY = pad - minY;
     const svgWidth = Math.max(1, Math.ceil(maxX - minX + pad * 2));
     const svgHeight = Math.max(1, Math.ceil(maxY - minY + pad * 2));
     const n = (value: number) => Number(value.toFixed(2));
-    const nodeById = new Map(presentedDetailedNodes.map((node) => [node.id, node]));
+    const nodeBoundsById = new Map<string, { x: number; y: number; width: number; height: number }>();
+    for (const node of presentedDetailedNodes) {
+      nodeBoundsById.set(node.id, {
+        x: node.x,
+        y: node.y,
+        width: node.width,
+        height: node.height
+      });
+    }
+    for (const tile of overlayExportTiles) {
+      nodeBoundsById.set(tile.id, {
+        x: tile.x,
+        y: tile.y,
+        width: tile.width,
+        height: tile.height
+      });
+    }
 
     const edgeElements = presentedDetailedEdges
       .map((edge) => {
-        const fromNode = nodeById.get(edge.fromNodeId);
-        const toNode = nodeById.get(edge.toNodeId);
+        const fromNode = nodeBoundsById.get(edge.fromNodeId);
+        const toNode = nodeBoundsById.get(edge.toNodeId);
         if (!fromNode || !toNode) {
           return null;
         }
@@ -5397,6 +6164,29 @@ export function NetworkTopologyView({
       })
       .filter((element): element is string => Boolean(element))
       .join("\n");
+    const overlayEdgeElements = overlayExportLinks
+      .map((link) => {
+        const fromNode = nodeBoundsById.get(link.ciNodeId);
+        const toNode = nodeBoundsById.get(link.tileId);
+        if (!fromNode || !toNode) {
+          return null;
+        }
+        const startX = fromNode.x + fromNode.width + offsetX;
+        const startY = fromNode.y + fromNode.height / 2 + offsetY;
+        const endX = toNode.x + offsetX;
+        const endY = toNode.y + toNode.height / 2 + offsetY;
+        const controlOffset = Math.max(44, (endX - startX) * 0.28);
+        const d = [
+          `M ${n(startX)} ${n(startY)}`,
+          `C ${n(startX + controlOffset)} ${n(startY)},`,
+          `${n(endX - controlOffset)} ${n(endY)},`,
+          `${n(endX)} ${n(endY)}`
+        ].join(" ");
+        const stroke = link.kind === "shared-resource" ? "#ef4444" : "#f97316";
+        return `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="0.86" stroke-width="2.2" stroke-linecap="round" />`;
+      })
+      .filter((element): element is string => Boolean(element))
+      .join("\n");
 
     const nodeElements = presentedDetailedNodes
       .map((node) => {
@@ -5406,6 +6196,8 @@ export function NetworkTopologyView({
         const y = n(node.y + offsetY);
         const width = n(node.width);
         const height = n(node.height);
+        const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
+        const percentages = compliancePercentages(compliance);
         if (isCiFlowFocusPanelOpen) {
           const cx = n(node.x + node.width / 2 + offsetX);
           const cy = n(node.y + node.height / 2 + offsetY);
@@ -5415,6 +6207,22 @@ export function NetworkTopologyView({
           const stroke = isRootCi ? "#a855f7" : ciFlowNodeStrokeColor(node.entityType, isInModelScope);
           const fill = isRootCi ? "#c084fc" : isInModelScope ? "#4ade80" : "#f87171";
           const assetType = "assetType" in node ? (node.assetType ?? "server") : "server";
+          const typeLabel = xmlEscape("typeLabel" in node ? node.typeLabel : detailedEntityTypeLabel(node.entityType));
+          const nameLabel = xmlEscape(truncateLabel(node.name, 34));
+          const detailLine = xmlEscape(
+            truncateLabel(("modelLabel" in node ? node.modelLabel : node.subtitle) || "", 38)
+          );
+          const cardWidth = 198;
+          const cardHeight = 88;
+          let cardX = cx + baseRadius + 12;
+          if (cardX + cardWidth + 8 > svgWidth) {
+            cardX = cx - baseRadius - 12 - cardWidth;
+          }
+          const cardY = cy - cardHeight / 2;
+          const barX = n(cardX + 10);
+          const barY = n(cardY + 60);
+          const barWidth = 178;
+          const barHeight = 8;
           let shape = "";
           if (assetType === "workstation") {
             const size = baseRadius * 1.9;
@@ -5430,11 +6238,18 @@ export function NetworkTopologyView({
           } else {
             shape = `<circle cx="${cx}" cy="${cy}" r="${baseRadius}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
           }
-          const label = xmlEscape(truncateLabel(node.name, 30));
           return [
             `<g>`,
             shape,
-            `<text x="${cx}" y="${n(cy + baseRadius + 18)}" text-anchor="middle" font-size="12" fill="#e2e8f0" font-family="sans-serif">${label}</text>`,
+            `<rect x="${n(cardX)}" y="${n(cardY)}" width="${cardWidth}" height="${cardHeight}" rx="10" fill="#0f172a" fill-opacity="0.9" stroke="${stroke}" stroke-width="${isRootCi ? 2.1 : 1.6}" />`,
+            `<text x="${n(cardX + 10)}" y="${n(cardY + 20)}" font-size="11" fill="#dbeafe" font-family="sans-serif">Type: ${typeLabel}</text>`,
+            `<text x="${n(cardX + 10)}" y="${n(cardY + 36)}" font-size="11" fill="#e2e8f0" font-family="sans-serif">Name: ${nameLabel}</text>`,
+            `<text x="${n(cardX + 10)}" y="${n(cardY + 52)}" font-size="10" fill="#94a3b8" font-family="sans-serif">${detailLine}</text>`,
+            `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="3" fill="#cbd5e1" fill-opacity="0.8" />`,
+            `<rect x="${barX}" y="${barY}" width="${n((barWidth * percentages.compliant) / 100)}" height="${barHeight}" fill="#16a34a" />`,
+            `<rect x="${n(barX + (barWidth * percentages.compliant) / 100)}" y="${barY}" width="${n((barWidth * percentages.nonCompliant) / 100)}" height="${barHeight}" fill="#ef4444" />`,
+            `<rect x="${n(barX + (barWidth * (percentages.compliant + percentages.nonCompliant)) / 100)}" y="${barY}" width="${n((barWidth * percentages.other) / 100)}" height="${barHeight}" fill="#94a3b8" />`,
+            `<text x="${n(cardX + cardWidth / 2)}" y="${n(cardY + 82)}" text-anchor="middle" font-size="9" fill="#cbd5e1" font-family="sans-serif">${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O</text>`,
             `</g>`
           ].join("\n");
         }
@@ -5442,11 +6257,54 @@ export function NetworkTopologyView({
         const fill = detailedTileColor(node.entityType);
         const typeLabel = xmlEscape(detailedEntityTypeLabel(node.entityType));
         const nameLabel = xmlEscape(truncateLabel(node.name, 54));
+        const detailLine = xmlEscape(
+          truncateLabel(("modelLabel" in node && node.modelLabel ? node.modelLabel : node.subtitle) || "", 58)
+        );
+        const barX = n(x + 14);
+        const barY = n(y + height - 16);
+        const barWidth = n(Math.max(80, width - 28));
+        const barHeight = 8;
         return [
           `<g>`,
           `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${node.entityType === "ci" ? 12 : 18}" fill="${fill}" stroke="${stroke}" stroke-width="${isRootNode || isSelectedNode ? 3.2 : 2}" />`,
           `<text x="${n(x + 14)}" y="${n(y + 23)}" font-size="12" fill="#0f172a" font-family="sans-serif">Type: ${typeLabel}</text>`,
           `<text x="${n(x + 14)}" y="${n(y + 42)}" font-size="12" fill="#0f172a" font-family="sans-serif">Name: ${nameLabel}</text>`,
+          `<text x="${n(x + 14)}" y="${n(y + 60)}" font-size="10" fill="#334155" font-family="sans-serif">${detailLine}</text>`,
+          `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="3" fill="#cbd5e1" fill-opacity="0.8" />`,
+          `<rect x="${barX}" y="${barY}" width="${n((barWidth * percentages.compliant) / 100)}" height="${barHeight}" fill="#16a34a" />`,
+          `<rect x="${n(barX + (barWidth * percentages.compliant) / 100)}" y="${barY}" width="${n((barWidth * percentages.nonCompliant) / 100)}" height="${barHeight}" fill="#ef4444" />`,
+          `<rect x="${n(barX + (barWidth * (percentages.compliant + percentages.nonCompliant)) / 100)}" y="${barY}" width="${n((barWidth * percentages.other) / 100)}" height="${barHeight}" fill="#94a3b8" />`,
+          `</g>`
+        ].join("\n");
+      })
+      .join("\n");
+    const overlayNodeElements = overlayExportTiles
+      .map((tile) => {
+        const x = n(tile.x + offsetX);
+        const y = n(tile.y + offsetY);
+        const width = n(tile.width);
+        const height = n(tile.height);
+        const compliance = complianceMode === "cyber" ? tile.cyberCompliance : tile.discoveryCompliance;
+        const percentages = compliancePercentages(compliance);
+        const fill = detailedTileColor(tile.entityType);
+        const stroke = detailedTileStrokeColor(tile.entityType);
+        const typeLabel = xmlEscape(truncateLabel(tile.typeLabel, 54));
+        const nameLabel = xmlEscape(truncateLabel(tile.name, 54));
+        const detailLine = xmlEscape(truncateLabel(tile.subtitle, 58));
+        const barX = n(x + 14);
+        const barY = n(y + height - 16);
+        const barWidth = n(Math.max(80, width - 28));
+        const barHeight = 8;
+        return [
+          `<g>`,
+          `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="18" fill="${fill}" stroke="${stroke}" stroke-width="2.2" />`,
+          `<text x="${n(x + 14)}" y="${n(y + 23)}" font-size="12" fill="#0f172a" font-family="sans-serif">Type: ${typeLabel}</text>`,
+          `<text x="${n(x + 14)}" y="${n(y + 42)}" font-size="12" fill="#0f172a" font-family="sans-serif">Name: ${nameLabel}</text>`,
+          `<text x="${n(x + 14)}" y="${n(y + 60)}" font-size="10" fill="#334155" font-family="sans-serif">${detailLine}</text>`,
+          `<rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="3" fill="#cbd5e1" fill-opacity="0.8" />`,
+          `<rect x="${barX}" y="${barY}" width="${n((barWidth * percentages.compliant) / 100)}" height="${barHeight}" fill="#16a34a" />`,
+          `<rect x="${n(barX + (barWidth * percentages.compliant) / 100)}" y="${barY}" width="${n((barWidth * percentages.nonCompliant) / 100)}" height="${barHeight}" fill="#ef4444" />`,
+          `<rect x="${n(barX + (barWidth * (percentages.compliant + percentages.nonCompliant)) / 100)}" y="${barY}" width="${n((barWidth * percentages.other) / 100)}" height="${barHeight}" fill="#94a3b8" />`,
           `</g>`
         ].join("\n");
       })
@@ -5460,7 +6318,13 @@ export function NetworkTopologyView({
       edgeElements,
       `</g>`,
       `<g>`,
+      overlayEdgeElements,
+      `</g>`,
+      `<g>`,
       nodeElements,
+      `</g>`,
+      `<g>`,
+      overlayNodeElements,
       `</g>`,
       `</svg>`
     ].join("\n");
@@ -5488,6 +6352,9 @@ export function NetworkTopologyView({
     detailedRootNode?.name,
     detailedSelectedConnectedEdgeIds,
     detailedSelectedPathEdgeIds,
+    complianceMode,
+    detailedModelOverlay.links,
+    detailedModelOverlay.tiles,
     isCiFlowFocusPanelOpen,
     presentedDetailedEdges,
     presentedDetailedNodes
@@ -6286,6 +7153,9 @@ export function NetworkTopologyView({
                 >
                   Reset View
                 </button>
+                <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
+                  Zoom {detailedZoomPercent}%
+                </span>
                 <button
                   type="button"
                   onClick={exportDetailedTopologyCsv}
@@ -6302,9 +7172,31 @@ export function NetworkTopologyView({
                 >
                   Export SVG
                 </button>
-                <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
-                  Zoom {detailedZoomPercent}%
-                </span>
+                <span className="mx-1 h-5 w-px bg-sky-400/20" />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setDetailedShowSharedResources((current) => !current)}
+                    className={`rounded-md border px-2 py-1 font-semibold ${
+                      detailedShowSharedResources
+                        ? "border-red-200/80 bg-red-500/20 text-red-100"
+                        : "border-slate-500/45 bg-slate-900/65 text-slate-300 hover:border-slate-300/55 hover:text-slate-100"
+                    }`}
+                  >
+                    Shared Resources
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailedShowRelatedModels((current) => !current)}
+                    className={`rounded-md border px-2 py-1 font-semibold ${
+                      detailedShowRelatedModels
+                        ? "border-orange-200/80 bg-orange-500/20 text-orange-100"
+                        : "border-slate-500/45 bg-slate-900/65 text-slate-300 hover:border-slate-300/55 hover:text-slate-100"
+                    }`}
+                  >
+                    Related Models
+                  </button>
+                </div>
 
                 <div className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
                   <span className="inline-flex items-center gap-1">
