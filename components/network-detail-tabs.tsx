@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { NetworkTopologyView } from "@/components/network-topology-view";
+import { DetailedTopologyView } from "@/components/detailed-topology-view";
 import type { NetworkTopologyData } from "@/lib/network-topology";
 
 type NetworkDetailTabId = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
@@ -41,7 +41,7 @@ export function NetworkDetailTabs({
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [pendingTab, setPendingTab] = useState<NetworkDetailTabId | null>(null);
-  const [isTopologyOpen, setIsTopologyOpen] = useState(false);
+  const [isDetailedTopologyOpen, setIsDetailedTopologyOpen] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -141,16 +141,20 @@ export function NetworkDetailTabs({
             </div>
             <button
               type="button"
-              onClick={() => setIsTopologyOpen(true)}
+              onClick={() => setIsDetailedTopologyOpen(true)}
               className="ml-auto rounded-md border border-cyan-300/45 bg-cyan-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.13em] text-cyan-100 transition hover:bg-cyan-500/22"
             >
-              Network Topology View
+              Detailed Topology View
             </button>
           </div>
         </div>
       </section>
 
-      <NetworkTopologyView isOpen={isTopologyOpen} onClose={() => setIsTopologyOpen(false)} data={topologyData} />
+      <DetailedTopologyView
+        isOpen={isDetailedTopologyOpen}
+        onClose={() => setIsDetailedTopologyOpen(false)}
+        data={topologyData}
+      />
 
       {isMounted && isLoading
         ? createPortal(

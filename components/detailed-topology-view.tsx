@@ -47,6 +47,7 @@ const DETAILED_MAX_CAMERA_DISTANCE = 28000;
 const DETAILED_EDGE_CURVE_MIN = 44;
 const DETAILED_EDGE_CURVE_FACTOR = 0.36;
 const DETAILED_MODEL_OVERLAY_NODE_PREFIX = "detailed-model-overlay:";
+const NETWORK_MODEL_OVERLAY_NODE_PREFIX = "network-model-overlay:";
 
 interface ScopedCiItem {
   id: string;
@@ -102,6 +103,14 @@ interface RuntimeNodeState {
   currentPosition: THREE.Vector3;
   targetPosition: THREE.Vector3;
 }
+
+type TopologyModelRelationKind = "related-model-flow" | "related-model-logical";
+type TopologyRenderEdge = {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  relationKind?: TopologyModelRelationKind;
+};
 
 type DetailedTileEntityType = TopologyEntityType | "environment" | "ci" | "not-modelled";
 
@@ -218,6 +227,23 @@ interface DetailedCanvasInteractionState {
   moved: boolean;
 }
 
+interface TopologyCanvasViewState {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  initialized: boolean;
+  graphKey: string;
+}
+
+interface TopologyCanvasPanState {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startOffsetX: number;
+  startOffsetY: number;
+  moved: boolean;
+}
+
 interface CiFlow3DViewState {
   yaw: number;
   pitch: number;
@@ -290,6 +316,10 @@ interface DetailedModelOverlayLink {
 
 function isDetailedModelOverlayNodeId(nodeId: string): boolean {
   return nodeId.startsWith(DETAILED_MODEL_OVERLAY_NODE_PREFIX);
+}
+
+function isNetworkModelOverlayNodeId(nodeId: string): boolean {
+  return nodeId.startsWith(NETWORK_MODEL_OVERLAY_NODE_PREFIX);
 }
 
 function createDefaultCiFlow3DViewState(): CiFlow3DViewState {
@@ -1145,7 +1175,7 @@ function buildTopologyLayout(data: NetworkTopologyData, mode: TopologyLayoutMode
   return buildHierarchyTopologyLayout(data);
 }
 
-export function NetworkTopologyView({
+export function DetailedTopologyView({
   isOpen,
   onClose,
   data
@@ -1167,7 +1197,7 @@ export function NetworkTopologyView({
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
   const [nodeCiSearchByKey, setNodeCiSearchByKey] = useState<Record<string, string>>({});
   const [nodeCiEnvironmentSearchByKey, setNodeCiEnvironmentSearchByKey] = useState<Record<string, string>>({});
-  const [isDetailedTopologyOpen, setIsDetailedTopologyOpen] = useState(false);
+  const [isDetailedTopologyOpen, setIsDetailedTopologyOpen] = useState(true);
   const [detailedRootNodeId, setDetailedRootNodeId] = useState<string | null>(null);
   const [detailedSelectedNodeId, setDetailedSelectedNodeId] = useState<string | null>(null);
   const [detailedSelectedTileFilterId, setDetailedSelectedTileFilterId] = useState("__all__");
@@ -1180,16 +1210,19 @@ export function NetworkTopologyView({
   const [ciFlowIncludedAssetTypes, setCiFlowIncludedAssetTypes] = useState<Set<CiAssetType>>(
     () => new Set<CiAssetType>(["server"])
   );
-  const ciFlowShowSharedResources = false;
-  const ciFlowShowRelatedModels = false;
+  const [networkShowRelatedModels, setNetworkShowRelatedModels] = useState(true);
+  const [networkShowLogicalRelatedModels, setNetworkShowLogicalRelatedModels] = useState(true);
   const [detailedShowSharedResources, setDetailedShowSharedResources] = useState(false);
   const [detailedShowRelatedModels, setDetailedShowRelatedModels] = useState(false);
+  const ciFlowShowSharedResources = detailedShowSharedResources;
+  const ciFlowShowRelatedModels = detailedShowRelatedModels;
   const [draggingCiFlowNodeId, setDraggingCiFlowNodeId] = useState<string | null>(null);
   const [ciFlowNodeDragOffsets, setCiFlowNodeDragOffsets] = useState<Record<string, { x: number; y: number }>>({});
   const [ciFlowTweenProgress, setCiFlowTweenProgress] = useState(0);
   const [ciFlowViewportCenter, setCiFlowViewportCenter] = useState<{ x: number; y: number } | null>(null);
   const [ciFlowOriginCenter, setCiFlowOriginCenter] = useState<{ x: number; y: number } | null>(null);
   const [draggingDetailedNodeId, setDraggingDetailedNodeId] = useState<string | null>(null);
+  const [detailedTileCopyFeedback, setDetailedTileCopyFeedback] = useState<"idle" | "copied" | "failed">("idle");
   const [rendererInitError, setRendererInitError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1214,6 +1247,15 @@ export function NetworkTopologyView({
   const detailedCanvasInteractionRef = useRef<DetailedCanvasInteractionState | null>(null);
   const detailedCanvasRenderRequestedRef = useRef(false);
   const detailedCanvasRequestDrawRef = useRef<(() => void) | null>(null);
+  const topologyCanvasViewStateRef = useRef<TopologyCanvasViewState>({
+    zoom: 1,
+    offsetX: 0,
+    offsetY: 0,
+    initialized: false,
+    graphKey: ""
+  });
+  const topologyCanvasPanStateRef = useRef<TopologyCanvasPanState | null>(null);
+  const topologyCanvasNeedsFitRef = useRef(true);
   const ciFlow3DViewStateRef = useRef<CiFlow3DViewState>(createDefaultCiFlow3DViewState());
   const detailedFilterClusterProgressRef = useRef(0);
   const detailedFilterClusterLastTimestampRef = useRef<number | null>(null);
@@ -1254,9 +1296,11 @@ export function NetworkTopologyView({
   const ciFlowNodeDragOffsetsRef = useRef<Record<string, { x: number; y: number }>>({});
   const ciFlowTweenProgressRef = useRef(0);
   const ciFlowOuterShellSpinAngleRef = useRef(0);
+  const ciFlowInnerShellSpinAngleRef = useRef(0);
   const ciFlowOuterShellSpinLastTimestampRef = useRef<number | null>(null);
   const ciFlowHoverLocalPointRef = useRef<{ x: number; y: number } | null>(null);
   const ciFlowHoveredNodeIdRef = useRef<string | null>(null);
+  const ciFlowPinnedRootScreenPositionRef = useRef<{ x: number; y: number } | null>(null);
   const ciFlowNodeDragStateRef = useRef<{
     nodeId: string;
     pointerId: number;
@@ -1447,6 +1491,220 @@ export function NetworkTopologyView({
     }
     return map;
   }, [ciItemsByNetworkId, ciItemsBySystemId, dependentSystemIdsByNodeId, layout.nodes]);
+  const networkModelRelationAnchorNode = useMemo(() => {
+    return coreNode;
+  }, [coreNode]);
+  const networkTopologyModelOverlay = useMemo(() => {
+    const anchorNode = networkModelRelationAnchorNode;
+    if (!anchorNode) {
+      return { nodes: [] as LayoutNode[], edges: [] as TopologyRenderEdge[] };
+    }
+
+    if (!networkShowRelatedModels && !networkShowLogicalRelatedModels) {
+      return { nodes: [] as LayoutNode[], edges: [] as TopologyRenderEdge[] };
+    }
+
+    const anchorCiItems = ciItemsByNodeId.get(anchorNode.id) ?? allScopedCiItems;
+    const inScopeAssetIds = new Set(anchorCiItems.map((item) => item.id));
+    if (!inScopeAssetIds.size) {
+      return { nodes: [] as LayoutNode[], edges: [] as TopologyRenderEdge[] };
+    }
+    const excludedSystemId = anchorNode.entityType === "ict-system" ? anchorNode.entityId : null;
+    const excludedNetworkId = anchorNode.entityType === "network" ? anchorNode.entityId : null;
+
+    type RelationAccumulator = {
+      modelId: string;
+      entityType: Extract<TopologyEntityType, "ict-system" | "network">;
+      name: string;
+      sourceAssetIds: Set<string>;
+      relationKinds: Set<TopologyModelRelationKind>;
+      cyberSummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+      discoverySummaries: Array<{ compliant: number; nonCompliant: number; other: number }>;
+    };
+    const relationByModelKey = new Map<string, RelationAccumulator>();
+
+    const addRelation = (
+      sourceCi: NonNullable<ReturnType<typeof flowCiNodeByAssetId.get>>,
+      relatedCi: NonNullable<ReturnType<typeof flowCiNodeByAssetId.get>>,
+      relationKind: TopologyModelRelationKind
+    ) => {
+      const pushModel = (
+        modelEntityType: Extract<TopologyEntityType, "ict-system" | "network">,
+        modelId: string,
+        modelName: string
+      ) => {
+        const modelKey = `${modelEntityType}:${modelId}`;
+        const current =
+          relationByModelKey.get(modelKey) ??
+          ({
+            modelId,
+            entityType: modelEntityType,
+            name: modelName,
+            sourceAssetIds: new Set<string>(),
+            relationKinds: new Set<TopologyModelRelationKind>(),
+            cyberSummaries: [],
+            discoverySummaries: []
+          } as RelationAccumulator);
+        if (!relationByModelKey.has(modelKey)) {
+          relationByModelKey.set(modelKey, current);
+        }
+        current.relationKinds.add(relationKind);
+        if (!current.sourceAssetIds.has(sourceCi.id)) {
+          current.sourceAssetIds.add(sourceCi.id);
+          const sourceItem = scopedCiItemByAssetId.get(sourceCi.id);
+          if (sourceItem) {
+            current.cyberSummaries.push(sourceItem.cyberCompliance);
+            current.discoverySummaries.push(sourceItem.discoveryCompliance);
+          }
+        }
+      };
+
+      if (
+        relatedCi.systemId &&
+        relatedCi.systemId !== sourceCi.systemId &&
+        (!excludedSystemId || relatedCi.systemId !== excludedSystemId)
+      ) {
+        pushModel("ict-system", relatedCi.systemId, relatedCi.systemName ?? relatedCi.systemId);
+      }
+      if (
+        relatedCi.networkId &&
+        relatedCi.networkId !== sourceCi.networkId &&
+        (!excludedNetworkId || relatedCi.networkId !== excludedNetworkId)
+      ) {
+        pushModel("network", relatedCi.networkId, networkNameById.get(relatedCi.networkId) ?? relatedCi.networkId);
+      }
+    };
+
+    for (const dependency of data.ciDependencies) {
+      if (dependency.sourceAssetId === dependency.targetAssetId) {
+        continue;
+      }
+      const relationKind: TopologyModelRelationKind | null =
+        dependency.dependencyType === "Flow Dependency"
+          ? "related-model-flow"
+          : dependency.dependencyType === "Logical Dependency"
+            ? "related-model-logical"
+            : null;
+      if (!relationKind) {
+        continue;
+      }
+      if (relationKind === "related-model-flow" && !networkShowRelatedModels) {
+        continue;
+      }
+      if (relationKind === "related-model-logical" && !networkShowLogicalRelatedModels) {
+        continue;
+      }
+      const sourceCi = flowCiNodeByAssetId.get(dependency.sourceAssetId);
+      const targetCi = flowCiNodeByAssetId.get(dependency.targetAssetId);
+      if (!sourceCi || !targetCi) {
+        continue;
+      }
+      if (inScopeAssetIds.has(sourceCi.id)) {
+        addRelation(sourceCi, targetCi, relationKind);
+      }
+      if (inScopeAssetIds.has(targetCi.id)) {
+        addRelation(targetCi, sourceCi, relationKind);
+      }
+    }
+
+    const orderedRelations = Array.from(relationByModelKey.values()).sort((left, right) => {
+      const leftHasFlow = left.relationKinds.has("related-model-flow");
+      const rightHasFlow = right.relationKinds.has("related-model-flow");
+      if (leftHasFlow !== rightHasFlow) {
+        return leftHasFlow ? -1 : 1;
+      }
+      if (left.entityType !== right.entityType) {
+        return left.entityType.localeCompare(right.entityType);
+      }
+      return left.name.localeCompare(right.name);
+    });
+    if (!orderedRelations.length) {
+      return { nodes: [] as LayoutNode[], edges: [] as TopologyRenderEdge[] };
+    }
+
+    const overlayColumnX = 640;
+    const overlayGapY = 212;
+    const columnStartY = -((orderedRelations.length - 1) * overlayGapY) / 2;
+
+    const nodes: LayoutNode[] = [];
+    const edges: TopologyRenderEdge[] = [];
+    for (let index = 0; index < orderedRelations.length; index += 1) {
+      const relation = orderedRelations[index];
+      const tileId = `${NETWORK_MODEL_OVERLAY_NODE_PREFIX}${relation.entityType}:${relation.modelId}`;
+      const hasFlowRelation = relation.relationKinds.has("related-model-flow");
+      const hasLogicalRelation = relation.relationKinds.has("related-model-logical");
+      const relationLabel = hasFlowRelation && hasLogicalRelation
+        ? "Related Model + Logical Related Model"
+        : hasFlowRelation
+          ? "Related Model"
+          : "Logical Related Model";
+      const tileX = overlayColumnX;
+      const tileY = columnStartY + index * overlayGapY;
+
+      nodes.push({
+        id: tileId,
+        entityId: relation.modelId,
+        entityType: relation.entityType,
+        name: relation.name,
+        cyberCompliance: combineComplianceSummaries(relation.cyberSummaries),
+        discoveryCompliance: combineComplianceSummaries(relation.discoverySummaries),
+        details: {
+          description: `${relationLabel} linked to ${anchorNode.name} from CI dependency relationships.`
+        },
+        position: new THREE.Vector3(tileX, tileY, 0)
+      });
+
+      if (hasFlowRelation) {
+        edges.push({
+          id: `${anchorNode.id}->${tileId}:related-model-flow`,
+          fromNodeId: anchorNode.id,
+          toNodeId: tileId,
+          relationKind: "related-model-flow"
+        });
+      }
+      if (hasLogicalRelation) {
+        edges.push({
+          id: `${anchorNode.id}->${tileId}:related-model-logical`,
+          fromNodeId: anchorNode.id,
+          toNodeId: tileId,
+          relationKind: "related-model-logical"
+        });
+      }
+    }
+
+    return { nodes, edges };
+  }, [
+    allScopedCiItems,
+    ciItemsByNodeId,
+    data.ciDependencies,
+    flowCiNodeByAssetId,
+    networkModelRelationAnchorNode,
+    networkNameById,
+    networkShowLogicalRelatedModels,
+    networkShowRelatedModels,
+    scopedCiItemByAssetId
+  ]);
+  const networkViewportRootNode = useMemo(() => {
+    if (!networkModelRelationAnchorNode) {
+      return null;
+    }
+    return {
+      ...networkModelRelationAnchorNode,
+      position: new THREE.Vector3(0, 0, 0)
+    } satisfies LayoutNode;
+  }, [networkModelRelationAnchorNode]);
+  const topologyRenderNodes = useMemo(() => {
+    if (!networkViewportRootNode) {
+      return [];
+    }
+    return [networkViewportRootNode, ...networkTopologyModelOverlay.nodes];
+  }, [networkTopologyModelOverlay.nodes, networkViewportRootNode]);
+  const topologyRenderEdges = useMemo<TopologyRenderEdge[]>(() => {
+    return [...networkTopologyModelOverlay.edges];
+  }, [networkTopologyModelOverlay.edges]);
+  const topologyRenderNodeById = useMemo(() => {
+    return new Map(topologyRenderNodes.map((node) => [node.id, node]));
+  }, [topologyRenderNodes]);
   const ciAssetsByNodeId = useMemo(() => {
     const groupedByNodeId = new Map<
       string,
@@ -1456,8 +1714,14 @@ export function NetworkTopologyView({
       }>
     >();
 
-    for (const node of layout.nodes) {
-      const nodeItems = ciItemsByNodeId.get(node.id) ?? [];
+    for (const node of topologyRenderNodes) {
+      const nodeItems =
+        ciItemsByNodeId.get(node.id) ??
+        (node.entityType === "network"
+          ? (ciItemsByNetworkId.get(node.entityId) ?? [])
+          : node.entityType === "ict-system"
+            ? (ciItemsBySystemId.get(node.entityId) ?? [])
+            : []);
       groupedByNodeId.set(
         node.id,
         CI_ASSET_TYPES.map((assetType) => ({
@@ -1469,7 +1733,7 @@ export function NetworkTopologyView({
       );
     }
     return groupedByNodeId;
-  }, [ciItemsByNodeId, layout.nodes]);
+  }, [ciItemsByNetworkId, ciItemsByNodeId, ciItemsBySystemId, topologyRenderNodes]);
   const ciEnvironmentGroupsByNodeId = useMemo(() => {
     const byNodeId = new Map<
       string,
@@ -1479,9 +1743,16 @@ export function NetworkTopologyView({
       }>
     >();
 
-    for (const node of layout.nodes) {
+    for (const node of topologyRenderNodes) {
       const byEnvironment = new Map<CiEnvironmentLabel, ScopedCiItem[]>();
-      for (const item of ciItemsByNodeId.get(node.id) ?? []) {
+      const nodeItems =
+        ciItemsByNodeId.get(node.id) ??
+        (node.entityType === "network"
+          ? (ciItemsByNetworkId.get(node.entityId) ?? [])
+          : node.entityType === "ict-system"
+            ? (ciItemsBySystemId.get(node.entityId) ?? [])
+            : []);
+      for (const item of nodeItems) {
         const current = byEnvironment.get(item.environment) ?? [];
         current.push(item);
         byEnvironment.set(item.environment, current);
@@ -1498,7 +1769,7 @@ export function NetworkTopologyView({
     }
 
     return byNodeId;
-  }, [ciItemsByNodeId, complianceMode, layout.nodes]);
+  }, [ciItemsByNetworkId, ciItemsByNodeId, ciItemsBySystemId, complianceMode, topologyRenderNodes]);
   const detailedRootNode = useMemo(() => {
     if (detailedRootNodeId) {
       const explicitRoot = nodeById.get(detailedRootNodeId);
@@ -2171,7 +2442,7 @@ export function NetworkTopologyView({
           : centerY;
       const baseX = animatedCenterX - node.width / 2;
       const baseY = animatedCenterY - node.height / 2;
-      const dragOffset = ciFlowNodeDragOffsets[node.id];
+      const dragOffset = isRootNode ? undefined : ciFlowNodeDragOffsets[node.id];
       const renderX = baseX + (dragOffset?.x ?? 0);
       const renderY = baseY + (dragOffset?.y ?? 0);
       const renderZ = node.z;
@@ -2406,9 +2677,6 @@ export function NetworkTopologyView({
     const rootCi = flowCiNodeByAssetId.get(ciFlowGraph.rootAssetId);
     const rootSystemId = rootCi?.systemId ?? null;
     const rootNetworkId = rootCi?.networkId ?? null;
-    const rootScopeNodeIds = ciFlowRootScopeNodeIds.size
-      ? ciFlowRootScopeNodeIds
-      : new Set(ciFlowGraph.nodes.map((node) => node.id));
     type ModelAccumulator = {
       name: string;
       nodeIds: Set<string>;
@@ -2528,50 +2796,56 @@ export function NetworkTopologyView({
     }
 
     if (ciFlowShowRelatedModels) {
-      for (const edge of ciFlowGraph.edges) {
-        if (edge.dependencyType !== "Flow Dependency") {
+      const relatedAssetIdsByAssetId = new Map<string, Set<string>>();
+      for (const dependency of data.ciDependencies) {
+        if (dependency.dependencyType !== "Flow Dependency") {
           continue;
         }
-        const fromInRootScope = rootScopeNodeIds.has(edge.fromNodeId);
-        const toInRootScope = rootScopeNodeIds.has(edge.toNodeId);
-        if (fromInRootScope === toInRootScope) {
-          continue;
-        }
-        const sourceNode = ciFlowNodeById.get(fromInRootScope ? edge.fromNodeId : edge.toNodeId);
-        const relatedNode = ciFlowNodeById.get(fromInRootScope ? edge.toNodeId : edge.fromNodeId);
         if (
-          !sourceNode ||
-          !relatedNode ||
-          sourceNode.entityType !== "ci" ||
-          relatedNode.entityType !== "ci" ||
-          !sourceNode.assetId ||
-          !relatedNode.assetId ||
-          !relatedNode.isInModelScope
+          !flowCiNodeByAssetId.has(dependency.sourceAssetId) ||
+          !flowCiNodeByAssetId.has(dependency.targetAssetId) ||
+          dependency.sourceAssetId === dependency.targetAssetId
         ) {
           continue;
         }
-        const relatedCi = flowCiNodeByAssetId.get(relatedNode.assetId);
+        const sourceRelated = relatedAssetIdsByAssetId.get(dependency.sourceAssetId) ?? new Set<string>();
+        sourceRelated.add(dependency.targetAssetId);
+        relatedAssetIdsByAssetId.set(dependency.sourceAssetId, sourceRelated);
+
+        const targetRelated = relatedAssetIdsByAssetId.get(dependency.targetAssetId) ?? new Set<string>();
+        targetRelated.add(dependency.sourceAssetId);
+        relatedAssetIdsByAssetId.set(dependency.targetAssetId, targetRelated);
+      }
+
+      const rootNodeId = ciFlowNodeIdForAsset(ciFlowGraph.rootAssetId);
+      const sourceNode = ciFlowNodeById.get(rootNodeId);
+      if (sourceNode?.entityType === "ci" && sourceNode.assetId) {
         const sourceCi = flowCiNodeByAssetId.get(sourceNode.assetId);
-        if (!relatedCi || !sourceCi) {
-          continue;
-        }
-        if (relatedCi.systemId && relatedCi.systemId !== sourceCi.systemId) {
-          linkNodeToModel(
-            "ict-system-model",
-            relatedCi.systemId,
-            relatedCi.systemName ?? relatedCi.systemId,
-            sourceNode,
-            "related-model"
-          );
-        }
-        if (relatedCi.networkId && relatedCi.networkId !== sourceCi.networkId) {
-          linkNodeToModel(
-            "network-model",
-            relatedCi.networkId,
-            networkNameById.get(relatedCi.networkId) ?? relatedCi.networkId,
-            sourceNode,
-            "related-model"
-          );
+        if (sourceCi) {
+          for (const relatedAssetId of relatedAssetIdsByAssetId.get(sourceNode.assetId) ?? []) {
+            const relatedCi = flowCiNodeByAssetId.get(relatedAssetId);
+            if (!relatedCi) {
+              continue;
+            }
+            if (relatedCi.systemId && relatedCi.systemId !== sourceCi.systemId) {
+              linkNodeToModel(
+                "ict-system-model",
+                relatedCi.systemId,
+                relatedCi.systemName ?? relatedCi.systemId,
+                sourceNode,
+                "related-model"
+              );
+            }
+            if (relatedCi.networkId && relatedCi.networkId !== sourceCi.networkId) {
+              linkNodeToModel(
+                "network-model",
+                relatedCi.networkId,
+                networkNameById.get(relatedCi.networkId) ?? relatedCi.networkId,
+                sourceNode,
+                "related-model"
+              );
+            }
+          }
         }
       }
     }
@@ -2642,24 +2916,41 @@ export function NetworkTopologyView({
     ciFlowRootScopeNodeIds,
     ciFlowShowRelatedModels,
     ciFlowShowSharedResources,
+    data.ciDependencies,
     flowCiNodeByAssetId,
     networkNameById
   ]);
   const ciFlowModelTileById = useMemo(() => {
     return new Map(ciFlowModelTiles.map((tile) => [tile.id, tile]));
   }, [ciFlowModelTiles]);
+  const ciFlowRootContextModelTileId = useMemo(() => {
+    if (!isCiFlowFocusPanelOpen || !detailedRootNode) {
+      return null;
+    }
+    if (detailedRootNode.entityType === "ict-system") {
+      return `ci-flow-model:ict:${detailedRootNode.entityId}`;
+    }
+    if (detailedRootNode.entityType === "network") {
+      return `ci-flow-model:network:${detailedRootNode.entityId}`;
+    }
+    return null;
+  }, [detailedRootNode, isCiFlowFocusPanelOpen]);
   const filteredCiFlowModelTiles = useMemo(() => {
+    let nextTiles = ciFlowModelTiles;
+    if (ciFlowRootContextModelTileId) {
+      nextTiles = nextTiles.filter((tile) => tile.id !== ciFlowRootContextModelTileId);
+    }
     if (!isCiFlowFocusPanelOpen) {
-      return ciFlowModelTiles;
+      return nextTiles;
     }
     const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
     if (!normalizedSearch) {
-      return ciFlowModelTiles;
+      return nextTiles;
     }
-    return ciFlowModelTiles.filter((tile) =>
+    return nextTiles.filter((tile) =>
       `${tile.typeLabel} ${tile.name} ${tile.subtitle}`.toLowerCase().includes(normalizedSearch)
     );
-  }, [ciFlowModelTiles, detailedTileFilterSearchText, isCiFlowFocusPanelOpen]);
+  }, [ciFlowModelTiles, ciFlowRootContextModelTileId, detailedTileFilterSearchText, isCiFlowFocusPanelOpen]);
   const ciFlowSelectedModelNodeIds = useMemo(() => {
     const selectedModelTile = selectedCiFlowModelTileId ? ciFlowModelTileById.get(selectedCiFlowModelTileId) : null;
     if (!selectedModelTile) {
@@ -2782,6 +3073,73 @@ export function NetworkTopologyView({
       );
     });
   }, [detailedTileFilterSearchText, detailedTileDropdownOptions]);
+  const detailedSearchScopedNodeIds = useMemo<Set<string> | null>(() => {
+    if (isCiFlowFocusPanelOpen || !detailedTree) {
+      return null;
+    }
+    const normalizedSearch = detailedTileFilterSearchText.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return null;
+    }
+
+    const nodeById = new Map(detailedTree.nodes.map((node) => [node.id, node]));
+    const childNodeIdsByNodeId = new Map<string, string[]>();
+    const parentNodeIdByNodeId = new Map<string, string>();
+    for (const edge of detailedTree.edges) {
+      const childNodeIds = childNodeIdsByNodeId.get(edge.fromNodeId) ?? [];
+      childNodeIds.push(edge.toNodeId);
+      childNodeIdsByNodeId.set(edge.fromNodeId, childNodeIds);
+      parentNodeIdByNodeId.set(edge.toNodeId, edge.fromNodeId);
+    }
+
+    const matchedNodeIds = new Set<string>();
+    for (const node of detailedTree.nodes) {
+      const type = detailedEntityTypeLabel(node.entityType).toLowerCase();
+      const searchableText = `${type} ${node.name} ${node.subtitle}`.toLowerCase();
+      if (!searchableText.includes(normalizedSearch)) {
+        continue;
+      }
+      matchedNodeIds.add(node.id);
+    }
+
+    if (!matchedNodeIds.size) {
+      return new Set<string>([detailedTree.rootNodeId]);
+    }
+
+    const visibleNodeIds = new Set<string>();
+    const includeUpstreamNodes = (startNodeId: string) => {
+      let cursorNodeId: string | undefined = startNodeId;
+      const guardNodeIds = new Set<string>();
+      while (cursorNodeId && !guardNodeIds.has(cursorNodeId)) {
+        guardNodeIds.add(cursorNodeId);
+        visibleNodeIds.add(cursorNodeId);
+        cursorNodeId = parentNodeIdByNodeId.get(cursorNodeId);
+      }
+    };
+    const includeDownstreamNodes = (startNodeId: string) => {
+      const queue = [startNodeId];
+      const visitedNodeIds = new Set<string>([startNodeId]);
+      while (queue.length) {
+        const currentNodeId = queue.shift();
+        if (!currentNodeId) {
+          continue;
+        }
+        visibleNodeIds.add(currentNodeId);
+        for (const childNodeId of childNodeIdsByNodeId.get(currentNodeId) ?? []) {
+          if (visitedNodeIds.has(childNodeId)) {
+            continue;
+          }
+          visitedNodeIds.add(childNodeId);
+          queue.push(childNodeId);
+        }
+      }
+    };
+    for (const matchedNodeId of matchedNodeIds) {
+      includeUpstreamNodes(matchedNodeId);
+      includeDownstreamNodes(matchedNodeId);
+    }
+    return visibleNodeIds;
+  }, [detailedTileFilterSearchText, detailedTree, isCiFlowFocusPanelOpen]);
   const detailedFilteredNodeIds = useMemo(() => {
     if (isCiFlowFocusPanelOpen && ciFlowGraph) {
       const baseNodeIds = ciFlowRelationshipNodeIds.size
@@ -2807,7 +3165,13 @@ export function NetworkTopologyView({
       return new Set<string>();
     }
     if (detailedSelectedTileFilterId === "__all__") {
+      if (detailedSearchScopedNodeIds) {
+        return detailedSearchScopedNodeIds;
+      }
       return new Set(detailedTree.nodes.map((node) => node.id));
+    }
+    if (detailedSearchScopedNodeIds) {
+      return detailedSearchScopedNodeIds;
     }
     const visibleNodeIds = new Set<string>();
     for (const edge of detailedTree.edges) {
@@ -2831,6 +3195,7 @@ export function NetworkTopologyView({
     ciFlowRootNodeId,
     ciFlowRootScopeNodeIds,
     ciFlowSelectedModelNodeIds,
+    detailedSearchScopedNodeIds,
     detailedHighlightedEdgeIds,
     detailedSelectedNodeId,
     detailedSelectedTileFilterId,
@@ -2838,7 +3203,9 @@ export function NetworkTopologyView({
     isCiFlowFocusPanelOpen
   ]);
   const isDetailedTileFilterActive =
-    detailedSelectedTileFilterId !== "__all__" || (isCiFlowFocusPanelOpen && Boolean(selectedCiFlowModelTileId));
+    detailedSelectedTileFilterId !== "__all__" ||
+    (!isCiFlowFocusPanelOpen && detailedTileFilterSearchText.trim().length > 0) ||
+    (isCiFlowFocusPanelOpen && Boolean(selectedCiFlowModelTileId));
   const hasDetailedTileSearchTerm = detailedTileFilterSearchText.trim().length > 0;
   const detailedPresentEntityTypes = useMemo(() => {
     if (isCiFlowFocusPanelOpen && ciFlowGraph) {
@@ -2869,11 +3236,18 @@ export function NetworkTopologyView({
     if (!coreNode?.id || !selectedNodeId || selectedNodeId === coreNode.id) {
       return new Set<string>();
     }
+    const visibleNodeIds = new Set(topologyRenderNodes.map((node) => node.id));
+    if (!visibleNodeIds.has(coreNode.id) || !visibleNodeIds.has(selectedNodeId)) {
+      return new Set<string>();
+    }
     const adjacency = new Map<string, Array<{ toNodeId: string; edgeId: string }>>();
-    for (const edge of data.edges) {
-      const current = adjacency.get(edge.fromNodeId) ?? [];
-      current.push({ toNodeId: edge.toNodeId, edgeId: edge.id });
-      adjacency.set(edge.fromNodeId, current);
+    for (const edge of topologyRenderEdges) {
+      const fromCurrent = adjacency.get(edge.fromNodeId) ?? [];
+      fromCurrent.push({ toNodeId: edge.toNodeId, edgeId: edge.id });
+      adjacency.set(edge.fromNodeId, fromCurrent);
+      const toCurrent = adjacency.get(edge.toNodeId) ?? [];
+      toCurrent.push({ toNodeId: edge.fromNodeId, edgeId: edge.id });
+      adjacency.set(edge.toNodeId, toCurrent);
     }
     const queue = [coreNode.id];
     const visited = new Set<string>([coreNode.id]);
@@ -2909,29 +3283,29 @@ export function NetworkTopologyView({
       cursor = previous.nodeId;
     }
     return edgeIds;
-  }, [coreNode?.id, data.edges, selectedNodeId]);
+  }, [coreNode?.id, selectedNodeId, topologyRenderEdges, topologyRenderNodes]);
   const selectedConnectedEdgeIds = useMemo(() => {
     if (!selectedNodeId) {
       return new Set<string>();
     }
     return new Set(
-      data.edges
+      topologyRenderEdges
         .filter((edge) => edge.fromNodeId === selectedNodeId || edge.toNodeId === selectedNodeId)
         .map((edge) => edge.id)
     );
-  }, [data.edges, selectedNodeId]);
+  }, [selectedNodeId, topologyRenderEdges]);
   const highlightedEdgeIds = useMemo(() => {
     return new Set<string>([...selectedPathEdgeIds, ...selectedConnectedEdgeIds]);
   }, [selectedConnectedEdgeIds, selectedPathEdgeIds]);
   const tileDropdownOptions = useMemo(() => {
-    return [...layout.nodes].sort((left, right) => {
+    return [...topologyRenderNodes].sort((left, right) => {
       const typeDelta = baseLevelForEntity(left.entityType) - baseLevelForEntity(right.entityType);
       if (typeDelta !== 0) {
         return typeDelta;
       }
       return left.name.localeCompare(right.name);
     });
-  }, [layout.nodes]);
+  }, [topologyRenderNodes]);
   const filteredTileDropdownOptions = useMemo(() => {
     const normalizedSearch = tileFilterSearchText.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -2948,10 +3322,10 @@ export function NetworkTopologyView({
   }, [tileDropdownOptions, tileFilterSearchText]);
   const filteredTileNodeIds = useMemo(() => {
     if (selectedTileFilterId === "__all__") {
-      return new Set(layout.nodes.map((node) => node.id));
+      return new Set(topologyRenderNodes.map((node) => node.id));
     }
     const visibleNodeIds = new Set<string>();
-    for (const edge of data.edges) {
+    for (const edge of topologyRenderEdges) {
       if (!highlightedEdgeIds.has(edge.id)) {
         continue;
       }
@@ -2968,17 +3342,45 @@ export function NetworkTopologyView({
       visibleNodeIds.add(selectedTileFilterId);
     }
     return visibleNodeIds;
-  }, [coreNode?.id, data.edges, highlightedEdgeIds, layout.nodes, selectedNodeId, selectedTileFilterId]);
+  }, [coreNode?.id, highlightedEdgeIds, selectedNodeId, selectedTileFilterId, topologyRenderEdges, topologyRenderNodes]);
+  const visibleTopologyTileNodeIds = useMemo(() => {
+    if (selectedTileFilterId === "__all__") {
+      return new Set(topologyRenderNodes.map((node) => node.id));
+    }
+    return new Set(filteredTileNodeIds);
+  }, [filteredTileNodeIds, selectedTileFilterId, topologyRenderNodes]);
   const isTileFilterActive = selectedTileFilterId !== "__all__";
   const hasTileSearchTerm = tileFilterSearchText.trim().length > 0;
   const presentEntityTypes = useMemo(
-    () => new Set(layout.nodes.map((node) => node.entityType)),
-    [layout.nodes]
+    () => new Set(topologyRenderNodes.map((node) => node.entityType)),
+    [topologyRenderNodes]
   );
 
   useEffect(() => {
     ciFlowNodeDragOffsetsRef.current = ciFlowNodeDragOffsets;
   }, [ciFlowNodeDragOffsets]);
+
+  useEffect(() => {
+    if (!ciFlowRootNodeId) {
+      return;
+    }
+    setCiFlowNodeDragOffsets((current) => {
+      if (!(ciFlowRootNodeId in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[ciFlowRootNodeId];
+      return next;
+    });
+  }, [ciFlowRootNodeId]);
+
+  useEffect(() => {
+    if (!isCiFlowFocusPanelOpen) {
+      ciFlowPinnedRootScreenPositionRef.current = null;
+      return;
+    }
+    ciFlowPinnedRootScreenPositionRef.current = null;
+  }, [ciFlowRootNodeId, isCiFlowFocusPanelOpen]);
 
   useEffect(() => {
     ciFlowTweenProgressRef.current = ciFlowTweenProgress;
@@ -2995,15 +3397,9 @@ export function NetworkTopologyView({
   }, [coreNode]);
 
   const centerViewportScroll = () => {
-    const scrollContainer = scrollContainerRef.current;
-    const viewport = viewportRef.current;
-    if (!scrollContainer || !viewport) {
-      return;
-    }
-    const nextScrollLeft = Math.max(0, (viewport.clientWidth - scrollContainer.clientWidth) / 2);
-    const nextScrollTop = Math.max(0, (viewport.clientHeight - scrollContainer.clientHeight) / 2);
-    scrollContainer.scrollLeft = nextScrollLeft;
-    scrollContainer.scrollTop = nextScrollTop;
+    const viewState = topologyCanvasViewStateRef.current;
+    viewState.initialized = false;
+    topologyCanvasNeedsFitRef.current = true;
   };
 
   const centerDetailedViewportScroll = () => {
@@ -3111,6 +3507,15 @@ export function NetworkTopologyView({
       persistedCameraStateRef.current = null;
       persistedNodePositionsRef.current = new Map();
       manualNodePositionsRef.current = new Map();
+      topologyCanvasPanStateRef.current = null;
+      topologyCanvasNeedsFitRef.current = true;
+      topologyCanvasViewStateRef.current = {
+        zoom: 1,
+        offsetX: 0,
+        offsetY: 0,
+        initialized: false,
+        graphKey: ""
+      };
       detailedDragStateRef.current = null;
       detailedPersistedCameraStateRef.current = null;
       detailedPersistedNodePositionsRef.current = new Map();
@@ -3132,8 +3537,8 @@ export function NetworkTopologyView({
     setExpandedNodeIds(new Set());
     setNodeCiSearchByKey({});
     setNodeCiEnvironmentSearchByKey({});
-    setIsDetailedTopologyOpen(false);
-    setDetailedRootNodeId(null);
+    setIsDetailedTopologyOpen(true);
+    setDetailedRootNodeId(coreNode?.id ?? null);
     setDetailedSelectedNodeId(null);
     setDetailedSelectedTileFilterId("__all__");
     setDetailedTileFilterSearchText("");
@@ -3222,11 +3627,11 @@ export function NetworkTopologyView({
     if (selectedTileFilterId === "__all__") {
       return;
     }
-    const selectedExists = layout.nodes.some((node) => node.id === selectedTileFilterId);
+    const selectedExists = topologyRenderNodes.some((node) => node.id === selectedTileFilterId);
     if (!selectedExists) {
       setSelectedTileFilterId("__all__");
     }
-  }, [layout.nodes, selectedTileFilterId]);
+  }, [selectedTileFilterId, topologyRenderNodes]);
 
   useEffect(() => {
     if (!isDetailedTopologyOpen || !detailedTree || isCiFlowFocusPanelOpen) {
@@ -3242,6 +3647,61 @@ export function NetworkTopologyView({
     setSelectedCiFlowNodeId(ciFlowRootNodeId);
     setSelectedCiFlowModelTileId(null);
   }, [ciFlowRootNodeId, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
+
+  useEffect(() => {
+    if (!isDetailedTopologyOpen || isCiFlowFocusPanelOpen || !detailedTree || !detailedSelectedNodeId) {
+      return;
+    }
+
+    let isSelectedVisible = detailedFilteredNodeIds.has(detailedSelectedNodeId);
+    if (!isSelectedVisible && detailedModelOverlay.tiles.length) {
+      const visibleOverlayTileIds = new Set<string>();
+      for (const link of detailedModelOverlay.links) {
+        if (detailedFilteredNodeIds.has(link.ciNodeId)) {
+          visibleOverlayTileIds.add(link.tileId);
+        }
+      }
+      isSelectedVisible = visibleOverlayTileIds.has(detailedSelectedNodeId);
+    }
+
+    if (isSelectedVisible) {
+      return;
+    }
+
+    setDetailedSelectedNodeId(detailedTree.rootNodeId);
+    if (detailedSelectedTileFilterId !== "__all__") {
+      setDetailedSelectedTileFilterId("__all__");
+    }
+  }, [
+    detailedFilteredNodeIds,
+    detailedModelOverlay.links,
+    detailedModelOverlay.tiles,
+    detailedSelectedNodeId,
+    detailedSelectedTileFilterId,
+    detailedTree,
+    isCiFlowFocusPanelOpen,
+    isDetailedTopologyOpen
+  ]);
+
+  useEffect(() => {
+    if (!isDetailedTopologyOpen || !isCiFlowFocusPanelOpen || !ciFlowRootNodeId || !selectedCiFlowNodeId) {
+      return;
+    }
+    if (detailedFilteredNodeIds.has(selectedCiFlowNodeId)) {
+      return;
+    }
+    setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    if (detailedSelectedTileFilterId !== "__all__") {
+      setDetailedSelectedTileFilterId("__all__");
+    }
+  }, [
+    ciFlowRootNodeId,
+    detailedFilteredNodeIds,
+    detailedSelectedTileFilterId,
+    isCiFlowFocusPanelOpen,
+    isDetailedTopologyOpen,
+    selectedCiFlowNodeId
+  ]);
 
   useEffect(() => {
     if (isCiFlowFocusPanelOpen) {
@@ -3317,6 +3777,19 @@ export function NetworkTopologyView({
   }, [ciFlowModelTileById, selectedCiFlowModelTileId]);
 
   useEffect(() => {
+    if (!selectedCiFlowModelTileId || !ciFlowRootContextModelTileId) {
+      return;
+    }
+    if (selectedCiFlowModelTileId === ciFlowRootContextModelTileId) {
+      setSelectedCiFlowModelTileId(null);
+    }
+  }, [ciFlowRootContextModelTileId, selectedCiFlowModelTileId]);
+
+  useEffect(() => {
+    setDetailedTileCopyFeedback("idle");
+  }, [detailedSelectedNodeId, isCiFlowFocusPanelOpen]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -3360,7 +3833,7 @@ export function NetworkTopologyView({
         }
         if (isDetailedTopologyOpen) {
           setDraggingDetailedNodeId(null);
-          setIsDetailedTopologyOpen(false);
+          onClose();
           return;
         }
         if (selectedSystemId) {
@@ -3383,404 +3856,382 @@ export function NetworkTopologyView({
 
     const canvas = canvasRef.current;
     const viewport = viewportRef.current;
-    const scene = new THREE.Scene();
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-    const keyLight = new THREE.DirectionalLight(0x8be9ff, 0.55);
-    keyLight.position.set(200, 200, 320);
-    scene.add(keyLight);
-
-    const camera = new THREE.PerspectiveCamera(52, 1, 1, 18000);
-    const persistedCameraState = persistedCameraStateRef.current;
-    camera.position.copy(persistedCameraState?.position ?? initialCameraPositionRef.current);
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        canvas,
-        antialias: true,
-        alpha: true
-      });
-      setRendererInitError(null);
-    } catch {
-      setRendererInitError("WebGL renderer is unavailable in this browser/session.");
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setRendererInitError("Canvas 2D renderer is unavailable in this browser/session.");
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0x000000, 0);
+    setRendererInitError(null);
+    controlsRef.current = null;
+    cameraRef.current = null;
 
-    const controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.07;
-    controls.minDistance = 0;
-    controls.maxDistance = Number.POSITIVE_INFINITY;
-    controls.target.copy(persistedCameraState?.target ?? initialTargetRef.current);
-    controls.enableRotate = true;
-    controls.enablePan = true;
-    controls.enableZoom = true;
-    controls.zoomSpeed = 1;
-    controls.rotateSpeed = 0.9;
-    controls.panSpeed = 1;
-    controls.screenSpacePanning = true;
-    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-    controls.touches.ONE = THREE.TOUCH.ROTATE;
-    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-    controls.listenToKeyEvents(window);
-    controls.update();
-
-    cameraRef.current = camera;
-    controlsRef.current = controls;
-
-    const nodeGroup = new THREE.Group();
-    const runtimeNodes = new Map<string, RuntimeNodeState>();
-    for (const node of layout.nodes) {
-      const manualPosition = manualNodePositionsRef.current.get(node.id);
-      const persistedPosition = persistedNodePositionsRef.current.get(node.id);
-      const startPosition = (manualPosition ?? persistedPosition ?? node.position).clone();
-      const targetPosition = (manualPosition ?? node.position).clone();
-      const geometry = new THREE.SphereGeometry(8, 16, 16);
-      const material = new THREE.MeshPhongMaterial({
-        color: nodeColor(node.entityType),
-        transparent: true,
-        opacity: 0.92
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.copy(startPosition);
-      mesh.visible = false;
-      nodeGroup.add(mesh);
-      runtimeNodes.set(node.id, {
-        mesh,
-        currentPosition: startPosition.clone(),
-        targetPosition
-      });
+    const viewState = topologyCanvasViewStateRef.current;
+    const graphKey = `${topologyRenderNodes.map((node) => node.id).join("|")}::${topologyRenderEdges
+      .map((edge) => edge.id)
+      .join("|")}`;
+    if (viewState.graphKey !== graphKey) {
+      viewState.graphKey = graphKey;
+      viewState.initialized = false;
+      topologyCanvasNeedsFitRef.current = true;
     }
-    scene.add(nodeGroup);
-    runtimeNodesRef.current = runtimeNodes;
 
-    const edgeGroup = new THREE.Group();
-    const purplePulseMaterials: THREE.MeshPhongMaterial[] = [];
-    const yellowPulseMaterials: THREE.MeshPhongMaterial[] = [];
-    const runtimeEdges: Array<{
-      edgeId: string;
-      fromNodeId: string;
-      toNodeId: string;
-      line: THREE.Line;
-      arrow: THREE.Mesh;
-      purpleTube: THREE.Mesh | null;
-      yellowTube: THREE.Mesh | null;
-    }> = [];
-    const computeCurve = (start: THREE.Vector3, end: THREE.Vector3) => {
-      const verticalDistance = Math.abs(start.y - end.y);
-      const controlDrop = Math.max(70, verticalDistance * 0.45);
-      const curveLift = Math.max(40, Math.abs(end.x - start.x) * 0.18);
-      const control1 = new THREE.Vector3(start.x, start.y - controlDrop, start.z + curveLift);
-      const control2 = new THREE.Vector3(end.x, end.y + controlDrop * 0.25, end.z + curveLift);
-      return new THREE.CubicBezierCurve3(start, control1, control2, end);
+    const tileWorldWidth = 352;
+    const tileWorldHeight = 160;
+    const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+    const colorToCss = (value: number) => `#${value.toString(16).padStart(6, "0")}`;
+
+    const resolveNodePosition = (nodeId: string): THREE.Vector3 | null => {
+      const layoutNode = topologyRenderNodeById.get(nodeId);
+      if (!layoutNode) {
+        return null;
+      }
+      if (nodeId === coreNode?.id || isNetworkModelOverlayNodeId(nodeId)) {
+        return layoutNode.position.clone();
+      }
+      const manual = manualNodePositionsRef.current.get(nodeId);
+      if (manual) {
+        return manual;
+      }
+      const persisted = persistedNodePositionsRef.current.get(nodeId);
+      if (persisted) {
+        return persisted;
+      }
+      return layoutNode.position.clone();
     };
 
-    const resolveWorldAnchorFromTile = (nodeId: string, runtimeNode: RuntimeNodeState) => {
-      const element = tileRefs.current[nodeId];
-      if (!element || element.style.display === "none") {
-        return runtimeNode.currentPosition.clone();
+    const worldToScreen = (worldX: number, worldY: number) => ({
+      x: worldX * viewState.zoom + viewState.offsetX,
+      y: worldY * viewState.zoom + viewState.offsetY
+    });
+
+    const resizeCanvas = () => {
+      const width = Math.max(1, Math.floor(viewport.clientWidth));
+      const height = Math.max(1, Math.floor(viewport.clientHeight));
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const targetWidth = Math.max(1, Math.floor(width * pixelRatio));
+      const targetHeight = Math.max(1, Math.floor(height * pixelRatio));
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
       }
-      const viewportRect = viewport.getBoundingClientRect();
-      const tileRect = element.getBoundingClientRect();
-      if (!viewportRect.width || !viewportRect.height || !tileRect.width || !tileRect.height) {
-        return runtimeNode.currentPosition.clone();
-      }
-      const centerX = tileRect.left + tileRect.width / 2;
-      const centerY = tileRect.top + tileRect.height / 2;
-      const ndcX = ((centerX - viewportRect.left) / viewportRect.width) * 2 - 1;
-      const ndcY = -(((centerY - viewportRect.top) / viewportRect.height) * 2 - 1);
-      const projected = runtimeNode.currentPosition.clone().project(camera);
-      const ndcZ = THREE.MathUtils.clamp(projected.z, -0.999, 0.999);
-      return new THREE.Vector3(ndcX, ndcY, ndcZ).unproject(camera);
+      return { width, height, pixelRatio };
     };
 
-    const updateEdgeGeometry = (edgeRuntime: (typeof runtimeEdges)[number], includeTubeRebuild: boolean) => {
-      const fromRuntimeNode = runtimeNodes.get(edgeRuntime.fromNodeId);
-      const toRuntimeNode = runtimeNodes.get(edgeRuntime.toNodeId);
-      if (!fromRuntimeNode || !toRuntimeNode) {
+    const fitView = (width: number, height: number) => {
+      if (!topologyRenderNodes.length) {
+        viewState.zoom = 1;
+        viewState.offsetX = width / 2;
+        viewState.offsetY = height / 2;
+        viewState.initialized = true;
+        topologyCanvasNeedsFitRef.current = false;
         return;
       }
-      const fromAnchor = resolveWorldAnchorFromTile(edgeRuntime.fromNodeId, fromRuntimeNode);
-      const toAnchor = resolveWorldAnchorFromTile(edgeRuntime.toNodeId, toRuntimeNode);
-      const curve = computeCurve(fromAnchor, toAnchor);
-      const points = curve.getPoints(34);
-      edgeRuntime.line.geometry.setFromPoints(points);
-
-      const arrowPosition = curve.getPoint(0.985);
-      const tangent = curve.getTangent(0.985).normalize();
-      edgeRuntime.arrow.position.copy(arrowPosition);
-      edgeRuntime.arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-
-      if (includeTubeRebuild && edgeRuntime.purpleTube) {
-        edgeRuntime.purpleTube.geometry.dispose();
-        edgeRuntime.purpleTube.geometry = new THREE.TubeGeometry(curve, 48, 2.8, 10, false);
+      let minX = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      for (const node of topologyRenderNodes) {
+        const position = resolveNodePosition(node.id);
+        if (!position) {
+          continue;
+        }
+        minX = Math.min(minX, position.x - tileWorldWidth / 2);
+        maxX = Math.max(maxX, position.x + tileWorldWidth / 2);
+        minY = Math.min(minY, position.y - tileWorldHeight / 2);
+        maxY = Math.max(maxY, position.y + tileWorldHeight / 2);
       }
-      if (includeTubeRebuild && edgeRuntime.yellowTube) {
-        edgeRuntime.yellowTube.geometry.dispose();
-        edgeRuntime.yellowTube.geometry = new THREE.TubeGeometry(curve, 48, 2.2, 10, false);
-      }
-    };
-
-    for (const edge of data.edges) {
-      const from = nodeById.get(edge.fromNodeId);
-      const to = nodeById.get(edge.toNodeId);
-      if (!from || !to) {
-        continue;
-      }
-      const isCoreMissionEdge = from.entityType === "network" && to.entityType === "mission-capability";
-      const isPathEdge = selectedPathEdgeIds.has(edge.id);
-      const isConnectedEdge = selectedConnectedEdgeIds.has(edge.id);
-      const isYellowConnectedOnly = isConnectedEdge && !isPathEdge;
-      const baseEdgeColor = isCoreMissionEdge ? 0x84cc16 : edgeColor(from.entityType);
-      const connectedEdgeColor = isCoreMissionEdge ? 0x84cc16 : 0xeab308;
-      const connectedEdgeEmissive = isCoreMissionEdge ? 0x4d7c0f : 0xf59e0b;
-      const fromRuntimeNode = runtimeNodes.get(edge.fromNodeId);
-      const toRuntimeNode = runtimeNodes.get(edge.toNodeId);
-      if (!fromRuntimeNode || !toRuntimeNode) {
-        continue;
-      }
-      const curve = computeCurve(fromRuntimeNode.currentPosition, toRuntimeNode.currentPosition);
-      const points = curve.getPoints(34);
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const material = new THREE.LineBasicMaterial({
-        color: isPathEdge ? 0x9333ea : isYellowConnectedOnly ? connectedEdgeColor : baseEdgeColor,
-        transparent: true,
-        opacity: isPathEdge || isYellowConnectedOnly ? 0.92 : 0.56
-      });
-      const line = new THREE.Line(geometry, material);
-      edgeGroup.add(line);
-
-      let purpleTube: THREE.Mesh | null = null;
-      if (isPathEdge) {
-        const tubeGeometry = new THREE.TubeGeometry(curve, 48, 2.8, 10, false);
-        const pulseMaterial = new THREE.MeshPhongMaterial({
-          color: 0x9333ea,
-          emissive: 0x6d28d9,
-          transparent: true,
-          opacity: 0.72
-        });
-        purpleTube = new THREE.Mesh(tubeGeometry, pulseMaterial);
-        edgeGroup.add(purpleTube);
-        purplePulseMaterials.push(pulseMaterial);
-      }
-
-      let yellowTube: THREE.Mesh | null = null;
-      if (isYellowConnectedOnly) {
-        const tubeGeometry = new THREE.TubeGeometry(curve, 48, 2.2, 10, false);
-        const pulseMaterial = new THREE.MeshPhongMaterial({
-          color: connectedEdgeColor,
-          emissive: connectedEdgeEmissive,
-          transparent: true,
-          opacity: 0.66
-        });
-        yellowTube = new THREE.Mesh(tubeGeometry, pulseMaterial);
-        edgeGroup.add(yellowTube);
-        yellowPulseMaterials.push(pulseMaterial);
-      }
-
-      const arrowPosition = curve.getPoint(0.985);
-      const tangent = curve.getTangent(0.985).normalize();
-      const arrowGeometry = new THREE.ConeGeometry(5.5, 18, 10);
-      const arrowMaterial = new THREE.MeshPhongMaterial({
-        color: isPathEdge ? 0x9333ea : baseEdgeColor
-      });
-      const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-      arrow.position.copy(arrowPosition);
-      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-      edgeGroup.add(arrow);
-      runtimeEdges.push({
-        edgeId: edge.id,
-        fromNodeId: edge.fromNodeId,
-        toNodeId: edge.toNodeId,
-        line,
-        arrow,
-        purpleTube,
-        yellowTube
-      });
-    }
-    scene.add(edgeGroup);
-
-    const resize = () => {
-      const width = viewport.clientWidth;
-      const height = viewport.clientHeight;
-      if (!width || !height) {
+      if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+        viewState.zoom = 1;
+        viewState.offsetX = width / 2;
+        viewState.offsetY = height / 2;
+        viewState.initialized = true;
+        topologyCanvasNeedsFitRef.current = false;
         return;
       }
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
+      const worldWidth = Math.max(1, maxX - minX);
+      const worldHeight = Math.max(1, maxY - minY);
+      const padding = 34;
+      const fitByWidth = (width - padding * 2) / worldWidth;
+      const fitByHeight = (height - padding * 2) / worldHeight;
+      viewState.zoom = Number(clamp(Math.min(fitByWidth, fitByHeight), 0.2, 1.65).toFixed(4));
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      viewState.offsetX = width / 2 - centerX * viewState.zoom;
+      viewState.offsetY = height / 2 - centerY * viewState.zoom;
+      viewState.initialized = true;
+      topologyCanvasNeedsFitRef.current = false;
     };
-    resize();
-    const resizeObserver = new ResizeObserver(() => resize());
-    resizeObserver.observe(viewport);
 
-    const positionTiles = () => {
-      const width = viewport.clientWidth;
-      const height = viewport.clientHeight;
-      for (const [nodeId, runtimeNode] of runtimeNodes.entries()) {
-        const element = tileRefs.current[nodeId];
+    const positionTiles = (viewportWidth: number, viewportHeight: number) => {
+      const tileScale = clamp(viewState.zoom, 0.22, 1.7);
+      const axisLockedScreenByNodeId = new Map<string, { x: number; y: number }>();
+      const rootNodeId = coreNode?.id ?? null;
+      const rootPosition = rootNodeId ? resolveNodePosition(rootNodeId) : null;
+      const rootScreen = rootPosition ? worldToScreen(rootPosition.x, rootPosition.y) : null;
+      if (rootNodeId && rootScreen) {
+        axisLockedScreenByNodeId.set(rootNodeId, rootScreen);
+      }
+
+      const axisLockedModelNodes = topologyRenderNodes
+        .filter((node) => isNetworkModelOverlayNodeId(node.id))
+        .sort((left, right) => {
+          if (left.position.y !== right.position.y) {
+            return left.position.y - right.position.y;
+          }
+          return left.name.localeCompare(right.name);
+        });
+      if (axisLockedModelNodes.length) {
+        const scaledTileHeight = tileWorldHeight * tileScale;
+        const fixedVerticalGapPx = 34;
+        const modelStackHeight =
+          axisLockedModelNodes.length * scaledTileHeight +
+          Math.max(0, axisLockedModelNodes.length - 1) * fixedVerticalGapPx;
+        const stackCenterY = rootScreen?.y ?? viewportHeight / 2;
+        const firstModelCenterY = stackCenterY - modelStackHeight / 2 + scaledTileHeight / 2;
+        axisLockedModelNodes.forEach((node, index) => {
+          const nodePosition = resolveNodePosition(node.id);
+          if (!nodePosition) {
+            return;
+          }
+          const nodeX = worldToScreen(nodePosition.x, nodePosition.y).x;
+          const nodeY = firstModelCenterY + index * (scaledTileHeight + fixedVerticalGapPx);
+          axisLockedScreenByNodeId.set(node.id, { x: nodeX, y: nodeY });
+        });
+      }
+
+      for (const node of topologyRenderNodes) {
+        const element = tileRefs.current[node.id];
         if (!element) {
           continue;
         }
-        const projected = runtimeNode.currentPosition.clone().project(camera);
-        const x = (projected.x * 0.5 + 0.5) * width;
-        const y = (-projected.y * 0.5 + 0.5) * height;
-        const isVisibleInProjection = projected.z > -1 && projected.z < 1;
-        const isVisibleByFilter = !isTileFilterActive || filteredTileNodeIds.has(nodeId);
-        const isVisible = isVisibleInProjection && isVisibleByFilter;
+        const position = resolveNodePosition(node.id);
+        if (!position) {
+          element.style.display = "none";
+          continue;
+        }
+        const isVisibleByFilter = visibleTopologyTileNodeIds.has(node.id);
+        const screen = axisLockedScreenByNodeId.get(node.id) ?? worldToScreen(position.x, position.y);
+        const halfScreenWidth = (tileWorldWidth * tileScale) / 2;
+        const halfScreenHeight = (tileWorldHeight * tileScale) / 2;
+        const isVisibleInViewport =
+          screen.x + halfScreenWidth >= -180 &&
+          screen.x - halfScreenWidth <= viewportWidth + 180 &&
+          screen.y + halfScreenHeight >= -180 &&
+          screen.y - halfScreenHeight <= viewportHeight + 180;
+        const isVisible = isVisibleByFilter && isVisibleInViewport;
         element.style.display = isVisible ? "block" : "none";
         if (!isVisible) {
           continue;
         }
-        const distance = camera.position.distanceTo(runtimeNode.currentPosition);
-        const scale = THREE.MathUtils.clamp(1700 / Math.max(distance, 1), 0.56, 1.48);
-        element.style.left = `${x}px`;
-        element.style.top = `${y}px`;
-        element.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        element.style.left = `${screen.x}px`;
+        element.style.top = `${screen.y}px`;
+        element.style.transform = `translate(-50%, -50%) scale(${tileScale})`;
       }
     };
 
+    const drawEdges = (viewportWidth: number, viewportHeight: number, pixelRatio: number) => {
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(0, 0, viewportWidth, viewportHeight);
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const screenRectByNodeId = new Map<
+        string,
+        { x: number; y: number; width: number; height: number; centerX: number; centerY: number }
+      >();
+      for (const node of topologyRenderNodes) {
+        if (!visibleTopologyTileNodeIds.has(node.id)) {
+          continue;
+        }
+        const element = tileRefs.current[node.id];
+        if (!element || element.style.display === "none") {
+          continue;
+        }
+        const rect = element.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) {
+          continue;
+        }
+        const x = rect.left - viewportRect.left;
+        const y = rect.top - viewportRect.top;
+        screenRectByNodeId.set(node.id, {
+          x,
+          y,
+          width: rect.width,
+          height: rect.height,
+          centerX: x + rect.width / 2,
+          centerY: y + rect.height / 2
+        });
+      }
+      const relationEdges = topologyRenderEdges.filter(
+        (edge) =>
+          Boolean(edge.relationKind) &&
+          screenRectByNodeId.has(edge.fromNodeId) &&
+          screenRectByNodeId.has(edge.toNodeId)
+      );
+
+      for (const edge of relationEdges) {
+        const fromRect = screenRectByNodeId.get(edge.fromNodeId);
+        const toRect = screenRectByNodeId.get(edge.toNodeId);
+        if (!fromRect || !toRect) {
+          continue;
+        }
+
+        const curve = detailedEdgeCurvePoints(
+          { x: fromRect.x, y: fromRect.y, width: fromRect.width, height: fromRect.height },
+          { x: toRect.x, y: toRect.y, width: toRect.width, height: toRect.height }
+        );
+        const isPathEdge = selectedPathEdgeIds.has(edge.id);
+        const isConnectedEdge = selectedConnectedEdgeIds.has(edge.id);
+        const baseColor = edge.relationKind === "related-model-flow" ? "#f97316" : "#38bdf8";
+
+        context.beginPath();
+        context.moveTo(curve.startX, curve.startY);
+        context.bezierCurveTo(curve.control1X, curve.control1Y, curve.control2X, curve.control2Y, curve.endX, curve.endY);
+        context.strokeStyle = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : baseColor;
+        context.globalAlpha = isPathEdge || isConnectedEdge ? 0.94 : 0.86;
+        context.lineWidth = isPathEdge ? 3.6 : isConnectedEdge ? 3 : 2.4;
+        context.lineCap = "round";
+        context.stroke();
+      }
+    };
+
+    const zoomAtPoint = (factor: number, clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      const localX = clientX - rect.left;
+      const localY = clientY - rect.top;
+      const worldX = (localX - viewState.offsetX) / Math.max(viewState.zoom, 0.0001);
+      const worldY = (localY - viewState.offsetY) / Math.max(viewState.zoom, 0.0001);
+      viewState.zoom = Number(clamp(viewState.zoom * factor, 0.2, 2.6).toFixed(4));
+      viewState.offsetX = localX - worldX * viewState.zoom;
+      viewState.offsetY = localY - worldY * viewState.zoom;
+      viewState.initialized = true;
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 && event.button !== 1 && event.button !== 2 && event.pointerType !== "touch") {
+        return;
+      }
+      topologyCanvasPanStateRef.current = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startOffsetX: viewState.offsetX,
+        startOffsetY: viewState.offsetY,
+        moved: false
+      };
+      canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const panState = topologyCanvasPanStateRef.current;
+      if (!panState || panState.pointerId !== event.pointerId) {
+        return;
+      }
+      const deltaX = event.clientX - panState.startClientX;
+      const deltaY = event.clientY - panState.startClientY;
+      if (!panState.moved && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
+        panState.moved = true;
+      }
+      viewState.offsetX = panState.startOffsetX + deltaX;
+      viewState.offsetY = panState.startOffsetY + deltaY;
+      viewState.initialized = true;
+      event.preventDefault();
+    };
+
+    const onPointerEnd = (event: PointerEvent) => {
+      const panState = topologyCanvasPanStateRef.current;
+      if (!panState || panState.pointerId !== event.pointerId) {
+        return;
+      }
+      topologyCanvasPanStateRef.current = null;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      event.preventDefault();
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.08 : 0.92;
+      zoomAtPoint(factor, event.clientX, event.clientY);
+    };
+
+    const onContextMenu = (event: Event) => {
+      event.preventDefault();
+    };
+
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerEnd);
+    canvas.addEventListener("pointercancel", onPointerEnd);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("contextmenu", onContextMenu);
+
+    const resizeObserver = new ResizeObserver(() => {
+      topologyCanvasNeedsFitRef.current = !viewState.initialized;
+    });
+    resizeObserver.observe(viewport);
+
     let isDisposed = false;
     let animationFrame = 0;
-    let hasMovement = true;
-    let hasInitializedEdgeAnchors = false;
-    let previousCameraPosition = camera.position.clone();
-    let previousCameraTarget = controls.target.clone();
     const renderFrame = () => {
       if (isDisposed) {
         return;
       }
-      controls.update();
-      const cameraMoved =
-        camera.position.distanceToSquared(previousCameraPosition) > 0.000001 ||
-        controls.target.distanceToSquared(previousCameraTarget) > 0.000001;
-      hasMovement = false;
-      for (const runtimeNode of runtimeNodes.values()) {
-        runtimeNode.currentPosition.lerp(runtimeNode.targetPosition, 0.14);
-        if (runtimeNode.currentPosition.distanceToSquared(runtimeNode.targetPosition) < 0.04) {
-          runtimeNode.currentPosition.copy(runtimeNode.targetPosition);
-        } else {
-          hasMovement = true;
+      const { width, height, pixelRatio } = resizeCanvas();
+      if (!viewState.initialized || topologyCanvasNeedsFitRef.current) {
+        fitView(width, height);
+      }
+      positionTiles(width, height);
+      drawEdges(width, height, pixelRatio);
+
+      if (!suppressPersistedPositionsOnCleanupRef.current) {
+        const persistedPositions = new Map<string, THREE.Vector3>();
+        for (const node of topologyRenderNodes) {
+          const position = resolveNodePosition(node.id);
+          if (position) {
+            persistedPositions.set(node.id, position.clone());
+          }
         }
-        runtimeNode.mesh.position.copy(runtimeNode.currentPosition);
+        persistedNodePositionsRef.current = persistedPositions;
       }
-      for (const runtimeNode of runtimeNodes.values()) {
-        runtimeNode.mesh.visible = false;
-      }
-      positionTiles();
-      const shouldRebuildTubes =
-        !hasInitializedEdgeAnchors || hasMovement || nodePositionsDirtyRef.current || cameraMoved;
-      for (const runtimeEdge of runtimeEdges) {
-        updateEdgeGeometry(runtimeEdge, shouldRebuildTubes);
-      }
-      hasInitializedEdgeAnchors = true;
       nodePositionsDirtyRef.current = false;
-      for (const runtimeEdge of runtimeEdges) {
-        const isEdgeVisible = isTileFilterActive
-          ? highlightedEdgeIds.has(runtimeEdge.edgeId)
-          : filteredTileNodeIds.has(runtimeEdge.fromNodeId) && filteredTileNodeIds.has(runtimeEdge.toNodeId);
-        runtimeEdge.line.visible = isEdgeVisible;
-        runtimeEdge.arrow.visible = isEdgeVisible;
-        if (runtimeEdge.purpleTube) {
-          runtimeEdge.purpleTube.visible = isEdgeVisible;
-        }
-        if (runtimeEdge.yellowTube) {
-          runtimeEdge.yellowTube.visible = isEdgeVisible;
-        }
-      }
-      persistedCameraStateRef.current = {
-        position: camera.position.clone(),
-        target: controls.target.clone()
-      };
-      if (purplePulseMaterials.length) {
-        const pulse = 0.56 + 0.38 * (0.5 + 0.5 * Math.sin(performance.now() * 0.008));
-        for (const material of purplePulseMaterials) {
-          material.opacity = pulse;
-        }
-      }
-      if (yellowPulseMaterials.length) {
-        const pulse = 0.48 + 0.44 * (0.5 + 0.5 * Math.sin(performance.now() * 0.01 + 1.1));
-        for (const material of yellowPulseMaterials) {
-          material.opacity = pulse;
-        }
-      }
-      renderer.render(scene, camera);
-      previousCameraPosition = camera.position.clone();
-      previousCameraTarget = controls.target.clone();
       animationFrame = window.requestAnimationFrame(renderFrame);
     };
     renderFrame();
 
     return () => {
       isDisposed = true;
-      if (suppressPersistedPositionsOnCleanupRef.current) {
-        persistedNodePositionsRef.current = new Map();
-      } else {
-        const persistedPositions = new Map<string, THREE.Vector3>();
-        for (const [nodeId, runtimeNode] of runtimeNodes.entries()) {
-          persistedPositions.set(nodeId, runtimeNode.currentPosition.clone());
-        }
-        persistedNodePositionsRef.current = persistedPositions;
-      }
-      suppressPersistedPositionsOnCleanupRef.current = false;
       window.cancelAnimationFrame(animationFrame);
       resizeObserver.disconnect();
-      controls.stopListenToKeyEvents();
-      controls.dispose();
-      renderer.dispose();
-      nodeGroup.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) {
-          return;
-        }
-        object.geometry.dispose();
-        if (Array.isArray(object.material)) {
-          for (const material of object.material) {
-            material.dispose();
-          }
-        } else {
-          object.material.dispose();
-        }
-      });
-      edgeGroup.traverse((object) => {
-        if (object instanceof THREE.Line) {
-          object.geometry.dispose();
-          if (Array.isArray(object.material)) {
-            for (const material of object.material) {
-              material.dispose();
-            }
-          } else {
-            object.material.dispose();
-          }
-        }
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          if (Array.isArray(object.material)) {
-            for (const material of object.material) {
-              material.dispose();
-            }
-          } else {
-            object.material.dispose();
-          }
-        }
-      });
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerEnd);
+      canvas.removeEventListener("pointercancel", onPointerEnd);
+      canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("contextmenu", onContextMenu);
+      topologyCanvasPanStateRef.current = null;
+      if (suppressPersistedPositionsOnCleanupRef.current) {
+        persistedNodePositionsRef.current = new Map();
+      }
+      suppressPersistedPositionsOnCleanupRef.current = false;
       runtimeNodesRef.current = new Map();
       nodePositionsDirtyRef.current = false;
-      cameraRef.current = null;
       controlsRef.current = null;
+      cameraRef.current = null;
     };
   }, [
-    data.edges,
-    filteredTileNodeIds,
     highlightedEdgeIds,
     isOpen,
     isTileFilterActive,
-    layout.nodes,
-    nodeById,
     selectedConnectedEdgeIds,
-    selectedPathEdgeIds
+    selectedPathEdgeIds,
+    topologyRenderEdges,
+    topologyRenderNodeById,
+    topologyRenderNodes,
+    visibleTopologyTileNodeIds
   ]);
 
   useEffect(() => {
@@ -4044,19 +4495,23 @@ export function NetworkTopologyView({
       if (!detailedTree) {
         return baseNodes;
       }
-      const baseNodeById = new Map(baseNodes.map((node) => [node.id, node]));
-      const rootNode = baseNodeById.get(detailedTree.rootNodeId) ?? baseNodes[0];
+      const topologyNodes = baseNodes.filter((node) => !isDetailedModelOverlayNodeId(node.id));
+      if (!topologyNodes.length) {
+        return baseNodes;
+      }
+      const topologyNodeById = new Map(topologyNodes.map((node) => [node.id, node]));
+      const rootNode = topologyNodeById.get(detailedTree.rootNodeId) ?? topologyNodes[0];
       if (!rootNode) {
         return baseNodes;
       }
 
-      const environmentNodes = baseNodes
+      const environmentNodes = topologyNodes
         .filter((node) => node.entityType === "environment")
         .sort((left, right) => left.y - right.y);
       const parentEnvironmentByCiId = new Map<string, string>();
       for (const edge of detailedTree.edges) {
-        const fromNode = baseNodeById.get(edge.fromNodeId);
-        const toNode = baseNodeById.get(edge.toNodeId);
+        const fromNode = topologyNodeById.get(edge.fromNodeId);
+        const toNode = topologyNodeById.get(edge.toNodeId);
         if (!fromNode || !toNode) {
           continue;
         }
@@ -4066,7 +4521,7 @@ export function NetworkTopologyView({
       }
       const ciNodesByEnvironmentId = new Map<string, RenderNode[]>();
       const ungroupedCiNodes: RenderNode[] = [];
-      for (const node of baseNodes) {
+      for (const node of topologyNodes) {
         if (node.entityType !== "ci") {
           continue;
         }
@@ -4085,13 +4540,16 @@ export function NetworkTopologyView({
       ungroupedCiNodes.sort((left, right) => left.y - right.y);
 
       const maxEnvironmentWidth = Math.max(DETAILED_TILE_WIDTH, ...environmentNodes.map((node) => node.width));
-      const maxCiWidth = Math.max(DETAILED_CI_TILE_WIDTH, ...baseNodes.filter((node) => node.entityType === "ci").map((node) => node.width));
+      const maxCiWidth = Math.max(
+        DETAILED_CI_TILE_WIDTH,
+        ...topologyNodes.filter((node) => node.entityType === "ci").map((node) => node.width)
+      );
       const rootToEnvironmentGap = Math.max(86, DETAILED_COLUMN_GAP * 0.44);
       const environmentToCiGap = Math.max(84, DETAILED_COLUMN_GAP * 0.4);
       const compactSectionGap = Math.max(18, DETAILED_SECTION_GAP * 0.34);
       const compactCiGap = Math.max(10, DETAILED_CI_ROW_GAP * 0.72);
 
-      const minBaseY = Math.min(...baseNodes.map((node) => node.y));
+      const minBaseY = Math.min(...topologyNodes.map((node) => node.y));
       const rootX = rootNode.x;
       const environmentX = rootX + rootNode.width + rootToEnvironmentGap;
       const ciX = environmentX + maxEnvironmentWidth + environmentToCiGap;
@@ -4183,6 +4641,8 @@ export function NetworkTopologyView({
           const spinSpeedRadiansPerSecond = 0.16;
           ciFlowOuterShellSpinAngleRef.current =
             (ciFlowOuterShellSpinAngleRef.current + deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
+          ciFlowInnerShellSpinAngleRef.current =
+            (ciFlowInnerShellSpinAngleRef.current - deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
         }
       } else {
         ciFlowOuterShellSpinLastTimestampRef.current = null;
@@ -4224,11 +4684,13 @@ export function NetworkTopologyView({
 
       if (!isFlowMode && latestNodes.length && !detailedCanvasInteractionRef.current) {
         const fitNodesToViewport = () => {
+          const fitNodes = latestNodes.filter((node) => !isDetailedModelOverlayNodeId(node.id));
+          const nodesForBounds = fitNodes.length ? fitNodes : latestNodes;
           let boundsMinX = Number.POSITIVE_INFINITY;
           let boundsMinY = Number.POSITIVE_INFINITY;
           let boundsMaxX = Number.NEGATIVE_INFINITY;
           let boundsMaxY = Number.NEGATIVE_INFINITY;
-          for (const node of latestNodes) {
+          for (const node of nodesForBounds) {
             boundsMinX = Math.min(boundsMinX, node.x);
             boundsMinY = Math.min(boundsMinY, node.y);
             boundsMaxX = Math.max(boundsMaxX, node.x + node.width);
@@ -4288,14 +4750,36 @@ export function NetworkTopologyView({
           isSelected: boolean;
         }
       >();
+      let ciFlowProjectionPinDeltaX = 0;
+      let ciFlowProjectionPinDeltaY = 0;
       if (isFlowMode && ciFlowGraph) {
         const rootRenderNode = latestNodes.find((node) => node.id === ciFlowRootNodeId) ?? null;
+        if (rootRenderNode) {
+          const rootProjection = projectFlowPoint(
+            rootRenderNode.x + rootRenderNode.width / 2,
+            rootRenderNode.y + rootRenderNode.height / 2,
+            rootRenderNode.z,
+            width,
+            height
+          );
+          if (rootProjection) {
+            const pinnedRootScreenPosition = { x: width / 2, y: height / 2 };
+            ciFlowPinnedRootScreenPositionRef.current = pinnedRootScreenPosition;
+            if (pinnedRootScreenPosition) {
+              ciFlowProjectionPinDeltaX = pinnedRootScreenPosition.x - rootProjection.x;
+              ciFlowProjectionPinDeltaY = pinnedRootScreenPosition.y - rootProjection.y;
+            }
+          }
+        }
         const spinPivotX = rootRenderNode ? rootRenderNode.x + rootRenderNode.width / 2 : ciFlowGraph.viewCenterX;
         const spinPivotY = rootRenderNode ? rootRenderNode.y + rootRenderNode.height / 2 : ciFlowGraph.viewCenterY;
         const spinPivotZ = rootRenderNode?.z ?? 0;
-        const spinAngle = ciFlowOuterShellSpinAngleRef.current;
-        const spinCos = Math.cos(spinAngle);
-        const spinSin = Math.sin(spinAngle);
+        const outerSpinAngle = ciFlowOuterShellSpinAngleRef.current;
+        const innerSpinAngle = ciFlowInnerShellSpinAngleRef.current;
+        const outerSpinCos = Math.cos(outerSpinAngle);
+        const outerSpinSin = Math.sin(outerSpinAngle);
+        const innerSpinCos = Math.cos(innerSpinAngle);
+        const innerSpinSin = Math.sin(innerSpinAngle);
         for (const node of latestNodes) {
           const isRootNode = node.id === detailedDisplayRootNodeId;
           const isSelected = node.id === detailedDisplaySelectedNodeId;
@@ -4304,31 +4788,40 @@ export function NetworkTopologyView({
           let centerWorldZ = node.z;
           const isOuterShellCi =
             node.entityType === "ci" && node.id !== ciFlowRootNodeId && !node.isInModelScope;
+          const isInnerShellCi =
+            node.entityType === "ci" && node.id !== ciFlowRootNodeId && Boolean(node.isInModelScope);
           if (isOuterShellCi) {
             const relativeX = centerWorldX - spinPivotX;
             const relativeZ = centerWorldZ - spinPivotZ;
-            centerWorldX = spinPivotX + relativeX * spinCos - relativeZ * spinSin;
-            centerWorldZ = spinPivotZ + relativeX * spinSin + relativeZ * spinCos;
+            centerWorldX = spinPivotX + relativeX * outerSpinCos - relativeZ * outerSpinSin;
+            centerWorldZ = spinPivotZ + relativeX * outerSpinSin + relativeZ * outerSpinCos;
+          } else if (isInnerShellCi) {
+            const relativeX = centerWorldX - spinPivotX;
+            const relativeZ = centerWorldZ - spinPivotZ;
+            centerWorldX = spinPivotX + relativeX * innerSpinCos - relativeZ * innerSpinSin;
+            centerWorldZ = spinPivotZ + relativeX * innerSpinSin + relativeZ * innerSpinCos;
           }
           const projection = projectFlowPoint(centerWorldX, centerWorldY, centerWorldZ, width, height);
           if (!projection) {
             continue;
           }
+          const projectedCenterX = projection.x + ciFlowProjectionPinDeltaX;
+          const projectedCenterY = projection.y + ciFlowProjectionPinDeltaY;
           const baseRadius = ciFlowSphereRadiusWorld(node);
           const selectedScale = isSelected ? 1.14 : isRootNode ? 1.06 : 1;
           const radius = baseRadius * projection.perspective * selectedScale;
           if (
-            projection.x + radius < -40 ||
-            projection.x - radius > width + 40 ||
-            projection.y + radius < -40 ||
-            projection.y - radius > height + 40
+            projectedCenterX + radius < -40 ||
+            projectedCenterX - radius > width + 40 ||
+            projectedCenterY + radius < -40 ||
+            projectedCenterY - radius > height + 40
           ) {
             continue;
           }
           const projected = {
             node,
-            centerX: projection.x,
-            centerY: projection.y,
+            centerX: projectedCenterX,
+            centerY: projectedCenterY,
             radius,
             depth: projection.depth,
             perspective: projection.perspective,
@@ -4337,6 +4830,105 @@ export function NetworkTopologyView({
           };
           latestFlowProjectedNodes.push(projected);
           flowProjectedNodeById.set(node.id, projected);
+        }
+        if (ciFlowAutoFitPendingRef.current && latestFlowProjectedNodes.length) {
+          let boundsMinX = Number.POSITIVE_INFINITY;
+          let boundsMinY = Number.POSITIVE_INFINITY;
+          let boundsMaxX = Number.NEGATIVE_INFINITY;
+          let boundsMaxY = Number.NEGATIVE_INFINITY;
+          const includeCircleBounds = (centerX: number, centerY: number, radius: number) => {
+            boundsMinX = Math.min(boundsMinX, centerX - radius);
+            boundsMinY = Math.min(boundsMinY, centerY - radius);
+            boundsMaxX = Math.max(boundsMaxX, centerX + radius);
+            boundsMaxY = Math.max(boundsMaxY, centerY + radius);
+          };
+          for (const projected of latestFlowProjectedNodes) {
+            includeCircleBounds(projected.centerX, projected.centerY, projected.radius);
+          }
+          if (rootRenderNode) {
+            const rootCenterWorldX = rootRenderNode.x + rootRenderNode.width / 2;
+            const rootCenterWorldY = rootRenderNode.y + rootRenderNode.height / 2;
+            const rootProjection = projectFlowPoint(rootCenterWorldX, rootCenterWorldY, rootRenderNode.z, width, height);
+            if (rootProjection) {
+              rootProjection.x += ciFlowProjectionPinDeltaX;
+              rootProjection.y += ciFlowProjectionPinDeltaY;
+              const shellRadiusWorldForNodes = (nodes: RenderNode[]) => {
+                if (!nodes.length) {
+                  return null;
+                }
+                let maxDistance = 0;
+                for (const node of nodes) {
+                  const nodeCenterWorldX = node.x + node.width / 2;
+                  const nodeCenterWorldY = node.y + node.height / 2;
+                  const distance = Math.hypot(
+                    nodeCenterWorldX - rootCenterWorldX,
+                    nodeCenterWorldY - rootCenterWorldY,
+                    node.z - rootRenderNode.z
+                  );
+                  maxDistance = Math.max(maxDistance, distance + ciFlowSphereRadiusWorld(node) * 0.95);
+                }
+                return maxDistance + 76;
+              };
+              const innerShellRadiusWorld = shellRadiusWorldForNodes(
+                latestNodes.filter(
+                  (node) =>
+                    node.entityType === "ci" &&
+                    node.id !== rootRenderNode.id &&
+                    node.isInModelScope
+                )
+              );
+              const outerShellRadiusWorld = shellRadiusWorldForNodes(
+                latestNodes.filter(
+                  (node) =>
+                    node.entityType === "ci" &&
+                    node.id !== rootRenderNode.id &&
+                    !node.isInModelScope
+                )
+              );
+              if (innerShellRadiusWorld) {
+                includeCircleBounds(
+                  rootProjection.x,
+                  rootProjection.y,
+                  innerShellRadiusWorld * rootProjection.perspective
+                );
+              }
+              if (outerShellRadiusWorld) {
+                includeCircleBounds(
+                  rootProjection.x,
+                  rootProjection.y,
+                  outerShellRadiusWorld * rootProjection.perspective
+                );
+              }
+            }
+          }
+          if (
+            Number.isFinite(boundsMinX) &&
+            Number.isFinite(boundsMinY) &&
+            Number.isFinite(boundsMaxX) &&
+            Number.isFinite(boundsMaxY)
+          ) {
+            const viewportPadding = 34;
+            const spanWidth = Math.max(1, boundsMaxX - boundsMinX);
+            const spanHeight = Math.max(1, boundsMaxY - boundsMinY);
+            const fitByWidth = (width - viewportPadding * 2) / spanWidth;
+            const fitByHeight = (height - viewportPadding * 2) / spanHeight;
+            const flow3D = ciFlow3DViewStateRef.current;
+            const fitScale = Math.min(fitByWidth, fitByHeight);
+            if (Number.isFinite(fitScale) && fitScale > 0) {
+              const nextZoom = Number(Math.max(0.3, Math.min(3.4, flow3D.zoom * fitScale * 0.985)).toFixed(4));
+              ciFlowAutoFitPendingRef.current = false;
+              if (Math.abs(nextZoom - flow3D.zoom) > 0.0005) {
+                flow3D.zoom = nextZoom;
+                setDetailedZoom(nextZoom);
+                requestDraw();
+                return;
+              }
+            } else {
+              ciFlowAutoFitPendingRef.current = false;
+            }
+          } else {
+            ciFlowAutoFitPendingRef.current = false;
+          }
         }
         const hoverPoint = ciFlowHoverLocalPointRef.current;
         let hoveredNodeId: string | null = null;
@@ -4364,6 +4956,8 @@ export function NetworkTopologyView({
           const rootCenterWorldY = rootNode.y + rootNode.height / 2;
           const rootProjection = projectFlowPoint(rootCenterWorldX, rootCenterWorldY, rootNode.z, width, height);
           if (rootProjection) {
+            rootProjection.x += ciFlowProjectionPinDeltaX;
+            rootProjection.y += ciFlowProjectionPinDeltaY;
             const shellRadiusWorldForNodes = (nodes: RenderNode[]) => {
               if (!nodes.length) {
                 return null;
@@ -4403,7 +4997,10 @@ export function NetworkTopologyView({
               strokeColor: string,
               fillAlpha: number,
               strokeAlpha: number,
-              spinArcAngle?: number
+              spinArcAngle?: number,
+              spinArcColor = "#fda4af",
+              spinArcShadowColor = "#f87171",
+              spinArcDirection: 1 | -1 = 1
             ) => {
               if (!radiusWorld) {
                 return;
@@ -4432,12 +5029,12 @@ export function NetworkTopologyView({
                   rootProjection.y,
                   radiusScreen,
                   spinArcAngle,
-                  spinArcAngle + arcLength
+                  spinArcAngle + arcLength * spinArcDirection
                 );
                 context.globalAlpha = Math.min(1, strokeAlpha * 2);
-                context.strokeStyle = "#fda4af";
+                context.strokeStyle = spinArcColor;
                 context.lineWidth = Math.max(1.8, radiusScreen * 0.0022);
-                context.shadowColor = "#f87171";
+                context.shadowColor = spinArcShadowColor;
                 context.shadowBlur = Math.max(8, radiusScreen * 0.032);
                 context.stroke();
               }
@@ -4451,7 +5048,17 @@ export function NetworkTopologyView({
               0.11,
               ciFlowOuterShellSpinAngleRef.current
             );
-            drawFlowShell(innerShellRadiusWorld, "#22c55e", "#86efac", 0.055, 0.13);
+            drawFlowShell(
+              innerShellRadiusWorld,
+              "#22c55e",
+              "#86efac",
+              0.055,
+              0.13,
+              ciFlowInnerShellSpinAngleRef.current,
+              "#86efac",
+              "#22c55e",
+              -1
+            );
           }
         }
 
@@ -4574,57 +5181,59 @@ export function NetworkTopologyView({
             context.lineWidth = 2.2;
             context.strokeStyle = strokeColor;
             context.stroke();
-            const textScale = Math.max(0.78, Math.min(1.2, viewState.zoom));
-            drawText(
-              `Type: ${tile.typeLabel}`,
-              topLeft.x + 12 * textScale,
-              topLeft.y + 22 * textScale,
-              tileWidth - 20 * textScale,
-              `${Math.round(12 * textScale)}px sans-serif`,
-              "#0f172a"
-            );
-            drawText(
-              `Name: ${tile.name}`,
-              topLeft.x + 12 * textScale,
-              topLeft.y + 40 * textScale,
-              tileWidth - 20 * textScale,
-              `${Math.round(12 * textScale)}px sans-serif`,
-              "#0f172a"
-            );
-            drawText(
-              tile.subtitle,
-              topLeft.x + 12 * textScale,
-              topLeft.y + 58 * textScale,
-              tileWidth - 20 * textScale,
-              `${Math.round(10 * textScale)}px sans-serif`,
-              "#334155"
-            );
-            const progressY = topLeft.y + tileHeight - 18 * textScale;
-            const progressWidth = Math.max(80, tileWidth - 26 * textScale);
-            roundedRectPath(context, topLeft.x + 13 * textScale, progressY, progressWidth, 9 * textScale, 3);
-            context.fillStyle = "#cbd5e1";
-            context.fill();
-            context.fillStyle = "#16a34a";
-            context.fillRect(
-              topLeft.x + 13 * textScale,
-              progressY,
-              (progressWidth * percentages.compliant) / 100,
-              9 * textScale
-            );
-            context.fillStyle = "#ef4444";
-            context.fillRect(
-              topLeft.x + 13 * textScale + (progressWidth * percentages.compliant) / 100,
-              progressY,
-              (progressWidth * percentages.nonCompliant) / 100,
-              9 * textScale
-            );
-            context.fillStyle = "#94a3b8";
-            context.fillRect(
-              topLeft.x + 13 * textScale + (progressWidth * (percentages.compliant + percentages.nonCompliant)) / 100,
-              progressY,
-              (progressWidth * percentages.other) / 100,
-              9 * textScale
-            );
+            if (viewState.zoom >= 0.42) {
+              const textScale = Math.max(0.78, Math.min(1.2, viewState.zoom));
+              drawText(
+                `Type: ${tile.typeLabel}`,
+                topLeft.x + 12 * textScale,
+                topLeft.y + 22 * textScale,
+                tileWidth - 20 * textScale,
+                `${Math.round(12 * textScale)}px sans-serif`,
+                "#0f172a"
+              );
+              drawText(
+                `Name: ${tile.name}`,
+                topLeft.x + 12 * textScale,
+                topLeft.y + 40 * textScale,
+                tileWidth - 20 * textScale,
+                `${Math.round(12 * textScale)}px sans-serif`,
+                "#0f172a"
+              );
+              drawText(
+                tile.subtitle,
+                topLeft.x + 12 * textScale,
+                topLeft.y + 58 * textScale,
+                tileWidth - 20 * textScale,
+                `${Math.round(10 * textScale)}px sans-serif`,
+                "#334155"
+              );
+              const progressY = topLeft.y + tileHeight - 18 * textScale;
+              const progressWidth = Math.max(80, tileWidth - 26 * textScale);
+              roundedRectPath(context, topLeft.x + 13 * textScale, progressY, progressWidth, 9 * textScale, 3);
+              context.fillStyle = "#cbd5e1";
+              context.fill();
+              context.fillStyle = "#16a34a";
+              context.fillRect(
+                topLeft.x + 13 * textScale,
+                progressY,
+                (progressWidth * percentages.compliant) / 100,
+                9 * textScale
+              );
+              context.fillStyle = "#ef4444";
+              context.fillRect(
+                topLeft.x + 13 * textScale + (progressWidth * percentages.compliant) / 100,
+                progressY,
+                (progressWidth * percentages.nonCompliant) / 100,
+                9 * textScale
+              );
+              context.fillStyle = "#94a3b8";
+              context.fillRect(
+                topLeft.x + 13 * textScale + (progressWidth * (percentages.compliant + percentages.nonCompliant)) / 100,
+                progressY,
+                (progressWidth * percentages.other) / 100,
+                9 * textScale
+              );
+            }
           }
         }
       }
@@ -4810,7 +5419,8 @@ export function NetworkTopologyView({
         context.strokeStyle = strokeColor;
         context.stroke();
 
-        if (viewState.zoom >= 0.42) {
+        const tileContentZoomThreshold = node.entityType === "ci" ? 0.8 : 0.42;
+        if (viewState.zoom >= tileContentZoomThreshold) {
           const textScale = Math.max(0.75, Math.min(1.25, viewState.zoom));
           drawText(`Type: ${detailedEntityTypeLabel(node.entityType)}`, topLeft.x + 14 * textScale, topLeft.y + 22 * textScale, nodeWidth - 24 * textScale, `${Math.round(12 * textScale)}px sans-serif`, "#0f172a");
           drawText(`Name: ${node.name}`, topLeft.x + 14 * textScale, topLeft.y + 40 * textScale, nodeWidth - 24 * textScale, `${Math.round(12 * textScale)}px sans-serif`, "#0f172a");
@@ -4906,6 +5516,25 @@ export function NetworkTopologyView({
       return null;
     };
 
+    const updateCiFlowFocusBadgeTooltip = (clientX: number, clientY: number) => {
+      if (isFlowMode) {
+        if (canvas.title) {
+          canvas.title = "";
+        }
+        return;
+      }
+      const world = clientToWorld(clientX, clientY);
+      const hitNode = hitTestNode(world.x, world.y);
+      let isOverCiFlowFocusBadge = false;
+      if (hitNode && hitNode.entityType === "ci") {
+        isOverCiFlowFocusBadge = pointInCircle(hitNode.x + hitNode.width - 16, hitNode.y + 16, 10, world.x, world.y);
+      }
+      const nextTitle = isOverCiFlowFocusBadge ? "Detailed Topology View - CI Flow Focus" : "";
+      if (canvas.title !== nextTitle) {
+        canvas.title = nextTitle;
+      }
+    };
+
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.button !== 1 && event.button !== 2 && event.pointerType !== "touch") {
         return;
@@ -4923,10 +5552,11 @@ export function NetworkTopologyView({
         }
 
         const flow3D = ciFlow3DViewStateRef.current;
-        const shouldPan = event.button === 1 || event.button === 2 || event.shiftKey || event.altKey;
+        // Keep the focus/root CI fixed in place on screen for all flow interactions.
+        // Flow focus supports rotate + zoom only, no pan translation.
         detailedCanvasInteractionRef.current = {
           pointerId: event.pointerId,
-          mode: shouldPan ? "flow-pan" : "flow-orbit",
+          mode: "flow-orbit",
           startClientX: event.clientX,
           startClientY: event.clientY,
           startOffsetX: viewState.offsetX,
@@ -5024,6 +5654,7 @@ export function NetworkTopologyView({
 
     const onPointerMove = (event: PointerEvent) => {
       const interaction = detailedCanvasInteractionRef.current;
+      updateCiFlowFocusBadgeTooltip(event.clientX, event.clientY);
       if (isFlowMode) {
         const local = clientToLocal(event.clientX, event.clientY);
         ciFlowHoverLocalPointRef.current = { x: local.x, y: local.y };
@@ -5047,11 +5678,8 @@ export function NetworkTopologyView({
         flow3D.pitch = Math.max(-1.24, Math.min(1.24, startPitch + deltaY * 0.0038));
       } else if (interaction.mode === "flow-pan") {
         const flow3D = ciFlow3DViewStateRef.current;
-        const startPanX = interaction.startFlowPanX ?? flow3D.panX;
-        const startPanY = interaction.startFlowPanY ?? flow3D.panY;
-        const worldUnitsPerPixel = CI_FLOW_3D_CAMERA_DISTANCE / Math.max(500, CI_FLOW_3D_FOCAL_LENGTH * flow3D.zoom);
-        flow3D.panX = startPanX + deltaX * worldUnitsPerPixel * 1.2;
-        flow3D.panY = startPanY - deltaY * worldUnitsPerPixel * 1.2;
+        flow3D.panX = 0;
+        flow3D.panY = 0;
       } else if (interaction.mode === "pan") {
         viewState.offsetX = interaction.startOffsetX + deltaX;
         viewState.offsetY = interaction.startOffsetY + deltaY;
@@ -5085,6 +5713,9 @@ export function NetworkTopologyView({
     };
 
     const onPointerLeave = () => {
+      if (canvas.title) {
+        canvas.title = "";
+      }
       if (!isFlowMode) {
         return;
       }
@@ -5154,6 +5785,9 @@ export function NetworkTopologyView({
       canvas.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", onContextMenu);
+      if (canvas.title) {
+        canvas.title = "";
+      }
       resizeObserver.disconnect();
       detailedCanvasRequestDrawRef.current = null;
       detailedCanvasInteractionRef.current = null;
@@ -5186,42 +5820,25 @@ export function NetworkTopologyView({
 
 
   const zoomBy = (factor: number) => {
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    if (!camera || !controls) {
+    const viewport = viewportRef.current;
+    if (!viewport) {
       return;
     }
-    const targetToCamera = camera.position.clone().sub(controls.target);
-    const currentDistance = targetToCamera.length();
-    if (!Number.isFinite(currentDistance) || currentDistance <= 0.0001) {
-      return;
-    }
-    const nextDistance = Math.max(0.0001, currentDistance * factor);
-    camera.position.copy(controls.target).add(targetToCamera.normalize().multiplyScalar(nextDistance));
-    controls.update();
+    const viewState = topologyCanvasViewStateRef.current;
+    const centerX = viewport.clientWidth / 2;
+    const centerY = viewport.clientHeight / 2;
+    const worldX = (centerX - viewState.offsetX) / Math.max(viewState.zoom, 0.0001);
+    const worldY = (centerY - viewState.offsetY) / Math.max(viewState.zoom, 0.0001);
+    viewState.zoom = Number(Math.min(2.6, Math.max(0.2, viewState.zoom * factor)).toFixed(4));
+    viewState.offsetX = centerX - worldX * viewState.zoom;
+    viewState.offsetY = centerY - worldY * viewState.zoom;
+    viewState.initialized = true;
   };
 
   const resetView = () => {
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    const runtimeNodes = runtimeNodesRef.current;
     manualNodePositionsRef.current = new Map();
-    if (runtimeNodes.size) {
-      const layoutNodeById = new Map(layout.nodes.map((node) => [node.id, node]));
-      for (const [nodeId, runtimeNode] of runtimeNodes.entries()) {
-        const layoutNode = layoutNodeById.get(nodeId);
-        if (!layoutNode) {
-          continue;
-        }
-        runtimeNode.targetPosition.copy(layoutNode.position);
-      }
-      nodePositionsDirtyRef.current = true;
-    }
-    if (camera && controls) {
-      camera.position.copy(initialCameraPositionRef.current);
-      controls.target.copy(initialTargetRef.current);
-      controls.update();
-    }
+    persistedNodePositionsRef.current = new Map();
+    nodePositionsDirtyRef.current = true;
     centerViewportScroll();
   };
 
@@ -5349,34 +5966,22 @@ export function NetworkTopologyView({
   };
 
   const dragRuntimeNodeByScreenDelta = (nodeId: string, deltaX: number, deltaY: number) => {
-    const camera = cameraRef.current;
-    const viewport = viewportRef.current;
-    const runtimeNode = runtimeNodesRef.current.get(nodeId);
-    if (!camera || !viewport || !runtimeNode || !viewport.clientHeight) {
+    const viewState = topologyCanvasViewStateRef.current;
+    const layoutNode = topologyRenderNodeById.get(nodeId);
+    if (!layoutNode || !viewState.zoom) {
       return;
     }
 
-    const viewDirection = new THREE.Vector3();
-    camera.getWorldDirection(viewDirection);
-    const distanceToNode = Math.abs(runtimeNode.currentPosition.clone().sub(camera.position).dot(viewDirection));
-    if (!Number.isFinite(distanceToNode) || distanceToNode <= 0.001) {
-      return;
-    }
-
-    const worldUnitsPerPixel =
-      (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * distanceToNode) / viewport.clientHeight;
-    const right = new THREE.Vector3().crossVectors(viewDirection, camera.up).normalize();
-    if (right.lengthSq() <= 0.000001) {
-      return;
-    }
-    const up = camera.up.clone().normalize();
-    const worldDelta = right.multiplyScalar(deltaX * worldUnitsPerPixel).add(up.multiplyScalar(-deltaY * worldUnitsPerPixel));
-
-    runtimeNode.currentPosition.add(worldDelta);
-    runtimeNode.targetPosition.add(worldDelta);
-    runtimeNode.mesh.position.copy(runtimeNode.currentPosition);
-    manualNodePositionsRef.current.set(nodeId, runtimeNode.currentPosition.clone());
-    persistedNodePositionsRef.current.set(nodeId, runtimeNode.currentPosition.clone());
+    const worldDeltaX = deltaX / Math.max(viewState.zoom, 0.0001);
+    const worldDeltaY = deltaY / Math.max(viewState.zoom, 0.0001);
+    const current =
+      manualNodePositionsRef.current.get(nodeId)?.clone() ??
+      persistedNodePositionsRef.current.get(nodeId)?.clone() ??
+      layoutNode.position.clone();
+    current.x += worldDeltaX;
+    current.y += worldDeltaY;
+    manualNodePositionsRef.current.set(nodeId, current.clone());
+    persistedNodePositionsRef.current.set(nodeId, current.clone());
     nodePositionsDirtyRef.current = true;
   };
 
@@ -5384,6 +5989,22 @@ export function NetworkTopologyView({
     (nodeId: string) =>
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.button !== 0) {
+        return;
+      }
+      const targetElement = event.target instanceof Element ? event.target : null;
+      if (
+        targetElement?.closest(
+          "button,input,select,textarea,a,label,[role='button'],[data-no-drag='true']"
+        )
+      ) {
+        return;
+      }
+      const isAxisLockedNode = nodeId === coreNode?.id || isNetworkModelOverlayNodeId(nodeId);
+      if (isAxisLockedNode) {
+        if (isTileFilterActive) {
+          setSelectedTileFilterId(nodeId);
+        }
+        setSelectedNodeId(nodeId);
         return;
       }
       if (isTileFilterActive) {
@@ -5531,6 +6152,7 @@ export function NetworkTopologyView({
     ciFlowAutoFitPendingRef.current = true;
     ciFlowNodeDragStateRef.current = null;
     ciFlowNodeDragOffsetsRef.current = {};
+    ciFlowPinnedRootScreenPositionRef.current = null;
     setCiFlowOriginCenter({ x: node.x + node.width / 2, y: node.y + node.height / 2 });
     setCiFlowViewportCenter(null);
     setCiFlowTweenProgress(0);
@@ -5557,6 +6179,7 @@ export function NetworkTopologyView({
       ciFlowAutoFitPendingRef.current = false;
       ciFlowNodeDragStateRef.current = null;
       ciFlowNodeDragOffsetsRef.current = {};
+      ciFlowPinnedRootScreenPositionRef.current = null;
       detailedPersistedCameraStateRef.current = null;
       detailedPersistedNodePositionsRef.current = new Map();
       detailedManualNodePositionsRef.current = new Map();
@@ -5567,16 +6190,35 @@ export function NetworkTopologyView({
     });
   };
 
+  const resolveBaseTopologyNodeId = (nodeId: string) => {
+    if (nodeById.has(nodeId)) {
+      return nodeId;
+    }
+    const renderNode = topologyRenderNodeById.get(nodeId);
+    if (!renderNode) {
+      return null;
+    }
+    const mappedNode = layout.nodes.find(
+      (node) => node.entityType === renderNode.entityType && node.entityId === renderNode.entityId
+    );
+    return mappedNode?.id ?? null;
+  };
+
   const openDetailsPanelForNode = (nodeId: string) => {
-    if (!nodeById.has(nodeId)) {
+    const resolvedNodeId = resolveBaseTopologyNodeId(nodeId);
+    if (!resolvedNodeId) {
       return;
     }
-    setSelectedDetailNodeId(nodeId);
+    setSelectedDetailNodeId(resolvedNodeId);
     setSelectedSystemId(null);
   };
 
   const openDetailedTopologyForNode = (nodeId: string) => {
-    const node = nodeById.get(nodeId);
+    const resolvedNodeId = resolveBaseTopologyNodeId(nodeId);
+    if (!resolvedNodeId) {
+      return;
+    }
+    const node = nodeById.get(resolvedNodeId);
     if (!node) {
       return;
     }
@@ -5599,6 +6241,7 @@ export function NetworkTopologyView({
     detailedZoomBeforeCiFlowRef.current = null;
     ciFlowNodeDragStateRef.current = null;
     ciFlowNodeDragOffsetsRef.current = {};
+    ciFlowPinnedRootScreenPositionRef.current = null;
     setIsDetailedTopologyOpen(true);
   };
 
@@ -5621,7 +6264,7 @@ export function NetworkTopologyView({
     detailedPersistedCameraStateRef.current = null;
     detailedPersistedNodePositionsRef.current = new Map();
     detailedManualNodePositionsRef.current = new Map();
-    setIsDetailedTopologyOpen(false);
+    setIsDetailedTopologyOpen(true);
     setDetailedSelectedTileFilterId("__all__");
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
@@ -5640,6 +6283,8 @@ export function NetworkTopologyView({
     detailedZoomBeforeCiFlowRef.current = null;
     ciFlowNodeDragStateRef.current = null;
     ciFlowNodeDragOffsetsRef.current = {};
+    ciFlowPinnedRootScreenPositionRef.current = null;
+    onClose();
   };
 
   const selectDetailedTileFilter = (nextId: string) => {
@@ -5648,18 +6293,8 @@ export function NetworkTopologyView({
     if (nextId !== "__all__") {
       if (isCiFlowFocusPanelOpen && ciFlowGraph) {
         setSelectedCiFlowNodeId(nextId);
-        const selectedFlowNode = ciFlowNodeById.get(nextId);
-        if (selectedFlowNode) {
-          setDetailedTileFilterSearchText(
-            `${detailedEntityTypeLabel(selectedFlowNode.entityType)}: ${selectedFlowNode.name}`
-          );
-        }
       } else {
         setDetailedSelectedNodeId(nextId);
-        const selectedNode = detailedNodeById.get(nextId);
-        if (selectedNode) {
-          setDetailedTileFilterSearchText(`${detailedEntityTypeLabel(selectedNode.entityType)}: ${selectedNode.name}`);
-        }
       }
     } else {
       setDetailedTileFilterSearchText("");
@@ -5833,6 +6468,9 @@ export function NetworkTopologyView({
       if (!isCiFlowFocusPanelOpen || ciFlowTweenProgress < 0.98) {
         return;
       }
+      if (nodeId === ciFlowRootNodeId) {
+        return;
+      }
       const currentOffset = ciFlowNodeDragOffsetsRef.current[nodeId] ?? { x: 0, y: 0 };
       ciFlowNodeDragStateRef.current = {
         nodeId,
@@ -5852,6 +6490,11 @@ export function NetworkTopologyView({
   const moveCiFlowNodeDrag = (event: ReactPointerEvent<SVGGElement>) => {
     const dragState = ciFlowNodeDragStateRef.current;
     if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+    if (dragState.nodeId === ciFlowRootNodeId) {
+      event.stopPropagation();
+      event.preventDefault();
       return;
     }
     const deltaX = event.clientX - dragState.startClientX;
@@ -5959,9 +6602,124 @@ export function NetworkTopologyView({
   const selectedCiFlowFocusPercentages = selectedCiFlowFocusCompliance
     ? compliancePercentages(selectedCiFlowFocusCompliance)
     : null;
+  const rootCiFlowModelContextTile = useMemo<{
+    id: string;
+    entityType: DetailedTileEntityType;
+    typeLabel: string;
+    name: string;
+    subtitle: string;
+    borderColor: string;
+    percentages: { compliant: number; nonCompliant: number; other: number };
+  } | null>(() => {
+    if (!isCiFlowFocusPanelOpen || !detailedRootNode) {
+      return null;
+    }
+    if (detailedRootNode.entityType !== "ict-system" && detailedRootNode.entityType !== "network") {
+      return null;
+    }
+    const isIctModel = detailedRootNode.entityType === "ict-system";
+    const compliance =
+      complianceMode === "cyber" ? detailedRootNode.cyberCompliance : detailedRootNode.discoveryCompliance;
+    return {
+      id: isIctModel
+        ? `ci-flow-model:ict:${detailedRootNode.entityId}`
+        : `ci-flow-model:network:${detailedRootNode.entityId}`,
+      entityType: detailedRootNode.entityType,
+      typeLabel: isIctModel ? "ICT System Model" : "Network Model",
+      name: detailedRootNode.name,
+      subtitle: "Root Model Context",
+      borderColor: isIctModel ? "#fb923c" : "#facc15",
+      percentages: compliancePercentages(compliance)
+    };
+  }, [complianceMode, detailedRootNode, isCiFlowFocusPanelOpen]);
   const selectedCiFlowModelTile = selectedCiFlowModelTileId
     ? ciFlowModelTileById.get(selectedCiFlowModelTileId) ?? null
     : null;
+  const selectedDetailedCanvasTileText = useMemo<{
+    typeLine: string;
+    nameLine: string;
+    detailLine: string;
+    scoreLine: string;
+    fullText: string;
+  } | null>(() => {
+    if (isCiFlowFocusPanelOpen || !detailedSelectedNodeId) {
+      return null;
+    }
+    const selectedTreeNode = detailedNodeById.get(detailedSelectedNodeId);
+    if (selectedTreeNode) {
+      const compliance = complianceMode === "cyber" ? selectedTreeNode.cyberCompliance : selectedTreeNode.discoveryCompliance;
+      const percentages = compliancePercentages(compliance);
+      const typeLine = `Type: ${detailedEntityTypeLabel(selectedTreeNode.entityType)}`;
+      const nameLine = `Name: ${selectedTreeNode.name}`;
+      const detailLine = selectedTreeNode.subtitle;
+      const scoreLine = `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`;
+      return {
+        typeLine,
+        nameLine,
+        detailLine,
+        scoreLine,
+        fullText: [typeLine, nameLine, detailLine, scoreLine].join("\n")
+      };
+    }
+    const overlayTile = detailedModelOverlay.tiles.find((tile) => tile.id === detailedSelectedNodeId);
+    if (!overlayTile) {
+      return null;
+    }
+    const compliance = complianceMode === "cyber" ? overlayTile.cyberCompliance : overlayTile.discoveryCompliance;
+    const percentages = compliancePercentages(compliance);
+    const typeLine = `Type: ${overlayTile.typeLabel}`;
+    const nameLine = `Name: ${overlayTile.name}`;
+    const detailLine = overlayTile.subtitle;
+    const scoreLine = `${percentages.compliant}% C | ${percentages.nonCompliant}% NC | ${percentages.other}% O`;
+    return {
+      typeLine,
+      nameLine,
+      detailLine,
+      scoreLine,
+      fullText: [typeLine, nameLine, detailLine, scoreLine].join("\n")
+    };
+  }, [
+    complianceMode,
+    detailedModelOverlay.tiles,
+    detailedNodeById,
+    detailedSelectedNodeId,
+    isCiFlowFocusPanelOpen
+  ]);
+  const copySelectedDetailedTileText = useCallback(async () => {
+    if (!selectedDetailedCanvasTileText) {
+      return;
+    }
+    const copyWithFallback = (value: string) => {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      let copied = false;
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      } finally {
+        textarea.remove();
+      }
+      return copied;
+    };
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(selectedDetailedCanvasTileText.fullText);
+      } else if (!copyWithFallback(selectedDetailedCanvasTileText.fullText)) {
+        throw new Error("Clipboard write failed");
+      }
+      setDetailedTileCopyFeedback("copied");
+    } catch {
+      const copied = copyWithFallback(selectedDetailedCanvasTileText.fullText);
+      setDetailedTileCopyFeedback(copied ? "copied" : "failed");
+    }
+  }, [selectedDetailedCanvasTileText]);
   const presentedDetailedNodes = useMemo<DetailedDisplayNode[]>(() => {
     if (isCiFlowFocusPanelOpen) {
       return detailedDisplayNodes.filter((node) => detailedFilteredNodeIds.has(node.id));
@@ -6116,6 +6874,10 @@ export function NetworkTopologyView({
     const svgWidth = Math.max(1, Math.ceil(maxX - minX + pad * 2));
     const svgHeight = Math.max(1, Math.ceil(maxY - minY + pad * 2));
     const n = (value: number) => Number(value.toFixed(2));
+    const focusedNodeIds = detailedCiSelectionFocus?.linkedNodeIds;
+    const focusedTreeEdgeIds = detailedCiSelectionFocus?.linkedTreeEdgeIds;
+    const focusedOverlayTileIds = detailedCiSelectionFocus?.linkedOverlayTileIds;
+    const focusedOverlayLinkKeys = detailedCiSelectionFocus?.linkedOverlayLinkKeys;
     const nodeBoundsById = new Map<string, { x: number; y: number; width: number; height: number }>();
     for (const node of presentedDetailedNodes) {
       nodeBoundsById.set(node.id, {
@@ -6154,13 +6916,16 @@ export function NetworkTopologyView({
         const isConnectedEdge = detailedSelectedConnectedEdgeIds.has(edge.id);
         const stroke = isPathEdge ? "#9333ea" : isConnectedEdge ? "#eab308" : "#38bdf8";
         const strokeWidth = isPathEdge ? 3.6 : isConnectedEdge ? 3 : 2;
+        const edgeBaseOpacity = isPathEdge || isConnectedEdge ? 0.94 : 0.58;
+        const isFocusedTreeEdge = focusedTreeEdgeIds?.has(edge.id) ?? false;
+        const edgeOpacity = detailedCiSelectionFocus && !isFocusedTreeEdge ? edgeBaseOpacity * 0.2 : edgeBaseOpacity;
         const d = [
           `M ${n(curve.startX + offsetX)} ${n(curve.startY + offsetY)}`,
           `C ${n(curve.control1X + offsetX)} ${n(curve.control1Y + offsetY)},`,
           `${n(curve.control2X + offsetX)} ${n(curve.control2Y + offsetY)},`,
           `${n(curve.endX + offsetX)} ${n(curve.endY + offsetY)}`
         ].join(" ");
-        return `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="0.86" stroke-width="${strokeWidth}" stroke-linecap="round" />`;
+        return `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="${n(edgeOpacity)}" stroke-width="${strokeWidth}" stroke-linecap="round" />`;
       })
       .filter((element): element is string => Boolean(element))
       .join("\n");
@@ -6183,7 +6948,10 @@ export function NetworkTopologyView({
           `${n(endX)} ${n(endY)}`
         ].join(" ");
         const stroke = link.kind === "shared-resource" ? "#ef4444" : "#f97316";
-        return `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="0.86" stroke-width="2.2" stroke-linecap="round" />`;
+        const linkKey = `${link.ciNodeId}|${link.tileId}|${link.kind}`;
+        const isFocusedOverlayLink = focusedOverlayLinkKeys?.has(linkKey) ?? false;
+        const linkOpacity = detailedCiSelectionFocus && !isFocusedOverlayLink ? 0.172 : 0.86;
+        return `<path d="${d}" fill="none" stroke="${stroke}" stroke-opacity="${n(linkOpacity)}" stroke-width="2.2" stroke-linecap="round" />`;
       })
       .filter((element): element is string => Boolean(element))
       .join("\n");
@@ -6264,8 +7032,10 @@ export function NetworkTopologyView({
         const barY = n(y + height - 16);
         const barWidth = n(Math.max(80, width - 28));
         const barHeight = 8;
+        const isFocusedNode = focusedNodeIds?.has(node.id) ?? false;
+        const nodeOpacity = detailedCiSelectionFocus && !isFocusedNode ? 0.2 : 1;
         return [
-          `<g>`,
+          `<g opacity="${n(nodeOpacity)}">`,
           `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${node.entityType === "ci" ? 12 : 18}" fill="${fill}" stroke="${stroke}" stroke-width="${isRootNode || isSelectedNode ? 3.2 : 2}" />`,
           `<text x="${n(x + 14)}" y="${n(y + 23)}" font-size="12" fill="#0f172a" font-family="sans-serif">Type: ${typeLabel}</text>`,
           `<text x="${n(x + 14)}" y="${n(y + 42)}" font-size="12" fill="#0f172a" font-family="sans-serif">Name: ${nameLabel}</text>`,
@@ -6295,8 +7065,10 @@ export function NetworkTopologyView({
         const barY = n(y + height - 16);
         const barWidth = n(Math.max(80, width - 28));
         const barHeight = 8;
+        const isFocusedOverlayTile = focusedOverlayTileIds?.has(tile.id) ?? false;
+        const tileOpacity = detailedCiSelectionFocus && !isFocusedOverlayTile ? 0.2 : 1;
         return [
-          `<g>`,
+          `<g opacity="${n(tileOpacity)}">`,
           `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="18" fill="${fill}" stroke="${stroke}" stroke-width="2.2" />`,
           `<text x="${n(x + 14)}" y="${n(y + 23)}" font-size="12" fill="#0f172a" font-family="sans-serif">Type: ${typeLabel}</text>`,
           `<text x="${n(x + 14)}" y="${n(y + 42)}" font-size="12" fill="#0f172a" font-family="sans-serif">Name: ${nameLabel}</text>`,
@@ -6349,6 +7121,7 @@ export function NetworkTopologyView({
     ciFlowRootTile?.name,
     detailedDisplayRootNodeId,
     detailedDisplaySelectedNodeId,
+    detailedCiSelectionFocus,
     detailedRootNode?.name,
     detailedSelectedConnectedEdgeIds,
     detailedSelectedPathEdgeIds,
@@ -6442,7 +7215,6 @@ export function NetworkTopologyView({
       URL.revokeObjectURL(url);
     }, 0);
   }, [ciFlowRootTile?.name, presentedNonModelledCiRows]);
-
   return (
     <div
       className={`fixed inset-0 z-[1200] transition-transform duration-300 ease-out ${
@@ -6452,573 +7224,6 @@ export function NetworkTopologyView({
     >
       <div className="absolute inset-0 bg-slate-950/70" />
       <section className="absolute inset-2 flex flex-col overflow-hidden rounded-2xl border border-sky-300/30 bg-slate-950/95 shadow-[0_26px_90px_rgba(0,0,0,0.65)]">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/20 px-4 py-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.16em] text-slate-300/80">{data.networkName}</p>
-            <h2 className="text-lg font-semibold text-sky-100">Network Topology View</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-red-300/45 bg-red-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-red-100 hover:bg-red-500/25"
-            >
-              Close
-            </button>
-          </div>
-        </header>
-
-        <div className="flex flex-wrap items-center gap-2 border-b border-sky-400/15 px-4 py-3 text-xs">
-          <label className="text-slate-300/85" htmlFor="network-topology-compliance-mode">
-            Compliance
-          </label>
-          <select
-            id="network-topology-compliance-mode"
-            value={complianceMode}
-            onChange={(event) => setComplianceMode(event.target.value as ComplianceMode)}
-            className="rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100"
-          >
-            <option value="cyber">Cyber Security Compliance</option>
-            <option value="discovery">Discovery Compliance</option>
-          </select>
-          <label className="ml-2 text-slate-300/85" htmlFor="network-topology-tile-filter-search">
-            Tile Search
-          </label>
-          <div className="relative w-[440px] max-w-full">
-            <div className="flex items-center gap-2">
-              <input
-                ref={tileSearchInputRef}
-                id="network-topology-tile-filter-search"
-                type="search"
-                value={tileFilterSearchText}
-                onChange={(event) => setTileFilterSearchText(event.target.value)}
-                onFocus={() => setIsTileSearchFocused(true)}
-                onBlur={() => {
-                  tileSearchBlurTimerRef.current = window.setTimeout(() => {
-                    setIsTileSearchFocused(false);
-                    setTileFilterSearchText((currentText) => currentText.trim());
-                    tileSearchBlurTimerRef.current = null;
-                  }, 120);
-                }}
-                placeholder="Search tile type or name"
-                className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100 placeholder:text-slate-400/90"
-              />
-              {selectedTileFilterId !== "__all__" ? (
-                <button
-                  type="button"
-                  onClick={clearTileSearchSelection}
-                  className="rounded-md border border-slate-500/45 bg-slate-900/70 px-2.5 py-1.5 font-semibold text-slate-200"
-                >
-                  Clear
-                </button>
-              ) : null}
-            </div>
-            {hasTileSearchTerm && isTileSearchFocused ? (
-              <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
-                {filteredTileDropdownOptions.length ? (
-                  <ul className="space-y-1">
-                    {filteredTileDropdownOptions.map((node) => (
-                      <li key={`tile-search-result-${node.id}`}>
-                        <button
-                          type="button"
-                          onMouseDown={(event) => {
-                            event.preventDefault();
-                            if (tileSearchBlurTimerRef.current !== null) {
-                              window.clearTimeout(tileSearchBlurTimerRef.current);
-                              tileSearchBlurTimerRef.current = null;
-                            }
-                            selectTileFilter(node.id);
-                            tileSearchInputRef.current?.blur();
-                          }}
-                          className={`w-full rounded-md border px-2 py-1.5 text-left text-xs ${
-                            selectedTileFilterId === node.id
-                              ? "border-violet-300/75 bg-violet-500/15 text-violet-100"
-                              : "border-sky-400/20 bg-slate-900/70 text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
-                          }`}
-                        >
-                          {entityTypeLabel(node.entityType)}: {node.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-300">
-                    No matching tiles
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </div>
-          <span className="mx-1 h-5 w-px bg-sky-400/20" />
-          <button
-            type="button"
-            onClick={() => zoomBy(0.86)}
-            className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
-          >
-            Zoom In
-          </button>
-          <button
-            type="button"
-            onClick={() => zoomBy(1.16)}
-            className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
-          >
-            Zoom Out
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-sky-200/70 bg-sky-500/18 px-2.5 py-1.5 font-semibold text-sky-100"
-            aria-pressed="true"
-          >
-            Orbit + Pan
-          </button>
-          <button
-            type="button"
-            onClick={resetView}
-            className="rounded-md border border-slate-400/45 bg-slate-800/70 px-2.5 py-1.5 font-semibold text-slate-100"
-          >
-            Reset View
-          </button>
-          <span className="rounded-md border border-sky-400/25 bg-slate-900/75 px-2 py-1 text-[11px] text-slate-200">
-            Left drag: rotate | Right drag: move | Wheel: zoom
-          </span>
-
-          <div className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              Green compliant
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-              Red non-compliant
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-              Grey other
-            </span>
-            <span className="mx-1 h-5 w-px bg-sky-400/20" />
-            <span className="text-[10px] uppercase tracking-[0.14em] text-slate-300/70">Entity Key</span>
-            {(["network", "mission-capability", "service", "ict-system"] as TopologyEntityType[])
-              .filter((entityType) => presentEntityTypes.has(entityType))
-              .map((entityType) => (
-                <span key={`entity-key-${entityType}`} className="inline-flex items-center gap-1">
-                  <span className={`h-2.5 w-2.5 rounded-sm ${legendSwatchClass(entityType)}`} />
-                  {entityTypeLabel(entityType)}
-                </span>
-              ))}
-          </div>
-        </div>
-
-        <div className="relative min-h-0 flex-1">
-          <div ref={scrollContainerRef} className="h-full overflow-auto px-4 py-4">
-            <div
-              ref={viewportRef}
-              onWheel={(event) => {
-                const scrollContainer = scrollContainerRef.current;
-                if (!scrollContainer) {
-                  return;
-                }
-                const primaryDelta =
-                  Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-                scrollContainer.scrollTop += primaryDelta;
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              className="relative overflow-hidden rounded-xl border border-sky-400/20 bg-slate-950/65"
-              style={{ width: layout.size.width, height: layout.size.height }}
-            >
-            <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-            {rendererInitError ? (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 p-6 text-center">
-                <p className="max-w-xl rounded-lg border border-amber-300/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                  {rendererInitError}
-                </p>
-              </div>
-            ) : null}
-            <div className="absolute inset-0 pointer-events-none">
-              {rendererInitError
-                ? null
-                : layout.nodes.map((node) => {
-                const compliance = complianceMode === "cyber" ? node.cyberCompliance : node.discoveryCompliance;
-                const percentage = compliancePercentages(compliance);
-                const isCoreTile = coreNode?.id === node.id;
-                const nodeCiGroups = ciAssetsByNodeId.get(node.id) ?? [];
-                const nodeEnvironmentGroups = ciEnvironmentGroupsByNodeId.get(node.id) ?? [];
-                const nodeCiCount = nodeCiGroups.reduce((sum, group) => sum + group.items.length, 0);
-                const isNodeExpanded = expandedNodeIds.has(node.id);
-                return (
-                  <div
-                    key={node.id}
-                    ref={registerTileRef(node.id)}
-                    onPointerDown={beginTileDrag(node.id)}
-                    onPointerMove={moveTileDrag(node.id)}
-                    onPointerUp={endTileDrag(node.id)}
-                    onPointerCancel={endTileDrag(node.id)}
-                    className={`pointer-events-auto absolute w-[22rem] rounded-3xl px-4 py-3 text-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.45)] ${tileSurfaceClass(
-                      node.entityType
-                    )} ${
-                      isCoreTile
-                        ? "border-4 border-red-500"
-                        : node.id === selectedNodeId
-                          ? "border-4 border-violet-500"
-                        : "border-2 border-sky-950/90"
-                    } ${draggingNodeId === node.id ? "cursor-grabbing" : "cursor-grab"} relative origin-center select-none touch-none`}
-                  >
-                    <button
-                      type="button"
-                      aria-label={`${isNodeExpanded ? "Collapse" : "Expand"} ${node.name} CIs in scope`}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        event.preventDefault();
-                      }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleNodeCiExpansion(node.id);
-                      }}
-                      className="absolute -right-3 -top-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
-                    >
-                      {isNodeExpanded ? (
-                        <svg
-                          viewBox="0 0 12 12"
-                          className="h-3.5 w-3.5"
-                          aria-hidden="true"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M2 6h8" />
-                        </svg>
-                      ) : (
-                        <svg
-                          viewBox="0 0 12 12"
-                          className="h-3.5 w-3.5"
-                          aria-hidden="true"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M6 2v8" />
-                          <path d="M2 6h8" />
-                        </svg>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      title="Detailed Topology View"
-                      aria-label={`Open Detailed Topology View for ${node.name}`}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        event.preventDefault();
-                      }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openDetailedTopologyForNode(node.id);
-                      }}
-                      className="absolute -right-3 -bottom-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
-                    >
-                      <svg
-                        viewBox="0 0 12 12"
-                        className="h-3.5 w-3.5"
-                        aria-hidden="true"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M6 2v8" />
-                        <path d="M2 6h8" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      title="Tile Details"
-                      aria-label={`Open details for ${node.name}`}
-                      onPointerDown={(event) => {
-                        event.stopPropagation();
-                        event.preventDefault();
-                      }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openDetailsPanelForNode(node.id);
-                      }}
-                      className="absolute -left-3 -bottom-3 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-900/80 bg-slate-950 text-sky-100 shadow-[0_6px_16px_rgba(0,0,0,0.5)] transition hover:border-cyan-300 hover:text-cyan-100"
-                    >
-                      <span className="text-[11px] font-bold leading-none">D</span>
-                    </button>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-semibold leading-snug text-slate-900">
-                        Type: <span className="font-medium">{entityTypeLabel(node.entityType)}</span>
-                      </p>
-                      <p className="text-sm font-semibold leading-snug text-slate-900">
-                        Name: <span className="font-medium">{node.name}</span>
-                      </p>
-                    </div>
-                    <div className="mt-3 h-3 w-full overflow-hidden rounded-sm bg-slate-300/95">
-                      <div className="flex h-full w-full">
-                        <div className="h-full bg-emerald-600" style={{ width: `${percentage.compliant}%` }} />
-                        <div className="h-full bg-red-500" style={{ width: `${percentage.nonCompliant}%` }} />
-                        <div className="h-full bg-slate-400" style={{ width: `${percentage.other}%` }} />
-                      </div>
-                    </div>
-                    <p className="mt-2 text-center text-base font-medium text-slate-900">
-                      {percentage.compliant}% C | {percentage.nonCompliant}% NC | {percentage.other}% O
-                    </p>
-                    {isNodeExpanded ? (
-                      <div
-                        onPointerDown={(event) => event.stopPropagation()}
-                        className="absolute left-1/2 top-[calc(100%+0.55rem)] z-20 w-[min(85.8rem,calc(100vw-3rem))] -translate-x-1/2 rounded-2xl border border-slate-700/85 bg-slate-950/96 p-3 shadow-[0_20px_48px_rgba(0,0,0,0.58)]"
-                      >
-                        <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
-                          CIs In Scope ({nodeCiCount})
-                        </p>
-                        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-                          {CI_ASSET_TYPES.map((assetType) => {
-                            const group = nodeCiGroups.find((item) => item.assetType === assetType);
-                            const searchValue = nodeCiSearchByKey[ciSearchKey(node.id, assetType)] ?? "";
-                            const normalizedSearchValue = searchValue.trim().toLowerCase();
-                            const filteredItems = (group?.items ?? []).filter((asset) => {
-                              if (!normalizedSearchValue) {
-                                return true;
-                              }
-                              return `${asset.hostname} ${asset.name} ${asset.ipAddress}`
-                                .toLowerCase()
-                                .includes(normalizedSearchValue);
-                            });
-                            return (
-                              <section
-                                key={`${node.id}-${assetType}`}
-                                className="flex h-64 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-700/75 bg-slate-900/88 p-2"
-                              >
-                                <p className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/90">
-                                  {ciAssetTypeLabel(assetType)} ({filteredItems.length}/{group?.items.length ?? 0})
-                                </p>
-                                <input
-                                  type="search"
-                                  value={searchValue}
-                                  onPointerDown={(event) => event.stopPropagation()}
-                                  onChange={(event) => setNodeCiSearch(node.id, assetType, event.target.value)}
-                                  placeholder="Filter CIs"
-                                  className="mt-1 rounded border border-slate-600/80 bg-slate-950/90 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-400"
-                                />
-                                <div className="mt-2 min-h-0 flex-1 overflow-auto">
-                                  <table className="w-full table-fixed border-collapse text-[11px] text-slate-200">
-                                    <thead className="sticky top-0 bg-slate-900/95 text-left uppercase tracking-[0.11em] text-slate-300/85">
-                                      <tr>
-                                        <th className="w-full border-b border-slate-700/80 px-1 py-1">Hostname</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {filteredItems.length ? (
-                                        filteredItems.map((asset) => (
-                                          <tr key={asset.id} className="align-top">
-                                            <td className="border-b border-slate-800/80 px-1 py-1 break-words">
-                                              {asset.hostname}
-                                            </td>
-                                          </tr>
-                                        ))
-                                      ) : (
-                                        <tr>
-                                          <td className="px-1 py-2 text-slate-400" colSpan={1}>
-                                            No matching CIs.
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </section>
-                            );
-                          })}
-                        </div>
-                        <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/65 p-2">
-                          <p className="px-1 text-[11px] uppercase tracking-[0.13em] text-slate-300/85">
-                            CIs In Scope By Environment
-                          </p>
-                          {nodeEnvironmentGroups.length ? (
-                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                              {nodeEnvironmentGroups.map((group) => {
-                                const searchKey = ciEnvironmentSearchKey(node.id, group.environment);
-                                const searchValue = nodeCiEnvironmentSearchByKey[searchKey] ?? "";
-                                const normalizedSearch = searchValue.trim().toLowerCase();
-                                const filteredItems = group.items.filter((asset) => {
-                                  if (!normalizedSearch) {
-                                    return true;
-                                  }
-                                  return `${asset.hostname} ${asset.name} ${asset.ipAddress} ${asset.type}`
-                                    .toLowerCase()
-                                    .includes(normalizedSearch);
-                                });
-                                return (
-                                  <section
-                                    key={`${node.id}-environment-${group.environment}`}
-                                    className="flex h-64 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-700/75 bg-slate-900/88 p-2"
-                                  >
-                                    <p className="text-[11px] uppercase tracking-[0.12em] text-cyan-100/90">
-                                      {group.environment} ({filteredItems.length}/{group.items.length})
-                                    </p>
-                                    <input
-                                      type="search"
-                                      value={searchValue}
-                                      onPointerDown={(event) => event.stopPropagation()}
-                                      onChange={(event) =>
-                                        setNodeCiEnvironmentSearch(node.id, group.environment, event.target.value)
-                                      }
-                                      placeholder="Filter CIs"
-                                      className="mt-1 rounded border border-slate-600/80 bg-slate-950/90 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-400"
-                                    />
-                                    <div className="mt-2 min-h-0 flex-1 overflow-auto">
-                                      <table className="w-full table-fixed border-collapse text-[11px] text-slate-200">
-                                        <thead className="sticky top-0 bg-slate-900/95 text-left uppercase tracking-[0.11em] text-slate-300/85">
-                                          <tr>
-                                            <th className="w-[70%] border-b border-slate-700/80 px-1 py-1">Hostname</th>
-                                            <th className="w-[30%] border-b border-slate-700/80 px-1 py-1">Type</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {filteredItems.length ? (
-                                            filteredItems.map((asset) => (
-                                              <tr key={asset.id} className="align-top">
-                                                <td className="border-b border-slate-800/80 px-1 py-1 break-words">
-                                                  {asset.hostname}
-                                                </td>
-                                                <td className="border-b border-slate-800/80 px-1 py-1 break-words">
-                                                  {ciAssetTypeSingularLabel(asset.type)}
-                                                </td>
-                                              </tr>
-                                            ))
-                                          ) : (
-                                            <tr>
-                                              <td className="px-1 py-2 text-slate-400" colSpan={2}>
-                                                No matching CIs.
-                                              </td>
-                                            </tr>
-                                          )}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </section>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <p className="mt-2 px-1 text-xs text-slate-400">No environment-linked CIs in this scope.</p>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-
-            <aside
-              className={`absolute inset-0 border-l border-sky-400/20 bg-slate-950/96 transition-transform duration-300 ${
-                selectedCmdb ? "translate-x-0" : "translate-x-full pointer-events-none"
-              }`}
-            >
-              <div className="flex h-full flex-col">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-400/18 px-4 py-3">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Detailed CMDB Topology</p>
-                    <h3 className="text-base font-semibold text-sky-100">
-                      {selectedCmdb?.systemName ?? "ICT System"}
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSystemId(null)}
-                    className="rounded-md border border-slate-400/45 bg-slate-800/75 px-3 py-1.5 text-xs font-semibold text-slate-100"
-                  >
-                    Back To Network Topology
-                  </button>
-                </div>
-
-                <div className="border-b border-sky-400/15 px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="search"
-                      value={searchInput}
-                      onChange={(event) => setSearchInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          runSearch();
-                        }
-                      }}
-                      placeholder="Search by IP or Name"
-                      className="min-w-[260px] flex-1 rounded-md border border-sky-400/28 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/80"
-                    />
-                    <button
-                      type="button"
-                      onClick={runSearch}
-                      className="rounded-md border border-sky-300/45 bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-100"
-                    >
-                      Search
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearSearch}
-                      className="rounded-md border border-slate-500/45 bg-slate-900/70 px-3 py-2 text-xs font-semibold text-slate-200"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
-                  {selectedCmdb ? (
-                    <ul className="space-y-3 text-sm">
-                      {[
-                        { key: "networkDevices", label: "Network Devices", items: selectedCmdb.networkDevices },
-                        { key: "workstations", label: "Workstations", items: selectedCmdb.workstations },
-                        { key: "servers", label: "Servers", items: selectedCmdb.servers }
-                      ].map((group) => (
-                        <li key={group.key} className="rounded-xl border border-sky-400/20 bg-slate-900/55 p-3">
-                          <p className="text-xs uppercase tracking-[0.13em] text-slate-300/80">
-                            {group.label} ({group.items.length})
-                          </p>
-                          <ul className="mt-2 space-y-1.5 border-l border-sky-400/15 pl-3">
-                            {group.items.length ? (
-                              group.items.map((asset) => {
-                                const isMatched = searchQuery
-                                  ? `${asset.hostname} ${asset.name} ${asset.ipAddress}`.toLowerCase().includes(searchQuery)
-                                  : false;
-                                return (
-                                  <li
-                                    key={asset.id}
-                                    className={`rounded-md border px-2.5 py-1.5 ${
-                                      isMatched
-                                        ? "border-amber-300/70 bg-amber-500/16 text-amber-100"
-                                        : "border-sky-400/15 bg-slate-950/55 text-slate-200"
-                                    }`}
-                                  >
-                                    <p className="font-medium">{asset.hostname}</p>
-                                    <p className="text-xs text-slate-300/90">
-                                      {asset.name} | {asset.ipAddress}
-                                    </p>
-                                  </li>
-                                );
-                              })
-                            ) : (
-                              <li className="rounded-md border border-slate-700/70 bg-slate-950/45 px-2.5 py-1.5 text-xs text-slate-400">
-                                No assets in this group.
-                              </li>
-                            )}
-                          </ul>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              </div>
-            </aside>
-            </div>
-          </div>
-        </div>
 
           {isDetailedTopologyOpen && detailedTree && !isCiFlowFocusPanelOpen ? (
             <aside className="absolute inset-0 z-50 bg-slate-950">
@@ -7033,6 +7238,22 @@ export function NetworkTopologyView({
                     </h3>
                   </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={exportDetailedTopologyCsv}
+                    disabled={!presentedDetailedNodes.length}
+                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportDetailedTopologySvg}
+                    disabled={!presentedDetailedNodes.length}
+                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                  >
+                    Export SVG
+                  </button>
                   <button
                     type="button"
                     onClick={closeDetailedTopologyView}
@@ -7156,22 +7377,6 @@ export function NetworkTopologyView({
                 <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
                   Zoom {detailedZoomPercent}%
                 </span>
-                <button
-                  type="button"
-                  onClick={exportDetailedTopologyCsv}
-                  disabled={!presentedDetailedNodes.length}
-                  className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
-                >
-                  Export CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={exportDetailedTopologySvg}
-                  disabled={!presentedDetailedNodes.length}
-                  className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
-                >
-                  Export SVG
-                </button>
                 <span className="mx-1 h-5 w-px bg-sky-400/20" />
                 <div className="flex items-center gap-1.5">
                   <button
@@ -7239,6 +7444,32 @@ export function NetworkTopologyView({
 
               <div ref={detailedViewportRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/75">
                 <canvas ref={detailedCanvasRef} className="absolute inset-0 h-full w-full" />
+                {!isCiFlowFocusPanelOpen && selectedDetailedCanvasTileText ? (
+                  <section
+                    className="pointer-events-auto absolute right-4 top-4 z-30 w-[22rem] rounded-2xl border border-sky-300/35 bg-slate-950/92 p-3 text-slate-100 shadow-[0_12px_28px_rgba(0,0,0,0.45)]"
+                    data-no-pan="true"
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-sky-100">Selected Tile Text</p>
+                    <pre className="mt-2 select-text whitespace-pre-wrap break-words rounded-md border border-slate-700/70 bg-slate-900/70 p-2 text-xs leading-5 text-slate-100">
+                      {selectedDetailedCanvasTileText.fullText}
+                    </pre>
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={copySelectedDetailedTileText}
+                        className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/24"
+                      >
+                        Copy Text
+                      </button>
+                      {detailedTileCopyFeedback === "copied" ? (
+                        <span className="text-xs text-emerald-200">Copied</span>
+                      ) : detailedTileCopyFeedback === "failed" ? (
+                        <span className="text-xs text-red-200">Copy failed</span>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
                 {rendererInitError ? (
                   <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 p-6 text-center">
                     <p className="max-w-xl rounded-lg border border-amber-300/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
@@ -7264,6 +7495,14 @@ export function NetworkTopologyView({
                     </h3>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={exportDetailedTopologyCsv}
+                      disabled={!presentedDetailedNodes.length}
+                      className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                    >
+                      Export CSV
+                    </button>
                     <button
                       type="button"
                       onClick={closeCiFlowFocus}
@@ -7384,48 +7623,43 @@ export function NetworkTopologyView({
                   >
                     Reset View
                   </button>
-                  <button
-                    type="button"
-                    onClick={exportDetailedTopologyCsv}
-                    disabled={!presentedDetailedNodes.length}
-                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
-                  >
-                    Export CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={exportDetailedTopologySvg}
-                    disabled={!presentedDetailedNodes.length}
-                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 font-semibold text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
-                  >
-                    Export SVG
-                  </button>
                   <span className="rounded-md border border-sky-400/25 bg-slate-900/75 px-2 py-1 text-[11px] text-slate-200">
-                    Left drag: rotate | Middle/right drag: move | Wheel: zoom
+                    Drag: rotate | Wheel: zoom | Root CI pinned
                   </span>
                   <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
                     Zoom {detailedZoomPercent}%
                   </span>
                   <span className="mx-1 h-5 w-px bg-sky-400/20" />
-                  <div className="flex items-center gap-1.5">
+                  <div className="relative flex items-center gap-1.5">
                     <span className="text-slate-300/85">CI Types</span>
-                    {(CI_ASSET_TYPES as CiAssetType[]).map((assetType) => {
-                      const isEnabled = ciFlowIncludedAssetTypes.has(assetType);
-                      return (
-                        <button
-                          key={`ci-flow-asset-type-filter-${assetType}`}
-                          type="button"
-                          onClick={() => toggleCiFlowIncludedAssetType(assetType)}
-                          className={`rounded-md border px-2 py-1 font-semibold ${
-                            isEnabled
-                              ? "border-cyan-200/80 bg-cyan-500/20 text-cyan-100"
-                              : "border-slate-500/45 bg-slate-900/65 text-slate-300 hover:border-slate-300/55 hover:text-slate-100"
-                          }`}
-                        >
-                          {ciAssetTypeLabel(assetType)}
-                        </button>
-                      );
-                    })}
+                    <details className="relative">
+                      <summary className="list-none cursor-pointer rounded-md border border-slate-500/45 bg-slate-900/65 px-2.5 py-1 font-semibold text-slate-200 hover:border-slate-300/55">
+                        {(CI_ASSET_TYPES as CiAssetType[])
+                          .filter((assetType) => ciFlowIncludedAssetTypes.has(assetType))
+                          .map((assetType) => ciAssetTypeLabel(assetType))
+                          .join(", ")}
+                      </summary>
+                      <div className="absolute left-0 top-[calc(100%+0.3rem)] z-40 min-w-[13rem] rounded-md border border-sky-400/35 bg-slate-950/95 p-2 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
+                        <ul className="space-y-1.5">
+                          {(CI_ASSET_TYPES as CiAssetType[]).map((assetType) => {
+                            const isEnabled = ciFlowIncludedAssetTypes.has(assetType);
+                            return (
+                              <li key={`ci-flow-asset-type-filter-${assetType}`}>
+                                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-slate-100 hover:bg-slate-800/70">
+                                  <input
+                                    type="checkbox"
+                                    checked={isEnabled}
+                                    onChange={() => toggleCiFlowIncludedAssetType(assetType)}
+                                    className="h-3.5 w-3.5 accent-cyan-400"
+                                  />
+                                  <span className="text-xs font-semibold">{ciAssetTypeLabel(assetType)}</span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </details>
                   </div>
 
                   <div className="ml-auto flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
@@ -7489,6 +7723,51 @@ export function NetworkTopologyView({
                   {rootCiFlowFocusNode && rootCiFlowFocusPercentages ? (
                     <>
                       <div className="pointer-events-auto absolute right-4 top-4 z-30 flex w-[22rem] flex-col gap-3">
+                      {rootCiFlowModelContextTile ? (
+                        <>
+                          <article
+                            className="rounded-2xl border-2 px-3 py-2.5 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)]"
+                            style={{
+                              borderColor: rootCiFlowModelContextTile.borderColor,
+                              backgroundColor: detailedTileColor(rootCiFlowModelContextTile.entityType)
+                            }}
+                          >
+                            <div className="space-y-0.5">
+                              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">
+                                {rootCiFlowModelContextTile.typeLabel}
+                              </p>
+                              <p className="text-sm font-semibold leading-snug text-slate-900">
+                                {rootCiFlowModelContextTile.name}
+                              </p>
+                              <p className="text-xs font-medium leading-snug text-slate-800">
+                                {rootCiFlowModelContextTile.subtitle}
+                              </p>
+                            </div>
+                            <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                              <div className="flex h-full w-full">
+                                <div
+                                  className="h-full bg-emerald-600"
+                                  style={{ width: `${rootCiFlowModelContextTile.percentages.compliant}%` }}
+                                />
+                                <div
+                                  className="h-full bg-red-500"
+                                  style={{ width: `${rootCiFlowModelContextTile.percentages.nonCompliant}%` }}
+                                />
+                                <div
+                                  className="h-full bg-slate-400"
+                                  style={{ width: `${rootCiFlowModelContextTile.percentages.other}%` }}
+                                />
+                              </div>
+                            </div>
+                            <p className="mt-1.5 text-center text-xs font-medium text-slate-900">
+                              {rootCiFlowModelContextTile.percentages.compliant}% C |{" "}
+                              {rootCiFlowModelContextTile.percentages.nonCompliant}% NC |{" "}
+                              {rootCiFlowModelContextTile.percentages.other}% O
+                            </p>
+                          </article>
+                          <div className="mx-auto h-4 w-[2px] rounded-full bg-violet-300/85 shadow-[0_0_10px_rgba(196,181,253,0.75)]" />
+                        </>
+                      ) : null}
                       <article
                         className="rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
                         style={{
