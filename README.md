@@ -28,7 +28,9 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - `sqlcmd` available in `PATH`
 - Windows PowerShell available in `PATH`
 - Offline compile entrypoint is `compileApp.cmd` (single supported compile command)
-- Pre-staged external large dependency artifact (required because SWC is intentionally not vendored in `Dependencies/node_modules`):
+- Bundled SWC archive (included in-repo, under 100 MB):
+  - `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz`
+- External staged SWC binary location used by offline scripts (auto-populated when missing):
   - `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node`
 
 ## Install
@@ -41,31 +43,40 @@ npm install --legacy-peer-deps
 
 ## Offline Build and Database Setup (Windows)
 
-### Step 0: Stage External Large Dependencies (>100 MB)
+### Step 0: Verify Bundled Large Dependency Artifact (>100 MB Extracted)
 
-Before running `compileApp.cmd` on a machine without internet access, pre-stage any required >100 MB dependency artifacts outside source control.
+Before running `compileApp.cmd` on a machine without internet access, verify bundled dependency artifacts are present.
 
-1. Next.js SWC win32-x64 native binary (required for this repository because it is intentionally excluded from `Dependencies/node_modules` due size)
-   - Required file path expected by `compileApp.cmd`:
+1. Next.js SWC win32-x64 native binary (required for this repository)
+   - Bundled in-repo source archive:
+     - `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz`
+   - Runtime file path used by `compileApp.cmd` and `npm run dev` (auto-extracted when missing):
      - `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node`
    - Version required by this repo:
      - `@next/swc-win32-x64-msvc@14.2.33`
    - Download source:
      - npm registry package: `https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz`
-   - Extract and stage on an internet-connected Windows machine:
+   - Git feasibility:
+     - Extracted binary cannot be committed under `<100 MB per file` policy (`135,864,320` bytes).
+     - The repo therefore stores the npm archive (`41,491,235` bytes) and extracts the binary locally during offline build/dev.
+   - Canonical artifact fingerprint used by offline scripts:
+     - Extracted binary size: `135864320` bytes
+     - Extracted binary SHA-256: `2CDDED4F290711FBD6911D880AA1A653519AF42C6139B9AE07C4D408A42B9B1B`
+     - Source tarball size (`swc-win32-x64-msvc-14.2.33.tgz`): `41491235` bytes
+     - Source tarball SHA-256: `AB5D8BC3837EF28228FEBBED8AC51CB9E5E460B351ADCCF169B7EC7888127382`
+   - Optional refresh procedure on an internet-connected Windows machine:
 
 ```powershell
-New-Item -ItemType Directory -Path .\Dependencies\external\@next\swc-win32-x64-msvc -Force | Out-Null
-Invoke-WebRequest -Uri "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz" -OutFile ".\swc-win32-x64-msvc-14.2.33.tgz"
-tar -xf ".\swc-win32-x64-msvc-14.2.33.tgz"
-Copy-Item ".\package\next-swc.win32-x64-msvc.node" ".\Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node" -Force
-Remove-Item ".\swc-win32-x64-msvc-14.2.33.tgz" -Force
-Remove-Item ".\package" -Recurse -Force
+New-Item -ItemType Directory -Path .\Dependencies\offline-artifacts\@next -Force | Out-Null
+Invoke-WebRequest -Uri "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz" -OutFile ".\Dependencies\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz"
+$archive = ".\Dependencies\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz"
+if ((Get-Item $archive).Length -ne 41491235) { throw "Unexpected SWC archive size." }
+if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToUpperInvariant() -ne "AB5D8BC3837EF28228FEBBED8AC51CB9E5E460B351ADCCF169B7EC7888127382") { throw "Unexpected SWC archive hash." }
 ```
 
-   - Copy the staged file to the same path on the offline target machine.
-   - `compileApp.cmd` will copy this file into restored `node_modules` only when required, and will exit with a clear error if it is missing.
-   - `compileApp.cmd` will also fail if this >100 MB binary is vendored inside `Dependencies/node_modules`; it must remain pre-staged under `Dependencies/external`.
+   - `compileApp.cmd` auto-extracts this archive into `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when required.
+   - Both `compileApp.cmd` and `npm run dev` validate archive and binary size/hash before use.
+   - `compileApp.cmd` fails if this >100 MB binary is vendored inside `Dependencies/node_modules`; it must remain external/runtime-generated.
 
 2. SQL Server Express installer (required only when SQL Server is not already installed)
    - File: `SQLEXPR_x64_ENU.exe` (typically >100 MB)
@@ -85,7 +96,8 @@ What it does:
 - Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
 - Restores vendored dependencies from `Dependencies/node_modules`
 - Verifies `next` and the full dependency tree are restored before build
-- Verifies required Next.js SWC binary is available, and copies it from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
+- Verifies required Next.js SWC artifact fingerprints; auto-extracts from `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz` when needed
+- Copies SWC binary from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` into restored `node_modules` when needed
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`
 - Validates that required SQL data is already present
@@ -194,8 +206,10 @@ Notes for offline Windows dev:
 - `npm run dev` now runs `scripts/run-next-dev-offline.cjs`, which:
   - sets `NEXT_DISABLE_SWC_DOWNLOAD=1` and `NEXT_SKIP_SWC_DOWNLOAD=1`
   - checks for `node_modules/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` (or Next fallback path)
+  - validates SWC size/hash for `@next/swc-win32-x64-msvc@14.2.33`
+  - extracts SWC from `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz` when staged binary is missing
   - copies the staged SWC file from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
-- If the staged SWC binary is missing, startup exits with a clear local error instead of trying to download from npm.
+- If both the staged SWC binary and bundled SWC archive are missing, startup exits with a clear local error instead of trying to download from npm.
 - Database connectivity can be updated at runtime via `/settings` -> `Database Settings` and persisted to `DB_config` after successful connection + schema checks.
 - If runtime SQL auth from `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
 

@@ -15,6 +15,17 @@ set "VENDORED_SWC_BINARY=%VENDORED_NODE_MODULES%\@next\swc-win32-x64-msvc\next-s
 set "STAGED_SWC_BINARY=%EXTERNAL_DEPS_DIR%\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "RESTORED_SWC_PACKAGE_BINARY=%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
 set "RESTORED_SWC_FALLBACK_BINARY=%REPO_ROOT%\node_modules\next\next-swc-fallback\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node"
+set "BUNDLED_SWC_TARBALL=%DEPS_DIR%\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz"
+set "BUNDLED_SWC_EXTRACT_DIR=%EXTERNAL_DEPS_DIR%\cache\swc-win32-x64-msvc-14.2.33"
+set "BUNDLED_SWC_EXTRACTED_BINARY=%BUNDLED_SWC_EXTRACT_DIR%\package\next-swc.win32-x64-msvc.node"
+set "MAX_REPO_FILE_BYTES=104857600"
+set "REQUIRED_SWC_PACKAGE_NAME=@next/swc-win32-x64-msvc"
+set "REQUIRED_SWC_PACKAGE_VERSION=14.2.33"
+set "REQUIRED_SWC_BINARY_SIZE_BYTES=135864320"
+set "REQUIRED_SWC_BINARY_SHA256=2CDDED4F290711FBD6911D880AA1A653519AF42C6139B9AE07C4D408A42B9B1B"
+set "REQUIRED_SWC_TARBALL_SIZE_BYTES=41491235"
+set "REQUIRED_SWC_TARBALL_SHA256=AB5D8BC3837EF28228FEBBED8AC51CB9E5E460B351ADCCF169B7EC7888127382"
+set "REQUIRED_SWC_DOWNLOAD_URL=https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz"
 set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
@@ -79,8 +90,13 @@ if not exist "%VENDORED_NEXT_PACKAGE%" (
     echo [ERROR] Missing vendored Next.js package metadata: %VENDORED_NEXT_PACKAGE%
     exit /b 1
 )
+if not exist "%BUNDLED_SWC_TARBALL%" (
+    echo [ERROR] Missing bundled SWC artifact archive: %BUNDLED_SWC_TARBALL%
+    echo [ERROR] Restore Dependencies\offline-artifacts to keep offline build self-contained.
+    exit /b 1
+)
 if exist "%VENDORED_SWC_BINARY%" (
-    for %%I in ("%VENDORED_SWC_BINARY%") do if %%~zI GTR 104857600 (
+    for %%I in ("%VENDORED_SWC_BINARY%") do if %%~zI GTR %MAX_REPO_FILE_BYTES% (
         echo [ERROR] Large SWC binary detected in Dependencies\node_modules: %VENDORED_SWC_BINARY%
         echo [ERROR] Files over 100 MB must not be stored in repository dependency bundles.
         echo [ERROR] Move it to pre-staged external path: %STAGED_SWC_BINARY%
@@ -214,6 +230,8 @@ echo [INFO] Bundled Node runtime: %VENDORED_NODE_RUNTIME_DIR%
 echo [INFO] Node.js: %NODE_VERSION_TEXT%
 echo [INFO] npm:     %NPM_VERSION_TEXT%
 echo [INFO] Vendored dependency source: %VENDORED_NODE_MODULES%
+echo [INFO] Required SWC package: %REQUIRED_SWC_PACKAGE_NAME%@%REQUIRED_SWC_PACKAGE_VERSION%
+echo [INFO] Bundled SWC archive path: %BUNDLED_SWC_TARBALL%
 echo [INFO] External staged SWC binary path (if needed): %STAGED_SWC_BINARY%
 echo [INFO] SQL Server instance: %TSAAT_SQL_SERVER%
 echo [INFO] SQL Server database: %TSAAT_APP_DATABASE%
@@ -270,13 +288,19 @@ if not exist "%REPO_ROOT%\node_modules\next\package.json" (
     echo [ERROR] Restored dependency tree is missing Next.js package metadata at %REPO_ROOT%\node_modules\next\package.json.
     exit /b 1
 )
+if not exist "%STAGED_SWC_BINARY%" (
+    call :extractBundledSwcArtifact
+    if errorlevel 1 (
+        exit /b 1
+    )
+)
 if not exist "%RESTORED_SWC_PACKAGE_BINARY%" (
     if not exist "%RESTORED_SWC_FALLBACK_BINARY%" (
         if exist "%STAGED_SWC_BINARY%" (
             if not exist "%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc\" mkdir "%REPO_ROOT%\node_modules\@next\swc-win32-x64-msvc" >nul 2>nul
             copy /y "%STAGED_SWC_BINARY%" "%RESTORED_SWC_PACKAGE_BINARY%" >nul
             if errorlevel 1 (
-                echo [ERROR] Failed to copy staged SWC binary from %STAGED_SWC_BINARY%.
+                echo [ERROR] Failed to copy SWC binary from %STAGED_SWC_BINARY%.
                 exit /b 1
             )
         )
@@ -290,6 +314,33 @@ if not exist "%RESTORED_SWC_PACKAGE_BINARY%" (
         echo [ERROR] See README.md ^> Offline Build and Database Setup ^(Windows^) ^> Step 0.
         exit /b 1
     )
+)
+set "ACTIVE_SWC_BINARY="
+set "ACTIVE_SWC_BINARY_SIZE="
+set "ACTIVE_SWC_BINARY_SHA256="
+if exist "%RESTORED_SWC_PACKAGE_BINARY%" (
+    set "ACTIVE_SWC_BINARY=%RESTORED_SWC_PACKAGE_BINARY%"
+) else (
+    set "ACTIVE_SWC_BINARY=%RESTORED_SWC_FALLBACK_BINARY%"
+)
+for %%I in ("%ACTIVE_SWC_BINARY%") do set "ACTIVE_SWC_BINARY_SIZE=%%~zI"
+if not "%ACTIVE_SWC_BINARY_SIZE%"=="%REQUIRED_SWC_BINARY_SIZE_BYTES%" (
+    echo [ERROR] Unexpected Next.js SWC binary size at %ACTIVE_SWC_BINARY%.
+    echo [ERROR] Expected %REQUIRED_SWC_BINARY_SIZE_BYTES% bytes for %REQUIRED_SWC_PACKAGE_NAME%@%REQUIRED_SWC_PACKAGE_VERSION%; found %ACTIVE_SWC_BINARY_SIZE% bytes.
+    echo [ERROR] Re-stage the exact artifact from: %REQUIRED_SWC_DOWNLOAD_URL%
+    exit /b 1
+)
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "(Get-FileHash -LiteralPath '%ACTIVE_SWC_BINARY%' -Algorithm SHA256).Hash.ToUpperInvariant()"`) do set "ACTIVE_SWC_BINARY_SHA256=%%I"
+if errorlevel 1 (
+    echo [ERROR] Unable to compute SWC binary hash at %ACTIVE_SWC_BINARY%.
+    exit /b 1
+)
+if /I not "%ACTIVE_SWC_BINARY_SHA256%"=="%REQUIRED_SWC_BINARY_SHA256%" (
+    echo [ERROR] Unexpected Next.js SWC binary hash at %ACTIVE_SWC_BINARY%.
+    echo [ERROR] Expected SHA-256: %REQUIRED_SWC_BINARY_SHA256%
+    echo [ERROR] Actual SHA-256:   %ACTIVE_SWC_BINARY_SHA256%
+    echo [ERROR] Re-stage the exact artifact from: %REQUIRED_SWC_DOWNLOAD_URL%
+    exit /b 1
 )
 
 echo [INFO] Step 2/3 - Building dependencies offline (npm rebuild)...
@@ -307,4 +358,55 @@ if errorlevel 1 (
 )
 
 echo [SUCCESS] Offline dependency build and application build completed successfully.
+exit /b 0
+
+:extractBundledSwcArtifact
+echo [INFO] Staged SWC binary not found. Extracting from bundled archive...
+if not exist "%BUNDLED_SWC_TARBALL%" (
+    echo [ERROR] Missing bundled SWC artifact archive: %BUNDLED_SWC_TARBALL%
+    exit /b 1
+)
+set "BUNDLED_SWC_TARBALL_SIZE="
+for %%I in ("%BUNDLED_SWC_TARBALL%") do set "BUNDLED_SWC_TARBALL_SIZE=%%~zI"
+if not "%BUNDLED_SWC_TARBALL_SIZE%"=="%REQUIRED_SWC_TARBALL_SIZE_BYTES%" (
+    echo [ERROR] Unexpected bundled SWC archive size at %BUNDLED_SWC_TARBALL%.
+    echo [ERROR] Expected %REQUIRED_SWC_TARBALL_SIZE_BYTES% bytes; found %BUNDLED_SWC_TARBALL_SIZE% bytes.
+    echo [ERROR] Re-acquire archive from: %REQUIRED_SWC_DOWNLOAD_URL%
+    exit /b 1
+)
+set "BUNDLED_SWC_TARBALL_SHA256="
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "(Get-FileHash -LiteralPath '%BUNDLED_SWC_TARBALL%' -Algorithm SHA256).Hash.ToUpperInvariant()"`) do set "BUNDLED_SWC_TARBALL_SHA256=%%I"
+if errorlevel 1 (
+    echo [ERROR] Unable to compute bundled SWC archive hash at %BUNDLED_SWC_TARBALL%.
+    exit /b 1
+)
+if /I not "%BUNDLED_SWC_TARBALL_SHA256%"=="%REQUIRED_SWC_TARBALL_SHA256%" (
+    echo [ERROR] Unexpected bundled SWC archive hash at %BUNDLED_SWC_TARBALL%.
+    echo [ERROR] Expected SHA-256: %REQUIRED_SWC_TARBALL_SHA256%
+    echo [ERROR] Actual SHA-256:   %BUNDLED_SWC_TARBALL_SHA256%
+    echo [ERROR] Re-acquire archive from: %REQUIRED_SWC_DOWNLOAD_URL%
+    exit /b 1
+)
+where tar >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] Required command not found in PATH: tar
+    echo [ERROR] Install Windows tar support or pre-stage %STAGED_SWC_BINARY%.
+    exit /b 1
+)
+if not exist "%BUNDLED_SWC_EXTRACT_DIR%\" mkdir "%BUNDLED_SWC_EXTRACT_DIR%" >nul 2>nul
+tar -xf "%BUNDLED_SWC_TARBALL%" -C "%BUNDLED_SWC_EXTRACT_DIR%" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to extract bundled SWC archive: %BUNDLED_SWC_TARBALL%
+    exit /b 1
+)
+if not exist "%BUNDLED_SWC_EXTRACTED_BINARY%" (
+    echo [ERROR] Bundled SWC archive did not contain expected binary: %BUNDLED_SWC_EXTRACTED_BINARY%
+    exit /b 1
+)
+if not exist "%EXTERNAL_DEPS_DIR%\@next\swc-win32-x64-msvc\" mkdir "%EXTERNAL_DEPS_DIR%\@next\swc-win32-x64-msvc" >nul 2>nul
+copy /y "%BUNDLED_SWC_EXTRACTED_BINARY%" "%STAGED_SWC_BINARY%" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to stage SWC binary from bundled archive.
+    exit /b 1
+)
 exit /b 0

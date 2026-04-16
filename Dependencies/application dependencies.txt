@@ -1,7 +1,7 @@
 TSAAT Offline Build Dependency Manifest
 =======================================
 
-Generated (UTC): 2026-04-10T09:48:27.613Z
+Generated (UTC): 2026-04-16T03:45:00.000Z
 Repository root: C:\ShuffyNet\VS Code\TSAAT
 Project: dct-cyber-posture-report@1.0.0
 Lockfile: package-lock.json (lockfileVersion=2)
@@ -29,13 +29,22 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 9. Repository source code present locally (no network fetch in compile stage).
 10. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
 
-External large dependency artifact requirement (not committed)
--------------------------------------------------------------
+External large dependency artifact requirement (bundled archive + runtime extraction)
+-------------------------------------------------------------------------------------
 The SWC native binary exceeds 100 MB and is intentionally excluded from Dependencies\node_modules.
-compileApp.cmd enforces this by rejecting dependency bundles that vendor the SWC binary under Dependencies\node_modules.
-Staged path expected by compileApp.cmd (when SWC binary is not in Dependencies\node_modules):
+Current required binary fingerprint for @next/swc-win32-x64-msvc@14.2.33:
+- Size: 135864320 bytes
+- SHA-256: 2CDDED4F290711FBD6911D880AA1A653519AF42C6139B9AE07C4D408A42B9B1B
+compileApp.cmd enforces this by rejecting dependency bundles that vendor the SWC binary under Dependencies\node_modules and by validating artifact size/hash before build.
+Bundled source archive stored in-repo:
+Dependencies\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz
+Runtime staged extraction target used by compileApp.cmd:
 Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node
-Provisioning source: npm package @next/swc-win32-x64-msvc@14.2.33 (download and stage out-of-band).
+Source tarball fingerprint:
+- Size: 41491235 bytes
+- SHA-256: AB5D8BC3837EF28228FEBBED8AC51CB9E5E460B351ADCCF169B7EC7888127382
+Provisioning source when refreshing archive:
+https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.2.33.tgz
 
 Direct runtime dependencies (from package.json)
 ----------------------------------------------
@@ -1409,6 +1418,6 @@ Offline compile sequence enforced by compileApp.cmd
 2. Configure PATH to use vendored Node.js runtime at Dependencies\runtime\nodejs\win-x64.
 3. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
 4. Restore node_modules from Dependencies\node_modules.
-5. Validate Next.js SWC win32-x64 native binary exists in restored dependencies; if missing, copy from Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node.
+5. Validate Next.js SWC win32-x64 native binary exists in restored dependencies; if missing, extract bundled archive from Dependencies\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz to Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node, copy to node_modules, then validate artifact size/hash.
 6. Rebuild npm dependency artifacts offline (npm rebuild --offline).
 7. Build the application offline (npm run build).
