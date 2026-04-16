@@ -1,0 +1,110 @@
+# Networks
+
+**Page Path:** `/networks`
+
+## 1. Page Overview
+- **Page name:** Networks
+- **Purpose:** provide network-scoped overview, action planning, and roll-up posture reporting.
+- **User outcome:** the user can compare managed networks, identify the highest-risk network scopes, and drill into network detail.
+- **Primary user roles:** network owners, cyber operations analysts, remediation coordinators, reporting users.
+
+## 2. Page Summary
+The page is a date-scoped network workbench with three query-parameter-driven tabs: `overview`, `action`, and `posture`.
+
+Major dependencies:
+
+- `getTrendAppData()`
+- `NetworksTabs`
+- `NetworksOverviewPanel`, `NetworksActionPanel`, `NetworksPostureKpiSummary`
+- `NetworksTable`
+- `/api/networks/remediation-report`
+
+## 3. Feature Breakdown
+### Feature: Shared Network Filter Scope
+- **What it does:** filters the page by network, security domain, asset type, mission capability, business service, and date.
+- **User perspective:** the user narrows the network estate and all tab content changes together.
+- **System behaviour:** the page uses the shared filter model, but intentionally hides ICT system, criticality, and environment selectors from the visible filter bar.
+- **Outcome:** the page remains network-centric.
+
+### Feature: Overview Tab
+- **What it does:** shows network posture, modelling coverage, risk profile, and daily and weekly trends.
+- **User perspective:** the user gets a network-level executive summary.
+- **System behaviour:** compliance, modelling, and risk metrics are aggregated from filtered asset evaluations and findings.
+- **Outcome:** users can identify whether network scope is improving or degrading.
+
+### Feature: Action Tab
+- **What it does:** shows remediation pressure, backlog aging, oldest open findings, quick wins, and a scoped remediation report link.
+- **User perspective:** the user can move from network posture to action planning.
+- **System behaviour:** the page builds action metrics from open findings, lifecycle data, discovery coverage, and discovery enablement status.
+- **Outcome:** the user gets a tactical work queue and export path.
+
+### Feature: Posture Tab
+- **What it does:** shows KPI summary cards, blast-radius data, searchable network roll-up table, detail slideout, and drill-down links.
+- **User perspective:** the user can compare networks and open either a summary slideout or the full network detail page.
+- **System behaviour:** each row combines network metadata, rollup posture, P1/P2 counts, discovery compliance, and drill-down links.
+- **Outcome:** the page acts as the routing surface for `/networks/[networkId]`.
+
+### Feature: Blast Radius Selection
+- **What it does:** filters the posture table from chart selections.
+- **User perspective:** selecting a blast-radius element narrows the table to the chosen network until cleared.
+- **System behaviour:** client-side event dispatch and listen links `NetworksPostureKpiSummary` and `NetworksTableClient`.
+- **Outcome:** chart interaction and table interaction stay synchronised.
+
+## 4. Feature Detail Table
+| Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | loading overlay displayed |
+| Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends | dataset, findings, evaluations | Dashboard cards and charts | network scope only | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
+| Networks | Action | Remediation planning | Open tab or generate report | Builds action metrics and remediation report link | findings, lifecycle, discovery status | Action board and PDF link | report reflects current filters | none beyond scope parsing | `/api/networks/remediation-report` | Action planning and export | |
+| Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
+| Networks | Blast radius filter | Links chart choice to table scope | Select or clear chart item | Event-based client filter | selected network ID | Filtered posture table | chart filter is temporary and client-side | cleared when selection no longer exists | custom browser event | Faster comparison workflow | |
+
+## 5. Database Mapping
+The page uses the shared snapshot dataset and findings analytics, then reshapes the data around network scope.
+
+Primary data dependencies:
+
+- `tsaat.managed_network`
+- `tsaat.network_declared_system` and `tsaat.network_declared_asset`
+- `tsaat.asset` and related posture tables
+- `tsaat.finding`
+- `tsaat.asset_vulnerability`
+- discovery and measures settings tables
+
+## 6. Database Mapping Table
+| Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | fallback metadata allowed in slideouts | used directly and in drill-down hrefs | |
+| Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | |
+| Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity remapped before use | |
+| Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset` | `network_id`, `system_id`, `asset_id` | string | declared scope context | Read | same snapshot joins | none | informational scope support | not all UI elements display these tables directly |
+| Networks | Discovery settings | `tsaat` | discovery settings tables | version and tool scope columns | mixed | discovery compliance score by network | Read | latest settings version applied to all evaluations | defaults if no saved settings exist | runtime evaluation only | |
+
+## 7. Calculations and Derived Logic
+| Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Networks compliance | overview posture tile | compliant network rollup counts divided by all network rollup counts | runtime network rollups | Runtime | backend | returns `0` with no rollups |
+| Discovery compliance by network | posture table and KPI summary | `discovery-compliant asset evaluations / total asset evaluations in network * 100` | runtime evaluations | Runtime | backend | only assets with evaluations contribute |
+| Modelled network coverage | overview modelling card | networks where `discoveryStatus != "Discovery Non Enabled"` divided by total networks | `managed_network.discovery_status` | Runtime | backend | implemented as discovery enablement proxy |
+| Blast radius points | posture chart input | endpoint count per network plus high-risk P1/P2 finding count | assets, findings | Runtime | backend | sorted by endpoint count, then severe findings |
+| Immediate action | action tab | open High Risk + open Critical Exposure findings | findings | Runtime | backend | severity remap already applied |
+| Non-compliant OS count | action tab | count server and workstation evaluations with SPI 1 or 2 = `Non-compliant` | runtime evaluations | Runtime | backend | network devices excluded |
+| Weekly throughput | action tab | weekly opened count, closed count, and `opened - closed` across last 13 weeks | finding timestamps | Runtime | backend | weekly buckets are fixed 7-day windows |
+| Quick wins | action tab | group open findings by identical recommended action text | findings | Runtime | backend | missing actions grouped to a default label |
+
+## 8. Non-Database Calculations
+- Tab loading overlay progress is synthetic.
+- Blast-radius selection and table search are client-side only.
+- Posture slideout content is rendered from the already loaded row model.
+- The remediation report URL is assembled from the current query string; no server call occurs until the user opens the link.
+
+## 9. Rules, Assumptions, and Constraints
+- The page is date-scoped.
+- ICT system, environment, and criticality are intentionally hidden from the visible filter bar.
+- The posture tab is the source of drill-down navigation into network detail.
+- Summary slideouts and posture rows may show fallback metadata when source fields are blank.
+
+## 10. Open Questions / Gaps
+- **Open question:** should the `DPE` and `DSE` labels in the overview reflect environment type or security domain? The implementation follows environment type.
+- **Open question:** is `discovery_status` intended to be the authoritative proxy for modelled-network coverage on this page?
+- **Open question:** should the posture slideout and full drill-down page always show the same metadata source, or should fallback-generated values be visually marked?
