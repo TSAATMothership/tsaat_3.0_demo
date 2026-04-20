@@ -89,7 +89,7 @@
       "successMeasure": "0 physical devices in EOL or out-of-warranty state.",
       "priorityOrder": 7,
       "recommendedAction": "Replace or renew lifecycle-expired assets (EOL / out-of-warranty) through prioritized capital plan.",
-      "applicableAssetTypes": ["server", "workstation", "network-device"]
+      "applicableAssetTypes": ["server", "workstation", "network-device", "storage-device", "printer-device", "other"]
     }
   ]
 }

@@ -33,7 +33,7 @@ Important hidden behaviour:
 ### Feature: Shared Report Filter Scope
 - **What it does:** filters the report launcher by network, system, criticality, security domain, environment, asset type, severity, mission capability, and business service.
 - **User perspective:** the user sets the report scope before opening a report.
-- **System behaviour:** the page converts the current filter object into query-string entries and reuses them in each report URL.
+- **System behaviour:** the page converts the current filter object into query-string entries and reuses them in each report URL. Asset-type values use the shared six-type taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** all reports open against the same selected scope.
 
 ### Feature: Text Search Reports

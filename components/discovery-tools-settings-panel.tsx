@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ASSET_TYPES, ASSET_TYPE_LABELS, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import type {
   DiscoveryToolAssetSetting,
   DiscoveryToolSetting,
@@ -8,13 +9,7 @@ import type {
 } from "@/lib/discovery-tools-settings";
 import { AssetType } from "@/lib/types";
 
-const ASSET_TYPES: AssetType[] = ["server", "workstation", "network-device"];
-
-const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-  server: "Server",
-  workstation: "Workstation",
-  "network-device": "Network Device"
-};
+const PANEL_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
 
 interface ToolValidationIssue {
   rowNumber: number;
@@ -25,7 +20,7 @@ function scopesEqual(
   a: Record<AssetType, DiscoveryToolAssetSetting>,
   b: Record<AssetType, DiscoveryToolAssetSetting>
 ): boolean {
-  return ASSET_TYPES.every((assetType) => a[assetType] === b[assetType]);
+  return PANEL_ASSET_TYPES.every((assetType) => a[assetType] === b[assetType]);
 }
 
 function toolsEqual(a: DiscoveryToolSetting[], b: DiscoveryToolSetting[]): boolean {
@@ -61,11 +56,7 @@ function createNewTool(seed: number): DiscoveryToolSetting {
     description: "",
     el2Owner: "",
     el2OperationsManager: "",
-    assetTypeScope: {
-      server: "required",
-      workstation: "required",
-      "network-device": "required"
-    }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   };
 }
 
@@ -241,10 +232,12 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
               <th className="w-[22%] whitespace-normal px-3 py-2 leading-tight">Tool Description</th>
               <th className="w-[14%] whitespace-normal px-3 py-2 leading-tight">Tool EL2 Owner</th>
               <th className="w-[16%] whitespace-normal px-3 py-2 leading-tight">Tool EL2 Operations Manager</th>
-              <th className="w-[8%] whitespace-normal px-3 py-2 leading-tight">Server</th>
-              <th className="w-[8%] whitespace-normal px-3 py-2 leading-tight">Workstation</th>
-              <th className="w-[10%] whitespace-normal px-3 py-2 leading-tight">Network Device</th>
-              <th className="w-[8%] whitespace-normal px-3 py-2 leading-tight">Action</th>
+              {PANEL_ASSET_TYPES.map((assetType) => (
+                <th key={`asset-type-header-${assetType}`} className="min-w-[140px] whitespace-normal px-3 py-2 leading-tight">
+                  {ASSET_TYPE_LABELS[assetType]}
+                </th>
+              ))}
+              <th className="min-w-[96px] whitespace-normal px-3 py-2 leading-tight">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -302,7 +295,7 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
                     className={`min-w-0 w-full rounded-md border bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100 placeholder:text-slate-400/70 ${requiredFieldClass(tool.el2OperationsManager)}`}
                   />
                 </td>
-                {ASSET_TYPES.map((assetType) => (
+                {PANEL_ASSET_TYPES.map((assetType) => (
                   <td key={`${tool.id}:${assetType}`} className="px-3 py-2">
                     <select
                       value={tool.assetTypeScope[assetType]}
@@ -336,7 +329,7 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
             ))}
             {draftTools.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                <td colSpan={PANEL_ASSET_TYPES.length + 5} className="px-3 py-6 text-center text-sm text-slate-300/80">
                   No tools configured. Add at least one discovery tool.
                 </td>
               </tr>

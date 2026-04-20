@@ -355,7 +355,11 @@ export function evaluateAssetSpis(asset: Asset): SpiEvaluation[] {
     return [evaluateSpi1(asset), evaluateSpi2(asset), evaluateSpi6(asset), ...base];
   }
 
-  return [evaluateSpi7(asset), evaluateSpi8(asset), evaluateSpi9(asset), ...base];
+  if (asset.type === "network-device") {
+    return [evaluateSpi7(asset), evaluateSpi8(asset), evaluateSpi9(asset), ...base];
+  }
+
+  return base;
 }
 
 export function hasProductionCriticalVulnerability(asset: Asset): boolean {

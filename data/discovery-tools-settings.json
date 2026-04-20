@@ -10,7 +10,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "required"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     },
     {
@@ -22,7 +25,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "na"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     },
     {
@@ -34,7 +40,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "required"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     },
     {
@@ -46,7 +55,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "required"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     },
     {
@@ -58,7 +70,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "required"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     },
     {
@@ -70,7 +85,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "required"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     },
     {
@@ -82,7 +100,10 @@
       "assetTypeScope": {
         "server": "required",
         "workstation": "required",
-        "network-device": "na"
+        "network-device": "required",
+        "storage-device": "required",
+        "printer-device": "required",
+        "other": "required"
       }
     }
   ]

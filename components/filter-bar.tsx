@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { AssetType, EnvironmentType, Filters } from "@/lib/types";
 
 interface Option {
@@ -330,9 +331,9 @@ export function FilterBar({
           <SelectField
             label="Asset Type"
             value={filters.assetType}
-            options={(["server", "workstation", "network-device"] as AssetType[]).map((type) => ({
+            options={Array.from(ASSET_TYPES).map((type: AssetType) => ({
               id: type,
-              label: type
+              label: assetTypeLabel(type)
             }))}
             onChange={(value) => updateParam("assetType", value)}
           />

@@ -75,7 +75,7 @@ Primary data dependencies:
 | ICT Systems | System identity | `tsaat` | `ict_system` | `system_id`, `name`, `criticality`, `security_domain`, `modelling_status`, `diis_defined`, detail columns | mixed | row identity, posture context, slideout data | Read | assets and findings join via `system_id` | fallback metadata allowed | direct display and rollups | |
 | ICT Systems | Mission and service context | `tsaat` | `system_mission_capability`, `system_business_service` | IDs, names, criticality | string | posture table columns and slideout context | Read | one system to many capabilities and services | none | joined into comma-separated labels | |
 | ICT Systems | Environment scope | `tsaat` | `system_environment`, `system_environment_asset` | `environment_id`, `environment_type`, `asset_id` | string | production posture and discovery scope | Read | environment rows tie systems to assets | none | environment-aware counts | |
-| ICT Systems | Asset posture | `tsaat` | `asset` and child posture tables | asset identity, lifecycle, OS, software, vulnerability columns | mixed | compliance scores, discovery scores, action metrics | Read | system-scoped through asset context | filtered through shared scope | runtime evaluation and counts | |
+| ICT Systems | Asset posture | `tsaat` | `asset` and child posture tables | asset identity, lifecycle, OS, software, vulnerability columns | mixed | compliance scores, discovery scores, action metrics | Read | system-scoped through asset context | filtered through shared scope | runtime evaluation and counts | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | ICT Systems | Findings | `tsaat` | `finding` | scope columns, severity, priority, timestamps | mixed | risk summaries and action metrics | Read | grouped by `system_id` | severity remap applies | runtime only | |
 
 ## 7. Calculations and Derived Logic
@@ -87,7 +87,7 @@ Primary data dependencies:
 | Production posture | posture table | `deriveOverallStatus()` over production environment rollups for the system | environment rollups | Runtime | backend | returns `Unknown` if no production rollups |
 | Modelled system coverage | overview modelling card | systems with `modellingStatus = true` divided by total systems | `ict_system.modelling_status` | Runtime | backend | not limited to `diis_defined` here |
 | Immediate action | action tab | open High Risk + open Critical Exposure findings | findings | Runtime | backend | severity remap already applied |
-| Non-compliant OS count | action tab | count server and workstation evaluations with SPI 1 or 2 = `Non-compliant` in system scope | runtime evaluations | Runtime | backend | network devices excluded |
+| Non-compliant OS count | action tab | count server and workstation evaluations with SPI 1 or 2 = `Non-compliant` in system scope | runtime evaluations | Runtime | backend | `network-device`, `storage-device`, `printer-device`, and `other` are excluded because they do not evaluate SPI 1/2 |
 | Quick wins | action tab | group open findings by identical recommended action text and count affected systems | findings | Runtime | backend | missing action text grouped to a default label |
 
 ## 8. Non-Database Calculations

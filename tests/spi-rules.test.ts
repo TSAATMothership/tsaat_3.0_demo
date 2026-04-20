@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateAssetSpis } from "@/lib/spi-rules";
-import { ServerAsset, WorkstationAsset } from "@/lib/types";
+import { ServerAsset, StorageDeviceAsset, WorkstationAsset } from "@/lib/types";
 
 function baseServer(): ServerAsset {
   return {
@@ -73,5 +73,23 @@ describe("SPI rules", () => {
     const evaluations = evaluateAssetSpis(workstation);
     expect(evaluations.find((item) => item.spiId === 1)?.status).toBe("Unknown");
     expect(evaluations.find((item) => item.spiId === 2)?.status).toBe("Unknown");
+  });
+
+  it("evaluates storage-device assets on SPI 10 only", () => {
+    const storage: StorageDeviceAsset = {
+      id: "std-1",
+      name: "Storage 1",
+      hostname: "std-1",
+      type: "storage-device",
+      networkId: "net-1",
+      securityDomain: "Protected",
+      lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+      vulnerabilities: []
+    };
+
+    const evaluations = evaluateAssetSpis(storage);
+    expect(evaluations).toHaveLength(1);
+    expect(evaluations[0]?.spiId).toBe(10);
+    expect(evaluations[0]?.status).toBe("Compliant");
   });
 });

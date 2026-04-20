@@ -1,4 +1,5 @@
 import rawSpiDefinitions from "@/data/spi-definitions.json";
+import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import { AssetType, SpiId } from "@/lib/types";
 
 export interface SpiDefinition {
@@ -12,7 +13,7 @@ export interface SpiDefinition {
 }
 
 const SPI_ID_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-const ASSET_TYPE_VALUES: AssetType[] = ["server", "workstation", "network-device"];
+const ASSET_TYPE_VALUES: AssetType[] = [...ASSET_TYPES];
 
 function isSpiId(value: unknown): value is SpiId {
   return typeof value === "number" && Number.isInteger(value) && SPI_ID_VALUES.includes(value as SpiId);

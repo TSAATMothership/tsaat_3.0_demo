@@ -24,7 +24,7 @@ Major dependencies:
 ### Feature: Shared Filter Scope and Snapshot Date
 - **What it does:** scopes the dashboard by network, ICT system, criticality, security domain, environment, asset type, mission capability, and business service.
 - **User perspective:** the user changes filters and the dashboard reloads in place.
-- **System behaviour:** query parameters are parsed by `parseFilters()`, date scope is resolved from `dataDate`, and analytics are rebuilt for the selected snapshot.
+- **System behaviour:** query parameters are parsed by `parseFilters()`, date scope is resolved from `dataDate`, and analytics are rebuilt for the selected snapshot. Asset type filters use the shared canonical taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** every dashboard number reflects one scope.
 
 ### Feature: Overview Tab
@@ -58,7 +58,7 @@ Major dependencies:
 | Cyber COP | Overview tab | Compliance and risk briefing | Open tab | Renders compliance tiles, risk charts, severity mix, daily trends | runtime analytics | Briefing dashboard | default tab | zero-safe values | `CyberCopDashboard` | Executive posture view | tab state is local only |
 | Cyber COP | Impact tab | Operational impact rollups | Open tab and optionally select leaderboard rows | Filters impact charts by selected service, mission, or system | open findings, system relationships | Impact charts and leaderboards | impact is based on open findings | selection clears when source leaves scope | mission/service tables | Business and mission prioritisation | search is client-side |
 | Cyber COP | Action tab | Remediation planning view | Open tab | Aggregates backlog, throughput, aging, and quick wins | findings, lifecycle, discovery, modelling data | Action summary and trend charts | immediate action reflects highest-severity open work | zero-safe calculations | findings plus lifecycle and discovery inputs | Remediation planning | quick wins grouped by action text |
-| Cyber COP | Severity remap | Applies configured severity matrix | Load page | Rewrites finding severity by SPI and asset type before display | findings, assets, measures settings | Severity-aware charts and counts | configured settings apply globally | defaults used if no saved settings exist | measures settings tables | Configurable severity model | applies even when findings come from DB |
+| Cyber COP | Severity remap | Applies configured severity matrix | Load page | Rewrites finding severity by SPI and asset type before display | findings, assets, measures settings | Severity-aware charts and counts | configured settings apply globally across all six canonical asset types | defaults used if no saved settings exist | measures settings tables | Configurable severity model | applies even when findings come from DB |
 
 ## 5. Database Mapping
 The page depends on the shared dataset snapshot loader and analytics builder. Most visible content is assembled from:
@@ -105,7 +105,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is date-scoped through global navigation rather than an in-page date control.
-- Severity shown on the page may differ from persisted `finding.severity` because measures settings remap severity by SPI and asset type.
+- Severity shown on the page may differ from persisted `finding.severity` because measures settings remap severity by SPI and asset type across the shared six-type taxonomy.
 - If the selected scope contains no persisted findings, the page still renders synthetic findings generated from SPI evaluations.
 - Tab state is not addressable by URL.
 

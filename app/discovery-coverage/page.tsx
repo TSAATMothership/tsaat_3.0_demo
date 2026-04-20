@@ -11,9 +11,10 @@ import {
 } from "@/components/discovery-coverage-target-state-section";
 import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
+import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
-import { Asset } from "@/lib/types";
+import { Asset, AssetType } from "@/lib/types";
 
 interface DiscoveryCoverageStatus {
   toolValues: Record<string, DiscoveryCoverageValue>;
@@ -187,47 +188,30 @@ export default async function DiscoveryCoveragePage({
     return { id: key, label, covered, missing, applicable, coveragePercent };
   });
 
-  const assetTotalsByNetwork = rows.reduce(
-    (map, asset) => {
-      const current = map.get(asset.networkId) ?? { server: 0, workstation: 0, networkDevice: 0 };
-      if (asset.assetType === "server") {
-        current.server += 1;
-      } else if (asset.assetType === "workstation") {
-        current.workstation += 1;
-      } else {
-        current.networkDevice += 1;
-      }
-      map.set(asset.networkId, current);
-      return map;
-    },
-    new Map<string, { server: number; workstation: number; networkDevice: number }>()
-  );
+  const assetTotalsByNetwork = rows.reduce((map, asset) => {
+    const current = map.get(asset.networkId) ?? createAssetTypeRecord(() => 0);
+    current[asset.assetType] += 1;
+    map.set(asset.networkId, current);
+    return map;
+  }, new Map<string, Record<AssetType, number>>());
 
   const targetStateNetworks: TargetStateNetworkSummary[] = networks.map((network) => {
-    const actualTotals = assetTotalsByNetwork.get(network.id) ?? { server: 0, workstation: 0, networkDevice: 0 };
-    const serverPercent = deterministicDiscoveryPercent(`${network.id}:server`);
-    const workstationPercent = deterministicDiscoveryPercent(`${network.id}:workstation`);
-    const networkDevicePercent = deterministicDiscoveryPercent(`${network.id}:network-device`);
+    const actualTotals = assetTotalsByNetwork.get(network.id) ?? createAssetTypeRecord(() => 0);
+    const totals = createAssetTypeRecord((assetType) => {
+      const actual = actualTotals[assetType];
+      const percent = deterministicDiscoveryPercent(`${network.id}:${assetType}`);
+      return {
+        actual,
+        target: targetCountForActual(actual, percent)
+      };
+    });
 
     return {
       id: network.id,
       name: network.name,
       isNewNetwork: network.discoveryStatus === "Discovery Non Enabled",
       discoveryStatus: network.discoveryStatus,
-      totals: {
-        server: {
-          actual: actualTotals.server,
-          target: targetCountForActual(actualTotals.server, serverPercent)
-        },
-        workstation: {
-          actual: actualTotals.workstation,
-          target: targetCountForActual(actualTotals.workstation, workstationPercent)
-        },
-        networkDevice: {
-          actual: actualTotals.networkDevice,
-          target: targetCountForActual(actualTotals.networkDevice, networkDevicePercent)
-        }
-      }
+      totals
     };
   });
 
@@ -241,9 +225,12 @@ export default async function DiscoveryCoveragePage({
         network.discoveryStatus === "Discovery Enabled"
           ? ("Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"])
           : ("Not Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"]),
-      serverCoverage: coveragePercent(network.totals.server.actual, network.totals.server.target),
-      workstationCoverage: coveragePercent(network.totals.workstation.actual, network.totals.workstation.target),
-      networkDeviceCoverage: coveragePercent(network.totals.networkDevice.actual, network.totals.networkDevice.target)
+      coverageByAssetType: Object.fromEntries(
+        ASSET_TYPES.map((assetType) => [
+          assetType,
+          coveragePercent(network.totals[assetType].actual, network.totals[assetType].target)
+        ])
+      ) as Record<AssetType, number>
     }))
     .sort((a, b) => {
       if (a.discoveryEnabled !== b.discoveryEnabled) {

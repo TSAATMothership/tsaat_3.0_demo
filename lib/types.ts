@@ -1,4 +1,6 @@
-export type AssetType = "server" | "workstation" | "network-device";
+import type { CanonicalAssetType } from "@/lib/asset-taxonomy";
+
+export type AssetType = CanonicalAssetType;
 
 export type EnvironmentType = "Production" | "Development" | "UAT" | "Test";
 
@@ -171,7 +173,25 @@ export interface NetworkDeviceAsset extends BaseAsset {
   patchState: PatchState | null;
 }
 
-export type Asset = ServerAsset | WorkstationAsset | NetworkDeviceAsset;
+export interface StorageDeviceAsset extends BaseAsset {
+  type: "storage-device";
+}
+
+export interface PrinterDeviceAsset extends BaseAsset {
+  type: "printer-device";
+}
+
+export interface OtherAsset extends BaseAsset {
+  type: "other";
+}
+
+export type Asset =
+  | ServerAsset
+  | WorkstationAsset
+  | NetworkDeviceAsset
+  | StorageDeviceAsset
+  | PrinterDeviceAsset
+  | OtherAsset;
 
 export interface ReferenceVersions {
   osCurrentMajor: Record<string, number>;

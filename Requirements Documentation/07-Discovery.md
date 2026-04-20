@@ -33,7 +33,7 @@ Important hidden behaviour:
 ### Feature: Shared Discovery Filter Scope
 - **What it does:** filters the page by network, system, security domain, environment, asset type, mission capability, business service, and date.
 - **User perspective:** the user scopes the discovery view to a subset of the estate.
-- **System behaviour:** the server strips `criticality` for all discovery views and additionally strips `system` and `environment` when the target-state tab is active.
+- **System behaviour:** the server strips `criticality` for all discovery views and additionally strips `system` and `environment` when the target-state tab is active; asset type options use the shared six-type taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** some user-supplied filter state is intentionally ignored by the page.
 
 ### Feature: Summary Tab
@@ -55,7 +55,7 @@ Important hidden behaviour:
 - **Outcome:** the page presents a target-state comparison even though target numbers are not stored in the database.
 
 ### Feature: Tool Settings Tab
-- **What it does:** lets users add, remove, edit, and save discovery tool definitions and required asset-type mappings.
+- **What it does:** lets users add, remove, edit, and save discovery tool definitions and required asset-type mappings across all six canonical asset types.
 - **User perspective:** the user maintains the discovery tool master data used by compliance evaluation.
 - **System behaviour:** the client enforces required-field validation and saves the tool list through `/api/discovery-tools/settings`.
 - **Outcome:** future discovery evaluations immediately use the saved tool configuration.
@@ -68,7 +68,7 @@ Important hidden behaviour:
 | Discovery | Summary tab | Operational discovery dashboard | Open tab | Builds coverage snapshot cards and remediation report URL | scoped assets, discovery settings | Snapshot cards and report link | report reflects current filtered scope | none beyond scope parsing | remediation-report API | Discovery gap summary | |
 | Discovery | Coverage-by-tool drillthrough | Tool-level asset detail slideout | Click tool, search, filter, paginate, export CSV | Calls tool-assets API and renders slideout rows | `toolId`, `toolSearch`, `toolAssetType`, pagination params | Slideout rows and CSV | pagination defaults to 200, export batches up to 5000 | invalid API params return client error messages | `/api/discovery-coverage/tool-assets` | Tool-specific gap evidence | non-route slideout |
 | Discovery | Target-state comparison | Compare actual counts with target counts per network | Open tab, open network slideout | Derives target counts from deterministic percentages and actual counts | networks, scoped assets | Network summary table, charts, slideout | target-state ignores system and environment filters | zero-safe percentages | target-state section components | Target-state planning view | uses synthetic target values |
-| Discovery | Tool settings | Maintain discovery tool master data | Add/edit/remove tools, save | Validates required fields and persists settings | tool definitions and asset-type scope | Updated discovery tool settings | `N/A` excludes an asset type from coverage checks | tool name, description, owner, and operations manager required | `/api/discovery-tools/settings` | Updated rules for future coverage evaluation | writes settings, not snapshot facts |
+| Discovery | Tool settings | Maintain discovery tool master data | Add/edit/remove tools, save | Validates required fields and persists settings | tool definitions and asset-type scope | Updated discovery tool settings | `N/A` excludes an asset type from coverage checks; each tool carries all six canonical asset-type keys | tool name, description, owner, and operations manager required | `/api/discovery-tools/settings` | Updated rules for future coverage evaluation | defaults normalize to `required` for every asset type key |
 
 ## 5. Database Mapping
 The page reads the shared snapshot dataset, the discovery tool settings tables, and related reference context. Most summary values are assembled at runtime from asset-level evidence and the configured tool model.
@@ -92,13 +92,13 @@ Primary data dependencies:
 | Discovery | Network context | `tsaat` | `managed_network` | `network_id`, `name`, `discovery_status`, ownership and link columns | mixed | target-state rows, summary table, network slideout | Read | assets join to network via `network_id` | discovery status drives enabled vs not-enabled labels | direct display and grouping | some slideout metadata can use fallback network detail logic |
 | Discovery | System context | `tsaat` | `ict_system` | `system_id`, `name`, `security_domain`, `criticality` | mixed | summary scope and system labels | Read | assets join to system through `asset.system_id` | ignored on target-state tab | direct display | |
 | Discovery | Asset evidence | `tsaat` | `asset`, `asset_vulnerability`, lifecycle and OS-related child tables | asset identity, type, hostname, IP, lifecycle, vulnerability indicators | mixed | tool coverage evaluation and tool-assets API rows | Read | one asset to many evidence rows | evaluated within one snapshot only | runtime tool heuristics | |
-| Discovery | Discovery tool settings | `tsaat` | `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope` | version, tool metadata, `tool_id`, asset-type scope flags | mixed | defines required tools and tool labels | Read and Update | latest settings version plus child tool rows | `na` marks tool not applicable for an asset type | used directly in runtime coverage rules | tool-settings tab persists to these tables |
+| Discovery | Discovery tool settings | `tsaat` | `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope` | version, tool metadata, `tool_id`, asset-type scope flags | mixed | defines required tools and tool labels | Read and Update | latest settings version plus child tool rows | `na` marks tool not applicable for an asset type | used directly in runtime coverage rules | scope covers `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Discovery | Snapshot selection | `tsaat` | `dataset_snapshot` | `snapshot_id`, `snapshot_date` | mixed | selects the active data snapshot | Read | root snapshot join | latest snapshot unless `dataDate` supplied | display only | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Asset discovery coverage | decide whether an asset is discovery compliant | evaluate required tools for the asset type; asset is compliant when no required tool is missing | assets plus discovery tool settings | Runtime | backend | tools with asset-type scope `na` return null and do not count against compliance |
+| Asset discovery coverage | decide whether an asset is discovery compliant | evaluate required tools for the asset type; asset is compliant when no required tool is missing | assets plus discovery tool settings | Runtime | backend | tools with asset-type scope `na` return null and do not count against compliance; applies consistently across all six asset types |
 | Tool coverage percentage | tool summary cards and radar chart | covered applicable assets divided by applicable assets for a tool | runtime coverage rows | Runtime | backend | zero-safe |
 | Overall tool coverage percent | summary snapshot card | covered tool slots divided by total applicable tool slots | runtime tool coverage rows | Runtime | backend | excludes N/A slots |
 | Discovery target percent | derive target-state baseline | `deterministicDiscoveryPercent(seed)` returns a stable value from 90 to 100 based on `networkId:assetType` | network ID plus asset type | Runtime | backend | synthetic; not DB-backed |
@@ -117,6 +117,7 @@ Primary data dependencies:
 - `criticality` is intentionally ignored for discovery analytics.
 - `system` and `environment` are intentionally ignored on the target-state tab.
 - Discovery compliance depends on the latest saved discovery tool settings.
+- Discovery tool scope stores six canonical asset-type keys for every tool and defaults each key to `required`.
 - The target-state tab mixes real asset counts with synthetic target values.
 - Tool settings changes affect subsequent runtime evaluations rather than historical snapshot facts.
 

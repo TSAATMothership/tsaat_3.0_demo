@@ -1,4 +1,5 @@
-import { Asset, AnalyticsResult, CiDependencyType, ComplianceStatus, Dataset, EnvironmentType, ICTSystem } from "@/lib/types";
+import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
+import { Asset, AssetType, AnalyticsResult, CiDependencyType, ComplianceStatus, Dataset, EnvironmentType, ICTSystem } from "@/lib/types";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 
 export type TopologyEntityType = "network" | "mission-capability" | "service" | "ict-system";
@@ -41,9 +42,13 @@ export interface CmdbAssetNode {
 export interface CmdbSystemTopology {
   systemId: string;
   systemName: string;
+  assetsByType: Record<AssetType, CmdbAssetNode[]>;
   networkDevices: CmdbAssetNode[];
   workstations: CmdbAssetNode[];
   servers: CmdbAssetNode[];
+  storageDevices: CmdbAssetNode[];
+  printerDevices: CmdbAssetNode[];
+  otherAssets: CmdbAssetNode[];
 }
 
 export interface TopologyCiNode {
@@ -604,12 +609,19 @@ function buildCmdbTopologies(
           };
         })
         .sort((a, b) => a.hostname.localeCompare(b.hostname));
+      const assetsByType = createAssetTypeRecord((assetType) =>
+        mappedAssets.filter((asset) => asset.type === assetType)
+      );
       return {
         systemId: system.id,
         systemName: system.name,
-        networkDevices: mappedAssets.filter((asset) => asset.type === "network-device"),
-        workstations: mappedAssets.filter((asset) => asset.type === "workstation"),
-        servers: mappedAssets.filter((asset) => asset.type === "server")
+        assetsByType,
+        networkDevices: assetsByType["network-device"],
+        workstations: assetsByType.workstation,
+        servers: assetsByType.server,
+        storageDevices: assetsByType["storage-device"],
+        printerDevices: assetsByType["printer-device"],
+        otherAssets: assetsByType.other
       };
     })
     .sort((a, b) => a.systemName.localeCompare(b.systemName));
@@ -694,14 +706,10 @@ function buildCiDependencyTopologyData(
 function collectCmdbAssetIds(cmdbTopologies: CmdbSystemTopology[]): Set<string> {
   const assetIds = new Set<string>();
   for (const topology of cmdbTopologies) {
-    for (const asset of topology.networkDevices) {
-      assetIds.add(asset.id);
-    }
-    for (const asset of topology.workstations) {
-      assetIds.add(asset.id);
-    }
-    for (const asset of topology.servers) {
-      assetIds.add(asset.id);
+    for (const assetType of ASSET_TYPES) {
+      for (const asset of topology.assetsByType[assetType]) {
+        assetIds.add(asset.id);
+      }
     }
   }
   return assetIds;

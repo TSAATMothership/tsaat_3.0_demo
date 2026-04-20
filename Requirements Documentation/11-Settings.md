@@ -4,8 +4,8 @@
 
 ## 1. Page Overview
 - **Page name:** Settings
-- **Purpose:** provide application-level configuration controls, currently focused on database connection settings.
-- **User outcome:** the user can view, validate, and save the database connection used by the application, while understanding that other tabs are placeholders only.
+- **Purpose:** provide application-level configuration controls, currently focused on database connection and SSL settings.
+- **User outcome:** the user can view, validate, and save database connectivity and SSL mode used by the application, while understanding that other tabs are placeholders only.
 - **Primary user roles:** application administrators, support teams, deployment engineers, maintainers.
 
 ## 2. Page Summary
@@ -17,15 +17,24 @@ Major dependencies:
 - `DatabaseSettingsPanel`
 - `SettingsTabs`
 - `/api/settings/database/test-connection`
+- `/api/settings/database/test-ssl`
 - `/api/settings/database/test-schema`
 - `/api/settings/database`
 - `DB_config`
+- `canSaveDatabaseSettings()`
+- `buildSqlcmdSecurityArgs()`
 
 Important hidden behaviour:
 
 - database settings are persisted to the local `DB_config` file, not to the SQL Server database.
+- if `DB_config` omits SSL keys, defaults resolve to SSL disabled (`Encrypt=False`, `TrustServerCertificate=False`).
 - schema validation checks for required tables, required columns, and that `tsaat.dataset_snapshot` contains at least one row.
-- save remains disabled until both connection test and schema test succeed.
+- save remains disabled until required validation tests succeed:
+  - SSL disabled: connection test + schema test
+  - SSL enabled: connection test + SSL test + schema test
+- any edit to server, database, auth mode, credentials, SSL toggle, or SSL type clears prior test status.
+- save API re-validates connection, SSL (when enabled), and schema before writing `DB_config`.
+- runtime and offline scripts read SSL from `DB_config` and apply `sqlcmd` security flags (`-N`, `-C`) consistently.
 - placeholder tabs are routable but intentionally contain no operational settings.
 
 ## 3. Feature Breakdown
@@ -36,9 +45,9 @@ Important hidden behaviour:
 - **Outcome:** the database settings panel is the only active configuration surface today.
 
 ### Feature: Database Settings Form
-- **What it does:** captures server, database, authentication mode, user ID, and password.
-- **User perspective:** the user edits the connection settings that TSAAT should use.
-- **System behaviour:** initial values are loaded from `DB_config` when present, otherwise the application resolves fallback server and database defaults.
+- **What it does:** captures server, database, authentication mode, user ID, password, SSL enabled flag, and SSL type.
+- **User perspective:** the user edits the runtime connection and SSL behavior TSAAT should use.
+- **System behaviour:** initial values are loaded from `DB_config` when present, otherwise fallback server/database defaults are used and SSL defaults to disabled.
 - **Outcome:** the user can prepare a connection definition without saving immediately.
 
 ### Feature: Connection Test
@@ -53,10 +62,16 @@ Important hidden behaviour:
 - **System behaviour:** the client posts the current draft settings to `/api/settings/database/test-schema`, which checks required tables, required columns, and snapshot data presence.
 - **Outcome:** only schema-valid databases can proceed to save.
 
+### Feature: SSL Test
+- **What it does:** validates encrypted transport/handshake behavior for the selected SSL mode.
+- **User perspective:** when SSL is enabled, the user confirms SSL works before saving.
+- **System behaviour:** the client posts current draft settings to `/api/settings/database/test-ssl`, which first verifies connection success and then validates SQL connection encryption properties.
+- **Outcome:** SSL-enabled settings cannot be saved unless SSL test succeeds.
+
 ### Feature: Save and Reset
 - **What it does:** writes validated settings to `DB_config` or resets the draft to the last saved values.
 - **User perspective:** the user either commits the validated settings or discards edits.
-- **System behaviour:** save is enabled only when the form is not busy and both tests have succeeded; reset restores the last saved state and clears transient statuses.
+- **System behaviour:** save is enabled only when the form is not busy and all required tests have succeeded; reset restores the last saved state and clears transient statuses.
 - **Outcome:** the application configuration file stays synchronized with validated input.
 
 ### Feature: Diagnostics Log and Copy Action
@@ -69,10 +84,11 @@ Important hidden behaviour:
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Settings | Tab routing | Switches among database settings and placeholders | Click tab | Updates `settingsTab` query parameter | `settingsTab` | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs` | Bookmarkable tab state | placeholder tabs have no operational logic |
-| Settings | Database settings form | Edit connection definition | Change fields | Marks form dirty and clears prior validation results | server, database, auth mode, credentials | Draft settings | save requires passing validation first | client checks auth mode completeness | `DatabaseSettingsPanel`, defaults loader | Prepared connection definition | initial values can come from fallback resolution |
-| Settings | Connection test | Validate connectivity | Click `Test Connection` | POSTs draft settings and stores result and diagnostics | current draft settings | connection status and diagnostics | connection test must pass before schema test | endpoint returns success summary and diagnostics | `/api/settings/database/test-connection` | Verified connectivity | |
+| Settings | Database settings form | Edit connection and SSL definition | Change fields | Marks form dirty and clears prior validation results | server, database, auth mode, credentials, `sslEnabled`, `sslType` | Draft settings | save requires passing validation first | client checks auth mode completeness and valid SSL type | `DatabaseSettingsPanel`, defaults loader | Prepared connection definition | initial values can come from fallback resolution |
+| Settings | Connection test | Validate connectivity | Click `Test Connection` | POSTs draft settings and stores result and diagnostics | current draft settings | connection status and diagnostics | connection test must pass before SSL test or schema test | endpoint returns success summary and diagnostics | `/api/settings/database/test-connection` | Verified connectivity | |
+| Settings | SSL test | Validate SSL transport for selected SSL type | Click `Test SSL` | POSTs draft settings, checks connection precondition, validates encrypted transport | current draft settings | SSL status and diagnostics | required only when SSL is enabled | endpoint returns success summary and diagnostics | `/api/settings/database/test-ssl` | Verified SSL mode | skipped when SSL disabled |
 | Settings | Schema test | Validate TSAAT schema readiness | Click `Test Schema` | POSTs draft settings and checks required tables, columns, and snapshot rows | current draft settings | schema status and diagnostics | schema test requires a successful connection test first | endpoint enforces required tables and columns | `/api/settings/database/test-schema`, schema validation helper | Verified schema readiness | |
-| Settings | Save and reset | Persist or discard draft settings | Click `Save` or `Reset` | Saves to `DB_config` or restores last saved state | validated draft settings | updated file-backed settings or restored draft | save requires passing connection and schema tests | save disabled unless validation succeeded | `/api/settings/database`, `DB_config` | Synchronized configuration | save does not write to SQL Server |
+| Settings | Save and reset | Persist or discard draft settings | Click `Save` or `Reset` | Saves to `DB_config` or restores last saved state | validated draft settings | updated file-backed settings or restored draft | SSL disabled requires connection + schema tests; SSL enabled requires connection + SSL + schema tests | save API re-validates all required checks | `/api/settings/database`, `DB_config`, `canSaveDatabaseSettings()` | Synchronized configuration | save does not write to SQL Server |
 | Settings | Diagnostics log | Review and copy technical diagnostics | Read log or click copy | Appends timestamped messages and copies log text to clipboard | test and save results | local diagnostics text | diagnostics are local to the browser session | copy fails gracefully | browser clipboard API | Support-friendly troubleshooting | not persisted |
 
 ## 5. Database Mapping
@@ -87,7 +103,7 @@ Primary dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Settings | File-backed connection settings | local file | `DB_config` | server, database, auth mode, user ID, password | text | source of saved database settings | Read and Update | no database join; file read/write only | fallback defaults used when file values are absent | normalization before save | do not expose credentials in documentation |
+| Settings | File-backed connection settings | local file | `DB_config` | `Server`, `Database`, `Trusted_Connection`, `User Id`, `Password`, `Encrypt`, `TrustServerCertificate` | text | source of saved database + SSL settings | Read and Update | no database join; file read/write only | missing SSL keys default to SSL disabled | normalization before save | do not expose credentials in documentation |
 | Settings | Schema validation - required tables | `tsaat` | multiple required tables including `dataset_snapshot`, `managed_network`, `ict_system`, `asset`, `finding`, settings tables, and reference tables | table existence only | mixed | determines whether target DB is valid for TSAAT | Read | validation checks object existence in `tsaat` schema | all required tables must exist | SQL validation query | exact list maintained in code |
 | Settings | Schema validation - required columns | `tsaat` | selected required tables | `snapshot_date`, `network_id`, `adf_platform`, `enterprise_platform`, `system_id`, `asset_id`, `asset_type`, `finding_id`, `spi_id`, `workflow_status`, `dependency_id`, `tool_id`, `severity` | mixed | confirms minimum structural contract | Read | validation checks column existence by table | all required columns must exist | SQL validation query | exact list maintained in code |
 | Settings | Snapshot data check | `tsaat` | `dataset_snapshot` | row existence and `snapshot_date` | date | confirms usable data is present | Read | no join required | at least one row must exist | boolean check in validation SQL | schema can exist but still fail if no snapshots exist |
@@ -95,11 +111,14 @@ Primary dependencies:
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Defaults resolution | prefill database settings form | use file values when present, otherwise resolve fallback SQL Server name and application DB name | `DB_config` plus runtime resolution helpers | Runtime | backend | ensures panel opens with usable defaults |
+| Defaults resolution | prefill database settings form | use file values when present, otherwise resolve fallback SQL Server name and application DB name; SSL defaults to disabled when keys are missing | `DB_config` plus runtime resolution helpers | Runtime | backend | ensures panel opens with usable defaults |
 | Dirty-state detection | enable reset and clear stale validations | compare draft settings to saved settings field by field | form state | Runtime | client | resets validation state on every field change |
 | Connection validation | confirm database connectivity | execute lightweight SQL returning current DB and login | supplied connection settings | Runtime | API/backend | failure returns diagnostics instead of throwing into UI |
+| SSL validation | confirm encrypted SQL transport | execute SQL connection-property checks and require encrypted transport when SSL enabled | supplied connection settings plus SQL connection properties | Runtime | API/backend | skipped when SSL disabled |
 | Schema validation | confirm minimum TSAAT schema | check required tables, required columns, and that `dataset_snapshot` contains rows | target SQL Server database | Runtime | API/backend | stops at validation failure and returns diagnostics |
-| Save enablement | prevent invalid configuration writes | save allowed only when connection test and schema test both succeeded and no busy state is active | client validation state | Runtime | client | save button remains disabled until both checks pass |
+| Save enablement | prevent invalid configuration writes | save allowed only when connection and schema tests succeed, plus SSL test when SSL enabled, and no busy state is active | client validation state | Runtime | client | save button remains disabled until required checks pass |
+| SSL mode mapping | normalize UI SSL settings into `DB_config` keys | `sslEnabled=false => Encrypt=False;TrustServerCertificate=False`; `sslEnabled=true, sslType=strict => Encrypt=True;TrustServerCertificate=False`; `sslEnabled=true, sslType=trust-server-certificate => Encrypt=True;TrustServerCertificate=True` | form state, `DB_config` | Runtime | backend | `trust-server-certificate` implicitly enables SSL |
+| SQLCMD SSL argument mapping | enforce runtime/script SSL mode | SSL disabled => no SSL flags; strict => `-N`; trust server certificate => `-N -C` | `DB_config` SSL fields | Runtime | backend and scripts | used by runtime SQL execution and offline scripts (`compileApp.cmd`, `CreateDB.cmd`, loader PowerShell) |
 
 ## 8. Non-Database Calculations
 - Status badges, dirty-state detection, copy-to-clipboard status, and diagnostics aggregation are client-side only.
@@ -110,11 +129,16 @@ Primary dependencies:
 - Settings persist to `DB_config`, not to the database.
 - The page is marked `force-dynamic`, so it does not rely on static generation.
 - Connection test must pass before schema test can run.
-- Save requires both tests to have succeeded.
+- Connection test must pass before SSL test can run.
+- Save requires both connection and schema tests; SSL test is additionally required when SSL is enabled.
+- `DB_config` is the runtime contract for SSL:
+  - `Encrypt=False;TrustServerCertificate=False` means SSL disabled.
+  - `Encrypt=True;TrustServerCertificate=False` means strict SSL validation.
+  - `Encrypt=True;TrustServerCertificate=True` means trust-server-certificate SSL mode.
 - Placeholder tabs are present in navigation but intentionally contain no settings.
 - The settings page handles credentials, so operational documentation should avoid exposing actual values.
 
 ## 10. Open Questions / Gaps
 - **Open question:** should the placeholder tabs remain visible before they have real functionality?
-- **Open question:** should save also require a user confirmation because it writes local configuration used by the runtime?
+- **Open question:** should save require a secondary confirmation because it writes runtime connection and SSL behavior used by app startup and scripts?
 - **Open question:** should the schema validation contract be documented externally for deployment teams, since the required tables and columns are enforced in code?

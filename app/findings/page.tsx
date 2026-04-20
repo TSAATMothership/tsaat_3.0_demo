@@ -5,6 +5,7 @@ import { FindingsTimelineFilter } from "@/components/findings-timeline-filter";
 import { FindingsTable } from "@/components/findings-table";
 import { FindingsViewTabId, FindingsViewTabs } from "@/components/findings-view-tabs";
 import { getCoreAppData } from "@/lib/app-data";
+import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { Finding } from "@/lib/types";
@@ -317,14 +318,11 @@ export default async function FindingsPage({
     : findings;
   const criticalExposure = findings.filter((finding) => finding.severity === "Critical Exposure").length;
   const p1P2Findings = findings.filter((finding) => finding.priorityRank <= 2).length;
-  const assetTypeSummaries = [
-    { id: "server", label: "Server" },
-    { id: "workstation", label: "Workstation" },
-    { id: "network-device", label: "Network Device" }
-  ].map((assetType) => {
-    const typeFindings = findings.filter((finding) => String(finding.evidence.assetType ?? "") === assetType.id);
+  const assetTypeSummaries = ASSET_TYPES.map((assetType) => {
+    const typeFindings = findings.filter((finding) => String(finding.evidence.assetType ?? "") === assetType);
     return {
-      ...assetType,
+      id: assetType,
+      label: assetTypeLabel(assetType),
       totalFindings: typeFindings.length,
       highRisk: typeFindings.filter((finding) => finding.severity === "High Risk").length,
       criticalExposure: typeFindings.filter((finding) => finding.severity === "Critical Exposure").length,

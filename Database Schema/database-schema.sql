@@ -113,7 +113,7 @@ CREATE TABLE [tsaat].[spi_applicable_asset_type] (
   CONSTRAINT [FK_spi_applicable_asset_type_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [CK_spi_applicable_asset_type_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device'))
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
 );
 GO
 
@@ -310,7 +310,7 @@ CREATE TABLE [tsaat].[asset] (
   CONSTRAINT [FK_asset_system_environment]
     FOREIGN KEY ([snapshot_id], [system_id], [environment_type]) REFERENCES [tsaat].[system_environment]([snapshot_id], [system_id], [environment_type]),
   CONSTRAINT [CK_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device')),
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other')),
   CONSTRAINT [CK_asset_security_domain]
     CHECK ([security_domain] IN (N'Secret', N'Protected', N'Unclassified')),
   CONSTRAINT [CK_asset_environment_type]
@@ -617,7 +617,7 @@ CREATE TABLE [tsaat].[discovery_tool_asset_scope] (
   CONSTRAINT [FK_discovery_tool_asset_scope_tool]
     FOREIGN KEY ([settings_version_id], [tool_id]) REFERENCES [tsaat].[discovery_tool]([settings_version_id], [tool_id]),
   CONSTRAINT [CK_discovery_tool_asset_scope_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device')),
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other')),
   CONSTRAINT [CK_discovery_tool_asset_scope_setting]
     CHECK ([scope_setting] IN (N'required', N'na'))
 );
@@ -647,7 +647,7 @@ CREATE TABLE [tsaat].[measures_severity_matrix] (
   CONSTRAINT [FK_measures_severity_matrix_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [CK_measures_severity_matrix_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device')),
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other')),
   CONSTRAINT [CK_measures_severity_matrix_severity]
     CHECK ([severity] IN (N'High Risk', N'Critical Exposure', N'Major', N'Moderate', N'Data Gap'))
 );

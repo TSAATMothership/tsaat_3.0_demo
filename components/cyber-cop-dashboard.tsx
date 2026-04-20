@@ -18,7 +18,17 @@ import {
   ZAxis
 } from "recharts";
 import { NetworkDetailRiskCharts, NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
+import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { AssetType, Criticality, FindingSeverity, HighRiskCveDetail } from "@/lib/types";
+
+const BLAST_RADIUS_COLOR_BY_ASSET_TYPE: Record<AssetType, string> = {
+  server: "#38bdf8",
+  workstation: "#22c55e",
+  "network-device": "#f59e0b",
+  "storage-device": "#a78bfa",
+  "printer-device": "#f43f5e",
+  other: "#94a3b8"
+};
 
 export interface CyberCopImpactItem {
   id: string;
@@ -590,9 +600,9 @@ function BlastRadiusChart({
     );
   }
 
-  const serverPoints = points.filter((item) => item.primaryAssetType === "server");
-  const workstationPoints = points.filter((item) => item.primaryAssetType === "workstation");
-  const networkDevicePoints = points.filter((item) => item.primaryAssetType === "network-device");
+  const pointsByAssetType = Object.fromEntries(
+    ASSET_TYPES.map((assetType) => [assetType, points.filter((item) => item.primaryAssetType === assetType)])
+  ) as Record<AssetType, typeof points>;
 
   return (
     <section className="panel flex h-full min-h-0 flex-col p-4">
@@ -646,9 +656,15 @@ function BlastRadiusChart({
               }}
             />
             <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
-            <Scatter name="Server" data={serverPoints} fill="#38bdf8" isAnimationActive={false} />
-            <Scatter name="Workstation" data={workstationPoints} fill="#22c55e" isAnimationActive={false} />
-            <Scatter name="Network Device" data={networkDevicePoints} fill="#f59e0b" isAnimationActive={false} />
+            {ASSET_TYPES.map((assetType) => (
+              <Scatter
+                key={`blast-radius-${assetType}`}
+                name={assetTypeLabel(assetType)}
+                data={pointsByAssetType[assetType]}
+                fill={BLAST_RADIUS_COLOR_BY_ASSET_TYPE[assetType]}
+                isAnimationActive={false}
+              />
+            ))}
           </ScatterChart>
         </ResponsiveContainer>
       </div>

@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import type { NetworkTopologyData, TopologyEntityType, TopologyNodeDetails } from "@/lib/network-topology";
+import type { AssetType } from "@/lib/types";
 
 type ComplianceMode = "cyber" | "discovery";
 type TopologyLayoutMode = "hierarchical" | "partitioned" | "radial";
-type CiAssetType = "network-device" | "workstation" | "server";
+type CiAssetType = AssetType;
 type CiEnvironmentLabel = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
 const DEFAULT_CAMERA_DISTANCE = 260;
-const CI_ASSET_TYPES: CiAssetType[] = ["network-device", "workstation", "server"];
+const CI_ASSET_TYPES: CiAssetType[] = [...ASSET_TYPES];
 const CI_ENVIRONMENT_ORDER: CiEnvironmentLabel[] = ["Production", "Development", "UAT", "Test", "Unassigned"];
 const DETAILED_TILE_WIDTH = 352;
 const DETAILED_TILE_HEIGHT = 160;
@@ -675,13 +677,10 @@ function compareCiByCompliance(left: ScopedCiItem, right: ScopedCiItem, mode: Co
 }
 
 function ciAssetTypeLabel(assetType: CiAssetType): string {
-  if (assetType === "network-device") {
-    return "Network Devices";
+  if (assetType === "other") {
+    return "Other Assets";
   }
-  if (assetType === "workstation") {
-    return "Workstations";
-  }
-  return "Servers";
+  return `${assetTypeLabel(assetType)}s`;
 }
 
 function ciSearchKey(nodeId: string, assetType: CiAssetType): string {
@@ -693,13 +692,7 @@ function ciEnvironmentSearchKey(nodeId: string, environment: CiEnvironmentLabel)
 }
 
 function ciAssetTypeSingularLabel(assetType: CiAssetType): string {
-  if (assetType === "network-device") {
-    return "Network Device";
-  }
-  if (assetType === "workstation") {
-    return "Workstation";
-  }
-  return "Server";
+  return assetTypeLabel(assetType);
 }
 
 function ciFlowNodeIdForAsset(assetId: string): string {
@@ -1208,7 +1201,7 @@ export function DetailedTopologyView({
   const [selectedCiFlowNodeId, setSelectedCiFlowNodeId] = useState<string | null>(null);
   const [selectedCiFlowModelTileId, setSelectedCiFlowModelTileId] = useState<string | null>(null);
   const [ciFlowIncludedAssetTypes, setCiFlowIncludedAssetTypes] = useState<Set<CiAssetType>>(
-    () => new Set<CiAssetType>(["server"])
+    () => new Set<CiAssetType>(CI_ASSET_TYPES)
   );
   const [networkShowRelatedModels, setNetworkShowRelatedModels] = useState(true);
   const [networkShowLogicalRelatedModels, setNetworkShowLogicalRelatedModels] = useState(true);
@@ -1360,7 +1353,7 @@ export function DetailedTopologyView({
   const allScopedCiItems = useMemo(() => {
     const items: ScopedCiItem[] = [];
     for (const topology of data.cmdbTopologies) {
-      const systemAssets = [...topology.networkDevices, ...topology.workstations, ...topology.servers];
+      const systemAssets = CI_ASSET_TYPES.flatMap((assetType) => topology.assetsByType[assetType] ?? []);
       for (const asset of systemAssets) {
         items.push({
           id: asset.id,
@@ -5298,16 +5291,56 @@ export function DetailedTopologyView({
               center.y + halfSize
             );
           } else {
-            const height = radius * 1.95;
-            const halfBase = radius * 0.98;
-            const topY = center.y - height * 0.55;
-            const bottomY = center.y + height * 0.45;
             context.beginPath();
-            context.moveTo(center.x, topY);
-            context.lineTo(center.x - halfBase, bottomY);
-            context.lineTo(center.x + halfBase, bottomY);
-            context.closePath();
-            gradient = context.createLinearGradient(center.x, topY, center.x, bottomY);
+            if (flowAssetType === "network-device") {
+              const height = radius * 1.95;
+              const halfBase = radius * 0.98;
+              const topY = center.y - height * 0.55;
+              const bottomY = center.y + height * 0.45;
+              context.moveTo(center.x, topY);
+              context.lineTo(center.x - halfBase, bottomY);
+              context.lineTo(center.x + halfBase, bottomY);
+              context.closePath();
+              gradient = context.createLinearGradient(center.x, topY, center.x, bottomY);
+            } else if (flowAssetType === "storage-device") {
+              const halfWidth = radius * 1.05;
+              const halfHeight = radius * 0.9;
+              context.moveTo(center.x, center.y - halfHeight);
+              context.lineTo(center.x + halfWidth, center.y);
+              context.lineTo(center.x, center.y + halfHeight);
+              context.lineTo(center.x - halfWidth, center.y);
+              context.closePath();
+              gradient = context.createLinearGradient(
+                center.x - halfWidth,
+                center.y - halfHeight,
+                center.x + halfWidth,
+                center.y + halfHeight
+              );
+            } else if (flowAssetType === "printer-device") {
+              const halfWidth = radius * 1.05;
+              const topY = center.y - radius * 0.85;
+              const midY = center.y - radius * 0.05;
+              const bottomY = center.y + radius * 0.9;
+              context.moveTo(center.x - halfWidth, midY);
+              context.lineTo(center.x - halfWidth * 0.7, topY);
+              context.lineTo(center.x + halfWidth * 0.7, topY);
+              context.lineTo(center.x + halfWidth, midY);
+              context.lineTo(center.x + halfWidth * 0.72, bottomY);
+              context.lineTo(center.x - halfWidth * 0.72, bottomY);
+              context.closePath();
+              gradient = context.createLinearGradient(center.x, topY, center.x, bottomY);
+            } else {
+              const halfWidth = radius * 1.08;
+              const topY = center.y - radius * 0.95;
+              const lowY = center.y + radius * 0.85;
+              context.moveTo(center.x, topY);
+              context.lineTo(center.x + halfWidth, center.y - radius * 0.2);
+              context.lineTo(center.x + halfWidth * 0.62, lowY);
+              context.lineTo(center.x - halfWidth * 0.62, lowY);
+              context.lineTo(center.x - halfWidth, center.y - radius * 0.2);
+              context.closePath();
+              gradient = context.createLinearGradient(center.x, topY, center.x, lowY);
+            }
           }
           gradient.addColorStop(0, gradientStops[0]);
           gradient.addColorStop(0.5, gradientStops[1]);
@@ -7003,6 +7036,37 @@ export function DetailedTopologyView({
             const p2 = `${n(cx - halfBase)} ${n(cy + h * 0.45)}`;
             const p3 = `${n(cx + halfBase)} ${n(cy + h * 0.45)}`;
             shape = `<polygon points="${p1} ${p2} ${p3}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
+          } else if (assetType === "storage-device") {
+            const halfWidth = baseRadius * 1.05;
+            const halfHeight = baseRadius * 0.9;
+            const points = [
+              `${n(cx)} ${n(cy - halfHeight)}`,
+              `${n(cx + halfWidth)} ${n(cy)}`,
+              `${n(cx)} ${n(cy + halfHeight)}`,
+              `${n(cx - halfWidth)} ${n(cy)}`
+            ];
+            shape = `<polygon points="${points.join(" ")}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
+          } else if (assetType === "printer-device") {
+            const halfWidth = baseRadius * 1.05;
+            const points = [
+              `${n(cx - halfWidth)} ${n(cy - baseRadius * 0.05)}`,
+              `${n(cx - halfWidth * 0.7)} ${n(cy - baseRadius * 0.85)}`,
+              `${n(cx + halfWidth * 0.7)} ${n(cy - baseRadius * 0.85)}`,
+              `${n(cx + halfWidth)} ${n(cy - baseRadius * 0.05)}`,
+              `${n(cx + halfWidth * 0.72)} ${n(cy + baseRadius * 0.9)}`,
+              `${n(cx - halfWidth * 0.72)} ${n(cy + baseRadius * 0.9)}`
+            ];
+            shape = `<polygon points="${points.join(" ")}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
+          } else if (assetType === "other") {
+            const halfWidth = baseRadius * 1.08;
+            const points = [
+              `${n(cx)} ${n(cy - baseRadius * 0.95)}`,
+              `${n(cx + halfWidth)} ${n(cy - baseRadius * 0.2)}`,
+              `${n(cx + halfWidth * 0.62)} ${n(cy + baseRadius * 0.85)}`,
+              `${n(cx - halfWidth * 0.62)} ${n(cy + baseRadius * 0.85)}`,
+              `${n(cx - halfWidth)} ${n(cy - baseRadius * 0.2)}`
+            ];
+            shape = `<polygon points="${points.join(" ")}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
           } else {
             shape = `<circle cx="${cx}" cy="${cy}" r="${baseRadius}" fill="${fill}" fill-opacity="0.92" stroke="${stroke}" stroke-width="2.6" />`;
           }

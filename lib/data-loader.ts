@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { normalizeDataDate, todayDateKey } from "@/lib/data-date";
 import {
   defaultDiscoveryToolsSettings,
@@ -226,7 +227,7 @@ type DiscoveryToolScopeRow = {
 
 const DATA_SCHEMA = "tsaat";
 const SPI_ID_VALUES: SpiId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-const ASSET_TYPES: AssetType[] = ["server", "workstation", "network-device"];
+const ASSET_TYPES: AssetType[] = [...CANONICAL_ASSET_TYPES];
 
 const datasetBySnapshotIdCache = new Map<number, Dataset>();
 
@@ -825,11 +826,18 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       } as Asset;
     }
 
+    if (assetRow.type === "server" || assetRow.type === "workstation") {
+      return {
+        ...withIpAddress,
+        type: assetRow.type,
+        operatingSystem: operatingSystemsByAssetId.get(assetRow.id) ?? null,
+        installedSoftware
+      } as Asset;
+    }
+
     return {
       ...withIpAddress,
-      type: assetRow.type,
-      operatingSystem: operatingSystemsByAssetId.get(assetRow.id) ?? null,
-      installedSoftware
+      type: assetRow.type
     } as Asset;
   });
 
@@ -1130,11 +1138,7 @@ FOR JSON PATH;
   const scopeByTool = toArrayMap(scopeRows, (row) => row.toolId);
   const tools = toolRows.map((tool) => {
     const toolScopes = scopeByTool.get(tool.id) ?? [];
-    const assetTypeScope: Record<AssetType, "required" | "na"> = {
-      server: "required",
-      workstation: "required",
-      "network-device": "required"
-    };
+    const assetTypeScope: Record<AssetType, "required" | "na"> = createAssetTypeRecord(() => "required");
 
     for (const scope of toolScopes) {
       assetTypeScope[scope.assetType] = scope.scopeSetting;

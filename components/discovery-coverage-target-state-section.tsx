@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
+import { AssetType } from "@/lib/types";
 import {
   Bar,
   BarChart,
@@ -17,11 +19,7 @@ export interface TargetStateNetworkSummary {
   name: string;
   isNewNetwork: boolean;
   discoveryStatus: "Discovery Enabled" | "Discovery Non Enabled";
-  totals: {
-    server: { actual: number; target: number };
-    workstation: { actual: number; target: number };
-    networkDevice: { actual: number; target: number };
-  };
+  totals: Record<AssetType, { actual: number; target: number }>;
 }
 
 function percentFound(actual: number, target: number): number {
@@ -32,23 +30,11 @@ function percentFound(actual: number, target: number): number {
 }
 
 function chartDataFor(network: TargetStateNetworkSummary) {
-  return [
-    {
-      assetType: "Server",
-      target: network.totals.server.target,
-      actual: network.totals.server.actual
-    },
-    {
-      assetType: "Workstation",
-      target: network.totals.workstation.target,
-      actual: network.totals.workstation.actual
-    },
-    {
-      assetType: "Network Device",
-      target: network.totals.networkDevice.target,
-      actual: network.totals.networkDevice.actual
-    }
-  ];
+  return ASSET_TYPES.map((assetType) => ({
+    assetType: assetTypeLabel(assetType),
+    target: network.totals[assetType].target,
+    actual: network.totals[assetType].actual
+  }));
 }
 
 export function DiscoveryCoverageTargetStateSection({
@@ -82,32 +68,14 @@ export function DiscoveryCoverageTargetStateSection({
       "Actual State Endpoints",
       "Last Refreshed Date"
     ];
-    const csvRows = [
-      [
-        network.name,
-        network.discoveryStatus,
-        "Server",
-        String(network.totals.server.target),
-        String(network.totals.server.actual),
-        lastRefreshedAt
-      ],
-      [
-        network.name,
-        network.discoveryStatus,
-        "Workstation",
-        String(network.totals.workstation.target),
-        String(network.totals.workstation.actual),
-        lastRefreshedAt
-      ],
-      [
-        network.name,
-        network.discoveryStatus,
-        "Network Device",
-        String(network.totals.networkDevice.target),
-        String(network.totals.networkDevice.actual),
-        lastRefreshedAt
-      ]
-    ];
+    const csvRows = ASSET_TYPES.map((assetType) => [
+      network.name,
+      network.discoveryStatus,
+      assetTypeLabel(assetType),
+      String(network.totals[assetType].target),
+      String(network.totals[assetType].actual),
+      lastRefreshedAt
+    ]);
 
     const escapeCell = (value: string) => {
       if (value.includes(",") || value.includes('"') || value.includes("\n")) {
@@ -182,34 +150,18 @@ export function DiscoveryCoverageTargetStateSection({
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-md border border-sky-300/20 bg-slate-900/55 p-2">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Servers</p>
-                  <p className="mt-1 text-lg font-semibold text-sky-100">
-                    {network.totals.server.actual} / {network.totals.server.target}
-                  </p>
-                  <p className="text-[11px] text-slate-300/75">
-                    {percentFound(network.totals.server.actual, network.totals.server.target)}% found
-                  </p>
-                </div>
-                <div className="rounded-md border border-sky-300/20 bg-slate-900/55 p-2">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Workstations</p>
-                  <p className="mt-1 text-lg font-semibold text-sky-100">
-                    {network.totals.workstation.actual} / {network.totals.workstation.target}
-                  </p>
-                  <p className="text-[11px] text-slate-300/75">
-                    {percentFound(network.totals.workstation.actual, network.totals.workstation.target)}% found
-                  </p>
-                </div>
-                <div className="rounded-md border border-sky-300/20 bg-slate-900/55 p-2">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Network Devices</p>
-                  <p className="mt-1 text-lg font-semibold text-sky-100">
-                    {network.totals.networkDevice.actual} / {network.totals.networkDevice.target}
-                  </p>
-                  <p className="text-[11px] text-slate-300/75">
-                    {percentFound(network.totals.networkDevice.actual, network.totals.networkDevice.target)}% found
-                  </p>
-                </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {ASSET_TYPES.map((assetType) => (
+                  <div key={`totals-${network.id}-${assetType}`} className="rounded-md border border-sky-300/20 bg-slate-900/55 p-2">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">{assetTypeLabel(assetType)}</p>
+                    <p className="mt-1 text-lg font-semibold text-sky-100">
+                      {network.totals[assetType].actual} / {network.totals[assetType].target}
+                    </p>
+                    <p className="text-[11px] text-slate-300/75">
+                      {percentFound(network.totals[assetType].actual, network.totals[assetType].target)}% found
+                    </p>
+                  </div>
+                ))}
               </div>
 
               <div className="mt-4 h-56">

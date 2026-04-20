@@ -36,10 +36,16 @@ describe("seed dataset", () => {
     const servers = dataset.assets.filter((asset) => asset.type === "server");
     const workstations = dataset.assets.filter((asset) => asset.type === "workstation");
     const devices = dataset.assets.filter((asset) => asset.type === "network-device");
+    const storageDevices = dataset.assets.filter((asset) => asset.type === "storage-device");
+    const printerDevices = dataset.assets.filter((asset) => asset.type === "printer-device");
+    const otherAssets = dataset.assets.filter((asset) => asset.type === "other");
 
     expect(servers.length).toBe(780);
-    expect(workstations.length).toBe(140);
-    expect(devices.length).toBe(80);
+    expect(workstations.length).toBe(80);
+    expect(devices.length).toBe(60);
+    expect(storageDevices.length).toBe(40);
+    expect(printerDevices.length).toBe(20);
+    expect(otherAssets.length).toBe(20);
 
     const modelledAssets = dataset.assets.filter((asset) => asset.systemContext?.systemId);
     const unmodelledAssets = dataset.assets.filter((asset) => !asset.systemContext?.systemId);
@@ -48,6 +54,9 @@ describe("seed dataset", () => {
     expect(modelledAssets.every((asset) => asset.type === "server")).toBe(true);
     expect(workstations.every((asset) => !asset.systemContext)).toBe(true);
     expect(devices.every((asset) => !asset.systemContext)).toBe(true);
+    expect(storageDevices.every((asset) => !asset.systemContext)).toBe(true);
+    expect(printerDevices.every((asset) => !asset.systemContext)).toBe(true);
+    expect(otherAssets.every((asset) => !asset.systemContext)).toBe(true);
 
     for (const network of dataset.managedNetworks) {
       const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
@@ -156,9 +165,15 @@ describe("seed dataset", () => {
     const servers = dataset.assets.filter((asset) => asset.type === "server");
     const workstations = dataset.assets.filter((asset) => asset.type === "workstation");
     const networkDevices = dataset.assets.filter((asset) => asset.type === "network-device");
+    const storageDevices = dataset.assets.filter((asset) => asset.type === "storage-device");
+    const printerDevices = dataset.assets.filter((asset) => asset.type === "printer-device");
+    const otherAssets = dataset.assets.filter((asset) => asset.type === "other");
     expect(servers.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
     expect(workstations.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
     expect(networkDevices.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
+    expect(storageDevices.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
+    expect(printerDevices.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
+    expect(otherAssets.some((asset) => asset.vulnerabilities.length === 0)).toBe(true);
   }, 20000);
 
   it("contains production and non-production environments for each ICT system", () => {

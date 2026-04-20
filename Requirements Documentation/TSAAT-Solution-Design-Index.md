@@ -43,13 +43,20 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 | `/report` | operations menu | [10-Report-Catalogue.md](10-Report-Catalogue.md) | report launcher page |
 | `/settings` | operations menu | [11-Settings.md](11-Settings.md) | database settings plus placeholder tabs |
 
+## Cross-Cutting Specifications
+- [12-Asset-Taxonomy-and-SPI-Applicability.md](12-Asset-Taxonomy-and-SPI-Applicability.md): canonical six-type asset taxonomy, SPI applicability contract, settings normalization, and schema-domain requirements.
+
 ## Shared Runtime Dependencies
 The page specifications repeatedly reference the following shared implementation elements:
 
 - `lib/app-data.ts`: snapshot and settings loading orchestration
 - `lib/data-loader.ts`: SQL Server reads and settings persistence
 - `lib/analytics.ts`: runtime evaluation, rollup, finding, and compliance assembly
+- `lib/asset-taxonomy.ts`: canonical asset type IDs, labels, and ordering
 - `lib/selectors.ts`: query-parameter parsing and filter application
+- `lib/db-config.ts`: `DB_config` parsing/normalization/formatting
+- `lib/database-settings.ts`: database connection, SSL, and schema validation
+- `lib/sql-server.ts`: runtime `sqlcmd` execution and SSL flag mapping
 - `components/filter-bar.tsx`: common filter UI and loading overlay behaviour
 - `components/menu-navigation.tsx`: global menu, route loading overlay, and date picker behaviour
 
@@ -75,6 +82,8 @@ The most frequently referenced tables across the pages are:
 - `tsaat.asset_vulnerability`
 - `tsaat.ci_dependency`
 - `tsaat.finding`
+- `tsaat.spi_definition`
+- `tsaat.spi_applicable_asset_type`
 - `tsaat.measures_settings_version`
 - `tsaat.measures_severity_matrix`
 - `tsaat.discovery_tools_settings_version`

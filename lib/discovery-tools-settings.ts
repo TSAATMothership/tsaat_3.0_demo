@@ -1,3 +1,4 @@
+import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { AssetType } from "@/lib/types";
 
 export type DiscoveryToolAssetSetting = "required" | "na";
@@ -30,7 +31,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Authoritative CMDB records for managed assets and relationships.",
     el2Owner: "EL2 Configuration Management",
     el2OperationsManager: "EL2 CMDB Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "required" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   },
   {
     id: "tanium",
@@ -38,7 +39,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Endpoint visibility and management telemetry for server and workstation assets.",
     el2Owner: "EL2 Endpoint Security",
     el2OperationsManager: "EL2 Endpoint Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "na" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   },
   {
     id: "tenable",
@@ -46,7 +47,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Vulnerability scanner coverage and findings for in-scope assets.",
     el2Owner: "EL2 Vulnerability Management",
     el2OperationsManager: "EL2 Vulnerability Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "required" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   },
   {
     id: "snow",
@@ -54,7 +55,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "ServiceNow asset lifecycle and warranty coverage data.",
     el2Owner: "EL2 Service Management",
     el2OperationsManager: "EL2 ITSM Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "required" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   },
   {
     id: "servicenow",
@@ -62,7 +63,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Service catalogue and lifecycle state integration.",
     el2Owner: "EL2 Service Management",
     el2OperationsManager: "EL2 ITSM Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "required" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   },
   {
     id: "dsoc-siem",
@@ -70,7 +71,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Security event telemetry and correlation coverage.",
     el2Owner: "EL2 SOC Services",
     el2OperationsManager: "EL2 SIEM Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "required" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   },
   {
     id: "elastic",
@@ -78,15 +79,11 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Endpoint and system telemetry indexing and observability coverage.",
     el2Owner: "EL2 SOC Services",
     el2OperationsManager: "EL2 Elastic Operations",
-    assetTypeScope: { server: "required", workstation: "required", "network-device": "na" }
+    assetTypeScope: createAssetTypeRecord(() => "required")
   }
 ];
 
-const FALLBACK_SCOPE: Record<AssetType, DiscoveryToolAssetSetting> = {
-  server: "required",
-  workstation: "required",
-  "network-device": "required"
-};
+const FALLBACK_SCOPE: Record<AssetType, DiscoveryToolAssetSetting> = createAssetTypeRecord(() => "required");
 
 function sanitizeText(value: unknown, fallback = ""): string {
   if (typeof value !== "string") {
@@ -118,7 +115,7 @@ function normalizeScope(
   }
 
   const scope = scopeInput as Record<string, unknown>;
-  for (const assetType of ["server", "workstation", "network-device"] as const) {
+  for (const assetType of ASSET_TYPES) {
     const rawValue = scope[assetType];
     if (isAssetSetting(rawValue)) {
       result[assetType] = rawValue;

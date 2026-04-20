@@ -54,7 +54,7 @@ Important hidden behaviour:
 ### Feature: Discovery Compliance Tab
 - **What it does:** shows discovery tool scorecards and a paginated asset coverage table for the current system scope.
 - **User perspective:** the user can see which in-scope assets fail required discovery tool coverage.
-- **System behaviour:** tool values are derived at runtime from discovery settings and asset evidence; pagination uses `coveragePage` and `coveragePageSize`.
+- **System behaviour:** tool values are derived at runtime from discovery settings and asset evidence; pagination uses `coveragePage` and `coveragePageSize`. Asset rows and tool applicability respect the shared six-type asset taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** discovery gaps can be actioned at asset level.
 
 ### Feature: Latent Query-Driven Scope States
@@ -70,7 +70,7 @@ Important hidden behaviour:
 | ICT System Detail | Tab routing | Switches among visible tabs | Click tab | Updates `systemDetailTab` and reloads | `systemDetailTab` | Different drill-through layout | default tab is `system-details` | unsupported values fall back to default | `SystemDetailTabs` | Bookmarkable tab state | topology modal state is local |
 | ICT System Detail | System Details tab | Metadata, accreditation, service context, risk charts | Open tab | Resolves details, links, and risk profile | system columns, mission and service links, findings | Narrative and ownership view | fallback metadata allowed when source columns blank | none | `NetworkDetailRiskCharts`, Link components | Operational context | several URLs are synthetic fallbacks |
 | ICT System Detail | Compliance Overview | SPI table with findings and CVE drillthroughs | Open tab, click measure, finding, asset, or CVE count | Opens layered overlays over system-scoped evidence | measures, findings, asset vulnerability index | Evidence drillthrough chain | evidence respects selected `dataDate` | runtime filtering only | `NetworkComplianceOverview` | Explains non-compliance | non-route layered drillthrough |
-| ICT System Detail | Discovery Compliance | Tool cards and asset coverage list | Open tab, paginate | Evaluates tool coverage per asset and paginates results | discovery settings, scoped assets, `coveragePage` | Coverage cards and table | coverage is based on required tools only | invalid page values clamp through pagination helper | discovery settings | Discovery remediation list | no export action is exposed here |
+| ICT System Detail | Discovery Compliance | Tool cards and asset coverage list | Open tab, paginate | Evaluates tool coverage per asset and paginates results | discovery settings, scoped assets, `coveragePage` | Coverage cards and table | coverage is based on required tools only | invalid page values clamp through pagination helper | discovery settings | Discovery remediation list | no export action is exposed here; all six canonical asset types are supported |
 | ICT System Detail | Hidden scope parameters | Direct-URL scoping for environment, KPI, server search, and P1/P2 list | Navigate with query params | Narrows assets, counts, and findings before render | `environment`, `serverSearch`, `kpiFilter`, `p12*`, `page`, `findingsPage*` | Narrowed system view | server-side scope applies even without visible controls | invalid environment or KPI values are ignored | pagination helper, runtime analytics | Bookmarkable hidden scope states | calculated helper links exist even where not rendered |
 
 ## 5. Database Mapping

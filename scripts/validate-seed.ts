@@ -84,9 +84,15 @@ async function main() {
   const serverAssets = current.assets.filter((asset) => asset.type === "server");
   const workstationAssets = current.assets.filter((asset) => asset.type === "workstation");
   const networkAssets = current.assets.filter((asset) => asset.type === "network-device");
+  const storageAssets = current.assets.filter((asset) => asset.type === "storage-device");
+  const printerAssets = current.assets.filter((asset) => asset.type === "printer-device");
+  const otherAssets = current.assets.filter((asset) => asset.type === "other");
   assert(serverAssets.length === 780, "Servers must equal 780.");
-  assert(workstationAssets.length === 140, "Workstations must equal 140.");
-  assert(networkAssets.length === 80, "Network devices must equal 80.");
+  assert(workstationAssets.length === 80, "Workstations must equal 80.");
+  assert(networkAssets.length === 60, "Network devices must equal 60.");
+  assert(storageAssets.length === 40, "Storage devices must equal 40.");
+  assert(printerAssets.length === 20, "Printer devices must equal 20.");
+  assert(otherAssets.length === 20, "Other assets must equal 20.");
 
   const modelledAssets = current.assets.filter((asset) => asset.systemContext?.systemId);
   const unmodelledAssets = current.assets.filter((asset) => !asset.systemContext?.systemId);
@@ -109,6 +115,18 @@ async function main() {
   assert(
     networkAssets.every((asset) => !asset.systemContext),
     "Network devices must not be assigned to ICT system environments."
+  );
+  assert(
+    storageAssets.every((asset) => !asset.systemContext),
+    "Storage devices must not be assigned to ICT system environments."
+  );
+  assert(
+    printerAssets.every((asset) => !asset.systemContext),
+    "Printer devices must not be assigned to ICT system environments."
+  );
+  assert(
+    otherAssets.every((asset) => !asset.systemContext),
+    "Other assets must not be assigned to ICT system environments."
   );
 
   const serverCountBySystem = new Map<string, number>();
@@ -195,6 +213,9 @@ async function main() {
   assert(serverAssets.some((asset) => asset.vulnerabilities.length === 0), "Servers must include some assets with no vulnerabilities.");
   assert(workstationAssets.some((asset) => asset.vulnerabilities.length === 0), "Workstations must include some assets with no vulnerabilities.");
   assert(networkAssets.some((asset) => asset.vulnerabilities.length === 0), "Network devices must include some assets with no vulnerabilities.");
+  assert(storageAssets.some((asset) => asset.vulnerabilities.length === 0), "Storage devices must include some assets with no vulnerabilities.");
+  assert(printerAssets.some((asset) => asset.vulnerabilities.length === 0), "Printer devices must include some assets with no vulnerabilities.");
+  assert(otherAssets.some((asset) => asset.vulnerabilities.length === 0), "Other assets must include some assets with no vulnerabilities.");
 
   const productionServers = serverAssets.filter((asset) => asset.systemContext?.environmentType === "Production");
   const productionWorkstations = workstationAssets.filter(

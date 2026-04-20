@@ -40,7 +40,7 @@ Important hidden behaviour:
 ### Feature: Overview View
 - **What it does:** shows findings history, summary cards, asset-type summaries, and SPI summaries.
 - **User perspective:** the user gets a trend-focused understanding of findings pressure before looking at individual rows.
-- **System behaviour:** the page builds a two-year daily history series, an SPI-specific history series, and card counts from the currently filtered findings set.
+- **System behaviour:** the page builds a two-year daily history series, an SPI-specific history series, and card counts from the currently filtered findings set; asset-type summaries use the shared canonical asset taxonomy.
 - **Outcome:** the page acts as the analytical overview for open or closed findings.
 
 ### Feature: Findings History Drillthrough
@@ -92,7 +92,7 @@ Primary data dependencies:
 | Findings history series | trend chart on overview | start from opening balance at history start date, then add opened findings and subtract closed findings per day | finding timestamps over two years | Runtime | backend | open and closed modes use different accumulation logic |
 | SPI history series | drillthrough line chart | build a separate running count per SPI across each day in the history window | finding timestamps, SPI ID | Runtime | backend | one line per SPI present in catalogue |
 | Summary cards | top-level status counts | count filtered findings by severity and priority classes | filtered findings | Runtime | backend | zero-safe |
-| Asset-type summary | compare findings by asset type | group findings by `evidence.assetType` and count total, High Risk, Critical Exposure, and P1/P2 | findings evidence | Runtime | backend | depends on evidence payload completeness |
+| Asset-type summary | compare findings by asset type | group findings by `evidence.assetType` and count total, High Risk, Critical Exposure, and P1/P2 | findings evidence | Runtime | backend | dynamic grouping supports `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, and `other` |
 | Register pagination | operational table slicing | page size fixed at 10; slice filtered rows by `page` | filtered findings, query params | Runtime | backend | clamps to valid page range |
 | Findings export | filtered register output | re-run active filters and emit CSV or JSON rows, including as-of status | findings plus query params | Runtime | API layer | export uses same as-of reconstruction as page |
 | Synthetic findings fallback | keep findings surfaces populated | create deterministic findings from non-compliant or unknown evaluations, assigning severity, priority, and timestamps | runtime evaluations and vulnerabilities | Runtime | backend | only used when no persisted findings exist |
@@ -108,6 +108,7 @@ Primary data dependencies:
 - `asOf` is limited to the two-year history window ending at the active snapshot date.
 - Register pagination is fixed at 10 rows per page.
 - Visible severity may differ from persisted `finding.severity` due to measures severity remap.
+- Asset-type summaries use the shared six-type taxonomy and do not assume a fixed 3-column model.
 - Asset-details drillthrough is dependent on the separate API endpoint and current filter context.
 
 ## 10. Open Questions / Gaps

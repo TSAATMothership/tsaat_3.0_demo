@@ -1,4 +1,5 @@
 import { Asset, AssetType, Finding, FindingSeverity, SpiId } from "@/lib/types";
+import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import { SPI_IDS } from "@/lib/spi-metadata";
 
 export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
@@ -9,7 +10,7 @@ export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
   "Data Gap"
 ];
 
-export const MEASURES_ASSET_TYPES: AssetType[] = ["server", "workstation", "network-device"];
+export const MEASURES_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
 export const MEASURES_SPI_IDS: SpiId[] = [...SPI_IDS];
 
 export interface MeasuresSettings {

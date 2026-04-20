@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import {
   MEASURES_ASSET_TYPES,
@@ -10,12 +11,6 @@ import {
   severityMatrixKey
 } from "@/lib/measures-settings";
 import { AssetType, FindingSeverity, SpiId } from "@/lib/types";
-
-const assetTypeLabels: Record<AssetType, string> = {
-  server: "Server",
-  workstation: "Workstation",
-  "network-device": "Network Device"
-};
 
 function matrixEqual(a: Record<string, FindingSeverity>, b: Record<string, FindingSeverity>): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
@@ -137,8 +132,8 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
             <tr>
               <th className="w-[360px] min-w-[360px] px-3 py-2">SPI</th>
               {MEASURES_ASSET_TYPES.map((assetType) => (
-                <th key={assetType} className="px-3 py-2">
-                  {assetTypeLabels[assetType]}
+                  <th key={assetType} className="px-3 py-2">
+                  {ASSET_TYPE_LABELS[assetType]}
                 </th>
               ))}
             </tr>

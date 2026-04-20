@@ -17,9 +17,12 @@ import {
   ReferenceVersions,
   SecurityDomain,
   ServerAsset,
+  StorageDeviceAsset,
   SystemCriticality,
   SupportStatus,
   SystemEnvironment,
+  PrinterDeviceAsset,
+  OtherAsset,
   VulnerabilityExploitability,
   VulnerabilitySeverity,
   Vulnerability,
@@ -116,6 +119,9 @@ const WORKSTATION_SOFTWARE = [
 ];
 
 const DEVICE_NAMES = ["Edge", "Switch", "Gateway", "Firewall", "Router", "Core"];
+const STORAGE_DEVICE_NAMES = ["NAS", "SAN", "Backup", "Archive", "Storage Array"];
+const PRINTER_DEVICE_NAMES = ["Laser", "Inkjet", "MFP", "Label", "Thermal"];
+const OTHER_DEVICE_NAMES = ["IoT", "Controller", "Sensor", "Console", "Appliance"];
 
 const ENV_TYPES: EnvironmentType[] = ["Development", "UAT", "Test"];
 const SECURITY_DOMAINS: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
@@ -123,13 +129,22 @@ const SECURITY_DOMAINS: SecurityDomain[] = ["Secret", "Protected", "Unclassified
 const TOTAL_ASSET_COUNT = 1000;
 const MODELLED_ASSET_RATIO = 0.7;
 const SERVER_COUNT = 780;
-const WORKSTATION_COUNT = 140;
-const NETWORK_DEVICE_COUNT = 80;
+const WORKSTATION_COUNT = 80;
+const NETWORK_DEVICE_COUNT = 60;
+const STORAGE_DEVICE_COUNT = 40;
+const PRINTER_DEVICE_COUNT = 20;
+const OTHER_ASSET_COUNT = 20;
 const MODELLED_SYSTEM_COUNT = 20;
 const MODELLED_SYSTEM_MIN_SERVERS = 20;
 const MODELLED_SYSTEM_MAX_SERVERS = 300;
 
-type AssetProfile = "server" | "workstation" | "network-device";
+type AssetProfile =
+  | "server"
+  | "workstation"
+  | "network-device"
+  | "storage-device"
+  | "printer-device"
+  | "other";
 
 interface CveTemplate {
   cve: string;
@@ -167,6 +182,27 @@ const VULNERABILITY_GENERATION_PROFILES: Record<AssetProfile, VulnerabilityGener
     minCount: 1,
     maxCount: 4,
     severityWeights: ["Critical", "High", "High", "Medium", "Low"],
+    sources: ["Qualys", "Nessus", "OpenVAS"]
+  },
+  "storage-device": {
+    noVulnerabilityChance: 0.35,
+    minCount: 1,
+    maxCount: 3,
+    severityWeights: ["Critical", "High", "Medium", "Medium", "Low"],
+    sources: ["Qualys", "Nessus", "OpenVAS"]
+  },
+  "printer-device": {
+    noVulnerabilityChance: 0.45,
+    minCount: 1,
+    maxCount: 2,
+    severityWeights: ["High", "Medium", "Medium", "Low", "Low"],
+    sources: ["Qualys", "Nessus", "OpenVAS"]
+  },
+  other: {
+    noVulnerabilityChance: 0.5,
+    minCount: 1,
+    maxCount: 2,
+    severityWeights: ["High", "Medium", "Medium", "Low", "Low", "Low"],
     sources: ["Qualys", "Nessus", "OpenVAS"]
   }
 };
@@ -868,7 +904,49 @@ function buildDevice(
       : {
           isLatest: chance(random, 0.05) ? null : chance(random, 0.74),
           lastPatchedDate: randomDateWithinDays(random, 240)
-        }
+      }
+  };
+}
+
+function buildStorageDevice(random: Random, index: number, networkId: string): StorageDeviceAsset {
+  const id = `std-${String(index + 1).padStart(4, "0")}`;
+  return {
+    id,
+    name: `${pick(random, STORAGE_DEVICE_NAMES)} Device ${index + 1}`,
+    hostname: `${id}.dct.local`,
+    type: "storage-device",
+    networkId,
+    securityDomain: "Unclassified",
+    lifecycle: buildLifecycle(random),
+    vulnerabilities: buildVulnerabilities(random, "storage-device", id)
+  };
+}
+
+function buildPrinterDevice(random: Random, index: number, networkId: string): PrinterDeviceAsset {
+  const id = `prd-${String(index + 1).padStart(4, "0")}`;
+  return {
+    id,
+    name: `${pick(random, PRINTER_DEVICE_NAMES)} Printer ${index + 1}`,
+    hostname: `${id}.dct.local`,
+    type: "printer-device",
+    networkId,
+    securityDomain: "Unclassified",
+    lifecycle: buildLifecycle(random),
+    vulnerabilities: buildVulnerabilities(random, "printer-device", id)
+  };
+}
+
+function buildOtherAsset(random: Random, index: number, networkId: string): OtherAsset {
+  const id = `oth-${String(index + 1).padStart(4, "0")}`;
+  return {
+    id,
+    name: `${pick(random, OTHER_DEVICE_NAMES)} Device ${index + 1}`,
+    hostname: `${id}.dct.local`,
+    type: "other",
+    networkId,
+    securityDomain: "Unclassified",
+    lifecycle: buildLifecycle(random),
+    vulnerabilities: buildVulnerabilities(random, "other", id)
   };
 }
 
@@ -1057,12 +1135,21 @@ function injectIssues(random: Random, assets: Asset[], versions: ReferenceVersio
       } else {
         asset.patchState = null;
       }
-    } else if (chance(random, 0.6)) {
-      asset.operatingSystem = null;
-    } else {
-      asset.lifecycle.eolStatus = "Unknown";
-      asset.lifecycle.warrantyStatus = "Unknown";
+      return;
     }
+
+    if (asset.type === "server" || asset.type === "workstation") {
+      if (chance(random, 0.6)) {
+        asset.operatingSystem = null;
+      } else {
+        asset.lifecycle.eolStatus = "Unknown";
+        asset.lifecycle.warrantyStatus = "Unknown";
+      }
+      return;
+    }
+
+    asset.lifecycle.eolStatus = "Unknown";
+    asset.lifecycle.warrantyStatus = "Unknown";
   });
 }
 
@@ -1316,10 +1403,23 @@ async function main() {
   const provisionedNetworks = networks.filter((network) => !network.id.startsWith("net-new-"));
   const modelledSystems = buildSystems(random, provisionedNetworks);
 
-  if (SERVER_COUNT + WORKSTATION_COUNT + NETWORK_DEVICE_COUNT !== TOTAL_ASSET_COUNT) {
+  if (
+    SERVER_COUNT +
+      WORKSTATION_COUNT +
+      NETWORK_DEVICE_COUNT +
+      STORAGE_DEVICE_COUNT +
+      PRINTER_DEVICE_COUNT +
+      OTHER_ASSET_COUNT !==
+    TOTAL_ASSET_COUNT
+  ) {
     throw new Error(
       `Asset count mismatch: expected ${TOTAL_ASSET_COUNT} but configured ${
-        SERVER_COUNT + WORKSTATION_COUNT + NETWORK_DEVICE_COUNT
+        SERVER_COUNT +
+        WORKSTATION_COUNT +
+        NETWORK_DEVICE_COUNT +
+        STORAGE_DEVICE_COUNT +
+        PRINTER_DEVICE_COUNT +
+        OTHER_ASSET_COUNT
       }.`
     );
   }
@@ -1339,6 +1439,21 @@ async function main() {
   for (let deviceIndex = 0; deviceIndex < NETWORK_DEVICE_COUNT; deviceIndex += 1) {
     const networkId = pick(random, networks).id;
     assets.push(buildDevice(random, deviceIndex, networkId, versions));
+  }
+
+  for (let storageIndex = 0; storageIndex < STORAGE_DEVICE_COUNT; storageIndex += 1) {
+    const networkId = pick(random, networks).id;
+    assets.push(buildStorageDevice(random, storageIndex, networkId));
+  }
+
+  for (let printerIndex = 0; printerIndex < PRINTER_DEVICE_COUNT; printerIndex += 1) {
+    const networkId = pick(random, networks).id;
+    assets.push(buildPrinterDevice(random, printerIndex, networkId));
+  }
+
+  for (let otherIndex = 0; otherIndex < OTHER_ASSET_COUNT; otherIndex += 1) {
+    const networkId = pick(random, networks).id;
+    assets.push(buildOtherAsset(random, otherIndex, networkId));
   }
 
   const targetModelledAssetCount = Math.round(TOTAL_ASSET_COUNT * MODELLED_ASSET_RATIO);

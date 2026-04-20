@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import type { ResolvedNetworkDetailFields } from "@/lib/network-detail-fields";
+import type { AssetType } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
 
@@ -10,9 +12,7 @@ export interface NetworkDiscoverySummaryTableRow extends ResolvedNetworkDetailFi
   id: string;
   name: string;
   discoveryEnabled: "Enabled" | "Not Enabled";
-  serverCoverage: number;
-  workstationCoverage: number;
-  networkDeviceCoverage: number;
+  coverageByAssetType: Record<AssetType, number>;
 }
 
 function isExternalLink(href: string): boolean {
@@ -125,9 +125,11 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
             <tr>
               <th className="px-3 py-2">Network</th>
               <th className="px-3 py-2">Discovery Enables</th>
-              <th className="px-3 py-2">Server Coverage</th>
-              <th className="px-3 py-2">Workstation Coverage</th>
-              <th className="px-3 py-2">Network Device Coverage</th>
+              {ASSET_TYPES.map((assetType) => (
+                <th key={`header-${assetType}`} className="px-3 py-2">
+                  {assetTypeLabel(assetType)} Coverage
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -153,20 +155,16 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
                     {row.discoveryEnabled}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-slate-200">
-                  <CoverageBullet value={row.serverCoverage} />
-                </td>
-                <td className="px-3 py-2 text-slate-200">
-                  <CoverageBullet value={row.workstationCoverage} />
-                </td>
-                <td className="px-3 py-2 text-slate-200">
-                  <CoverageBullet value={row.networkDeviceCoverage} />
-                </td>
+                {ASSET_TYPES.map((assetType) => (
+                  <td key={`${row.id}:${assetType}`} className="px-3 py-2 text-slate-200">
+                    <CoverageBullet value={row.coverageByAssetType[assetType]} />
+                  </td>
+                ))}
               </tr>
             ))}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                <td colSpan={ASSET_TYPES.length + 2} className="px-3 py-6 text-center text-sm text-slate-300/80">
                   No networks match the active discovery filters.
                 </td>
               </tr>

@@ -17,6 +17,7 @@ import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
+import { ASSET_TYPES, createAssetTypeRecord, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
@@ -173,26 +174,6 @@ function readEvidenceStringValue(
     return text;
   }
   return null;
-}
-
-function formatAssetTypeLabel(value?: string | null): string {
-  if (!value) {
-    return "Unknown";
-  }
-  if (value === "network-device") {
-    return "Network Device";
-  }
-  if (value === "workstation") {
-    return "Workstation";
-  }
-  if (value === "server") {
-    return "Server";
-  }
-  return value
-    .replace(/[-_]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function resolveAssetIpAddress(asset: Asset): string {
@@ -850,7 +831,7 @@ function buildImpactLinks(
 }
 
 function pickPrimaryAssetType(counts: Record<AssetType, number>): AssetType {
-  const orderedTypes: AssetType[] = ["server", "workstation", "network-device"];
+  const orderedTypes: AssetType[] = [...ASSET_TYPES];
   return orderedTypes.reduce((currentBest, candidate) =>
     counts[candidate] > counts[currentBest] ? candidate : currentBest
   );
@@ -876,11 +857,7 @@ function buildImpactBlastRadiusBySystemId(
 
     const row = bySystem.get(systemId) ?? {
       totalAssets: 0,
-      typeCounts: {
-        server: 0,
-        workstation: 0,
-        "network-device": 0
-      }
+      typeCounts: createAssetTypeRecord(() => 0)
     };
 
     row.totalAssets += 1;
@@ -909,11 +886,7 @@ function buildImpactBlastRadiusBySystemId(
 
     const row = impactedTypeCountsBySystem.get(finding.scope.systemId) ?? {
       impactedAssetIds: new Set<string>(),
-      typeCounts: {
-        server: 0,
-        workstation: 0,
-        "network-device": 0
-      }
+      typeCounts: createAssetTypeRecord(() => 0)
     };
     if (!row.impactedAssetIds.has(asset.id)) {
       row.impactedAssetIds.add(asset.id);
