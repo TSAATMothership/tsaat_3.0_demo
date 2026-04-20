@@ -1177,9 +1177,7 @@ function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
 function CyberCopTabFooter() {
   return (
     <footer className="mt-auto shrink-0 border-t border-sky-300/15 bg-slate-950/30">
-      <div className="px-4 py-3 text-center text-xs text-slate-300/70">
-        TSAAT Operational Reporting Layer | Snapshot-aligned analytics and mission impact context.
-      </div>
+      <div className="px-4 py-3 text-center text-xs text-slate-300/70">TSAAT | Cyber Operations Compliance Reporting.</div>
     </footer>
   );
 }

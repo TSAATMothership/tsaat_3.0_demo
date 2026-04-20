@@ -42,7 +42,7 @@ Key domain groups
 3) Network/system topology:
 - `managed_network`, `managed_network_hierarchy`
 - `ict_system`, `ict_system_hierarchy`
-- `network_declared_system`, `network_declared_asset`
+- `network_declared_system`, `network_declared_asset`, `network_target_state_asset`
 - `system_mission_capability`, `system_business_service`
 - `system_environment`, `system_environment_asset`
   - platform flags on both network and system entities:

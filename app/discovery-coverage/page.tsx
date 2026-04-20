@@ -11,10 +11,10 @@ import {
 } from "@/components/network-discovery-summary-table-client";
 import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
-import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
-import { Asset, AssetType } from "@/lib/types";
+import { Asset } from "@/lib/types";
 
 interface DiscoveryCoverageStatus {
   toolValues: Record<string, DiscoveryCoverageValue>;
@@ -54,14 +54,6 @@ function toQueryEntries(searchParams: Record<string, string | string[] | undefin
   return entries;
 }
 
-function deterministicDiscoveryPercent(seed: string): number {
-  let hash = 0;
-  for (const char of seed) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-  return 90 + (hash % 11);
-}
-
 function resolveAssetIpAddress(asset: Asset): string {
   const candidate = asset as Asset & {
     ipAddress?: string | null;
@@ -76,28 +68,6 @@ function resolveAssetIpAddress(asset: Asset): string {
     return "N/A";
   }
   return String(value).trim();
-}
-
-function targetCountForActual(actual: number, percentFound: number): number {
-  if (actual <= 0) {
-    return 0;
-  }
-  if (actual < 10) {
-    return actual;
-  }
-
-  let target = Math.max(actual, Math.round(actual / (percentFound / 100)));
-  while (target > actual && actual / target < 0.9) {
-    target -= 1;
-  }
-  return target;
-}
-
-function coveragePercent(actual: number, target: number): number {
-  if (target <= 0) {
-    return 0;
-  }
-  return Number(((actual / target) * 100).toFixed(1));
 }
 
 export default async function DiscoveryCoveragePage({
@@ -128,8 +98,8 @@ export default async function DiscoveryCoveragePage({
   const toolColumns = discoveryToolsSettings.tools.map((tool) => ({ key: tool.id, label: tool.name }));
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
-  const rows: CoverageRow[] = dataset.assets
-    .filter((asset) => scopedAssetIds.has(asset.id))
+  const scopedAssets = dataset.assets.filter((asset) => scopedAssetIds.has(asset.id));
+  const rows: CoverageRow[] = scopedAssets
     .map((asset) => {
       const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
       return {
@@ -187,51 +157,33 @@ export default async function DiscoveryCoveragePage({
     const coveragePercent = applicable ? Number(((covered / applicable) * 100).toFixed(1)) : 0;
     return { id: key, label, covered, missing, applicable, coveragePercent };
   });
-
-  const assetTotalsByNetwork = rows.reduce((map, asset) => {
-    const current = map.get(asset.networkId) ?? createAssetTypeRecord(() => 0);
-    current[asset.assetType] += 1;
-    map.set(asset.networkId, current);
-    return map;
-  }, new Map<string, Record<AssetType, number>>());
-
-  const targetStateNetworks = networks.map((network) => {
-    const actualTotals = assetTotalsByNetwork.get(network.id) ?? createAssetTypeRecord(() => 0);
-    const totals = createAssetTypeRecord((assetType) => {
-      const actual = actualTotals[assetType];
-      const percent = deterministicDiscoveryPercent(`${network.id}:${assetType}`);
-      return {
-        actual,
-        target: targetCountForActual(actual, percent)
-      };
-    });
-
-    return {
-      id: network.id,
-      name: network.name,
-      isNewNetwork: network.discoveryStatus === "Discovery Non Enabled",
-      discoveryStatus: network.discoveryStatus,
-      totals
-    };
-  });
+  const targetStateSummaryByNetworkId = buildNetworkTargetStateSummary(
+    networks,
+    scopedAssets.map((asset) => ({
+      networkId: asset.networkId,
+      assetType: asset.type,
+      name: asset.name
+    }))
+  );
 
   const networkDetailFieldsById = new Map(networks.map((network) => [network.id, resolveNetworkDetailFields(network)]));
-  const networkDiscoverySummaryRows: NetworkDiscoverySummaryTableRow[] = targetStateNetworks
-    .map((network) => ({
-      id: network.id,
-      name: network.name,
-      ...networkDetailFieldsById.get(network.id)!,
-      discoveryEnabled:
-        network.discoveryStatus === "Discovery Enabled"
-          ? ("Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"])
-          : ("Not Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"]),
-      coverageByAssetType: Object.fromEntries(
-        ASSET_TYPES.map((assetType) => [
-          assetType,
-          coveragePercent(network.totals[assetType].actual, network.totals[assetType].target)
-        ])
-      ) as Record<AssetType, number>
-    }))
+  const networkDiscoverySummaryRows: NetworkDiscoverySummaryTableRow[] = networks
+    .map((network) => {
+      const targetStateSummary = targetStateSummaryByNetworkId.get(network.id)!;
+      return {
+        id: network.id,
+        name: network.name,
+        ...networkDetailFieldsById.get(network.id)!,
+        discoveryEnabled:
+          network.discoveryStatus === "Discovery Enabled"
+            ? ("Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"])
+            : ("Not Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"]),
+        targetStateProvided: targetStateSummary.targetStateProvided
+          ? ("Yes" as NetworkDiscoverySummaryTableRow["targetStateProvided"])
+          : ("No" as NetworkDiscoverySummaryTableRow["targetStateProvided"]),
+        targetStateByAssetType: targetStateSummary.byAssetType
+      };
+    })
     .sort((a, b) => {
       if (a.discoveryEnabled !== b.discoveryEnabled) {
         return a.discoveryEnabled === "Enabled" ? -1 : 1;
@@ -331,10 +283,6 @@ export default async function DiscoveryCoveragePage({
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Discovery Coverage View</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-100">Discovery</h1>
-        <p className="mt-1 text-sm text-slate-300/80">
-          Discovery tooling coverage across managed networks, with by-tool and by-network analysis and DB-backed tool
-          scope settings.
-        </p>
       </section>
 
       <DiscoveryCoverageTabs activeTab={activeTab} />
@@ -460,7 +408,7 @@ export default async function DiscoveryCoveragePage({
                 }
               />
             </div>
-            <section className="panel min-h-0 overflow-hidden">
+            <section className="panel flex min-h-0 flex-col overflow-hidden">
               <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
                 Network Discovery Summary
               </h2>

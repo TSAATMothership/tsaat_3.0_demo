@@ -68,6 +68,7 @@ The most frequently referenced tables across the pages are:
 - `tsaat.managed_network_hierarchy`
 - `tsaat.network_declared_system`
 - `tsaat.network_declared_asset`
+- `tsaat.network_target_state_asset`
 - `tsaat.ict_system`
 - `tsaat.ict_system_hierarchy`
 - `tsaat.system_mission_capability`

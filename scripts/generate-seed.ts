@@ -1,7 +1,9 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { ASSET_TYPES } from "../lib/asset-taxonomy";
 import {
   Asset,
+  AssetType,
   BusinessService,
   CiDependency,
   Criticality,
@@ -137,6 +139,7 @@ const OTHER_ASSET_COUNT = 20;
 const MODELLED_SYSTEM_COUNT = 20;
 const MODELLED_SYSTEM_MIN_SERVERS = 20;
 const MODELLED_SYSTEM_MAX_SERVERS = 300;
+const TARGET_STATE_BUCKET_HIGH_RATIO = 0.1;
 
 type AssetProfile =
   | "server"
@@ -145,6 +148,13 @@ type AssetProfile =
   | "storage-device"
   | "printer-device"
   | "other";
+
+type TargetStateBucket = "high" | "mid" | "low";
+
+interface NetworkAssetTypeCombo {
+  networkId: string;
+  assetType: AssetType;
+}
 
 interface CveTemplate {
   cve: string;
@@ -412,6 +422,250 @@ function buildChunkAllocation(
   }
 
   return allocations;
+}
+
+function createAssetTypeRecord<T>(factory: (assetType: AssetType) => T): Record<AssetType, T> {
+  return Object.fromEntries(ASSET_TYPES.map((assetType) => [assetType, factory(assetType)] as const)) as Record<
+    AssetType,
+    T
+  >;
+}
+
+function comboKey(networkId: string, assetType: AssetType): string {
+  return `${networkId}::${assetType}`;
+}
+
+function sortCombos(combos: NetworkAssetTypeCombo[]): NetworkAssetTypeCombo[] {
+  return [...combos].sort((left, right) => {
+    const networkCmp = left.networkId.localeCompare(right.networkId);
+    if (networkCmp !== 0) {
+      return networkCmp;
+    }
+    return left.assetType.localeCompare(right.assetType);
+  });
+}
+
+function hasValidMidCoverageTarget(discoveredCount: number): boolean {
+  if (discoveredCount <= 0) {
+    return false;
+  }
+  for (let targetTotal = discoveredCount; targetTotal <= discoveredCount * 5; targetTotal += 1) {
+    const ratio = discoveredCount / targetTotal;
+    if (ratio > 0.9 && ratio <= 0.95) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pickComboKeySet(random: Random, combos: NetworkAssetTypeCombo[], count: number): Set<string> {
+  if (!combos.length || count <= 0) {
+    return new Set<string>();
+  }
+  const order = shuffledIndices(random, combos.length);
+  const selected = new Set<string>();
+  for (const index of order) {
+    selected.add(comboKey(combos[index].networkId, combos[index].assetType));
+    if (selected.size >= count) {
+      break;
+    }
+  }
+  return selected;
+}
+
+function pickTargetTotalsForMappedBuckets(
+  random: Random,
+  discoveredCount: number,
+  bucket: TargetStateBucket
+): number {
+  if (discoveredCount <= 0) {
+    return 0;
+  }
+
+  if (bucket === "high") {
+    const extra = discoveredCount >= 25 ? randomInt(random, 0, 1) : 0;
+    return discoveredCount + extra;
+  }
+
+  if (bucket === "mid") {
+    if (discoveredCount < 4) {
+      return discoveredCount;
+    }
+
+    const validMidTargets: number[] = [];
+    for (let targetTotal = discoveredCount; targetTotal <= discoveredCount * 5; targetTotal += 1) {
+      const ratio = discoveredCount / targetTotal;
+      if (ratio > 0.9 && ratio <= 0.95) {
+        validMidTargets.push(targetTotal);
+      }
+    }
+    if (!validMidTargets.length) {
+      return discoveredCount;
+    }
+    return pick(random, validMidTargets);
+  }
+
+  const desiredCoverage = 0.2 + random() * 0.65;
+  let targetTotal = Math.max(discoveredCount + 1, Math.round(discoveredCount / desiredCoverage));
+  while (discoveredCount / targetTotal > 0.85) {
+    targetTotal += 1;
+  }
+  while (discoveredCount / targetTotal < 0.2 && targetTotal > discoveredCount + 1) {
+    targetTotal -= 1;
+  }
+  return targetTotal;
+}
+
+function buildUnmatchedTargetNames(
+  networkId: string,
+  assetType: AssetType,
+  existingNames: Set<string>,
+  needed: number
+): string[] {
+  const targetNames: string[] = [];
+  let counter = 1;
+  while (targetNames.length < needed) {
+    const candidate = `Target ${networkId.toUpperCase()} ${assetType.toUpperCase()} ${String(counter).padStart(4, "0")}`;
+    if (!existingNames.has(candidate.toLowerCase())) {
+      targetNames.push(candidate);
+      existingNames.add(candidate.toLowerCase());
+    }
+    counter += 1;
+  }
+  return targetNames;
+}
+
+function assignNetworkTargetStateAssets(random: Random, networks: ManagedNetwork[], assets: Asset[]) {
+  const discoveredByCombo = new Map<string, string[]>();
+  for (const asset of assets) {
+    const key = comboKey(asset.networkId, asset.type);
+    const existing = discoveredByCombo.get(key);
+    if (existing) {
+      existing.push(asset.name);
+    } else {
+      discoveredByCombo.set(key, [asset.name]);
+    }
+  }
+
+  const allCombos = sortCombos(
+    networks.flatMap((network) => ASSET_TYPES.map((assetType) => ({ networkId: network.id, assetType })))
+  );
+  const combosWithDiscoveredAssets = allCombos.filter((combo) => (discoveredByCombo.get(comboKey(combo.networkId, combo.assetType)) ?? []).length > 0);
+  const mappedCandidateCombos = combosWithDiscoveredAssets.filter((combo) => {
+    const discoveredCount = (discoveredByCombo.get(comboKey(combo.networkId, combo.assetType)) ?? []).length;
+    return hasValidMidCoverageTarget(discoveredCount);
+  });
+  const nonMappedCombos = combosWithDiscoveredAssets.filter((combo) => {
+    const discoveredCount = (discoveredByCombo.get(comboKey(combo.networkId, combo.assetType)) ?? []).length;
+    return !hasValidMidCoverageTarget(discoveredCount);
+  });
+
+  const targetMissingKeys = new Set<string>();
+  const discoveryMissingKeys = new Set<string>();
+  const nonMappedOrder = shuffledIndices(random, nonMappedCombos.length);
+  const minimumMappedCount = 10;
+  const supplementalMappedCount = Math.max(0, Math.min(nonMappedCombos.length, minimumMappedCount - mappedCandidateCombos.length));
+  const supplementalMappedCombos = nonMappedOrder.slice(0, supplementalMappedCount).map((index) => nonMappedCombos[index]);
+  const supplementalMappedKeys = new Set(
+    supplementalMappedCombos.map((combo) => comboKey(combo.networkId, combo.assetType))
+  );
+
+  const missingPoolCombos = nonMappedOrder
+    .slice(supplementalMappedCount)
+    .map((index) => nonMappedCombos[index]);
+  for (let orderIndex = 0; orderIndex < missingPoolCombos.length; orderIndex += 1) {
+    const combo = missingPoolCombos[orderIndex];
+    const key = comboKey(combo.networkId, combo.assetType);
+    if (orderIndex % 2 === 0) {
+      targetMissingKeys.add(key);
+    } else {
+      discoveryMissingKeys.add(key);
+    }
+  }
+
+  if (!targetMissingKeys.size && mappedCandidateCombos.length > 0) {
+    targetMissingKeys.add(comboKey(mappedCandidateCombos[0].networkId, mappedCandidateCombos[0].assetType));
+  }
+  if (!discoveryMissingKeys.size && mappedCandidateCombos.length > 1) {
+    discoveryMissingKeys.add(comboKey(mappedCandidateCombos[1].networkId, mappedCandidateCombos[1].assetType));
+  }
+
+  const mappedCombos = [...mappedCandidateCombos.filter((combo) => {
+    const key = comboKey(combo.networkId, combo.assetType);
+    return !targetMissingKeys.has(key) && !discoveryMissingKeys.has(key);
+  }), ...supplementalMappedCombos.filter((combo) => {
+    const key = comboKey(combo.networkId, combo.assetType);
+    return !targetMissingKeys.has(key) && !discoveryMissingKeys.has(key) && supplementalMappedKeys.has(key);
+  })];
+  const mappedCount = mappedCombos.length;
+  const mappedDistributionCombos = mappedCombos.filter((combo) => {
+    const discoveredCount = (discoveredByCombo.get(comboKey(combo.networkId, combo.assetType)) ?? []).length;
+    return hasValidMidCoverageTarget(discoveredCount);
+  });
+
+  const highCount = Math.min(
+    mappedDistributionCombos.length,
+    Math.max(1, Math.floor(mappedCount * TARGET_STATE_BUCKET_HIGH_RATIO))
+  );
+  const targetOverNinetyCount = Math.min(mappedCount, Math.max(1, Math.round(mappedCount * 0.6)));
+  const midCount = Math.min(
+    Math.max(0, mappedDistributionCombos.length - highCount),
+    Math.max(1, targetOverNinetyCount - highCount)
+  );
+
+  const highKeys = pickComboKeySet(random, mappedDistributionCombos, highCount);
+  const midCandidates = mappedDistributionCombos.filter((combo) => !highKeys.has(comboKey(combo.networkId, combo.assetType)));
+  const midKeys = pickComboKeySet(random, midCandidates, midCount);
+
+  const mappedBucketByKey = new Map<string, TargetStateBucket>();
+  for (const combo of mappedCombos) {
+    const key = comboKey(combo.networkId, combo.assetType);
+    mappedBucketByKey.set(key, highKeys.has(key) ? "high" : midKeys.has(key) ? "mid" : "low");
+  }
+
+  const targetStateByNetwork = new Map<string, Record<AssetType, string[]>>();
+  for (const network of networks) {
+    targetStateByNetwork.set(network.id, createAssetTypeRecord(() => []));
+  }
+
+  for (const combo of allCombos) {
+    const key = comboKey(combo.networkId, combo.assetType);
+    const targetStateAssets = targetStateByNetwork.get(combo.networkId)!;
+    const discoveredNames = discoveredByCombo.get(key) ?? [];
+
+    if (targetMissingKeys.has(key)) {
+      targetStateAssets[combo.assetType] = [];
+      continue;
+    }
+
+    if (discoveryMissingKeys.has(key)) {
+      const unmatchedCount = Math.max(1, Math.round(Math.max(discoveredNames.length, 1) * 0.75));
+      const existingNames = new Set(discoveredNames.map((name) => name.trim().toLowerCase()));
+      targetStateAssets[combo.assetType] = buildUnmatchedTargetNames(
+        combo.networkId,
+        combo.assetType,
+        existingNames,
+        unmatchedCount
+      );
+      continue;
+    }
+
+    if (discoveredNames.length <= 0) {
+      targetStateAssets[combo.assetType] = [];
+      continue;
+    }
+
+    const bucket = mappedBucketByKey.get(key) ?? "low";
+    const targetTotal = pickTargetTotalsForMappedBuckets(random, discoveredNames.length, bucket);
+    const normalizedNameSet = new Set(discoveredNames.map((name) => name.trim().toLowerCase()));
+    const extraCount = Math.max(0, targetTotal - discoveredNames.length);
+    const extras = buildUnmatchedTargetNames(combo.networkId, combo.assetType, normalizedNameSet, extraCount);
+    targetStateAssets[combo.assetType] = [...discoveredNames, ...extras];
+  }
+
+  for (const network of networks) {
+    network.targetStateAssets = targetStateByNetwork.get(network.id)!;
+  }
 }
 
 function generateVersions(): ReferenceVersions {
@@ -1492,6 +1746,7 @@ async function main() {
   }
 
   syncRelationshipIndexes(networks, modelledSystems, assets);
+  assignNetworkTargetStateAssets(random, networks, assets);
   syncSecurityDomains(networks, modelledSystems, assets);
   injectIssues(random, assets, versions);
 

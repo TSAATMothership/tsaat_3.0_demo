@@ -50,6 +50,12 @@ type NetworkDeclaredAssetRow = {
   assetId: string;
 };
 
+type NetworkTargetStateAssetRow = {
+  networkId: string;
+  assetType: AssetType;
+  assetName: string;
+};
+
 type SystemRow = {
   id: string;
   networkId: string;
@@ -190,6 +196,7 @@ type SnapshotPayload = {
   managedNetworkHierarchy: ManagedNetworkHierarchyRow[];
   networkDeclaredSystems: NetworkDeclaredSystemRow[];
   networkDeclaredAssets: NetworkDeclaredAssetRow[];
+  networkTargetStateAssets: NetworkTargetStateAssetRow[];
   ictSystems: SystemRow[];
   ictSystemHierarchy: SystemHierarchyRow[];
   systemMissionCapabilities: MissionCapabilityRow[];
@@ -376,6 +383,16 @@ SELECT
     ORDER BY nda.[network_id], nda.[asset_id]
     FOR JSON PATH
   )) AS [networkDeclaredAssets],
+  JSON_QUERY((
+    SELECT
+      ntsa.[network_id] AS [networkId],
+      ntsa.[asset_type] AS [assetType],
+      ntsa.[asset_name] AS [assetName]
+    FROM [${DATA_SCHEMA}].[network_target_state_asset] ntsa
+    WHERE ntsa.[snapshot_id] = @snapshotId
+    ORDER BY ntsa.[network_id], ntsa.[asset_type], ntsa.[asset_name]
+    FOR JSON PATH
+  )) AS [networkTargetStateAssets],
   JSON_QUERY((
     SELECT
       s.[system_id] AS [id],
@@ -586,6 +603,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     managedNetworkHierarchy: Array.isArray(raw.managedNetworkHierarchy) ? raw.managedNetworkHierarchy : [],
     networkDeclaredSystems: Array.isArray(raw.networkDeclaredSystems) ? raw.networkDeclaredSystems : [],
     networkDeclaredAssets: Array.isArray(raw.networkDeclaredAssets) ? raw.networkDeclaredAssets : [],
+    networkTargetStateAssets: Array.isArray(raw.networkTargetStateAssets) ? raw.networkTargetStateAssets : [],
     ictSystems: Array.isArray(raw.ictSystems) ? raw.ictSystems : [],
     ictSystemHierarchy: Array.isArray(raw.ictSystemHierarchy) ? raw.ictSystemHierarchy : [],
     systemMissionCapabilities: Array.isArray(raw.systemMissionCapabilities) ? raw.systemMissionCapabilities : [],
@@ -631,11 +649,20 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
     }
   }
 
+  const networkTargetStateAssets = new Map<string, Record<AssetType, string[]>>();
+  for (const row of payload.networkTargetStateAssets) {
+    const networkRecord =
+      networkTargetStateAssets.get(row.networkId) ?? createAssetTypeRecord(() => []);
+    networkRecord[row.assetType].push(row.assetName);
+    networkTargetStateAssets.set(row.networkId, networkRecord);
+  }
+
   const managedNetworks = payload.managedNetworks.map((network) => {
     const childRows = networkChildrenRows.get(network.id) ?? [];
     const childNetworkIds = sortedValues(childRows.map((row) => row.childNetworkId));
     const systemIds = sortedValues(networkSystemIds.get(network.id) ?? []);
     const assetIds = sortedValues(networkAssetIds.get(network.id) ?? []);
+    const targetStateAssets = networkTargetStateAssets.get(network.id);
 
     return {
       id: network.id,
@@ -655,7 +682,8 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       ...(network.grcUrl ? { grcUrl: network.grcUrl } : {}),
       discoveryStatus: network.discoveryStatus,
       ictSystemIds: systemIds,
-      assetIds
+      assetIds,
+      ...(targetStateAssets ? { targetStateAssets } : {})
     };
   });
 

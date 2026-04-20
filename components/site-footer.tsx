@@ -21,9 +21,7 @@ export function SiteFooter() {
     <footer
       className={`app-footer no-print border-t border-sky-300/15 bg-slate-950/40 ${usesWideFooterLayout ? "mt-0" : "mt-8"}`}
     >
-      <div className={footerContainerClass}>
-        TSAAT Operational Reporting Layer | Snapshot-aligned analytics and mission impact context.
-      </div>
+      <div className={footerContainerClass}>TSAAT | Cyber Operations Compliance Reporting.</div>
     </footer>
   );
 }

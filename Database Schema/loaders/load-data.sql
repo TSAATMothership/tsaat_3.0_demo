@@ -604,6 +604,25 @@ BEGIN
   ) AS n
   CROSS APPLY OPENJSON(n.[asset_ids]) AS ai;
 
+  INSERT INTO [tsaat].[network_target_state_asset] (
+    [snapshot_id],
+    [network_id],
+    [asset_type],
+    [asset_name]
+  )
+  SELECT DISTINCT
+    @SnapshotId,
+    n.[network_id],
+    target_map.[key],
+    LTRIM(RTRIM(CONVERT(NVARCHAR(255), target_name.[value])))
+  FROM OPENJSON(@Json, '$.managedNetworks') WITH (
+    [network_id] NVARCHAR(255) '$.id',
+    [target_state_assets] NVARCHAR(MAX) '$.targetStateAssets' AS JSON
+  ) AS n
+  CROSS APPLY OPENJSON(n.[target_state_assets]) AS target_map
+  CROSS APPLY OPENJSON(target_map.[value]) AS target_name
+  WHERE NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(255), target_name.[value]))), N'') IS NOT NULL;
+
   INSERT INTO [tsaat].[system_environment_asset] (
     [snapshot_id],
     [system_id],

@@ -65,7 +65,7 @@ The page uses the shared snapshot dataset and findings analytics, then reshapes 
 Primary data dependencies:
 
 - `tsaat.managed_network`
-- `tsaat.network_declared_system` and `tsaat.network_declared_asset`
+- `tsaat.network_declared_system`, `tsaat.network_declared_asset`, and `tsaat.network_target_state_asset`
 - `tsaat.asset` and related posture tables
 - `tsaat.finding`
 - `tsaat.asset_vulnerability`
@@ -77,7 +77,7 @@ Primary data dependencies:
 | Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | fallback metadata allowed in slideouts | used directly and in drill-down hrefs | |
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity remapped before use | |
-| Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset` | `network_id`, `system_id`, `asset_id` | string | declared scope context | Read | same snapshot joins | none | informational scope support | not all UI elements display these tables directly |
+| Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
 | Networks | Discovery settings | `tsaat` | discovery settings tables | version and tool scope columns | mixed | discovery compliance score by network | Read | latest settings version applied to all evaluations | defaults if no saved settings exist | runtime evaluation only | |
 
 ## 7. Calculations and Derived Logic

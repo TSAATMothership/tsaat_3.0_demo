@@ -56,6 +56,7 @@ export interface ManagedNetwork {
   discoveryStatus: NetworkDiscoveryStatus;
   ictSystemIds: string[];
   assetIds: string[];
+  targetStateAssets?: Partial<Record<AssetType, string[]>>;
 }
 
 export interface SystemEnvironment {

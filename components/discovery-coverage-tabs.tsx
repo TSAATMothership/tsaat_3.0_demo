@@ -23,7 +23,7 @@ const tabs: Array<{ id: DiscoveryCoverageTabId; label: string }> = [
   { id: "summary", label: "Discovery Tool Coverage" },
   { id: "coverage-by-network", label: "Discovery Tool Coverage - by Network" },
   { id: "tool-settings", label: "Discovery Tools Setting" },
-  { id: "target-state", label: "Network Discovery" }
+  { id: "target-state", label: "Network Discovery Status" }
 ];
 
 export function DiscoveryCoverageTabs({ activeTab }: { activeTab: DiscoveryCoverageTabId }) {
@@ -99,7 +99,7 @@ export function DiscoveryCoverageTabs({ activeTab }: { activeTab: DiscoveryCover
 
   const pendingTabLabel =
     pendingTab === "target-state"
-      ? "Network Discovery"
+      ? "Network Discovery Status"
       : pendingTab === "coverage-by-network"
         ? "Discovery Tool Coverage - by Network"
       : pendingTab === "tool-settings"

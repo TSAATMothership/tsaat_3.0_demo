@@ -1,5 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { ASSET_TYPES } from "../lib/asset-taxonomy";
+import { buildNetworkTargetStateSummary } from "../lib/network-target-state";
 import { Asset, Dataset } from "../lib/types";
 
 const SECURITY_DOMAINS = new Set(["Secret", "Protected", "Unclassified"]);
@@ -20,6 +22,10 @@ const FLOW_ZERO_RATIO = 0.1;
 const FLOW_HIGH_RATIO = 0.7;
 const FLOW_MEDIUM_RATIO = 0.19;
 const FLOW_SPIKE_RATIO = 0.01;
+const TARGET_HIGH_MIN_RATIO = 0.08;
+const TARGET_HIGH_MAX_RATIO = 0.14;
+const TARGET_OVER90_MIN_RATIO = 0.56;
+const TARGET_OVER90_MAX_RATIO = 0.64;
 
 async function readJson<T>(filePath: string): Promise<T> {
   return JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
@@ -63,7 +69,80 @@ async function main() {
       typeof network.enterprisePlatform === "boolean",
       `Network ${network.id} must include enterprisePlatform as boolean.`
     );
+    assert(
+      !!network.targetStateAssets && typeof network.targetStateAssets === "object",
+      `Network ${network.id} must include targetStateAssets.`
+    );
+    for (const assetType of ASSET_TYPES) {
+      assert(
+        Array.isArray(network.targetStateAssets?.[assetType]),
+        `Network ${network.id} targetStateAssets.${assetType} must be an array.`
+      );
+    }
   }
+
+  const targetStateSummary = buildNetworkTargetStateSummary(
+    current.managedNetworks,
+    current.assets.map((asset) => ({
+      networkId: asset.networkId,
+      assetType: asset.type,
+      name: asset.name
+    }))
+  );
+
+  let mappedResults = 0;
+  let highCoverageResults = 0;
+  let overNinetyResults = 0;
+  let betweenTwentyAndEightyFiveResults = 0;
+  let targetMissingResults = 0;
+  let discoveryMissingResults = 0;
+
+  for (const network of current.managedNetworks) {
+    const summary = targetStateSummary.get(network.id);
+    assert(!!summary, `Missing target-state summary for network ${network.id}.`);
+
+    for (const assetType of ASSET_TYPES) {
+      const cell = summary!.byAssetType[assetType];
+      if (cell.state === "target-missing") {
+        targetMissingResults += 1;
+        continue;
+      }
+      if (cell.state === "discovery-missing") {
+        discoveryMissingResults += 1;
+        continue;
+      }
+
+      mappedResults += 1;
+      if (cell.coveragePercent > 95) {
+        highCoverageResults += 1;
+      }
+      if (cell.coveragePercent > 90) {
+        overNinetyResults += 1;
+      }
+      if (cell.coveragePercent >= 20 && cell.coveragePercent <= 85) {
+        betweenTwentyAndEightyFiveResults += 1;
+      }
+    }
+  }
+
+  assert(targetMissingResults > 0, "Dataset must include target-state-missing examples.");
+  assert(discoveryMissingResults > 0, "Dataset must include discovery-missing examples.");
+  assert(mappedResults > 0, "Dataset must include mapped target-state results.");
+  assert(
+    overNinetyResults + betweenTwentyAndEightyFiveResults === mappedResults,
+    "Mapped target-state coverage results must be either >90% or between 20% and 85%."
+  );
+
+  const highRatio = highCoverageResults / mappedResults;
+  const overNinetyRatio = overNinetyResults / mappedResults;
+  assert(
+    highRatio >= TARGET_HIGH_MIN_RATIO && highRatio <= TARGET_HIGH_MAX_RATIO,
+    `Mapped target-state results above 95% must be between ${(TARGET_HIGH_MIN_RATIO * 100).toFixed(0)}% and ${(TARGET_HIGH_MAX_RATIO * 100).toFixed(0)}%.`
+  );
+  assert(
+    overNinetyRatio >= TARGET_OVER90_MIN_RATIO && overNinetyRatio <= TARGET_OVER90_MAX_RATIO,
+    `Mapped target-state results above 90% must be between ${(TARGET_OVER90_MIN_RATIO * 100).toFixed(0)}% and ${(TARGET_OVER90_MAX_RATIO * 100).toFixed(0)}%.`
+  );
 
   const modelledSystems = current.ictSystems.filter((system) => system.modellingStatus === true);
   const unmodelledSystems = current.ictSystems.filter((system) => system.modellingStatus === false);

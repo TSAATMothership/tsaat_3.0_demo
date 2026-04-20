@@ -11,6 +11,7 @@ erDiagram
   managed_network ||--o{ ict_system : "network_id"
   managed_network ||--o{ network_declared_system : "network_id"
   managed_network ||--o{ network_declared_asset : "network_id"
+  managed_network ||--o{ network_target_state_asset : "network_id"
   managed_network ||--o{ managed_network_hierarchy : "parent/child"
 
   ict_system ||--o{ system_environment : "system_id"

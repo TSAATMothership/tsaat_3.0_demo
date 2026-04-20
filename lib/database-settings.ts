@@ -48,6 +48,7 @@ const REQUIRED_TABLES: string[] = [
   "ict_system_hierarchy",
   "network_declared_system",
   "network_declared_asset",
+  "network_target_state_asset",
   "system_mission_capability",
   "system_business_service",
   "system_environment",
