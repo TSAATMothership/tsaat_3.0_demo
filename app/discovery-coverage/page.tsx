@@ -447,6 +447,17 @@ export default async function DiscoveryCoveragePage({
                 filters={filters}
                 hiddenFields={["ictSystem", "environment", "systemCriticality"]}
                 enableLoadingOverlay
+                actions={
+                  <div className="flex min-w-[170px] flex-col gap-1">
+                    <span aria-hidden className="text-[11px] uppercase tracking-[0.14em] text-transparent">
+                      Totals
+                    </span>
+                    <div className="inline-flex h-[42px] items-center rounded-md border border-sky-300/35 bg-sky-500/15 px-3 text-sm text-sky-100">
+                      Total Network:{" "}
+                      <span className="ml-1 font-semibold text-sky-50">{networkDiscoverySummaryRows.length}</span>
+                    </div>
+                  </div>
+                }
               />
             </div>
             <section className="panel min-h-0 overflow-hidden">

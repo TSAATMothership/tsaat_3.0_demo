@@ -62,7 +62,7 @@ Important hidden behaviour:
 ### Feature: Network Discovery Tab
 - **What it does:** shows `Network Discovery Summary` table only.
 - **User perspective:** the user sees discovery-enabled status and per-asset-type coverage percentages by network.
-- **System behaviour:** actual counts come from scoped assets, and comparison percentages use deterministic runtime target calculations; the previous target-state chart section is removed.
+- **System behaviour:** actual counts come from scoped assets, and comparison percentages use deterministic runtime target calculations; the previous target-state chart section is removed. The filter container shows a right-aligned `Total Network` count based on the currently filtered network-discovery rows.
 - **Outcome:** the tab remains available for network discovery posture, with simplified table-only presentation.
 
 ### Feature: Tool Settings Tab
