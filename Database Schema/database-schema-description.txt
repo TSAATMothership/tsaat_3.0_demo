@@ -13,9 +13,12 @@ The TSAAT schema (`tsaat`) stores snapshot-based cyber posture data for:
 Connection/bootstrap notes
 --------------------------
 - Runtime DB connection settings are stored in repository root `DB_config` using:
-  `Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;`
+  `Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;Encrypt=True|False;TrustServerCertificate=True|False;`
 - `Trusted_Connection=True` selects Windows trusted auth.
 - `Trusted_Connection=False` selects SQL auth with `User Id` and `Password`.
+- `Encrypt=False` disables SSL transport encryption.
+- `Encrypt=True;TrustServerCertificate=False` enables SSL with strict certificate validation.
+- `Encrypt=True;TrustServerCertificate=True` enables SSL and trusts the server certificate.
 
 Snapshot model
 --------------

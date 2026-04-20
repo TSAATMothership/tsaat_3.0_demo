@@ -142,21 +142,24 @@ You can run this from SSMS or `sqlcmd` against `master`.
 
 ### Step 3: Update DB_config
 
-Open `DB_config` and set runtime connection settings. You can switch auth mode by toggling `Trusted_Connection`:
+Open `DB_config` and set runtime connection + SSL settings. You can switch auth mode by toggling `Trusted_Connection`:
 
 ```ini
-Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;
+Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;Encrypt=False;TrustServerCertificate=False;
 ```
 
 Required format:
 
 ```ini
-Server=<server>;Database=<database>;Trusted_Connection=True|False;User Id=<user>;Password=<password>;
+Server=<server>;Database=<database>;Trusted_Connection=True|False;User Id=<user>;Password=<password>;Encrypt=True|False;TrustServerCertificate=True|False;
 ```
 
 Mode behavior:
 - `Trusted_Connection=True`: Windows trusted auth is used (User Id/Password ignored by runtime).
 - `Trusted_Connection=False`: SQL auth is used and `User Id` + `Password` are required.
+- `Encrypt=False`: SSL/TLS encryption is disabled.
+- `Encrypt=True;TrustServerCertificate=False`: SSL/TLS enabled with strict certificate validation.
+- `Encrypt=True;TrustServerCertificate=True`: SSL/TLS enabled and certificate chain validation is bypassed.
 
 If SQL Server is running in Windows-auth-only mode (`SERVERPROPERTY('IsIntegratedSecurityOnly') = 1`), SQL logins cannot authenticate until mixed mode is enabled and the SQL Server service is restarted. Temporary compatibility fallback for scripts:
 
@@ -178,6 +181,7 @@ What it does:
 
 - Reads SQL connection details from `DB_config`
 - Connects with SQL authentication (`User Id` / `Password`) or trusted auth fallback
+- Applies SSL mode from `DB_config` (`Encrypt` + `TrustServerCertificate`)
 - Creates/updates the application database
 - Applies `Database Schema/database-schema.sql`
 - Applies migrations under `Database Schema/migrations/`
@@ -210,7 +214,7 @@ Notes for offline Windows dev:
   - extracts SWC from `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz` when staged binary is missing
   - copies the staged SWC file from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
 - If both the staged SWC binary and bundled SWC archive are missing, startup exits with a clear local error instead of trying to download from npm.
-- Database connectivity can be updated at runtime via `/settings` -> `Database Settings` and persisted to `DB_config` after successful connection + schema checks.
+- Database connectivity and SSL settings can be updated at runtime via `/settings` -> `Database Settings` and persisted to `DB_config` after successful connection + schema checks (plus SSL test when SSL is enabled).
 - If runtime SQL auth from `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
 
 ## Build and Start

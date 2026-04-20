@@ -1,2 +1,2 @@
-Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;
-# Format: Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;
+Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;Encrypt=False;TrustServerCertificate=False;
+# Format: Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;Encrypt=True|False;TrustServerCertificate=True|False;

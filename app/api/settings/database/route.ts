@@ -4,6 +4,7 @@ import {
   normalizeDatabaseSettingsPayload,
   saveDatabaseSettings,
   testDatabaseConnection,
+  testDatabaseSsl,
   testDatabaseSchema
 } from "@/lib/database-settings";
 
@@ -19,13 +20,19 @@ export async function PUT(request: NextRequest) {
   try {
     const payload = normalizeDatabaseSettingsPayload(await request.json());
     const connectionResult = await testDatabaseConnection(payload);
-    const schemaResult = connectionResult.success ? await testDatabaseSchema(payload) : null;
+    const sslResult = connectionResult.success && payload.sslEnabled ? await testDatabaseSsl(payload) : null;
+    const schemaResult =
+      connectionResult.success && (!payload.sslEnabled || sslResult?.success) ? await testDatabaseSchema(payload) : null;
 
-    if (!connectionResult.success || !schemaResult?.success) {
+    if (!connectionResult.success || (payload.sslEnabled && !sslResult?.success) || !schemaResult?.success) {
       return NextResponse.json(
         {
-          error: "Cannot save database settings until connection and schema validation both pass.",
+          error:
+            payload.sslEnabled
+              ? "Cannot save database settings until connection, SSL, and schema validation all pass."
+              : "Cannot save database settings until connection and schema validation both pass.",
           connectionResult,
+          sslResult,
           schemaResult
         },
         { status: 400 }
@@ -39,6 +46,7 @@ export async function PUT(request: NextRequest) {
       settings,
       connectionString,
       connectionResult,
+      sslResult,
       schemaResult
     });
   } catch (error) {

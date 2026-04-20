@@ -35,7 +35,13 @@ set "DB_CONF_DATABASE="
 set "DB_CONF_USER_ID="
 set "DB_CONF_PASSWORD="
 set "DB_CONF_TRUSTED_CONNECTION="
+set "DB_CONF_ENCRYPT="
+set "DB_CONF_TRUST_SERVER_CERTIFICATE="
 set "TSAAT_SQL_AUTH_MODE="
+set "TSAAT_SQL_ENCRYPT="
+set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE="
+set "TSAAT_SQL_SSL_TYPE=disabled"
+set "TSAAT_SQL_SSL_ARGS="
 
 echo [INFO] Offline build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -143,7 +149,7 @@ if not exist "%DB_CONFIG_FILE%" (
     exit /b 1
 )
 
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = $map['trustedconnection']; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; Write-Output ('set DB_CONF_SERVER=' + $server); Write-Output ('set DB_CONF_DATABASE=' + $database); if(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output ('set DB_CONF_USER_ID=' + $userId); Write-Output ('set DB_CONF_PASSWORD=' + $password) }; if($trusted){ Write-Output ('set DB_CONF_TRUSTED_CONNECTION=' + $trusted) }"`) do %%I
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; function Convert-Bool([string]$value, [string]$name){ if([string]::IsNullOrWhiteSpace($value)){ return $null }; $normalized = $value.Trim().ToLowerInvariant(); if($normalized -in @('true','1','yes','y','sspi')){ return $true }; if($normalized -in @('false','0','no','n')){ return $false }; throw ('DB_config ' + $name + ' value is invalid.') }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = Convert-Bool $map['trustedconnection'] 'Trusted_Connection'; $encrypt = Convert-Bool $map['encrypt'] 'Encrypt'; $trustCert = Convert-Bool $map['trustservercertificate'] 'TrustServerCertificate'; if($trustCert -eq $true){ $encrypt = $true }; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; Write-Output ('set DB_CONF_SERVER=' + $server); Write-Output ('set DB_CONF_DATABASE=' + $database); if(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output ('set DB_CONF_USER_ID=' + $userId); Write-Output ('set DB_CONF_PASSWORD=' + $password) }; if($trusted -ne $null){ Write-Output ('set DB_CONF_TRUSTED_CONNECTION=' + ([string]$trusted).ToLowerInvariant()) }; if($encrypt -ne $null){ Write-Output ('set DB_CONF_ENCRYPT=' + ([string]$encrypt).ToLowerInvariant()) }; if($trustCert -ne $null){ Write-Output ('set DB_CONF_TRUST_SERVER_CERTIFICATE=' + ([string]$trustCert).ToLowerInvariant()) }"`) do %%I
 if errorlevel 1 (
     echo [ERROR] Unable to parse DB_config.
     exit /b 1
@@ -153,6 +159,8 @@ if "%TSAAT_SQL_SERVER%"=="" set "TSAAT_SQL_SERVER=%DB_CONF_SERVER%"
 if "%TSAAT_APP_DATABASE%"=="" set "TSAAT_APP_DATABASE=%DB_CONF_DATABASE%"
 if "%TSAAT_SQL_USER%"=="" if /I not "%DB_CONF_TRUSTED_CONNECTION%"=="true" set "TSAAT_SQL_USER=%DB_CONF_USER_ID%"
 if "%TSAAT_SQL_PASSWORD%"=="" if /I not "%DB_CONF_TRUSTED_CONNECTION%"=="true" set "TSAAT_SQL_PASSWORD=%DB_CONF_PASSWORD%"
+if "%TSAAT_SQL_ENCRYPT%"=="" if not "%DB_CONF_ENCRYPT%"=="" set "TSAAT_SQL_ENCRYPT=%DB_CONF_ENCRYPT%"
+if "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="" if not "%DB_CONF_TRUST_SERVER_CERTIFICATE%"=="" set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE=%DB_CONF_TRUST_SERVER_CERTIFICATE%"
 
 if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
     set "TSAAT_SQL_AUTH_MODE=trusted"
@@ -182,6 +190,19 @@ if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
 
 if "%TSAAT_SQL_SERVER%"=="" set "TSAAT_SQL_SERVER=localhost\SQLEXPRESS"
 if "%TSAAT_APP_DATABASE%"=="" set "TSAAT_APP_DATABASE=TSAAT"
+if /I "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="true" set "TSAAT_SQL_ENCRYPT=true"
+if /I not "%TSAAT_SQL_ENCRYPT%"=="true" set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE=false"
+if "%TSAAT_SQL_ENCRYPT%"=="" set "TSAAT_SQL_ENCRYPT=false"
+if "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="" set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE=false"
+if /I "%TSAAT_SQL_ENCRYPT%"=="true" (
+    if /I "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="true" (
+        set "TSAAT_SQL_SSL_TYPE=trust-server-certificate"
+        set "TSAAT_SQL_SSL_ARGS=-N -C"
+    ) else (
+        set "TSAAT_SQL_SSL_TYPE=strict"
+        set "TSAAT_SQL_SSL_ARGS=-N"
+    )
+)
 
 for /f "usebackq delims=" %%I in (`"%VENDORED_NODE_EXE%" --version 2^>nul`) do set "NODE_VERSION_TEXT=%%I"
 for /f "usebackq delims=" %%I in (`"%VENDORED_NPM_CMD%" --version 2^>nul`) do set "NPM_VERSION_TEXT=%%I"
@@ -236,12 +257,13 @@ echo [INFO] External staged SWC binary path (if needed): %STAGED_SWC_BINARY%
 echo [INFO] SQL Server instance: %TSAAT_SQL_SERVER%
 echo [INFO] SQL Server database: %TSAAT_APP_DATABASE%
 echo [INFO] SQL authentication mode: %TSAAT_SQL_AUTH_MODE%
+echo [INFO] SQL SSL mode: %TSAAT_SQL_SSL_TYPE%
 
 echo [INFO] Validating SQL connectivity and required seeded tables...
 if /I "%TSAAT_SQL_AUTH_MODE%"=="sql" (
-    sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" -U "%TSAAT_SQL_USER%" -P "%TSAAT_SQL_PASSWORD%" -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
+    sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" %TSAAT_SQL_SSL_ARGS% -U "%TSAAT_SQL_USER%" -P "%TSAAT_SQL_PASSWORD%" -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
 ) else (
-    sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" -E -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
+    sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" %TSAAT_SQL_SSL_ARGS% -E -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
 )
 if errorlevel 1 (
     echo [ERROR] Unable to validate required database state at %TSAAT_SQL_SERVER% / %TSAAT_APP_DATABASE%. Ensure the TSAAT database schema and seed data are loaded before offline build.

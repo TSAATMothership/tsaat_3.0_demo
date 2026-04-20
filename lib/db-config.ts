@@ -4,6 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 
 export type DatabaseAuthMode = "trusted" | "sql";
+export type DatabaseSslType = "strict" | "trust-server-certificate";
 
 export interface EditableDatabaseConnectionInput {
   server: string;
@@ -11,6 +12,8 @@ export interface EditableDatabaseConnectionInput {
   authMode: DatabaseAuthMode;
   userId: string;
   password: string;
+  sslEnabled: boolean;
+  sslType: DatabaseSslType;
 }
 
 export interface ParsedDatabaseConnectionSettings {
@@ -20,11 +23,16 @@ export interface ParsedDatabaseConnectionSettings {
   userId: string;
   password: string;
   trustedConnection: boolean;
+  sslEnabled: boolean;
+  sslType: DatabaseSslType;
+  encrypt: boolean;
+  trustServerCertificate: boolean;
   rawConnectionString: string;
 }
 
 const DB_CONFIG_FILENAME = "DB_config";
-const CONNECTION_TEMPLATE_COMMENT = "# Format: Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;";
+const CONNECTION_TEMPLATE_COMMENT =
+  "# Format: Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;Encrypt=True|False;TrustServerCertificate=True|False;";
 
 export function resolveDbConfigFilePath(): string {
   return path.join(process.cwd(), DB_CONFIG_FILENAME);
@@ -56,6 +64,8 @@ export function parseConnectionString(connectionString: string): {
   userId?: string;
   password?: string;
   trustedConnection?: boolean;
+  encrypt?: boolean;
+  trustServerCertificate?: boolean;
 } {
   const values = new Map<string, string>();
 
@@ -80,13 +90,17 @@ export function parseConnectionString(connectionString: string): {
   const userId = values.get("userid") ?? values.get("uid") ?? values.get("user") ?? values.get("username");
   const password = values.get("password") ?? values.get("pwd");
   const trustedConnection = parseBoolean(values.get("trustedconnection") ?? values.get("integratedsecurity"));
+  const encrypt = parseBoolean(values.get("encrypt"));
+  const trustServerCertificate = parseBoolean(values.get("trustservercertificate"));
 
   return {
     server,
     database,
     userId,
     password,
-    trustedConnection
+    trustedConnection,
+    encrypt,
+    trustServerCertificate
   };
 }
 
@@ -119,6 +133,10 @@ export async function loadDatabaseConnectionSettingsFromFile(): Promise<ParsedDa
   const hasAnySqlCredential = Boolean(parsed.userId || parsed.password);
   const trustedConnection = parsed.trustedConnection ?? !hasAnySqlCredential;
   const authMode: DatabaseAuthMode = trustedConnection ? "trusted" : "sql";
+  const trustServerCertificate = parsed.trustServerCertificate === true;
+  const encrypt = trustServerCertificate ? true : parsed.encrypt === true;
+  const sslEnabled = encrypt;
+  const sslType: DatabaseSslType = trustServerCertificate ? "trust-server-certificate" : "strict";
 
   return {
     server: parsed.server ?? "",
@@ -127,6 +145,10 @@ export async function loadDatabaseConnectionSettingsFromFile(): Promise<ParsedDa
     userId: parsed.userId ?? "",
     password: parsed.password ?? "",
     trustedConnection,
+    sslEnabled,
+    sslType,
+    encrypt,
+    trustServerCertificate,
     rawConnectionString: line
   };
 }
@@ -189,6 +211,45 @@ function parseAuthMode(input: Record<string, unknown>): DatabaseAuthMode {
   return "sql";
 }
 
+function parseOptionalBooleanInput(name: string, value: unknown): boolean | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = parseBoolean(value);
+    if (parsed !== undefined) {
+      return parsed;
+    }
+  }
+
+  throw new Error(`${name} must be a boolean.`);
+}
+
+function parseSslType(input: Record<string, unknown>): DatabaseSslType | undefined {
+  if (input.sslType === undefined || input.sslType === null || input.sslType === "") {
+    return undefined;
+  }
+
+  if (typeof input.sslType !== "string") {
+    throw new Error("SSL type must be a string.");
+  }
+
+  const normalized = input.sslType.trim().toLowerCase();
+  if (normalized === "strict") {
+    return "strict";
+  }
+  if (normalized === "trust-server-certificate") {
+    return "trust-server-certificate";
+  }
+
+  throw new Error("SSL type must be either 'strict' or 'trust-server-certificate'.");
+}
+
 export function normalizeEditableDatabaseConnectionInput(input: unknown): EditableDatabaseConnectionInput {
   if (!input || typeof input !== "object") {
     throw new Error("Database settings payload is invalid.");
@@ -198,6 +259,25 @@ export function normalizeEditableDatabaseConnectionInput(input: unknown): Editab
   const authMode = parseAuthMode(candidate);
   const userId = sanitizeOptionalField("User Id", candidate.userId);
   const password = sanitizeOptionalField("Password", candidate.password);
+  const sslTypeInput = parseSslType(candidate);
+  const sslEnabledInput = parseOptionalBooleanInput("SSL enabled", candidate.sslEnabled);
+  const encryptInput = parseOptionalBooleanInput("Encrypt", candidate.encrypt);
+  const trustServerCertificateInput = parseOptionalBooleanInput(
+    "Trust Server Certificate",
+    candidate.trustServerCertificate
+  );
+
+  let sslEnabled = sslEnabledInput ?? encryptInput ?? false;
+  let sslType: DatabaseSslType = sslTypeInput ?? (trustServerCertificateInput === true ? "trust-server-certificate" : "strict");
+
+  if (sslType === "trust-server-certificate" || trustServerCertificateInput === true) {
+    sslEnabled = true;
+    sslType = "trust-server-certificate";
+  }
+
+  if (!sslEnabled) {
+    sslType = "strict";
+  }
 
   if (authMode === "sql") {
     if (!userId) {
@@ -213,13 +293,23 @@ export function normalizeEditableDatabaseConnectionInput(input: unknown): Editab
     database: sanitizeField("Database", candidate.database),
     authMode,
     userId,
-    password
+    password,
+    sslEnabled,
+    sslType
   };
 }
 
 export function formatDatabaseConnectionString(input: EditableDatabaseConnectionInput): string {
   const trustedConnection = input.authMode === "trusted" ? "True" : "False";
-  const segments = [`Server=${input.server}`, `Database=${input.database}`, `Trusted_Connection=${trustedConnection}`];
+  const sslEnabled = input.sslEnabled === true;
+  const trustServerCertificate = sslEnabled && input.sslType === "trust-server-certificate";
+  const encrypt = sslEnabled ? "True" : "False";
+  const trustServerCertificateString = trustServerCertificate ? "True" : "False";
+  const segments = [
+    `Server=${input.server}`,
+    `Database=${input.database}`,
+    `Trusted_Connection=${trustedConnection}`
+  ];
 
   if (input.userId) {
     segments.push(`User Id=${input.userId}`);
@@ -227,6 +317,8 @@ export function formatDatabaseConnectionString(input: EditableDatabaseConnection
   if (input.password) {
     segments.push(`Password=${input.password}`);
   }
+  segments.push(`Encrypt=${encrypt}`);
+  segments.push(`TrustServerCertificate=${trustServerCertificateString}`);
 
   return `${segments.join(";")};`;
 }

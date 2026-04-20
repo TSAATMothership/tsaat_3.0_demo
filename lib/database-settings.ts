@@ -28,6 +28,12 @@ interface SchemaValidationPayload {
   hasSnapshots: boolean;
 }
 
+interface SslValidationPayload {
+  encryptOption?: string;
+  authScheme?: string;
+  protocolType?: string;
+}
+
 export interface DatabaseValidationResult {
   success: boolean;
   summary: string;
@@ -89,7 +95,9 @@ function toSqlConnectionInput(settings: EditableDatabaseConnectionInput): SqlCon
     return {
       server: settings.server,
       database: settings.database,
-      trustedConnection: true
+      trustedConnection: true,
+      sslEnabled: settings.sslEnabled,
+      sslType: settings.sslType
     };
   }
 
@@ -98,7 +106,9 @@ function toSqlConnectionInput(settings: EditableDatabaseConnectionInput): SqlCon
     database: settings.database,
     trustedConnection: false,
     userId: settings.userId,
-    password: settings.password
+    password: settings.password,
+    sslEnabled: settings.sslEnabled,
+    sslType: settings.sslType
   };
 }
 
@@ -112,7 +122,9 @@ export async function loadDatabaseSettingsDefaults(): Promise<EditableDatabaseCo
     database: fileSettings?.database?.trim() || fallbackDatabase,
     authMode: fileSettings?.authMode ?? "trusted",
     userId: fileSettings?.userId?.trim() || "",
-    password: fileSettings?.password?.trim() || ""
+    password: fileSettings?.password?.trim() || "",
+    sslEnabled: fileSettings?.sslEnabled ?? false,
+    sslType: fileSettings?.sslType ?? "strict"
   };
 }
 
@@ -144,6 +156,8 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
         `Server: ${settings.server}`,
         `Database: ${payload.databaseName || settings.database}`,
         `Authentication mode: ${settings.authMode}`,
+        `SSL enabled: ${settings.sslEnabled ? "Yes" : "No"}`,
+        `SSL type: ${settings.sslEnabled ? settings.sslType : "N/A"}`,
         `Authenticated login: ${payload.loginName || settings.userId || "N/A"}`
       ].join("\n")
     };
@@ -157,7 +171,78 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
         `Server: ${settings.server}`,
         `Database: ${settings.database}`,
         `Authentication mode: ${settings.authMode}`,
+        `SSL enabled: ${settings.sslEnabled ? "Yes" : "No"}`,
+        `SSL type: ${settings.sslEnabled ? settings.sslType : "N/A"}`,
         `User Id: ${settings.authMode === "sql" ? settings.userId || "(empty)" : "N/A"}`,
+        "",
+        message
+      ].join("\n")
+    };
+  }
+}
+
+export async function testDatabaseSsl(settings: EditableDatabaseConnectionInput): Promise<DatabaseValidationResult> {
+  if (!settings.sslEnabled) {
+    return {
+      success: true,
+      summary: "SSL test skipped (SSL disabled).",
+      diagnostics: ["SSL test skipped because SSL is disabled in settings."].join("\n")
+    };
+  }
+
+  const connection = toSqlConnectionInput(settings);
+
+  try {
+    const payload = await executeSqlJsonWithConnection<SslValidationPayload>(
+      `
+SELECT
+  CAST(CONNECTIONPROPERTY('encrypt_option') AS NVARCHAR(60)) AS [encryptOption],
+  CAST(CONNECTIONPROPERTY('auth_scheme') AS NVARCHAR(60)) AS [authScheme],
+  CAST(CONNECTIONPROPERTY('protocol_type') AS NVARCHAR(60)) AS [protocolType]
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`,
+      connection
+    );
+
+    const encryptOption = (payload.encryptOption ?? "").trim();
+    const encrypted = /^true$/i.test(encryptOption) || /^mandatory$/i.test(encryptOption);
+
+    if (!encrypted) {
+      return {
+        success: false,
+        summary: "SSL test failed.",
+        diagnostics: [
+          "SSL test failed.",
+          "The SQL connection did not report encrypted transport.",
+          `Requested SSL type: ${settings.sslType}`,
+          `Connection encrypt option: ${encryptOption || "(unknown)"}`,
+          `Connection auth scheme: ${(payload.authScheme ?? "(unknown)").trim()}`,
+          `Connection protocol type: ${(payload.protocolType ?? "(unknown)").trim()}`
+        ].join("\n")
+      };
+    }
+
+    return {
+      success: true,
+      summary: "SSL test successful.",
+      diagnostics: [
+        "SSL test succeeded.",
+        `Requested SSL type: ${settings.sslType}`,
+        `Connection encrypt option: ${encryptOption || "(unknown)"}`,
+        `Connection auth scheme: ${(payload.authScheme ?? "(unknown)").trim()}`,
+        `Connection protocol type: ${(payload.protocolType ?? "(unknown)").trim()}`
+      ].join("\n")
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown SSL test error.";
+    return {
+      success: false,
+      summary: "SSL test failed.",
+      diagnostics: [
+        "SSL test failed.",
+        `Server: ${settings.server}`,
+        `Database: ${settings.database}`,
+        `Requested SSL type: ${settings.sslType}`,
         "",
         message
       ].join("\n")

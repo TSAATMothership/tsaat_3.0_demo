@@ -14,6 +14,9 @@ set "DB_APP_DATABASE="
 set "DB_AUTH_MODE="
 set "DB_USER_ID="
 set "DB_PASSWORD="
+set "DB_ENCRYPT=false"
+set "DB_TRUST_SERVER_CERTIFICATE=false"
+set "DB_SSL_MODE=disabled"
 
 echo [INFO] Offline database build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -61,7 +64,7 @@ if errorlevel 8 (
 )
 echo [INFO] Local node_modules is ready for offline use.
 
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = $map['trustedconnection']; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; $isTrusted = $trusted -and $trusted.ToLowerInvariant() -in @('true','1','yes','y','sspi'); Write-Output ('set DB_SERVER=' + $server); Write-Output ('set DB_APP_DATABASE=' + $database); if($isTrusted){ Write-Output 'set DB_AUTH_MODE=trusted' } elseif(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output 'set DB_AUTH_MODE=sql'; Write-Output ('set DB_USER_ID=' + $userId); Write-Output ('set DB_PASSWORD=' + $password) } else { throw 'DB_config must provide Trusted_Connection=True or User Id/Password.' }"`) do %%I
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; function Convert-Bool([string]$value, [string]$name){ if([string]::IsNullOrWhiteSpace($value)){ return $null }; $normalized = $value.Trim().ToLowerInvariant(); if($normalized -in @('true','1','yes','y','sspi')){ return $true }; if($normalized -in @('false','0','no','n')){ return $false }; throw ('DB_config ' + $name + ' value is invalid.') }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = Convert-Bool $map['trustedconnection'] 'Trusted_Connection'; $encrypt = Convert-Bool $map['encrypt'] 'Encrypt'; $trustCert = Convert-Bool $map['trustservercertificate'] 'TrustServerCertificate'; if($trustCert -eq $true){ $encrypt = $true }; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; $isTrusted = $trusted -eq $true; Write-Output ('set DB_SERVER=' + $server); Write-Output ('set DB_APP_DATABASE=' + $database); if($isTrusted){ Write-Output 'set DB_AUTH_MODE=trusted' } elseif(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output 'set DB_AUTH_MODE=sql'; Write-Output ('set DB_USER_ID=' + $userId); Write-Output ('set DB_PASSWORD=' + $password) } else { throw 'DB_config must provide Trusted_Connection=True or User Id/Password.' }; if($encrypt -ne $null){ Write-Output ('set DB_ENCRYPT=' + ([string]$encrypt).ToLowerInvariant()) }; if($trustCert -ne $null){ Write-Output ('set DB_TRUST_SERVER_CERTIFICATE=' + ([string]$trustCert).ToLowerInvariant()) }"`) do %%I
 if errorlevel 1 (
   call :fail "Unable to parse DB_config connection string."
   exit /b 1
@@ -71,6 +74,19 @@ if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
   set "DB_AUTH_MODE=trusted"
   set "DB_USER_ID="
   set "DB_PASSWORD="
+)
+if not "%TSAAT_SQL_ENCRYPT%"=="" set "DB_ENCRYPT=%TSAAT_SQL_ENCRYPT%"
+if not "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="" set "DB_TRUST_SERVER_CERTIFICATE=%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"
+if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" set "DB_ENCRYPT=true"
+if /I not "%DB_ENCRYPT%"=="true" set "DB_TRUST_SERVER_CERTIFICATE=false"
+if "%DB_ENCRYPT%"=="" set "DB_ENCRYPT=false"
+if "%DB_TRUST_SERVER_CERTIFICATE%"=="" set "DB_TRUST_SERVER_CERTIFICATE=false"
+if /I "%DB_ENCRYPT%"=="true" (
+  if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
+    set "DB_SSL_MODE=trust-server-certificate"
+  ) else (
+    set "DB_SSL_MODE=strict"
+  )
 )
 
 if not defined DB_SERVER (
@@ -99,12 +115,29 @@ if /I "%DB_AUTH_MODE%"=="sql" (
 echo [INFO] SQL Server instance: %DB_SERVER%
 echo [INFO] Application database: %DB_APP_DATABASE%
 echo [INFO] Authentication mode: %DB_AUTH_MODE%
+echo [INFO] SSL mode: %DB_SSL_MODE%
 
 echo [INFO] Building schema and loading data...
 if /I "%DB_AUTH_MODE%"=="sql" (
-  call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
+  if /I "%DB_ENCRYPT%"=="true" (
+    if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection -TrustServerCertificate
+    ) else (
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection
+    )
+  ) else (
+    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
+  )
 ) else (
-  call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
+  if /I "%DB_ENCRYPT%"=="true" (
+    if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection -TrustServerCertificate
+    ) else (
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection
+    )
+  ) else (
+    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
+  )
 )
 if errorlevel 1 (
   call :fail "Database build/load failed."

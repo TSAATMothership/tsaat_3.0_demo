@@ -24,6 +24,10 @@ SQL Server Target
   - Controlled by `Trusted_Connection=True|False` in `DB_config`
   - `Trusted_Connection=True` => Windows trusted auth
   - `Trusted_Connection=False` => SQL login via `User Id=...;Password=...;`
+  - SSL controlled by `Encrypt=True|False` and `TrustServerCertificate=True|False`
+  - `Encrypt=False` => no SSL transport encryption
+  - `Encrypt=True;TrustServerCertificate=False` => SSL with strict certificate validation
+  - `Encrypt=True;TrustServerCertificate=True` => SSL with trusted server certificate mode
   - Runtime override for loaders/compile scripts: `TSAAT_SQL_TRUSTED_CONNECTION=true`
 - Admin database for bootstrap: master
 - Application schema: tsaat

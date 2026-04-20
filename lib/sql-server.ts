@@ -5,7 +5,11 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { promisify } from "util";
-import { loadDatabaseConnectionSettingsFromFile, ParsedDatabaseConnectionSettings } from "@/lib/db-config";
+import {
+  type DatabaseSslType,
+  loadDatabaseConnectionSettingsFromFile,
+  ParsedDatabaseConnectionSettings
+} from "@/lib/db-config";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,6 +36,8 @@ interface ResolvedSqlConnection {
   server: string;
   database: string;
   auth: ResolvedSqlAuth;
+  sslEnabled: boolean;
+  sslType: DatabaseSslType;
 }
 
 interface ExecuteSqlFileOptions {
@@ -44,6 +50,8 @@ export interface SqlConnectionInput {
   userId?: string;
   password?: string;
   trustedConnection?: boolean;
+  sslEnabled?: boolean;
+  sslType?: DatabaseSslType;
 }
 
 function envValue(...keys: string[]): string {
@@ -71,6 +79,20 @@ function parseBoolean(value: string | undefined): boolean | undefined {
   }
 
   return undefined;
+}
+
+function normalizeSslConfig(input: { sslEnabled?: boolean; sslType?: DatabaseSslType }): {
+  sslEnabled: boolean;
+  sslType: DatabaseSslType;
+} {
+  const sslType = input.sslType === "trust-server-certificate" ? "trust-server-certificate" : "strict";
+  const sslEnabled = input.sslEnabled === true || sslType === "trust-server-certificate";
+
+  if (!sslEnabled) {
+    return { sslEnabled: false, sslType: "strict" };
+  }
+
+  return { sslEnabled: true, sslType };
 }
 
 function resolveAuthFromEnv(): ResolvedSqlAuth | undefined {
@@ -132,6 +154,18 @@ function buildSqlcmdAuthArgs(auth: ResolvedSqlAuth): string[] {
   }
 
   return ["-E"];
+}
+
+export function buildSqlcmdSecurityArgs(input: { sslEnabled: boolean; sslType: DatabaseSslType }): string[] {
+  if (!input.sslEnabled) {
+    return [];
+  }
+
+  if (input.sslType === "trust-server-certificate") {
+    return ["-N", "-C"];
+  }
+
+  return ["-N"];
 }
 
 function allowTrustedRuntimeFallback(): boolean {
@@ -212,7 +246,11 @@ async function resolveEffectiveConnection(databaseName?: string): Promise<Resolv
   }
 
   const auth = resolveAuthFromEnv() ?? resolveAuthFromDbConfig(dbConfig) ?? { mode: "trusted" };
-  return { server, database, auth };
+  const ssl = normalizeSslConfig({
+    sslEnabled: dbConfig?.sslEnabled,
+    sslType: dbConfig?.sslType
+  });
+  return { server, database, auth, ...ssl };
 }
 
 function normalizeExplicitConnection(input: SqlConnectionInput): ResolvedSqlConnection {
@@ -229,6 +267,10 @@ function normalizeExplicitConnection(input: SqlConnectionInput): ResolvedSqlConn
   const userId = input.userId?.trim() ?? "";
   const password = input.password?.trim() ?? "";
   const trustedConnection = input.trustedConnection === true;
+  const ssl = normalizeSslConfig({
+    sslEnabled: input.sslEnabled,
+    sslType: input.sslType
+  });
 
   if (userId || password) {
     if (!userId || !password) {
@@ -238,6 +280,7 @@ function normalizeExplicitConnection(input: SqlConnectionInput): ResolvedSqlConn
     return {
       server,
       database,
+      ...ssl,
       auth: {
         mode: "sql",
         userId,
@@ -253,6 +296,7 @@ function normalizeExplicitConnection(input: SqlConnectionInput): ResolvedSqlConn
   return {
     server,
     database,
+    ...ssl,
     auth: { mode: "trusted" }
   };
 }
@@ -285,6 +329,7 @@ async function executeSqlFileAgainstConnection(
         "-d",
         targetConnection.database,
         ...buildSqlcmdAuthArgs(targetConnection.auth),
+        ...buildSqlcmdSecurityArgs(targetConnection),
         "-b",
         "-w",
         "65535",
@@ -316,7 +361,7 @@ async function executeSqlFileAgainstConnection(
     error: { code?: number; message?: string; stdout?: string; stderr?: string }
   ): string =>
     [
-      `sqlcmd failed against server '${targetConnection.server}' database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication.`,
+      `sqlcmd failed against server '${targetConnection.server}' database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication (SSL ${targetConnection.sslEnabled ? targetConnection.sslType : "disabled"}).`,
       error.message ? `Message: ${error.message}` : undefined,
       error.code !== undefined ? `Exit code: ${error.code}` : undefined,
       error.stderr?.trim() ? `stderr: ${error.stderr.trim()}` : undefined,

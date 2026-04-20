@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
+import { canSaveDatabaseSettings } from "@/lib/database-settings-save-gating";
 
 interface DatabaseSettingsForm {
   server: string;
@@ -8,6 +9,8 @@ interface DatabaseSettingsForm {
   authMode: "trusted" | "sql";
   userId: string;
   password: string;
+  sslEnabled: boolean;
+  sslType: "strict" | "trust-server-certificate";
 }
 
 interface DatabaseValidationResult {
@@ -25,6 +28,7 @@ interface ValidationResponse {
 interface SaveResponse {
   settings: DatabaseSettingsForm;
   connectionResult: DatabaseValidationResult;
+  sslResult?: DatabaseValidationResult | null;
   schemaResult: DatabaseValidationResult;
   error?: string;
 }
@@ -35,7 +39,9 @@ function settingsEqual(left: DatabaseSettingsForm, right: DatabaseSettingsForm):
     left.database === right.database &&
     left.authMode === right.authMode &&
     left.userId === right.userId &&
-    left.password === right.password
+    left.password === right.password &&
+    left.sslEnabled === right.sslEnabled &&
+    left.sslType === right.sslType
   );
 }
 
@@ -73,8 +79,10 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
   const [savedSettings, setSavedSettings] = useState<DatabaseSettingsForm>(initialSettings);
   const [draftSettings, setDraftSettings] = useState<DatabaseSettingsForm>(initialSettings);
   const [connectionResult, setConnectionResult] = useState<DatabaseValidationResult | null>(null);
+  const [sslResult, setSslResult] = useState<DatabaseValidationResult | null>(null);
   const [schemaResult, setSchemaResult] = useState<DatabaseValidationResult | null>(null);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isTestingSsl, setIsTestingSsl] = useState(false);
   const [isTestingSchema, setIsTestingSchema] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -85,25 +93,40 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
   const isDirty = useMemo(() => !settingsEqual(draftSettings, savedSettings), [draftSettings, savedSettings]);
   const hasAuthInput =
     draftSettings.authMode === "trusted" || (draftSettings.userId.trim() !== "" && draftSettings.password.trim() !== "");
-  const canRunSchemaTest = Boolean(connectionResult?.success) && !isTestingSchema && !isTestingConnection;
-  const canSave =
+  const canRunSslTest =
+    draftSettings.sslEnabled &&
     Boolean(connectionResult?.success) &&
-    Boolean(schemaResult?.success) &&
-    !isSaving &&
+    !isTestingSsl &&
     !isTestingConnection &&
-    !isTestingSchema;
+    !isTestingSchema &&
+    !isSaving;
+  const canRunSchemaTest = Boolean(connectionResult?.success) && !isTestingSchema && !isTestingConnection && !isTestingSsl;
+  const canSave = canSaveDatabaseSettings({
+    sslEnabled: draftSettings.sslEnabled,
+    hasConnectionSuccess: Boolean(connectionResult?.success),
+    hasSslSuccess: Boolean(sslResult?.success),
+    hasSchemaSuccess: Boolean(schemaResult?.success),
+    isSaving,
+    isTestingConnection,
+    isTestingSsl,
+    isTestingSchema
+  });
 
-  const setField = (key: keyof DatabaseSettingsForm, value: string) => {
-    setDraftSettings((current) => ({
-      ...current,
-      [key]: value
-    }));
-
+  const clearValidationState = () => {
     setConnectionResult(null);
+    setSslResult(null);
     setSchemaResult(null);
     setSaveError(null);
     setSaveSuccess(null);
     setCopyStatus(null);
+  };
+
+  const setField = (key: "server" | "database" | "userId" | "password", value: string) => {
+    setDraftSettings((current) => ({
+      ...current,
+      [key]: value
+    }));
+    clearValidationState();
   };
 
   const onAuthModeChange = (authMode: "trusted" | "sql") => {
@@ -111,20 +134,29 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
       ...current,
       authMode
     }));
-    setConnectionResult(null);
-    setSchemaResult(null);
-    setSaveError(null);
-    setSaveSuccess(null);
-    setCopyStatus(null);
+    clearValidationState();
+  };
+
+  const onSslEnabledChange = (sslEnabled: boolean) => {
+    setDraftSettings((current) => ({
+      ...current,
+      sslEnabled,
+      sslType: sslEnabled ? current.sslType : "strict"
+    }));
+    clearValidationState();
+  };
+
+  const onSslTypeChange = (sslType: "strict" | "trust-server-certificate") => {
+    setDraftSettings((current) => ({
+      ...current,
+      sslType
+    }));
+    clearValidationState();
   };
 
   const onReset = () => {
     setDraftSettings(savedSettings);
-    setConnectionResult(null);
-    setSchemaResult(null);
-    setSaveError(null);
-    setSaveSuccess(null);
-    setCopyStatus(null);
+    clearValidationState();
   };
 
   const onTestConnection = async () => {
@@ -148,11 +180,12 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
       };
 
       setConnectionResult(result);
+      setSslResult(null);
       setSchemaResult(null);
       setLogText((current) => appendLog(current, "Connection Test", result.diagnostics));
 
       if (!result.success) {
-        setSaveError("Connection test failed. Resolve the issue before schema test and save.");
+        setSaveError("Connection test failed. Resolve the issue before SSL/schema tests and save.");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Connection test failed.";
@@ -163,11 +196,66 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
       };
 
       setConnectionResult(fallbackResult);
+      setSslResult(null);
       setSchemaResult(null);
       setSaveError(message);
       setLogText((current) => appendLog(current, "Connection Test", message));
     } finally {
       setIsTestingConnection(false);
+    }
+  };
+
+  const onTestSsl = async () => {
+    if (!draftSettings.sslEnabled) {
+      setSaveError("Enable SSL before running the SSL test.");
+      return;
+    }
+
+    if (!connectionResult?.success) {
+      setSaveError("Run a successful connection test before SSL validation.");
+      return;
+    }
+
+    setIsTestingSsl(true);
+    setSaveError(null);
+    setSaveSuccess(null);
+    setCopyStatus(null);
+
+    try {
+      const response = await fetch("/api/settings/database/test-ssl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draftSettings)
+      });
+
+      const payload = (await response.json()) as ValidationResponse;
+      const result = payload.result ?? {
+        success: false,
+        summary: "SSL test failed.",
+        diagnostics: payload.error ?? "No diagnostics were returned by the SSL test endpoint."
+      };
+
+      setSslResult(result);
+      setSchemaResult(null);
+      setLogText((current) => appendLog(current, "SSL Test", result.diagnostics));
+
+      if (!result.success) {
+        setSaveError("SSL test failed. Resolve SSL issues before saving.");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "SSL test failed.";
+      const fallbackResult: DatabaseValidationResult = {
+        success: false,
+        summary: "SSL test failed.",
+        diagnostics: message
+      };
+
+      setSslResult(fallbackResult);
+      setSchemaResult(null);
+      setSaveError(message);
+      setLogText((current) => appendLog(current, "SSL Test", message));
+    } finally {
+      setIsTestingSsl(false);
     }
   };
 
@@ -244,6 +332,11 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
           setConnectionResult(payload.connectionResult);
           setLogText((current) => appendLog(current, "Save Validation - Connection", payload.connectionResult.diagnostics));
         }
+        const saveSslResult = payload.sslResult;
+        if (saveSslResult) {
+          setSslResult(saveSslResult);
+          setLogText((current) => appendLog(current, "Save Validation - SSL", saveSslResult.diagnostics));
+        }
         if (payload.schemaResult) {
           setSchemaResult(payload.schemaResult);
           setLogText((current) => appendLog(current, "Save Validation - Schema", payload.schemaResult.diagnostics));
@@ -255,6 +348,7 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
       setSavedSettings(payload.settings);
       setDraftSettings(payload.settings);
       setConnectionResult(payload.connectionResult);
+      setSslResult(payload.sslResult ?? null);
       setSchemaResult(payload.schemaResult);
       setSaveSuccess("Database settings saved to DB_config.");
       setLogText((current) => appendLog(current, "Save", "Database settings were validated and written to DB_config."));
@@ -288,8 +382,8 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
         <div>
           <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Database Settings</h2>
           <p className="mt-1 text-xs text-slate-300/80">
-            Choose Trusted Authentication or SQL User/Password, then test connection and schema. Save is enabled only
-            after both tests succeed.
+            Choose authentication, then configure SSL if needed. Save is enabled only after connection and schema tests
+            pass, plus SSL test when SSL is enabled.
           </p>
         </div>
 
@@ -299,7 +393,7 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
               type="button"
               onClick={onReset}
               className="rounded-md border border-slate-500/40 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/70"
-              disabled={isSaving || isTestingConnection || isTestingSchema}
+              disabled={isSaving || isTestingConnection || isTestingSsl || isTestingSchema}
             >
               Reset
             </button>
@@ -347,6 +441,33 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
                 onChange={() => onAuthModeChange("sql")}
               />
               <span>SQL User/Password</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="md:col-span-2 rounded-md border border-sky-400/20 bg-slate-950/55 px-3 py-2">
+          <legend className="px-1 text-xs uppercase tracking-[0.11em] text-slate-300/85">SSL / TLS</legend>
+          <div className="mt-1 grid gap-3 md:grid-cols-2">
+            <label className="inline-flex items-center gap-2 text-sm text-slate-100">
+              <input
+                type="checkbox"
+                checked={draftSettings.sslEnabled}
+                onChange={(event) => onSslEnabledChange(event.target.checked)}
+              />
+              <span>Enable SSL encryption</span>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.11em] text-slate-300/85">
+              SSL Type
+              <select
+                value={draftSettings.sslType}
+                onChange={(event) => onSslTypeChange(event.target.value as "strict" | "trust-server-certificate")}
+                disabled={!draftSettings.sslEnabled}
+                className="rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-2 text-sm normal-case tracking-normal text-slate-100 disabled:opacity-60"
+              >
+                <option value="strict">Strict (validate certificate chain)</option>
+                <option value="trust-server-certificate">Trust Server Certificate</option>
+              </select>
             </label>
           </div>
         </fieldset>
@@ -401,7 +522,13 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
         </p>
       ) : null}
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      {draftSettings.sslEnabled && !sslResult?.success ? (
+        <p className="mt-2 text-xs text-amber-200/90">
+          SSL is enabled. Run a successful SSL test before saving.
+        </p>
+      ) : null}
+
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
         <article className="rounded-lg border border-sky-400/20 bg-slate-900/55 p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -414,12 +541,34 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
               type="button"
               onClick={onTestConnection}
               className="rounded-md border border-cyan-300/45 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isTestingConnection || isTestingSchema || isSaving || !hasAuthInput}
+              disabled={isTestingConnection || isTestingSsl || isTestingSchema || isSaving || !hasAuthInput}
             >
               {isTestingConnection ? "Testing..." : "Test Connection"}
             </button>
           </div>
           <p className="mt-2 text-sm text-slate-200/90">{statusLabel(connectionResult, "Not tested")}</p>
+        </article>
+
+        <article className="rounded-lg border border-sky-400/20 bg-slate-900/55 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full border text-sm ${statusStyle(sslResult)}`}>
+                {statusIcon(sslResult)}
+              </span>
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-200">SSL Test</p>
+            </div>
+            <button
+              type="button"
+              onClick={onTestSsl}
+              className="rounded-md border border-cyan-300/45 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!canRunSslTest}
+            >
+              {isTestingSsl ? "Testing..." : "Test SSL"}
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-slate-200/90">
+            {statusLabel(sslResult, draftSettings.sslEnabled ? "Not tested" : "Disabled")}
+          </p>
         </article>
 
         <article className="rounded-lg border border-sky-400/20 bg-slate-900/55 p-3">
@@ -458,7 +607,7 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
         {copyStatus ? <p className="mt-2 text-xs text-slate-300/85">{copyStatus}</p> : null}
 
         <pre className="mt-2 h-[260px] overflow-y-auto whitespace-pre-wrap rounded-md border border-sky-400/15 bg-slate-950/70 p-3 text-xs leading-relaxed text-slate-200/90">
-          {logText || "No diagnostics yet. Run connection and schema tests to populate this log."}
+          {logText || "No diagnostics yet. Run connection, SSL, and schema tests to populate this log."}
         </pre>
       </div>
     </section>
