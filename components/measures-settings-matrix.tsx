@@ -5,7 +5,7 @@ import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import {
   MEASURES_ASSET_TYPES,
-  MEASURES_SEVERITY_OPTIONS,
+  MEASURES_SELECTABLE_SEVERITY_OPTIONS,
   MEASURES_SPI_IDS,
   MeasuresSettings,
   severityMatrixKey
@@ -132,7 +132,7 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
             <tr>
               <th className="w-[360px] min-w-[360px] px-3 py-2">SPI</th>
               {MEASURES_ASSET_TYPES.map((assetType) => (
-                  <th key={assetType} className="px-3 py-2">
+                <th key={assetType} className="px-3 py-2">
                   {ASSET_TYPE_LABELS[assetType]}
                 </th>
               ))}
@@ -147,7 +147,8 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
                 </td>
                 {MEASURES_ASSET_TYPES.map((assetType) => {
                   const key = severityMatrixKey(spiId, assetType);
-                  const selectedValue = draftMatrix[key] ?? "Moderate";
+                  const selectedValue =
+                    draftMatrix[key] === "Data Gap" ? "Moderate" : (draftMatrix[key] ?? "Moderate");
 
                   return (
                     <td key={key} className="px-3 py-2">
@@ -156,7 +157,7 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
                         onChange={(event) => setSeverity(spiId, assetType, event.target.value as FindingSeverity)}
                         className="w-full min-w-[170px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
                       >
-                        {MEASURES_SEVERITY_OPTIONS.map((option) => (
+                        {MEASURES_SELECTABLE_SEVERITY_OPTIONS.map((option) => (
                           <option key={option} value={option}>
                             {option}
                           </option>

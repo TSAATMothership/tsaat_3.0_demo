@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-type MeasuresTabId = "summary" | "measures" | "settings";
+type MeasuresTabId = "summary" | "measures-kpi" | "measures-spi" | "spi-settings" | "kpi-settings";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -92,8 +92,10 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
 
   const tabs = [
     { id: "summary" as const, label: "Measures Summary" },
-    { id: "measures" as const, label: "Measures" },
-    { id: "settings" as const, label: "Measures Severity Settings" }
+    { id: "measures-kpi" as const, label: "Measures-KPI" },
+    { id: "measures-spi" as const, label: "Measures-SPI" },
+    { id: "spi-settings" as const, label: "SPI-Settings" },
+    { id: "kpi-settings" as const, label: "KPI-Settings" }
   ];
 
   return (
@@ -137,11 +139,15 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
                   <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
                   <span>
                     Opening{" "}
-                    {pendingTab === "settings"
-                      ? "Measures Severity Settings"
-                      : pendingTab === "measures"
-                        ? "Measures"
-                        : "Measures Summary"}
+                    {pendingTab === "measures-kpi"
+                      ? "Measures-KPI"
+                      : pendingTab === "measures-spi"
+                        ? "Measures-SPI"
+                        : pendingTab === "spi-settings"
+                          ? "SPI-Settings"
+                          : pendingTab === "kpi-settings"
+                            ? "KPI-Settings"
+                            : "Measures Summary"}
                     ...
                   </span>
                 </div>

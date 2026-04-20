@@ -27,11 +27,15 @@ export default async function MeasuresPage({
     searchParams
   );
   const requestedTab = firstParam(searchParams.measuresTab)?.trim().toLowerCase();
-  const activeTab: "summary" | "measures" | "settings" =
-    requestedTab === "settings" ? "settings" : requestedTab === "measures" ? "measures" : "summary";
-  const tabContentBaseClass = "h-[min(calc(100vh-20rem),1040px)] pr-1 md:h-[min(calc(100vh-24rem),1040px)]";
-  const tabContentClass =
-    activeTab === "measures" ? `${tabContentBaseClass} overflow-hidden` : `${tabContentBaseClass} overflow-auto`;
+  const activeTab: "summary" | "measures-kpi" | "measures-spi" | "spi-settings" | "kpi-settings" =
+    requestedTab === "measures-kpi" ||
+    requestedTab === "measures-spi" ||
+    requestedTab === "spi-settings" ||
+    requestedTab === "kpi-settings"
+      ? requestedTab
+      : requestedTab === "settings"
+        ? "spi-settings"
+        : "summary";
   const kpiRows = buildKpiRows(analytics, systems, networks);
   const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const measuresExtraSelects = [
@@ -75,11 +79,11 @@ export default async function MeasuresPage({
   });
 
   return (
-    <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-3 md:w-[min(2100px,calc(100vw-3rem))]">
-      <section className="panel p-4">
+    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Measures View</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-100">KPI and SPI Measures</h1>
-        <p className="mt-2 max-w-4xl text-sm text-slate-300/85">
+        <h1 className="mt-1 text-2xl font-semibold text-slate-100">KPI and SPI Measures</h1>
+        <p className="mt-1 max-w-4xl text-sm text-slate-300/85">
           Performance and compliance measures for TSAAT posture. Snapshot date {dataset.snapshotDate}.
           All charts and scores are recalculated from the active filter scope.
         </p>
@@ -87,30 +91,34 @@ export default async function MeasuresPage({
 
       <MeasuresTabs activeTab={activeTab} />
 
-      <div className={tabContentClass}>
+      <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "summary" ? (
-          <div className="space-y-3">
-            <FilterBar
-              options={filterOptions}
-              filters={filters}
-              hiddenFields={["systemCriticality"]}
-              extraSelectFields={measuresExtraSelects}
-              enableLoadingOverlay
-            />
-            <section className="grid gap-3 xl:grid-cols-2">
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["systemCriticality"]}
+                extraSelectFields={measuresExtraSelects}
+                enableLoadingOverlay
+              />
+            </div>
+            <section className="grid min-h-0 auto-rows-fr gap-2 overflow-auto pr-1 xl:grid-cols-2">
               <KpiComplianceChart data={kpiCompliancePoints} />
               <SecurityPerformanceIndicatorComplianceChart data={spiCompliancePoints} />
             </section>
           </div>
-        ) : activeTab === "measures" ? (
-          <div className="flex h-full min-h-0 flex-col gap-3">
-            <FilterBar
-              options={filterOptions}
-              filters={filters}
-              hiddenFields={["systemCriticality"]}
-              extraSelectFields={measuresExtraSelects}
-              enableLoadingOverlay
-            />
+        ) : activeTab === "measures-kpi" ? (
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["systemCriticality"]}
+                extraSelectFields={measuresExtraSelects}
+                enableLoadingOverlay
+              />
+            </div>
             <div className="min-h-0 flex-1">
               <KpiSpiMatrix
                 analytics={analytics}
@@ -118,11 +126,38 @@ export default async function MeasuresPage({
                 networks={networks}
                 filters={filters}
                 filterOptions={filterOptions}
+                mode="kpi"
               />
             </div>
           </div>
-        ) : (
+        ) : activeTab === "measures-spi" ? (
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["systemCriticality"]}
+                extraSelectFields={measuresExtraSelects}
+                enableLoadingOverlay
+              />
+            </div>
+            <div className="min-h-0 flex-1">
+              <KpiSpiMatrix
+                analytics={analytics}
+                systems={systems}
+                networks={networks}
+                filters={filters}
+                filterOptions={filterOptions}
+                mode="spi"
+              />
+            </div>
+          </div>
+        ) : activeTab === "spi-settings" ? (
           <MeasuresSettingsMatrix initialSettings={measuresSettings} />
+        ) : (
+          <section className="panel flex h-full min-h-0 items-center justify-center p-4">
+            <p className="text-sm text-slate-300/80">KPI settings will be added in a future release.</p>
+          </section>
         )}
       </div>
     </div>

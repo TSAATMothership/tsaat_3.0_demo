@@ -78,110 +78,118 @@ export function KpiSpiMatrix({
   systems,
   networks,
   filters,
-  filterOptions
+  filterOptions,
+  mode
 }: {
   analytics: AnalyticsResult;
   systems: ICTSystem[];
   networks: ManagedNetwork[];
   filters: Filters;
   filterOptions: FilterOptions;
+  mode: "kpi" | "spi";
 }) {
-  const kpiRows = buildKpiRows(analytics, systems, networks);
-  const spiRows = buildSpiRows(analytics);
+  const kpiRows = mode === "kpi" ? buildKpiRows(analytics, systems, networks) : [];
+  const spiRows = mode === "spi" ? buildSpiRows(analytics) : [];
 
   return (
     <section className="panel flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-sky-400/15 px-4 py-3">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">KPI and SPI Performance Matrix</h2>
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+          {mode === "kpi" ? "KPI Performance Matrix" : "SPI Performance Matrix"}
+        </h2>
         <p className="mt-2 text-xs text-slate-300/80">Scores are computed on currently filtered scope.</p>
         <p className="mt-1 text-xs text-slate-300/70">{summarizeFilterScope(filters, filterOptions)}</p>
       </div>
 
-      <div className="px-4 py-3">
-        <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">Key Performance Indicators (KPI)</h3>
-        <div className="max-h-[min(31vh,360px)] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="px-3 py-2">KPI</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Success Measure</th>
-                <th className="px-3 py-2">Score</th>
-                <th className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-2">Tasking Report</th>
-              </tr>
-            </thead>
-            <tbody>
-              {kpiRows.map((row) => (
-                <tr key={row.id} className="border-t border-sky-400/10 align-top">
-                  <td className="px-3 py-3 text-slate-100">
-                    <p className="font-semibold">{row.id}</p>
-                    <p className="text-xs text-slate-300/75">{row.name}</p>
-                  </td>
-                  <td className="px-3 py-3 text-slate-300/90">{row.description}</td>
-                  <td className="px-3 py-3 text-slate-300/90">{row.successMeasure}</td>
-                  <td className="px-3 py-3 text-slate-100">{row.score}</td>
-                  <td className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-3">
-                    {KPI_TASKING_DISABLED.has(row.id) ? (
-                      <span className="text-xs text-slate-400/80">Not available</span>
-                    ) : (
+      <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+        {mode === "kpi" ? (
+          <>
+            <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">
+              Key Performance Indicators (KPI)
+            </h3>
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                <tr>
+                  <th className="px-3 py-2">KPI</th>
+                  <th className="px-3 py-2">Description</th>
+                  <th className="px-3 py-2">Success Measure</th>
+                  <th className="px-3 py-2">Score</th>
+                  <th className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-2">Tasking Report</th>
+                </tr>
+              </thead>
+              <tbody>
+                {kpiRows.map((row) => (
+                  <tr key={row.id} className="border-t border-sky-400/10 align-top">
+                    <td className="px-3 py-3 text-slate-100">
+                      <p className="font-semibold">{row.id}</p>
+                      <p className="text-xs text-slate-300/75">{row.name}</p>
+                    </td>
+                    <td className="px-3 py-3 text-slate-300/90">{row.description}</td>
+                    <td className="px-3 py-3 text-slate-300/90">{row.successMeasure}</td>
+                    <td className="px-3 py-3 text-slate-100">{row.score}</td>
+                    <td className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-3">
+                      {KPI_TASKING_DISABLED.has(row.id) ? (
+                        <span className="text-xs text-slate-400/80">Not available</span>
+                      ) : (
+                        <a
+                          href={toTaskingHref("kpi", row.id, filters)}
+                          className="text-xs font-semibold text-sky-200 underline"
+                        >
+                          Generate PDF
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <>
+            <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">
+              Security Posture Indicators (SPI)
+            </h3>
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                <tr>
+                  <th className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-2">SPI</th>
+                  <th className="px-3 py-2">Description</th>
+                  <th className="px-3 py-2">Success Measure</th>
+                  <th className="px-3 py-2">Score (%)</th>
+                  <th className="px-3 py-2">Compliant</th>
+                  <th className="px-3 py-2">Non-compliant</th>
+                  <th className="px-3 py-2">Unknown</th>
+                  <th className="px-3 py-2">Applicable</th>
+                  <th className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-2">Tasking Report</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spiRows.map((row) => (
+                  <tr key={row.spiId} className="border-t border-sky-400/10 align-top">
+                    <td className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-3 font-semibold text-slate-100">
+                      SPI {row.spiId}
+                    </td>
+                    <td className="px-3 py-3 text-slate-300/90">{row.description}</td>
+                    <td className="px-3 py-3 text-slate-300/90">{row.successMeasure}</td>
+                    <td className="px-3 py-3 text-slate-100">{row.scorePercent}%</td>
+                    <td className="px-3 py-3 text-emerald-200">{row.compliant}</td>
+                    <td className="px-3 py-3 text-red-200">{row.nonCompliant}</td>
+                    <td className="px-3 py-3 text-amber-100">{row.unknown}</td>
+                    <td className="px-3 py-3 text-slate-200">{row.total}</td>
+                    <td className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-3">
                       <a
-                        href={toTaskingHref("kpi", row.id, filters)}
+                        href={toTaskingHref("spi", String(row.spiId), filters)}
                         className="text-xs font-semibold text-sky-200 underline"
                       >
                         Generate PDF
                       </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="border-t border-sky-400/10 px-4 py-3">
-        <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">Security Posture Indicators (SPI)</h3>
-        <div className="max-h-[min(34vh,390px)] overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-2">SPI</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Success Measure</th>
-                <th className="px-3 py-2">Score (%)</th>
-                <th className="px-3 py-2">Compliant</th>
-                <th className="px-3 py-2">Non-compliant</th>
-                <th className="px-3 py-2">Unknown</th>
-                <th className="px-3 py-2">Applicable</th>
-                <th className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-2">Tasking Report</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spiRows.map((row) => (
-                <tr key={row.spiId} className="border-t border-sky-400/10 align-top">
-                  <td className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-3 font-semibold text-slate-100">
-                    SPI {row.spiId}
-                  </td>
-                  <td className="px-3 py-3 text-slate-300/90">{row.description}</td>
-                  <td className="px-3 py-3 text-slate-300/90">{row.successMeasure}</td>
-                  <td className="px-3 py-3 text-slate-100">{row.scorePercent}%</td>
-                  <td className="px-3 py-3 text-emerald-200">{row.compliant}</td>
-                  <td className="px-3 py-3 text-red-200">{row.nonCompliant}</td>
-                  <td className="px-3 py-3 text-amber-100">{row.unknown}</td>
-                  <td className="px-3 py-3 text-slate-200">{row.total}</td>
-                  <td className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-3">
-                    <a
-                      href={toTaskingHref("spi", String(row.spiId), filters)}
-                      className="text-xs font-semibold text-sky-200 underline"
-                    >
-                      Generate PDF
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
     </section>
   );

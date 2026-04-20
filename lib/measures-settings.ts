@@ -10,6 +10,11 @@ export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
   "Data Gap"
 ];
 
+export const MEASURES_SELECTABLE_SEVERITY_OPTIONS: Exclude<FindingSeverity, "Data Gap">[] =
+  MEASURES_SEVERITY_OPTIONS.filter(
+    (severity): severity is Exclude<FindingSeverity, "Data Gap"> => severity !== "Data Gap"
+);
+
 export const MEASURES_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
 export const MEASURES_SPI_IDS: SpiId[] = [...SPI_IDS];
 
@@ -54,6 +59,10 @@ function isFindingSeverity(value: unknown): value is FindingSeverity {
   return typeof value === "string" && MEASURES_SEVERITY_OPTIONS.includes(value as FindingSeverity);
 }
 
+function normalizeSeverityValue(value: FindingSeverity): FindingSeverity {
+  return value === "Data Gap" ? "Moderate" : value;
+}
+
 function isSpiId(value: unknown): value is SpiId {
   return typeof value === "number" && Number.isInteger(value) && MEASURES_SPI_IDS.includes(value as SpiId);
 }
@@ -78,7 +87,7 @@ export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
       if (!isSpiId(spiId) || !isAssetType(assetTypeText) || !isFindingSeverity(rawSeverity)) {
         continue;
       }
-      severityMatrix[severityMatrixKey(spiId, assetTypeText)] = rawSeverity;
+      severityMatrix[severityMatrixKey(spiId, assetTypeText)] = normalizeSeverityValue(rawSeverity);
     }
   }
 
