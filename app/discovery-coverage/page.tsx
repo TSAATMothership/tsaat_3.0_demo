@@ -1,14 +1,14 @@
 import { DiscoveryCoverageByToolSection } from "@/components/discovery-coverage-by-tool-section";
+import {
+  DiscoveryCoverageByNetworkSection,
+  type DiscoveryCoverageByNetworkRow
+} from "@/components/discovery-coverage-by-network-section";
 import { DiscoveryCoverageTabs } from "@/components/discovery-coverage-tabs";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
 import {
   NetworkDiscoverySummaryTableClient,
   type NetworkDiscoverySummaryTableRow
 } from "@/components/network-discovery-summary-table-client";
-import {
-  DiscoveryCoverageTargetStateSection,
-  type TargetStateNetworkSummary
-} from "@/components/discovery-coverage-target-state-section";
 import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
@@ -106,9 +106,11 @@ export default async function DiscoveryCoveragePage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const requestedTab = firstParam(searchParams.discoveryCoverageTab)?.trim().toLowerCase();
-  const activeTab: "summary" | "target-state" | "tool-settings" =
+  const activeTab: "summary" | "coverage-by-network" | "tool-settings" | "target-state" =
     requestedTab === "target-state"
       ? "target-state"
+      : requestedTab === "coverage-by-network"
+        ? "coverage-by-network"
       : requestedTab === "tool-settings"
         ? "tool-settings"
         : "summary";
@@ -148,8 +150,6 @@ export default async function DiscoveryCoveragePage({
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
 
   const queryEntries = toQueryEntries(discoveryDataSearchParams);
-  const tabContentClass =
-    activeTab === "summary" ? "min-h-0 flex-1 overflow-auto pr-1" : "min-h-0 flex-1 overflow-hidden pr-1";
 
   const remediationReportHref = (() => {
     const params = new URLSearchParams();
@@ -195,7 +195,7 @@ export default async function DiscoveryCoveragePage({
     return map;
   }, new Map<string, Record<AssetType, number>>());
 
-  const targetStateNetworks: TargetStateNetworkSummary[] = networks.map((network) => {
+  const targetStateNetworks = networks.map((network) => {
     const actualTotals = assetTotalsByNetwork.get(network.id) ?? createAssetTypeRecord(() => 0);
     const totals = createAssetTypeRecord((assetType) => {
       const actual = actualTotals[assetType];
@@ -239,34 +239,121 @@ export default async function DiscoveryCoveragePage({
       return a.name.localeCompare(b.name);
     });
 
+  const managedNetworkById = new Map(dataset.managedNetworks.map((network) => [network.id, network]));
+  const byNetworkAggregates = rows.reduce(
+    (
+      map,
+      row
+    ) => {
+      const current = map.get(row.networkId) ?? {
+        assetCount: 0,
+        overallCoveredSlots: 0,
+        overallApplicableSlots: 0,
+        toolCoverage: new Map<string, { covered: number; missing: number; applicable: number }>()
+      };
+      current.assetCount += 1;
+
+      for (const tool of toolColumns) {
+        const value = row.coverage.toolValues[tool.key];
+        if (value === null) {
+          continue;
+        }
+        const toolCurrent = current.toolCoverage.get(tool.key) ?? { covered: 0, missing: 0, applicable: 0 };
+        toolCurrent.applicable += 1;
+        if (value === 1) {
+          toolCurrent.covered += 1;
+          current.overallCoveredSlots += 1;
+        } else {
+          toolCurrent.missing += 1;
+        }
+        current.overallApplicableSlots += 1;
+        current.toolCoverage.set(tool.key, toolCurrent);
+      }
+
+      map.set(row.networkId, current);
+      return map;
+    },
+    new Map<
+      string,
+      {
+        assetCount: number;
+        overallCoveredSlots: number;
+        overallApplicableSlots: number;
+        toolCoverage: Map<string, { covered: number; missing: number; applicable: number }>;
+      }
+    >()
+  );
+
+  const networkCoverageRows: DiscoveryCoverageByNetworkRow[] = Array.from(byNetworkAggregates.entries())
+    .map(([networkId, aggregate]) => {
+      const network = managedNetworkById.get(networkId);
+      if (!network) {
+        return null;
+      }
+      const details = resolveNetworkDetailFields(network);
+      const toolCoverage = toolColumns.map((tool) => {
+        const summary = aggregate.toolCoverage.get(tool.key) ?? { covered: 0, missing: 0, applicable: 0 };
+        return {
+          toolId: tool.key,
+          toolName: tool.label,
+          covered: summary.covered,
+          missing: summary.missing,
+          applicable: summary.applicable,
+          coveragePercent: summary.applicable
+            ? Number(((summary.covered / summary.applicable) * 100).toFixed(1))
+            : 0
+        };
+      });
+
+      return {
+        networkId: network.id,
+        networkName: network.name,
+        securityDomain: network.classification ?? "Unknown",
+        description: details.description,
+        owner: details.owner,
+        atoNumber: details.atoNumber,
+        diisUrl: details.diisUrl,
+        grcUrl: details.grcUrl,
+        assetCount: aggregate.assetCount,
+        overallCoveredSlots: aggregate.overallCoveredSlots,
+        overallApplicableSlots: aggregate.overallApplicableSlots,
+        overallCoveragePercent: aggregate.overallApplicableSlots
+          ? Number(((aggregate.overallCoveredSlots / aggregate.overallApplicableSlots) * 100).toFixed(1))
+          : 0,
+        toolCoverage
+      };
+    })
+    .filter((row): row is DiscoveryCoverageByNetworkRow => Boolean(row))
+    .sort((a, b) => a.networkName.localeCompare(b.networkName));
+
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
-      <section className="panel shrink-0 p-4">
+      <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Discovery Coverage View</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-100">Discovery</h1>
-        <p className="mt-2 max-w-5xl text-sm text-slate-300/85">
-          Breakdown of discovery tooling coverage issues across all assets within the Defence Cyber Terrain. Use filters
-          to scope networks, ICT systems, criticality, environments, and security domains.
+        <h1 className="mt-1 text-2xl font-semibold text-slate-100">Discovery</h1>
+        <p className="mt-1 text-sm text-slate-300/80">
+          Discovery tooling coverage across managed networks, with by-tool and by-network analysis and DB-backed tool
+          scope settings.
         </p>
       </section>
 
-      <div className="shrink-0">
-        <DiscoveryCoverageTabs activeTab={activeTab} />
-      </div>
+      <DiscoveryCoverageTabs activeTab={activeTab} />
 
-      <div className={tabContentClass}>
+      <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "summary" ? (
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
-            <FilterBar
-              options={filterOptions}
-              filters={filters}
-              hiddenFields={["systemCriticality"]}
-              enableLoadingOverlay
-            />
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["systemCriticality"]}
+                enableLoadingOverlay
+              />
+            </div>
 
             <div
               id="discovery-coverage-summary-slideout-scope"
-              className="relative grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-4"
+              className="relative grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2"
             >
               <section id="remediation-report" className="panel p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -319,8 +406,33 @@ export default async function DiscoveryCoveragePage({
               <DiscoveryCoverageByToolSection
                 toolStats={toolStats}
                 slideoutScopeId="discovery-coverage-summary-slideout-scope"
-                className="min-h-0 h-[calc(100%-10px)]"
+                className="min-h-0"
               />
+            </div>
+          </div>
+        ) : activeTab === "coverage-by-network" ? (
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["ictSystem", "systemCriticality"]}
+                enableLoadingOverlay
+                actions={
+                  <div className="flex min-w-[170px] flex-col gap-1">
+                    <span aria-hidden className="text-[11px] uppercase tracking-[0.14em] text-transparent">
+                      Totals
+                    </span>
+                    <div className="inline-flex h-[42px] items-center rounded-md border border-sky-300/35 bg-sky-500/15 px-3 text-sm text-sky-100">
+                      Total Network:{" "}
+                      <span className="ml-1 font-semibold text-sky-50">{networkCoverageRows.length}</span>
+                    </div>
+                  </div>
+                }
+              />
+            </div>
+            <div className="min-h-0">
+              <DiscoveryCoverageByNetworkSection rows={networkCoverageRows} />
             </div>
           </div>
         ) : activeTab === "tool-settings" ? (
@@ -328,30 +440,21 @@ export default async function DiscoveryCoveragePage({
             <DiscoveryToolsSettingsPanel initialSettings={discoveryToolsSettings} />
           </div>
         ) : (
-          <div className="flex h-full min-h-0 flex-col gap-3 pb-[15px]">
-            <FilterBar
-              options={filterOptions}
-              filters={filters}
-              hiddenFields={["ictSystem", "environment", "systemCriticality"]}
-              enableLoadingOverlay
-            />
-            <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-              <section className="panel flex min-h-0 flex-col overflow-hidden">
-                <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
-                  Network Discovery Summary
-                </h2>
-                <NetworkDiscoverySummaryTableClient rows={networkDiscoverySummaryRows} />
-              </section>
-
-              <section className="panel flex min-h-0 flex-1 flex-col p-4">
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                  <DiscoveryCoverageTargetStateSection
-                    targetStateNetworks={targetStateNetworks}
-                    lastRefreshedAt={dataset.generatedAt}
-                  />
-                </div>
-              </section>
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+            <div className="-mt-4">
+              <FilterBar
+                options={filterOptions}
+                filters={filters}
+                hiddenFields={["ictSystem", "environment", "systemCriticality"]}
+                enableLoadingOverlay
+              />
             </div>
+            <section className="panel min-h-0 overflow-hidden">
+              <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
+                Network Discovery Summary
+              </h2>
+              <NetworkDiscoverySummaryTableClient rows={networkDiscoverySummaryRows} />
+            </section>
           </div>
         )}
       </div>

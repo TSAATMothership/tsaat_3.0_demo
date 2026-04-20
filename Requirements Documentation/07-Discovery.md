@@ -9,15 +9,20 @@
 - **Primary user roles:** discovery tool owners, CMDB and asset inventory teams, cyber analysts, architecture teams, platform governance teams.
 
 ## 2. Page Summary
-This page is the discovery-coverage workspace. It provides `summary`, `target-state`, and `tool-settings` tabs.
+This page is the discovery-coverage workspace. It provides `summary`, `coverage-by-network`, `tool-settings`, and `target-state` route states. In UI labels this appears as:
+
+- `Discovery Tool Coverage`
+- `Discovery Tool Coverage - by Network`
+- `Discovery Tools Setting`
+- `Network Discovery` (route value remains `target-state`)
 
 Major dependencies:
 
 - `getCoreAppData()`
 - `DiscoveryCoverageTabs`
 - `DiscoveryCoverageByToolSection`
+- `DiscoveryCoverageByNetworkSection`
 - `NetworkDiscoverySummaryTableClient`
-- `DiscoveryCoverageTargetStateSection`
 - `DiscoveryToolsSettingsPanel`
 - `/api/discovery-coverage/remediation-report`
 - `/api/discovery-coverage/tool-assets`
@@ -27,7 +32,7 @@ Important hidden behaviour:
 
 - the page always removes `criticality` before loading analytics.
 - when `discoveryCoverageTab=target-state`, the page also removes `system` and `environment` before loading analytics.
-- target-state values are partly synthetic and are calculated in the application layer rather than sourced from stored target records.
+- network-discovery coverage percentages remain partly synthetic and are calculated in the application layer rather than sourced from stored target records.
 
 ## 3. Feature Breakdown
 ### Feature: Shared Discovery Filter Scope
@@ -48,27 +53,34 @@ Important hidden behaviour:
 - **System behaviour:** the client fetches paged rows from `/api/discovery-coverage/tool-assets` using the current page filters plus `toolId`, `toolSearch`, `toolAssetType`, `page`, and `pageSize`.
 - **Outcome:** discovery gaps can be traced to tool-by-asset detail without leaving the page.
 
-### Feature: Target-State Tab
-- **What it does:** shows target-state coverage by network and the network summary slideout.
-- **User perspective:** the user compares current discovered asset counts against expected target counts per network and asset type.
-- **System behaviour:** actual counts come from scoped assets, but target counts are inferred using deterministic runtime percentages and adjustment logic.
-- **Outcome:** the page presents a target-state comparison even though target numbers are not stored in the database.
+### Feature: Coverage-by-Network Tab
+- **What it does:** shows row-per-network tool coverage with network metadata, a per-network coverage-by-tool radar chart, a per-tool coverage table, and a network drill-down link.
+- **User perspective:** the user can review discovery coverage posture across networks without opening a slideout, including owner, accreditation details, and security domain.
+- **System behaviour:** rows are aggregated from scoped assets and tool coverage results per network; metadata uses network-detail resolver fallbacks where source values are blank; each row reuses the shared coverage-by-tool radar component with network-scoped data points and provides a drill-down link to `/networks/[networkId]` while preserving `dataDate` and opening in a new window. The filter container shows a right-aligned `Total Network` count based on the currently filtered row set.
+- **Outcome:** network-level operational coverage review is available as a first-class tab.
+
+### Feature: Network Discovery Tab
+- **What it does:** shows `Network Discovery Summary` table only.
+- **User perspective:** the user sees discovery-enabled status and per-asset-type coverage percentages by network.
+- **System behaviour:** actual counts come from scoped assets, and comparison percentages use deterministic runtime target calculations; the previous target-state chart section is removed.
+- **Outcome:** the tab remains available for network discovery posture, with simplified table-only presentation.
 
 ### Feature: Tool Settings Tab
-- **What it does:** lets users add, remove, edit, and save discovery tool definitions and required asset-type mappings across all six canonical asset types.
-- **User perspective:** the user maintains the discovery tool master data used by compliance evaluation.
-- **System behaviour:** the client enforces required-field validation and saves the tool list through `/api/discovery-tools/settings`.
-- **Outcome:** future discovery evaluations immediately use the saved tool configuration.
+- **What it does:** allows editing of per-tool asset-type scope (`required` or `na`) across all six canonical asset types.
+- **User perspective:** the user sees tools in a compact table, horizontally scans asset-type scope status, then opens a tool slideout to edit scope settings.
+- **System behaviour:** the UI no longer supports add/remove/edit for tool metadata. A text-searchable dropdown filter allows filtering by tool name. Tool rows show scope status (`required` as green tick, `na` as red cross). Tool-name links open a right slideout for per-tool scope editing, save, reset, and close actions. Save submits the existing full payload contract and then refreshes settings from DB via GET.
+- **Outcome:** discovery tool catalog is DB-driven and immutable from this page, while scope remains configurable for runtime coverage evaluation.
 
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Discovery | Tab routing | Switches among summary, target-state, and tool-settings | Click tab | Updates `discoveryCoverageTab` query parameter | `discoveryCoverageTab` | Different layout | summary is default | unsupported values fall back to summary | `DiscoveryCoverageTabs` | Bookmarkable tab state | |
+| Discovery | Tab routing | Switches among summary, coverage-by-network, tool-settings, and network discovery | Click tab | Updates `discoveryCoverageTab` query parameter | `discoveryCoverageTab` | Different layout | summary is default | unsupported values fall back to summary | `DiscoveryCoverageTabs` | Bookmarkable tab state | `target-state` route value is labeled `Network Discovery` |
 | Discovery | Shared scope | Common filter scope with hidden stripping rules | Apply filters | Re-runs analytics after removing unsupported filter keys | filter query params | Filtered discovery view | `criticality` is ignored everywhere; `system` and `environment` ignored for target-state | query parsing only | `FilterBar`, `getCoreAppData()` | Discovery-specific view scope | hidden implementation rule |
 | Discovery | Summary tab | Operational discovery dashboard | Open tab | Builds coverage snapshot cards and remediation report URL | scoped assets, discovery settings | Snapshot cards and report link | report reflects current filtered scope | none beyond scope parsing | remediation-report API | Discovery gap summary | |
 | Discovery | Coverage-by-tool drillthrough | Tool-level asset detail slideout | Click tool, search, filter, paginate, export CSV | Calls tool-assets API and renders slideout rows | `toolId`, `toolSearch`, `toolAssetType`, pagination params | Slideout rows and CSV | pagination defaults to 200, export batches up to 5000 | invalid API params return client error messages | `/api/discovery-coverage/tool-assets` | Tool-specific gap evidence | non-route slideout |
-| Discovery | Target-state comparison | Compare actual counts with target counts per network | Open tab, open network slideout | Derives target counts from deterministic percentages and actual counts | networks, scoped assets | Network summary table, charts, slideout | target-state ignores system and environment filters | zero-safe percentages | target-state section components | Target-state planning view | uses synthetic target values |
-| Discovery | Tool settings | Maintain discovery tool master data | Add/edit/remove tools, save | Validates required fields and persists settings | tool definitions and asset-type scope | Updated discovery tool settings | `N/A` excludes an asset type from coverage checks; each tool carries all six canonical asset-type keys | tool name, description, owner, and operations manager required | `/api/discovery-tools/settings` | Updated rules for future coverage evaluation | defaults normalize to `required` for every asset type key |
+| Discovery | Coverage-by-network | Row-based network coverage summary with accreditation facts, per-network radar visualisation, and per-tool coverage table | Open tab, apply filters, drill down | Aggregates covered/missing/applicable tool stats by network, resolves metadata fallbacks, renders one radar and one coverage-by-tool table per network, and provides data-date-aware drill-down links to network detail that open in a new window | scoped asset coverage rows + managed network metadata + optional `dataDate` query | Network rows with radar visual + per-tool table + overall coverage badges + drill-down link | tab is scoped by network/security-domain/environment/asset-type filters | zero-safe percentages and zero-safe drill-down date handling | `DiscoveryCoverageByNetworkSection`, `CoverageByToolRadar`, `withDataDate`, network detail resolver | First-class network coverage view with direct navigation into network drill-through | replaces prior aggregate-chip panel with the same table pattern used by summary coverage-by-tool |
+| Discovery | Network discovery summary | Compare actual counts with runtime target counts by network | Open tab, apply filters | Derives target counts from deterministic percentages and actual counts | networks, scoped assets | Network summary table | target-state ignores system and environment filters | zero-safe percentages | `NetworkDiscoverySummaryTableClient` | Network discovery posture view | target-state chart section removed |
+| Discovery | Tool settings | Maintain per-tool asset-type scope only | Filter tools by name, open slideout from tool link, update scope, save/reset | Filters table rows by selected tool-name dropdown (with text search), displays scope status columns, opens per-tool slideout editor, validates tool IDs against current DB catalog, persists full payload, then refreshes settings from DB GET | `{ id, assetTypeScope }[]` payload | Updated discovery tool settings version and refreshed table state | `N/A` excludes an asset type from coverage checks; each tool carries all six canonical asset-type keys | unknown/missing/duplicate IDs rejected | `/api/discovery-tools/settings` | Updated scope rules for future coverage evaluation | add/remove and metadata edit removed from UI; table keeps scope section horizontally scannable |
 
 ## 5. Database Mapping
 The page reads the shared snapshot dataset, the discovery tool settings tables, and related reference context. Most summary values are assembled at runtime from asset-level evidence and the configured tool model.

@@ -5,6 +5,7 @@ import { normalizeDataDate, todayDateKey } from "@/lib/data-date";
 import {
   defaultDiscoveryToolsSettings,
   DiscoveryToolsSettings,
+  normalizeDiscoveryToolsScopeUpdate,
   normalizeDiscoveryToolsSettings
 } from "@/lib/discovery-tools-settings";
 import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } from "@/lib/measures-settings";
@@ -1161,7 +1162,8 @@ FOR JSON PATH;
 }
 
 export async function saveDiscoveryToolsSettings(input: unknown): Promise<DiscoveryToolsSettings> {
-  const normalized = normalizeDiscoveryToolsSettings(input);
+  const existing = await loadDiscoveryToolsSettings();
+  const normalized = normalizeDiscoveryToolsScopeUpdate(input, existing);
   const persisted: DiscoveryToolsSettings = {
     ...normalized,
     updatedAt: new Date().toISOString()

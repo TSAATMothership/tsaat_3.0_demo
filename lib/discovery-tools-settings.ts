@@ -17,6 +17,11 @@ export interface DiscoveryToolsSettings {
   tools: DiscoveryToolSetting[];
 }
 
+export interface DiscoveryToolScopeUpdate {
+  id: string;
+  assetTypeScope: Record<AssetType, DiscoveryToolAssetSetting>;
+}
+
 const DEFAULT_TOOL_DEFINITIONS: Array<{
   id: string;
   name: string;
@@ -195,6 +200,76 @@ export function normalizeDiscoveryToolsSettings(input: unknown): DiscoveryToolsS
   return {
     updatedAt,
     tools
+  };
+}
+
+function parseScopeUpdates(input: unknown): DiscoveryToolScopeUpdate[] {
+  if (!input || typeof input !== "object") {
+    throw new Error("Discovery tool scope update payload must be an object.");
+  }
+
+  const candidate = input as { tools?: unknown };
+  if (!Array.isArray(candidate.tools)) {
+    throw new Error("Discovery tool scope update payload must include a tools array.");
+  }
+
+  const updates: DiscoveryToolScopeUpdate[] = [];
+  for (const rawTool of candidate.tools) {
+    if (!rawTool || typeof rawTool !== "object") {
+      throw new Error("Each discovery tool scope update must be an object.");
+    }
+
+    const tool = rawTool as Record<string, unknown>;
+    const id = sanitizeText(tool.id);
+    if (!id) {
+      throw new Error("Each discovery tool scope update must include a tool id.");
+    }
+
+    updates.push({
+      id,
+      assetTypeScope: normalizeScope(tool.assetTypeScope, FALLBACK_SCOPE)
+    });
+  }
+
+  return updates;
+}
+
+export function normalizeDiscoveryToolsScopeUpdate(
+  input: unknown,
+  existing: DiscoveryToolsSettings
+): DiscoveryToolsSettings {
+  const updates = parseScopeUpdates(input);
+  const existingById = new Map(existing.tools.map((tool) => [tool.id, tool]));
+  const updatedScopes = new Map<string, Record<AssetType, DiscoveryToolAssetSetting>>();
+  const duplicateIds = new Set<string>();
+
+  for (const update of updates) {
+    if (updatedScopes.has(update.id)) {
+      duplicateIds.add(update.id);
+      continue;
+    }
+    const current = existingById.get(update.id);
+    if (!current) {
+      throw new Error(`Unknown discovery tool id in update payload: ${update.id}`);
+    }
+    updatedScopes.set(update.id, normalizeScope(update.assetTypeScope, current.assetTypeScope));
+  }
+
+  if (duplicateIds.size > 0) {
+    throw new Error(`Duplicate discovery tool ids in update payload: ${Array.from(duplicateIds).join(", ")}`);
+  }
+
+  const missingIds = existing.tools.map((tool) => tool.id).filter((id) => !updatedScopes.has(id));
+  if (missingIds.length > 0) {
+    throw new Error(`Missing discovery tool ids in update payload: ${missingIds.join(", ")}`);
+  }
+
+  return {
+    updatedAt: existing.updatedAt,
+    tools: existing.tools.map((tool) => ({
+      ...tool,
+      assetTypeScope: { ...updatedScopes.get(tool.id)! }
+    }))
   };
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-type DiscoveryCoverageTabId = "summary" | "target-state" | "tool-settings";
+type DiscoveryCoverageTabId = "summary" | "coverage-by-network" | "tool-settings" | "target-state";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -21,8 +21,9 @@ function nextProgressValue(current: number): number {
 
 const tabs: Array<{ id: DiscoveryCoverageTabId; label: string }> = [
   { id: "summary", label: "Discovery Tool Coverage" },
+  { id: "coverage-by-network", label: "Discovery Tool Coverage - by Network" },
   { id: "tool-settings", label: "Discovery Tools Setting" },
-  { id: "target-state", label: "Target State - Network Discovery" }
+  { id: "target-state", label: "Network Discovery" }
 ];
 
 export function DiscoveryCoverageTabs({ activeTab }: { activeTab: DiscoveryCoverageTabId }) {
@@ -98,7 +99,9 @@ export function DiscoveryCoverageTabs({ activeTab }: { activeTab: DiscoveryCover
 
   const pendingTabLabel =
     pendingTab === "target-state"
-      ? "Target State - Network Discovery"
+      ? "Network Discovery"
+      : pendingTab === "coverage-by-network"
+        ? "Discovery Tool Coverage - by Network"
       : pendingTab === "tool-settings"
         ? "Discovery Tools Setting"
         : "Discovery Tool Coverage";
