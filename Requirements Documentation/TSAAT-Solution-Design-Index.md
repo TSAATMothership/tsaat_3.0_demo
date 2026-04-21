@@ -1,5 +1,10 @@
 # TSAAT Solution Design Index
 
+## Consolidated Specification
+- Primary single-document specification: [TSAAT Solution Design](TSAAT%20Solution%20Design.md)
+- Consolidation date: 2026-04-21
+- Legacy per-page files in this folder remain as source sections and traceability references.
+
 ## Application Introduction
 TSAAT is a Next.js web application that presents snapshot-based cyber posture, discovery coverage, findings, reporting, and configuration views over a SQL Server-backed data model in schema `tsaat`.
 
