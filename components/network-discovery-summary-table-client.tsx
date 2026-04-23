@@ -6,7 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
-import type { NetworkTargetStateCellSummary } from "@/lib/network-target-state";
+import {
+  describeNetworkTargetStateCellPresentation,
+  type NetworkTargetStateCellSummary
+} from "@/lib/network-target-state";
 import type { ResolvedNetworkDetailFields } from "@/lib/network-detail-fields";
 import type { AssetType } from "@/lib/types";
 
@@ -15,7 +18,7 @@ const NETWORK_COLUMN_WIDTH_CLASS = "w-[18rem]";
 const DRILL_DOWN_COLUMN_WIDTH_CLASS = "w-[9rem]";
 const STATUS_COLUMN_WIDTH_CLASS = "w-[12rem]";
 const ASSET_COLUMN_WIDTH_CLASS = "w-[11rem]";
-const ASSET_CELL_HEIGHT_CLASS = "h-[132px]";
+const ASSET_CELL_HEIGHT_CLASS = "h-[156px]";
 
 export interface NetworkDiscoverySummaryTableRow extends ResolvedNetworkDetailFields {
   id: string;
@@ -37,50 +40,49 @@ function formatPercent(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
+function missingStateClass(state: NetworkTargetStateCellSummary["state"], compact: boolean): string {
+  if (state === "target-and-discovery-missing") {
+    return "border-violet-300/45 bg-violet-500/15 text-violet-100";
+  }
+  if (state === "target-missing") {
+    return compact ? "border-amber-300/45 bg-amber-500/12 text-amber-100" : "border-amber-300/40 bg-amber-500/10 text-amber-100";
+  }
+  return compact ? "border-red-300/45 bg-red-500/12 text-red-100" : "border-red-300/40 bg-red-500/10 text-red-100";
+}
+
 function TargetStateSummaryCell({ summary }: { summary: NetworkTargetStateCellSummary }) {
-  const stateMessage =
-    summary.state === "target-and-discovery-missing"
-      ? "Target State Missing + Discovery Missing"
-      : 
-    summary.state === "target-missing"
-      ? "Target State Missing"
-      : summary.state === "discovery-missing"
-        ? "Discovery Missing"
-        : null;
+  const presentation = describeNetworkTargetStateCellPresentation(summary);
   const chartData = [
-    { label: "Target", value: summary.targetTotal, fill: "#38bdf8" },
-    { label: "Discovered", value: summary.discoveredTotal, fill: "#34d399" }
+    { label: "Target", value: presentation.displayTargetTotal, fill: "#38bdf8" },
+    { label: "Discovered", value: presentation.displayDiscoveredTotal, fill: "#34d399" }
   ];
   const coverageLabel = `${formatPercent(clampPercent(summary.coveragePercent))}%`;
   return (
     <div
       className={`flex w-full flex-col gap-2 rounded-md border border-slate-700/60 bg-slate-900/55 p-2 ${ASSET_CELL_HEIGHT_CLASS}`}
     >
-      <div className="flex items-center justify-between text-[11px] text-slate-200/90">
+      <div className="flex shrink-0 items-center justify-between text-[11px] text-slate-200/90">
         <span>
-          Target: <span className="font-semibold text-slate-100">{summary.targetTotal}</span>
+          Target: <span className="font-semibold text-slate-100">{presentation.displayTargetTotal}</span>
         </span>
         <span>
-          Discovered: <span className="font-semibold text-slate-100">{summary.discoveredTotal}</span>
+          Discovered: <span className="font-semibold text-slate-100">{presentation.displayDiscoveredTotal}</span>
         </span>
       </div>
-      {stateMessage ? (
+      {!presentation.showChart ? (
         <div className="flex min-h-0 flex-1 items-center">
           <div
-            className={`w-full rounded-sm border px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] ${
-              summary.state === "target-and-discovery-missing"
-                ? "border-violet-300/45 bg-violet-500/15 text-violet-100"
-                : summary.state === "target-missing"
-                ? "border-amber-300/40 bg-amber-500/10 text-amber-100"
-                : "border-red-300/40 bg-red-500/10 text-red-100"
-            }`}
+            className={`flex w-full items-center justify-center rounded-sm border px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.08em] ${missingStateClass(
+              summary.state,
+              false
+            )}`}
           >
-            {stateMessage}
+            {presentation.missingMessage}
           </div>
         </div>
       ) : (
         <>
-          <div className="h-[56px] w-full">
+          <div className="h-[56px] w-full shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} layout="vertical" margin={{ top: 2, right: 4, bottom: 2, left: 4 }}>
                 <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="rgba(148,163,184,0.20)" />
@@ -118,7 +120,19 @@ function TargetStateSummaryCell({ summary }: { summary: NetworkTargetStateCellSu
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[11px] text-slate-300/90">
+          {presentation.missingMessage && presentation.missingMessagePlacement === "below-chart" ? (
+            <div className="min-h-[1.1rem] shrink-0 w-full">
+              <div
+                className={`flex w-full items-center justify-center rounded-sm border px-2 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.08em] ${missingStateClass(
+                  summary.state,
+                  true
+                )}`}
+              >
+                {presentation.missingMessage}
+              </div>
+            </div>
+          ) : null}
+          <p className="shrink-0 text-[11px] text-slate-300/90">
             Coverage: <span className="font-semibold text-slate-100">{coverageLabel}</span>
           </p>
         </>

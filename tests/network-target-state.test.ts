@@ -2,6 +2,7 @@ import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import {
   buildNetworkTargetStateSummary,
   calculateMatchedTargetStateAssets,
+  describeNetworkTargetStateCellPresentation,
   normalizeTargetStateAssetName,
   summarizeTargetStateAssetType
 } from "@/lib/network-target-state";
@@ -36,15 +37,68 @@ describe("network target-state matching", () => {
   });
 
   it("returns missing states and ok coverage", () => {
-    expect(summarizeTargetStateAssetType([], ["srv-a"]).state).toBe("target-missing");
+    const targetMissing = summarizeTargetStateAssetType([], ["srv-a"]);
+    expect(targetMissing.state).toBe("target-missing");
+    expect(targetMissing.discoveredTotal).toBe(0);
+    expect(targetMissing.discoveredSetTotal).toBe(1);
+
     expect(summarizeTargetStateAssetType([], []).state).toBe("target-and-discovery-missing");
-    expect(summarizeTargetStateAssetType(["srv-a"], ["srv-b"]).state).toBe("discovery-missing");
+    const discoveryMissing = summarizeTargetStateAssetType(["srv-a"], ["srv-b"]);
+    expect(discoveryMissing.state).toBe("discovery-missing");
+    expect(discoveryMissing.discoveredTotal).toBe(0);
+    expect(discoveryMissing.discoveredSetTotal).toBe(1);
 
     const ok = summarizeTargetStateAssetType(["srv-a", "srv-b", "srv-c"], ["srv-a", "srv-b"]);
     expect(ok.state).toBe("ok");
     expect(ok.targetTotal).toBe(3);
     expect(ok.discoveredTotal).toBe(2);
+    expect(ok.discoveredSetTotal).toBe(2);
     expect(ok.coveragePercent).toBe(66.7);
+  });
+});
+
+describe("network target-state presentation", () => {
+  it("shows chart with discovered-set count for target-missing", () => {
+    const summary = summarizeTargetStateAssetType([], ["srv-a", "srv-b"]);
+    const presentation = describeNetworkTargetStateCellPresentation(summary);
+
+    expect(presentation.showChart).toBe(true);
+    expect(presentation.displayTargetTotal).toBe(0);
+    expect(presentation.displayDiscoveredTotal).toBe(2);
+    expect(presentation.missingMessage).toBe("Target State Missing");
+    expect(presentation.missingMessagePlacement).toBe("below-chart");
+  });
+
+  it("shows chart with discovery-missing message below chart", () => {
+    const summary = summarizeTargetStateAssetType(["srv-a"], []);
+    const presentation = describeNetworkTargetStateCellPresentation(summary);
+
+    expect(presentation.showChart).toBe(true);
+    expect(presentation.displayTargetTotal).toBe(1);
+    expect(presentation.displayDiscoveredTotal).toBe(0);
+    expect(presentation.missingMessage).toBe("Discovery Missing");
+    expect(presentation.missingMessagePlacement).toBe("below-chart");
+  });
+
+  it("shows message-only for both-missing", () => {
+    const summary = summarizeTargetStateAssetType([], []);
+    const presentation = describeNetworkTargetStateCellPresentation(summary);
+
+    expect(presentation.showChart).toBe(false);
+    expect(presentation.missingMessage).toBe("Target State Missing + Discovery Missing");
+    expect(presentation.missingMessagePlacement).toBe("message-only");
+  });
+
+  it("keeps existing chart behavior for ok state", () => {
+    const summary = summarizeTargetStateAssetType(["srv-a", "srv-b"], ["srv-a"]);
+    const presentation = describeNetworkTargetStateCellPresentation(summary);
+
+    expect(summary.state).toBe("ok");
+    expect(presentation.showChart).toBe(true);
+    expect(presentation.displayTargetTotal).toBe(2);
+    expect(presentation.displayDiscoveredTotal).toBe(1);
+    expect(presentation.missingMessage).toBeNull();
+    expect(presentation.missingMessagePlacement).toBeNull();
   });
 });
 
@@ -70,7 +124,9 @@ describe("buildNetworkTargetStateSummary", () => {
     expect(alpha?.targetStateProvided).toBe(true);
     expect(alpha?.byAssetType.server.targetTotal).toBe(3);
     expect(alpha?.byAssetType.server.discoveredTotal).toBe(2);
+    expect(alpha?.byAssetType.server.discoveredSetTotal).toBe(2);
     expect(alpha?.byAssetType.server.state).toBe("ok");
+    expect(alpha?.byAssetType.workstation.discoveredSetTotal).toBe(1);
     expect(alpha?.byAssetType.workstation.state).toBe("target-missing");
 
     expect(bravo?.targetStateProvided).toBe(false);

@@ -10,8 +10,17 @@ export type NetworkTargetStateCellState =
 export interface NetworkTargetStateCellSummary {
   targetTotal: number;
   discoveredTotal: number;
+  discoveredSetTotal: number;
   state: NetworkTargetStateCellState;
   coveragePercent: number;
+}
+
+export interface NetworkTargetStateCellPresentation {
+  showChart: boolean;
+  displayTargetTotal: number;
+  displayDiscoveredTotal: number;
+  missingMessage: string | null;
+  missingMessagePlacement: "below-chart" | "message-only" | null;
 }
 
 export interface NetworkTargetStateRowSummary {
@@ -82,11 +91,13 @@ export function summarizeTargetStateAssetType(
   const normalizedTargetNames = normalizeNameList(targetAssetNames);
   const normalizedDiscoveredNames = normalizeNameList(discoveredAssetNames);
   const targetTotal = normalizedTargetNames.length;
+  const discoveredSetTotal = normalizedDiscoveredNames.length;
   if (targetTotal <= 0) {
-    const hasDiscoveredNames = normalizedDiscoveredNames.length > 0;
+    const hasDiscoveredNames = discoveredSetTotal > 0;
     return {
       targetTotal: 0,
       discoveredTotal: 0,
+      discoveredSetTotal,
       state: hasDiscoveredNames ? "target-missing" : "target-and-discovery-missing",
       coveragePercent: 0
     };
@@ -97,6 +108,7 @@ export function summarizeTargetStateAssetType(
     return {
       targetTotal,
       discoveredTotal: 0,
+      discoveredSetTotal,
       state: "discovery-missing",
       coveragePercent: 0
     };
@@ -105,8 +117,51 @@ export function summarizeTargetStateAssetType(
   return {
     targetTotal,
     discoveredTotal,
+    discoveredSetTotal,
     state: "ok",
     coveragePercent: clampPercent(Number(((discoveredTotal / targetTotal) * 100).toFixed(1)))
+  };
+}
+
+export function describeNetworkTargetStateCellPresentation(
+  summary: NetworkTargetStateCellSummary
+): NetworkTargetStateCellPresentation {
+  if (summary.state === "target-and-discovery-missing") {
+    return {
+      showChart: false,
+      displayTargetTotal: summary.targetTotal,
+      displayDiscoveredTotal: summary.discoveredSetTotal,
+      missingMessage: "Target State Missing + Discovery Missing",
+      missingMessagePlacement: "message-only"
+    };
+  }
+
+  if (summary.state === "target-missing") {
+    return {
+      showChart: true,
+      displayTargetTotal: summary.targetTotal,
+      displayDiscoveredTotal: summary.discoveredSetTotal,
+      missingMessage: "Target State Missing",
+      missingMessagePlacement: "below-chart"
+    };
+  }
+
+  if (summary.state === "discovery-missing") {
+    return {
+      showChart: true,
+      displayTargetTotal: summary.targetTotal,
+      displayDiscoveredTotal: summary.discoveredSetTotal,
+      missingMessage: "Discovery Missing",
+      missingMessagePlacement: "below-chart"
+    };
+  }
+
+  return {
+    showChart: true,
+    displayTargetTotal: summary.targetTotal,
+    displayDiscoveredTotal: summary.discoveredTotal,
+    missingMessage: null,
+    missingMessagePlacement: null
   };
 }
 
