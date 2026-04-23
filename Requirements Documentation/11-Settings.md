@@ -34,7 +34,7 @@ Important hidden behaviour:
   - SSL enabled: connection test + SSL test + schema test
 - any edit to server, database, auth mode, credentials, SSL toggle, or SSL type clears prior test status.
 - save API re-validates connection, SSL (when enabled), and schema before writing `DB_config`.
-- runtime and offline scripts read SSL from `DB_config` and apply `sqlcmd` security flags (`-N`, `-C`) consistently.
+- runtime and offline scripts read SSL from `DB_config` and apply `sqlcmd` security flags (`-N`, `-C`) consistently; offline scripts stage bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip` to `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe` and normalize local named-instance server targets to `lpc:` when no protocol prefix is supplied.
 - placeholder tabs are routable but intentionally contain no operational settings.
 
 ## 3. Feature Breakdown
@@ -118,7 +118,7 @@ Primary dependencies:
 | Schema validation | confirm minimum TSAAT schema | check required tables, required columns, and that `dataset_snapshot` contains rows | target SQL Server database | Runtime | API/backend | stops at validation failure and returns diagnostics |
 | Save enablement | prevent invalid configuration writes | save allowed only when connection and schema tests succeed, plus SSL test when SSL enabled, and no busy state is active | client validation state | Runtime | client | save button remains disabled until required checks pass |
 | SSL mode mapping | normalize UI SSL settings into `DB_config` keys | `sslEnabled=false => Encrypt=False;TrustServerCertificate=False`; `sslEnabled=true, sslType=strict => Encrypt=True;TrustServerCertificate=False`; `sslEnabled=true, sslType=trust-server-certificate => Encrypt=True;TrustServerCertificate=True` | form state, `DB_config` | Runtime | backend | `trust-server-certificate` implicitly enables SSL |
-| SQLCMD SSL argument mapping | enforce runtime/script SSL mode | SSL disabled => no SSL flags; strict => `-N`; trust server certificate => `-N -C` | `DB_config` SSL fields | Runtime | backend and scripts | used by runtime SQL execution and offline scripts (`compileApp.cmd`, `CreateDB.cmd`, loader PowerShell) |
+| SQLCMD SSL argument mapping | enforce runtime/script SSL mode | SSL disabled => no SSL flags; strict => `-N`; trust server certificate => `-N -C` | `DB_config` SSL fields | Runtime | backend and scripts | used by runtime SQL execution and offline scripts (`compileApp.cmd`, `CreateDB.cmd`, loader PowerShell); scripts stage bundled `sqlcmd` before invocation and normalize local server targets to `lpc:` when needed |
 
 ## 8. Non-Database Calculations
 - Status badges, dirty-state detection, copy-to-clipboard status, and diagnostics aggregation are client-side only.

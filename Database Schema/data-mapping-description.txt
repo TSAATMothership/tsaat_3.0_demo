@@ -159,6 +159,7 @@ Validation Rules Applied by loader/validator
   - 70% of assets modelled to ICT systems, 30% left unmodelled
   - ICT systems map server assets only (no workstations/network devices)
   - Per-system server count bounded to 20..300, with most systems < 50
+  - Discovery-enabled network target-state asset types must not produce discovery-missing rows
   - Flow dependency distribution per source CI:
     - 10% with 0 edges
     - 70% with 20..50 edges

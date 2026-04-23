@@ -8,6 +8,9 @@ set "BUILD_DATABASE_CMD=%REPO_ROOT%\buildDatabase.cmd"
 set "DEPS_DIR=%REPO_ROOT%\Dependencies"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
 set "LOCAL_NODE_MODULES=%REPO_ROOT%\node_modules"
+set "SQLCMD_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-sqlcmd-offline.ps1"
+set "BUNDLED_SQLCMD_EXE="
+set "BUNDLED_SQLCMD_DIR="
 
 set "DB_SERVER="
 set "DB_APP_DATABASE="
@@ -17,6 +20,7 @@ set "DB_PASSWORD="
 set "DB_ENCRYPT=false"
 set "DB_TRUST_SERVER_CERTIFICATE=false"
 set "DB_SSL_MODE=disabled"
+set "DB_SERVER_TARGET="
 
 echo [INFO] Offline database build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -38,15 +42,41 @@ if not exist "%VENDORED_NODE_MODULES%\" (
   call :fail "Missing offline dependency bundle: %VENDORED_NODE_MODULES%"
   exit /b 1
 )
+if not exist "%SQLCMD_HELPER_SCRIPT%" (
+  call :fail "Missing sqlcmd helper script: %SQLCMD_HELPER_SCRIPT%"
+  exit /b 1
+)
 
 where powershell >nul 2>nul
 if errorlevel 1 (
   call :fail "Required command not found in PATH: powershell"
   exit /b 1
 )
-where sqlcmd >nul 2>nul
+
+echo [INFO] Resolving bundled sqlcmd executable...
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SQLCMD_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%"`) do set "BUNDLED_SQLCMD_EXE=%%I"
 if errorlevel 1 (
-  call :fail "Required command not found in PATH: sqlcmd"
+  call :fail "Failed to stage bundled sqlcmd executable."
+  exit /b 1
+)
+if not defined BUNDLED_SQLCMD_EXE (
+  call :fail "Bundled sqlcmd resolver returned an empty path."
+  exit /b 1
+)
+if not exist "%BUNDLED_SQLCMD_EXE%" (
+  call :fail "Bundled sqlcmd executable not found: %BUNDLED_SQLCMD_EXE%"
+  exit /b 1
+)
+for %%I in ("%BUNDLED_SQLCMD_EXE%") do set "BUNDLED_SQLCMD_DIR=%%~dpI"
+if "%BUNDLED_SQLCMD_DIR%"=="" (
+  call :fail "Unable to resolve sqlcmd directory from: %BUNDLED_SQLCMD_EXE%"
+  exit /b 1
+)
+set "SQLCMD_PATH=%BUNDLED_SQLCMD_EXE%"
+set "PATH=%BUNDLED_SQLCMD_DIR%;%PATH%"
+"%BUNDLED_SQLCMD_EXE%" -? >nul 2>nul
+if errorlevel 1 (
+  call :fail "Bundled sqlcmd failed self-check: %BUNDLED_SQLCMD_EXE%"
   exit /b 1
 )
 where robocopy >nul 2>nul
@@ -88,6 +118,11 @@ if /I "%DB_ENCRYPT%"=="true" (
     set "DB_SSL_MODE=strict"
   )
 )
+call :resolveSqlcmdServerTarget "%DB_SERVER%" DB_SERVER_TARGET
+if errorlevel 1 (
+  call :fail "Unable to normalize SQL Server target for sqlcmd."
+  exit /b 1
+)
 
 if not defined DB_SERVER (
   call :fail "DB_config parsing did not produce DB_SERVER."
@@ -113,30 +148,32 @@ if /I "%DB_AUTH_MODE%"=="sql" (
 )
 
 echo [INFO] SQL Server instance: %DB_SERVER%
+echo [INFO] SQL Server target for sqlcmd: %DB_SERVER_TARGET%
 echo [INFO] Application database: %DB_APP_DATABASE%
 echo [INFO] Authentication mode: %DB_AUTH_MODE%
 echo [INFO] SSL mode: %DB_SSL_MODE%
+echo [INFO] Bundled sqlcmd path: %BUNDLED_SQLCMD_EXE%
 
 echo [INFO] Building schema and loading data...
 if /I "%DB_AUTH_MODE%"=="sql" (
   if /I "%DB_ENCRYPT%"=="true" (
     if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection -TrustServerCertificate
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection -TrustServerCertificate
     ) else (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection
     )
   ) else (
-    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
+    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
   )
 ) else (
   if /I "%DB_ENCRYPT%"=="true" (
     if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection -TrustServerCertificate
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection -TrustServerCertificate
     ) else (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection
+      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection
     )
   ) else (
-    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
+    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
   )
 )
 if errorlevel 1 (
@@ -151,3 +188,24 @@ exit /b 0
 :fail
 echo [ERROR] %~1
 exit /b 1
+
+:resolveSqlcmdServerTarget
+setlocal EnableDelayedExpansion
+set "RAW_SERVER=%~1"
+set "SERVER_TARGET=%RAW_SERVER%"
+if /I "!SERVER_TARGET:~0,4!"=="tcp:" goto resolve_done
+if /I "!SERVER_TARGET:~0,3!"=="np:" goto resolve_done
+if /I "!SERVER_TARGET:~0,4!"=="lpc:" goto resolve_done
+
+set "IS_LOCAL=false"
+if /I "!SERVER_TARGET!"=="localhost" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET!"=="." set "IS_LOCAL=true"
+if /I "!SERVER_TARGET!"=="(local)" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET:~0,10!"=="localhost\" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET:~0,2!"==".\" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET:~0,8!"=="(local)\" set "IS_LOCAL=true"
+if /I "!IS_LOCAL!"=="true" set "SERVER_TARGET=lpc:!SERVER_TARGET!"
+
+:resolve_done
+endlocal & set "%~2=%SERVER_TARGET%"
+exit /b 0

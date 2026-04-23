@@ -29,6 +29,9 @@ set "REQUIRED_SWC_DOWNLOAD_URL=https://registry.npmjs.org/@next/swc-win32-x64-ms
 set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
+set "SQLCMD_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-sqlcmd-offline.ps1"
+set "BUNDLED_SQLCMD_EXE="
+set "BUNDLED_SQLCMD_DIR="
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
 set "DB_CONF_SERVER="
 set "DB_CONF_DATABASE="
@@ -42,6 +45,7 @@ set "TSAAT_SQL_ENCRYPT="
 set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE="
 set "TSAAT_SQL_SSL_TYPE=disabled"
 set "TSAAT_SQL_SSL_ARGS="
+set "TSAAT_SQL_SERVER_TARGET="
 
 echo [INFO] Offline build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -86,6 +90,10 @@ if not exist "%VENDORED_LOCK%" (
 )
 if not exist "%DEPENDENCY_MANIFEST%" (
     echo [ERROR] Missing dependency manifest: %DEPENDENCY_MANIFEST%
+    exit /b 1
+)
+if not exist "%SQLCMD_HELPER_SCRIPT%" (
+    echo [ERROR] Missing sqlcmd helper script: %SQLCMD_HELPER_SCRIPT%
     exit /b 1
 )
 if not exist "%VENDORED_NODE_MODULES%\" (
@@ -138,9 +146,31 @@ if errorlevel 1 (
     echo [ERROR] Required command not found in PATH: powershell
     exit /b 1
 )
-where sqlcmd >nul 2>nul
+
+echo [INFO] Resolving bundled sqlcmd executable...
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%SQLCMD_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%"`) do set "BUNDLED_SQLCMD_EXE=%%I"
 if errorlevel 1 (
-    echo [ERROR] Required command not found in PATH: sqlcmd
+    echo [ERROR] Failed to stage bundled sqlcmd executable.
+    exit /b 1
+)
+if not defined BUNDLED_SQLCMD_EXE (
+    echo [ERROR] Bundled sqlcmd resolver returned an empty path.
+    exit /b 1
+)
+if not exist "%BUNDLED_SQLCMD_EXE%" (
+    echo [ERROR] Bundled sqlcmd executable not found: %BUNDLED_SQLCMD_EXE%
+    exit /b 1
+)
+for %%I in ("%BUNDLED_SQLCMD_EXE%") do set "BUNDLED_SQLCMD_DIR=%%~dpI"
+if "%BUNDLED_SQLCMD_DIR%"=="" (
+    echo [ERROR] Unable to resolve sqlcmd directory from: %BUNDLED_SQLCMD_EXE%
+    exit /b 1
+)
+set "SQLCMD_PATH=%BUNDLED_SQLCMD_EXE%"
+set "PATH=%BUNDLED_SQLCMD_DIR%;%PATH%"
+"%BUNDLED_SQLCMD_EXE%" -? >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] Bundled sqlcmd failed self-check: %BUNDLED_SQLCMD_EXE%
     exit /b 1
 )
 
@@ -203,6 +233,11 @@ if /I "%TSAAT_SQL_ENCRYPT%"=="true" (
         set "TSAAT_SQL_SSL_ARGS=-N"
     )
 )
+call :resolveSqlcmdServerTarget "%TSAAT_SQL_SERVER%" TSAAT_SQL_SERVER_TARGET
+if errorlevel 1 (
+    echo [ERROR] Unable to normalize SQL Server target for sqlcmd.
+    exit /b 1
+)
 
 for /f "usebackq delims=" %%I in (`"%VENDORED_NODE_EXE%" --version 2^>nul`) do set "NODE_VERSION_TEXT=%%I"
 for /f "usebackq delims=" %%I in (`"%VENDORED_NPM_CMD%" --version 2^>nul`) do set "NPM_VERSION_TEXT=%%I"
@@ -254,16 +289,18 @@ echo [INFO] Vendored dependency source: %VENDORED_NODE_MODULES%
 echo [INFO] Required SWC package: %REQUIRED_SWC_PACKAGE_NAME%@%REQUIRED_SWC_PACKAGE_VERSION%
 echo [INFO] Bundled SWC archive path: %BUNDLED_SWC_TARBALL%
 echo [INFO] External staged SWC binary path (if needed): %STAGED_SWC_BINARY%
+echo [INFO] Bundled sqlcmd path: %BUNDLED_SQLCMD_EXE%
 echo [INFO] SQL Server instance: %TSAAT_SQL_SERVER%
+echo [INFO] SQL Server target for sqlcmd: %TSAAT_SQL_SERVER_TARGET%
 echo [INFO] SQL Server database: %TSAAT_APP_DATABASE%
 echo [INFO] SQL authentication mode: %TSAAT_SQL_AUTH_MODE%
 echo [INFO] SQL SSL mode: %TSAAT_SQL_SSL_TYPE%
 
 echo [INFO] Validating SQL connectivity and required seeded tables...
 if /I "%TSAAT_SQL_AUTH_MODE%"=="sql" (
-    sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" %TSAAT_SQL_SSL_ARGS% -U "%TSAAT_SQL_USER%" -P "%TSAAT_SQL_PASSWORD%" -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
+    "%BUNDLED_SQLCMD_EXE%" -S "%TSAAT_SQL_SERVER_TARGET%" -d "%TSAAT_APP_DATABASE%" %TSAAT_SQL_SSL_ARGS% -U "%TSAAT_SQL_USER%" -P "%TSAAT_SQL_PASSWORD%" -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
 ) else (
-    sqlcmd -S "%TSAAT_SQL_SERVER%" -d "%TSAAT_APP_DATABASE%" %TSAAT_SQL_SSL_ARGS% -E -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
+    "%BUNDLED_SQLCMD_EXE%" -S "%TSAAT_SQL_SERVER_TARGET%" -d "%TSAAT_APP_DATABASE%" %TSAAT_SQL_SSL_ARGS% -E -b -Q "SET NOCOUNT ON; IF OBJECT_ID(N'tsaat.dataset_snapshot', N'U') IS NULL THROW 51000, N'Missing required table tsaat.dataset_snapshot.', 1; IF NOT EXISTS (SELECT 1 FROM tsaat.dataset_snapshot) THROW 51000, N'tsaat.dataset_snapshot is empty. Run database load before compile.', 1; SELECT 1;" >nul 2>nul
 )
 if errorlevel 1 (
     echo [ERROR] Unable to validate required database state at %TSAAT_SQL_SERVER% / %TSAAT_APP_DATABASE%. Ensure the TSAAT database schema and seed data are loaded before offline build.
@@ -380,6 +417,27 @@ if errorlevel 1 (
 )
 
 echo [SUCCESS] Offline dependency build and application build completed successfully.
+exit /b 0
+
+:resolveSqlcmdServerTarget
+setlocal EnableDelayedExpansion
+set "RAW_SERVER=%~1"
+set "SERVER_TARGET=%RAW_SERVER%"
+if /I "!SERVER_TARGET:~0,4!"=="tcp:" goto resolve_done
+if /I "!SERVER_TARGET:~0,3!"=="np:" goto resolve_done
+if /I "!SERVER_TARGET:~0,4!"=="lpc:" goto resolve_done
+
+set "IS_LOCAL=false"
+if /I "!SERVER_TARGET!"=="localhost" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET!"=="." set "IS_LOCAL=true"
+if /I "!SERVER_TARGET!"=="(local)" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET:~0,10!"=="localhost\" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET:~0,2!"==".\" set "IS_LOCAL=true"
+if /I "!SERVER_TARGET:~0,8!"=="(local)\" set "IS_LOCAL=true"
+if /I "!IS_LOCAL!"=="true" set "SERVER_TARGET=lpc:!SERVER_TARGET!"
+
+:resolve_done
+endlocal & set "%~2=%SERVER_TARGET%"
 exit /b 0
 
 :extractBundledSwcArtifact

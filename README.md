@@ -25,7 +25,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 
 - Bundled Node.js runtime is included at `Dependencies/runtime/nodejs/win-x64` for offline compile (including `node_modules/npm/bin/npm-cli.js`)
 - SQL Server Express instance (`localhost\SQLEXPRESS`)
-- `sqlcmd` available in `PATH`
+- Bundled `sqlcmd` archive is included at `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip` (auto-staged by offline scripts)
 - Windows PowerShell available in `PATH`
 - Offline compile entrypoint is `compileApp.cmd` (single supported compile command)
 - Bundled SWC archive (included in-repo, under 100 MB):
@@ -43,7 +43,7 @@ npm install --legacy-peer-deps
 
 ## Offline Build and Database Setup (Windows)
 
-### Step 0: Verify Bundled Large Dependency Artifact (>100 MB Extracted)
+### Step 0: Verify Bundled Offline Dependency Artifacts
 
 Before running `compileApp.cmd` on a machine without internet access, verify bundled dependency artifacts are present.
 
@@ -78,7 +78,33 @@ if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToUpperInvariant() -ne "AB5D8
    - Both `compileApp.cmd` and `npm run dev` validate archive and binary size/hash before use.
    - `compileApp.cmd` fails if this >100 MB binary is vendored inside `Dependencies/node_modules`; it must remain external/runtime-generated.
 
-2. SQL Server Express installer (required only when SQL Server is not already installed)
+2. sqlcmd for Windows x64 (required for DB connectivity checks and loaders)
+   - Bundled in-repo source archive:
+     - `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip`
+   - Runtime file path used by offline scripts (auto-staged when missing):
+     - `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`
+   - Version required by this repo:
+     - `sqlcmd v1.10.0` (`go-sqlcmd`)
+   - Download source:
+     - `https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-windows-amd64.zip`
+   - Canonical artifact fingerprint used by offline scripts:
+     - Source zip size (`sqlcmd-windows-amd64-1.10.0.zip`): `23964312` bytes
+     - Source zip SHA-256: `A4C28332FCC6E497D655E53AC8F4939F4AB170F9CFD32D0FA5081B60F4D9D691`
+     - Staged executable size (`sqlcmd.exe`): `24499224` bytes
+     - Staged executable SHA-256: `D9DBD1A8BD26213747B246DEBA1E13663A7E1DEF530CD961D7582B41A5E27852`
+   - Optional refresh procedure on an internet-connected Windows machine:
+
+```powershell
+New-Item -ItemType Directory -Path .\Dependencies\offline-artifacts\sqlcmd -Force | Out-Null
+Invoke-WebRequest -Uri "https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-windows-amd64.zip" -OutFile ".\Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip"
+$archive = ".\Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip"
+if ((Get-Item $archive).Length -ne 23964312) { throw "Unexpected sqlcmd archive size." }
+if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToUpperInvariant() -ne "A4C28332FCC6E497D655E53AC8F4939F4AB170F9CFD32D0FA5081B60F4D9D691") { throw "Unexpected sqlcmd archive hash." }
+```
+
+   - `scripts/ensure-sqlcmd-offline.ps1` stages `sqlcmd.exe` into `Dependencies/external/sqlcmd/win-x64/` and validates size/hash before use.
+
+3. SQL Server Express installer (required only when SQL Server is not already installed)
    - File: `SQLEXPR_x64_ENU.exe` (typically >100 MB)
    - Download from: Microsoft SQL Server downloads page (`https://www.microsoft.com/sql-server/sql-server-downloads`) and choose the Express edition installer.
    - Install using a default `SQLEXPRESS` instance with Windows authentication.
@@ -94,6 +120,8 @@ compileApp.cmd
 What it does:
 
 - Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
+- Resolves/stages bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip`
+- Normalizes local SQL named-instance targets (for example `localhost\SQLEXPRESS`) to `lpc:` protocol for bundled `sqlcmd` compatibility
 - Restores vendored dependencies from `Dependencies/node_modules`
 - Verifies `next` and the full dependency tree are restored before build
 - Verifies required Next.js SWC artifact fingerprints; auto-extracts from `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz` when needed
@@ -138,7 +166,7 @@ BEGIN
 END
 ```
 
-You can run this from SSMS or `sqlcmd` against `master`.
+You can run this from SSMS or the bundled sqlcmd (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`) against `master`.
 
 ### Step 3: Update DB_config
 
@@ -180,6 +208,8 @@ CreateDB.cmd
 What it does:
 
 - Reads SQL connection details from `DB_config`
+- Stages and uses bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip`
+- Normalizes local SQL named-instance targets (for example `localhost\SQLEXPRESS`) to `lpc:` protocol for bundled `sqlcmd` compatibility
 - Connects with SQL authentication (`User Id` / `Password`) or trusted auth fallback
 - Applies SSL mode from `DB_config` (`Encrypt` + `TrustServerCertificate`)
 - Creates/updates the application database
@@ -215,6 +245,8 @@ Notes for offline Windows dev:
   - copies the staged SWC file from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
 - If both the staged SWC binary and bundled SWC archive are missing, startup exits with a clear local error instead of trying to download from npm.
 - Database connectivity and SSL settings can be updated at runtime via `/settings` -> `Database Settings` and persisted to `DB_config` after successful connection + schema checks (plus SSL test when SSL is enabled).
+- Runtime SQL execution resolves `sqlcmd` in this order: `SQLCMD_PATH`, bundled staged path `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`, then `PATH`.
+- Runtime SQL execution normalizes local SQL named-instance targets to `lpc:` when no explicit protocol prefix is provided.
 - If runtime SQL auth from `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
 
 ## Build and Start

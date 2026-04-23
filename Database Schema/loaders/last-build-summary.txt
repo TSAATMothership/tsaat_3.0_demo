@@ -18,7 +18,7 @@ tsaat.measures_settings_version|1
 tsaat.measures_severity_matrix|60
 tsaat.network_declared_asset|8000
 tsaat.network_declared_system|160
-tsaat.network_target_state_asset|9400
+tsaat.network_target_state_asset|8744
 tsaat.reference_os_current_major|7
 tsaat.reference_software_supported_version|60
 tsaat.reference_version_set|1
@@ -28,3 +28,4 @@ tsaat.system_business_service|312
 tsaat.system_environment|448
 tsaat.system_environment_asset|5600
 tsaat.system_mission_capability|344
+

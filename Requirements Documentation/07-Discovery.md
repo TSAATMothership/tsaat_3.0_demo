@@ -132,6 +132,7 @@ Primary data dependencies:
 - Discovery compliance depends on the latest saved discovery tool settings.
 - Discovery tool scope stores six canonical asset-type keys for every tool and defaults each key to `required`.
 - The target-state tab uses DB-backed target-state asset-name records and name/type matching against scoped discovered assets.
+- Discovery-enabled networks are expected to have matched discovered data for each modelled target-state asset type (no discovery-missing rows for modelled types).
 - Tool settings changes affect subsequent runtime evaluations rather than historical snapshot facts.
 
 ## 10. Open Questions / Gaps

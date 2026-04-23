@@ -111,6 +111,9 @@ async function main() {
         discoveryMissingResults += 1;
         continue;
       }
+      if (cell.state === "target-and-discovery-missing") {
+        continue;
+      }
 
       mappedResults += 1;
       if (cell.coveragePercent > 95) {
@@ -126,7 +129,7 @@ async function main() {
   }
 
   assert(targetMissingResults > 0, "Dataset must include target-state-missing examples.");
-  assert(discoveryMissingResults > 0, "Dataset must include discovery-missing examples.");
+  assert(discoveryMissingResults === 0, "Dataset must not include discovery-missing examples.");
   assert(mappedResults > 0, "Dataset must include mapped target-state results.");
   assert(
     overNinetyResults + betweenTwentyAndEightyFiveResults === mappedResults,

@@ -561,7 +561,6 @@ function assignNetworkTargetStateAssets(random: Random, networks: ManagedNetwork
   });
 
   const targetMissingKeys = new Set<string>();
-  const discoveryMissingKeys = new Set<string>();
   const nonMappedOrder = shuffledIndices(random, nonMappedCombos.length);
   const minimumMappedCount = 10;
   const supplementalMappedCount = Math.max(0, Math.min(nonMappedCombos.length, minimumMappedCount - mappedCandidateCombos.length));
@@ -576,26 +575,18 @@ function assignNetworkTargetStateAssets(random: Random, networks: ManagedNetwork
   for (let orderIndex = 0; orderIndex < missingPoolCombos.length; orderIndex += 1) {
     const combo = missingPoolCombos[orderIndex];
     const key = comboKey(combo.networkId, combo.assetType);
-    if (orderIndex % 2 === 0) {
-      targetMissingKeys.add(key);
-    } else {
-      discoveryMissingKeys.add(key);
-    }
+    targetMissingKeys.add(key);
   }
 
   if (!targetMissingKeys.size && mappedCandidateCombos.length > 0) {
     targetMissingKeys.add(comboKey(mappedCandidateCombos[0].networkId, mappedCandidateCombos[0].assetType));
   }
-  if (!discoveryMissingKeys.size && mappedCandidateCombos.length > 1) {
-    discoveryMissingKeys.add(comboKey(mappedCandidateCombos[1].networkId, mappedCandidateCombos[1].assetType));
-  }
-
   const mappedCombos = [...mappedCandidateCombos.filter((combo) => {
     const key = comboKey(combo.networkId, combo.assetType);
-    return !targetMissingKeys.has(key) && !discoveryMissingKeys.has(key);
+    return !targetMissingKeys.has(key);
   }), ...supplementalMappedCombos.filter((combo) => {
     const key = comboKey(combo.networkId, combo.assetType);
-    return !targetMissingKeys.has(key) && !discoveryMissingKeys.has(key) && supplementalMappedKeys.has(key);
+    return !targetMissingKeys.has(key) && supplementalMappedKeys.has(key);
   })];
   const mappedCount = mappedCombos.length;
   const mappedDistributionCombos = mappedCombos.filter((combo) => {
@@ -635,18 +626,6 @@ function assignNetworkTargetStateAssets(random: Random, networks: ManagedNetwork
 
     if (targetMissingKeys.has(key)) {
       targetStateAssets[combo.assetType] = [];
-      continue;
-    }
-
-    if (discoveryMissingKeys.has(key)) {
-      const unmatchedCount = Math.max(1, Math.round(Math.max(discoveredNames.length, 1) * 0.75));
-      const existingNames = new Set(discoveredNames.map((name) => name.trim().toLowerCase()));
-      targetStateAssets[combo.assetType] = buildUnmatchedTargetNames(
-        combo.networkId,
-        combo.assetType,
-        existingNames,
-        unmatchedCount
-      );
       continue;
     }
 

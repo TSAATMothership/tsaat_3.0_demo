@@ -1,7 +1,7 @@
 ﻿import "server-only";
 
 import { execFile } from "child_process";
-import { promises as fs } from "fs";
+import { existsSync, promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { promisify } from "util";
@@ -230,7 +230,42 @@ export async function resolveSqlServerName(): Promise<string> {
 
 function resolveSqlcmdExecutable(): string {
   const fromEnv = process.env.SQLCMD_PATH ?? "";
-  return fromEnv.trim() || "sqlcmd";
+  if (fromEnv.trim()) {
+    return fromEnv.trim();
+  }
+
+  const bundledCandidates = [
+    path.join(process.cwd(), "Dependencies", "external", "sqlcmd", "win-x64", "sqlcmd.exe"),
+    path.join(process.cwd(), "Dependencies", "runtime", "sqlcmd", "win-x64", "sqlcmd.exe")
+  ];
+  for (const candidate of bundledCandidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "sqlcmd";
+}
+
+function resolveSqlcmdServerTarget(server: string): string {
+  const normalized = server.trim();
+  if (/^(tcp|np|lpc):/i.test(normalized)) {
+    return normalized;
+  }
+
+  const isLocalTarget =
+    normalized === "localhost" ||
+    normalized === "." ||
+    normalized === "(local)" ||
+    /^localhost\\/i.test(normalized) ||
+    /^\.\\/i.test(normalized) ||
+    /^\(local\)\\/i.test(normalized);
+
+  if (isLocalTarget) {
+    return `lpc:${normalized}`;
+  }
+
+  return normalized;
 }
 
 async function resolveEffectiveConnection(databaseName?: string): Promise<ResolvedSqlConnection> {
@@ -321,11 +356,12 @@ async function executeSqlFileAgainstConnection(
   const sqlcmd = resolveSqlcmdExecutable();
 
   const runSqlcmd = async (targetConnection: ResolvedSqlConnection): Promise<string> => {
+    const targetServer = resolveSqlcmdServerTarget(targetConnection.server);
     const { stdout, stderr } = await execFileAsync(
       sqlcmd,
       [
         "-S",
-        targetConnection.server,
+        targetServer,
         "-d",
         targetConnection.database,
         ...buildSqlcmdAuthArgs(targetConnection.auth),
@@ -361,7 +397,7 @@ async function executeSqlFileAgainstConnection(
     error: { code?: number; message?: string; stdout?: string; stderr?: string }
   ): string =>
     [
-      `sqlcmd failed against server '${targetConnection.server}' database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication (SSL ${targetConnection.sslEnabled ? targetConnection.sslType : "disabled"}).`,
+      `sqlcmd failed against server '${targetConnection.server}' (target '${resolveSqlcmdServerTarget(targetConnection.server)}') database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication (SSL ${targetConnection.sslEnabled ? targetConnection.sslType : "disabled"}).`,
       error.message ? `Message: ${error.message}` : undefined,
       error.code !== undefined ? `Exit code: ${error.code}` : undefined,
       error.stderr?.trim() ? `stderr: ${error.stderr.trim()}` : undefined,

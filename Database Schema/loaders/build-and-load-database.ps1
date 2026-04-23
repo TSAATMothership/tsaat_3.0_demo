@@ -40,6 +40,62 @@ if ($EncryptConnection.IsPresent -or $TrustServerCertificate.IsPresent) {
   }
 }
 
+$loaderDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$packageRoot = Split-Path -Parent $loaderDir
+$repoRoot = Split-Path -Parent $packageRoot
+
+function Resolve-SqlcmdExecutable {
+  $fromEnv = $env:SQLCMD_PATH
+  if (-not [string]::IsNullOrWhiteSpace($fromEnv)) {
+    $resolvedFromEnv = Resolve-Path -LiteralPath $fromEnv -ErrorAction SilentlyContinue
+    if ($null -eq $resolvedFromEnv) {
+      throw "SQLCMD_PATH is set but executable was not found: $fromEnv"
+    }
+    return $resolvedFromEnv.Path
+  }
+
+  $bundledCandidate = Join-Path $repoRoot 'Dependencies\external\sqlcmd\win-x64\sqlcmd.exe'
+  if (Test-Path -LiteralPath $bundledCandidate) {
+    return (Resolve-Path -LiteralPath $bundledCandidate).Path
+  }
+
+  $sqlcmdCommand = Get-Command sqlcmd -ErrorAction SilentlyContinue
+  if ($null -ne $sqlcmdCommand) {
+    return $sqlcmdCommand.Source
+  }
+
+  throw 'sqlcmd is required but was not found. Run CreateDB.cmd or compileApp.cmd to stage bundled sqlcmd, or set SQLCMD_PATH to a valid sqlcmd executable.'
+}
+
+function Resolve-SqlcmdServerTarget {
+  param(
+    [Parameter(Mandatory = $true)][string]$Server
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Server)) {
+    return $Server
+  }
+
+  $normalized = $Server.Trim()
+  if ($normalized -match '^(?i)(tcp|np|lpc):') {
+    return $normalized
+  }
+
+  $isLocalTarget =
+    $normalized -ieq 'localhost' -or
+    $normalized -ieq '.' -or
+    $normalized -ieq '(local)' -or
+    $normalized.StartsWith('localhost\', [System.StringComparison]::OrdinalIgnoreCase) -or
+    $normalized.StartsWith('.\', [System.StringComparison]::OrdinalIgnoreCase) -or
+    $normalized.StartsWith('(local)\', [System.StringComparison]::OrdinalIgnoreCase)
+
+  if ($isLocalTarget) {
+    return "lpc:$normalized"
+  }
+
+  return $normalized
+}
+
 function Invoke-SqlText {
   param(
     [Parameter(Mandatory = $true)][string]$Server,
@@ -50,7 +106,7 @@ function Invoke-SqlText {
   )
 
   $args = @('-S', $Server, '-d', $Database) + $AuthArgs + $SecurityArgs + @('-Q', $SqlText, '-b')
-  & sqlcmd @args
+  & $script:SqlcmdExecutable @args
   if ($LASTEXITCODE -ne 0) {
     throw "sqlcmd failed for inline query against [$Database]."
   }
@@ -79,20 +135,14 @@ function Invoke-SqlFile {
     }
   }
 
-  & sqlcmd @args
+  & $script:SqlcmdExecutable @args
   if ($LASTEXITCODE -ne 0) {
     throw "sqlcmd failed for file: $File"
   }
 }
 
-$sqlcmdPath = (Get-Command sqlcmd -ErrorAction SilentlyContinue)
-if ($null -eq $sqlcmdPath) {
-  throw 'sqlcmd is required but not installed or not in PATH.'
-}
-
-$loaderDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$packageRoot = Split-Path -Parent $loaderDir
-$repoRoot = Split-Path -Parent $packageRoot
+$script:SqlcmdExecutable = Resolve-SqlcmdExecutable
+$sqlcmdServerInstance = Resolve-SqlcmdServerTarget -Server $ServerInstance
 
 $schemaFile = Join-Path $packageRoot 'database-schema.sql'
 $migrationsDir = Join-Path $packageRoot 'migrations'
@@ -169,9 +219,11 @@ foreach ($snapshotFile in $manifest.snapshotFiles) {
 
 Write-Host "Discovered application database name: $DatabaseName"
 Write-Host "Server: $ServerInstance"
+Write-Host "SQL Server target for sqlcmd: $sqlcmdServerInstance"
 Write-Host "Admin database: $AdminDatabase"
 Write-Host "Authentication mode: $sqlAuthMode"
 Write-Host "SSL mode: $sqlSslMode"
+Write-Host "sqlcmd executable: $script:SqlcmdExecutable"
 Write-Host "Package root: $packageRoot"
 Write-Host "Snapshots root: $snapshotsRoot"
 
@@ -187,10 +239,10 @@ BEGIN
   PRINT 'Database [$DatabaseName] already exists';
 END
 "@
-Invoke-SqlText -Server $ServerInstance -Database $AdminDatabase -SqlText $createDbSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+Invoke-SqlText -Server $sqlcmdServerInstance -Database $AdminDatabase -SqlText $createDbSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
 
 Write-Host 'Applying base schema...'
-Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $schemaFile -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $schemaFile -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
 
 Write-Host 'Applying migrations (if any)...'
 $migrationFiles = @()
@@ -203,18 +255,18 @@ if ($migrationFiles.Count -eq 0) {
 } else {
   foreach ($migration in $migrationFiles) {
     Write-Host "Applying migration: $($migration.Name)"
-    Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $migration.FullName -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+    Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $migration.FullName -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
   }
 }
 
 Write-Host 'Loading seed/reference/application data...'
-Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs -Variables @{
+Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs -Variables @{
   PackageDataRoot = $packageDataRoot
   SnapshotsRoot = $snapshotsRoot
 }
 
 Write-Host 'Running validation checks...'
-Invoke-SqlFile -Server $ServerInstance -Database $DatabaseName -File $validateSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $validateSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
 
 $summarySql = @"
 SET NOCOUNT ON;
@@ -229,8 +281,8 @@ GROUP BY s.name, t.name
 ORDER BY s.name, t.name;
 "@
 
-$summaryArgs = @('-S', $ServerInstance, '-d', $DatabaseName) + $sqlAuthArgs + $sqlSecurityArgs + @('-Q', $summarySql, '-W', '-s', '|', '-h', '-1')
-$summaryOutput = & sqlcmd @summaryArgs
+$summaryArgs = @('-S', $sqlcmdServerInstance, '-d', $DatabaseName) + $sqlAuthArgs + $sqlSecurityArgs + @('-Q', $summarySql, '-W', '-s', '|', '-h', '-1')
+$summaryOutput = & $script:SqlcmdExecutable @summaryArgs
 if ($LASTEXITCODE -ne 0) {
   throw 'Failed to collect final summary row counts.'
 }
