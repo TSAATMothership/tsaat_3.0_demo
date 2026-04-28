@@ -59,7 +59,7 @@ The page specifications repeatedly reference the following shared implementation
 - `lib/analytics.ts`: runtime evaluation, rollup, finding, and compliance assembly
 - `lib/asset-taxonomy.ts`: canonical asset type IDs, labels, and ordering
 - `lib/selectors.ts`: query-parameter parsing and filter application
-- `lib/db-config.ts`: `DB_config` parsing/normalization/formatting
+- `lib/db-config.ts`: encrypted `DB_config` envelope parsing/normalization/DPAPI encryption
 - `lib/database-settings.ts`: database connection, SSL, and schema validation
 - `lib/sql-server.ts`: runtime `sqlcmd` execution, bundled path fallback (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`), local target normalization (`lpc:`), and SSL flag mapping
 - `components/filter-bar.tsx`: common filter UI and loading overlay behaviour

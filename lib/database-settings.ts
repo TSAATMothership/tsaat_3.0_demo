@@ -40,6 +40,12 @@ export interface DatabaseValidationResult {
   diagnostics: string;
 }
 
+export interface DatabaseSettingsViewModel extends EditableDatabaseConnectionInput {
+  hasStoredPassword: boolean;
+}
+
+export const STORED_DB_PASSWORD_PLACEHOLDER = "__TSAAT_STORED_DB_PASSWORD__";
+
 const REQUIRED_TABLES: string[] = [
   "dataset_snapshot",
   "managed_network",
@@ -113,24 +119,84 @@ function toSqlConnectionInput(settings: EditableDatabaseConnectionInput): SqlCon
   };
 }
 
-export async function loadDatabaseSettingsDefaults(): Promise<EditableDatabaseConnectionInput> {
-  const fileSettings = await loadDatabaseConnectionSettingsFromFile();
-  const fallbackServer = await resolveSqlServerName();
-  const fallbackDatabase = await resolveAppDatabaseName();
+export async function loadDatabaseSettingsDefaults(): Promise<DatabaseSettingsViewModel> {
+  let fileSettings: Awaited<ReturnType<typeof loadDatabaseConnectionSettingsFromFile>> = null;
+  try {
+    fileSettings = await loadDatabaseConnectionSettingsFromFile();
+  } catch {
+    // Fall back to environment/defaults so settings UI can recover by saving a new encrypted config.
+    fileSettings = null;
+  }
+  let fallbackServer = "localhost\\SQLEXPRESS";
+  let fallbackDatabase = "TSAAT";
+  try {
+    fallbackServer = await resolveSqlServerName();
+  } catch {
+    fallbackServer = "localhost\\SQLEXPRESS";
+  }
+  try {
+    fallbackDatabase = await resolveAppDatabaseName();
+  } catch {
+    fallbackDatabase = "TSAAT";
+  }
+  const hasStoredPassword =
+    fileSettings?.authMode === "sql" &&
+    typeof fileSettings.password === "string" &&
+    fileSettings.password.trim().length > 0;
 
   return {
     server: fileSettings?.server?.trim() || fallbackServer,
     database: fileSettings?.database?.trim() || fallbackDatabase,
     authMode: fileSettings?.authMode ?? "trusted",
     userId: fileSettings?.userId?.trim() || "",
-    password: fileSettings?.password?.trim() || "",
+    password: hasStoredPassword ? STORED_DB_PASSWORD_PLACEHOLDER : "",
     sslEnabled: fileSettings?.sslEnabled ?? false,
-    sslType: fileSettings?.sslType ?? "strict"
+    sslType: fileSettings?.sslType ?? "strict",
+    hasStoredPassword
   };
 }
 
 export function normalizeDatabaseSettingsPayload(input: unknown): EditableDatabaseConnectionInput {
   return normalizeEditableDatabaseConnectionInput(input);
+}
+
+async function resolveStoredPasswordPlaceholder(
+  settings: EditableDatabaseConnectionInput
+): Promise<EditableDatabaseConnectionInput> {
+  if (settings.authMode !== "sql") {
+    return { ...settings, password: "" };
+  }
+
+  if (settings.password !== STORED_DB_PASSWORD_PLACEHOLDER) {
+    return settings;
+  }
+
+  const stored = await loadDatabaseConnectionSettingsFromFile();
+  if (!stored || stored.authMode !== "sql") {
+    throw new Error("Stored SQL password is unavailable. Enter the password and test again.");
+  }
+
+  const storedUserId = stored.userId.trim();
+  const storedPassword = stored.password.trim();
+  if (!storedUserId || !storedPassword) {
+    throw new Error("Stored SQL password is unavailable. Enter the password and test again.");
+  }
+
+  if (storedUserId.toLowerCase() !== settings.userId.trim().toLowerCase()) {
+    throw new Error("SQL User Id changed. Enter the password for the selected user.");
+  }
+
+  return {
+    ...settings,
+    password: storedPassword
+  };
+}
+
+export async function normalizeDatabaseSettingsPayloadForProcessing(
+  input: unknown
+): Promise<EditableDatabaseConnectionInput> {
+  const normalized = normalizeDatabaseSettingsPayload(input);
+  return resolveStoredPasswordPlaceholder(normalized);
 }
 
 export async function testDatabaseConnection(
@@ -139,11 +205,10 @@ export async function testDatabaseConnection(
   const connection = toSqlConnectionInput(settings);
 
   try {
-    const payload = await executeSqlJsonWithConnection<{ databaseName: string; loginName: string }>(
+    const payload = await executeSqlJsonWithConnection<{ databaseName: string }>(
       `
 SELECT
-  DB_NAME() AS [databaseName],
-  SUSER_SNAME() AS [loginName]
+  DB_NAME() AS [databaseName]
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `,
       connection
@@ -158,8 +223,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
         `Database: ${payload.databaseName || settings.database}`,
         `Authentication mode: ${settings.authMode}`,
         `SSL enabled: ${settings.sslEnabled ? "Yes" : "No"}`,
-        `SSL type: ${settings.sslEnabled ? settings.sslType : "N/A"}`,
-        `Authenticated login: ${payload.loginName || settings.userId || "N/A"}`
+        `SSL type: ${settings.sslEnabled ? settings.sslType : "N/A"}`
       ].join("\n")
     };
   } catch (error) {
@@ -174,7 +238,6 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
         `Authentication mode: ${settings.authMode}`,
         `SSL enabled: ${settings.sslEnabled ? "Yes" : "No"}`,
         `SSL type: ${settings.sslEnabled ? settings.sslType : "N/A"}`,
-        `User Id: ${settings.authMode === "sql" ? settings.userId || "(empty)" : "N/A"}`,
         "",
         message
       ].join("\n")
@@ -365,6 +428,6 @@ export async function testDatabaseSchema(settings: EditableDatabaseConnectionInp
   }
 }
 
-export async function saveDatabaseSettings(settings: EditableDatabaseConnectionInput): Promise<string> {
+export async function saveDatabaseSettings(settings: EditableDatabaseConnectionInput): Promise<void> {
   return saveDatabaseConnectionSettingsToFile(settings);
 }

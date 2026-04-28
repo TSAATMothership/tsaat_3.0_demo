@@ -40,7 +40,7 @@ export default async function SettingsPage({
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">Settings</h1>
         <p className="mt-2 max-w-4xl text-sm text-slate-300/85">
           Configure runtime options for TSAAT. Database connection and SSL settings are read from and written to
-          `DB_config`.
+          encrypted `DB_config`.
         </p>
       </section>
 

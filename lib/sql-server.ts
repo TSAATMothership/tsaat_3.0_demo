@@ -81,6 +81,15 @@ function parseBoolean(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
+function redactSecrets(text: string): string {
+  return text
+    .replace(/(-P\s+)(\"[^\"]*\"|'[^']*'|\S+)/gi, "$1[REDACTED]")
+    .replace(/(-U\s+)(\"[^\"]*\"|'[^']*'|\S+)/gi, "$1[REDACTED]")
+    .replace(/(password\s*=\s*)([^;\r\n]+)/gi, "$1[REDACTED]")
+    .replace(/(pwd\s*=\s*)([^;\r\n]+)/gi, "$1[REDACTED]")
+    .replace(/(user\s*id\s*=\s*)([^;\r\n]+)/gi, "$1[REDACTED]");
+}
+
 function normalizeSslConfig(input: { sslEnabled?: boolean; sslType?: DatabaseSslType }): {
   sslEnabled: boolean;
   sslType: DatabaseSslType;
@@ -398,10 +407,10 @@ async function executeSqlFileAgainstConnection(
   ): string =>
     [
       `sqlcmd failed against server '${targetConnection.server}' (target '${resolveSqlcmdServerTarget(targetConnection.server)}') database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication (SSL ${targetConnection.sslEnabled ? targetConnection.sslType : "disabled"}).`,
-      error.message ? `Message: ${error.message}` : undefined,
+      error.message ? `Message: ${redactSecrets(error.message)}` : undefined,
       error.code !== undefined ? `Exit code: ${error.code}` : undefined,
-      error.stderr?.trim() ? `stderr: ${error.stderr.trim()}` : undefined,
-      error.stdout?.trim() ? `stdout: ${error.stdout.trim()}` : undefined
+      error.stderr?.trim() ? `stderr: ${redactSecrets(error.stderr.trim())}` : undefined,
+      error.stdout?.trim() ? `stdout: ${redactSecrets(error.stdout.trim())}` : undefined
     ]
       .filter(Boolean)
       .join("\n");

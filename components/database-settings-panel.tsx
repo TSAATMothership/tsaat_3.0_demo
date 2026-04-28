@@ -11,6 +11,7 @@ interface DatabaseSettingsForm {
   password: string;
   sslEnabled: boolean;
   sslType: "strict" | "trust-server-certificate";
+  hasStoredPassword: boolean;
 }
 
 interface DatabaseValidationResult {
@@ -41,7 +42,8 @@ function settingsEqual(left: DatabaseSettingsForm, right: DatabaseSettingsForm):
     left.userId === right.userId &&
     left.password === right.password &&
     left.sslEnabled === right.sslEnabled &&
-    left.sslType === right.sslType
+    left.sslType === right.sslType &&
+    left.hasStoredPassword === right.hasStoredPassword
   );
 }
 
@@ -92,7 +94,8 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
 
   const isDirty = useMemo(() => !settingsEqual(draftSettings, savedSettings), [draftSettings, savedSettings]);
   const hasAuthInput =
-    draftSettings.authMode === "trusted" || (draftSettings.userId.trim() !== "" && draftSettings.password.trim() !== "");
+    draftSettings.authMode === "trusted" ||
+    (draftSettings.userId.trim() !== "" && (draftSettings.password.trim() !== "" || draftSettings.hasStoredPassword));
   const canRunSslTest =
     draftSettings.sslEnabled &&
     Boolean(connectionResult?.success) &&
@@ -124,7 +127,8 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
   const setField = (key: "server" | "database" | "userId" | "password", value: string) => {
     setDraftSettings((current) => ({
       ...current,
-      [key]: value
+      [key]: value,
+      hasStoredPassword: key === "password" ? false : current.hasStoredPassword
     }));
     clearValidationState();
   };
@@ -350,8 +354,10 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
       setConnectionResult(payload.connectionResult);
       setSslResult(payload.sslResult ?? null);
       setSchemaResult(payload.schemaResult);
-      setSaveSuccess("Database settings saved to DB_config.");
-      setLogText((current) => appendLog(current, "Save", "Database settings were validated and written to DB_config."));
+      setSaveSuccess("Database settings saved to encrypted DB_config.");
+      setLogText((current) =>
+        appendLog(current, "Save", "Database settings were validated and written to encrypted DB_config.")
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save database settings.";
       setSaveError(message);
@@ -519,6 +525,12 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
       {draftSettings.authMode === "sql" && !hasAuthInput ? (
         <p className="mt-2 text-xs text-amber-200/90">
           Enter both User Id and Password to run SQL authentication tests.
+        </p>
+      ) : null}
+
+      {draftSettings.authMode === "sql" && draftSettings.hasStoredPassword ? (
+        <p className="mt-2 text-xs text-slate-300/90">
+          A stored SQL password exists. Leave the password field unchanged to reuse it.
         </p>
       ) : null}
 

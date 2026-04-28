@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import {
   loadDatabaseSettingsDefaults,
-  normalizeDatabaseSettingsPayload,
+  normalizeDatabaseSettingsPayloadForProcessing,
   saveDatabaseSettings,
   testDatabaseConnection,
   testDatabaseSsl,
@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const payload = normalizeDatabaseSettingsPayload(await request.json());
+    const payload = await normalizeDatabaseSettingsPayloadForProcessing(await request.json());
     const connectionResult = await testDatabaseConnection(payload);
     const sslResult = connectionResult.success && payload.sslEnabled ? await testDatabaseSsl(payload) : null;
     const schemaResult =
@@ -39,12 +39,11 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const connectionString = await saveDatabaseSettings(payload);
+    await saveDatabaseSettings(payload);
     const settings = await loadDatabaseSettingsDefaults();
 
     return NextResponse.json({
       settings,
-      connectionString,
       connectionResult,
       sslResult,
       schemaResult

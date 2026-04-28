@@ -18,28 +18,28 @@ Discovered Application Database Name
 
 SQL Server Target
 -----------------
-- Server: configured in `DB_config` (`Server=...`)
-- Application database: configured in `DB_config` (`Database=...`)
+- Server: configured in encrypted `DB_config` payload (`server`).
+- Application database: configured in encrypted `DB_config` payload (`database`).
 - Authentication:
-  - Controlled by `Trusted_Connection=True|False` in `DB_config`
-  - `Trusted_Connection=True` => Windows trusted auth
-  - `Trusted_Connection=False` => SQL login via `User Id=...;Password=...;`
-  - SSL controlled by `Encrypt=True|False` and `TrustServerCertificate=True|False`
-  - `Encrypt=False` => no SSL transport encryption
-  - `Encrypt=True;TrustServerCertificate=False` => SSL with strict certificate validation
-  - `Encrypt=True;TrustServerCertificate=True` => SSL with trusted server certificate mode
-  - Runtime override for loaders/compile scripts: `TSAAT_SQL_TRUSTED_CONNECTION=true`
+  - Controlled by `authMode` in encrypted `DB_config` payload.
+  - `authMode=trusted` => Windows trusted auth.
+  - `authMode=sql` => SQL login via `userId` + `password`.
+  - SSL controlled by `sslEnabled` + `sslType`.
+  - `sslEnabled=false` => no SSL transport encryption.
+  - `sslEnabled=true, sslType=strict` => SSL with strict certificate validation.
+  - `sslEnabled=true, sslType=trust-server-certificate` => SSL with trusted server certificate mode.
+  - Runtime override for loaders/compile scripts: `TSAAT_SQL_TRUSTED_CONNECTION=true` and related SQL env vars.
 - Admin database for bootstrap: master
 - Application schema: tsaat
 
 Source Data Artefacts
 ---------------------
 Package-local files:
-- data/spi-definitions.json
-- data/discovery-tools-settings.json
-- data/measures-settings.json
-- data/reference-versions.json
-- data/database-build-manifest.json
+- Database Schema/data/spi-definitions.json
+- Database Schema/data/discovery-tools-settings.json
+- Database Schema/data/measures-settings.json
+- Database Schema/data/reference-versions.json
+- Database Schema/data/database-build-manifest.json
 
 Repository source snapshots:
 - ../data/snapshots/week-01.json ... week-08.json
@@ -80,15 +80,15 @@ Load Order (Deterministic)
 Field-Level Mapping Summary
 ---------------------------
 Reference and settings:
-- data/reference-versions.json.osCurrentMajor -> tsaat.reference_os_current_major
-- data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
-- data/spi-definitions.json.spis[] -> tsaat.spi_definition
-- data/spi-definitions.json.spis[].applicableAssetTypes[] -> tsaat.spi_applicable_asset_type
-- data/discovery-tools-settings.json.updatedAt -> tsaat.discovery_tools_settings_version.updated_at
-- data/discovery-tools-settings.json.tools[] -> tsaat.discovery_tool
-- data/discovery-tools-settings.json.tools[].assetTypeScope object -> tsaat.discovery_tool_asset_scope
-- data/measures-settings.json.updatedAt -> tsaat.measures_settings_version.updated_at
-- data/measures-settings.json.severityMatrix object key "spiId:assetType" -> tsaat.measures_severity_matrix
+- Database Schema/data/reference-versions.json.osCurrentMajor -> tsaat.reference_os_current_major
+- Database Schema/data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
+- Database Schema/data/spi-definitions.json.spis[] -> tsaat.spi_definition
+- Database Schema/data/spi-definitions.json.spis[].applicableAssetTypes[] -> tsaat.spi_applicable_asset_type
+- Database Schema/data/discovery-tools-settings.json.updatedAt -> tsaat.discovery_tools_settings_version.updated_at
+- Database Schema/data/discovery-tools-settings.json.tools[] -> tsaat.discovery_tool
+- Database Schema/data/discovery-tools-settings.json.tools[].assetTypeScope object -> tsaat.discovery_tool_asset_scope
+- Database Schema/data/measures-settings.json.updatedAt -> tsaat.measures_settings_version.updated_at
+- Database Schema/data/measures-settings.json.severityMatrix object key "spiId:assetType" -> tsaat.measures_severity_matrix
 
 Snapshots and domain entities:
 - snapshot root:

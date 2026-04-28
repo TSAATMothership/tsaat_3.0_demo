@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeDatabaseSettingsPayload, testDatabaseConnection, testDatabaseSsl } from "@/lib/database-settings";
+import {
+  normalizeDatabaseSettingsPayloadForProcessing,
+  testDatabaseConnection,
+  testDatabaseSsl
+} from "@/lib/database-settings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = normalizeDatabaseSettingsPayload(await request.json());
+    const payload = await normalizeDatabaseSettingsPayloadForProcessing(await request.json());
     if (!payload.sslEnabled) {
       return NextResponse.json(
         {

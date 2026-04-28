@@ -4,6 +4,7 @@ setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%.") do set "REPO_ROOT=%%~fI"
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
+set "DB_CONFIG_HELPER_SCRIPT=%REPO_ROOT%\scripts\emit-db-config-env.ps1"
 set "BUILD_DATABASE_CMD=%REPO_ROOT%\buildDatabase.cmd"
 set "DEPS_DIR=%REPO_ROOT%\Dependencies"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
@@ -26,10 +27,6 @@ echo [INFO] Offline database build started.
 echo [INFO] Repository root: %REPO_ROOT%
 echo [INFO] DB config file: %DB_CONFIG_FILE%
 
-if not exist "%DB_CONFIG_FILE%" (
-  call :fail "Missing DB config file: %DB_CONFIG_FILE%"
-  exit /b 1
-)
 if not exist "%BUILD_DATABASE_CMD%" (
   call :fail "Missing database build entrypoint: %BUILD_DATABASE_CMD%"
   exit /b 1
@@ -44,6 +41,10 @@ if not exist "%VENDORED_NODE_MODULES%\" (
 )
 if not exist "%SQLCMD_HELPER_SCRIPT%" (
   call :fail "Missing sqlcmd helper script: %SQLCMD_HELPER_SCRIPT%"
+  exit /b 1
+)
+if not exist "%DB_CONFIG_HELPER_SCRIPT%" (
+  call :fail "Missing DB config helper script: %DB_CONFIG_HELPER_SCRIPT%"
   exit /b 1
 )
 
@@ -94,23 +95,48 @@ if errorlevel 8 (
 )
 echo [INFO] Local node_modules is ready for offline use.
 
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; function Convert-Bool([string]$value, [string]$name){ if([string]::IsNullOrWhiteSpace($value)){ return $null }; $normalized = $value.Trim().ToLowerInvariant(); if($normalized -in @('true','1','yes','y','sspi')){ return $true }; if($normalized -in @('false','0','no','n')){ return $false }; throw ('DB_config ' + $name + ' value is invalid.') }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = Convert-Bool $map['trustedconnection'] 'Trusted_Connection'; $encrypt = Convert-Bool $map['encrypt'] 'Encrypt'; $trustCert = Convert-Bool $map['trustservercertificate'] 'TrustServerCertificate'; if($trustCert -eq $true){ $encrypt = $true }; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; $isTrusted = $trusted -eq $true; Write-Output ('set DB_SERVER=' + $server); Write-Output ('set DB_APP_DATABASE=' + $database); if($isTrusted){ Write-Output 'set DB_AUTH_MODE=trusted' } elseif(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output 'set DB_AUTH_MODE=sql'; Write-Output ('set DB_USER_ID=' + $userId); Write-Output ('set DB_PASSWORD=' + $password) } else { throw 'DB_config must provide Trusted_Connection=True or User Id/Password.' }; if($encrypt -ne $null){ Write-Output ('set DB_ENCRYPT=' + ([string]$encrypt).ToLowerInvariant()) }; if($trustCert -ne $null){ Write-Output ('set DB_TRUST_SERVER_CERTIFICATE=' + ([string]$trustCert).ToLowerInvariant()) }"`) do %%I
-if errorlevel 1 (
-  call :fail "Unable to parse DB_config connection string."
-  exit /b 1
+if exist "%DB_CONFIG_FILE%" (
+  for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"`) do %%I
+  if errorlevel 1 (
+    echo [WARN] Unable to parse or decrypt DB_config. Environment variables will be used.
+    set "DB_SERVER="
+    set "DB_APP_DATABASE="
+    set "DB_AUTH_MODE="
+    set "DB_USER_ID="
+    set "DB_PASSWORD="
+    set "DB_ENCRYPT=false"
+    set "DB_TRUST_SERVER_CERTIFICATE=false"
+  )
+) else (
+  echo [WARN] DB_config is missing. Environment variables will be used.
 )
+
+if "%DB_SERVER%"=="" if not "%TSAAT_SQL_SERVER%"=="" set "DB_SERVER=%TSAAT_SQL_SERVER%"
+if "%DB_APP_DATABASE%"=="" if not "%TSAAT_APP_DATABASE%"=="" set "DB_APP_DATABASE=%TSAAT_APP_DATABASE%"
+if "%DB_USER_ID%"=="" if not "%TSAAT_SQL_USER%"=="" set "DB_USER_ID=%TSAAT_SQL_USER%"
+if "%DB_PASSWORD%"=="" if not "%TSAAT_SQL_PASSWORD%"=="" set "DB_PASSWORD=%TSAAT_SQL_PASSWORD%"
 
 if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
   set "DB_AUTH_MODE=trusted"
   set "DB_USER_ID="
   set "DB_PASSWORD="
 )
+if /I "%DB_AUTH_MODE%"=="" (
+  if not "%DB_USER_ID%"=="" (
+    if not "%DB_PASSWORD%"=="" (
+      set "DB_AUTH_MODE=sql"
+    )
+  )
+)
+if /I "%DB_AUTH_MODE%"=="" set "DB_AUTH_MODE=trusted"
 if not "%TSAAT_SQL_ENCRYPT%"=="" set "DB_ENCRYPT=%TSAAT_SQL_ENCRYPT%"
 if not "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="" set "DB_TRUST_SERVER_CERTIFICATE=%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"
 if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" set "DB_ENCRYPT=true"
 if /I not "%DB_ENCRYPT%"=="true" set "DB_TRUST_SERVER_CERTIFICATE=false"
 if "%DB_ENCRYPT%"=="" set "DB_ENCRYPT=false"
 if "%DB_TRUST_SERVER_CERTIFICATE%"=="" set "DB_TRUST_SERVER_CERTIFICATE=false"
+if "%DB_SERVER%"=="" set "DB_SERVER=localhost\\SQLEXPRESS"
+if "%DB_APP_DATABASE%"=="" set "DB_APP_DATABASE=TSAAT"
 if /I "%DB_ENCRYPT%"=="true" (
   if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
     set "DB_SSL_MODE=trust-server-certificate"

@@ -168,28 +168,20 @@ END
 
 You can run this from SSMS or the bundled sqlcmd (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`) against `master`.
 
-### Step 3: Update DB_config
+### Step 3: Configure Encrypted DB_config
 
-Open `DB_config` and set runtime connection + SSL settings. You can switch auth mode by toggling `Trusted_Connection`:
+Do not edit `DB_config` manually. Runtime DB settings are stored as an encrypted JSON envelope and must be created/updated by the app settings API.
 
-```ini
-Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;Encrypt=False;TrustServerCertificate=False;
-```
+To initialize or update:
+1. Start the app (`npm run dev`).
+2. Open `/settings`.
+3. In **Database Settings**, set connection/auth/SSL values.
+4. Run required tests and click `Save`.
 
-Required format:
+The saved file remains `DB_config` at repo root, but plaintext connection strings are not stored on disk.
+Database settings API responses never return decrypted credentials. For SQL auth, the settings panel reuses a server-side stored password marker unless you enter a new password.
 
-```ini
-Server=<server>;Database=<database>;Trusted_Connection=True|False;User Id=<user>;Password=<password>;Encrypt=True|False;TrustServerCertificate=True|False;
-```
-
-Mode behavior:
-- `Trusted_Connection=True`: Windows trusted auth is used (User Id/Password ignored by runtime).
-- `Trusted_Connection=False`: SQL auth is used and `User Id` + `Password` are required.
-- `Encrypt=False`: SSL/TLS encryption is disabled.
-- `Encrypt=True;TrustServerCertificate=False`: SSL/TLS enabled with strict certificate validation.
-- `Encrypt=True;TrustServerCertificate=True`: SSL/TLS enabled and certificate chain validation is bypassed.
-
-If SQL Server is running in Windows-auth-only mode (`SERVERPROPERTY('IsIntegratedSecurityOnly') = 1`), SQL logins cannot authenticate until mixed mode is enabled and the SQL Server service is restarted. Temporary compatibility fallback for scripts:
+If SQL Server is running in Windows-auth-only mode (`SERVERPROPERTY('IsIntegratedSecurityOnly') = 1`), SQL logins cannot authenticate until mixed mode is enabled and the SQL Server service is restarted. For bootstrap/automation, scripts support environment-variable fallback:
 
 ```powershell
 $env:TSAAT_SQL_TRUSTED_CONNECTION='true'
@@ -207,15 +199,16 @@ CreateDB.cmd
 
 What it does:
 
-- Reads SQL connection details from `DB_config`
+- Reads SQL connection details from encrypted `DB_config` (or environment fallback when config is missing/unreadable)
 - Stages and uses bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip`
 - Normalizes local SQL named-instance targets (for example `localhost\SQLEXPRESS`) to `lpc:` protocol for bundled `sqlcmd` compatibility
 - Connects with SQL authentication (`User Id` / `Password`) or trusted auth fallback
-- Applies SSL mode from `DB_config` (`Encrypt` + `TrustServerCertificate`)
+- Applies SSL mode from decrypted `DB_config` payload (`sslEnabled` + `sslType`)
 - Creates/updates the application database
 - Applies `Database Schema/database-schema.sql`
 - Applies migrations under `Database Schema/migrations/`
 - Loads seed/reference/application data
+- Uses canonical package data files under `Database Schema/data/*.json` plus snapshot files under `data/snapshots/*.json`
 - Runs validation and writes `Database Schema/loaders/last-build-summary.txt`
 
 ### Step 5: Re-run Offline App Compile
@@ -244,10 +237,14 @@ Notes for offline Windows dev:
   - extracts SWC from `Dependencies/offline-artifacts/@next/swc-win32-x64-msvc-14.2.33.tgz` when staged binary is missing
   - copies the staged SWC file from `Dependencies/external/@next/swc-win32-x64-msvc/next-swc.win32-x64-msvc.node` when needed
 - If both the staged SWC binary and bundled SWC archive are missing, startup exits with a clear local error instead of trying to download from npm.
-- Database connectivity and SSL settings can be updated at runtime via `/settings` -> `Database Settings` and persisted to `DB_config` after successful connection + schema checks (plus SSL test when SSL is enabled).
+- Database connectivity and SSL settings can be updated at runtime via `/settings` -> `Database Settings` and persisted to encrypted `DB_config` after successful connection + schema checks (plus SSL test when SSL is enabled).
+- Encrypted `DB_config` uses Windows DPAPI. Default scope is `CurrentUser`; set `TSAAT_DB_CONFIG_DPAPI_SCOPE=local-machine` only when machine-scope decryptability is explicitly required.
+- Legacy plaintext `DB_config` files are automatically migrated to encrypted format when the app loads DB settings.
+- If encrypted `DB_config` cannot be decrypted for the current Windows identity, settings UI falls back to defaults so you can resave a new encrypted configuration.
+- Runtime/API diagnostics redact SQL credentials and never echo plaintext passwords.
 - Runtime SQL execution resolves `sqlcmd` in this order: `SQLCMD_PATH`, bundled staged path `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`, then `PATH`.
 - Runtime SQL execution normalizes local SQL named-instance targets to `lpc:` when no explicit protocol prefix is provided.
-- If runtime SQL auth from `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
+- If runtime SQL auth from decrypted `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
 
 ## Build and Start
 

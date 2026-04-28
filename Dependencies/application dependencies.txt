@@ -23,11 +23,12 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 3. Vendored npm command present at Dependencies\runtime\nodejs\win-x64\npm.cmd.
 4. Vendored npm CLI payload present at Dependencies\runtime\nodejs\win-x64\node_modules\npm\bin\npm-cli.js.
 5. Bundled sqlcmd archive present at Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and stageable to Dependencies\external\sqlcmd\win-x64\sqlcmd.exe.
-6. Reachable SQL Server instance with trusted authentication.
-7. Populated TSAAT application database (default: Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True) with table tsaat.dataset_snapshot containing at least one row.
-8. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
-9. Repository source code present locally (no network fetch in compile stage).
-10. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
+6. Reachable SQL Server instance (trusted auth or SQL auth).
+7. Encrypted `DB_config` file (or equivalent SQL environment variables) resolvable by compileApp.cmd/CreateDB.cmd.
+8. Populated TSAAT application database (default fallback: Server=localhost\SQLEXPRESS;Database=TSAAT) with table tsaat.dataset_snapshot containing at least one row.
+9. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
+10. Repository source code present locally (no network fetch in compile stage).
+11. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
 
 External large dependency artifact requirement (bundled archive + runtime extraction)
 -------------------------------------------------------------------------------------
@@ -62,6 +63,15 @@ Staged sqlcmd.exe fingerprint:
 - SHA-256: D9DBD1A8BD26213747B246DEBA1E13663A7E1DEF530CD961D7582B41A5E27852
 Provisioning source when refreshing archive:
 https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-windows-amd64.zip
+
+Database loader source data locations
+-------------------------------------
+CreateDB.cmd and Database Schema\loaders\build-and-load-database.ps1 consume canonical package data from:
+- Database Schema\data\spi-definitions.json
+- Database Schema\data\discovery-tools-settings.json
+- Database Schema\data\measures-settings.json
+- Database Schema\data\reference-versions.json
+- Repository snapshot files under data\snapshots\*.json
 
 Direct runtime dependencies (from package.json)
 ----------------------------------------------

@@ -1,6 +1,6 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
-  normalizeDatabaseSettingsPayload,
+  normalizeDatabaseSettingsPayloadForProcessing,
   testDatabaseConnection,
   testDatabaseSchema
 } from "@/lib/database-settings";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
-    const payload = normalizeDatabaseSettingsPayload(await request.json());
+    const payload = await normalizeDatabaseSettingsPayloadForProcessing(await request.json());
     const connectionResult = await testDatabaseConnection(payload);
     if (!connectionResult.success) {
       return NextResponse.json(

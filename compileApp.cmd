@@ -30,6 +30,7 @@ set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
 set "SQLCMD_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-sqlcmd-offline.ps1"
+set "DB_CONFIG_HELPER_SCRIPT=%REPO_ROOT%\scripts\emit-db-config-env.ps1"
 set "BUNDLED_SQLCMD_EXE="
 set "BUNDLED_SQLCMD_DIR="
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
@@ -94,6 +95,10 @@ if not exist "%DEPENDENCY_MANIFEST%" (
 )
 if not exist "%SQLCMD_HELPER_SCRIPT%" (
     echo [ERROR] Missing sqlcmd helper script: %SQLCMD_HELPER_SCRIPT%
+    exit /b 1
+)
+if not exist "%DB_CONFIG_HELPER_SCRIPT%" (
+    echo [ERROR] Missing DB config helper script: %DB_CONFIG_HELPER_SCRIPT%
     exit /b 1
 )
 if not exist "%VENDORED_NODE_MODULES%\" (
@@ -174,15 +179,20 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if not exist "%DB_CONFIG_FILE%" (
-    echo [ERROR] Missing DB config file: %DB_CONFIG_FILE%
-    exit /b 1
-)
-
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$line = Get-Content -LiteralPath '%DB_CONFIG_FILE%' | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | Select-Object -First 1; if(-not $line){ throw 'DB_config is empty.' }; $map = @{}; foreach($segment in ($line -split ';')){ if($segment -match '^\s*([^=]+?)\s*=\s*(.*?)\s*$'){ $key = ($matches[1].Trim().ToLowerInvariant() -replace '[\s_]+',''); $map[$key] = $matches[2].Trim() } }; function Convert-Bool([string]$value, [string]$name){ if([string]::IsNullOrWhiteSpace($value)){ return $null }; $normalized = $value.Trim().ToLowerInvariant(); if($normalized -in @('true','1','yes','y','sspi')){ return $true }; if($normalized -in @('false','0','no','n')){ return $false }; throw ('DB_config ' + $name + ' value is invalid.') }; $server = $map['server']; $database = $map['database']; $userId = $map['userid']; if(-not $userId){ $userId = $map['uid'] }; $password = $map['password']; if(-not $password){ $password = $map['pwd'] }; $trusted = Convert-Bool $map['trustedconnection'] 'Trusted_Connection'; $encrypt = Convert-Bool $map['encrypt'] 'Encrypt'; $trustCert = Convert-Bool $map['trustservercertificate'] 'TrustServerCertificate'; if($trustCert -eq $true){ $encrypt = $true }; if(-not $server){ throw 'DB_config connection string missing Server=...'; }; if(-not $database){ throw 'DB_config connection string missing Database=...'; }; if([string]::IsNullOrWhiteSpace($userId) -xor [string]::IsNullOrWhiteSpace($password)){ throw 'DB_config requires both User Id and Password when SQL authentication is used.'; }; Write-Output ('set DB_CONF_SERVER=' + $server); Write-Output ('set DB_CONF_DATABASE=' + $database); if(-not [string]::IsNullOrWhiteSpace($userId)){ Write-Output ('set DB_CONF_USER_ID=' + $userId); Write-Output ('set DB_CONF_PASSWORD=' + $password) }; if($trusted -ne $null){ Write-Output ('set DB_CONF_TRUSTED_CONNECTION=' + ([string]$trusted).ToLowerInvariant()) }; if($encrypt -ne $null){ Write-Output ('set DB_CONF_ENCRYPT=' + ([string]$encrypt).ToLowerInvariant()) }; if($trustCert -ne $null){ Write-Output ('set DB_CONF_TRUST_SERVER_CERTIFICATE=' + ([string]$trustCert).ToLowerInvariant()) }"`) do %%I
-if errorlevel 1 (
-    echo [ERROR] Unable to parse DB_config.
-    exit /b 1
+if exist "%DB_CONFIG_FILE%" (
+    for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"`) do %%I
+    if errorlevel 1 (
+        echo [WARN] Unable to parse or decrypt DB_config. Falling back to environment variables.
+        set "DB_CONF_SERVER="
+        set "DB_CONF_DATABASE="
+        set "DB_CONF_USER_ID="
+        set "DB_CONF_PASSWORD="
+        set "DB_CONF_TRUSTED_CONNECTION="
+        set "DB_CONF_ENCRYPT="
+        set "DB_CONF_TRUST_SERVER_CERTIFICATE="
+    )
+) else (
+    echo [WARN] DB_config is missing. Falling back to environment variables where provided.
 )
 
 if "%TSAAT_SQL_SERVER%"=="" set "TSAAT_SQL_SERVER=%DB_CONF_SERVER%"

@@ -1,2 +1,8 @@
-Server=localhost\SQLEXPRESS;Database=TSAAT;Trusted_Connection=True;User Id=shuffydog;Password=bones123;Encrypt=False;TrustServerCertificate=False;
-# Format: Server=...;Database=...;Trusted_Connection=True|False;User Id=...;Password=...;Encrypt=True|False;TrustServerCertificate=True|False;
+﻿{
+    "format":  "tsaat-db-config",
+    "version":  1,
+    "keyProvider":  "dpapi-current-user",
+    "algorithm":  "dpapi",
+    "ciphertextBase64":  "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAAcIiOX/INYU+3d5SHI5jsXgAAAAACAAAAAAAQZgAAAAEAACAAAABTpTWaCR532+E3oTB4geG5c0nlp8+QYW3kxAcjCaIungAAAAAOgAAAAAIAACAAAACdlROZOwphrxlkpoUZYtj19s3TGGqTFKIZhAul+2YxSZAAAADkTaM+TCjxkVGLM2DuQ9lnEcJvu0QS3y4OiHeO7nRkbqqmzV3k+deR1DjkR/GXgc1pxTaDFOJfNogsyc6Bsuw0PVRfbFwSpxt+hLzRfj0wTrEmIfjbIsJlgzJsFP6Dq7LcmROUyxjtMDqhRvo1ZlwCqVcGy69wIak/mVOQgOa3A1ZH9eA95xSBHuHziIMEvEVAAAAARi7R19Jf4JxA7o6GIUB/VsWzi0AlN9WvcnvCNvLJDoEv8IqPsOMn/cSy3ah/YMbGeESaHii1fYQorwXstjr52w==",
+    "updatedAtUtc":  "2026-04-28T10:33:37.8213068Z"
+}
