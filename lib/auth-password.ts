@@ -29,9 +29,10 @@ export interface PasswordHashRecord {
 export async function hashPassword(password: string): Promise<PasswordHashRecord> {
   const salt = randomBytes(PASSWORD_SALT_BYTES);
   const iterationCount = resolveIterationCount();
+  const saltBytes = Uint8Array.from(salt);
   const hash = pbkdf2Sync(
     password,
-    salt.toString("base64"),
+    saltBytes,
     iterationCount,
     PASSWORD_HASH_BYTES,
     PASSWORD_HASH_DIGEST
@@ -55,9 +56,10 @@ export async function verifyPassword(
     return false;
   }
 
+  const saltBytes = Uint8Array.from(salt);
   const calculatedHash = pbkdf2Sync(
     password,
-    salt.toString("base64"),
+    saltBytes,
     iterationCount,
     expectedHash.length,
     PASSWORD_HASH_DIGEST
