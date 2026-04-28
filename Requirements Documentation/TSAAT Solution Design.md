@@ -4,8 +4,9 @@ This consolidated solution requirements specification combines the full contents
 
 ## Consolidation Scope
 - Source route pages reviewed from app/**/page.tsx.
-- Source requirement files included: index plus sections 01 through 12.
+- Source requirement files included: index plus sections 01 through 13.
 - Consolidation date: 2026-04-21.
+- Authentication/password settings update note: 2026-04-28.
 ## Consolidated Content
 
 ---
@@ -47,6 +48,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 | Route | Navigation / Link Source | Standalone Specification | Notes |
 | --- | --- | --- | --- |
 | `/` | direct entry only | [01-Home-Redirect.md](01-Home-Redirect.md) | server redirect to `/cyber-cop` |
+| `/login` | unauthenticated access gate | [13-Authentication-and-Login.md](13-Authentication-and-Login.md) | credential entry and session start |
 | `/cyber-cop` | header navigation | [02-Cyber-COP.md](02-Cyber-COP.md) | client-side tabs inside the page |
 | `/networks` | header navigation | [03-Networks.md](03-Networks.md) | query-param tab states |
 | `/networks/[networkId]` | networks table drill down | [04-Network-Detail.md](04-Network-Detail.md) | visible tabs plus hidden `cyber-posture` route state |
@@ -56,7 +58,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 | `/measures` | operations menu | [08-Measures.md](08-Measures.md) | summary, measures-kpi, measures-spi, spi-settings, kpi-settings tabs |
 | `/findings` | operations menu | [09-Findings-and-Evidence.md](09-Findings-and-Evidence.md) | overview/register tabs plus history drillthrough |
 | `/report` | operations menu | [10-Report-Catalogue.md](10-Report-Catalogue.md) | report launcher page |
-| `/settings` | operations menu | [11-Settings.md](11-Settings.md) | database settings plus placeholder tabs |
+| `/settings` | operations menu | [11-Settings.md](11-Settings.md) | database + password settings plus one placeholder tab |
 
 ## Cross-Cutting Specifications
 - [12-Asset-Taxonomy-and-SPI-Applicability.md](12-Asset-Taxonomy-and-SPI-Applicability.md): canonical six-type asset taxonomy, SPI applicability contract, settings normalization, and schema-domain requirements.
@@ -1331,7 +1333,7 @@ Downstream report endpoints depend on broader operational tables, but those are 
 - **Primary user roles:** application administrators, support teams, deployment engineers, maintainers.
 
 ## 2. Page Summary
-This page provides `database-settings`, `placeholder-1`, and `placeholder-2` tabs.
+This page provides `database-settings`, `password-settings`, and `placeholder-2` tabs.
 
 Major dependencies:
 
@@ -1357,11 +1359,11 @@ Important hidden behaviour:
 - any edit to server, database, auth mode, credentials, SSL toggle, or SSL type clears prior test status.
 - save API re-validates connection, SSL (when enabled), and schema before writing encrypted `DB_config`.
 - runtime and offline scripts decrypt/read SSL settings from `DB_config` and apply `sqlcmd` security flags (`-N`, `-C`) consistently; offline scripts stage bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip` to `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe` and normalize local named-instance server targets to `lpc:` when no protocol prefix is supplied.
-- placeholder tabs are routable but intentionally contain no operational settings.
+- `placeholder-2` is routable but intentionally contains no operational settings.
 
 ## 3. Feature Breakdown
 ### Feature: Settings Tab Routing
-- **What it does:** switches between database settings and two placeholder tabs.
+- **What it does:** switches between database settings, password settings, and one placeholder tab.
 - **User perspective:** the user can navigate to the implemented settings surface or view reserved future tabs.
 - **System behaviour:** `settingsTab` in the query string controls which panel is rendered.
 - **Outcome:** the database settings panel is the only active configuration surface today.
@@ -1405,7 +1407,7 @@ Important hidden behaviour:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Settings | Tab routing | Switches among database settings and placeholders | Click tab | Updates `settingsTab` query parameter | `settingsTab` | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs` | Bookmarkable tab state | placeholder tabs have no operational logic |
+| Settings | Tab routing | Switches among database settings, password settings, and one placeholder | Click tab | Updates `settingsTab` query parameter | `settingsTab` | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs` | Bookmarkable tab state | `placeholder-2` has no operational logic |
 | Settings | Database settings form | Edit connection and SSL definition | Change fields | Marks form dirty and clears prior validation results | server, database, auth mode, credentials, `sslEnabled`, `sslType` | Draft settings | save requires passing validation first | client checks auth mode completeness and valid SSL type | `DatabaseSettingsPanel`, defaults loader | Prepared connection definition | initial values can come from fallback resolution |
 | Settings | Connection test | Validate connectivity | Click `Test Connection` | POSTs draft settings and stores result and diagnostics | current draft settings | connection status and diagnostics | connection test must pass before SSL test or schema test | endpoint returns success summary and diagnostics | `/api/settings/database/test-connection` | Verified connectivity | |
 | Settings | SSL test | Validate SSL transport for selected SSL type | Click `Test SSL` | POSTs draft settings, checks connection precondition, validates encrypted transport | current draft settings | SSL status and diagnostics | required only when SSL is enabled | endpoint returns success summary and diagnostics | `/api/settings/database/test-ssl` | Verified SSL mode | skipped when SSL disabled |
@@ -1461,7 +1463,7 @@ Primary dependencies:
 - The settings page handles credentials, so operational documentation should avoid exposing actual values.
 
 ## 10. Open Questions / Gaps
-- **Open question:** should the placeholder tabs remain visible before they have real functionality?
+- **Open question:** should `placeholder-2` remain visible before it has real functionality?
 - **Open question:** should save require a secondary confirmation because it writes runtime connection and SSL behavior used by app startup and scripts?
 - **Open question:** should the schema validation contract be documented externally for deployment teams, since the required tables and columns are enforced in code?
 

@@ -37,6 +37,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 | Route | Navigation / Link Source | Standalone Specification | Notes |
 | --- | --- | --- | --- |
 | `/` | direct entry only | [01-Home-Redirect.md](01-Home-Redirect.md) | server redirect to `/cyber-cop` |
+| `/login` | unauthenticated access gate | [13-Authentication-and-Login.md](13-Authentication-and-Login.md) | credential entry and session start |
 | `/cyber-cop` | header navigation | [02-Cyber-COP.md](02-Cyber-COP.md) | client-side tabs inside the page |
 | `/networks` | header navigation | [03-Networks.md](03-Networks.md) | query-param tab states |
 | `/networks/[networkId]` | networks table drill down | [04-Network-Detail.md](04-Network-Detail.md) | visible tabs plus hidden `cyber-posture` route state |
@@ -50,6 +51,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 
 ## Cross-Cutting Specifications
 - [12-Asset-Taxonomy-and-SPI-Applicability.md](12-Asset-Taxonomy-and-SPI-Applicability.md): canonical six-type asset taxonomy, SPI applicability contract, settings normalization, and schema-domain requirements.
+- [13-Authentication-and-Login.md](13-Authentication-and-Login.md): app-wide login gate, session model, and password lifecycle controls.
 
 ## Shared Runtime Dependencies
 The page specifications repeatedly reference the following shared implementation elements:

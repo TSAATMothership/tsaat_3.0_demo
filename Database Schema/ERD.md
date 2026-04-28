@@ -33,6 +33,8 @@ erDiagram
   asset ||--o{ ci_dependency : "target_asset_id"
 ```
 
+`app_user` is a standalone authentication table (no foreign keys) that stores salted password-hash credentials, active flag, and session-version invalidation metadata.
+
 ## CI Dependency Domain
 - `ci_dependency` stores directed CI-to-CI links:
   - `source_asset_id -> target_asset_id`

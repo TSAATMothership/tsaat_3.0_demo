@@ -12,6 +12,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - Findings export API (`JSON` and `CSV`)
 - Written Report Generator (print view + browser Save as PDF)
 - Deterministic seed data generation with realistic posture exceptions
+- Application login gate with SQL-backed credentials and password rotation settings
 
 ## Tech Stack
 
@@ -208,6 +209,7 @@ What it does:
 - Applies `Database Schema/database-schema.sql`
 - Applies migrations under `Database Schema/migrations/`
 - Loads seed/reference/application data
+- Seeds initial application login account in `tsaat.app_user` (salted hash only; no plaintext password storage)
 - Uses canonical package data files under `Database Schema/data/*.json` plus snapshot files under `data/snapshots/*.json`
 - Runs validation and writes `Database Schema/loaders/last-build-summary.txt`
 
@@ -229,6 +231,12 @@ npm run dev
 
 Open: `http://localhost:3000`
 
+First access requires login at `/login` (or automatic redirect there when not authenticated).
+Initial seeded credentials:
+- Username: `tsaatuser`
+- Password: `tsaatuser123`
+After sign-in, use `/settings` -> `Password Settings` to rotate the password. Successful password changes force re-login and invalidate prior sessions.
+
 Notes for offline Windows dev:
 - `npm run dev` now runs `scripts/run-next-dev-offline.cjs`, which:
   - sets `NEXT_DISABLE_SWC_DOWNLOAD=1` and `NEXT_SKIP_SWC_DOWNLOAD=1`
@@ -245,6 +253,10 @@ Notes for offline Windows dev:
 - Runtime SQL execution resolves `sqlcmd` in this order: `SQLCMD_PATH`, bundled staged path `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`, then `PATH`.
 - Runtime SQL execution normalizes local SQL named-instance targets to `lpc:` when no explicit protocol prefix is provided.
 - If runtime SQL auth from decrypted `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
+- Auth/session details:
+  - app routes and APIs are protected by middleware, except auth endpoints and framework static assets.
+  - session cookie is HTTP-only and tied to `tsaat.app_user.session_version`.
+  - password hashes use PBKDF2-HMAC-SHA256 with per-user salt and iteration metadata.
 
 ## Build and Start
 

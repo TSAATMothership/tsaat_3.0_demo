@@ -60,7 +60,13 @@ const operationsMenuItems: MenuItem[] = [
   { href: "/settings", label: "Settings" }
 ];
 
-export function MenuNavigation({ items }: { items: MenuItem[] }) {
+export function MenuNavigation({
+  items,
+  authenticatedUsername
+}: {
+  items: MenuItem[];
+  authenticatedUsername?: string;
+}) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -73,6 +79,7 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
   const [isMounted, setIsMounted] = useState(false);
   const [isOperationsMenuOpen, setIsOperationsMenuOpen] = useState(false);
   const [cachedDataDate, setCachedDataDate] = useState<string>(todayDateKey());
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const closeDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -254,6 +261,23 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
     onMenuClick(event, href);
   };
 
+  const onLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST"
+      });
+    } catch {
+      // Logout always finishes by redirecting to login.
+    } finally {
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <>
       <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -293,6 +317,12 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
         </nav>
 
         <div className="shrink-0 justify-self-end flex items-center gap-2">
+          {authenticatedUsername ? (
+            <p className="hidden rounded-md border border-sky-300/30 bg-slate-950/65 px-3 py-2 text-[11px] uppercase tracking-[0.11em] text-slate-200 lg:block">
+              Signed in: <span className="text-cyan-100">{authenticatedUsername}</span>
+            </p>
+          ) : null}
+
           {showDataDatePicker ? (
             <label className="flex items-center gap-2 rounded-md border border-sky-300/30 bg-slate-950/60 px-3 py-2 text-[11px] uppercase tracking-[0.13em] text-slate-200">
               <span className="text-slate-300/85">Date</span>
@@ -321,6 +351,20 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
               </span>
             </label>
           ) : null}
+
+          <button
+            type="button"
+            onClick={onLogout}
+            disabled={isLoggingOut}
+            className="group flex h-[38px] items-center gap-2 rounded-md border border-rose-300/40 bg-rose-950/60 px-3 text-[11px] uppercase tracking-[0.12em] text-rose-100 transition hover:border-rose-200/75 hover:bg-rose-900/85 disabled:cursor-wait disabled:opacity-75"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              <polyline points="10 17 15 12 10 7" />
+              <line x1="15" y1="12" x2="3" y2="12" />
+            </svg>
+            <span>{isLoggingOut ? "Signing out" : "Logout"}</span>
+          </button>
 
           <button
             type="button"
@@ -396,6 +440,15 @@ export function MenuNavigation({ items }: { items: MenuItem[] }) {
                     );
                   })}
                 </nav>
+
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  disabled={isLoggingOut}
+                  className="mt-6 w-full rounded-md border border-rose-300/40 bg-rose-950/60 px-3 py-2 text-xs uppercase tracking-[0.12em] text-rose-100 transition hover:border-rose-200/75 hover:bg-rose-900/80 disabled:cursor-wait disabled:opacity-75"
+                >
+                  {isLoggingOut ? "Signing out..." : "Logout"}
+                </button>
 
                 {showDataDatePicker ? (
                   <p className="mt-5 text-xs text-slate-300/80">

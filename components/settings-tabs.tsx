@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export type SettingsTabId = "database-settings" | "placeholder-1" | "placeholder-2";
+export type SettingsTabId = "database-settings" | "password-settings" | "placeholder-2";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -21,7 +21,7 @@ function nextProgressValue(current: number): number {
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: "database-settings", label: "Database Settings" },
-  { id: "placeholder-1", label: "placeholder 1" },
+  { id: "password-settings", label: "Password Settings" },
   { id: "placeholder-2", label: "placeholder 2" }
 ];
 
