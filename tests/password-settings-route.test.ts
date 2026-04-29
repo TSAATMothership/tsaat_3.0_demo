@@ -41,7 +41,7 @@ describe("password settings route", () => {
 
   it("returns 400 when new password and confirm password differ", async () => {
     resolveAuthenticatedSessionFromRequestMock.mockResolvedValueOnce({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 1
     });
 
@@ -67,11 +67,11 @@ describe("password settings route", () => {
 
   it("clears session on successful password change", async () => {
     resolveAuthenticatedSessionFromRequestMock.mockResolvedValueOnce({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 1
     });
     changeAppUserPasswordMock.mockResolvedValueOnce({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 2
     });
 

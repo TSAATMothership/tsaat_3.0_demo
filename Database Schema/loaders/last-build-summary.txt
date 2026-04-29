@@ -1,5 +1,4 @@
-﻿tsaat.app_user|1
-tsaat.asset|8000
+﻿tsaat.asset|8000
 tsaat.asset_installed_software|34216
 tsaat.asset_network_os|464
 tsaat.asset_operating_system|6664

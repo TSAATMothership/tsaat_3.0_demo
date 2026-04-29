@@ -4,7 +4,7 @@
 
 ## 1. Overview
 - **Purpose:** enforce application-wide sign-in before users can access TSAAT pages and protected APIs.
-- **User outcome:** users must log in with username/password, can see who is logged in, can log out, and can change password from Settings.
+- **User outcome:** users log in with file-backed username/password credentials, can see who is logged in, can log out, and can change password from Settings.
 - **Primary roles:** application administrators and authorized operators.
 
 ## 2. Scope
@@ -15,34 +15,40 @@
 - Password changes are handled by `PUT /api/settings/password`.
 - Middleware protects all app routes and APIs except auth endpoints and framework static paths.
 
-## 3. Data Model Contract
-- Credentials are stored in `tsaat.app_user`.
-- Password storage is salted one-way hash:
-  - `hash_algorithm = PBKDF2-HMAC-SHA256`
-  - per-user random `password_salt`
-  - configurable `iteration_count` (minimum enforced at schema/check level)
-- Session invalidation uses `session_version`:
-  - incremented on password change
-  - cookie payload must match current database `session_version`
-- Initial seeded user:
-  - username: `tsaatuser`
-  - password seed: `tsaatuser123` (stored as salted hash only, never plaintext in DB)
+## 3. Credential Contract
+- Credentials are stored in repository root `logindetails`, not in SQL Server.
+- `compileApp.cmd` creates `logindetails` when missing by prompting for non-empty credentials or by using `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD`.
+- `logindetails` is a DPAPI `CurrentUser` encrypted JSON envelope:
+  - `format = tsaat-logindetails`
+  - `keyProvider = dpapi-current-user`
+  - `algorithm = dpapi`
+  - encrypted payload contains username, PBKDF2-HMAC-SHA256 password hash, salt, iteration count, timestamps, and `sessionVersion`.
+- Password storage is salted one-way hash material:
+  - `hashAlgorithm = PBKDF2-HMAC-SHA256`
+  - per-file random password salt
+  - iteration count defaults to 210000 and must be at least 100000.
+- Session invalidation uses `sessionVersion` from `logindetails`; password changes increment it and old cookies stop matching.
 
 ## 4. Security Rules
-- Plaintext passwords are never persisted to disk or SQL tables.
+- Plaintext application login passwords are never persisted to SQL tables or plaintext files.
+- `logindetails` is ignored by git and must be generated locally.
+- The Windows user that creates `logindetails` must be the user that runs/decrypts it because DPAPI scope is `CurrentUser`.
 - API responses and diagnostics never return plaintext passwords or hashes.
 - Session cookie is HTTP-only and same-site `lax`.
 - Password change requires current password verification.
 - Successful password change clears the current cookie and requires re-login.
 
 ## 5. UI Behaviour
-- `/login` shows username/password form and validates credentials against SQL-backed user data.
+- `/login` shows username/password form and validates credentials against encrypted `logindetails`.
 - Authenticated header shows signed-in username.
 - Navigation includes logout action.
 - Settings includes `Password Settings` tab with current/new/confirm fields.
 
 ## 6. Dependencies
-- `middleware.ts`
+- `compileApp.cmd`
+- `scripts/ensure-logindetails.ps1`
+- `scripts/invoke-dpapi.ps1`
+- `lib/login-details.ts`
 - `lib/app-auth.ts`
 - `lib/auth-password.ts`
 - `lib/auth-session.ts`

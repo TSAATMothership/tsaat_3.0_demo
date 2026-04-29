@@ -26,7 +26,7 @@ describe("auth login route", () => {
       headers: {
         "content-type": "application/json"
       },
-      body: JSON.stringify({ username: "tsaatuser", password: "" })
+      body: JSON.stringify({ username: "fileuser", password: "" })
     });
 
     const response = await POST(request as any);
@@ -41,7 +41,7 @@ describe("auth login route", () => {
       headers: {
         "content-type": "application/json"
       },
-      body: JSON.stringify({ username: "tsaatuser", password: "wrong-password" })
+      body: JSON.stringify({ username: "fileuser", password: "wrong-password" })
     });
 
     const response = await POST(request as any);
@@ -53,7 +53,7 @@ describe("auth login route", () => {
 
   it("sets session cookie on successful login", async () => {
     authenticateAppUserMock.mockResolvedValueOnce({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 1
     });
     createSessionTokenForUserMock.mockResolvedValueOnce("signed-token");
@@ -63,7 +63,7 @@ describe("auth login route", () => {
       headers: {
         "content-type": "application/json"
       },
-      body: JSON.stringify({ username: "tsaatuser", password: "tsaatuser123" })
+      body: JSON.stringify({ username: "fileuser", password: "file-password" })
     });
 
     const response = await POST(request as any);
@@ -71,7 +71,7 @@ describe("auth login route", () => {
 
     expect(response.status).toBe(200);
     expect(payload.authenticated).toBe(true);
-    expect(payload.username).toBe("tsaatuser");
+    expect(payload.username).toBe("fileuser");
     expect(writeSessionCookieMock).toHaveBeenCalledTimes(1);
     expect(writeSessionCookieMock.mock.calls[0]?.[1]).toBe("signed-token");
   });

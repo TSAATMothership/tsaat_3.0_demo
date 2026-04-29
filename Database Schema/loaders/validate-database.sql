@@ -9,7 +9,6 @@ DECLARE @CiDependencyCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[ci_dependency
 DECLARE @DiscoveryToolCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_tool]);
 DECLARE @MeasureCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_severity_matrix]);
 DECLARE @NetworkTargetStateAssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[network_target_state_asset]);
-DECLARE @ActiveAppUserCount INT = (SELECT COUNT(*) FROM [tsaat].[app_user] WHERE [is_active] = 1);
 
 IF @SnapshotCount <> 8
   THROW 52000, 'Validation failed: dataset_snapshot count must be 8.', 1;
@@ -35,9 +34,6 @@ IF @MeasureCount <= 0
 IF @NetworkTargetStateAssetCount <= 0
   THROW 52000, 'Validation failed: network_target_state_asset table is empty.', 1;
 
-IF @ActiveAppUserCount <= 0
-  THROW 52000, 'Validation failed: app_user has no active users.', 1;
-
 ;WITH row_counts AS (
   SELECT
     t.[name] AS [table_name],
@@ -61,5 +57,4 @@ SELECT
   @DiscoveryToolCount AS [discovery_tool_count],
   @MeasureCount AS [measures_severity_matrix_count],
   @NetworkTargetStateAssetCount AS [network_target_state_asset_count],
-  @ActiveAppUserCount AS [active_app_user_count],
   CAST(1 AS BIT) AS [ready_for_application];

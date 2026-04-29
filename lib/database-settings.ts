@@ -76,8 +76,7 @@ const REQUIRED_TABLES: string[] = [
   "discovery_tool",
   "discovery_tool_asset_scope",
   "measures_settings_version",
-  "measures_severity_matrix",
-  "app_user"
+  "measures_severity_matrix"
 ];
 
 const REQUIRED_COLUMNS: Array<{ tableName: string; columnName: string }> = [
@@ -95,9 +94,7 @@ const REQUIRED_COLUMNS: Array<{ tableName: string; columnName: string }> = [
   { tableName: "finding", columnName: "workflow_status" },
   { tableName: "ci_dependency", columnName: "dependency_id" },
   { tableName: "discovery_tool", columnName: "tool_id" },
-  { tableName: "measures_severity_matrix", columnName: "severity" },
-  { tableName: "app_user", columnName: "username" },
-  { tableName: "app_user", columnName: "session_version" }
+  { tableName: "measures_severity_matrix", columnName: "severity" }
 ];
 
 function toSqlConnectionInput(settings: EditableDatabaseConnectionInput): SqlConnectionInput {

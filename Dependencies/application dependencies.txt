@@ -25,10 +25,11 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 5. Bundled sqlcmd archive present at Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and stageable to Dependencies\external\sqlcmd\win-x64\sqlcmd.exe.
 6. Reachable SQL Server instance (trusted auth or SQL auth).
 7. Encrypted `DB_config` file (or equivalent SQL environment variables) resolvable by compileApp.cmd/CreateDB.cmd.
-8. Populated TSAAT application database (default fallback: Server=localhost\SQLEXPRESS;Database=TSAAT) with table tsaat.dataset_snapshot containing at least one row.
-9. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
-10. Repository source code present locally (no network fetch in compile stage).
-11. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
+8. Encrypted `logindetails` file, or `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` available so compileApp.cmd can create it offline.
+9. Populated TSAAT application database (default fallback: Server=localhost\SQLEXPRESS;Database=TSAAT) with table tsaat.dataset_snapshot containing at least one row.
+10. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
+11. Repository source code present locally (no network fetch in compile stage).
+12. Restored dependency tree must include Next.js SWC win32-x64 native binary (`@next/swc-win32-x64-msvc` package path or `next/next-swc-fallback` equivalent path).
 
 External large dependency artifact requirement (bundled archive + runtime extraction)
 -------------------------------------------------------------------------------------
@@ -1443,10 +1444,11 @@ Offline compile sequence enforced by compileApp.cmd
 -----------------------------------------------
 1. Validate required local tools/files.
 2. Configure PATH to use vendored Node.js runtime at Dependencies\runtime\nodejs\win-x64.
-3. Resolve/stage bundled sqlcmd from Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and prepend its directory to PATH.
-4. Normalize local SQL named-instance targets to lpc: protocol when no explicit protocol prefix is provided.
-5. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
-6. Restore node_modules from Dependencies\node_modules.
-7. Validate Next.js SWC win32-x64 native binary exists in restored dependencies; if missing, extract bundled archive from Dependencies\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz to Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node, copy to node_modules, then validate artifact size/hash.
-8. Rebuild npm dependency artifacts offline (npm rebuild --offline).
-9. Build the application offline (npm run build).
+3. Validate existing encrypted `logindetails`, or create it with DPAPI CurrentUser encryption from interactive input or `TSAAT_LOGIN_USERNAME`/`TSAAT_LOGIN_PASSWORD`.
+4. Resolve/stage bundled sqlcmd from Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and prepend its directory to PATH.
+5. Normalize local SQL named-instance targets to lpc: protocol when no explicit protocol prefix is provided.
+6. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
+7. Restore node_modules from Dependencies\node_modules.
+8. Validate Next.js SWC win32-x64 native binary exists in restored dependencies; if missing, extract bundled archive from Dependencies\offline-artifacts\@next\swc-win32-x64-msvc-14.2.33.tgz to Dependencies\external\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node, copy to node_modules, then validate artifact size/hash.
+9. Rebuild npm dependency artifacts offline (npm rebuild --offline).
+10. Build the application offline (npm run build).

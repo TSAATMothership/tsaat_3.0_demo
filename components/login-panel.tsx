@@ -37,7 +37,7 @@ function nextProgressValue(current: number): number {
 export function LoginPanel() {
   const searchParams = useSearchParams();
   const nextPath = useMemo(() => resolveNextPath(searchParams?.get("next") ?? null), [searchParams]);
-  const [username, setUsername] = useState("tsaatuser");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

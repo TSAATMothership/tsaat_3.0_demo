@@ -12,7 +12,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - Findings export API (`JSON` and `CSV`)
 - Written Report Generator (print view + browser Save as PDF)
 - Deterministic seed data generation with realistic posture exceptions
-- Application login gate with SQL-backed credentials and password rotation settings
+- Application login gate with encrypted file-backed credentials and password rotation settings
 
 ## Tech Stack
 
@@ -121,6 +121,7 @@ compileApp.cmd
 What it does:
 
 - Uses the vendored Node.js + npm runtime from `Dependencies/runtime/nodejs/win-x64`
+- Validates existing encrypted `logindetails`, or creates it by prompting for username/password when missing
 - Resolves/stages bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip`
 - Normalizes local SQL named-instance targets (for example `localhost\SQLEXPRESS`) to `lpc:` protocol for bundled `sqlcmd` compatibility
 - Restores vendored dependencies from `Dependencies/node_modules`
@@ -130,6 +131,18 @@ What it does:
 - Runs `npm rebuild --offline`
 - Runs `npm run build --offline`
 - Validates that required SQL data is already present
+
+Application login credentials:
+- Stored in repo-root `logindetails`, not in SQL Server.
+- The file is a Windows DPAPI `CurrentUser` encrypted envelope containing username plus salted PBKDF2-HMAC-SHA256 hash metadata.
+- Plaintext passwords are never written to disk.
+- For unattended offline compile, set both environment variables before running `compileApp.cmd`:
+
+```powershell
+$env:TSAAT_LOGIN_USERNAME='your-user'
+$env:TSAAT_LOGIN_PASSWORD='your-password'
+cmd /c compileApp.cmd
+```
 
 If it fails with missing/empty `tsaat.dataset_snapshot`, continue with database setup below.
 
@@ -209,7 +222,6 @@ What it does:
 - Applies `Database Schema/database-schema.sql`
 - Applies migrations under `Database Schema/migrations/`
 - Loads seed/reference/application data
-- Seeds initial application login account in `tsaat.app_user` (salted hash only; no plaintext password storage)
 - Uses canonical package data files under `Database Schema/data/*.json` plus snapshot files under `data/snapshots/*.json`
 - Runs validation and writes `Database Schema/loaders/last-build-summary.txt`
 
@@ -221,7 +233,7 @@ Run again:
 compileApp.cmd
 ```
 
-At this point, offline app build and SQL-backed runtime data should both be ready.
+At this point, offline app build, SQL-backed runtime data, and file-backed application login should all be ready.
 
 ## Run
 
@@ -232,10 +244,8 @@ npm run dev
 Open: `http://localhost:3000`
 
 First access requires login at `/login` (or automatic redirect there when not authenticated).
-Initial seeded credentials:
-- Username: `tsaatuser`
-- Password: `tsaatuser123`
-After sign-in, use `/settings` -> `Password Settings` to rotate the password. Successful password changes force re-login and invalidate prior sessions.
+Initial credentials are the values used when `compileApp.cmd` first created `logindetails`.
+After sign-in, use `/settings` -> `Password Settings` to rotate the password. Successful password changes update encrypted `logindetails`, force re-login, and invalidate prior sessions.
 
 Notes for offline Windows dev:
 - `npm run dev` now runs `scripts/run-next-dev-offline.cjs`, which:
@@ -255,8 +265,9 @@ Notes for offline Windows dev:
 - If runtime SQL auth from decrypted `DB_config` fails with login error, app queries automatically retry with trusted auth (unless `TSAAT_SQL_TRUSTED_FALLBACK=false` is set).
 - Auth/session details:
   - app routes and APIs are protected by middleware, except auth endpoints and framework static assets.
-  - session cookie is HTTP-only and tied to `tsaat.app_user.session_version`.
-  - password hashes use PBKDF2-HMAC-SHA256 with per-user salt and iteration metadata.
+  - session cookie is HTTP-only and tied to the session version in encrypted `logindetails`.
+  - password hashes use PBKDF2-HMAC-SHA256 with file-backed salt and iteration metadata.
+  - `logindetails` uses Windows DPAPI `CurrentUser`; the same Windows identity that creates it must run/decrypt it.
 
 ## Build and Start
 

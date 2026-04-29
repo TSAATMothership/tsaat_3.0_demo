@@ -33,8 +33,6 @@ erDiagram
   asset ||--o{ ci_dependency : "target_asset_id"
 ```
 
-`app_user` is a standalone authentication table (no foreign keys) that stores salted password-hash credentials, active flag, and session-version invalidation metadata.
-
 ## CI Dependency Domain
 - `ci_dependency` stores directed CI-to-CI links:
   - `source_asset_id -> target_asset_id`
@@ -44,6 +42,7 @@ erDiagram
 
 ## Operational Notes
 - Connection/auth settings are external to this ERD and are configured in encrypted repository root `DB_config`.
+- Application login credentials are external to this ERD and are configured in encrypted repository root `logindetails`.
 - `managed_network` includes platform flags:
   - `adf_platform` (`BIT`)
   - `enterprise_platform` (`BIT`)

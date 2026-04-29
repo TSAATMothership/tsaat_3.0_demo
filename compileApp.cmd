@@ -31,9 +31,11 @@ set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
 set "SQLCMD_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-sqlcmd-offline.ps1"
 set "DB_CONFIG_HELPER_SCRIPT=%REPO_ROOT%\scripts\emit-db-config-env.ps1"
+set "LOGIN_DETAILS_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-logindetails.ps1"
 set "BUNDLED_SQLCMD_EXE="
 set "BUNDLED_SQLCMD_DIR="
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
+set "LOGIN_DETAILS_FILE=%REPO_ROOT%\logindetails"
 set "DB_CONF_SERVER="
 set "DB_CONF_DATABASE="
 set "DB_CONF_USER_ID="
@@ -101,6 +103,10 @@ if not exist "%DB_CONFIG_HELPER_SCRIPT%" (
     echo [ERROR] Missing DB config helper script: %DB_CONFIG_HELPER_SCRIPT%
     exit /b 1
 )
+if not exist "%LOGIN_DETAILS_HELPER_SCRIPT%" (
+    echo [ERROR] Missing login details helper script: %LOGIN_DETAILS_HELPER_SCRIPT%
+    exit /b 1
+)
 if not exist "%VENDORED_NODE_MODULES%\" (
     echo [ERROR] Missing vendored dependency tree: %VENDORED_NODE_MODULES%
     exit /b 1
@@ -149,6 +155,13 @@ if errorlevel 1 (
 where powershell >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] Required command not found in PATH: powershell
+    exit /b 1
+)
+
+echo [INFO] Validating encrypted application login details...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%LOGIN_DETAILS_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -LoginDetailsPath "%LOGIN_DETAILS_FILE%"
+if errorlevel 1 (
+    echo [ERROR] Unable to validate or create encrypted logindetails.
     exit /b 1
 )
 

@@ -31,6 +31,7 @@ SQL Server Target
   - Runtime override for loaders/compile scripts: `TSAAT_SQL_TRUSTED_CONNECTION=true` and related SQL env vars.
 - Admin database for bootstrap: master
 - Application schema: tsaat
+- Application login credentials are not imported into SQL Server; they are created/updated in encrypted repository root `logindetails`.
 
 Source Data Artefacts
 ---------------------
@@ -56,27 +57,26 @@ Load Order (Deterministic)
 8. discovery_tool_asset_scope
 9. measures_settings_version
 10. measures_severity_matrix
-11. app_user
-12. dataset_snapshot
-13. managed_network
-14. managed_network_hierarchy
-15. ict_system
-16. ict_system_hierarchy
-17. network_declared_system
-18. system_mission_capability
-19. system_business_service
-20. system_environment
-21. asset
-22. network_declared_asset
-23. network_target_state_asset
-24. system_environment_asset
-25. asset_operating_system
-26. asset_network_os
-27. asset_patch_state
-28. asset_installed_software
-29. asset_vulnerability
-30. ci_dependency
-31. finding
+11. dataset_snapshot
+12. managed_network
+13. managed_network_hierarchy
+14. ict_system
+15. ict_system_hierarchy
+16. network_declared_system
+17. system_mission_capability
+18. system_business_service
+19. system_environment
+20. asset
+21. network_declared_asset
+22. network_target_state_asset
+23. system_environment_asset
+24. asset_operating_system
+25. asset_network_os
+26. asset_patch_state
+27. asset_installed_software
+28. asset_vulnerability
+29. ci_dependency
+30. finding
 
 Field-Level Mapping Summary
 ---------------------------
@@ -90,12 +90,6 @@ Reference and settings:
 - Database Schema/data/discovery-tools-settings.json.tools[].assetTypeScope object -> tsaat.discovery_tool_asset_scope
 - Database Schema/data/measures-settings.json.updatedAt -> tsaat.measures_settings_version.updated_at
 - Database Schema/data/measures-settings.json.severityMatrix object key "spiId:assetType" -> tsaat.measures_severity_matrix
-- Seeded application login account:
-  - username `tsaatuser` -> tsaat.app_user.username
-  - salted PBKDF2-HMAC-SHA256 hash bytes -> tsaat.app_user.password_hash
-  - per-user salt bytes -> tsaat.app_user.password_salt
-  - iteration metadata -> tsaat.app_user.iteration_count
-  - session invalidation marker -> tsaat.app_user.session_version
 
 Snapshots and domain entities:
 - snapshot root:
@@ -161,7 +155,6 @@ Validation Rules Applied by loader/validator
 - Exactly 10 SPI definitions required
 - Non-empty asset, finding, discovery_tool, measures_severity_matrix tables required
 - Non-empty network_target_state_asset table required
-- At least one active row in tsaat.app_user required
 - Full row-count summary emitted after load
 - Seed profile constraints validated in `scripts/validate-seed.ts`:
   - 70% of assets modelled to ICT systems, 30% left unmodelled

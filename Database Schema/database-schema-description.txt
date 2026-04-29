@@ -9,7 +9,6 @@ The TSAAT schema (`tsaat`) stores snapshot-based cyber posture data for:
 - assets, environments, vulnerabilities, and findings
 - discovery/measures/reference settings
 - CI-to-CI dependency graph data used by topology views
-- application authentication users and password metadata
 
 Connection/bootstrap notes
 --------------------------
@@ -23,6 +22,8 @@ Connection/bootstrap notes
   - `sslEnabled`
   - `sslType` (`strict` or `trust-server-certificate`)
 - `DB_config` is app-managed via `/settings` and should not be edited manually.
+- Application login credentials are stored outside SQL Server in repository root `logindetails` as an encrypted DPAPI CurrentUser envelope.
+- The encrypted `logindetails` payload stores username, salted PBKDF2-HMAC-SHA256 hash metadata, and session-version metadata.
 
 Canonical loader data sources
 -----------------------------
@@ -47,7 +48,6 @@ Key domain groups
 - `spi_applicable_asset_type`
 - `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope`
 - `measures_settings_version`, `measures_severity_matrix`
-- `app_user` (application login accounts, salted hash credentials, session invalidation marker)
 
 2) Snapshot root:
 - `dataset_snapshot`

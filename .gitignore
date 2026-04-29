@@ -6,6 +6,7 @@ Dependencies/runtime/nodejs/win-x64/node_modules/*
 !Dependencies/runtime/nodejs/win-x64/node_modules/npm/
 !Dependencies/runtime/nodejs/win-x64/node_modules/npm/**
 .next
+logindetails
 coverage
 *.log
 .DS_Store

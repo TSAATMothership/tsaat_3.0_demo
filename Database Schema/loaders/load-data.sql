@@ -193,30 +193,6 @@ SELECT
 FROM OPENJSON(@Json, '$.severityMatrix') AS ms
 WHERE CHARINDEX(':', ms.[key]) > 0;
 
-IF NOT EXISTS (SELECT 1 FROM [tsaat].[app_user] WHERE [username] = N'tsaatuser')
-BEGIN
-  INSERT INTO [tsaat].[app_user] (
-    [username],
-    [password_hash],
-    [password_salt],
-    [hash_algorithm],
-    [iteration_count],
-    [password_changed_at_utc],
-    [is_active],
-    [session_version]
-  )
-  VALUES (
-    N'tsaatuser',
-    0x714F0B781D700E44354CC1BA47A1A9C760A369F5C158C6F3016B7F215D4F7E1A,
-    0x9242E317B55876763971A96DD74B4ABA,
-    N'PBKDF2-HMAC-SHA256',
-    210000,
-    SYSUTCDATETIME(),
-    1,
-    1
-  );
-END;
-
 PRINT 'Loading snapshot/application data...';
 
 DECLARE @SnapshotFiles TABLE (

@@ -9,7 +9,7 @@ describe("auth session token", () => {
   it("creates and verifies a valid signed token", async () => {
     const secret = "this-is-a-long-test-secret-value-1234567890";
     const payload = buildSessionPayload({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 3,
       nowEpochSeconds: 1_710_000_000,
       lifetimeSeconds: 3600
@@ -19,14 +19,14 @@ describe("auth session token", () => {
     const verified = await verifySignedSessionToken(token, secret, 1_710_000_100);
 
     expect(verified).not.toBeNull();
-    expect(verified?.sub).toBe("tsaatuser");
+    expect(verified?.sub).toBe("fileuser");
     expect(verified?.sv).toBe(3);
   });
 
   it("rejects tampered tokens", async () => {
     const secret = "this-is-a-long-test-secret-value-1234567890";
     const payload = buildSessionPayload({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 1,
       nowEpochSeconds: 1_710_000_000,
       lifetimeSeconds: 3600
@@ -43,7 +43,7 @@ describe("auth session token", () => {
   it("rejects expired tokens", async () => {
     const secret = "this-is-a-long-test-secret-value-1234567890";
     const payload = buildSessionPayload({
-      username: "tsaatuser",
+      username: "fileuser",
       sessionVersion: 1,
       nowEpochSeconds: 1_710_000_000,
       lifetimeSeconds: 60
