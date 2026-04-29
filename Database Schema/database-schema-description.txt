@@ -21,7 +21,7 @@ Connection/bootstrap notes
   - `password`
   - `sslEnabled`
   - `sslType` (`strict` or `trust-server-certificate`)
-- `DB_config` is app-managed via `/settings` and should not be edited manually.
+- `DB_config` is app-managed via `/settings` or confirmed/created by offline scripts before database build/compile, and should not be edited manually.
 - Application login credentials are stored outside SQL Server in repository root `logindetails` as an encrypted DPAPI CurrentUser envelope.
 - The encrypted `logindetails` payload stores username, salted PBKDF2-HMAC-SHA256 hash metadata, and session-version metadata.
 

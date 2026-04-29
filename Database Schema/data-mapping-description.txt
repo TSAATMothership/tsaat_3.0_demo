@@ -28,7 +28,8 @@ SQL Server Target
   - `sslEnabled=false` => no SSL transport encryption.
   - `sslEnabled=true, sslType=strict` => SSL with strict certificate validation.
   - `sslEnabled=true, sslType=trust-server-certificate` => SSL with trusted server certificate mode.
-  - Runtime override for loaders/compile scripts: `TSAAT_SQL_TRUSTED_CONNECTION=true` and related SQL env vars.
+- `CreateDB.cmd` and `compileApp.cmd` confirm encrypted `DB_config` before use.
+- Unattended missing-file provisioning uses `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values to create encrypted `DB_config`; confirmed file values then drive loaders/compile scripts.
 - Admin database for bootstrap: master
 - Application schema: tsaat
 - Application login credentials are not imported into SQL Server; they are created/updated in encrypted repository root `logindetails`.

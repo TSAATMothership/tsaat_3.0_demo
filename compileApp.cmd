@@ -30,6 +30,7 @@ set "VENDORED_PACKAGE=%DEPS_DIR%\package.json"
 set "VENDORED_LOCK=%DEPS_DIR%\package-lock.json"
 set "DEPENDENCY_MANIFEST=%DEPS_DIR%\application dependencies.txt"
 set "SQLCMD_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-sqlcmd-offline.ps1"
+set "DB_CONFIG_ENSURE_SCRIPT=%REPO_ROOT%\scripts\ensure-db-config.ps1"
 set "DB_CONFIG_HELPER_SCRIPT=%REPO_ROOT%\scripts\emit-db-config-env.ps1"
 set "LOGIN_DETAILS_HELPER_SCRIPT=%REPO_ROOT%\scripts\ensure-logindetails.ps1"
 set "BUNDLED_SQLCMD_EXE="
@@ -38,6 +39,7 @@ set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
 set "LOGIN_DETAILS_FILE=%REPO_ROOT%\logindetails"
 set "DB_CONF_SERVER="
 set "DB_CONF_DATABASE="
+set "DB_CONF_AUTH_MODE="
 set "DB_CONF_USER_ID="
 set "DB_CONF_PASSWORD="
 set "DB_CONF_TRUSTED_CONNECTION="
@@ -97,6 +99,10 @@ if not exist "%DEPENDENCY_MANIFEST%" (
 )
 if not exist "%SQLCMD_HELPER_SCRIPT%" (
     echo [ERROR] Missing sqlcmd helper script: %SQLCMD_HELPER_SCRIPT%
+    exit /b 1
+)
+if not exist "%DB_CONFIG_ENSURE_SCRIPT%" (
+    echo [ERROR] Missing DB config confirmation script: %DB_CONFIG_ENSURE_SCRIPT%
     exit /b 1
 )
 if not exist "%DB_CONFIG_HELPER_SCRIPT%" (
@@ -192,28 +198,26 @@ if errorlevel 1 (
     exit /b 1
 )
 
-if exist "%DB_CONFIG_FILE%" (
-    for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"`) do %%I
-    if errorlevel 1 (
-        echo [WARN] Unable to parse or decrypt DB_config. Falling back to environment variables.
-        set "DB_CONF_SERVER="
-        set "DB_CONF_DATABASE="
-        set "DB_CONF_USER_ID="
-        set "DB_CONF_PASSWORD="
-        set "DB_CONF_TRUSTED_CONNECTION="
-        set "DB_CONF_ENCRYPT="
-        set "DB_CONF_TRUST_SERVER_CERTIFICATE="
-    )
-) else (
-    echo [WARN] DB_config is missing. Falling back to environment variables where provided.
+echo [INFO] Confirming encrypted DB_config settings...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_ENSURE_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"
+if errorlevel 1 (
+    echo [ERROR] Unable to validate or create encrypted DB_config.
+    exit /b 1
 )
 
-if "%TSAAT_SQL_SERVER%"=="" set "TSAAT_SQL_SERVER=%DB_CONF_SERVER%"
-if "%TSAAT_APP_DATABASE%"=="" set "TSAAT_APP_DATABASE=%DB_CONF_DATABASE%"
-if "%TSAAT_SQL_USER%"=="" if /I not "%DB_CONF_TRUSTED_CONNECTION%"=="true" set "TSAAT_SQL_USER=%DB_CONF_USER_ID%"
-if "%TSAAT_SQL_PASSWORD%"=="" if /I not "%DB_CONF_TRUSTED_CONNECTION%"=="true" set "TSAAT_SQL_PASSWORD=%DB_CONF_PASSWORD%"
-if "%TSAAT_SQL_ENCRYPT%"=="" if not "%DB_CONF_ENCRYPT%"=="" set "TSAAT_SQL_ENCRYPT=%DB_CONF_ENCRYPT%"
-if "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="" if not "%DB_CONF_TRUST_SERVER_CERTIFICATE%"=="" set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE=%DB_CONF_TRUST_SERVER_CERTIFICATE%"
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"`) do %%I
+if errorlevel 1 (
+    echo [ERROR] Unable to parse or decrypt confirmed DB_config.
+    exit /b 1
+)
+
+set "TSAAT_SQL_SERVER=%DB_CONF_SERVER%"
+set "TSAAT_APP_DATABASE=%DB_CONF_DATABASE%"
+set "TSAAT_SQL_USER=%DB_CONF_USER_ID%"
+set "TSAAT_SQL_PASSWORD=%DB_CONF_PASSWORD%"
+set "TSAAT_SQL_TRUSTED_CONNECTION=%DB_CONF_TRUSTED_CONNECTION%"
+set "TSAAT_SQL_ENCRYPT=%DB_CONF_ENCRYPT%"
+set "TSAAT_SQL_TRUST_SERVER_CERTIFICATE=%DB_CONF_TRUST_SERVER_CERTIFICATE%"
 
 if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
     set "TSAAT_SQL_AUTH_MODE=trusted"
@@ -234,7 +238,7 @@ if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
         set "TSAAT_SQL_AUTH_MODE=trusted"
         if /I not "%DB_CONF_TRUSTED_CONNECTION%"=="true" (
             if "%DB_CONF_USER_ID%"=="" (
-                echo [ERROR] No SQL credentials found in DB_config or environment.
+                echo [ERROR] No SQL credentials found in confirmed DB_config.
                 exit /b 1
             )
         )
@@ -393,7 +397,7 @@ if not exist "%RESTORED_SWC_PACKAGE_BINARY%" (
         echo [ERROR] Missing required Next.js SWC binary for win32-x64.
         echo [ERROR] Expected either %RESTORED_SWC_PACKAGE_BINARY% or %RESTORED_SWC_FALLBACK_BINARY%.
         echo [ERROR] Pre-stage %STAGED_SWC_BINARY% before running compileApp.cmd.
-        echo [ERROR] See README.md ^> Offline Build and Database Setup ^(Windows^) ^> Step 0.
+        echo [ERROR] See README.md ^> Offline Build and Database Setup ^(Windows^) ^> Artifact Reference.
         exit /b 1
     )
 )

@@ -4,6 +4,7 @@ setlocal EnableExtensions
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%.") do set "REPO_ROOT=%%~fI"
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
+set "DB_CONFIG_ENSURE_SCRIPT=%REPO_ROOT%\scripts\ensure-db-config.ps1"
 set "DB_CONFIG_HELPER_SCRIPT=%REPO_ROOT%\scripts\emit-db-config-env.ps1"
 set "BUILD_DATABASE_CMD=%REPO_ROOT%\buildDatabase.cmd"
 set "DEPS_DIR=%REPO_ROOT%\Dependencies"
@@ -41,6 +42,10 @@ if not exist "%VENDORED_NODE_MODULES%\" (
 )
 if not exist "%SQLCMD_HELPER_SCRIPT%" (
   call :fail "Missing sqlcmd helper script: %SQLCMD_HELPER_SCRIPT%"
+  exit /b 1
+)
+if not exist "%DB_CONFIG_ENSURE_SCRIPT%" (
+  call :fail "Missing DB config confirmation script: %DB_CONFIG_ENSURE_SCRIPT%"
   exit /b 1
 )
 if not exist "%DB_CONFIG_HELPER_SCRIPT%" (
@@ -95,32 +100,19 @@ if errorlevel 8 (
 )
 echo [INFO] Local node_modules is ready for offline use.
 
-if exist "%DB_CONFIG_FILE%" (
-  for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"`) do %%I
-  if errorlevel 1 (
-    echo [WARN] Unable to parse or decrypt DB_config. Environment variables will be used.
-    set "DB_SERVER="
-    set "DB_APP_DATABASE="
-    set "DB_AUTH_MODE="
-    set "DB_USER_ID="
-    set "DB_PASSWORD="
-    set "DB_ENCRYPT=false"
-    set "DB_TRUST_SERVER_CERTIFICATE=false"
-  )
-) else (
-  echo [WARN] DB_config is missing. Environment variables will be used.
+echo [INFO] Confirming encrypted DB_config settings...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_ENSURE_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"
+if errorlevel 1 (
+  call :fail "Unable to validate or create encrypted DB_config."
+  exit /b 1
 )
 
-if "%DB_SERVER%"=="" if not "%TSAAT_SQL_SERVER%"=="" set "DB_SERVER=%TSAAT_SQL_SERVER%"
-if "%DB_APP_DATABASE%"=="" if not "%TSAAT_APP_DATABASE%"=="" set "DB_APP_DATABASE=%TSAAT_APP_DATABASE%"
-if "%DB_USER_ID%"=="" if not "%TSAAT_SQL_USER%"=="" set "DB_USER_ID=%TSAAT_SQL_USER%"
-if "%DB_PASSWORD%"=="" if not "%TSAAT_SQL_PASSWORD%"=="" set "DB_PASSWORD=%TSAAT_SQL_PASSWORD%"
-
-if /I "%TSAAT_SQL_TRUSTED_CONNECTION%"=="true" (
-  set "DB_AUTH_MODE=trusted"
-  set "DB_USER_ID="
-  set "DB_PASSWORD="
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_CONFIG_HELPER_SCRIPT%" -RepoRoot "%REPO_ROOT%" -DbConfigPath "%DB_CONFIG_FILE%"`) do %%I
+if errorlevel 1 (
+  call :fail "Unable to parse or decrypt confirmed DB_config."
+  exit /b 1
 )
+
 if /I "%DB_AUTH_MODE%"=="" (
   if not "%DB_USER_ID%"=="" (
     if not "%DB_PASSWORD%"=="" (
@@ -129,8 +121,6 @@ if /I "%DB_AUTH_MODE%"=="" (
   )
 )
 if /I "%DB_AUTH_MODE%"=="" set "DB_AUTH_MODE=trusted"
-if not "%TSAAT_SQL_ENCRYPT%"=="" set "DB_ENCRYPT=%TSAAT_SQL_ENCRYPT%"
-if not "%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"=="" set "DB_TRUST_SERVER_CERTIFICATE=%TSAAT_SQL_TRUST_SERVER_CERTIFICATE%"
 if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" set "DB_ENCRYPT=true"
 if /I not "%DB_ENCRYPT%"=="true" set "DB_TRUST_SERVER_CERTIFICATE=false"
 if "%DB_ENCRYPT%"=="" set "DB_ENCRYPT=false"

@@ -64,6 +64,7 @@ The page specifications repeatedly reference the following shared implementation
 - `lib/db-config.ts`: encrypted `DB_config` envelope parsing/normalization/DPAPI encryption
 - `lib/database-settings.ts`: database connection, SSL, and schema validation
 - `lib/sql-server.ts`: runtime `sqlcmd` execution, bundled path fallback (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`), local target normalization (`lpc:`), and SSL flag mapping
+- `scripts/ensure-db-config.ps1`: offline compile/database DB_config confirmation, encrypted creation, and unattended environment provisioning
 - `components/filter-bar.tsx`: common filter UI and loading overlay behaviour
 - `components/menu-navigation.tsx`: global menu, route loading overlay, and date picker behaviour
 
