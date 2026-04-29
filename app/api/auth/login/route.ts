@@ -12,6 +12,11 @@ function readCredentialField(value: unknown): string {
   return value.trim();
 }
 
+function noStore(response: NextResponse): NextResponse {
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -19,22 +24,22 @@ export async function POST(request: NextRequest) {
     const password = readCredentialField((body as Record<string, unknown>)?.password);
 
     if (!username || !password) {
-      return NextResponse.json({ error: "Username and password are required." }, { status: 400 });
+      return noStore(NextResponse.json({ error: "Username and password are required." }, { status: 400 }));
     }
 
     const user = await authenticateAppUser(username, password);
     if (!user) {
-      return NextResponse.json({ error: "Invalid username or password." }, { status: 401 });
+      return noStore(NextResponse.json({ error: "Invalid username or password." }, { status: 401 }));
     }
 
     const token = await createSessionTokenForUser(user);
-    const response = NextResponse.json({
+    const response = noStore(NextResponse.json({
       authenticated: true,
       username: user.username
-    });
+    }));
     writeSessionCookie(response, token);
     return response;
   } catch {
-    return NextResponse.json({ error: "Login request is invalid." }, { status: 400 });
+    return noStore(NextResponse.json({ error: "Login request is invalid." }, { status: 400 }));
   }
 }

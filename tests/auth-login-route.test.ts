@@ -31,6 +31,7 @@ describe("auth login route", () => {
 
     const response = await POST(request as any);
     expect(response.status).toBe(400);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("returns 401 when credentials are invalid", async () => {
@@ -48,6 +49,7 @@ describe("auth login route", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(401);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(payload.error).toBe("Invalid username or password.");
   });
 
@@ -70,6 +72,7 @@ describe("auth login route", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(payload.authenticated).toBe(true);
     expect(payload.username).toBe("fileuser");
     expect(writeSessionCookieMock).toHaveBeenCalledTimes(1);

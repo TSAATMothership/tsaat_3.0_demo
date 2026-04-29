@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST() {
   const response = NextResponse.json({ authenticated: false });
+  response.headers.set("Cache-Control", "no-store");
   clearSessionCookie(response);
   return response;
 }

@@ -12,7 +12,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 - Findings export API (`JSON` and `CSV`)
 - Written Report Generator (print view + browser Save as PDF)
 - Deterministic seed data generation with realistic posture exceptions
-- Application login gate with encrypted file-backed credentials and password rotation settings
+- Application login gate with encrypted file-backed credentials, signed session checks, logout, and password rotation settings
 
 ## Tech Stack
 
@@ -126,7 +126,9 @@ For a fully repo-contained run using the bundled runtime, run:
 Dependencies\runtime\nodejs\win-x64\npm.cmd run dev
 ```
 
-Open `http://localhost:3000`. First access redirects to `/login`; use the credentials that created `logindetails`. After sign-in, rotate the app password from `/settings` -> `Password Settings`.
+Open `http://localhost:3000`. First access redirects to `/login`; use the credentials that created `logindetails`. Direct page URLs and protected APIs require a valid signed `tsaat_session` cookie; unauthenticated page requests redirect to `/login`, while unauthenticated API requests return `401`.
+
+After sign-in, the app monitors session validity while pages are open and returns to `/login` if the session expires, is cleared, or is invalidated by password rotation/logout in another tab. Rotate the app password from `/settings` -> `Password Settings`.
 
 ### Offline Dependency Inventory
 
@@ -181,6 +183,7 @@ If an artifact is missing on an internet-connected preparation machine, restore 
 - `CreateDB.cmd` and `compileApp.cmd` use encrypted `DB_config` after confirmation. Environment variables provision a missing or undecryptable `DB_config` only when `TSAAT_DB_CONFIG_ASSUME_YES=true`.
 - SQL authentication requires both `TSAAT_SQL_USER` and `TSAAT_SQL_PASSWORD` when provisioning `DB_config` from environment variables.
 - Application login recreation requires both `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` in unattended mode.
+- Logout clears the local session cookie, broadcasts the sign-out to other open TSAAT tabs, and returns the browser to `/login`.
 - Local named instances such as `localhost\SQLEXPRESS` are normalized to `lpc:` for bundled `sqlcmd` compatibility.
 - `npm run dev` uses `scripts/run-next-dev-offline.cjs`, which disables SWC downloads and extracts/copies the bundled SWC artifact when needed.
 - `DB_config` and `logindetails` use Windows DPAPI. The same Windows identity that creates a `CurrentUser` encrypted file must run/decrypt it; on a new computer, let `CreateDB.cmd` or `compileApp.cmd` recreate the local file.

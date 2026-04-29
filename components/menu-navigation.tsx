@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { broadcastLogoutEvent } from "@/lib/auth-client-events";
 import {
   DATA_DATE_PARAM,
   extractHrefPathname,
@@ -269,12 +270,18 @@ export function MenuNavigation({
     setIsLoggingOut(true);
     try {
       await fetch("/api/auth/logout", {
-        method: "POST"
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-store"
+        }
       });
     } catch {
       // Logout always finishes by redirecting to login.
     } finally {
-      window.location.href = "/login";
+      broadcastLogoutEvent();
+      window.location.replace("/login");
     }
   };
 

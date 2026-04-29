@@ -51,7 +51,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 
 ## Cross-Cutting Specifications
 - [12-Asset-Taxonomy-and-SPI-Applicability.md](12-Asset-Taxonomy-and-SPI-Applicability.md): canonical six-type asset taxonomy, SPI applicability contract, settings normalization, and schema-domain requirements.
-- [13-Authentication-and-Login.md](13-Authentication-and-Login.md): app-wide login gate, session model, and password lifecycle controls.
+- [13-Authentication-and-Login.md](13-Authentication-and-Login.md): app-wide login gate, server/client session checks, logout, and password lifecycle controls.
 
 ## Shared Runtime Dependencies
 The page specifications repeatedly reference the following shared implementation elements:
@@ -65,6 +65,8 @@ The page specifications repeatedly reference the following shared implementation
 - `lib/database-settings.ts`: database connection, SSL, and schema validation
 - `lib/sql-server.ts`: runtime `sqlcmd` execution, bundled path fallback (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`), local target normalization (`lpc:`), and SSL flag mapping
 - `scripts/ensure-db-config.ps1`: offline compile/database DB_config confirmation, encrypted creation/recreation, and unattended environment provisioning
+- `middleware.ts`: server-side session enforcement for direct page/API access
+- `components/authenticated-session-guard.tsx`: client-side session revalidation for already-loaded authenticated pages
 - `components/filter-bar.tsx`: common filter UI and loading overlay behaviour
 - `components/menu-navigation.tsx`: global menu, route loading overlay, and date picker behaviour
 
