@@ -24,8 +24,8 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 4. Vendored npm CLI payload present at Dependencies\runtime\nodejs\win-x64\node_modules\npm\bin\npm-cli.js.
 5. Bundled sqlcmd archive present at Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and stageable to Dependencies\external\sqlcmd\win-x64\sqlcmd.exe.
 6. Reachable SQL Server instance (trusted auth or SQL auth).
-7. Encrypted `DB_config` file, or `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values so compileApp.cmd/CreateDB.cmd can create it offline.
-8. Encrypted `logindetails` file, or `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` available so compileApp.cmd can create it offline.
+7. Local ignored encrypted `DB_config` file, or `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values so compileApp.cmd/CreateDB.cmd can create or recreate it offline.
+8. Local ignored encrypted `logindetails` file, or `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` available so compileApp.cmd can create or recreate it offline.
 9. Populated TSAAT application database selected by confirmed `DB_config` (interactive missing-file defaults: Server=localhost\SQLEXPRESS;Database=TSAAT) with table tsaat.dataset_snapshot containing at least one row.
 10. Target runtime must be Windows x64 (bundle contains Windows-x64 native binaries).
 11. Repository source code present locally (no network fetch in compile stage).
@@ -1444,9 +1444,9 @@ Offline compile sequence enforced by compileApp.cmd
 -----------------------------------------------
 1. Validate required local tools/files.
 2. Configure PATH to use vendored Node.js runtime at Dependencies\runtime\nodejs\win-x64.
-3. Validate existing encrypted `logindetails`, or create it with DPAPI CurrentUser encryption from interactive input or `TSAAT_LOGIN_USERNAME`/`TSAAT_LOGIN_PASSWORD`.
+3. Validate existing encrypted `logindetails`, or create/recreate it with DPAPI CurrentUser encryption from interactive input or `TSAAT_LOGIN_USERNAME`/`TSAAT_LOGIN_PASSWORD` when missing or undecryptable.
 4. Resolve/stage bundled sqlcmd from Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and prepend its directory to PATH.
-5. Confirm encrypted `DB_config` via scripts\ensure-db-config.ps1; interactive runs can accept/change settings, while unattended runs accept a valid existing file or create one from `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values.
+5. Confirm encrypted `DB_config` via scripts\ensure-db-config.ps1; interactive runs can accept/change settings or recreate an undecryptable local file, while unattended runs accept a valid existing file or create/recreate one from `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values.
 6. Read confirmed `DB_config`, apply SQL auth/SSL settings, and normalize local SQL named-instance targets to lpc: protocol when no explicit protocol prefix is provided.
 7. Validate Dependencies\package.json and Dependencies\package-lock.json match repository root files.
 8. Restore node_modules from Dependencies\node_modules.

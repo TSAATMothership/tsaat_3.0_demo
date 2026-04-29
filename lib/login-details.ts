@@ -112,7 +112,10 @@ function isLoginDetailsEnvelope(value: unknown): value is LoginDetailsEncryptedE
 
 function sanitizeDpapiFailure(error: unknown, action: "encrypt" | "decrypt"): Error {
   const message = error instanceof Error ? error.message : "Unknown DPAPI error.";
-  const prefix = action === "encrypt" ? "Failed to encrypt logindetails" : "Failed to decrypt logindetails";
+  const prefix =
+    action === "encrypt"
+      ? "Failed to encrypt logindetails"
+      : "Failed to decrypt logindetails. Re-run compileApp.cmd to recreate it for this Windows identity";
   return new Error(`${prefix}. ${message}`);
 }
 

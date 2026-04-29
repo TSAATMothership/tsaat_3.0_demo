@@ -13,7 +13,7 @@ const EMIT_SCRIPT = path.join(REPO_ROOT, "scripts", "emit-db-config-env.ps1");
 function withCleanTsaatEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (key.startsWith("TSAAT_SQL_") || key.startsWith("TSAAT_DB_CONFIG_")) {
+    if (key.startsWith("TSAAT_SQL_") || key.startsWith("TSAAT_DB_CONFIG_") || key === "TSAAT_APP_DATABASE") {
       delete env[key];
     }
   }
@@ -31,6 +31,18 @@ function runPowerShell(scriptPath: string, args: string[], env: NodeJS.ProcessEn
 
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+async function writeUndecryptableDbConfig(filePath: string) {
+  const envelope = {
+    format: "tsaat-db-config",
+    version: 1,
+    keyProvider: "dpapi-current-user",
+    algorithm: "dpapi",
+    ciphertextBase64: Buffer.from("not-a-dpapi-payload").toString("base64"),
+    updatedAtUtc: "2026-04-29T00:00:00.000Z"
+  };
+  await fs.writeFile(filePath, `${JSON.stringify(envelope, null, 2)}\n`, "utf8");
 }
 
 describe("ensure-db-config.ps1", () => {
@@ -111,6 +123,54 @@ describe("ensure-db-config.ps1", () => {
 
     const after = await fs.readFile(dbConfigPath, "utf8");
     expect(sha256(after)).toBe(beforeHash);
+  });
+
+  it("recreates an undecryptable DB_config noninteractively when complete environment values are provided", async () => {
+    await writeUndecryptableDbConfig(dbConfigPath);
+    const before = await fs.readFile(dbConfigPath, "utf8");
+    expect(before).toContain(Buffer.from("not-a-dpapi-payload").toString("base64"));
+
+    const env = withCleanTsaatEnv({
+      TSAAT_DB_CONFIG_ASSUME_YES: "true",
+      TSAAT_SQL_SERVER: "localhost\\SQLEXPRESS",
+      TSAAT_APP_DATABASE: "TSAAT",
+      TSAAT_SQL_USER: "replacement_user",
+      TSAAT_SQL_PASSWORD: "replacement-secret"
+    });
+
+    const result = runPowerShell(
+      ENSURE_SCRIPT,
+      ["-RepoRoot", REPO_ROOT, "-DbConfigPath", dbConfigPath],
+      env
+    );
+
+    expect(result.status).toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Recreated encrypted DB_config file");
+
+    const raw = await fs.readFile(dbConfigPath, "utf8");
+    expect(raw).not.toContain("replacement_user");
+    expect(raw).not.toContain("replacement-secret");
+    expect(sha256(raw)).not.toBe(sha256(before));
+
+    const emitResult = runPowerShell(EMIT_SCRIPT, ["-RepoRoot", REPO_ROOT, "-DbConfigPath", dbConfigPath], env);
+    expect(emitResult.status).toBe(0);
+    expect(emitResult.stdout).toContain('set "DB_CONF_AUTH_MODE=sql"');
+    expect(emitResult.stdout).toContain('set "DB_CONF_USER_ID=replacement_user"');
+    expect(emitResult.stdout).toContain('set "DB_CONF_PASSWORD=replacement-secret"');
+  });
+
+  it("fails clearly for an undecryptable DB_config when unattended recreation values are incomplete", async () => {
+    await writeUndecryptableDbConfig(dbConfigPath);
+
+    const result = runPowerShell(
+      ENSURE_SCRIPT,
+      ["-RepoRoot", REPO_ROOT, "-DbConfigPath", dbConfigPath],
+      withCleanTsaatEnv({ TSAAT_DB_CONFIG_ASSUME_YES: "true" })
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Existing DB_config cannot be decrypted or validated");
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Unattended recreation requires");
   });
 
   it("fails clearly when DB_config is missing and noninteractive environment values are incomplete", () => {

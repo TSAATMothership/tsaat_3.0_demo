@@ -17,7 +17,8 @@
 
 ## 3. Credential Contract
 - Credentials are stored in repository root `logindetails`, not in SQL Server.
-- `compileApp.cmd` creates `logindetails` when missing by prompting for non-empty credentials or by using `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD`.
+- `compileApp.cmd` creates `logindetails` when missing and recreates it when the existing file cannot be decrypted/validated by the current Windows identity.
+- Interactive compile prompts for non-empty credentials; unattended compile requires both `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD`.
 - `logindetails` is a DPAPI `CurrentUser` encrypted JSON envelope:
   - `format = tsaat-logindetails`
   - `keyProvider = dpapi-current-user`
@@ -33,6 +34,7 @@
 - Plaintext application login passwords are never persisted to SQL tables or plaintext files.
 - `logindetails` is ignored by git and must be generated locally.
 - The Windows user that creates `logindetails` must be the user that runs/decrypts it because DPAPI scope is `CurrentUser`.
+- If a copied `logindetails` cannot be decrypted, compile-time recreation sets a new application login credential because the old password hash material cannot be recovered.
 - API responses and diagnostics never return plaintext passwords or hashes.
 - Session cookie is HTTP-only and same-site `lax`.
 - Password change requires current password verification.

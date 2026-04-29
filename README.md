@@ -56,8 +56,9 @@ If SQL Server Express is not already installed, download and pre-stage the Micro
 
 `CreateDB.cmd` and `compileApp.cmd` both run `scripts/ensure-db-config.ps1` before using database settings.
 
-- If encrypted `DB_config` already exists, interactive runs show the saved non-secret values so you can confirm or change them. Noninteractive runs accept a valid existing file without rewriting it.
+- If encrypted `DB_config` already exists and can be decrypted by the current Windows identity, interactive runs show the saved non-secret values so you can confirm or change them. Noninteractive runs accept a valid existing file without rewriting it.
 - If `DB_config` is missing, interactive runs prompt for server, database, authentication, and SSL values, then write encrypted `DB_config`.
+- If `DB_config` exists but cannot be decrypted on this computer/user, interactive runs warn that the file is from another Windows identity or is invalid and offer to recreate it locally. Unattended runs recreate it only when the required environment values are supplied.
 - For unattended offline setup, set `TSAAT_DB_CONFIG_ASSUME_YES=true` plus the required database environment values before running `CreateDB.cmd`.
 
 For the simplest unattended first-time setup, use Windows trusted authentication:
@@ -101,7 +102,7 @@ cmd /c compileApp.cmd
 
 `compileApp.cmd` confirms or validates encrypted `DB_config`, uses the vendored Node.js/npm runtime, restores `node_modules` from `Dependencies/node_modules`, stages bundled `sqlcmd`, validates/extracts the bundled SWC archive, checks the target database has loaded snapshot data, runs `npm rebuild --offline`, and runs `npm run build --offline`.
 
-When `logindetails` does not exist, the compile script creates it by prompting for a non-empty username and password. For unattended offline compilation, set both values first:
+When `logindetails` does not exist, or exists but cannot be decrypted by the current Windows identity, the compile script creates/recreates it by prompting for a non-empty username and password. For unattended offline compilation or recreation, set both values first:
 
 ```powershell
 $env:TSAAT_LOGIN_USERNAME='your-app-user'
@@ -109,7 +110,7 @@ $env:TSAAT_LOGIN_PASSWORD='your-app-password'
 cmd /c compileApp.cmd
 ```
 
-Application login credentials are stored in repo-root `logindetails`, not SQL Server. The file is encrypted with Windows DPAPI `CurrentUser` scope and stores salted PBKDF2-HMAC-SHA256 password hash metadata; plaintext passwords are never written to disk.
+Application login credentials are stored in repo-root `logindetails`, not SQL Server. The file is encrypted with Windows DPAPI `CurrentUser` scope and stores salted PBKDF2-HMAC-SHA256 password hash metadata; plaintext passwords are never written to disk. Recreating an undecryptable file sets a new application login credential because existing password hash material cannot be recovered from another Windows identity.
 
 ### 5. Run The App Offline
 
@@ -151,6 +152,7 @@ Local encrypted configuration files:
 - `logindetails`
 
 Generated staging files are local machine outputs and are not required as committed source artifacts. `DB_config` and `logindetails` are encrypted local configuration files; plaintext SQL/app passwords are not stored.
+`DB_config` and `logindetails` are ignored by git and are not portable between Windows identities when encrypted with the default DPAPI `CurrentUser` scope.
 
 ### Large File Policy
 
@@ -176,11 +178,12 @@ If an artifact is missing on an internet-connected preparation machine, restore 
 
 ### Troubleshooting
 
-- `CreateDB.cmd` and `compileApp.cmd` use encrypted `DB_config` after confirmation. Environment variables provision a missing `DB_config` only when `TSAAT_DB_CONFIG_ASSUME_YES=true`.
+- `CreateDB.cmd` and `compileApp.cmd` use encrypted `DB_config` after confirmation. Environment variables provision a missing or undecryptable `DB_config` only when `TSAAT_DB_CONFIG_ASSUME_YES=true`.
 - SQL authentication requires both `TSAAT_SQL_USER` and `TSAAT_SQL_PASSWORD` when provisioning `DB_config` from environment variables.
+- Application login recreation requires both `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` in unattended mode.
 - Local named instances such as `localhost\SQLEXPRESS` are normalized to `lpc:` for bundled `sqlcmd` compatibility.
 - `npm run dev` uses `scripts/run-next-dev-offline.cjs`, which disables SWC downloads and extracts/copies the bundled SWC artifact when needed.
-- `DB_config` and `logindetails` use Windows DPAPI. The same Windows identity that creates a `CurrentUser` encrypted file must run/decrypt it.
+- `DB_config` and `logindetails` use Windows DPAPI. The same Windows identity that creates a `CurrentUser` encrypted file must run/decrypt it; on a new computer, let `CreateDB.cmd` or `compileApp.cmd` recreate the local file.
 - If both the staged SWC binary and bundled SWC archive are missing, compile/startup fails with a local error instead of downloading from npm.
 
 ## Build and Start

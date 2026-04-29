@@ -41,8 +41,8 @@ erDiagram
 - The model supports both ICT System model and Network model flow visualisations.
 
 ## Operational Notes
-- Connection/auth settings are external to this ERD and are configured in encrypted repository root `DB_config`, which `/settings`, `CreateDB.cmd`, and `compileApp.cmd` can confirm or update.
-- Application login credentials are external to this ERD and are configured in encrypted repository root `logindetails`.
+- Connection/auth settings are external to this ERD and are configured in local encrypted repository root `DB_config`, which `/settings`, `CreateDB.cmd`, and `compileApp.cmd` can confirm, update, or recreate when the local DPAPI file is missing/undecryptable.
+- Application login credentials are external to this ERD and are configured in local encrypted repository root `logindetails`.
 - `managed_network` includes platform flags:
   - `adf_platform` (`BIT`)
   - `enterprise_platform` (`BIT`)

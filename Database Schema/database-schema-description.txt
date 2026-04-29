@@ -12,7 +12,7 @@ The TSAAT schema (`tsaat`) stores snapshot-based cyber posture data for:
 
 Connection/bootstrap notes
 --------------------------
-- Runtime DB connection settings are stored in repository root `DB_config` as an encrypted JSON envelope.
+- Runtime DB connection settings are stored in local repository root `DB_config` as an encrypted JSON envelope.
 - The encrypted payload stores:
   - `server`
   - `database`
@@ -21,8 +21,8 @@ Connection/bootstrap notes
   - `password`
   - `sslEnabled`
   - `sslType` (`strict` or `trust-server-certificate`)
-- `DB_config` is app-managed via `/settings` or confirmed/created by offline scripts before database build/compile, and should not be edited manually.
-- Application login credentials are stored outside SQL Server in repository root `logindetails` as an encrypted DPAPI CurrentUser envelope.
+- `DB_config` is app-managed via `/settings` or confirmed/created/recreated by offline scripts before database build/compile, is ignored by git, and should not be edited manually.
+- Application login credentials are stored outside SQL Server in local repository root `logindetails` as an encrypted DPAPI CurrentUser envelope.
 - The encrypted `logindetails` payload stores username, salted PBKDF2-HMAC-SHA256 hash metadata, and session-version metadata.
 
 Canonical loader data sources

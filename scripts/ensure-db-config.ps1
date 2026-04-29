@@ -555,20 +555,58 @@ if ([string]::IsNullOrWhiteSpace($DbConfigPath)) {
 $assumeYes = Test-AssumeYes
 $interactive = Is-Interactive
 $existing = $null
+$existingReadError = $null
 
 if (Test-Path -LiteralPath $DbConfigPath) {
-  $existing = Read-EncryptedDbConfig -Path $DbConfigPath
-  if ($assumeYes -or -not $interactive) {
-    Write-Host "Validated encrypted DB_config file: $DbConfigPath"
+  try {
+    $existing = Read-EncryptedDbConfig -Path $DbConfigPath
+  } catch {
+    $existingReadError = $_.Exception.Message
+    Write-Warning ("Existing DB_config cannot be decrypted or validated by this Windows identity. It may have been created by another Windows user/machine or it may be invalid. Details: {0}" -f $existingReadError)
+  }
+
+  if ($null -ne $existing) {
+    if ($assumeYes -or -not $interactive) {
+      Write-Host "Validated encrypted DB_config file: $DbConfigPath"
+      exit 0
+    }
+
+    Write-SettingsSummary -Settings $existing.payload
+    $acceptExisting = Read-YesNo -Prompt 'Use these database settings?' -DefaultValue $true
+    $settings = if ($acceptExisting) { $existing.payload } else { Read-InteractiveSettings -Defaults $existing.payload }
+    $keyProvider = Resolve-KeyProvider -ExistingKeyProvider $existing.keyProvider
+    Write-DbConfigFile -Path $DbConfigPath -Payload $settings -KeyProvider $keyProvider
+    Write-Host "Confirmed encrypted DB_config file: $DbConfigPath"
     exit 0
   }
 
-  Write-SettingsSummary -Settings $existing.payload
-  $acceptExisting = Read-YesNo -Prompt 'Use these database settings?' -DefaultValue $true
-  $settings = if ($acceptExisting) { $existing.payload } else { Read-InteractiveSettings -Defaults $existing.payload }
-  $keyProvider = Resolve-KeyProvider -ExistingKeyProvider $existing.keyProvider
-  Write-DbConfigFile -Path $DbConfigPath -Payload $settings -KeyProvider $keyProvider
-  Write-Host "Confirmed encrypted DB_config file: $DbConfigPath"
+  if (-not $interactive -and -not $assumeYes) {
+    throw 'Existing DB_config cannot be decrypted or validated by this Windows identity. Re-run CreateDB.cmd or compileApp.cmd interactively to recreate it, or set TSAAT_DB_CONFIG_ASSUME_YES=true with TSAAT_SQL_SERVER, TSAAT_APP_DATABASE, and either trusted auth or SQL credentials.'
+  }
+
+  if ($assumeYes -and -not (Has-RequiredEnvProvisioning)) {
+    throw 'Existing DB_config cannot be decrypted or validated by this Windows identity. Unattended recreation requires TSAAT_DB_CONFIG_ASSUME_YES=true, TSAAT_SQL_SERVER, TSAAT_APP_DATABASE, and either TSAAT_SQL_TRUSTED_CONNECTION=true or both TSAAT_SQL_USER and TSAAT_SQL_PASSWORD.'
+  }
+
+  $recreateDefaults = Build-CandidateSettings -ExistingPayload ([pscustomobject]@{})
+  $settingsToRewrite = $recreateDefaults
+
+  if ($interactive -and -not $assumeYes) {
+    $recreate = Read-YesNo -Prompt 'Recreate DB_config for this Windows user?' -DefaultValue $true
+    if (-not $recreate) {
+      throw 'DB_config was not changed. Recreate it before running database or compile commands on this Windows identity.'
+    }
+    Write-Host 'Confirm database settings to recreate DB_config.'
+    Write-SettingsSummary -Settings $recreateDefaults
+    $acceptDefaults = Read-YesNo -Prompt 'Use these database settings?' -DefaultValue $true
+    if (-not $acceptDefaults) {
+      $settingsToRewrite = Read-InteractiveSettings -Defaults $recreateDefaults
+    }
+  }
+
+  $rewriteKeyProvider = Resolve-KeyProvider -ExistingKeyProvider $null
+  Write-DbConfigFile -Path $DbConfigPath -Payload $settingsToRewrite -KeyProvider $rewriteKeyProvider
+  Write-Host "Recreated encrypted DB_config file: $DbConfigPath"
   exit 0
 }
 
@@ -576,8 +614,8 @@ if (-not $interactive -and -not $assumeYes) {
   throw 'DB_config is missing and interactive database settings input is unavailable. Set TSAAT_DB_CONFIG_ASSUME_YES=true with TSAAT_SQL_SERVER, TSAAT_APP_DATABASE, and either trusted auth or SQL credentials.'
 }
 
-if (-not $interactive -and -not (Has-RequiredEnvProvisioning)) {
-  throw 'DB_config is missing. Noninteractive creation requires TSAAT_DB_CONFIG_ASSUME_YES=true, TSAAT_SQL_SERVER, TSAAT_APP_DATABASE, and either TSAAT_SQL_TRUSTED_CONNECTION=true or both TSAAT_SQL_USER and TSAAT_SQL_PASSWORD.'
+if ($assumeYes -and -not (Has-RequiredEnvProvisioning)) {
+  throw 'DB_config is missing. Unattended creation requires TSAAT_DB_CONFIG_ASSUME_YES=true, TSAAT_SQL_SERVER, TSAAT_APP_DATABASE, and either TSAAT_SQL_TRUSTED_CONNECTION=true or both TSAAT_SQL_USER and TSAAT_SQL_PASSWORD.'
 }
 
 $defaults = Build-CandidateSettings -ExistingPayload ([pscustomobject]@{})

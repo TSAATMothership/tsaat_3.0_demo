@@ -116,6 +116,39 @@ function Read-RequiredPassword {
   return Normalize-Password -Value (Convert-SecureStringToPlaintext -SecureString $securePassword)
 }
 
+function Has-RequiredEnvCredentials {
+  return (
+    -not [string]::IsNullOrWhiteSpace($env:TSAAT_LOGIN_USERNAME) -and
+    -not [string]::IsNullOrWhiteSpace($env:TSAAT_LOGIN_PASSWORD)
+  )
+}
+
+function Is-Interactive {
+  return (-not [Console]::IsInputRedirected)
+}
+
+function Read-YesNo {
+  param(
+    [Parameter(Mandatory = $true)][string]$Prompt,
+    [Parameter(Mandatory = $true)][bool]$DefaultValue
+  )
+
+  $suffix = if ($DefaultValue) { '[Y/n]' } else { '[y/N]' }
+  while ($true) {
+    $answer = (Read-Host "$Prompt $suffix").Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($answer)) {
+      return $DefaultValue
+    }
+    if ($answer -eq 'y' -or $answer -eq 'yes') {
+      return $true
+    }
+    if ($answer -eq 'n' -or $answer -eq 'no') {
+      return $false
+    }
+    Write-Host 'Enter y or n.'
+  }
+}
+
 function Convert-Base64ToBytes {
   param(
     [Parameter(Mandatory = $true)][string]$Name,
@@ -246,7 +279,10 @@ function Write-LoginDetailsFile {
 }
 
 function New-LoginDetailsFile {
-  param([Parameter(Mandatory = $true)][string]$Path)
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [ValidateSet('Created', 'Recreated')][string]$Action = 'Created'
+  )
 
   $username = Read-RequiredUsername
   $password = Read-RequiredPassword
@@ -296,7 +332,7 @@ function New-LoginDetailsFile {
   }
 
   Write-LoginDetailsFile -Path $Path -Envelope $envelope
-  Write-Host "Created encrypted logindetails file: $Path"
+  Write-Host "$Action encrypted logindetails file: $Path"
 }
 
 $script:RepoRoot = Resolve-RepoRoot -InputRoot $RepoRoot
@@ -305,9 +341,29 @@ if ([string]::IsNullOrWhiteSpace($LoginDetailsPath)) {
 }
 
 if (Test-Path -LiteralPath $LoginDetailsPath) {
-  $payload = Read-EncryptedPayload -Path $LoginDetailsPath
-  Test-LoginDetailsPayload -Payload $payload
-  Write-Host "Validated encrypted logindetails file: $LoginDetailsPath"
+  try {
+    $payload = Read-EncryptedPayload -Path $LoginDetailsPath
+    Test-LoginDetailsPayload -Payload $payload
+    Write-Host "Validated encrypted logindetails file: $LoginDetailsPath"
+    exit 0
+  } catch {
+    $existingReadError = $_.Exception.Message
+    Write-Warning ("Existing logindetails cannot be decrypted or validated by this Windows identity. It may have been created by another Windows user/machine or it may be invalid. Details: {0}" -f $existingReadError)
+  }
+
+  $interactive = Is-Interactive
+  if (-not $interactive -and -not (Has-RequiredEnvCredentials)) {
+    throw 'Existing logindetails cannot be decrypted or validated by this Windows identity. Unattended recreation requires both TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD.'
+  }
+
+  if ($interactive) {
+    $recreate = Read-YesNo -Prompt 'Recreate logindetails for this Windows user?' -DefaultValue $true
+    if (-not $recreate) {
+      throw 'logindetails was not changed. Recreate it before compiling or running the application on this Windows identity.'
+    }
+  }
+
+  New-LoginDetailsFile -Path $LoginDetailsPath -Action Recreated
   exit 0
 }
 

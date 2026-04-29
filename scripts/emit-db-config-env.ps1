@@ -89,7 +89,7 @@ if ([string]::IsNullOrWhiteSpace($raw)) {
 
 $trimmed = $raw.Trim()
 if (-not $trimmed.StartsWith('{')) {
-  throw 'DB_config is not in encrypted envelope format. Open /settings and save database settings to migrate it.'
+  throw 'DB_config is not in encrypted envelope format. Re-run CreateDB.cmd or compileApp.cmd to recreate it, or open /settings and save database settings.'
 }
 
 try {
@@ -114,7 +114,11 @@ if ([string]::IsNullOrWhiteSpace($ciphertextBase64)) {
   throw 'DB_config ciphertext is missing.'
 }
 
-$payloadBase64 = & $helperPath -Mode unprotect -Scope $scope -InputBase64 $ciphertextBase64 -EntropyText 'TSAAT_DB_CONFIG_V1'
+try {
+  $payloadBase64 = & $helperPath -Mode unprotect -Scope $scope -InputBase64 $ciphertextBase64 -EntropyText 'TSAAT_DB_CONFIG_V1'
+} catch {
+  throw "Unable to decrypt DB_config for this Windows identity. Re-run CreateDB.cmd or compileApp.cmd to recreate it locally. $($_.Exception.Message)"
+}
 $payloadJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($payloadBase64.Trim()))
 
 try {

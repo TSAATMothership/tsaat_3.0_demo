@@ -29,9 +29,9 @@ Major dependencies:
 
 Important hidden behaviour:
 
-- database settings are persisted to encrypted local `DB_config` envelope file, not to the SQL Server database.
+- database settings are persisted to encrypted local, git-ignored `DB_config` envelope file, not to the SQL Server database.
 - when encrypted `DB_config` is missing, UI defaults resolve to fallback server/database values and SSL disabled.
-- offline scripts run `scripts/ensure-db-config.ps1` before database build or compile: interactive runs confirm/change saved values and write encrypted `DB_config`; noninteractive runs accept a valid existing file or create one from `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values.
+- offline scripts run `scripts/ensure-db-config.ps1` before database build or compile: interactive runs confirm/change saved values, create missing files, or recreate files that cannot be decrypted by the current Windows identity; noninteractive runs accept a valid existing file or create/recreate one from `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values.
 - schema validation checks for required tables, required columns, and that `tsaat.dataset_snapshot` contains at least one row.
 - save remains disabled until required validation tests succeed:
   - SSL disabled: connection test + schema test
@@ -105,7 +105,7 @@ Important hidden behaviour:
 | Settings | Diagnostics log | Review and copy technical diagnostics | Read log or click copy | Appends timestamped messages and copies log text to clipboard | test and save results | local diagnostics text | diagnostics are local to the browser session | copy fails gracefully | browser clipboard API | Support-friendly troubleshooting | not persisted |
 
 ## 5. Database Mapping
-This page is file-backed for persisted settings. Database connection settings are stored in encrypted `DB_config`, while application login credentials are stored in encrypted `logindetails`.
+This page is file-backed for persisted settings. Database connection settings are stored in encrypted `DB_config`, while application login credentials are stored in encrypted `logindetails`. Both files are local generated artefacts and are not portable between Windows identities when encrypted with DPAPI `CurrentUser` scope; compile-time setup can recreate an undecryptable `logindetails` with new credentials.
 
 Primary dependencies:
 
@@ -117,8 +117,8 @@ Primary dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Settings | File-backed connection settings | local file | `DB_config` | encrypted JSON envelope (`format`, `version`, `keyProvider`, `algorithm`, `ciphertextBase64`, `updatedAtUtc`) | text/json | source of saved database + SSL settings | Read and Update | no database join; file read/write only | UI missing-file defaults SSL to disabled; offline scripts can create encrypted file from confirmed input | DPAPI decrypt/encrypt + normalization before save or script confirmation | API never returns plaintext password; SQL mode uses stored-password placeholder token; confirmation helper redacts SQL passwords |
-| Settings | Password settings storage | local file | `logindetails` | encrypted payload containing `username`, password hash/salt, algorithm, iteration count, timestamps, and session version | text/json | stores application login credentials and invalidation metadata | Read and Update | lookup by username from authenticated session | session version increments on each password change | DPAPI decrypt/encrypt + PBKDF2-HMAC-SHA256 salted hash verification + rewrite | plaintext password is never persisted or returned |
+| Settings | File-backed connection settings | local ignored file | `DB_config` | encrypted JSON envelope (`format`, `version`, `keyProvider`, `algorithm`, `ciphertextBase64`, `updatedAtUtc`) | text/json | source of saved database + SSL settings | Read and Update | no database join; file read/write only | UI missing-file defaults SSL to disabled; offline scripts can create encrypted file from confirmed input or recreate an undecryptable local file | DPAPI decrypt/encrypt + normalization before save or script confirmation | API never returns plaintext password; SQL mode uses stored-password placeholder token; confirmation helper redacts SQL passwords |
+| Settings | Password settings storage | local ignored file | `logindetails` | encrypted payload containing `username`, password hash/salt, algorithm, iteration count, timestamps, and session version | text/json | stores application login credentials and invalidation metadata | Read and Update | lookup by username from authenticated session | session version increments on each password change; compile-time setup can recreate undecryptable local files with new credentials | DPAPI decrypt/encrypt + PBKDF2-HMAC-SHA256 salted hash verification + rewrite | plaintext password is never persisted or returned |
 | Settings | Schema validation - required tables | `tsaat` | multiple required tables including `dataset_snapshot`, `managed_network`, `ict_system`, `asset`, `finding`, settings tables, and reference tables | table existence only | mixed | determines whether target DB is valid for TSAAT | Read | validation checks object existence in `tsaat` schema | all required tables must exist | SQL validation query | exact list maintained in code |
 | Settings | Schema validation - required columns | `tsaat` | selected required tables | `snapshot_date`, `network_id`, `adf_platform`, `enterprise_platform`, `system_id`, `asset_id`, `asset_type`, `finding_id`, `spi_id`, `workflow_status`, `dependency_id`, `tool_id`, `severity` | mixed | confirms minimum structural contract | Read | validation checks column existence by table | all required columns must exist | SQL validation query | exact list maintained in code |
 | Settings | Snapshot data check | `tsaat` | `dataset_snapshot` | row existence and `snapshot_date` | date | confirms usable data is present | Read | no join required | at least one row must exist | boolean check in validation SQL | schema can exist but still fail if no snapshots exist |
@@ -126,7 +126,7 @@ Primary dependencies:
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Defaults resolution | prefill database settings form and offline confirmation | use decrypted file values when present, otherwise resolve fallback SQL Server name and application DB name; offline unattended creation requires `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values | encrypted `DB_config`, runtime resolution helpers, optional environment provisioning | Runtime | backend and scripts | password is replaced with stored placeholder token in UI; scripts redact SQL password during confirmation |
+| Defaults resolution | prefill database settings form and offline confirmation | use decrypted file values when present, otherwise resolve fallback SQL Server name and application DB name; offline unattended creation/recreation requires `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values | encrypted `DB_config`, runtime resolution helpers, optional environment provisioning | Runtime | backend and scripts | password is replaced with stored placeholder token in UI; scripts redact SQL password during confirmation |
 | Dirty-state detection | enable reset and clear stale validations | compare draft settings to saved settings field by field | form state | Runtime | client | resets validation state on every field change |
 | Connection validation | confirm database connectivity | execute lightweight SQL returning current DB and login | supplied connection settings | Runtime | API/backend | failure returns diagnostics instead of throwing into UI |
 | SSL validation | confirm encrypted SQL transport | execute SQL connection-property checks and require encrypted transport when SSL enabled | supplied connection settings plus SQL connection properties | Runtime | API/backend | skipped when SSL disabled |
@@ -142,8 +142,8 @@ Primary dependencies:
 - `placeholder-2` is a runtime route state with static placeholder content.
 
 ## 9. Rules, Assumptions, and Constraints
-- Settings persist to `DB_config`, not to the database.
-- `CreateDB.cmd` and `compileApp.cmd` must confirm or create encrypted `DB_config` before using database settings.
+- Settings persist to local ignored `DB_config`, not to the database.
+- `CreateDB.cmd` and `compileApp.cmd` must confirm, create, or recreate encrypted `DB_config` before using database settings.
 - The page is marked `force-dynamic`, so it does not rely on static generation.
 - Connection test must pass before schema test can run.
 - Connection test must pass before SSL test can run.
@@ -154,6 +154,7 @@ Primary dependencies:
   - `sslEnabled=true` + `sslType=trust-server-certificate` means trust-server-certificate SSL mode.
 - Password updates require the current authenticated session and a valid current password.
 - Password writes are one-way salted hashes in encrypted `logindetails`; plaintext is not persisted.
+- Undecryptable copied `logindetails` files are not migrated; compile-time recreation creates a new credential.
 - Successful password changes increment file-backed session version and force re-authentication.
 - `placeholder-2` remains visible in navigation but has no settings logic.
 - The settings page handles credentials, so operational documentation should avoid exposing actual values.
