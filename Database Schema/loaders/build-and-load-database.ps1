@@ -7,7 +7,10 @@ param(
   [string]$SqlPassword,
   [switch]$UseTrustedConnection,
   [switch]$EncryptConnection,
-  [switch]$TrustServerCertificate
+  [switch]$TrustServerCertificate,
+  [string]$DataLoadMode,
+  [string]$SqlServerPackageDataRoot,
+  [string]$SqlServerSnapshotsRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,6 +99,178 @@ function Resolve-SqlcmdServerTarget {
   return $normalized
 }
 
+function Normalize-DataLoadMode {
+  param([AllowNull()][AllowEmptyString()][string]$Value)
+
+  $raw = $Value
+  if ([string]::IsNullOrWhiteSpace($raw)) {
+    $raw = $env:TSAAT_DATA_LOAD_MODE
+  }
+  if ([string]::IsNullOrWhiteSpace($raw)) {
+    return 'ClientPayload'
+  }
+
+  $normalized = $raw.Trim().ToLowerInvariant().Replace('_', '-')
+  switch ($normalized) {
+    '1' { return 'ClientPayload' }
+    'client-payload' { return 'ClientPayload' }
+    'clientpayload' { return 'ClientPayload' }
+    '2' { return 'SqlServerFiles' }
+    'sql-server-files' { return 'SqlServerFiles' }
+    'sqlserverfiles' { return 'SqlServerFiles' }
+    default {
+      throw "Invalid DataLoadMode '$raw'. Use ClientPayload or SqlServerFiles."
+    }
+  }
+}
+
+function Resolve-TextSetting {
+  param(
+    [AllowNull()][AllowEmptyString()][string]$Value,
+    [Parameter(Mandatory = $true)][string]$EnvironmentName
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($Value)) {
+    return $Value.Trim()
+  }
+
+  $fromEnv = [Environment]::GetEnvironmentVariable($EnvironmentName)
+  if (-not [string]::IsNullOrWhiteSpace($fromEnv)) {
+    return $fromEnv.Trim()
+  }
+
+  return ''
+}
+
+function Join-SqlPayloadKey {
+  param(
+    [Parameter(Mandatory = $true)][string]$Root,
+    [Parameter(Mandatory = $true)][string]$FileName
+  )
+
+  if ($Root.EndsWith('\') -or $Root.EndsWith('/')) {
+    return "$Root$FileName"
+  }
+
+  return "$Root\$FileName"
+}
+
+function Escape-SqlUnicodeLiteral {
+  param([AllowNull()][AllowEmptyString()][string]$Value)
+
+  if ($null -eq $Value) {
+    return ''
+  }
+
+  return $Value.Replace("'", "''")
+}
+
+function Expand-SqlcmdVariables {
+  param(
+    [Parameter(Mandatory = $true)][string]$SqlText,
+    [hashtable]$Variables
+  )
+
+  $expanded = $SqlText
+  if ($Variables) {
+    foreach ($key in $Variables.Keys) {
+      $replacement = Escape-SqlUnicodeLiteral -Value ([string]$Variables[$key])
+      $expanded = $expanded.Replace('$(' + $key + ')', $replacement)
+    }
+  }
+
+  return $expanded
+}
+
+function New-SqlClientConnectionString {
+  param(
+    [Parameter(Mandatory = $true)][string]$Server,
+    [Parameter(Mandatory = $true)][string]$Database,
+    [Parameter(Mandatory = $true)][string]$AuthMode,
+    [AllowNull()][AllowEmptyString()][string]$User,
+    [AllowNull()][AllowEmptyString()][string]$Password,
+    [bool]$Encrypt,
+    [bool]$TrustServerCertificate
+  )
+
+  $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+  $builder['Data Source'] = $Server
+  $builder['Initial Catalog'] = $Database
+  $builder['Encrypt'] = $Encrypt
+  $builder['TrustServerCertificate'] = $TrustServerCertificate
+
+  if ($AuthMode -eq 'sql') {
+    $builder['Integrated Security'] = $false
+    $builder['User ID'] = $User
+    $builder['Password'] = $Password
+  } else {
+    $builder['Integrated Security'] = $true
+  }
+
+  return $builder.ConnectionString
+}
+
+function Invoke-ClientPayloadLoad {
+  param(
+    [Parameter(Mandatory = $true)][string]$Server,
+    [Parameter(Mandatory = $true)][string]$Database,
+    [Parameter(Mandatory = $true)][string]$AuthMode,
+    [string]$User,
+    [string]$Password,
+    [bool]$Encrypt,
+    [bool]$TrustServerCertificate,
+    [Parameter(Mandatory = $true)][object[]]$PayloadFiles,
+    [Parameter(Mandatory = $true)][string]$LoadDataSql,
+    [hashtable]$Variables
+  )
+
+  $connectionString = New-SqlClientConnectionString -Server $Server -Database $Database -AuthMode $AuthMode -User $User -Password $Password -Encrypt $Encrypt -TrustServerCertificate $TrustServerCertificate
+  $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection -ArgumentList $connectionString
+
+  try {
+    $connection.Open()
+
+    $command = $connection.CreateCommand()
+    $command.CommandTimeout = 0
+    $command.CommandText = @"
+IF OBJECT_ID('tempdb..#TSAAT_JsonPayload') IS NOT NULL DROP TABLE #TSAAT_JsonPayload;
+CREATE TABLE #TSAAT_JsonPayload (
+  [payload_key] NVARCHAR(4000) NOT NULL PRIMARY KEY,
+  [json_payload] NVARCHAR(MAX) NOT NULL
+);
+"@
+    [void]$command.ExecuteNonQuery()
+
+    foreach ($payloadFile in $PayloadFiles) {
+      $sourceFile = [string]$payloadFile.SourceFile
+      if (-not (Test-Path -LiteralPath $sourceFile)) {
+        throw "JSON payload file missing: $sourceFile"
+      }
+
+      Write-Host "Staging JSON payload: $(Split-Path -Leaf $sourceFile)"
+      $json = [System.IO.File]::ReadAllText($sourceFile, [System.Text.Encoding]::UTF8)
+
+      $insert = $connection.CreateCommand()
+      $insert.CommandTimeout = 0
+      $insert.CommandText = 'INSERT INTO #TSAAT_JsonPayload ([payload_key], [json_payload]) VALUES (@payload_key, @json_payload);'
+      [void]$insert.Parameters.Add('@payload_key', [System.Data.SqlDbType]::NVarChar, 4000)
+      [void]$insert.Parameters.Add('@json_payload', [System.Data.SqlDbType]::NVarChar, -1)
+      $insert.Parameters['@payload_key'].Value = [string]$payloadFile.PayloadKey
+      $insert.Parameters['@json_payload'].Value = $json
+      [void]$insert.ExecuteNonQuery()
+    }
+
+    Write-Host 'Running SQL JSON mapping from client payloads...'
+    $loadSql = Expand-SqlcmdVariables -SqlText (Get-Content -LiteralPath $LoadDataSql -Raw) -Variables $Variables
+    $loadCommand = $connection.CreateCommand()
+    $loadCommand.CommandTimeout = 0
+    $loadCommand.CommandText = $loadSql
+    [void]$loadCommand.ExecuteNonQuery()
+  } finally {
+    $connection.Dispose()
+  }
+}
+
 function Invoke-SqlText {
   param(
     [Parameter(Mandatory = $true)][string]$Server,
@@ -143,6 +318,7 @@ function Invoke-SqlFile {
 
 $script:SqlcmdExecutable = Resolve-SqlcmdExecutable
 $sqlcmdServerInstance = Resolve-SqlcmdServerTarget -Server $ServerInstance
+$normalizedDataLoadMode = Normalize-DataLoadMode -Value $DataLoadMode
 
 $schemaFile = Join-Path $packageRoot 'database-schema.sql'
 $migrationsDir = Join-Path $packageRoot 'migrations'
@@ -194,10 +370,10 @@ if ($manifest.snapshotSourceDirectory) {
 }
 
 $requiredPackageData = @(
+  (Join-Path $packageDataRoot 'reference-versions.json'),
   (Join-Path $packageDataRoot 'spi-definitions.json'),
   (Join-Path $packageDataRoot 'discovery-tools-settings.json'),
-  (Join-Path $packageDataRoot 'measures-settings.json'),
-  (Join-Path $packageDataRoot 'reference-versions.json')
+  (Join-Path $packageDataRoot 'measures-settings.json')
 )
 
 foreach ($file in $requiredPackageData) {
@@ -217,6 +393,38 @@ foreach ($snapshotFile in $manifest.snapshotFiles) {
   }
 }
 
+$effectivePackageDataRoot = $packageDataRoot
+$effectiveSnapshotsRoot = $snapshotsRoot
+$sqlServerPackageDataRoot = Resolve-TextSetting -Value $SqlServerPackageDataRoot -EnvironmentName 'TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT'
+$sqlServerSnapshotsRoot = Resolve-TextSetting -Value $SqlServerSnapshotsRoot -EnvironmentName 'TSAAT_SQL_SERVER_SNAPSHOTS_ROOT'
+
+if ($normalizedDataLoadMode -eq 'SqlServerFiles') {
+  if ([string]::IsNullOrWhiteSpace($sqlServerPackageDataRoot)) {
+    throw 'SqlServerFiles data load mode requires -SqlServerPackageDataRoot or TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT.'
+  }
+  if ([string]::IsNullOrWhiteSpace($sqlServerSnapshotsRoot)) {
+    throw 'SqlServerFiles data load mode requires -SqlServerSnapshotsRoot or TSAAT_SQL_SERVER_SNAPSHOTS_ROOT.'
+  }
+
+  $effectivePackageDataRoot = $sqlServerPackageDataRoot
+  $effectiveSnapshotsRoot = $sqlServerSnapshotsRoot
+}
+
+$payloadFiles = @()
+foreach ($file in $requiredPackageData) {
+  $payloadFiles += [pscustomobject]@{
+    PayloadKey = Join-SqlPayloadKey -Root $effectivePackageDataRoot -FileName (Split-Path -Leaf $file)
+    SourceFile = $file
+  }
+}
+foreach ($snapshotFile in $manifest.snapshotFiles) {
+  $snapshotFileName = [string]$snapshotFile
+  $payloadFiles += [pscustomobject]@{
+    PayloadKey = Join-SqlPayloadKey -Root $effectiveSnapshotsRoot -FileName $snapshotFileName
+    SourceFile = Join-Path $snapshotsRoot $snapshotFileName
+  }
+}
+
 Write-Host "Discovered application database name: $DatabaseName"
 Write-Host "Server: $ServerInstance"
 Write-Host "SQL Server target for sqlcmd: $sqlcmdServerInstance"
@@ -226,6 +434,13 @@ Write-Host "SSL mode: $sqlSslMode"
 Write-Host "sqlcmd executable: $script:SqlcmdExecutable"
 Write-Host "Package root: $packageRoot"
 Write-Host "Snapshots root: $snapshotsRoot"
+Write-Host "Data load mode: $normalizedDataLoadMode"
+if ($normalizedDataLoadMode -eq 'SqlServerFiles') {
+  Write-Host "SQL Server package data root: $effectivePackageDataRoot"
+  Write-Host "SQL Server snapshots root: $effectiveSnapshotsRoot"
+} else {
+  Write-Host 'Client payload mode will stream local JSON through the SQL connection.'
+}
 
 $dbNameEscaped = $DatabaseName.Replace("'", "''")
 $createDbSql = @"
@@ -260,9 +475,26 @@ if ($migrationFiles.Count -eq 0) {
 }
 
 Write-Host 'Loading seed/reference/application data...'
-Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs -Variables @{
-  PackageDataRoot = $packageDataRoot
-  SnapshotsRoot = $snapshotsRoot
+$loadVariables = @{
+  DataLoadMode = $normalizedDataLoadMode
+  PackageDataRoot = $effectivePackageDataRoot
+  SnapshotsRoot = $effectiveSnapshotsRoot
+}
+
+if ($normalizedDataLoadMode -eq 'ClientPayload') {
+  Invoke-ClientPayloadLoad `
+    -Server $sqlcmdServerInstance `
+    -Database $DatabaseName `
+    -AuthMode $sqlAuthMode `
+    -User $SqlUser `
+    -Password $SqlPassword `
+    -Encrypt $EncryptConnection.IsPresent `
+    -TrustServerCertificate $TrustServerCertificate.IsPresent `
+    -PayloadFiles $payloadFiles `
+    -LoadDataSql $loadDataSql `
+    -Variables $loadVariables
+} else {
+  Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs -Variables $loadVariables
 }
 
 Write-Host 'Running validation checks...'

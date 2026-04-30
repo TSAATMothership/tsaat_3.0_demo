@@ -25,7 +25,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 ## Prerequisites
 
 - Bundled Node.js runtime is included at `Dependencies/runtime/nodejs/win-x64` for offline compile (including `node_modules/npm/bin/npm-cli.js`)
-- SQL Server Express instance (`localhost\SQLEXPRESS`)
+- Reachable Microsoft SQL Server instance. Local SQL Server Express (`localhost\SQLEXPRESS`) is the default, but remote SQL Server targets are supported.
 - Bundled `sqlcmd` archive is included at `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip` (auto-staged by offline scripts)
 - Windows PowerShell available in `PATH`
 - Offline compile entrypoint is `compileApp.cmd` (single supported compile command)
@@ -44,11 +44,11 @@ npm install --legacy-peer-deps
 
 ## Offline Build and Database Setup (Windows)
 
-The repository is intended to compile and run on Windows x64 without internet access after it is copied locally. App/build dependencies are stored under `Dependencies/`; SQL Server Express itself is the only external prerequisite when it is not already installed.
+The repository is intended to compile and run on Windows x64 without internet access after it is copied locally. App/build dependencies are stored under `Dependencies/`; a reachable SQL Server instance is the only external runtime prerequisite.
 
-### 1. Install Or Confirm SQL Server Express
+### 1. Install Or Confirm SQL Server
 
-Use a local SQL Server Express instance, preferably the default `localhost\SQLEXPRESS` instance.
+Use a local SQL Server Express instance, preferably the default `localhost\SQLEXPRESS` instance, or a reachable remote SQL Server instance.
 
 If SQL Server Express is not already installed, download and pre-stage the Microsoft SQL Server Express installer before moving to an offline machine. The installer is typically larger than 100 MB, so it is not stored in this repository and is not split into repo files.
 
@@ -68,6 +68,7 @@ $env:TSAAT_DB_CONFIG_ASSUME_YES='true'
 $env:TSAAT_SQL_TRUSTED_CONNECTION='true'
 $env:TSAAT_SQL_SERVER='localhost\SQLEXPRESS'
 $env:TSAAT_APP_DATABASE='TSAAT'
+$env:TSAAT_DATA_LOAD_MODE='client-payload'
 ```
 
 If you must use SQL authentication and `DB_config` is not already set, create the SQL login before running `CreateDB.cmd`, then set:
@@ -78,6 +79,7 @@ $env:TSAAT_SQL_SERVER='localhost\SQLEXPRESS'
 $env:TSAAT_APP_DATABASE='TSAAT'
 $env:TSAAT_SQL_USER='your-sql-login'
 $env:TSAAT_SQL_PASSWORD='your-sql-password'
+$env:TSAAT_DATA_LOAD_MODE='client-payload'
 ```
 
 The app can also save database settings to encrypted `DB_config` from `/settings` -> `Database Settings`. Do not edit `DB_config` manually.
@@ -91,6 +93,27 @@ cmd /c CreateDB.cmd
 ```
 
 This confirms or creates encrypted `DB_config`, stages bundled `sqlcmd`, creates/updates the SQL Server database using the confirmed settings, applies `Database Schema/database-schema.sql`, applies migrations, loads seed/reference data, maps source snapshots, and writes `Database Schema/loaders/last-build-summary.txt`.
+
+`CreateDB.cmd` asks how seed data should be loaded:
+
+- `1` / `ClientPayload` (default): reads repository JSON files on the machine running `CreateDB.cmd`, sends them as parameterized `NVARCHAR(MAX)` payload inserts over the SQL connection, and then maps them with SQL Server `OPENJSON`. Use this for remote SQL Server installs where the database server cannot see the app server filesystem.
+- `2` / `SqlServerFiles`: keeps SQL Server-side file reads through `OPENROWSET(BULK...)`. Use this only when the JSON files are copied to, or shared from, paths that the SQL Server service account can read.
+
+For unattended client-payload setup, set:
+
+```powershell
+$env:TSAAT_DATA_LOAD_MODE='client-payload'
+```
+
+For unattended SQL-server-file setup, set paths as they are visible from the SQL Server host:
+
+```powershell
+$env:TSAAT_DATA_LOAD_MODE='sql-server-files'
+$env:TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT='D:\TSAAT\Database Schema\data'
+$env:TSAAT_SQL_SERVER_SNAPSHOTS_ROOT='D:\TSAAT\data\snapshots'
+```
+
+The package data root must contain `reference-versions.json`, `spi-definitions.json`, `discovery-tools-settings.json`, and `measures-settings.json`. The snapshots root must contain `week-01.json` through `week-08.json`.
 
 ### 4. Compile The App Offline
 
@@ -182,6 +205,7 @@ If an artifact is missing on an internet-connected preparation machine, restore 
 
 - `CreateDB.cmd` and `compileApp.cmd` use encrypted `DB_config` after confirmation. Environment variables provision a missing or undecryptable `DB_config` only when `TSAAT_DB_CONFIG_ASSUME_YES=true`.
 - SQL authentication requires both `TSAAT_SQL_USER` and `TSAAT_SQL_PASSWORD` when provisioning `DB_config` from environment variables.
+- For remote SQL Server database creation, prefer `TSAAT_DATA_LOAD_MODE=client-payload`. `SqlServerFiles` mode requires SQL Server-side file paths plus SQL Server service-account permissions to read those files.
 - Application login recreation requires both `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` in unattended mode.
 - Logout clears the local session cookie, broadcasts the sign-out to other open TSAAT tabs, and returns the browser to `/login`.
 - Local named instances such as `localhost\SQLEXPRESS` are normalized to `lpc:` for bundled `sqlcmd` compatibility.

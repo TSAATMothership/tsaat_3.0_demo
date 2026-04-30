@@ -23,6 +23,9 @@ set "DB_ENCRYPT=false"
 set "DB_TRUST_SERVER_CERTIFICATE=false"
 set "DB_SSL_MODE=disabled"
 set "DB_SERVER_TARGET="
+set "DATA_LOAD_MODE_ARG="
+set "SQL_SERVER_PACKAGE_DATA_ROOT="
+set "SQL_SERVER_SNAPSHOTS_ROOT="
 
 echo [INFO] Offline database build started.
 echo [INFO] Repository root: %REPO_ROOT%
@@ -163,33 +166,41 @@ if /I "%DB_AUTH_MODE%"=="sql" (
   )
 )
 
+call :configureDataLoadMode
+if errorlevel 1 exit /b 1
+
 echo [INFO] SQL Server instance: %DB_SERVER%
 echo [INFO] SQL Server target for sqlcmd: %DB_SERVER_TARGET%
 echo [INFO] Application database: %DB_APP_DATABASE%
 echo [INFO] Authentication mode: %DB_AUTH_MODE%
 echo [INFO] SSL mode: %DB_SSL_MODE%
+echo [INFO] Data load mode: %DATA_LOAD_MODE_ARG%
+if /I "%DATA_LOAD_MODE_ARG%"=="SqlServerFiles" (
+  echo [INFO] SQL Server package data root: %SQL_SERVER_PACKAGE_DATA_ROOT%
+  echo [INFO] SQL Server snapshots root: %SQL_SERVER_SNAPSHOTS_ROOT%
+)
 echo [INFO] Bundled sqlcmd path: %BUNDLED_SQLCMD_EXE%
 
 echo [INFO] Building schema and loading data...
 if /I "%DB_AUTH_MODE%"=="sql" (
   if /I "%DB_ENCRYPT%"=="true" (
     if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection -TrustServerCertificate
+      call :invokeBuildDatabase -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection -TrustServerCertificate
     ) else (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection
+      call :invokeBuildDatabase -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%" -EncryptConnection
     )
   ) else (
-    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
+    call :invokeBuildDatabase -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -SqlUser "%DB_USER_ID%" -SqlPassword "%DB_PASSWORD%"
   )
 ) else (
   if /I "%DB_ENCRYPT%"=="true" (
     if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection -TrustServerCertificate
+      call :invokeBuildDatabase -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection -TrustServerCertificate
     ) else (
-      call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection
+      call :invokeBuildDatabase -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection -EncryptConnection
     )
   ) else (
-    call "%BUILD_DATABASE_CMD%" -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
+    call :invokeBuildDatabase -ServerInstance "%DB_SERVER_TARGET%" -AdminDatabase "master" -DatabaseName "%DB_APP_DATABASE%" -UseTrustedConnection
   )
 )
 if errorlevel 1 (
@@ -204,6 +215,79 @@ exit /b 0
 :fail
 echo [ERROR] %~1
 exit /b 1
+
+:configureDataLoadMode
+set "DATA_LOAD_ASSUME_YES=false"
+if /I "%TSAAT_DB_CONFIG_ASSUME_YES%"=="true" set "DATA_LOAD_ASSUME_YES=true"
+set "DATA_LOAD_MODE_RAW=%TSAAT_DATA_LOAD_MODE%"
+if not defined DATA_LOAD_MODE_RAW (
+  if /I "%DATA_LOAD_ASSUME_YES%"=="true" set "DATA_LOAD_MODE_RAW=client-payload"
+)
+if not defined DATA_LOAD_MODE_RAW (
+  echo [INFO] Select database data load mode:
+  echo [INFO]   1^) ClientPayload - read local JSON on this machine and send quoted payloads to SQL Server.
+  echo [INFO]   2^) SqlServerFiles - SQL Server reads JSON files from SQL-server-visible paths.
+  set "DATA_LOAD_CHOICE="
+  set /p "DATA_LOAD_CHOICE=Enter data load mode [1]: "
+  if not defined DATA_LOAD_CHOICE set "DATA_LOAD_CHOICE=1"
+  call set "DATA_LOAD_MODE_RAW=%%DATA_LOAD_CHOICE%%"
+)
+call :normalizeDataLoadMode "%DATA_LOAD_MODE_RAW%"
+if errorlevel 1 exit /b 1
+
+if /I "%DATA_LOAD_MODE_ARG%"=="SqlServerFiles" (
+  set "SQL_SERVER_PACKAGE_DATA_ROOT=%TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT%"
+  set "SQL_SERVER_SNAPSHOTS_ROOT=%TSAAT_SQL_SERVER_SNAPSHOTS_ROOT%"
+  if not defined SQL_SERVER_PACKAGE_DATA_ROOT (
+    if /I "%DATA_LOAD_ASSUME_YES%"=="true" (
+      call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT in unattended mode."
+      exit /b 1
+    ) else (
+      echo [INFO] SqlServerFiles mode requires paths as seen by the SQL Server service account.
+      set /p "SQL_SERVER_PACKAGE_DATA_ROOT=SQL Server-visible package data root: "
+    )
+  )
+  if not defined SQL_SERVER_SNAPSHOTS_ROOT (
+    if /I "%DATA_LOAD_ASSUME_YES%"=="true" (
+      call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_SNAPSHOTS_ROOT in unattended mode."
+      exit /b 1
+    ) else (
+      set /p "SQL_SERVER_SNAPSHOTS_ROOT=SQL Server-visible snapshots root: "
+    )
+  )
+  if not defined SQL_SERVER_PACKAGE_DATA_ROOT (
+    call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT or an interactive package data root."
+    exit /b 1
+  )
+  if not defined SQL_SERVER_SNAPSHOTS_ROOT (
+    call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_SNAPSHOTS_ROOT or an interactive snapshots root."
+    exit /b 1
+  )
+)
+exit /b 0
+
+:normalizeDataLoadMode
+set "MODE_TO_NORMALIZE=%~1"
+if /I "%MODE_TO_NORMALIZE%"=="1" set "DATA_LOAD_MODE_ARG=ClientPayload" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="client-payload" set "DATA_LOAD_MODE_ARG=ClientPayload" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="clientpayload" set "DATA_LOAD_MODE_ARG=ClientPayload" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="ClientPayload" set "DATA_LOAD_MODE_ARG=ClientPayload" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="2" set "DATA_LOAD_MODE_ARG=SqlServerFiles" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="sql-server-files" set "DATA_LOAD_MODE_ARG=SqlServerFiles" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="sqlserverfiles" set "DATA_LOAD_MODE_ARG=SqlServerFiles" & exit /b 0
+if /I "%MODE_TO_NORMALIZE%"=="SqlServerFiles" set "DATA_LOAD_MODE_ARG=SqlServerFiles" & exit /b 0
+call :fail "Invalid TSAAT_DATA_LOAD_MODE value: %MODE_TO_NORMALIZE%. Use client-payload or sql-server-files."
+exit /b 1
+
+:invokeBuildDatabase
+setlocal
+if /I "%DATA_LOAD_MODE_ARG%"=="SqlServerFiles" (
+  call "%BUILD_DATABASE_CMD%" %* -DataLoadMode "%DATA_LOAD_MODE_ARG%" -SqlServerPackageDataRoot "%SQL_SERVER_PACKAGE_DATA_ROOT%" -SqlServerSnapshotsRoot "%SQL_SERVER_SNAPSHOTS_ROOT%"
+) else (
+  call "%BUILD_DATABASE_CMD%" %* -DataLoadMode "%DATA_LOAD_MODE_ARG%"
+)
+set "BUILD_DATABASE_EXIT_CODE=%ERRORLEVEL%"
+endlocal & exit /b %BUILD_DATABASE_EXIT_CODE%
 
 :resolveSqlcmdServerTarget
 setlocal EnableDelayedExpansion

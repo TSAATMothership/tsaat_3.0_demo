@@ -23,7 +23,7 @@ Unavoidable prerequisites (validated by compileApp.cmd)
 3. Vendored npm command present at Dependencies\runtime\nodejs\win-x64\npm.cmd.
 4. Vendored npm CLI payload present at Dependencies\runtime\nodejs\win-x64\node_modules\npm\bin\npm-cli.js.
 5. Bundled sqlcmd archive present at Dependencies\offline-artifacts\sqlcmd\sqlcmd-windows-amd64-1.10.0.zip and stageable to Dependencies\external\sqlcmd\win-x64\sqlcmd.exe.
-6. Reachable SQL Server instance (trusted auth or SQL auth).
+6. Reachable SQL Server instance (trusted auth or SQL auth; local or remote).
 7. Local ignored encrypted `DB_config` file, or `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values so compileApp.cmd/CreateDB.cmd can create or recreate it offline.
 8. Local ignored encrypted `logindetails` file, or `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` available so compileApp.cmd can create or recreate it offline.
 9. Populated TSAAT application database selected by confirmed `DB_config` (interactive missing-file defaults: Server=localhost\SQLEXPRESS;Database=TSAAT) with table tsaat.dataset_snapshot containing at least one row.
@@ -73,6 +73,12 @@ CreateDB.cmd and Database Schema\loaders\build-and-load-database.ps1 consume can
 - Database Schema\data\measures-settings.json
 - Database Schema\data\reference-versions.json
 - Repository snapshot files under data\snapshots\*.json
+
+Database load modes:
+- ClientPayload (default): CreateDB.cmd/build-and-load-database.ps1 read the local repository JSON files, send them as parameterized NVARCHAR(MAX) payload inserts over the SQL connection, and map rows with OPENJSON. This supports remote SQL Server targets without SQL Server filesystem access to the repository.
+- SqlServerFiles: the loader keeps SQL Server-side OPENROWSET(BULK...) reads and requires SQL-server-visible package/snapshot roots from interactive input or TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT plus TSAAT_SQL_SERVER_SNAPSHOTS_ROOT.
+
+No additional dependency artifact is required for either mode. Schema/migration execution still uses the bundled sqlcmd archive already listed above; ClientPayload data staging uses the Windows PowerShell/.NET SQL client available on the target Windows host.
 
 Direct runtime dependencies (from package.json)
 ----------------------------------------------

@@ -3,6 +3,9 @@ SET XACT_ABORT ON;
 
 DECLARE @PackageDataRoot NVARCHAR(4000) = N'$(PackageDataRoot)';
 DECLARE @SnapshotsRoot NVARCHAR(4000) = N'$(SnapshotsRoot)';
+DECLARE @RawDataLoadMode NVARCHAR(100) = N'$(DataLoadMode)';
+DECLARE @DataLoadModeKey NVARCHAR(100) = LOWER(REPLACE(REPLACE(LTRIM(RTRIM(@RawDataLoadMode)), N'-', N''), N'_', N''));
+DECLARE @DataLoadMode NVARCHAR(40);
 
 IF @PackageDataRoot IS NULL OR LTRIM(RTRIM(@PackageDataRoot)) = N''
 BEGIN
@@ -14,9 +17,29 @@ BEGIN
   THROW 51000, 'SnapshotsRoot sqlcmd variable is required.', 1;
 END;
 
+IF @DataLoadModeKey = N'' OR @DataLoadModeKey = N'1' OR @DataLoadModeKey = N'clientpayload'
+BEGIN
+  SET @DataLoadMode = N'ClientPayload';
+END
+ELSE IF @DataLoadModeKey = N'2' OR @DataLoadModeKey = N'sqlserverfiles'
+BEGIN
+  SET @DataLoadMode = N'SqlServerFiles';
+END
+ELSE
+BEGIN
+  THROW 51000, 'DataLoadMode sqlcmd variable must be ClientPayload or SqlServerFiles.', 1;
+END;
+
+IF @DataLoadMode = N'ClientPayload' AND OBJECT_ID(N'tempdb..#TSAAT_JsonPayload') IS NULL
+BEGIN
+  THROW 51000, 'ClientPayload data load requires #TSAAT_JsonPayload to be staged in the current sqlcmd session.', 1;
+END;
+
 DECLARE @ReadFileSql NVARCHAR(MAX);
+DECLARE @ReadPayloadSql NVARCHAR(MAX) = N'SELECT @out = [json_payload] FROM #TSAAT_JsonPayload WHERE [payload_key] = @key;';
 DECLARE @FilePath NVARCHAR(4000);
 DECLARE @Json NVARCHAR(MAX);
+DECLARE @LoadError NVARCHAR(2048);
 
 PRINT 'Loading seed/reference data...';
 
@@ -36,9 +59,21 @@ VALUES (
 SET IDENTITY_INSERT [tsaat].[reference_version_set] OFF;
 
 SET @FilePath = @PackageDataRoot + N'\reference-versions.json';
-SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
 SET @Json = NULL;
-EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
 
 INSERT INTO [tsaat].[reference_os_current_major] (
   [version_set_id],
@@ -66,9 +101,21 @@ FROM OPENJSON(@Json, '$.softwareSupportMatrix') AS ss
 CROSS APPLY OPENJSON(ss.[value]) AS v;
 
 SET @FilePath = @PackageDataRoot + N'\spi-definitions.json';
-SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
 SET @Json = NULL;
-EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
 
 INSERT INTO [tsaat].[spi_definition] (
   [spi_id],
@@ -108,9 +155,21 @@ FROM OPENJSON(@Json, '$.spis') WITH (
 CROSS APPLY OPENJSON(spi.[applicable_asset_types]) AS aat;
 
 SET @FilePath = @PackageDataRoot + N'\discovery-tools-settings.json';
-SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
 SET @Json = NULL;
-EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
 
 SET IDENTITY_INSERT [tsaat].[discovery_tools_settings_version] ON;
 INSERT INTO [tsaat].[discovery_tools_settings_version] (
@@ -164,9 +223,21 @@ FROM OPENJSON(@Json, '$.tools') WITH (
 CROSS APPLY OPENJSON(tool.[asset_type_scope]) AS scope_map;
 
 SET @FilePath = @PackageDataRoot + N'\measures-settings.json';
-SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
 SET @Json = NULL;
-EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
 
 SET IDENTITY_INSERT [tsaat].[measures_settings_version] ON;
 INSERT INTO [tsaat].[measures_settings_version] (
@@ -227,9 +298,21 @@ FETCH NEXT FROM snapshot_cursor INTO @SnapshotId, @SnapshotFile;
 WHILE @@FETCH_STATUS = 0
 BEGIN
   SET @FilePath = @SnapshotsRoot + N'\' + @SnapshotFile;
-  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
   SET @Json = NULL;
-  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+  IF @DataLoadMode = N'ClientPayload'
+  BEGIN
+    EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+  END
+  ELSE
+  BEGIN
+    SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+    EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+  END;
+  IF @Json IS NULL
+  BEGIN
+    SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+    THROW 51000, @LoadError, 1;
+  END;
 
   INSERT INTO [tsaat].[dataset_snapshot] (
     [snapshot_id],

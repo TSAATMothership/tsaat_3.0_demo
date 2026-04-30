@@ -34,6 +34,12 @@ SQL Server Target
 - Application schema: tsaat
 - Application login credentials are not imported into SQL Server; they are created/updated in local encrypted repository root `logindetails`.
 
+Database Load Modes
+-------------------
+- `ClientPayload` is the default load mode. The machine running `CreateDB.cmd` reads the local JSON artefacts, sends them as parameterized `NVARCHAR(MAX)` payload inserts over the SQL connection, and then maps payloads into relational tables with `OPENJSON`.
+- `SqlServerFiles` preserves SQL Server-side file reads through `OPENROWSET(BULK...)`. It requires SQL-server-visible package data and snapshot roots, supplied interactively or through `TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT` and `TSAAT_SQL_SERVER_SNAPSHOTS_ROOT`.
+- `ClientPayload` is preferred for remote SQL Server installs because SQL Server does not need filesystem access to the application repository.
+
 Source Data Artefacts
 ---------------------
 Package-local files:

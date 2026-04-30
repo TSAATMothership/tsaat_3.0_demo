@@ -65,6 +65,7 @@ The page specifications repeatedly reference the following shared implementation
 - `lib/database-settings.ts`: database connection, SSL, and schema validation
 - `lib/sql-server.ts`: runtime `sqlcmd` execution, bundled path fallback (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`), local target normalization (`lpc:`), and SSL flag mapping
 - `scripts/ensure-db-config.ps1`: offline compile/database DB_config confirmation, encrypted creation/recreation, and unattended environment provisioning
+- `Database Schema/loaders/build-and-load-database.ps1`: database schema/bootstrap loader, including client-payload and SQL-server-file seed load modes for local or remote SQL Server targets
 - `middleware.ts`: server-side session enforcement for direct page/API access
 - `components/authenticated-session-guard.tsx`: client-side session revalidation for already-loaded authenticated pages
 - `components/filter-bar.tsx`: common filter UI and loading overlay behaviour
