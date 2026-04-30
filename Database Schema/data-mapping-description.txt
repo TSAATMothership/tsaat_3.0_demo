@@ -37,7 +37,7 @@ SQL Server Target
 Database Load Modes
 -------------------
 - `ClientPayload` is the default load mode. The machine running `CreateDB.cmd` reads the local JSON artefacts, sends them as parameterized `NVARCHAR(MAX)` payload inserts over the SQL connection, and then maps payloads into relational tables with `OPENJSON`.
-- `SqlServerFiles` preserves SQL Server-side file reads through `OPENROWSET(BULK...)`. It requires SQL-server-visible package data and snapshot roots, supplied interactively or through `TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT` and `TSAAT_SQL_SERVER_SNAPSHOTS_ROOT`.
+- `SqlServerFiles` preserves SQL Server-side file reads through `OPENROWSET(BULK...)`. `CreateDB.cmd` requires one SQL-server-visible UNC staging root, supplied interactively or through `TSAAT_SQL_SERVER_STAGING_UNC_ROOT`, copies the required package/snapshot JSON files into `package-data` and `snapshots` subfolders, and passes those derived roots to the loader.
 - `ClientPayload` is preferred for remote SQL Server installs because SQL Server does not need filesystem access to the application repository.
 
 Source Data Artefacts

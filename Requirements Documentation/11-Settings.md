@@ -32,7 +32,7 @@ Important hidden behaviour:
 - database settings are persisted to encrypted local, git-ignored `DB_config` envelope file, not to the SQL Server database.
 - when encrypted `DB_config` is missing, UI defaults resolve to fallback server/database values and SSL disabled.
 - offline scripts run `scripts/ensure-db-config.ps1` before database build or compile: interactive runs confirm/change saved values, create missing files, or recreate files that cannot be decrypted by the current Windows identity; noninteractive runs accept a valid existing file or create/recreate one from `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values.
-- `CreateDB.cmd` also selects the database seed-data load mode: `ClientPayload` sends local JSON payloads from the setup machine as parameterized SQL inserts, while `SqlServerFiles` keeps SQL Server-side `OPENROWSET(BULK...)` reads from SQL-server-visible paths.
+- `CreateDB.cmd` also selects the database seed-data load mode: `ClientPayload` sends local JSON payloads from the setup machine as parameterized SQL inserts, while `SqlServerFiles` stages the JSON files to a SQL-server-visible UNC root and keeps SQL Server-side `OPENROWSET(BULK...)` reads from the derived paths.
 - schema validation checks for required tables, required columns, and that `tsaat.dataset_snapshot` contains at least one row.
 - save remains disabled until required validation tests succeed:
   - SSL disabled: connection test + schema test

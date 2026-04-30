@@ -6,6 +6,7 @@ for %%I in ("%SCRIPT_DIR%.") do set "REPO_ROOT=%%~fI"
 set "DB_CONFIG_FILE=%REPO_ROOT%\DB_config"
 set "DB_CONFIG_ENSURE_SCRIPT=%REPO_ROOT%\scripts\ensure-db-config.ps1"
 set "DB_CONFIG_HELPER_SCRIPT=%REPO_ROOT%\scripts\emit-db-config-env.ps1"
+set "DB_LOAD_STAGING_SCRIPT=%REPO_ROOT%\scripts\stage-db-load-files.ps1"
 set "BUILD_DATABASE_CMD=%REPO_ROOT%\buildDatabase.cmd"
 set "DEPS_DIR=%REPO_ROOT%\Dependencies"
 set "VENDORED_NODE_MODULES=%DEPS_DIR%\node_modules"
@@ -24,6 +25,7 @@ set "DB_TRUST_SERVER_CERTIFICATE=false"
 set "DB_SSL_MODE=disabled"
 set "DB_SERVER_TARGET="
 set "DATA_LOAD_MODE_ARG="
+set "SQL_SERVER_STAGING_UNC_ROOT="
 set "SQL_SERVER_PACKAGE_DATA_ROOT="
 set "SQL_SERVER_SNAPSHOTS_ROOT="
 
@@ -53,6 +55,10 @@ if not exist "%DB_CONFIG_ENSURE_SCRIPT%" (
 )
 if not exist "%DB_CONFIG_HELPER_SCRIPT%" (
   call :fail "Missing DB config helper script: %DB_CONFIG_HELPER_SCRIPT%"
+  exit /b 1
+)
+if not exist "%DB_LOAD_STAGING_SCRIPT%" (
+  call :fail "Missing DB load staging script: %DB_LOAD_STAGING_SCRIPT%"
   exit /b 1
 )
 
@@ -176,6 +182,7 @@ echo [INFO] Authentication mode: %DB_AUTH_MODE%
 echo [INFO] SSL mode: %DB_SSL_MODE%
 echo [INFO] Data load mode: %DATA_LOAD_MODE_ARG%
 if /I "%DATA_LOAD_MODE_ARG%"=="SqlServerFiles" (
+  echo [INFO] SQL Server staging UNC root: %SQL_SERVER_STAGING_UNC_ROOT%
   echo [INFO] SQL Server package data root: %SQL_SERVER_PACKAGE_DATA_ROOT%
   echo [INFO] SQL Server snapshots root: %SQL_SERVER_SNAPSHOTS_ROOT%
 )
@@ -226,7 +233,7 @@ if not defined DATA_LOAD_MODE_RAW (
 if not defined DATA_LOAD_MODE_RAW (
   echo [INFO] Select database data load mode:
   echo [INFO]   1^) ClientPayload - read local JSON on this machine and send quoted payloads to SQL Server.
-  echo [INFO]   2^) SqlServerFiles - SQL Server reads JSON files from SQL-server-visible paths.
+  echo [INFO]   2^) SqlServerFiles - stage JSON files to a SQL-server-visible UNC path.
   set "DATA_LOAD_CHOICE="
   set /p "DATA_LOAD_CHOICE=Enter data load mode [1]: "
   if not defined DATA_LOAD_CHOICE set "DATA_LOAD_CHOICE=1"
@@ -236,34 +243,41 @@ call :normalizeDataLoadMode "%DATA_LOAD_MODE_RAW%"
 if errorlevel 1 exit /b 1
 
 if /I "%DATA_LOAD_MODE_ARG%"=="SqlServerFiles" (
-  set "SQL_SERVER_PACKAGE_DATA_ROOT=%TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT%"
-  set "SQL_SERVER_SNAPSHOTS_ROOT=%TSAAT_SQL_SERVER_SNAPSHOTS_ROOT%"
-  if not defined SQL_SERVER_PACKAGE_DATA_ROOT (
+  set "SQL_SERVER_STAGING_UNC_ROOT=%TSAAT_SQL_SERVER_STAGING_UNC_ROOT%"
+  if not defined SQL_SERVER_STAGING_UNC_ROOT (
     if /I "%DATA_LOAD_ASSUME_YES%"=="true" (
-      call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT in unattended mode."
+      call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_STAGING_UNC_ROOT in unattended mode."
       exit /b 1
     ) else (
-      echo [INFO] SqlServerFiles mode requires paths as seen by the SQL Server service account.
-      set /p "SQL_SERVER_PACKAGE_DATA_ROOT=SQL Server-visible package data root: "
+      echo [INFO] SqlServerFiles mode requires a UNC path the app server can write and the SQL Server service account can read.
+      set /p "SQL_SERVER_STAGING_UNC_ROOT=SQL Server-visible UNC staging root: "
     )
   )
-  if not defined SQL_SERVER_SNAPSHOTS_ROOT (
-    if /I "%DATA_LOAD_ASSUME_YES%"=="true" (
-      call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_SNAPSHOTS_ROOT in unattended mode."
-      exit /b 1
-    ) else (
-      set /p "SQL_SERVER_SNAPSHOTS_ROOT=SQL Server-visible snapshots root: "
-    )
-  )
-  if not defined SQL_SERVER_PACKAGE_DATA_ROOT (
-    call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT or an interactive package data root."
+  if not defined SQL_SERVER_STAGING_UNC_ROOT (
+    call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_STAGING_UNC_ROOT or an interactive UNC staging root."
     exit /b 1
   )
-  if not defined SQL_SERVER_SNAPSHOTS_ROOT (
-    call :fail "SqlServerFiles mode requires TSAAT_SQL_SERVER_SNAPSHOTS_ROOT or an interactive snapshots root."
-    exit /b 1
-  )
+  call :stageSqlServerFiles
+  if errorlevel 1 exit /b 1
 )
+exit /b 0
+
+:stageSqlServerFiles
+echo [INFO] Staging SqlServerFiles JSON payloads to UNC path...
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_LOAD_STAGING_SCRIPT%" -RepoRoot "%REPO_ROOT%" -StagingRoot "%SQL_SERVER_STAGING_UNC_ROOT%"`) do %%I
+if errorlevel 1 (
+  call :fail "Failed to stage SqlServerFiles payloads to UNC path."
+  exit /b 1
+)
+if not defined SQL_SERVER_PACKAGE_DATA_ROOT (
+  call :fail "DB load staging script did not return SQL_SERVER_PACKAGE_DATA_ROOT."
+  exit /b 1
+)
+if not defined SQL_SERVER_SNAPSHOTS_ROOT (
+  call :fail "DB load staging script did not return SQL_SERVER_SNAPSHOTS_ROOT."
+  exit /b 1
+)
+echo [INFO] SqlServerFiles payload staging completed.
 exit /b 0
 
 :normalizeDataLoadMode

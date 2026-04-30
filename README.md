@@ -97,7 +97,7 @@ This confirms or creates encrypted `DB_config`, stages bundled `sqlcmd`, creates
 `CreateDB.cmd` asks how seed data should be loaded:
 
 - `1` / `ClientPayload` (default): reads repository JSON files on the machine running `CreateDB.cmd`, sends them as parameterized `NVARCHAR(MAX)` payload inserts over the SQL connection, and then maps them with SQL Server `OPENJSON`. Use this for remote SQL Server installs where the database server cannot see the app server filesystem.
-- `2` / `SqlServerFiles`: keeps SQL Server-side file reads through `OPENROWSET(BULK...)`. Use this only when the JSON files are copied to, or shared from, paths that the SQL Server service account can read.
+- `2` / `SqlServerFiles`: prompts for one SQL-server-visible UNC staging root, copies the required JSON files there, and keeps SQL Server-side reads through `OPENROWSET(BULK...)`. Use this only when the machine running `CreateDB.cmd` can write the UNC share and the SQL Server service account can read it.
 
 For unattended client-payload setup, set:
 
@@ -105,15 +105,14 @@ For unattended client-payload setup, set:
 $env:TSAAT_DATA_LOAD_MODE='client-payload'
 ```
 
-For unattended SQL-server-file setup, set paths as they are visible from the SQL Server host:
+For unattended SQL-server-file setup, set a UNC staging root as it is visible from the SQL Server host:
 
 ```powershell
 $env:TSAAT_DATA_LOAD_MODE='sql-server-files'
-$env:TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT='D:\TSAAT\Database Schema\data'
-$env:TSAAT_SQL_SERVER_SNAPSHOTS_ROOT='D:\TSAAT\data\snapshots'
+$env:TSAAT_SQL_SERVER_STAGING_UNC_ROOT='\\server\share\tsaat-db-compile'
 ```
 
-The package data root must contain `reference-versions.json`, `spi-definitions.json`, `discovery-tools-settings.json`, and `measures-settings.json`. The snapshots root must contain `week-01.json` through `week-08.json`.
+`CreateDB.cmd` stages package JSON files under `<UNC root>\package-data` and snapshot JSON files under `<UNC root>\snapshots`, then passes those derived paths to the database loader.
 
 ### 4. Compile The App Offline
 
@@ -205,7 +204,7 @@ If an artifact is missing on an internet-connected preparation machine, restore 
 
 - `CreateDB.cmd` and `compileApp.cmd` use encrypted `DB_config` after confirmation. Environment variables provision a missing or undecryptable `DB_config` only when `TSAAT_DB_CONFIG_ASSUME_YES=true`.
 - SQL authentication requires both `TSAAT_SQL_USER` and `TSAAT_SQL_PASSWORD` when provisioning `DB_config` from environment variables.
-- For remote SQL Server database creation, prefer `TSAAT_DATA_LOAD_MODE=client-payload`. `SqlServerFiles` mode requires SQL Server-side file paths plus SQL Server service-account permissions to read those files.
+- For remote SQL Server database creation, prefer `TSAAT_DATA_LOAD_MODE=client-payload`. `SqlServerFiles` mode requires a UNC staging root that the setup machine can write and the SQL Server service account can read.
 - Application login recreation requires both `TSAAT_LOGIN_USERNAME` and `TSAAT_LOGIN_PASSWORD` in unattended mode.
 - Logout clears the local session cookie, broadcasts the sign-out to other open TSAAT tabs, and returns the browser to `/login`.
 - Local named instances such as `localhost\SQLEXPRESS` are normalized to `lpc:` for bundled `sqlcmd` compatibility.

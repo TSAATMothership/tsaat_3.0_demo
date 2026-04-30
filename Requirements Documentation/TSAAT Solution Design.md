@@ -1358,7 +1358,7 @@ Important hidden behaviour:
 - database settings are persisted to encrypted local, git-ignored `DB_config` envelope file, not to the SQL Server database.
 - when encrypted `DB_config` is missing, UI defaults resolve to fallback server/database values and SSL disabled.
 - offline scripts run `scripts/ensure-db-config.ps1` before database build or compile: interactive runs confirm/change saved values, create missing files, or recreate files that cannot be decrypted by the current Windows identity; noninteractive runs accept a valid existing file or create/recreate one from `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values.
-- `CreateDB.cmd` also selects the database seed-data load mode: `ClientPayload` sends local JSON payloads from the setup machine as parameterized SQL inserts, while `SqlServerFiles` keeps SQL Server-side `OPENROWSET(BULK...)` reads from SQL-server-visible paths.
+- `CreateDB.cmd` also selects the database seed-data load mode: `ClientPayload` sends local JSON payloads from the setup machine as parameterized SQL inserts, while `SqlServerFiles` stages the JSON files to a SQL-server-visible UNC root and keeps SQL Server-side `OPENROWSET(BULK...)` reads from the derived paths.
 - schema validation checks for required tables, required columns, and that `tsaat.dataset_snapshot` contains at least one row.
 - save remains disabled until required validation tests succeed:
   - SSL disabled: connection test + schema test
@@ -1460,7 +1460,7 @@ Primary dependencies:
 | Save enablement | prevent invalid configuration writes | save allowed only when connection and schema tests succeed, plus SSL test when SSL enabled, and no busy state is active | client validation state | Runtime | client | save button remains disabled until required checks pass |
 | SSL mode mapping | normalize UI SSL settings into encrypted payload fields | `sslEnabled=false => sslType=strict`; `sslEnabled=true, sslType=strict`; `sslEnabled=true, sslType=trust-server-certificate` | form state, encrypted `DB_config` payload | Runtime | backend | `trust-server-certificate` implicitly enables SSL |
 | SQLCMD SSL argument mapping | enforce runtime/script SSL mode | SSL disabled => no SSL flags; strict => `-N`; trust server certificate => `-N -C` | decrypted `DB_config` payload (`sslEnabled`, `sslType`) | Runtime | backend and scripts | used by runtime SQL execution and offline scripts (`compileApp.cmd`, `CreateDB.cmd`, loader PowerShell); `CreateDB.cmd` and `compileApp.cmd` confirm `DB_config` first, then stage bundled `sqlcmd` and normalize local server targets to `lpc:` when needed |
-| Database seed load mode | support local and remote SQL Server bootstrap | `ClientPayload` sends local JSON as parameterized `NVARCHAR(MAX)` inserts into a session temp table; `SqlServerFiles` passes SQL-server-visible roots to `OPENROWSET(BULK...)` | `TSAAT_DATA_LOAD_MODE`, optional SQL-server-visible data roots, repository JSON files | Runtime | scripts | no persistent schema change; `compileApp.cmd` only validates already loaded snapshot data |
+| Database seed load mode | support local and remote SQL Server bootstrap | `ClientPayload` sends local JSON as parameterized `NVARCHAR(MAX)` inserts into a session temp table; `SqlServerFiles` stages JSON files to a UNC root and passes derived SQL-server-visible roots to `OPENROWSET(BULK...)` | `TSAAT_DATA_LOAD_MODE`, optional `TSAAT_SQL_SERVER_STAGING_UNC_ROOT`, repository JSON files | Runtime | scripts | no persistent schema change; `compileApp.cmd` only validates already loaded snapshot data |
 | Password change | rotate app login secret | verify current password hash, persist new salted hash, increment session version, clear cookie | encrypted `logindetails` payload + authenticated session cookie | Runtime | API/backend | old sessions become invalid after update |
 
 ## 8. Non-Database Calculations
@@ -1471,7 +1471,7 @@ Primary dependencies:
 ## 9. Rules, Assumptions, and Constraints
 - Settings persist to local ignored `DB_config`, not to the database.
 - `CreateDB.cmd` and `compileApp.cmd` must confirm, create, or recreate encrypted `DB_config` before using database settings.
-- Remote SQL Server database creation should use `ClientPayload` unless SQL Server has service-account access to the supplied `SqlServerFiles` paths.
+- Remote SQL Server database creation should use `ClientPayload` unless the setup machine can write the supplied `SqlServerFiles` UNC staging root and SQL Server has service-account read access to it.
 - The page is marked `force-dynamic`, so it does not rely on static generation.
 - Connection test must pass before schema test can run.
 - Connection test must pass before SSL test can run.

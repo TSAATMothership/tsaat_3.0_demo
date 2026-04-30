@@ -76,7 +76,7 @@ CreateDB.cmd and Database Schema\loaders\build-and-load-database.ps1 consume can
 
 Database load modes:
 - ClientPayload (default): CreateDB.cmd/build-and-load-database.ps1 read the local repository JSON files, send them as parameterized NVARCHAR(MAX) payload inserts over the SQL connection, and map rows with OPENJSON. This supports remote SQL Server targets without SQL Server filesystem access to the repository.
-- SqlServerFiles: the loader keeps SQL Server-side OPENROWSET(BULK...) reads and requires SQL-server-visible package/snapshot roots from interactive input or TSAAT_SQL_SERVER_PACKAGE_DATA_ROOT plus TSAAT_SQL_SERVER_SNAPSHOTS_ROOT.
+- SqlServerFiles: CreateDB.cmd stages the required package/snapshot JSON files into a SQL-server-visible UNC root from interactive input or TSAAT_SQL_SERVER_STAGING_UNC_ROOT, then passes the derived package-data and snapshots subfolders to the loader for OPENROWSET(BULK...) reads.
 
 No additional dependency artifact is required for either mode. Schema/migration execution still uses the bundled sqlcmd archive already listed above; ClientPayload data staging uses the Windows PowerShell/.NET SQL client available on the target Windows host.
 
