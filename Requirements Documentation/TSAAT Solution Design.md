@@ -55,7 +55,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 | `/systems` | header navigation | [05-ICT-Systems.md](05-ICT-Systems.md) | query-param tab states |
 | `/systems/[systemId]` | systems table drill down | [06-ICT-System-Detail.md](06-ICT-System-Detail.md) | visible tabs plus latent query-param scope filters |
 | `/discovery-coverage` | operations menu | [07-Discovery.md](07-Discovery.md) | summary, coverage-by-network, tool-settings, network-discovery tabs (`target-state` route value retained) |
-| `/measures` | operations menu | [08-Measures.md](08-Measures.md) | summary, measures-kpi, measures-spi, spi-settings, kpi-settings tabs |
+| `/measures` | operations menu | [08-Measures.md](08-Measures.md) | summary, measures-kpi, measures-spi, spi-settings tabs |
 | `/findings` | operations menu | [09-Findings-and-Evidence.md](09-Findings-and-Evidence.md) | overview/register tabs plus history drillthrough |
 | `/report` | operations menu | [10-Report-Catalogue.md](10-Report-Catalogue.md) | report launcher page |
 | `/settings` | operations menu | [11-Settings.md](11-Settings.md) | database + password settings plus one placeholder tab |
@@ -958,7 +958,7 @@ Primary data dependencies:
 - **Primary user roles:** cyber governance users, assurance teams, reporting users, cyber analysts, product administrators.
 
 ## 2. Page Summary
-This page provides `summary`, `measures-kpi`, `measures-spi`, `spi-settings`, and `kpi-settings` tabs.
+This page provides `summary`, `measures-kpi`, `measures-spi`, and `spi-settings` tabs.
 
 Major dependencies:
 
@@ -974,7 +974,7 @@ Major dependencies:
 Important hidden behaviour:
 
 - KPI-7 and KPI-8 are calculated from deterministic hash functions, not from persisted ATO or DIIS status data.
-- KPI tasking reports are disabled for `KPI-1`, `KPI-2`, and `KPI-3`.
+- KPI tasking and trend reports are disabled for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - the KPI definitions for DPE and DSE use `securityDomain = Protected` and `securityDomain = Secret`, which differs from the Cyber COP dashboard labels that are implemented using environment type.
 - legacy query compatibility is normalized at route load:
   - `measuresTab=measures` maps to `summary`
@@ -996,10 +996,10 @@ Important hidden behaviour:
 - **Outcome:** the page provides a compact performance summary.
 
 ### Feature: Measures-KPI Tab
-- **What it does:** shows the KPI matrix, including descriptions, success measures, scores, and report links.
-- **User perspective:** the user can inspect measure definitions and launch tasking reports.
-- **System behaviour:** KPI rows come from `buildKpiRows()` and report links carry the active filter scope into `/api/tasking-report`.
-- **Outcome:** KPI performance details are shown in a dedicated tab.
+- **What it does:** shows the KPI report index, including descriptions, success measures, scores, status counts, and report links.
+- **User perspective:** the user can inspect KPI score details and launch current and trend reports for KPI-5 through KPI-10.
+- **System behaviour:** KPI rows come from the shared KPI report model and report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
+- **Outcome:** KPI performance details and per-KPI PDF report actions are shown in a dedicated tab.
 
 ### Feature: Measures-SPI Tab
 - **What it does:** shows the SPI report index, including descriptions, success measures, scores, asset-type impact summaries, and report links.
@@ -1013,22 +1013,15 @@ Important hidden behaviour:
 - **System behaviour:** the settings panel loads the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; matrix keys cover every SPI and every canonical asset type; legacy `Data Gap` values normalize to `Moderate`.
 - **Outcome:** future analytics and findings displays use the updated severity mapping.
 
-### Feature: KPI-Settings Tab
-- **What it does:** reserves a future settings panel for KPI configuration.
-- **User perspective:** the user can see where KPI-specific settings will appear.
-- **System behaviour:** renders placeholder content only, with no API calls or persistence.
-- **Outcome:** tab model supports future KPI settings without impacting current save flows.
-
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Measures | Tab routing | Switches among summary, KPI matrix, SPI matrix, SPI settings, and KPI settings | Click tab | Updates `measuresTab` query parameter | `measuresTab` | Different layout | summary is default; legacy `measures` maps to summary; legacy `settings` maps to SPI settings | unsupported values fall back to summary | `MeasuresTabs` | Bookmarkable tab state | |
+| Measures | Tab routing | Switches among summary, KPI report index, SPI report index, and SPI settings | Click tab | Updates `measuresTab` query parameter | `measuresTab` | Different layout | summary is default; legacy `measures` maps to summary; legacy `settings` maps to SPI settings; legacy `kpi-settings` falls back to summary | unsupported values fall back to summary | `MeasuresTabs` | Bookmarkable tab state | |
 | Measures | Shared scope | Common measure filter scope plus severity selector | Apply filters | Re-runs analytics and KPI/SPI rows | shared filters plus `severity` | Filtered charts and matrix | one scope for all visible scores | supported values come from filter options or severity list | `FilterBar`, `getCoreAppData()` | Consistent measures scope | |
 | Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives compliance points from runtime rows | analytics, systems, networks | Charts | charts show recalculated runtime scores | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | |
-| Measures | Measures-KPI tab | KPI-only detailed measure table and report launch surface | Open tab, click report link | Builds KPI rows and carries filter scope into report URL | analytics, filters | KPI matrix and PDF report links | KPI reports for 1-3 are disabled | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view | disabled KPI reports show `Not available` |
+| Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | KPI tiles and PDF report links | KPI reports and KPI trend reports are available only for KPI-5 through KPI-10; KPI-1 through KPI-4 show `Unavailable` | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view with current and trend reports | |
 | Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; all-SPI report summarizes every SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
 | Measures | SPI settings | Maintain severity mapping by SPI and asset type | Edit rows, save, reset | Validates and persists latest settings version | measures settings rows | Updated measures settings | saved matrix affects future severity remap; matrix includes six canonical asset types per SPI; `Data Gap` values are normalized to `Moderate` | panel-level validation in component and API | `/api/measures/settings` | Updated severity model | non-applicable SPI/asset combinations remain harmless configuration entries |
-| Measures | KPI settings placeholder | Reserved future KPI settings tab | Open tab | Renders placeholder only | none | Placeholder panel | intentionally no save behavior | none | measures route rendering | Future-ready tab model | no API usage |
 
 ## 5. Database Mapping
 The page reads snapshot analytics plus the measures settings tables. Most KPI and SPI values are calculated at runtime from asset evaluations and findings rather than stored as facts.
@@ -1075,12 +1068,13 @@ Primary data dependencies:
 - Tasking, all-SPI, and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
+- KPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - Severity remap is applied at runtime to findings before they are counted or displayed on dependent pages.
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is not date-scoped through a local control, but it respects shared route date state where supplied.
 - KPI and SPI values are recalculated at runtime for the current scope.
-- KPI tasking reports are disabled for `KPI-1`, `KPI-2`, and `KPI-3`.
+- KPI tasking and trend reports are disabled for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - The saved severity matrix affects downstream findings analytics and page displays.
 - SPI settings dropdown options exclude `Data Gap`.
 - persisted SPI settings values of `Data Gap` are normalized to `Moderate` during settings normalization.

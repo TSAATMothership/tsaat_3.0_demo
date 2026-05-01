@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
-type MeasuresTabId = "summary" | "measures-kpi" | "measures-spi" | "spi-settings" | "kpi-settings";
+import { MEASURES_TABS, MeasuresTabId, measuresTabLoadingLabel } from "@/lib/measures-tab-routing";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -90,20 +89,12 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
     router.replace(query ? `${pathname}?${query}` : pathname);
   };
 
-  const tabs = [
-    { id: "summary" as const, label: "Measures Summary" },
-    { id: "measures-kpi" as const, label: "Measures-KPI" },
-    { id: "measures-spi" as const, label: "Measures-SPI" },
-    { id: "spi-settings" as const, label: "SPI-Settings" },
-    { id: "kpi-settings" as const, label: "KPI-Settings" }
-  ];
-
   return (
     <>
       <section className="panel overflow-hidden">
         <div className="border-b border-sky-400/15 px-4 py-3">
           <div className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
+            {MEASURES_TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -139,15 +130,7 @@ export function MeasuresTabs({ activeTab }: { activeTab: MeasuresTabId }) {
                   <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
                   <span>
                     Opening{" "}
-                    {pendingTab === "measures-kpi"
-                      ? "Measures-KPI"
-                      : pendingTab === "measures-spi"
-                        ? "Measures-SPI"
-                        : pendingTab === "spi-settings"
-                          ? "SPI-Settings"
-                          : pendingTab === "kpi-settings"
-                            ? "KPI-Settings"
-                            : "Measures Summary"}
+                    {measuresTabLoadingLabel(pendingTab)}
                     ...
                   </span>
                 </div>

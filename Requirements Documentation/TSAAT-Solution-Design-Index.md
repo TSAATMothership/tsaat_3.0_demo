@@ -44,7 +44,7 @@ Non-route overlays and modal drillthroughs are documented inside the parent page
 | `/systems` | header navigation | [05-ICT-Systems.md](05-ICT-Systems.md) | query-param tab states |
 | `/systems/[systemId]` | systems table drill down | [06-ICT-System-Detail.md](06-ICT-System-Detail.md) | visible tabs plus latent query-param scope filters |
 | `/discovery-coverage` | operations menu | [07-Discovery.md](07-Discovery.md) | summary, coverage-by-network, tool-settings, network-discovery tabs (`target-state` route value retained) |
-| `/measures` | operations menu | [08-Measures.md](08-Measures.md) | summary, measures-kpi, measures-spi, spi-settings, kpi-settings tabs |
+| `/measures` | operations menu | [08-Measures.md](08-Measures.md) | summary, measures-kpi, measures-spi, spi-settings tabs |
 | `/findings` | operations menu | [09-Findings-and-Evidence.md](09-Findings-and-Evidence.md) | overview/register tabs plus history drillthrough |
 | `/report` | operations menu | [10-Report-Catalogue.md](10-Report-Catalogue.md) | report launcher page |
 | `/settings` | operations menu | [11-Settings.md](11-Settings.md) | database settings plus placeholder tabs |

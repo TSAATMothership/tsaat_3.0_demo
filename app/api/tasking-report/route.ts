@@ -7,7 +7,12 @@ import {
   loadMeasuresSettings,
   loadSnapshotsForDateWindow
 } from "@/lib/data-loader";
-import { buildKpiRows } from "@/lib/measures";
+import {
+  buildKpiReportModel,
+  buildKpiTrendReportModel,
+  isKpiReportAvailable,
+  KpiTrendReportModel
+} from "@/lib/kpi-report-model";
 import {
   buildSpiReportModel,
   buildSpiReportModels,
@@ -31,7 +36,7 @@ import { AnalyticsResult, Dataset, ICTSystem } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type Kind = "kpi" | "spi" | "spi-trend" | "spi-all";
+type Kind = "kpi" | "kpi-trend" | "spi" | "spi-trend" | "spi-all";
 
 interface CriticalSystemComplianceRow {
   systemId: string;
@@ -406,7 +411,17 @@ function drawReportTable(context: PdfDrawContext, headers: string[], rows: strin
   context.y -= 12;
 }
 
-function drawSpiTrendChart(context: PdfDrawContext, model: SpiTrendReportModel) {
+function drawReportTrendChart(
+  context: PdfDrawContext,
+  model: {
+    trendPoints: Array<{
+      snapshotDate: string;
+      compliant: number;
+      nonCompliant: number;
+      unknown: number;
+    }>;
+  }
+) {
   const points = model.trendPoints;
   const chartHeight = 224;
   ensureReportSpace(context, chartHeight + 8);
@@ -494,7 +509,7 @@ function drawSpiTrendChart(context: PdfDrawContext, model: SpiTrendReportModel) 
   const yForValue = (value: number) => plotBottom + (plotHeight * value) / maxCount;
 
   const drawSeries = (
-    valueForPoint: (point: SpiTrendReportModel["trendPoints"][number]) => number,
+    valueForPoint: (point: (typeof points)[number]) => number,
     color: { r: number; g: number; b: number }
   ) => {
     const seriesColor = rgb(color.r, color.g, color.b);
@@ -708,7 +723,72 @@ function drawSpiTrendTemplateReport({
     context,
     `This chart shows the Compliant CIs, Non-compliant CIs and Unknown CIs over the available snapshot period between ${model.rangeStartDate} and ${model.rangeEndDate}.`
   );
-  drawSpiTrendChart(context, model);
+  drawReportTrendChart(context, model);
+}
+
+function drawKpiTrendTemplateReport({
+  pdfDoc,
+  fontRegular,
+  fontBold,
+  model,
+  snapshotDate,
+  filterText
+}: {
+  pdfDoc: PDFDocument;
+  fontRegular: PDFFont;
+  fontBold: PDFFont;
+  model: KpiTrendReportModel;
+  snapshotDate: string;
+  filterText: string;
+}) {
+  const current = model.current;
+  const pageState = createReportPage({
+    pdfDoc,
+    pageTitle: model.reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  });
+  const context: PdfDrawContext = {
+    pdfDoc,
+    page: pageState.page,
+    y: pageState.y,
+    pageTitle: model.reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  };
+
+  drawReportHeading(context, "Report Name");
+  drawReportParagraph(context, model.reportName);
+  drawReportHeading(context, "Filter Scope");
+  drawReportParagraph(context, filterText, { size: 9 });
+  drawReportHeading(context, `Indicator: ${current.indicatorLabel}`);
+  drawReportParagraph(context, `Description: ${current.description}`);
+  drawReportParagraph(context, `Success Measure: ${current.successMeasure}`);
+  drawReportParagraph(context, `Score: ${current.score}`);
+
+  drawReportTable(
+    context,
+    ["Current Score", "Compliant", "Non-Compliant", "Unknown", "Total"],
+    [
+      [
+        `${current.scorePercent}%`,
+        String(current.compliant),
+        String(current.nonCompliant),
+        String(current.unknown),
+        String(current.total)
+      ]
+    ],
+    [104, 104, 116, 94, 84]
+  );
+
+  drawReportHeading(context, "12 months Trend Chart");
+  drawReportParagraph(
+    context,
+    `This chart shows the Compliant, Non-compliant and Unknown KPI counts over the available snapshot period between ${model.rangeStartDate} and ${model.rangeEndDate}.`
+  );
+  drawReportTrendChart(context, model);
 }
 
 function drawSpiAllDetailSections(context: PdfDrawContext, model: SpiReportModel) {
@@ -846,7 +926,7 @@ export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get("kind") as Kind | null;
   const id = request.nextUrl.searchParams.get("id");
 
-  if (!kind || !id || !["kpi", "spi", "spi-trend", "spi-all"].includes(kind)) {
+  if (!kind || !id || !["kpi", "kpi-trend", "spi", "spi-trend", "spi-all"].includes(kind)) {
     return NextResponse.json({ error: "Missing or invalid kind/id parameters." }, { status: 400 });
   }
 
@@ -958,7 +1038,47 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const kpiRows = buildKpiRows(analytics, scopedSystems, scopedNetworks);
+  if (kind === "kpi-trend") {
+    const trendDatasets = await loadSnapshotsForDateWindow(dataset.snapshotDate, 12);
+    const trendModel = buildKpiTrendReportModel({
+      kpiId: id,
+      snapshots: trendDatasets.map((trendDataset) => ({
+        snapshotDate: trendDataset.snapshotDate,
+        analytics: buildAnalytics(
+          trendDataset,
+          trendDataset.ictSystems,
+          filters,
+          measuresSettings,
+          discoveryToolsSettings
+        ),
+        systems: filterSystems(trendDataset.ictSystems, filters),
+        networks: filterNetworks(trendDataset.managedNetworks, filters)
+      }))
+    });
+
+    if (!trendModel) {
+      return notFoundResponse("KPI trend report unavailable for supplied id.");
+    }
+
+    drawKpiTrendTemplateReport({
+      pdfDoc,
+      fontRegular,
+      fontBold,
+      model: trendModel,
+      snapshotDate: dataset.snapshotDate,
+      filterText: filterSummary(request.nextUrl.searchParams)
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;
+
+    return new Response(pdfArrayBuffer, {
+      headers: {
+        "Content-Type": TASKING_REPORT_CONTENT_TYPE,
+        "Content-Disposition": `attachment; filename=${taskingReportFilename(kind, id)}`
+      }
+    });
+  }
 
   const page = pdfDoc.addPage([595.28, 841.89]);
 
@@ -998,10 +1118,16 @@ export async function GET(request: NextRequest) {
   y -= 8;
 
   if (kind === "kpi") {
-    const row = kpiRows.find((item) => item.id === id);
-    if (!row) {
-      return notFoundResponse("KPI row not found for supplied id.");
+    const kpiModel = buildKpiReportModel({
+      analytics,
+      systems: scopedSystems,
+      networks: scopedNetworks,
+      kpiId: id
+    });
+    if (!kpiModel || !isKpiReportAvailable(id)) {
+      return notFoundResponse("KPI tasking report unavailable for supplied id.");
     }
+    const row = kpiModel.sourceRow;
 
     page.drawText(`Indicator: ${row.id} - ${row.name}`, {
       x: 32,

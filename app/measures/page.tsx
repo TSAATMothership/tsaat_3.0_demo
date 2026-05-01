@@ -9,6 +9,7 @@ import {
 import { SPI_DESCRIPTIONS, SPI_IDS } from "@/lib/spi-metadata";
 import { buildKpiRows } from "@/lib/measures";
 import { getCoreAppData } from "@/lib/app-data";
+import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
 import { FindingSeverity } from "@/lib/types";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -27,15 +28,7 @@ export default async function MeasuresPage({
     searchParams
   );
   const requestedTab = firstParam(searchParams.measuresTab)?.trim().toLowerCase();
-  const activeTab: "summary" | "measures-kpi" | "measures-spi" | "spi-settings" | "kpi-settings" =
-    requestedTab === "measures-kpi" ||
-    requestedTab === "measures-spi" ||
-    requestedTab === "spi-settings" ||
-    requestedTab === "kpi-settings"
-      ? requestedTab
-      : requestedTab === "settings"
-        ? "spi-settings"
-        : "summary";
+  const activeTab = resolveMeasuresTab(requestedTab);
   const kpiRows = buildKpiRows(analytics, systems, networks);
   const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const measuresExtraSelects = [
@@ -156,12 +149,8 @@ export default async function MeasuresPage({
               />
             </div>
           </div>
-        ) : activeTab === "spi-settings" ? (
-          <MeasuresSettingsMatrix initialSettings={measuresSettings} />
         ) : (
-          <section className="panel flex h-full min-h-0 items-center justify-center p-4">
-            <p className="text-sm text-slate-300/80">KPI settings will be added in a future release.</p>
-          </section>
+          <MeasuresSettingsMatrix initialSettings={measuresSettings} />
         )}
       </div>
     </div>

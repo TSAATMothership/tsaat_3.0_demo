@@ -294,7 +294,7 @@ export function buildKpiRows(
     },
     {
       id: "KPI-8",
-      name: "ICT Systems are registered within DIIS'",
+      name: "ICT Systems are registered within DIIS",
       description: "Share of in-scope ICT systems registered in the DIIS register.",
       successMeasure: "Target = 100% of ICT systems registered within DIIS.",
       score: `${diisComplianceScore}% (${diisCompliantSystems}/${diisApplicableSystems})`,

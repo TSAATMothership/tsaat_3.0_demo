@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { buildKpiRows } from "@/lib/measures";
+import { buildKpiReportModels } from "@/lib/kpi-report-model";
 import { buildSpiReportModels } from "@/lib/spi-report-model";
 import { buildTaskingReportHref } from "@/lib/tasking-report-links";
 import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
@@ -37,8 +37,6 @@ function summarizeFilterScope(filters: Filters, options: FilterOptions): string 
     `Business Service: ${resolveOption(options.businessServices, filters.businessService)}`
   ].join(" | ");
 }
-
-const KPI_TASKING_DISABLED = new Set(["KPI-1", "KPI-2", "KPI-3"]);
 
 function SpiField({
   label,
@@ -142,7 +140,7 @@ export function KpiSpiMatrix({
   filterOptions: FilterOptions;
   mode: "kpi" | "spi";
 }) {
-  const kpiRows = mode === "kpi" ? buildKpiRows(analytics, systems, networks) : [];
+  const kpiReports = mode === "kpi" ? buildKpiReportModels(analytics, systems, networks) : [];
   const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics) : [];
 
   return (
@@ -151,7 +149,7 @@ export function KpiSpiMatrix({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-              {mode === "kpi" ? "KPI Performance Matrix" : "SPI Report"}
+              {mode === "kpi" ? "KPI Report" : "SPI Report"}
             </h2>
             <p className="mt-2 text-xs text-slate-300/80">Scores are computed on currently filtered scope.</p>
           </div>
@@ -178,49 +176,69 @@ export function KpiSpiMatrix({
         {mode === "kpi" ? (
           <>
             <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">
-              Key Performance Indicators (KPI)
+              Key Performance Indicator Report Index
             </h3>
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                <tr>
-                  <th className="px-3 py-2">KPI</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2">Success Measure</th>
-                  <th className="px-3 py-2">Score</th>
-                  <th className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-2">Tasking Report</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kpiRows.map((row) => (
-                  <tr key={row.id} className="border-t border-sky-400/10 align-top">
-                    <td className="px-3 py-3 text-slate-100">
-                      <p className="font-semibold">{row.id}</p>
-                      <p className="text-xs text-slate-300/75">{row.name}</p>
-                    </td>
-                    <td className="px-3 py-3 text-slate-300/90">{row.description}</td>
-                    <td className="px-3 py-3 text-slate-300/90">{row.successMeasure}</td>
-                    <td className="px-3 py-3 text-slate-100">{row.score}</td>
-                    <td className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-3">
-                      {KPI_TASKING_DISABLED.has(row.id) ? (
-                        <span className="text-xs text-slate-400/80">Not available</span>
-                      ) : (
-                        <a
-                          href={buildTaskingReportHref({
-                            kind: "kpi",
-                            id: row.id,
-                            filters,
-                            dataDate: dataset.snapshotDate
-                          })}
-                          className="text-xs font-semibold text-sky-200 underline"
-                        >
-                          Generate PDF
-                        </a>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid min-w-[96rem] gap-4">
+              {kpiReports.map((report) => (
+                <article
+                  key={report.id}
+                  className="overflow-hidden rounded-lg border border-sky-400/20 bg-slate-950/45 shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
+                >
+                  <div className="grid grid-cols-2 border-b border-sky-400/15">
+                    <div className="grid grid-cols-[minmax(12rem,0.72fr)_minmax(17rem,1fr)_minmax(19rem,1.1fr)] divide-x divide-sky-400/10 bg-slate-900/30">
+                      <SpiField label={report.indicatorLabel}>
+                        <p className="text-base font-semibold text-sky-100">{report.name}</p>
+                      </SpiField>
+                      <SpiField label="Description">{report.description}</SpiField>
+                      <SpiField label="Success Measure">{report.successMeasure}</SpiField>
+                    </div>
+
+                    <div className="grid grid-cols-[repeat(4,minmax(6.5rem,1fr))_minmax(13.5rem,1.2fr)] divide-x divide-sky-400/10 bg-slate-950/25">
+                      <SpiMetric label="Score" value={`${report.scorePercent}%`} />
+                      <SpiMetric label="Compliant" value={report.compliant} tone="good" />
+                      <SpiMetric label="Non-Compliant" value={report.nonCompliant} tone="danger" />
+                      <SpiMetric label="Unknown" value={report.unknown} tone="warning" />
+                      <div className="flex min-w-0 items-center justify-center px-3 py-3">
+                        {report.reportAvailable ? (
+                          <div className="flex w-full min-w-0 flex-col items-stretch gap-2">
+                            <a
+                              href={buildTaskingReportHref({
+                                kind: "kpi",
+                                id: report.id,
+                                filters,
+                                dataDate: dataset.snapshotDate
+                              })}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-sky-300/40 bg-sky-500/15 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-100 transition hover:border-sky-200/70 hover:bg-sky-500/25"
+                            >
+                              Generate KPI Report
+                            </a>
+                            <a
+                              href={buildTaskingReportHref({
+                                kind: "kpi-trend",
+                                id: report.id,
+                                filters,
+                                dataDate: dataset.snapshotDate
+                              })}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-500/20"
+                            >
+                              Generate Trend Report
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-slate-500/35 bg-slate-800/50 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-300/85">
+                            Unavailable
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
           </>
         ) : (
           <>

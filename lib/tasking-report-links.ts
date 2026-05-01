@@ -1,7 +1,7 @@
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
 import { Filters } from "@/lib/types";
 
-export type TaskingReportKind = "kpi" | "spi" | "spi-trend" | "spi-all";
+export type TaskingReportKind = "kpi" | "kpi-trend" | "spi" | "spi-trend" | "spi-all";
 
 export const TASKING_REPORT_CONTENT_TYPE = "application/pdf";
 
@@ -68,6 +68,9 @@ export function taskingReportFilename(kind: TaskingReportKind, id: string): stri
   }
   if (kind === "spi-all") {
     return "tsaat-spi-report-all.pdf";
+  }
+  if (kind === "kpi-trend") {
+    return `tsaat-kpi-trend-report-${safeId}.pdf`;
   }
   return `tsaat-tasking-report-${safeId}.pdf`;
 }
