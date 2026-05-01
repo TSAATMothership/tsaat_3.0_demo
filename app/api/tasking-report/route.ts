@@ -10,6 +10,7 @@ import {
 import { buildKpiRows } from "@/lib/measures";
 import {
   buildSpiReportModel,
+  buildSpiReportModels,
   buildSpiTrendReportModel,
   SpiReportModel,
   SpiTrendReportModel
@@ -30,7 +31,7 @@ import { AnalyticsResult, Dataset, ICTSystem } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type Kind = "kpi" | "spi" | "spi-trend";
+type Kind = "kpi" | "spi" | "spi-trend" | "spi-all";
 
 interface CriticalSystemComplianceRow {
   systemId: string;
@@ -710,11 +711,142 @@ function drawSpiTrendTemplateReport({
   drawSpiTrendChart(context, model);
 }
 
+function drawSpiAllDetailSections(context: PdfDrawContext, model: SpiReportModel) {
+  startNewReportPage(context);
+
+  drawReportHeading(context, `Indicator: ${model.indicatorLabel}`);
+  drawReportParagraph(context, `Description: ${model.description}`);
+  drawReportParagraph(context, `Success Measure: ${model.successMeasure}`);
+  drawReportParagraph(context, `Score: ${model.scorePercent}%`);
+
+  drawReportTable(
+    context,
+    ["Current Score", "Compliant CIs", "Non-Compliant CIs", "Unknown", "Total CIs"],
+    [[`${model.scorePercent}%`, String(model.compliant), String(model.nonCompliant), String(model.unknown), String(model.total)]],
+    [104, 104, 116, 94, 84]
+  );
+
+  drawReportHeading(context, "Non-Compliant CIs by Asset Type");
+  drawReportTable(
+    context,
+    model.assetTypeBreakdown.map((group) => group.label),
+    [model.assetTypeBreakdown.map((group) => String(group.nonCompliant))],
+    [84, 92, 99, 99, 84, 73]
+  );
+
+  drawReportHeading(context, "Unknown Score CIs by Asset Type");
+  drawReportTable(
+    context,
+    model.assetTypeBreakdown.map((group) => group.label),
+    [model.assetTypeBreakdown.map((group) => String(group.unknown))],
+    [84, 92, 99, 99, 84, 73]
+  );
+
+  drawReportHeading(context, "Observed Non-compliant Condition");
+  drawReportParagraph(context, model.observedNonCompliantCondition);
+  drawReportHeading(context, "Observed Unknown CI Score needing investigation");
+  drawReportParagraph(context, model.observedUnknownCondition);
+
+  drawReportHeading(context, "Remediation Actions");
+  for (const action of model.remediationActions) {
+    drawReportBullet(context, action);
+  }
+
+  drawReportHeading(context, `${model.indicatorLabel} - Supporting Findings Annex A:`);
+  drawReportParagraph(context, "This table presents the list of CIs where a compliance score can be calculated.");
+  drawReportTable(
+    context,
+    ["CI Name", "Asset Type", "Score (Compliant/Non-Compliant)"],
+    model.annexA.map((row) => [row.ciName, row.assetTypeLabel, row.score]),
+    [255, 126, 150]
+  );
+
+  drawReportHeading(context, `${model.indicatorLabel} - Supporting Findings Annex B:`);
+  drawReportParagraph(context, "This table presents the list of CIs where a compliance score cannot be calculated (Unknown).");
+  drawReportTable(
+    context,
+    ["CI Name", "Asset Type", "Score (Unknown)"],
+    model.annexB.map((row) => [row.ciName, row.assetTypeLabel, row.score]),
+    [255, 126, 150]
+  );
+}
+
+function drawSpiAllTemplateReport({
+  pdfDoc,
+  fontRegular,
+  fontBold,
+  models,
+  snapshotDate,
+  filterText
+}: {
+  pdfDoc: PDFDocument;
+  fontRegular: PDFFont;
+  fontBold: PDFFont;
+  models: SpiReportModel[];
+  snapshotDate: string;
+  filterText: string;
+}) {
+  const reportName = "All SPI Report";
+  const pageState = createReportPage({
+    pdfDoc,
+    pageTitle: reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  });
+  const context: PdfDrawContext = {
+    pdfDoc,
+    page: pageState.page,
+    y: pageState.y,
+    pageTitle: reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  };
+
+  drawReportHeading(context, "Report Name");
+  drawReportParagraph(context, reportName);
+  drawReportHeading(context, "Filter Scope");
+  drawReportParagraph(context, filterText, { size: 9 });
+
+  drawReportHeading(context, "Summary");
+  drawReportParagraph(context, "This section shows the summary score for all SPIs.");
+  drawReportTable(
+    context,
+    ["SPI", "Compliant CIs", "Non-Compliant CIs", "Unknown", "Total CIs"],
+    models.map((model) => [
+      `${model.indicatorLabel} ${model.scorePercent}%`,
+      String(model.compliant),
+      String(model.nonCompliant),
+      String(model.unknown),
+      String(model.total)
+    ]),
+    [104, 104, 116, 94, 84]
+  );
+
+  drawReportHeading(context, "Overview");
+  drawReportTable(
+    context,
+    ["SPI", "Description", "Success Measure", "Findings"],
+    models.map((model) => [
+      `${model.indicatorLabel}: ${model.name}`,
+      model.description,
+      model.successMeasure,
+      `${model.observedNonCompliantCondition} ${model.observedUnknownCondition}`
+    ]),
+    [92, 134, 146, 159]
+  );
+
+  for (const model of models) {
+    drawSpiAllDetailSections(context, model);
+  }
+}
+
 export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get("kind") as Kind | null;
   const id = request.nextUrl.searchParams.get("id");
 
-  if (!kind || !id || !["kpi", "spi", "spi-trend"].includes(kind)) {
+  if (!kind || !id || !["kpi", "spi", "spi-trend", "spi-all"].includes(kind)) {
     return NextResponse.json({ error: "Missing or invalid kind/id parameters." }, { status: 400 });
   }
 
@@ -745,6 +877,32 @@ export async function GET(request: NextRequest) {
       fontRegular,
       fontBold,
       model: spiModel,
+      snapshotDate: dataset.snapshotDate,
+      filterText: filterSummary(request.nextUrl.searchParams)
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;
+
+    return new Response(pdfArrayBuffer, {
+      headers: {
+        "Content-Type": TASKING_REPORT_CONTENT_TYPE,
+        "Content-Disposition": `attachment; filename=${taskingReportFilename(kind, id)}`
+      }
+    });
+  }
+
+  if (kind === "spi-all") {
+    const spiModels = buildSpiReportModels(dataset, analytics);
+    if (!spiModels.length) {
+      return notFoundResponse("No SPI rows found for the current filtered scope.");
+    }
+
+    drawSpiAllTemplateReport({
+      pdfDoc,
+      fontRegular,
+      fontBold,
+      models: spiModels,
       snapshotDate: dataset.snapshotDate,
       filterText: filterSummary(request.nextUrl.searchParams)
     });

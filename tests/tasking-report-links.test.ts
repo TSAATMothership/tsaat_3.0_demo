@@ -37,6 +37,7 @@ describe("tasking report links", () => {
     expect(taskingReportDataDateFromSearchParams(new URLSearchParams("dataDate=30-04-2026"))).toBeUndefined();
     expect(taskingReportFilename("spi", "10")).toBe("tsaat-spi-report-spi-10.pdf");
     expect(taskingReportFilename("spi-trend", "10")).toBe("tsaat-spi-trend-report-spi-trend-10.pdf");
+    expect(taskingReportFilename("spi-all", "all")).toBe("tsaat-spi-report-all.pdf");
     expect(TASKING_REPORT_CONTENT_TYPE).toBe("application/pdf");
   });
 
@@ -58,6 +59,28 @@ describe("tasking report links", () => {
     expect(url.searchParams.get("dataDate")).toBe("2026-04-23");
     expect(url.searchParams.get("network")).toBe("net-1");
     expect(url.searchParams.get("system")).toBe("sys-1");
+  });
+
+  it("builds all-SPI report links with the current filters and snapshot scope", () => {
+    const href = buildTaskingReportHref({
+      kind: "spi-all",
+      id: "all",
+      dataDate: "2026-04-23",
+      filters: {
+        managedNetwork: "net-1",
+        assetType: "storage-device",
+        severity: "Moderate"
+      }
+    });
+    const url = new URL(href, "http://localhost");
+
+    expect(url.pathname).toBe("/api/tasking-report");
+    expect(url.searchParams.get("kind")).toBe("spi-all");
+    expect(url.searchParams.get("id")).toBe("all");
+    expect(url.searchParams.get("dataDate")).toBe("2026-04-23");
+    expect(url.searchParams.get("network")).toBe("net-1");
+    expect(url.searchParams.get("assetType")).toBe("storage-device");
+    expect(url.searchParams.get("severity")).toBe("Moderate");
   });
 
   it("treats Measures as data-date scoped navigation", () => {

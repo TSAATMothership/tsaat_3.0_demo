@@ -5,7 +5,7 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 ## Features
 
 - Executive Dashboard with posture KPIs, top risks, and 8-week trend charts
-- Measures page with KPI cards, KPI trends, SPI/KPI scoring matrix, and SPI PDF/trend report launchers
+- Measures page with KPI cards, KPI trends, SPI/KPI scoring matrix, and SPI PDF/all-SPI/trend report launchers
 - Managed Network roll-up page + per-network drill-down
 - ICT System roll-up page with mission/service context + environment breakdown
 - Findings / Issues Register with SPI, severity, evidence, and rule-based recommendations

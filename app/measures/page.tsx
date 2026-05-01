@@ -83,7 +83,7 @@ export default async function MeasuresPage({
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Measures View</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-100">KPI and SPI Measures</h1>
-        <p className="mt-1 max-w-4xl text-sm text-slate-300/85">
+        <p className="mt-1 max-w-none whitespace-nowrap text-sm text-slate-300/85">
           Performance and compliance measures for TSAAT posture. Snapshot date {dataset.snapshotDate}.
           All charts and scores are recalculated from the active filter scope.
         </p>

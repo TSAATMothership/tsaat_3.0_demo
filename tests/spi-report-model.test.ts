@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { subtractCalendarMonthsDateKey } from "@/lib/data-date";
-import { buildSpiReportModel, buildSpiTrendReportModel, spiReportAssetTypeGroup } from "@/lib/spi-report-model";
+import {
+  buildSpiReportModel,
+  buildSpiReportModels,
+  buildSpiTrendReportModel,
+  spiReportAssetTypeGroup
+} from "@/lib/spi-report-model";
 import { Asset, AssetSpiEvaluation, AssetType, ComplianceStatus, Dataset } from "@/lib/types";
 
 function baseAsset(id: string, name: string, type: AssetType): Asset {
@@ -121,6 +126,21 @@ describe("SPI report model", () => {
     expect(spiReportAssetTypeGroup("other")).toBe("other");
     expect(storageBucket).toMatchObject({ label: "Storage Devices", nonCompliant: 1, unknown: 0 });
     expect(otherBucket).toMatchObject({ label: "Other Devices", nonCompliant: 0, unknown: 0 });
+  });
+
+  it("builds all available SPI report models from the current filtered analytics", () => {
+    const { dataset, analytics } = reportFixture();
+    const reports = buildSpiReportModels(dataset, analytics);
+    const spi10Report = reports.find((report) => report.spiId === 10);
+
+    expect(reports.map((report) => report.spiId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(spi10Report).toMatchObject({
+      indicatorLabel: "SPI-10",
+      compliant: 2,
+      nonCompliant: 2,
+      unknown: 2,
+      total: 6
+    });
   });
 
   it("builds SPI trend points from the same summary counts as the current SPI report", () => {

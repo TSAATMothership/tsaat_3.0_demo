@@ -148,10 +148,29 @@ export function KpiSpiMatrix({
   return (
     <section className="panel flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-sky-400/15 px-4 py-3">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-          {mode === "kpi" ? "KPI Performance Matrix" : "SPI Report Index"}
-        </h2>
-        <p className="mt-2 text-xs text-slate-300/80">Scores are computed on currently filtered scope.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+              {mode === "kpi" ? "KPI Performance Matrix" : "SPI Report"}
+            </h2>
+            <p className="mt-2 text-xs text-slate-300/80">Scores are computed on currently filtered scope.</p>
+          </div>
+          {mode === "spi" ? (
+            <a
+              href={buildTaskingReportHref({
+                kind: "spi-all",
+                id: "all",
+                filters,
+                dataDate: dataset.snapshotDate
+              })}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-amber-200/45 bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-100/70 hover:bg-amber-500/20"
+            >
+              Generate SPI Report (All SPIs)
+            </a>
+          ) : null}
+        </div>
         <p className="mt-1 text-xs text-slate-300/70">{summarizeFilterScope(filters, filterOptions)}</p>
       </div>
 
@@ -223,38 +242,40 @@ export function KpiSpiMatrix({
                       <SpiField label="Success Measure">{report.successMeasure}</SpiField>
                     </div>
 
-                    <div className="grid grid-cols-[repeat(4,minmax(7rem,1fr))_minmax(12rem,0.95fr)] divide-x divide-sky-400/10 bg-slate-950/25">
+                    <div className="grid grid-cols-[repeat(4,minmax(6.5rem,1fr))_minmax(13.5rem,1.2fr)] divide-x divide-sky-400/10 bg-slate-950/25">
                       <SpiMetric label="Score" value={`${report.scorePercent}%`} />
                       <SpiMetric label="Compliant" value={report.compliant} tone="good" />
                       <SpiMetric label="Non-Compliant" value={report.nonCompliant} tone="danger" />
                       <SpiMetric label="Unknown" value={report.unknown} tone="warning" />
-                      <div className="flex flex-col items-stretch justify-center gap-2 px-4 py-3">
-                        <a
-                          href={buildTaskingReportHref({
-                            kind: "spi",
-                            id: String(report.spiId),
-                            filters,
-                            dataDate: dataset.snapshotDate
-                          })}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-sky-100 transition hover:border-sky-200/70 hover:bg-sky-500/25"
-                        >
-                          Generate SPI Report
-                        </a>
-                        <a
-                          href={buildTaskingReportHref({
-                            kind: "spi-trend",
-                            id: String(report.spiId),
-                            filters,
-                            dataDate: dataset.snapshotDate
-                          })}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-emerald-300/35 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-500/20"
-                        >
-                          Generate Trend Report
-                        </a>
+                      <div className="flex min-w-0 items-center justify-center px-3 py-3">
+                        <div className="flex w-full min-w-0 flex-col items-stretch gap-2">
+                          <a
+                            href={buildTaskingReportHref({
+                              kind: "spi",
+                              id: String(report.spiId),
+                              filters,
+                              dataDate: dataset.snapshotDate
+                            })}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-sky-300/40 bg-sky-500/15 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-100 transition hover:border-sky-200/70 hover:bg-sky-500/25"
+                          >
+                            Generate SPI Report
+                          </a>
+                          <a
+                            href={buildTaskingReportHref({
+                              kind: "spi-trend",
+                              id: String(report.spiId),
+                              filters,
+                              dataDate: dataset.snapshotDate
+                            })}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-500/20"
+                          >
+                            Generate Trend Report
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </div>

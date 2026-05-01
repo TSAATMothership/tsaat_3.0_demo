@@ -1003,7 +1003,7 @@ Important hidden behaviour:
 
 ### Feature: Measures-SPI Tab
 - **What it does:** shows the SPI report index, including descriptions, success measures, scores, asset-type impact summaries, and report links.
-- **User perspective:** the user can inspect SPI score details and launch either the current SPI report or the 12-month SPI trend report.
+- **User perspective:** the user can inspect SPI score details and launch the all-SPI report, a current single-SPI report, or the 12-month single-SPI trend report.
 - **System behaviour:** SPI rows come from the shared SPI report model and report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
 - **Outcome:** SPI performance details and per-SPI PDF report actions are shown in a dedicated tab.
 
@@ -1026,7 +1026,7 @@ Important hidden behaviour:
 | Measures | Shared scope | Common measure filter scope plus severity selector | Apply filters | Re-runs analytics and KPI/SPI rows | shared filters plus `severity` | Filtered charts and matrix | one scope for all visible scores | supported values come from filter options or severity list | `FilterBar`, `getCoreAppData()` | Consistent measures scope | |
 | Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives compliance points from runtime rows | analytics, systems, networks | Charts | charts show recalculated runtime scores | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | |
 | Measures | Measures-KPI tab | KPI-only detailed measure table and report launch surface | Open tab, click report link | Builds KPI rows and carries filter scope into report URL | analytics, filters | KPI matrix and PDF report links | KPI reports for 1-3 are disabled | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view | disabled KPI reports show `Not available` |
-| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with current and trend reports | |
+| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; all-SPI report summarizes every SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
 | Measures | SPI settings | Maintain severity mapping by SPI and asset type | Edit rows, save, reset | Validates and persists latest settings version | measures settings rows | Updated measures settings | saved matrix affects future severity remap; matrix includes six canonical asset types per SPI; `Data Gap` values are normalized to `Moderate` | panel-level validation in component and API | `/api/measures/settings` | Updated severity model | non-applicable SPI/asset combinations remain harmless configuration entries |
 | Measures | KPI settings placeholder | Reserved future KPI settings tab | Open tab | Renders placeholder only | none | Placeholder panel | intentionally no save behavior | none | measures route rendering | Future-ready tab model | no API usage |
 
@@ -1072,7 +1072,7 @@ Primary data dependencies:
 
 ## 8. Non-Database Calculations
 - KPI-7 and KPI-8 are entirely runtime calculations using deterministic hash functions.
-- Tasking and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
+- Tasking, all-SPI, and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - Severity remap is applied at runtime to findings before they are counted or displayed on dependent pages.
