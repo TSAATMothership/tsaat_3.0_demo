@@ -10,19 +10,25 @@ import {
   describeNetworkTargetStateCellPresentation,
   type NetworkTargetStateCellSummary
 } from "@/lib/network-target-state";
+import { buildNetworkTargetStateTemplateHref } from "@/lib/network-target-state-template-links";
 import type { ResolvedNetworkDetailFields } from "@/lib/network-detail-fields";
 import type { AssetType } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
 const NETWORK_COLUMN_WIDTH_CLASS = "w-[18rem]";
 const DRILL_DOWN_COLUMN_WIDTH_CLASS = "w-[9rem]";
-const STATUS_COLUMN_WIDTH_CLASS = "w-[12rem]";
-const ASSET_COLUMN_WIDTH_CLASS = "w-[11rem]";
+const STATUS_COLUMN_WIDTH_CLASS = "w-[8.5rem]";
+const ASSET_COLUMN_WIDTH_CLASS = "w-[13rem]";
 const ASSET_CELL_HEIGHT_CLASS = "h-[156px]";
+const TABLE_MIN_WIDTH_CLASS = "min-w-[122rem]";
+const MISSING_CALLOUT_SLOT_CLASS = "h-[1.35rem] shrink-0 w-full";
+const COMBINED_MISSING_CALLOUT_SPACER_CLASS = "h-[0.8rem] w-full shrink-0";
+const COMBINED_MISSING_CALLOUT_SLOT_CLASS = "h-[4.05rem] shrink-0 w-full";
 
 export interface NetworkDiscoverySummaryTableRow extends ResolvedNetworkDetailFields {
   id: string;
   name: string;
+  modellingStatus: "Modelled" | "Not Modelled";
   discoveryEnabled: "Enabled" | "Not Enabled";
   targetStateProvided: "Yes" | "No";
   targetStateByAssetType: Record<AssetType, NetworkTargetStateCellSummary>;
@@ -38,6 +44,13 @@ function clampPercent(value: number): number {
 
 function formatPercent(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatCoverageLabel(summary: NetworkTargetStateCellSummary): string {
+  if (summary.state !== "ok") {
+    return "n.a";
+  }
+  return `${formatPercent(clampPercent(summary.coveragePercent))}%`;
 }
 
 function missingStateClass(state: NetworkTargetStateCellSummary["state"], compact: boolean): string {
@@ -56,7 +69,7 @@ function TargetStateSummaryCell({ summary }: { summary: NetworkTargetStateCellSu
     { label: "Target", value: presentation.displayTargetTotal, fill: "#38bdf8" },
     { label: "Discovered", value: presentation.displayDiscoveredTotal, fill: "#34d399" }
   ];
-  const coverageLabel = `${formatPercent(clampPercent(summary.coveragePercent))}%`;
+  const coverageLabel = formatCoverageLabel(summary);
   return (
     <div
       className={`flex w-full flex-col gap-2 rounded-md border border-slate-700/60 bg-slate-900/55 p-2 ${ASSET_CELL_HEIGHT_CLASS}`}
@@ -70,18 +83,21 @@ function TargetStateSummaryCell({ summary }: { summary: NetworkTargetStateCellSu
         </span>
       </div>
       {!presentation.showChart ? (
-        <div className="flex min-h-0 flex-1 items-center">
-          <div
-            className={`flex w-full items-center justify-center rounded-sm border px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.08em] ${missingStateClass(
-              summary.state,
-              false
-            )}`}
-          >
-            {presentation.missingMessage}
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
+          <div aria-hidden className={COMBINED_MISSING_CALLOUT_SPACER_CLASS} />
+          <div className={`${COMBINED_MISSING_CALLOUT_SLOT_CLASS} flex items-end`}>
+            <div
+              className={`flex h-full w-full items-center justify-center rounded-sm border px-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] ${missingStateClass(
+                summary.state,
+                true
+              )}`}
+            >
+              {presentation.missingMessage}
+            </div>
           </div>
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col gap-2">
           <div className="h-[56px] w-full shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} layout="vertical" margin={{ top: 2, right: 4, bottom: 2, left: 4 }}>
@@ -121,9 +137,9 @@ function TargetStateSummaryCell({ summary }: { summary: NetworkTargetStateCellSu
             </ResponsiveContainer>
           </div>
           {presentation.missingMessage && presentation.missingMessagePlacement === "below-chart" ? (
-            <div className="min-h-[1.1rem] shrink-0 w-full">
+            <div className={`${MISSING_CALLOUT_SLOT_CLASS} flex items-end`}>
               <div
-                className={`flex w-full items-center justify-center rounded-sm border px-2 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.08em] ${missingStateClass(
+                className={`flex h-full w-full items-center justify-center rounded-sm border px-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] ${missingStateClass(
                   summary.state,
                   true
                 )}`}
@@ -132,11 +148,11 @@ function TargetStateSummaryCell({ summary }: { summary: NetworkTargetStateCellSu
               </div>
             </div>
           ) : null}
-          <p className="shrink-0 text-[11px] text-slate-300/90">
-            Coverage: <span className="font-semibold text-slate-100">{coverageLabel}</span>
-          </p>
-        </>
+        </div>
       )}
+      <p className="mt-auto shrink-0 text-left text-[11px] text-slate-300/90">
+        Coverage: <span className="font-semibold text-slate-100">{coverageLabel}</span>
+      </p>
     </div>
   );
 }
@@ -210,12 +226,13 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
 
   return (
     <>
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="min-h-0 h-full overflow-y-auto overflow-x-hidden">
-          <table className="w-full table-fixed text-sm">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="h-full min-h-0 overflow-auto">
+          <table className={`w-full ${TABLE_MIN_WIDTH_CLASS} table-fixed text-sm`}>
           <colgroup>
             <col className={NETWORK_COLUMN_WIDTH_CLASS} />
             <col className={DRILL_DOWN_COLUMN_WIDTH_CLASS} />
+            <col className={STATUS_COLUMN_WIDTH_CLASS} />
             <col className={STATUS_COLUMN_WIDTH_CLASS} />
             {ASSET_TYPES.map((assetType) => (
               <col key={`col-${assetType}`} className={ASSET_COLUMN_WIDTH_CLASS} />
@@ -225,6 +242,7 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
             <tr>
               <th className="px-3 py-2">Network</th>
               <th className="px-3 py-2">Drill Down</th>
+              <th className="px-3 py-2">Modelling Status</th>
               <th className="px-3 py-2">Discovery Enabled</th>
               {ASSET_TYPES.map((assetType) => (
                 <th key={`header-${assetType}`} className="px-3 py-2">
@@ -260,6 +278,17 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
                   <td className="px-3 py-2">
                     <span
                       className={`rounded-full border px-2 py-0.5 text-xs ${
+                        row.modellingStatus === "Modelled"
+                          ? "border-emerald-300/45 bg-emerald-500/15 text-emerald-100"
+                          : "border-amber-300/45 bg-amber-500/15 text-amber-100"
+                      }`}
+                    >
+                      {row.modellingStatus}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-xs ${
                         row.discoveryEnabled === "Enabled"
                           ? "border-emerald-300/45 bg-emerald-500/15 text-emerald-100"
                           : "border-amber-300/45 bg-amber-500/15 text-amber-100"
@@ -278,7 +307,7 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
             })}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={ASSET_TYPES.length + 3} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                <td colSpan={ASSET_TYPES.length + 4} className="px-3 py-6 text-center text-sm text-slate-300/80">
                   No networks match the active discovery filters.
                 </td>
               </tr>
@@ -297,7 +326,7 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
           />
 
           <aside
-            className={`absolute right-0 top-0 h-full w-[min(560px,94vw)] border-l border-sky-300/35 bg-slate-950 p-5 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+            className={`absolute right-0 top-0 flex h-full w-[min(560px,94vw)] flex-col overflow-hidden border-l border-sky-300/35 bg-slate-950 p-5 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
               isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
             }`}
             role="dialog"
@@ -312,85 +341,96 @@ export function NetworkDiscoverySummaryTableClient({ rows }: { rows: NetworkDisc
               Close
             </button>
 
-            <div className="pt-2">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Network Details</p>
-              <h3
-                id="network-discovery-summary-slideout-title"
-                className="mt-2 pr-16 text-2xl font-semibold text-slate-100"
-              >
-                {selectedRow.name}
-              </h3>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="pt-2">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">Network Details</p>
+                <h3
+                  id="network-discovery-summary-slideout-title"
+                  className="mt-2 pr-16 text-2xl font-semibold text-slate-100"
+                >
+                  {selectedRow.name}
+                </h3>
+              </div>
+
+              <dl className="mt-5 space-y-4">
+                <div className="panel-alt p-3">
+                  <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Description</dt>
+                  <dd className="mt-1 text-sm text-slate-100">{selectedRow.description}</dd>
+                </div>
+                <div className="panel-alt p-3">
+                  <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Owner</dt>
+                  <dd className="mt-1 text-sm text-slate-100">{selectedRow.owner}</dd>
+                </div>
+                <div className="panel-alt p-3">
+                  <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Support Mailbox</dt>
+                  <dd className="mt-1 text-sm text-sky-100">
+                    <a className="underline decoration-sky-300/60 underline-offset-2" href={`mailto:${selectedRow.supportEmail}`}>
+                      {selectedRow.supportEmail}
+                    </a>
+                  </dd>
+                </div>
+                <div className="panel-alt p-3">
+                  <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Service Catalogue Item</dt>
+                  <dd className="mt-1 text-sm text-sky-100">
+                    <Link
+                      href={selectedRow.serviceCatalogueUrl}
+                      className="underline decoration-sky-300/60 underline-offset-2"
+                      target={isExternalLink(selectedRow.serviceCatalogueUrl) ? "_blank" : undefined}
+                      rel={isExternalLink(selectedRow.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                    >
+                      Open Service Catalogue Item
+                    </Link>
+                  </dd>
+                </div>
+                <div className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-3 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+                  <dt className="text-[11px] uppercase tracking-[0.14em] text-sky-100/95">Security Accreditation</dt>
+                  <dd className="mt-2">
+                    <table className="min-w-full text-sm">
+                      <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-sky-100/85">
+                        <tr>
+                          <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
+                          <th className="px-2 py-1.5">Links</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t border-sky-300/35 text-slate-100">
+                          <td className="px-2 py-2 font-semibold text-sky-50">{selectedRow.atoNumber}</td>
+                          <td className="px-2 py-2">
+                            <div className="flex flex-wrap gap-3 text-sky-100">
+                              <Link
+                                href={selectedRow.diisUrl}
+                                className="underline decoration-sky-300/70 underline-offset-2"
+                                target={isExternalLink(selectedRow.diisUrl) ? "_blank" : undefined}
+                                rel={isExternalLink(selectedRow.diisUrl) ? "noreferrer" : undefined}
+                              >
+                                View in DIIS
+                              </Link>
+                              <Link
+                                href={selectedRow.grcUrl}
+                                className="underline decoration-sky-300/70 underline-offset-2"
+                                target={isExternalLink(selectedRow.grcUrl) ? "_blank" : undefined}
+                                rel={isExternalLink(selectedRow.grcUrl) ? "noreferrer" : undefined}
+                              >
+                                View in Cyber GRC Portal
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </dd>
+                </div>
+              </dl>
             </div>
 
-            <dl className="mt-5 space-y-4">
-              <div className="panel-alt p-3">
-                <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Description</dt>
-                <dd className="mt-1 text-sm text-slate-100">{selectedRow.description}</dd>
-              </div>
-              <div className="panel-alt p-3">
-                <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Owner</dt>
-                <dd className="mt-1 text-sm text-slate-100">{selectedRow.owner}</dd>
-              </div>
-              <div className="panel-alt p-3">
-                <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Support Mailbox</dt>
-                <dd className="mt-1 text-sm text-sky-100">
-                  <a className="underline decoration-sky-300/60 underline-offset-2" href={`mailto:${selectedRow.supportEmail}`}>
-                    {selectedRow.supportEmail}
-                  </a>
-                </dd>
-              </div>
-              <div className="panel-alt p-3">
-                <dt className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Service Catalogue Item</dt>
-                <dd className="mt-1 text-sm text-sky-100">
-                  <Link
-                    href={selectedRow.serviceCatalogueUrl}
-                    className="underline decoration-sky-300/60 underline-offset-2"
-                    target={isExternalLink(selectedRow.serviceCatalogueUrl) ? "_blank" : undefined}
-                    rel={isExternalLink(selectedRow.serviceCatalogueUrl) ? "noreferrer" : undefined}
-                  >
-                    Open Service Catalogue Item
-                  </Link>
-                </dd>
-              </div>
-              <div className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-3 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
-                <dt className="text-[11px] uppercase tracking-[0.14em] text-sky-100/95">Security Accreditation</dt>
-                <dd className="mt-2">
-                  <table className="min-w-full text-sm">
-                    <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-sky-100/85">
-                      <tr>
-                        <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
-                        <th className="px-2 py-1.5">Links</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-sky-300/35 text-slate-100">
-                        <td className="px-2 py-2 font-semibold text-sky-50">{selectedRow.atoNumber}</td>
-                        <td className="px-2 py-2">
-                          <div className="flex flex-wrap gap-3 text-sky-100">
-                            <Link
-                              href={selectedRow.diisUrl}
-                              className="underline decoration-sky-300/70 underline-offset-2"
-                              target={isExternalLink(selectedRow.diisUrl) ? "_blank" : undefined}
-                              rel={isExternalLink(selectedRow.diisUrl) ? "noreferrer" : undefined}
-                            >
-                              View in DIIS
-                            </Link>
-                            <Link
-                              href={selectedRow.grcUrl}
-                              className="underline decoration-sky-300/70 underline-offset-2"
-                              target={isExternalLink(selectedRow.grcUrl) ? "_blank" : undefined}
-                              rel={isExternalLink(selectedRow.grcUrl) ? "noreferrer" : undefined}
-                            >
-                              View in Cyber GRC Portal
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </dd>
-              </div>
-            </dl>
+            <div className="mt-4 flex shrink-0 justify-end border-t border-sky-400/15 pt-4">
+              <a
+                href={buildNetworkTargetStateTemplateHref({ networkId: selectedRow.id, dataDate: scopedDataDate })}
+                className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-100 transition hover:bg-amber-500/25"
+              >
+                Generate Target State Template
+              </a>
+            </div>
           </aside>
         </div>
       ) : null}

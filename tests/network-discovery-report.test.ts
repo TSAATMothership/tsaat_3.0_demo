@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { UNASSIGNED_NETWORK_ID } from "@/lib/discovery-filter-scope";
 import {
   buildNetworkDiscoveryReportModel,
   formatNetworkDiscoveryFilterScope
@@ -245,6 +246,29 @@ describe("network discovery report model", () => {
       dataset: createDataset(),
       discoveryToolsSettings,
       networkId: "net-missing"
+    });
+
+    expect(model).toBeNull();
+  });
+
+  it("does not generate reports for the synthetic Unassigned Systems bucket", () => {
+    const dataset = createDataset();
+    dataset.managedNetworks.push({
+      id: UNASSIGNED_NETWORK_ID,
+      name: "Unassigned Systems",
+      criticality: "Non-Critical",
+      adfPlatform: false,
+      enterprisePlatform: false,
+      modellingStatus: false,
+      discoveryStatus: "Discovery Non Enabled",
+      ictSystemIds: [],
+      assetIds: []
+    });
+
+    const model = buildNetworkDiscoveryReportModel({
+      dataset,
+      discoveryToolsSettings,
+      networkId: UNASSIGNED_NETWORK_ID
     });
 
     expect(model).toBeNull();

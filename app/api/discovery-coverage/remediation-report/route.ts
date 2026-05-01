@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
     loadMeasuresSettings(),
     loadDiscoveryToolsSettings()
   ]);
-  const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
+  const queryObject = sanitizeDiscoverySearchParams(Object.fromEntries(request.nextUrl.searchParams.entries()));
   const filters = parseFilters(queryObject);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
 
@@ -144,8 +145,7 @@ export async function GET(request: NextRequest) {
   const matrixSearch = toSearchTerm(request.nextUrl.searchParams.get("matrixSearch"));
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
-  const scopedRows = dataset.assets
-    .filter((asset) => scopedAssetIds.has(asset.id))
+  const scopedRows = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)))
     .map((asset) => {
       const discoveryCoverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
       const networkName = networkNameById.get(asset.networkId) ?? asset.networkId;

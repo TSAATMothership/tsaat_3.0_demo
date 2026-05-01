@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { NextRequest, NextResponse } from "next/server";
 import { loadDatasetForDate, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import { isUnassignedNetworkId } from "@/lib/discovery-filter-scope";
 import { buildNetworkDiscoveryReportModel, type NetworkDiscoveryReportModel } from "@/lib/network-discovery-report-model";
 import {
   NETWORK_DISCOVERY_REPORT_CONTENT_TYPE,
@@ -129,6 +130,9 @@ export async function GET(request: NextRequest) {
   const networkId = request.nextUrl.searchParams.get("network")?.trim();
   if (!networkId) {
     return errorResponse("Missing network parameter.", 400);
+  }
+  if (isUnassignedNetworkId(networkId)) {
+    return errorResponse("Unassigned Systems is not a network and cannot be used for network discovery reports.", 400);
   }
 
   const requestedDataDate = networkDiscoveryReportDataDateFromSearchParams(request.nextUrl.searchParams);

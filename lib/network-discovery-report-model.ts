@@ -2,6 +2,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { evaluateDiscoveryCoverage, type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
 import { type DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { isUnassignedNetworkId } from "@/lib/discovery-filter-scope";
 import { defaultMeasuresSettings, type MeasuresSettings } from "@/lib/measures-settings";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { resolveNetworkReferenceFields } from "@/lib/network-reference-fields";
@@ -126,6 +127,10 @@ export function buildNetworkDiscoveryReportModel({
   filters?: Filters;
   measuresSettings?: MeasuresSettings;
 }): NetworkDiscoveryReportModel | null {
+  if (isUnassignedNetworkId(networkId)) {
+    return null;
+  }
+
   const network = dataset.managedNetworks.find((candidate) => candidate.id === networkId);
   if (!network) {
     return null;

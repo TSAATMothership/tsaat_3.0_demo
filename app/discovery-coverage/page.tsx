@@ -10,7 +10,15 @@ import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
 import { buildDiscoveryCoverageByNetworkRows } from "@/lib/discovery-coverage-by-network-rows";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
-import { removeUnassignedNetworkOption, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
+import {
+  filterDiscoveryAssets,
+  filterDiscoveryNetworks,
+  filterDiscoveryNetworksByStatus,
+  normalizeDiscoveryEnabled,
+  normalizeDiscoveryNetworkModellingStatus,
+  removeUnassignedNetworkOption,
+  sanitizeDiscoverySearchParams
+} from "@/lib/discovery-filter-scope";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { Asset } from "@/lib/types";
@@ -37,20 +45,6 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return value[0];
   }
   return value;
-}
-
-function toQueryEntries(searchParams: Record<string, string | string[] | undefined>): Array<[string, string]> {
-  const entries: Array<[string, string]> = [];
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        entries.push([key, item]);
-      }
-    } else if (typeof value === "string") {
-      entries.push([key, value]);
-    }
-  }
-  return entries;
 }
 
 function resolveAssetIpAddress(asset: Asset): string {
@@ -95,11 +89,18 @@ export default async function DiscoveryCoveragePage({
   const { dataset, analytics, filters, filterOptions, networks, discoveryToolsSettings } = await getCoreAppData(
     discoveryDataSearchParams
   );
+  const discoveryNetworks = filterDiscoveryNetworks(networks);
+  const modellingStatusFilter = normalizeDiscoveryNetworkModellingStatus(searchParams.modellingStatus);
+  const discoveryEnabledFilter = normalizeDiscoveryEnabled(searchParams.discoveryEnabled);
+  const targetStateNetworks = filterDiscoveryNetworksByStatus(discoveryNetworks, {
+    modellingStatus: modellingStatusFilter,
+    discoveryEnabled: discoveryEnabledFilter
+  });
   const discoveryFilterOptions = removeUnassignedNetworkOption(filterOptions);
   const toolColumns = discoveryToolsSettings.tools.map((tool) => ({ key: tool.id, label: tool.name }));
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
-  const scopedAssets = dataset.assets.filter((asset) => scopedAssetIds.has(asset.id));
+  const scopedAssets = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)));
   const rows: CoverageRow[] = scopedAssets
     .map((asset) => {
       const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
@@ -119,17 +120,6 @@ export default async function DiscoveryCoveragePage({
       };
     })
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
-
-  const queryEntries = toQueryEntries(discoveryDataSearchParams);
-
-  const remediationReportHref = (() => {
-    const params = new URLSearchParams();
-    for (const [key, value] of queryEntries) {
-      params.append(key, value);
-    }
-    const query = params.toString();
-    return query ? `/api/discovery-coverage/remediation-report?${query}` : "/api/discovery-coverage/remediation-report";
-  })();
 
   const compliantCount = rows.filter((row) => row.coverage.coverageCompliance).length;
   const gapCount = rows.length - compliantCount;
@@ -159,7 +149,7 @@ export default async function DiscoveryCoveragePage({
     return { id: key, label, covered, missing, applicable, coveragePercent };
   });
   const targetStateSummaryByNetworkId = buildNetworkTargetStateSummary(
-    networks,
+    targetStateNetworks,
     scopedAssets.map((asset) => ({
       networkId: asset.networkId,
       assetType: asset.type,
@@ -167,14 +157,19 @@ export default async function DiscoveryCoveragePage({
     }))
   );
 
-  const networkDetailFieldsById = new Map(networks.map((network) => [network.id, resolveNetworkDetailFields(network)]));
-  const networkDiscoverySummaryRows: NetworkDiscoverySummaryTableRow[] = networks
+  const networkDetailFieldsById = new Map(
+    targetStateNetworks.map((network) => [network.id, resolveNetworkDetailFields(network)])
+  );
+  const networkDiscoverySummaryRows: NetworkDiscoverySummaryTableRow[] = targetStateNetworks
     .map((network) => {
       const targetStateSummary = targetStateSummaryByNetworkId.get(network.id)!;
       return {
         id: network.id,
         name: network.name,
         ...networkDetailFieldsById.get(network.id)!,
+        modellingStatus: network.modellingStatus
+          ? ("Modelled" as NetworkDiscoverySummaryTableRow["modellingStatus"])
+          : ("Not Modelled" as NetworkDiscoverySummaryTableRow["modellingStatus"]),
         discoveryEnabled:
           network.discoveryStatus === "Discovery Enabled"
             ? ("Enabled" as NetworkDiscoverySummaryTableRow["discoveryEnabled"])
@@ -193,7 +188,7 @@ export default async function DiscoveryCoveragePage({
     });
 
   const networkCoverageRows = buildDiscoveryCoverageByNetworkRows({
-    networks,
+    networks: discoveryNetworks,
     coverageRows: rows,
     toolColumns
   });
@@ -221,30 +216,8 @@ export default async function DiscoveryCoveragePage({
 
             <div
               id="discovery-coverage-summary-slideout-scope"
-              className="relative grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2"
+              className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2"
             >
-              <section id="remediation-report" className="panel p-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Remediation Report</h2>
-                    <p className="mt-1 text-sm text-slate-300/85">
-                      Generate a remediation report for discovery coverage gaps using the current Discovery Coverage page
-                      filters and search terms.
-                    </p>
-                    <p className="mt-1 text-xs text-slate-300/75">
-                      Includes scope summary, coverage score, filters applied, asset-level discovery gaps, and
-                      recommended actions.
-                    </p>
-                  </div>
-                  <a
-                    href={remediationReportHref}
-                    className="inline-flex items-center justify-center rounded-md border border-amber-300/45 bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/25"
-                  >
-                    Generate Remediation Report
-                  </a>
-                </div>
-              </section>
-
               <section className="panel p-4">
                 <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Coverage Snapshot</h2>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -315,6 +288,26 @@ export default async function DiscoveryCoveragePage({
                 filters={filters}
                 hiddenFields={["ictSystem", "environment", "systemCriticality"]}
                 enableLoadingOverlay
+                extraSelectFields={[
+                  {
+                    key: "modellingStatus",
+                    label: "Modelling Status",
+                    value: modellingStatusFilter,
+                    options: [
+                      { id: "modelled", label: "Modelled" },
+                      { id: "not-modelled", label: "Not Modelled" }
+                    ]
+                  },
+                  {
+                    key: "discoveryEnabled",
+                    label: "Discovery Enabled",
+                    value: discoveryEnabledFilter,
+                    options: [
+                      { id: "enabled", label: "Enabled" },
+                      { id: "not-enabled", label: "Not Enabled" }
+                    ]
+                  }
+                ]}
                 actions={
                   <div className="flex min-w-[170px] flex-col gap-1">
                     <span aria-hidden className="text-[11px] uppercase tracking-[0.14em] text-transparent">

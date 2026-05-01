@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { Asset } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -90,22 +91,21 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams,
     new Set(["toolId", "toolSearch", "toolAssetType", "page", "pageSize"])
   );
-  const { dataset, analytics, discoveryToolsSettings } = await getCoreAppData(requestParams);
+  const { dataset, analytics, discoveryToolsSettings } = await getCoreAppData(
+    sanitizeDiscoverySearchParams(requestParams)
+  );
   const allowedToolIds = new Set(discoveryToolsSettings.tools.map((tool) => tool.id));
   if (!allowedToolIds.has(toolId)) {
     return NextResponse.json({ error: `Unknown discovery tool id: ${toolId}` }, { status: 400 });
   }
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
+  const scopedAssets = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)));
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
   const toolRows: ToolAssetRow[] = [];
-  for (const asset of dataset.assets) {
-    if (!scopedAssetIds.has(asset.id)) {
-      continue;
-    }
-
+  for (const asset of scopedAssets) {
     const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
     const toolValue = coverage.toolValues[toolId];
     if (toolValue !== 0) {
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     rows,
-    scopeTotal: scopedAssetIds.size,
+    scopeTotal: scopedAssets.length,
     selectedToolTotal: toolRows.length,
     assetTypeOptions,
     pagination: {
