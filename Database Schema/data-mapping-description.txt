@@ -109,6 +109,7 @@ Snapshots and domain entities:
     -> managed_network
   - if modellingStatus is omitted, the loader derives it from discoveryStatus: `Discovery Non Enabled` -> false, otherwise true
   - if diisId or atoNumber is omitted, the loader derives deterministic values as `DIIS-NET-XXX` and `ATO-NET-XXX`
+  - the explicit `net-disabled-reference` fixture is the exception: it preserves null/blank diisId and atoNumber so the UI can show unavailable network metadata without synthetic fallback references
   - parentNetworkId + childNetworkIds[] -> managed_network_hierarchy
   - ictSystemIds[] -> network_declared_system
   - assetIds[] -> network_declared_asset

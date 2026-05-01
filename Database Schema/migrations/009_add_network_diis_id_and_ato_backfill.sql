@@ -31,7 +31,7 @@ GO
         [network_id]
     ) AS [network_ordinal]
   FROM [tsaat].[managed_network]
-  WHERE [network_id] <> N'net-unassigned'
+  WHERE [network_id] NOT IN (N'net-unassigned', N'net-disabled-reference')
 ),
 backfill AS (
   SELECT
@@ -39,10 +39,12 @@ backfill AS (
     mn.[network_id],
     CASE
       WHEN mn.[network_id] = N'net-unassigned' THEN N'DIIS-NET-000'
+      WHEN mn.[network_id] = N'net-disabled-reference' THEN NULL
       ELSE CONCAT(N'DIIS-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), onw.[network_ordinal])), 3))
     END AS [generated_diis_id],
     CASE
       WHEN mn.[network_id] = N'net-unassigned' THEN N'ATO-NET-000'
+      WHEN mn.[network_id] = N'net-disabled-reference' THEN NULL
       ELSE CONCAT(N'ATO-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), onw.[network_ordinal])), 3))
     END AS [generated_ato_number]
   FROM [tsaat].[managed_network] mn

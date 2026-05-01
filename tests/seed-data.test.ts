@@ -1,6 +1,11 @@
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
+import {
+  DISABLED_REFERENCE_NETWORK_DESCRIPTION,
+  DISABLED_REFERENCE_NETWORK_ID,
+  DISABLED_REFERENCE_NETWORK_NAME
+} from "@/lib/disabled-network-fixture";
 import { Dataset } from "@/lib/types";
 
 describe("seed dataset", () => {
@@ -63,8 +68,28 @@ describe("seed dataset", () => {
       const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
       expect(network.discoveryStatus).toBe(expectedStatus);
       expect(network.modellingStatus).toBe(expectedStatus !== "Discovery Non Enabled");
-      expect(network.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
-      expect(network.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
+      if (network.id === DISABLED_REFERENCE_NETWORK_ID) {
+        expect(network.name).toBe(DISABLED_REFERENCE_NETWORK_NAME);
+        expect(network.description).toBe(DISABLED_REFERENCE_NETWORK_DESCRIPTION);
+        expect(network.diisId).toBeUndefined();
+        expect(network.atoNumber).toBeUndefined();
+        expect(network.ictSystemIds).toEqual([]);
+        expect(network.assetIds).toEqual([]);
+        expect(network.targetStateAssets).toBeDefined();
+        for (const assetType of [
+          "server",
+          "workstation",
+          "network-device",
+          "storage-device",
+          "printer-device",
+          "other"
+        ] as const) {
+          expect(network.targetStateAssets?.[assetType]).toEqual([]);
+        }
+      } else {
+        expect(network.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
+        expect(network.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
+      }
       expect(["Critical", "Non-Critical"]).toContain(network.criticality);
       expect(typeof network.adfPlatform).toBe("boolean");
       expect(typeof network.enterprisePlatform).toBe("boolean");
@@ -245,5 +270,37 @@ describe("seed dataset", () => {
     }
 
     expect(findingsOnStartDate).toBeGreaterThanOrEqual(0);
+  });
+
+  it("carries the disabled reference network through generated snapshots", () => {
+    const snapshotsDir = path.join(process.cwd(), "data", "snapshots");
+    const snapshotFiles = readdirSync(snapshotsDir)
+      .filter((file) => file.endsWith(".json"))
+      .sort();
+
+    expect(snapshotFiles.length).toBeGreaterThan(0);
+    for (const snapshotFile of snapshotFiles) {
+      const snapshot = JSON.parse(
+        readFileSync(path.join(snapshotsDir, snapshotFile), "utf-8")
+      ) as Dataset;
+      const disabledNetwork = snapshot.managedNetworks.find(
+        (network) => network.id === DISABLED_REFERENCE_NETWORK_ID
+      );
+
+      expect(disabledNetwork).toMatchObject({
+        id: DISABLED_REFERENCE_NETWORK_ID,
+        name: DISABLED_REFERENCE_NETWORK_NAME,
+        description: DISABLED_REFERENCE_NETWORK_DESCRIPTION,
+        criticality: "Non-Critical",
+        adfPlatform: false,
+        enterprisePlatform: false,
+        modellingStatus: false,
+        discoveryStatus: "Discovery Non Enabled",
+        ictSystemIds: [],
+        assetIds: []
+      });
+      expect(disabledNetwork?.diisId).toBeUndefined();
+      expect(disabledNetwork?.atoNumber).toBeUndefined();
+    }
   });
 });

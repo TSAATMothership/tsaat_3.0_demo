@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
+import { DISABLED_REFERENCE_NETWORK_ID } from "@/lib/disabled-network-fixture";
 import { Dataset } from "@/lib/types";
 
 const repoRoot = process.cwd();
@@ -24,11 +25,13 @@ describe("network DIIS and ATO persistence", () => {
     expect(migration).toContain("COL_LENGTH(N'tsaat.managed_network', N'diis_id')");
     expect(migration).toContain("DIIS-NET-000");
     expect(migration).toContain("ATO-NET-000");
+    expect(migration).toContain("net-disabled-reference");
     expect(migration).toContain("CONCAT(N'DIIS-NET-', RIGHT(CONCAT(N'000'");
     expect(migration).toContain("CONCAT(N'ATO-NET-', RIGHT(CONCAT(N'000'");
     expect(loader).toContain("[diis_id] NVARCHAR(100) '$.diisId'");
     expect(loader).toContain("N'DIIS-NET-000'");
     expect(loader).toContain("N'ATO-NET-000'");
+    expect(loader).toContain("net-disabled-reference");
     expect(databaseSettings).toContain('{ tableName: "managed_network", columnName: "diis_id" }');
   });
 
@@ -38,6 +41,11 @@ describe("network DIIS and ATO persistence", () => {
     expect(dataset.managedNetworks.length).toBeGreaterThan(0);
     for (const [index, network] of dataset.managedNetworks.entries()) {
       const reference = expectedReference(index);
+      if (network.id === DISABLED_REFERENCE_NETWORK_ID) {
+        expect(network.diisId).toBeUndefined();
+        expect(network.atoNumber).toBeUndefined();
+        continue;
+      }
       expect(network.diisId).toBe(`DIIS-NET-${reference}`);
       expect(network.atoNumber).toBe(`ATO-NET-${reference}`);
     }

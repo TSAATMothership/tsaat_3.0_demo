@@ -1,8 +1,5 @@
 import { DiscoveryCoverageByToolSection } from "@/components/discovery-coverage-by-tool-section";
-import {
-  DiscoveryCoverageByNetworkSection,
-  type DiscoveryCoverageByNetworkRow
-} from "@/components/discovery-coverage-by-network-section";
+import { DiscoveryCoverageByNetworkSection } from "@/components/discovery-coverage-by-network-section";
 import { DiscoveryCoverageTabs } from "@/components/discovery-coverage-tabs";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
 import {
@@ -11,10 +8,11 @@ import {
 } from "@/components/network-discovery-summary-table-client";
 import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
+import { buildDiscoveryCoverageByNetworkRows } from "@/lib/discovery-coverage-by-network-rows";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { removeUnassignedNetworkOption, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
-import { resolveNetworkReferenceFields } from "@/lib/network-reference-fields";
 import { Asset } from "@/lib/types";
 
 interface DiscoveryCoverageStatus {
@@ -86,7 +84,8 @@ export default async function DiscoveryCoveragePage({
         ? "tool-settings"
         : "summary";
 
-  const discoveryDataSearchParams: Record<string, string | string[] | undefined> = { ...searchParams };
+  const discoveryDataSearchParams: Record<string, string | string[] | undefined> =
+    sanitizeDiscoverySearchParams(searchParams);
   delete discoveryDataSearchParams.criticality;
   if (activeTab === "target-state") {
     delete discoveryDataSearchParams.system;
@@ -96,6 +95,7 @@ export default async function DiscoveryCoveragePage({
   const { dataset, analytics, filters, filterOptions, networks, discoveryToolsSettings } = await getCoreAppData(
     discoveryDataSearchParams
   );
+  const discoveryFilterOptions = removeUnassignedNetworkOption(filterOptions);
   const toolColumns = discoveryToolsSettings.tools.map((tool) => ({ key: tool.id, label: tool.name }));
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
@@ -192,97 +192,11 @@ export default async function DiscoveryCoveragePage({
       return a.name.localeCompare(b.name);
     });
 
-  const managedNetworkById = new Map(dataset.managedNetworks.map((network) => [network.id, network]));
-  const byNetworkAggregates = rows.reduce(
-    (
-      map,
-      row
-    ) => {
-      const current = map.get(row.networkId) ?? {
-        assetCount: 0,
-        overallCoveredSlots: 0,
-        overallApplicableSlots: 0,
-        toolCoverage: new Map<string, { covered: number; missing: number; applicable: number }>()
-      };
-      current.assetCount += 1;
-
-      for (const tool of toolColumns) {
-        const value = row.coverage.toolValues[tool.key];
-        if (value === null) {
-          continue;
-        }
-        const toolCurrent = current.toolCoverage.get(tool.key) ?? { covered: 0, missing: 0, applicable: 0 };
-        toolCurrent.applicable += 1;
-        if (value === 1) {
-          toolCurrent.covered += 1;
-          current.overallCoveredSlots += 1;
-        } else {
-          toolCurrent.missing += 1;
-        }
-        current.overallApplicableSlots += 1;
-        current.toolCoverage.set(tool.key, toolCurrent);
-      }
-
-      map.set(row.networkId, current);
-      return map;
-    },
-    new Map<
-      string,
-      {
-        assetCount: number;
-        overallCoveredSlots: number;
-        overallApplicableSlots: number;
-        toolCoverage: Map<string, { covered: number; missing: number; applicable: number }>;
-      }
-    >()
-  );
-
-  const networkCoverageRows: DiscoveryCoverageByNetworkRow[] = Array.from(byNetworkAggregates.entries())
-    .map(([networkId, aggregate]) => {
-      const network = managedNetworkById.get(networkId);
-      if (!network) {
-        return null;
-      }
-      const details = resolveNetworkDetailFields(network);
-      const referenceFields = resolveNetworkReferenceFields(network);
-      const toolCoverage = toolColumns.map((tool) => {
-        const summary = aggregate.toolCoverage.get(tool.key) ?? { covered: 0, missing: 0, applicable: 0 };
-        return {
-          toolId: tool.key,
-          toolName: tool.label,
-          covered: summary.covered,
-          missing: summary.missing,
-          applicable: summary.applicable,
-          coveragePercent: summary.applicable
-            ? Number(((summary.covered / summary.applicable) * 100).toFixed(1))
-            : 0
-        };
-      });
-
-      const row = {
-        networkId: network.id,
-        networkName: network.name,
-        securityDomain: network.classification ?? "Unknown",
-        modellingStatus: network.modellingStatus ? ("Modelled" as const) : ("Not Modelled" as const),
-        discoveryEnabled: network.discoveryStatus === "Discovery Enabled",
-        description: details.description,
-        owner: details.owner,
-        atoNumber: referenceFields.atoNumber,
-        diisId: referenceFields.diisId,
-        grcUrl: details.grcUrl,
-        assetCount: aggregate.assetCount,
-        overallCoveredSlots: aggregate.overallCoveredSlots,
-        overallApplicableSlots: aggregate.overallApplicableSlots,
-        overallCoveragePercent: aggregate.overallApplicableSlots
-          ? Number(((aggregate.overallCoveredSlots / aggregate.overallApplicableSlots) * 100).toFixed(1))
-          : 0,
-        toolCoverage
-      };
-
-      return referenceFields.diisHref ? { ...row, diisUrl: referenceFields.diisHref } : row;
-    })
-    .filter((row): row is DiscoveryCoverageByNetworkRow => Boolean(row))
-    .sort((a, b) => a.networkName.localeCompare(b.networkName));
+  const networkCoverageRows = buildDiscoveryCoverageByNetworkRows({
+    networks,
+    coverageRows: rows,
+    toolColumns
+  });
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -298,7 +212,7 @@ export default async function DiscoveryCoveragePage({
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
             <div className="-mt-4">
               <FilterBar
-                options={filterOptions}
+                options={discoveryFilterOptions}
                 filters={filters}
                 hiddenFields={["systemCriticality"]}
                 enableLoadingOverlay
@@ -368,7 +282,7 @@ export default async function DiscoveryCoveragePage({
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
             <div className="-mt-4">
               <FilterBar
-                options={filterOptions}
+                options={discoveryFilterOptions}
                 filters={filters}
                 hiddenFields={["ictSystem", "systemCriticality"]}
                 enableLoadingOverlay
@@ -397,7 +311,7 @@ export default async function DiscoveryCoveragePage({
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
             <div className="-mt-4">
               <FilterBar
-                options={filterOptions}
+                options={discoveryFilterOptions}
                 filters={filters}
                 hiddenFields={["ictSystem", "environment", "systemCriticality"]}
                 enableLoadingOverlay

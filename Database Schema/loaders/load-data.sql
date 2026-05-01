@@ -409,6 +409,7 @@ BEGIN
       NULLIF(LTRIM(RTRIM(n.[diis_id])), N''),
       CASE
         WHEN n.[id] = N'net-unassigned' THEN N'DIIS-NET-000'
+        WHEN n.[id] = N'net-disabled-reference' THEN NULL
         ELSE CONCAT(N'DIIS-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
       END
     ),
@@ -416,6 +417,7 @@ BEGIN
       NULLIF(LTRIM(RTRIM(n.[ato_number])), N''),
       CASE
         WHEN n.[id] = N'net-unassigned' THEN N'ATO-NET-000'
+        WHEN n.[id] = N'net-disabled-reference' THEN NULL
         ELSE CONCAT(N'ATO-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
       END
     ),

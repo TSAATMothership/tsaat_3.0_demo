@@ -2,6 +2,11 @@ import { promises as fs } from "fs";
 import path from "path";
 import { ASSET_TYPES } from "../lib/asset-taxonomy";
 import {
+  DISABLED_REFERENCE_NETWORK_DESCRIPTION,
+  DISABLED_REFERENCE_NETWORK_ID,
+  DISABLED_REFERENCE_NETWORK_NAME
+} from "../lib/disabled-network-fixture";
+import {
   Asset,
   AssetType,
   BusinessService,
@@ -915,9 +920,10 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       assetIds: []
     };
   });
+  const referenceBase = baselineNetworks.length;
   const newNetworks = NEW_DEFENCE_NETWORK_NAMES.map((name, index) => {
     const classification = pick(random, ["Official", "Protected", "Restricted"] as const);
-    const referenceOrdinal = formatNetworkReferenceOrdinal(count + index + 1);
+    const referenceOrdinal = formatNetworkReferenceOrdinal(referenceBase + index + 1);
     return {
       id: `net-new-${index + 1}`,
       name,
@@ -933,8 +939,20 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       assetIds: []
     };
   });
+  const disabledReferenceNetwork: ManagedNetwork = {
+    id: DISABLED_REFERENCE_NETWORK_ID,
+    name: DISABLED_REFERENCE_NETWORK_NAME,
+    description: DISABLED_REFERENCE_NETWORK_DESCRIPTION,
+    criticality: "Non-Critical",
+    adfPlatform: false,
+    enterprisePlatform: false,
+    modellingStatus: false,
+    discoveryStatus: "Discovery Non Enabled",
+    ictSystemIds: [],
+    assetIds: []
+  };
 
-  return [...baselineNetworks, ...newNetworks];
+  return [...baselineNetworks, ...newNetworks, disabledReferenceNetwork];
 }
 
 function securityDomainForNetwork(network: ManagedNetwork): SecurityDomain {
@@ -1646,7 +1664,10 @@ async function main() {
   const versions = generateVersions();
 
   const networks = buildNetworks(random);
-  const provisionedNetworks = networks.filter((network) => !network.id.startsWith("net-new-"));
+  const provisionedNetworks = networks.filter(
+    (network) => !network.id.startsWith("net-new-") && network.id !== DISABLED_REFERENCE_NETWORK_ID
+  );
+  const assetAssignableNetworks = networks.filter((network) => network.id !== DISABLED_REFERENCE_NETWORK_ID);
   const modelledSystems = buildSystems(random, provisionedNetworks);
 
   if (
@@ -1673,32 +1694,32 @@ async function main() {
   const assets: Asset[] = [];
 
   for (let serverIndex = 0; serverIndex < SERVER_COUNT; serverIndex += 1) {
-    const networkId = pick(random, networks).id;
+    const networkId = pick(random, assetAssignableNetworks).id;
     assets.push(buildServer(random, serverIndex, networkId, versions));
   }
 
   for (let workstationIndex = 0; workstationIndex < WORKSTATION_COUNT; workstationIndex += 1) {
-    const networkId = pick(random, networks).id;
+    const networkId = pick(random, assetAssignableNetworks).id;
     assets.push(buildWorkstation(random, workstationIndex, networkId, versions));
   }
 
   for (let deviceIndex = 0; deviceIndex < NETWORK_DEVICE_COUNT; deviceIndex += 1) {
-    const networkId = pick(random, networks).id;
+    const networkId = pick(random, assetAssignableNetworks).id;
     assets.push(buildDevice(random, deviceIndex, networkId, versions));
   }
 
   for (let storageIndex = 0; storageIndex < STORAGE_DEVICE_COUNT; storageIndex += 1) {
-    const networkId = pick(random, networks).id;
+    const networkId = pick(random, assetAssignableNetworks).id;
     assets.push(buildStorageDevice(random, storageIndex, networkId));
   }
 
   for (let printerIndex = 0; printerIndex < PRINTER_DEVICE_COUNT; printerIndex += 1) {
-    const networkId = pick(random, networks).id;
+    const networkId = pick(random, assetAssignableNetworks).id;
     assets.push(buildPrinterDevice(random, printerIndex, networkId));
   }
 
   for (let otherIndex = 0; otherIndex < OTHER_ASSET_COUNT; otherIndex += 1) {
-    const networkId = pick(random, networks).id;
+    const networkId = pick(random, assetAssignableNetworks).id;
     assets.push(buildOtherAsset(random, otherIndex, networkId));
   }
 

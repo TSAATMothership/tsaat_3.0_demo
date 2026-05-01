@@ -12,7 +12,7 @@ tsaat.discovery_tools_settings_version|1
 tsaat.finding|12134
 tsaat.ict_system|480
 tsaat.ict_system_hierarchy|0
-tsaat.managed_network|104
+tsaat.managed_network|112
 tsaat.managed_network_hierarchy|0
 tsaat.measures_settings_version|1
 tsaat.measures_severity_matrix|60

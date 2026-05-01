@@ -2405,6 +2405,26 @@
       "modellingStatus": true,
       "diisId": "DIIS-NET-012",
       "atoNumber": "ATO-NET-012"
+    },
+    {
+      "id": "net-disabled-reference",
+      "name": "Disabled Reference Network",
+      "description": "Network model awaiting accreditation references, modelling completion, and discovery enablement.",
+      "criticality": "Non-Critical",
+      "adfPlatform": false,
+      "enterprisePlatform": false,
+      "modellingStatus": false,
+      "discoveryStatus": "Discovery Non Enabled",
+      "ictSystemIds": [],
+      "assetIds": [],
+      "targetStateAssets": {
+        "server": [],
+        "workstation": [],
+        "network-device": [],
+        "storage-device": [],
+        "printer-device": [],
+        "other": []
+      }
     }
   ],
   "ictSystems": [

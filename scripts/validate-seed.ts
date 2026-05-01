@@ -1,6 +1,11 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { ASSET_TYPES } from "../lib/asset-taxonomy";
+import {
+  DISABLED_REFERENCE_NETWORK_DESCRIPTION,
+  DISABLED_REFERENCE_NETWORK_ID,
+  DISABLED_REFERENCE_NETWORK_NAME
+} from "../lib/disabled-network-fixture";
 import { buildNetworkTargetStateSummary } from "../lib/network-target-state";
 import { Asset, Dataset } from "../lib/types";
 
@@ -68,8 +73,23 @@ async function main() {
       network.modellingStatus === (expectedStatus !== "Discovery Non Enabled"),
       `Network ${network.id} modellingStatus must match the discovery-status fallback rule.`
     );
-    assert(network.diisId === `DIIS-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have a DIIS ID.`);
-    assert(network.atoNumber === `ATO-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an ATO number.`);
+    if (network.id === DISABLED_REFERENCE_NETWORK_ID) {
+      assert(network.name === DISABLED_REFERENCE_NETWORK_NAME, "Disabled reference network must keep its fixture name.");
+      assert(
+        network.description === DISABLED_REFERENCE_NETWORK_DESCRIPTION,
+        "Disabled reference network must keep its fixture description."
+      );
+      assert(!network.diisId, "Disabled reference network must not have a DIIS ID.");
+      assert(!network.atoNumber, "Disabled reference network must not have an ATO number.");
+      assert(network.ictSystemIds.length === 0, "Disabled reference network must not link ICT systems.");
+      assert(network.assetIds.length === 0, "Disabled reference network must not link discovered assets.");
+      assert(network.criticality === "Non-Critical", "Disabled reference network must be Non-Critical.");
+      assert(network.adfPlatform === false, "Disabled reference network must not be an ADF platform.");
+      assert(network.enterprisePlatform === false, "Disabled reference network must not be an enterprise platform.");
+    } else {
+      assert(network.diisId === `DIIS-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have a DIIS ID.`);
+      assert(network.atoNumber === `ATO-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an ATO number.`);
+    }
     assert(ENTITY_CRITICALITY.has(network.criticality), `Network ${network.id} must have valid criticality.`);
     assert(typeof network.adfPlatform === "boolean", `Network ${network.id} must include adfPlatform as boolean.`);
     assert(
