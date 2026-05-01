@@ -4,10 +4,16 @@ import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import {
   buildDiscoveryToolsSavePayload,
   filterDiscoveryToolsByName,
+  formatDiscoveryToolsTimestamp,
   scopeStatusPresentation
 } from "@/components/discovery-tools-settings-panel";
 
 describe("discovery tools settings panel helpers", () => {
+  it("formats saved timestamps deterministically for hydration", () => {
+    expect(formatDiscoveryToolsTimestamp("2026-03-15T19:19:52.000Z")).toBe("15/03/2026, 19:19:52");
+    expect(formatDiscoveryToolsTimestamp("not-a-date")).toBe("not-a-date");
+  });
+
   it("maps required scope to green tick status", () => {
     const status = scopeStatusPresentation("required");
     expect(status.symbol).toBe("✓");

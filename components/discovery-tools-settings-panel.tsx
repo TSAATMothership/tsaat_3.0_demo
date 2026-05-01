@@ -32,6 +32,22 @@ function cloneTool(tool: DiscoveryToolSetting): DiscoveryToolSetting {
   };
 }
 
+function twoDigit(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+export function formatDiscoveryToolsTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value || "Not available";
+  }
+
+  return [
+    `${twoDigit(parsed.getUTCDate())}/${twoDigit(parsed.getUTCMonth() + 1)}/${parsed.getUTCFullYear()}`,
+    `${twoDigit(parsed.getUTCHours())}:${twoDigit(parsed.getUTCMinutes())}:${twoDigit(parsed.getUTCSeconds())}`
+  ].join(", ");
+}
+
 function toolMetadataRows(tool: DiscoveryToolSetting | null): Array<{ label: string; value: string }> {
   if (!tool) {
     return [];
@@ -148,7 +164,7 @@ function ToolNameFilterDropdown({
   };
 
   return (
-    <div className="relative max-w-[460px]" ref={containerRef}>
+    <div className="relative w-full max-w-[460px]" ref={containerRef}>
       <label className="block">
         <span className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Tool Name Filter</span>
       </label>
@@ -340,7 +356,7 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
       }
 
       setSettings(refreshedSettings);
-      setSaveSuccess(`Saved at ${new Date(refreshedSettings.updatedAt).toLocaleString()}`);
+      setSaveSuccess(`Saved at ${formatDiscoveryToolsTimestamp(refreshedSettings.updatedAt)}`);
       closeEditor();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save discovery tools settings.";
@@ -351,15 +367,15 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
   };
 
   return (
-    <section className="panel relative flex h-full min-h-0 flex-col p-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <section className="panel relative flex h-full min-h-0 flex-col overflow-hidden p-4">
+      <div className="shrink-0">
         <div>
           <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tools Setting</h2>
           <p className="mt-1 text-xs text-slate-300/80">
             Discovery tools are database-driven. Select a tool to edit its asset-type scope in a slideout panel.
           </p>
           <p className="mt-1 text-xs text-slate-300/65">
-            Last saved: {new Date(settings.updatedAt).toLocaleString()}
+            Last saved: {formatDiscoveryToolsTimestamp(settings.updatedAt)}
           </p>
         </div>
       </div>
@@ -375,8 +391,8 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
         </p>
       ) : null}
 
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
-        <section className="panel-alt mb-3 border border-sky-400/20 p-3">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        <section className="panel-alt shrink-0 border border-sky-400/20 p-3">
           <ToolNameFilterDropdown
             value={toolNameFilter}
             options={toolNameFilterOptions}
@@ -387,25 +403,34 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
           </p>
         </section>
 
-        <div className="min-h-0 overflow-auto rounded-lg border border-sky-400/20">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px] text-sm">
-              <thead className="sticky top-0 z-[2] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-sky-400/20 bg-slate-950/20">
+          <div className="h-full min-h-0 overflow-auto">
+            <table className="w-full min-w-[1280px] table-fixed text-sm">
+              <colgroup>
+                <col className="w-[190px]" />
+                <col className="w-[330px]" />
+                <col className="w-[210px]" />
+                <col className="w-[230px]" />
+                {PANEL_ASSET_TYPES.map((assetType) => (
+                  <col key={`scope-col-${assetType}`} className="w-[120px]" />
+                ))}
+              </colgroup>
+              <thead className="sticky top-0 z-[3] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                 <tr>
-                  <th className="sticky left-0 z-[3] w-[220px] border-b border-sky-400/15 bg-slate-900/95 px-3 py-2">
+                  <th className="sticky left-0 z-[4] border-b border-sky-400/15 bg-slate-900/95 px-3 py-3 shadow-[10px_0_18px_rgba(0,0,0,0.26)]">
                     Tool Name
                   </th>
-                  <th className="sticky left-[220px] z-[3] w-[340px] border-b border-sky-400/15 bg-slate-900/95 px-3 py-2">
+                  <th className="border-b border-sky-400/15 px-3 py-3">
                     Description
                   </th>
-                  <th className="sticky left-[560px] z-[3] w-[220px] border-b border-sky-400/15 bg-slate-900/95 px-3 py-2">
+                  <th className="border-b border-sky-400/15 px-3 py-3">
                     EL2 Owner
                   </th>
-                  <th className="sticky left-[780px] z-[3] w-[230px] border-b border-sky-400/15 bg-slate-900/95 px-3 py-2">
+                  <th className="border-b border-sky-400/15 px-3 py-3">
                     EL2 Operations Manager
                   </th>
                   {PANEL_ASSET_TYPES.map((assetType) => (
-                    <th key={`status-header-${assetType}`} className="w-[140px] border-b border-sky-400/15 px-3 py-2 text-center">
+                    <th key={`status-header-${assetType}`} className="border-b border-sky-400/15 px-3 py-3 text-center">
                       {ASSET_TYPE_LABELS[assetType]}
                     </th>
                   ))}
@@ -414,28 +439,28 @@ export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettin
               <tbody>
                 {filteredTools.map((tool) => (
                   <tr key={tool.id} className="border-b border-sky-400/10">
-                    <td className="sticky left-0 z-[1] w-[220px] bg-slate-950 px-3 py-2 text-slate-100">
+                    <td className="sticky left-0 z-[2] bg-slate-950 px-3 py-3 text-slate-100 shadow-[10px_0_18px_rgba(0,0,0,0.22)]">
                       <button
                         type="button"
                         onClick={() => openEditor(tool)}
-                        className="text-left text-sky-100 underline decoration-sky-300/60 underline-offset-2 hover:text-cyan-100 hover:decoration-cyan-300/80"
+                        className="line-clamp-2 text-left text-sky-100 underline decoration-sky-300/60 underline-offset-2 hover:text-cyan-100 hover:decoration-cyan-300/80"
                       >
                         {tool.name}
                       </button>
                     </td>
-                    <td className="sticky left-[220px] z-[1] w-[340px] bg-slate-950 px-3 py-2 text-slate-300">
+                    <td className="px-3 py-3 leading-5 text-slate-300">
                       {tool.description || "Not provided"}
                     </td>
-                    <td className="sticky left-[560px] z-[1] w-[220px] bg-slate-950 px-3 py-2 text-slate-300">
+                    <td className="px-3 py-3 leading-5 text-slate-300">
                       {tool.el2Owner || "Not provided"}
                     </td>
-                    <td className="sticky left-[780px] z-[1] w-[230px] bg-slate-950 px-3 py-2 text-slate-300">
+                    <td className="px-3 py-3 leading-5 text-slate-300">
                       {tool.el2OperationsManager || "Not provided"}
                     </td>
                     {PANEL_ASSET_TYPES.map((assetType) => {
                       const status = scopeStatusPresentation(tool.assetTypeScope[assetType]);
                       return (
-                        <td key={`${tool.id}:${assetType}`} className="w-[140px] px-3 py-2 text-center">
+                        <td key={`${tool.id}:${assetType}`} className="px-3 py-3 text-center">
                           <span className={`inline-flex min-w-[38px] items-center justify-center rounded-md border px-2 py-1 text-sm font-semibold ${status.className}`}>
                             {status.symbol}
                           </span>
