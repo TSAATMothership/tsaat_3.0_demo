@@ -40,6 +40,7 @@ describe("analytics findings filtering", () => {
           criticality: "Critical",
           adfPlatform: false,
           enterprisePlatform: false,
+          modellingStatus: true,
           discoveryStatus: "Discovery Enabled",
           ictSystemIds: ["sys-1"],
           assetIds: ["srv-1", "wks-1"]
@@ -113,6 +114,7 @@ describe("analytics findings filtering", () => {
           criticality: "Critical",
           adfPlatform: false,
           enterprisePlatform: false,
+          modellingStatus: true,
           discoveryStatus: "Discovery Enabled",
           ictSystemIds: ["sys-1"],
           assetIds: ["srv-1", "wks-1"]
@@ -213,6 +215,7 @@ describe("analytics findings filtering", () => {
           criticality: "Critical",
           adfPlatform: false,
           enterprisePlatform: false,
+          modellingStatus: true,
           discoveryStatus: "Discovery Enabled",
           ictSystemIds: ["sys-1"],
           assetIds: ["srv-1"]

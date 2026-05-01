@@ -24,11 +24,13 @@ type ManagedNetworkRow = {
   criticality: "Critical" | "Non-Critical";
   adfPlatform: boolean;
   enterprisePlatform: boolean;
+  modellingStatus?: boolean | number | null;
   classification: string | null;
   description: string | null;
   owner: string | null;
   supportEmail: string | null;
   serviceCatalogueUrl: string | null;
+  diisId: string | null;
   atoNumber: string | null;
   diisUrl: string | null;
   grcUrl: string | null;
@@ -342,11 +344,13 @@ SELECT
       n.[criticality] AS [criticality],
       n.[adf_platform] AS [adfPlatform],
       n.[enterprise_platform] AS [enterprisePlatform],
+      n.[modelling_status] AS [modellingStatus],
       n.[classification] AS [classification],
       n.[description] AS [description],
       n.[owner] AS [owner],
       n.[support_email] AS [supportEmail],
       n.[service_catalogue_url] AS [serviceCatalogueUrl],
+      n.[diis_id] AS [diisId],
       n.[ato_number] AS [atoNumber],
       n.[diis_url] AS [diisUrl],
       n.[grc_url] AS [grcUrl],
@@ -670,6 +674,10 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       criticality: network.criticality,
       adfPlatform: Boolean(network.adfPlatform),
       enterprisePlatform: Boolean(network.enterprisePlatform),
+      modellingStatus:
+        network.modellingStatus == null
+          ? network.discoveryStatus !== "Discovery Non Enabled"
+          : Boolean(network.modellingStatus),
       ...(networkParentByChild.get(network.id) ? { parentNetworkId: networkParentByChild.get(network.id) } : {}),
       ...(childNetworkIds.length ? { childNetworkIds } : {}),
       ...(network.classification ? { classification: network.classification } : {}),
@@ -677,6 +685,7 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       ...(network.owner ? { owner: network.owner } : {}),
       ...(network.supportEmail ? { supportEmail: network.supportEmail } : {}),
       ...(network.serviceCatalogueUrl ? { serviceCatalogueUrl: network.serviceCatalogueUrl } : {}),
+      ...(network.diisId ? { diisId: network.diisId } : {}),
       ...(network.atoNumber ? { atoNumber: network.atoNumber } : {}),
       ...(network.diisUrl ? { diisUrl: network.diisUrl } : {}),
       ...(network.grcUrl ? { grcUrl: network.grcUrl } : {}),

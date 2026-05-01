@@ -61,6 +61,12 @@ Key domain groups
   - platform flags on both network and system entities:
     - `adf_platform` (BIT)
     - `enterprise_platform` (BIT)
+  - modelling flags:
+    - `managed_network.modelling_status` (BIT)
+    - `ict_system.modelling_status` (BIT)
+  - network accreditation references:
+    - `managed_network.diis_id` (NVARCHAR(100))
+    - `managed_network.ato_number` (NVARCHAR(100))
 
 4) Asset posture:
 - `asset`

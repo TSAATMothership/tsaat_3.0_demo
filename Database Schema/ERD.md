@@ -46,6 +46,10 @@ erDiagram
 - `managed_network` includes platform flags:
   - `adf_platform` (`BIT`)
   - `enterprise_platform` (`BIT`)
+- `managed_network` includes `modelling_status` (`BIT`) for persisted network model coverage state.
+- `managed_network` includes accreditation references:
+  - `diis_id` (`NVARCHAR(100)`)
+  - `ato_number` (`NVARCHAR(100)`)
 - `ict_system` includes platform flags:
   - `adf_platform` (`BIT`)
   - `enterprise_platform` (`BIT`)

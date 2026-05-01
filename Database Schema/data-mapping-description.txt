@@ -105,8 +105,10 @@ Snapshots and domain entities:
   - source_label = snapshot file name
 
 - managedNetworks[]:
-  - id,name,criticality,adfPlatform,enterprisePlatform,classification,description,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,discoveryStatus
+  - id,name,criticality,adfPlatform,enterprisePlatform,modellingStatus,classification,description,owner,supportEmail,serviceCatalogueUrl,diisId,atoNumber,diisUrl,grcUrl,discoveryStatus
     -> managed_network
+  - if modellingStatus is omitted, the loader derives it from discoveryStatus: `Discovery Non Enabled` -> false, otherwise true
+  - if diisId or atoNumber is omitted, the loader derives deterministic values as `DIIS-NET-XXX` and `ATO-NET-XXX`
   - parentNetworkId + childNetworkIds[] -> managed_network_hierarchy
   - ictSystemIds[] -> network_declared_system
   - assetIds[] -> network_declared_asset
@@ -149,6 +151,9 @@ Normalization rule applied for relational integrity:
 - Loader inserts one synthetic managed_network row per snapshot:
   - network_id = `net-unassigned`
   - name = `Unassigned Systems`
+  - modelling_status = 0
+  - diis_id = `DIIS-NET-000`
+  - ato_number = `ATO-NET-000`
   - criticality = `Non-Critical`
   - discovery_status = `Discovery Non Enabled`
 - If ciDependencies[] is absent for a snapshot, loader synthesizes deterministic dependency examples:

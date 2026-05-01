@@ -481,7 +481,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-001",
+      "atoNumber": "ATO-NET-001"
     },
     {
       "id": "net-2",
@@ -828,7 +831,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-002",
+      "atoNumber": "ATO-NET-002"
     },
     {
       "id": "net-3",
@@ -1290,7 +1296,10 @@
         ],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-003",
+      "atoNumber": "ATO-NET-003"
     },
     {
       "id": "net-4",
@@ -1626,7 +1635,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-004",
+      "atoNumber": "ATO-NET-004"
     },
     {
       "id": "net-5",
@@ -1998,7 +2010,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-005",
+      "atoNumber": "ATO-NET-005"
     },
     {
       "id": "net-new-1",
@@ -2044,7 +2059,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-006",
+      "atoNumber": "ATO-NET-006"
     },
     {
       "id": "net-new-2",
@@ -2086,7 +2104,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-007",
+      "atoNumber": "ATO-NET-007"
     },
     {
       "id": "net-new-3",
@@ -2146,7 +2167,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-008",
+      "atoNumber": "ATO-NET-008"
     },
     {
       "id": "net-new-4",
@@ -2188,7 +2212,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-009",
+      "atoNumber": "ATO-NET-009"
     },
     {
       "id": "net-new-5",
@@ -2238,7 +2265,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-010",
+      "atoNumber": "ATO-NET-010"
     },
     {
       "id": "net-new-6",
@@ -2303,7 +2333,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-011",
+      "atoNumber": "ATO-NET-011"
     },
     {
       "id": "net-new-7",
@@ -2368,7 +2401,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "modellingStatus": true,
+      "diisId": "DIIS-NET-012",
+      "atoNumber": "ATO-NET-012"
     }
   ],
   "ictSystems": [

@@ -74,7 +74,7 @@ Primary data dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | fallback metadata allowed in slideouts | used directly and in drill-down hrefs | |
+| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `diis_id`, `ato_number`, `modelling_status`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | fallback metadata allowed in slideouts | used directly and in drill-down hrefs | `modelling_status` is persisted but current overview modelling card still uses the discovery-status proxy |
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity remapped before use | |
 | Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
@@ -106,5 +106,5 @@ Primary data dependencies:
 
 ## 10. Open Questions / Gaps
 - **Open question:** should the `DPE` and `DSE` labels in the overview reflect environment type or security domain? The implementation follows environment type.
-- **Open question:** is `discovery_status` intended to be the authoritative proxy for modelled-network coverage on this page?
+- **Open question:** should the overview modelling card migrate from the current discovery-status proxy to persisted `managed_network.modelling_status`?
 - **Open question:** should the posture slideout and full drill-down page always show the same metadata source, or should fallback-generated values be visually marked?

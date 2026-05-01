@@ -16,6 +16,7 @@ function createManagedNetwork(id: string, targetStateAssets?: ManagedNetwork["ta
     criticality: "Non-Critical",
     adfPlatform: false,
     enterprisePlatform: false,
+    modellingStatus: true,
     discoveryStatus: "Discovery Enabled",
     ictSystemIds: [],
     assetIds: [],

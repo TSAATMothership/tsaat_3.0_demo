@@ -14,6 +14,7 @@ import { getCoreAppData } from "@/lib/app-data";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
+import { resolveNetworkReferenceFields } from "@/lib/network-reference-fields";
 import { Asset } from "@/lib/types";
 
 interface DiscoveryCoverageStatus {
@@ -243,6 +244,7 @@ export default async function DiscoveryCoveragePage({
         return null;
       }
       const details = resolveNetworkDetailFields(network);
+      const referenceFields = resolveNetworkReferenceFields(network);
       const toolCoverage = toolColumns.map((tool) => {
         const summary = aggregate.toolCoverage.get(tool.key) ?? { covered: 0, missing: 0, applicable: 0 };
         return {
@@ -257,14 +259,16 @@ export default async function DiscoveryCoveragePage({
         };
       });
 
-      return {
+      const row = {
         networkId: network.id,
         networkName: network.name,
         securityDomain: network.classification ?? "Unknown",
+        modellingStatus: network.modellingStatus ? ("Modelled" as const) : ("Not Modelled" as const),
+        discoveryEnabled: network.discoveryStatus === "Discovery Enabled",
         description: details.description,
         owner: details.owner,
-        atoNumber: details.atoNumber,
-        diisUrl: details.diisUrl,
+        atoNumber: referenceFields.atoNumber,
+        diisId: referenceFields.diisId,
         grcUrl: details.grcUrl,
         assetCount: aggregate.assetCount,
         overallCoveredSlots: aggregate.overallCoveredSlots,
@@ -274,6 +278,8 @@ export default async function DiscoveryCoveragePage({
           : 0,
         toolCoverage
       };
+
+      return referenceFields.diisHref ? { ...row, diisUrl: referenceFields.diisHref } : row;
     })
     .filter((row): row is DiscoveryCoverageByNetworkRow => Boolean(row))
     .sort((a, b) => a.networkName.localeCompare(b.networkName));

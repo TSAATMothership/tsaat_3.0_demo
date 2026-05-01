@@ -84,6 +84,8 @@ const REQUIRED_COLUMNS: Array<{ tableName: string; columnName: string }> = [
   { tableName: "managed_network", columnName: "network_id" },
   { tableName: "managed_network", columnName: "adf_platform" },
   { tableName: "managed_network", columnName: "enterprise_platform" },
+  { tableName: "managed_network", columnName: "modelling_status" },
+  { tableName: "managed_network", columnName: "diis_id" },
   { tableName: "ict_system", columnName: "system_id" },
   { tableName: "ict_system", columnName: "adf_platform" },
   { tableName: "ict_system", columnName: "enterprise_platform" },

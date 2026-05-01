@@ -891,17 +891,25 @@ function networkCriticalityForClassification(
   return classification === "Official" ? "Non-Critical" : "Critical";
 }
 
+function formatNetworkReferenceOrdinal(ordinal: number): string {
+  return String(ordinal).padStart(3, "0");
+}
+
 function buildNetworks(random: Random): ManagedNetwork[] {
   const count = randomInt(random, 5, 6);
   const baselineNetworks = NETWORK_NAMES.slice(0, count).map((name, index) => {
     const classification = pick(random, ["Official", "Protected", "Restricted"] as const);
+    const referenceOrdinal = formatNetworkReferenceOrdinal(index + 1);
     return {
       id: `net-${index + 1}`,
       name,
       criticality: networkCriticalityForClassification(classification),
       adfPlatform: chance(random, 0.4),
       enterprisePlatform: chance(random, 0.35),
+      modellingStatus: false,
       classification,
+      diisId: `DIIS-NET-${referenceOrdinal}`,
+      atoNumber: `ATO-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
       assetIds: []
@@ -909,13 +917,17 @@ function buildNetworks(random: Random): ManagedNetwork[] {
   });
   const newNetworks = NEW_DEFENCE_NETWORK_NAMES.map((name, index) => {
     const classification = pick(random, ["Official", "Protected", "Restricted"] as const);
+    const referenceOrdinal = formatNetworkReferenceOrdinal(count + index + 1);
     return {
       id: `net-new-${index + 1}`,
       name,
       criticality: networkCriticalityForClassification(classification),
       adfPlatform: chance(random, 0.4),
       enterprisePlatform: chance(random, 0.35),
+      modellingStatus: false,
       classification,
+      diisId: `DIIS-NET-${referenceOrdinal}`,
+      atoNumber: `ATO-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
       assetIds: []
@@ -1234,6 +1246,7 @@ function syncRelationshipIndexes(networks: ManagedNetwork[], systems: ICTSystem[
 
   for (const network of networks) {
     network.discoveryStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
+    network.modellingStatus = network.discoveryStatus !== "Discovery Non Enabled";
   }
 }
 

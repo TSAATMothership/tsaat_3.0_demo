@@ -22,12 +22,14 @@ Major dependencies:
   - `/api/systems/out-of-support-os-report`
   - `/api/systems/modelling-status-report`
   - `/api/discovery-coverage/remediation-report`
+  - `/api/discovery-coverage/network-report`
 
 Important hidden behaviour:
 
 - the page does not calculate report contents itself; it only assembles and launches URLs.
 - report search is client-entered but server-rendered through the route query parameter `reportSearch`.
 - the `Cyber Posture Summary` link always forces `format=pdf`.
+- the network discovery gaps report is launched from Discovery network tiles rather than the catalogue table, but it follows the same filtered report endpoint pattern.
 
 ## 3. Feature Breakdown
 ### Feature: Shared Report Filter Scope
@@ -71,7 +73,7 @@ Downstream report endpoints depend on broader operational tables, but those are 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Report Catalogue | Snapshot label | `tsaat` | `dataset_snapshot` | `snapshot_date` | date | displays active snapshot date in page header | Read | latest snapshot unless `dataDate` supplied | direct display | none | |
 | Report Catalogue | Filter options | `tsaat` | `managed_network`, `ict_system`, related scope tables | IDs and names used in filter options | mixed | shared filter controls | Read | standard filter option relationships | same as shared filter bar | direct display | no report content loaded here |
-| Report Catalogue | Report output | multiple | downstream report endpoints | endpoint-specific | mixed | generated report content | Read via API | depends on selected report type | outside this page's direct scope | assembled by report endpoint | document separately if report internals are required |
+| Report Catalogue | Report output | multiple | downstream report endpoints | endpoint-specific | mixed | generated report content | Read via API | depends on selected report type | outside this page's direct scope | assembled by report endpoint | includes Discovery network-tile PDF endpoint `/api/discovery-coverage/network-report` |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |

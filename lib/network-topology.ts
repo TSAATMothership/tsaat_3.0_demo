@@ -794,6 +794,7 @@ function buildNetworkNode(
       supportEmail: networkDetails.supportEmail,
       serviceCatalogueUrl: networkDetails.serviceCatalogueUrl,
       atoNumber: networkDetails.atoNumber,
+      ...(network?.diisId ? { diisId: network.diisId } : {}),
       diisUrl: networkDetails.diisUrl,
       grcUrl: networkDetails.grcUrl,
       missionCapabilities: missionNames,

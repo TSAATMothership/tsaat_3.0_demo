@@ -65,6 +65,7 @@ function buildDataset(): Dataset {
         criticality: "Critical",
         adfPlatform: false,
         enterprisePlatform: false,
+        modellingStatus: true,
         discoveryStatus: "Discovery Enabled",
         ictSystemIds: ["sys-core"],
         assetIds: ["asset-core-1"]
@@ -75,6 +76,7 @@ function buildDataset(): Dataset {
         criticality: "Critical",
         adfPlatform: false,
         enterprisePlatform: false,
+        modellingStatus: true,
         discoveryStatus: "Discovery Enabled",
         ictSystemIds: ["sys-dep"],
         assetIds: ["asset-dep-in-model", "asset-dep-out-of-model"]

@@ -67,6 +67,7 @@ const networks: ManagedNetwork[] = [
     criticality: "Critical",
     adfPlatform: true,
     enterprisePlatform: false,
+    modellingStatus: true,
     discoveryStatus: "Discovery Enabled",
     ictSystemIds: ["sys-1"],
     assetIds: ["asset-1", "asset-2"]

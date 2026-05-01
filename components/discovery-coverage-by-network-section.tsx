@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CoverageByToolRadar } from "@/components/coverage-by-tool-radar";
 import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
+import { buildNetworkDiscoveryReportHref } from "@/lib/network-discovery-report-links";
 
 interface NetworkToolCoverage {
   toolId: string;
@@ -18,10 +19,13 @@ export interface DiscoveryCoverageByNetworkRow {
   networkId: string;
   networkName: string;
   securityDomain: string;
+  modellingStatus: "Modelled" | "Not Modelled";
+  discoveryEnabled: boolean;
   description: string;
   owner: string;
   atoNumber: string;
-  diisUrl: string;
+  diisId: string;
+  diisUrl?: string;
   grcUrl: string;
   assetCount: number;
   overallCoveredSlots: number;
@@ -48,6 +52,10 @@ export function DiscoveryCoverageByNetworkSection({ rows }: { rows: DiscoveryCov
         <div className="space-y-3">
           {rows.map((row) => {
             const drillDownHref = withDataDate(`/networks/${row.networkId}`, scopedDataDate);
+            const networkReportHref = buildNetworkDiscoveryReportHref({
+              networkId: row.networkId,
+              searchParams
+            });
 
             return (
               <article key={row.networkId} className="panel-alt border border-sky-400/20 p-3">
@@ -64,16 +72,42 @@ export function DiscoveryCoverageByNetworkSection({ rows }: { rows: DiscoveryCov
                       Drill Down
                     </Link>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full border border-sky-300/45 bg-sky-500/15 px-2 py-0.5 text-xs text-sky-100">
-                      Security Domain: {row.securityDomain}
-                    </span>
-                    <span className="rounded-full border border-slate-400/35 bg-slate-700/35 px-2 py-0.5 text-xs text-slate-100">
-                      Assets In Scope: {row.assetCount}
-                    </span>
-                    <span className="rounded-full border border-cyan-300/45 bg-cyan-500/15 px-2 py-0.5 text-xs text-cyan-100">
-                      Overall Coverage: {row.overallCoveragePercent}%
-                    </span>
+                  <div className="flex max-w-full flex-col items-start gap-2 sm:items-end">
+                    <div className="flex flex-wrap justify-start gap-2 sm:justify-end">
+                      <span className="rounded-full border border-sky-300/45 bg-sky-500/15 px-2 py-0.5 text-xs text-sky-100">
+                        Security Domain: {row.securityDomain}
+                      </span>
+                      <span className="rounded-full border border-slate-400/35 bg-slate-700/35 px-2 py-0.5 text-xs text-slate-100">
+                        Assets In Scope: {row.assetCount}
+                      </span>
+                      <span className="rounded-full border border-cyan-300/45 bg-cyan-500/15 px-2 py-0.5 text-xs text-cyan-100">
+                        Overall Coverage: {row.overallCoveragePercent}%
+                      </span>
+                      <span
+                        className={
+                          row.modellingStatus === "Modelled"
+                            ? "rounded-full border border-emerald-300/45 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-100"
+                            : "rounded-full border border-amber-300/45 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-100"
+                        }
+                      >
+                        Modelling Status: {row.modellingStatus}
+                      </span>
+                      <span
+                        className={
+                          row.discoveryEnabled
+                            ? "rounded-full border border-emerald-300/45 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-100"
+                            : "rounded-full border border-red-300/45 bg-red-500/15 px-2 py-0.5 text-xs text-red-100"
+                        }
+                      >
+                        Discovery Enabled: {row.discoveryEnabled ? "Yes" : "No"}
+                      </span>
+                    </div>
+                    <a
+                      href={networkReportHref}
+                      className="inline-flex min-h-[38px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-amber-100 transition hover:bg-amber-500/25"
+                    >
+                      Generate Network Discovery Report
+                    </a>
                   </div>
                 </div>
 
@@ -88,14 +122,18 @@ export function DiscoveryCoverageByNetworkSection({ rows }: { rows: DiscoveryCov
                   </div>
                   <div className="rounded-md border border-sky-400/15 bg-slate-950/55 px-3 py-2">
                     <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70">DIIS</p>
-                    <Link
-                      href={row.diisUrl}
-                      className="mt-1 inline-block text-sm text-sky-100 underline decoration-sky-300/60 underline-offset-2"
-                      target={isExternalLink(row.diisUrl) ? "_blank" : undefined}
-                      rel={isExternalLink(row.diisUrl) ? "noreferrer" : undefined}
-                    >
-                      View in DIIS
-                    </Link>
+                    {row.diisUrl ? (
+                      <Link
+                        href={row.diisUrl}
+                        className="mt-1 inline-block text-sm font-semibold text-sky-100 underline decoration-sky-300/60 underline-offset-2"
+                        target={isExternalLink(row.diisUrl) ? "_blank" : undefined}
+                        rel={isExternalLink(row.diisUrl) ? "noreferrer" : undefined}
+                      >
+                        {row.diisId}
+                      </Link>
+                    ) : (
+                      <p className="mt-1 text-sm font-semibold text-slate-100">{row.diisId}</p>
+                    )}
                   </div>
                   <div className="rounded-md border border-sky-400/15 bg-slate-950/55 px-3 py-2">
                     <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/70">Cyber GRC</p>

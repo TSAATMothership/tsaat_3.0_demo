@@ -329,6 +329,44 @@ BEGIN
     1
   );
 
+  ;WITH network_source AS (
+    SELECT
+      n.*,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          CASE
+            WHEN n.[id] LIKE N'net-[0-9]%' AND n.[id] NOT LIKE N'net-new-%' THEN 1
+            WHEN n.[id] LIKE N'net-new-[0-9]%' THEN 2
+            ELSE 3
+          END,
+          CASE
+            WHEN n.[id] LIKE N'net-[0-9]%' AND n.[id] NOT LIKE N'net-new-%'
+              THEN TRY_CONVERT(INT, SUBSTRING(n.[id], 5, 32))
+            WHEN n.[id] LIKE N'net-new-[0-9]%'
+              THEN TRY_CONVERT(INT, SUBSTRING(n.[id], 9, 32))
+            ELSE NULL
+          END,
+          n.[id]
+      ) AS [network_ordinal]
+    FROM OPENJSON(@Json, '$.managedNetworks') WITH (
+      [id] NVARCHAR(255) '$.id',
+      [name] NVARCHAR(255) '$.name',
+      [criticality] NVARCHAR(20) '$.criticality',
+      [adf_platform] BIT '$.adfPlatform',
+      [enterprise_platform] BIT '$.enterprisePlatform',
+      [modelling_status] BIT '$.modellingStatus',
+      [classification] NVARCHAR(255) '$.classification',
+      [description] NVARCHAR(2000) '$.description',
+      [owner] NVARCHAR(255) '$.owner',
+      [support_email] NVARCHAR(320) '$.supportEmail',
+      [service_catalogue_url] NVARCHAR(1024) '$.serviceCatalogueUrl',
+      [diis_id] NVARCHAR(100) '$.diisId',
+      [ato_number] NVARCHAR(100) '$.atoNumber',
+      [diis_url] NVARCHAR(1024) '$.diisUrl',
+      [grc_url] NVARCHAR(1024) '$.grcUrl',
+      [discovery_status] NVARCHAR(40) '$.discoveryStatus'
+    ) AS n
+  )
   INSERT INTO [tsaat].[managed_network] (
     [snapshot_id],
     [network_id],
@@ -336,11 +374,13 @@ BEGIN
     [criticality],
     [adf_platform],
     [enterprise_platform],
+    [modelling_status],
     [classification],
     [description],
     [owner],
     [support_email],
     [service_catalogue_url],
+    [diis_id],
     [ato_number],
     [diis_url],
     [grc_url],
@@ -353,31 +393,36 @@ BEGIN
     n.[criticality],
     n.[adf_platform],
     n.[enterprise_platform],
+    COALESCE(
+      n.[modelling_status],
+      CASE
+        WHEN n.[discovery_status] = N'Discovery Non Enabled' THEN CAST(0 AS BIT)
+        ELSE CAST(1 AS BIT)
+      END
+    ),
     n.[classification],
     n.[description],
     n.[owner],
     n.[support_email],
     n.[service_catalogue_url],
-    n.[ato_number],
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(n.[diis_id])), N''),
+      CASE
+        WHEN n.[id] = N'net-unassigned' THEN N'DIIS-NET-000'
+        ELSE CONCAT(N'DIIS-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
+      END
+    ),
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(n.[ato_number])), N''),
+      CASE
+        WHEN n.[id] = N'net-unassigned' THEN N'ATO-NET-000'
+        ELSE CONCAT(N'ATO-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
+      END
+    ),
     n.[diis_url],
     n.[grc_url],
     n.[discovery_status]
-  FROM OPENJSON(@Json, '$.managedNetworks') WITH (
-    [id] NVARCHAR(255) '$.id',
-    [name] NVARCHAR(255) '$.name',
-    [criticality] NVARCHAR(20) '$.criticality',
-    [adf_platform] BIT '$.adfPlatform',
-    [enterprise_platform] BIT '$.enterprisePlatform',
-    [classification] NVARCHAR(255) '$.classification',
-    [description] NVARCHAR(2000) '$.description',
-    [owner] NVARCHAR(255) '$.owner',
-    [support_email] NVARCHAR(320) '$.supportEmail',
-    [service_catalogue_url] NVARCHAR(1024) '$.serviceCatalogueUrl',
-    [ato_number] NVARCHAR(100) '$.atoNumber',
-    [diis_url] NVARCHAR(1024) '$.diisUrl',
-    [grc_url] NVARCHAR(1024) '$.grcUrl',
-    [discovery_status] NVARCHAR(40) '$.discoveryStatus'
-  ) AS n;
+  FROM network_source AS n;
 
   IF EXISTS (
     SELECT 1
@@ -394,8 +439,11 @@ BEGIN
       [criticality],
       [adf_platform],
       [enterprise_platform],
+      [modelling_status],
       [classification],
       [description],
+      [diis_id],
+      [ato_number],
       [discovery_status]
     )
     VALUES (
@@ -405,8 +453,11 @@ BEGIN
       N'Non-Critical',
       0,
       0,
+      0,
       N'Unclassified',
       N'Synthetic network created during load for systems without networkId.',
+      N'DIIS-NET-000',
+      N'ATO-NET-000',
       N'Discovery Non Enabled'
     );
   END;

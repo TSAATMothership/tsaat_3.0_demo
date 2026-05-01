@@ -43,6 +43,7 @@ export interface ManagedNetwork {
   criticality: Criticality;
   adfPlatform: boolean;
   enterprisePlatform: boolean;
+  modellingStatus: boolean;
   parentNetworkId?: string;
   childNetworkIds?: string[];
   classification?: string;
@@ -50,6 +51,7 @@ export interface ManagedNetwork {
   owner?: string;
   supportEmail?: string;
   serviceCatalogueUrl?: string;
+  diisId?: string;
   atoNumber?: string;
   diisUrl?: string;
   grcUrl?: string;

@@ -58,12 +58,17 @@ describe("seed dataset", () => {
     expect(printerDevices.every((asset) => !asset.systemContext)).toBe(true);
     expect(otherAssets.every((asset) => !asset.systemContext)).toBe(true);
 
-    for (const network of dataset.managedNetworks) {
+    for (const [networkIndex, network] of dataset.managedNetworks.entries()) {
+      const expectedReferenceOrdinal = String(networkIndex + 1).padStart(3, "0");
       const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
       expect(network.discoveryStatus).toBe(expectedStatus);
+      expect(network.modellingStatus).toBe(expectedStatus !== "Discovery Non Enabled");
+      expect(network.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
+      expect(network.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
       expect(["Critical", "Non-Critical"]).toContain(network.criticality);
       expect(typeof network.adfPlatform).toBe("boolean");
       expect(typeof network.enterprisePlatform).toBe("boolean");
+      expect(typeof network.modellingStatus).toBe("boolean");
     }
 
     const modelledServerCountBySystem = new Map<string, number>();

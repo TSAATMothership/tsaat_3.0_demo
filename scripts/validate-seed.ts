@@ -57,12 +57,19 @@ async function main() {
   assert(Array.isArray(current.ciDependencies ?? []), "ciDependencies must be an array when present.");
   const snapshotAnchor = new Date(`${current.snapshotDate}T23:59:59.999Z`);
 
-  for (const network of current.managedNetworks) {
+  for (const [networkIndex, network] of current.managedNetworks.entries()) {
+    const expectedReferenceOrdinal = String(networkIndex + 1).padStart(3, "0");
     const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
     assert(
       network.discoveryStatus === expectedStatus,
       `Network ${network.id} discovery status must be ${expectedStatus}.`
     );
+    assert(
+      network.modellingStatus === (expectedStatus !== "Discovery Non Enabled"),
+      `Network ${network.id} modellingStatus must match the discovery-status fallback rule.`
+    );
+    assert(network.diisId === `DIIS-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have a DIIS ID.`);
+    assert(network.atoNumber === `ATO-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an ATO number.`);
     assert(ENTITY_CRITICALITY.has(network.criticality), `Network ${network.id} must have valid criticality.`);
     assert(typeof network.adfPlatform === "boolean", `Network ${network.id} must include adfPlatform as boolean.`);
     assert(
