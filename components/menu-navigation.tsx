@@ -287,7 +287,15 @@ export function MenuNavigation({
 
   return (
     <>
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+      <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+        {authenticatedUsername ? (
+          <p className="hidden h-11 items-center justify-self-start rounded-md border border-sky-300/30 bg-slate-950/65 px-3 text-[11px] uppercase tracking-[0.11em] text-slate-200 lg:flex">
+            Signed in: <span className="text-cyan-100">{authenticatedUsername}</span>
+          </p>
+        ) : (
+          <span className="hidden lg:block" />
+        )}
+
         <nav className="flex min-w-0 max-w-full flex-nowrap items-center justify-end gap-1.5">
           {items.map((item) => {
             const href = isDataDateScopedPath(item.href)
@@ -309,7 +317,7 @@ export function MenuNavigation({
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 onClick={(event) => onMenuClick(event, href)}
-                className={`group flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-[11px] uppercase tracking-[0.1em] transition ${linkClass}`}
+                className={`group flex h-11 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-[11px] uppercase tracking-[0.1em] transition ${linkClass}`}
               >
                 <span className="whitespace-nowrap">{item.label}</span>
                 {isActive ? (
@@ -324,14 +332,8 @@ export function MenuNavigation({
         </nav>
 
         <div className="shrink-0 justify-self-end flex items-center gap-2">
-          {authenticatedUsername ? (
-            <p className="hidden rounded-md border border-sky-300/30 bg-slate-950/65 px-3 py-2 text-[11px] uppercase tracking-[0.11em] text-slate-200 lg:block">
-              Signed in: <span className="text-cyan-100">{authenticatedUsername}</span>
-            </p>
-          ) : null}
-
           {showDataDatePicker ? (
-            <label className="flex items-center gap-2 rounded-md border border-sky-300/30 bg-slate-950/60 px-3 py-2 text-[11px] uppercase tracking-[0.13em] text-slate-200">
+            <label className="flex h-11 items-center gap-2 rounded-md border border-sky-300/30 bg-slate-950/60 px-3 text-[11px] uppercase tracking-[0.13em] text-slate-200">
               <span className="text-slate-300/85">Date</span>
               <span className="relative">
                 <input
@@ -363,7 +365,7 @@ export function MenuNavigation({
             type="button"
             onClick={onLogout}
             disabled={isLoggingOut}
-            className="group flex h-[38px] items-center gap-2 rounded-md border border-rose-300/40 bg-rose-950/60 px-3 text-[11px] uppercase tracking-[0.12em] text-rose-100 transition hover:border-rose-200/75 hover:bg-rose-900/85 disabled:cursor-wait disabled:opacity-75"
+            className="group flex h-11 items-center gap-2 rounded-md border border-rose-300/40 bg-rose-950/60 px-3 text-[11px] uppercase tracking-[0.12em] text-rose-100 transition hover:border-rose-200/75 hover:bg-rose-900/85 disabled:cursor-wait disabled:opacity-75"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -378,7 +380,7 @@ export function MenuNavigation({
             onClick={onToggleOperationsMenu}
             aria-expanded={isOperationsMenuOpen}
             aria-label="Open menu"
-            className="group flex h-[38px] items-center gap-2 rounded-md border border-sky-300/35 bg-slate-950/70 px-3 text-[11px] uppercase tracking-[0.12em] text-slate-100 transition hover:border-sky-200/70 hover:bg-slate-900/90"
+            className="group flex h-11 items-center gap-2 rounded-md border border-sky-300/35 bg-slate-950/70 px-3 text-[11px] uppercase tracking-[0.12em] text-slate-100 transition hover:border-sky-200/70 hover:bg-slate-900/90"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-sky-100" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="4" y1="7" x2="20" y2="7" />
