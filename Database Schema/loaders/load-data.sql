@@ -1,4 +1,4 @@
-﻿SET NOCOUNT ON;
+SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @PackageDataRoot NVARCHAR(4000) = N'$(PackageDataRoot)';

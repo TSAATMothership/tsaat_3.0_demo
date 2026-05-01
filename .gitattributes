@@ -1,0 +1,5 @@
+*.cmd text eol=crlf
+*.bat text eol=crlf
+scripts/*.ps1 text eol=crlf
+"Database Schema/**/*.ps1" text eol=crlf
+"Database Schema/**/*.sql" text eol=crlf

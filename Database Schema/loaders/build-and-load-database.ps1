@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
   [string]$ServerInstance = 'localhost\SQLEXPRESS',
   [string]$AdminDatabase = 'master',
@@ -227,6 +227,7 @@ function Invoke-ClientPayloadLoad {
   $connectionString = New-SqlClientConnectionString -Server $Server -Database $Database -AuthMode $AuthMode -User $User -Password $Password -Encrypt $Encrypt -TrustServerCertificate $TrustServerCertificate
   $connection = New-Object -TypeName System.Data.SqlClient.SqlConnection -ArgumentList $connectionString
 
+  $currentPayloadFile = ''
   try {
     $connection.Open()
 
@@ -243,6 +244,7 @@ CREATE TABLE #TSAAT_JsonPayload (
 
     foreach ($payloadFile in $PayloadFiles) {
       $sourceFile = [string]$payloadFile.SourceFile
+      $currentPayloadFile = $sourceFile
       if (-not (Test-Path -LiteralPath $sourceFile)) {
         throw "JSON payload file missing: $sourceFile"
       }
@@ -266,8 +268,25 @@ CREATE TABLE #TSAAT_JsonPayload (
     $loadCommand.CommandTimeout = 0
     $loadCommand.CommandText = $loadSql
     [void]$loadCommand.ExecuteNonQuery()
+  } catch {
+    $payloadContext = if ([string]::IsNullOrWhiteSpace($currentPayloadFile)) { '' } else { " Current payload file: $currentPayloadFile." }
+    throw "ClientPayload data load failed while streaming local JSON through the SQL connection.$payloadContext $($_.Exception.Message)"
   } finally {
     $connection.Dispose()
+  }
+}
+
+function Invoke-DatabaseBuildStage {
+  param(
+    [Parameter(Mandatory = $true)][string]$Name,
+    [Parameter(Mandatory = $true)][scriptblock]$ScriptBlock
+  )
+
+  Write-Host "[STAGE] $Name"
+  try {
+    & $ScriptBlock
+  } catch {
+    throw "Database build stage failed: $Name. Server='$sqlcmdServerInstance'; Database='$DatabaseName'; DataLoadMode='$normalizedDataLoadMode'. $($_.Exception.Message)"
   }
 }
 
@@ -283,7 +302,7 @@ function Invoke-SqlText {
   $args = @('-S', $Server, '-d', $Database) + $AuthArgs + $SecurityArgs + @('-Q', $SqlText, '-b')
   & $script:SqlcmdExecutable @args
   if ($LASTEXITCODE -ne 0) {
-    throw "sqlcmd failed for inline query against [$Database]."
+    throw "sqlcmd failed for inline query against database '$Database' on server '$Server'."
   }
 }
 
@@ -312,8 +331,42 @@ function Invoke-SqlFile {
 
   & $script:SqlcmdExecutable @args
   if ($LASTEXITCODE -ne 0) {
-    throw "sqlcmd failed for file: $File"
+    throw "sqlcmd failed for file '$File' against database '$Database' on server '$Server'."
   }
+}
+
+function Test-SqlServerBulkRead {
+  param(
+    [Parameter(Mandatory = $true)][string]$Server,
+    [Parameter(Mandatory = $true)][string]$Database,
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter(Mandatory = $true)][string[]]$AuthArgs,
+    [string[]]$SecurityArgs
+  )
+
+  $escapedPath = Escape-SqlUnicodeLiteral -Value $FilePath
+  $sql = @"
+SET NOCOUNT ON;
+DECLARE @Payload NVARCHAR(MAX);
+DECLARE @ReadSql NVARCHAR(MAX) = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''$escapedPath'', SINGLE_CLOB) src;';
+
+BEGIN TRY
+  EXEC sp_executesql @ReadSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Payload OUTPUT;
+END TRY
+BEGIN CATCH
+  DECLARE @ReadError NVARCHAR(2048) =
+    N'SQL Server cannot read staged file via OPENROWSET(BULK): $escapedPath. Confirm the UNC path is reachable from the SQL Server host, the SQL Server service account has share and NTFS read permission, and the SQL login has permission to perform bulk file reads. Underlying SQL error: ' + ERROR_MESSAGE();
+  THROW 51000, @ReadError, 1;
+END CATCH;
+
+IF @Payload IS NULL OR DATALENGTH(@Payload) = 0
+BEGIN
+  DECLARE @EmptyError NVARCHAR(2048) = N'SQL Server read an empty staged file via OPENROWSET(BULK): $escapedPath.';
+  THROW 51000, @EmptyError, 1;
+END;
+"@
+
+  Invoke-SqlText -Server $Server -Database $Database -SqlText $sql -AuthArgs $AuthArgs -SecurityArgs $SecurityArgs
 }
 
 $script:SqlcmdExecutable = Resolve-SqlcmdExecutable
@@ -454,10 +507,32 @@ BEGIN
   PRINT 'Database [$DatabaseName] already exists';
 END
 "@
-Invoke-SqlText -Server $sqlcmdServerInstance -Database $AdminDatabase -SqlText $createDbSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+Invoke-DatabaseBuildStage -Name 'connection' -ScriptBlock {
+  Invoke-SqlText -Server $sqlcmdServerInstance -Database $AdminDatabase -SqlText 'SET NOCOUNT ON; SELECT 1;' -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+}
+
+Invoke-DatabaseBuildStage -Name 'database create' -ScriptBlock {
+  Invoke-SqlText -Server $sqlcmdServerInstance -Database $AdminDatabase -SqlText $createDbSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+}
+
+if ($normalizedDataLoadMode -eq 'SqlServerFiles') {
+  Invoke-DatabaseBuildStage -Name 'SqlServerFiles SQL Server file-read preflight' -ScriptBlock {
+    $packageProbePath = Join-SqlPayloadKey -Root $effectivePackageDataRoot -FileName 'reference-versions.json'
+    $firstSnapshotFile = [string]($manifest.snapshotFiles | Select-Object -First 1)
+    $snapshotProbePath = Join-SqlPayloadKey -Root $effectiveSnapshotsRoot -FileName $firstSnapshotFile
+
+    Write-Host "Validating SQL Server can read package staged file: $packageProbePath"
+    Test-SqlServerBulkRead -Server $sqlcmdServerInstance -Database $DatabaseName -FilePath $packageProbePath -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+
+    Write-Host "Validating SQL Server can read snapshot staged file: $snapshotProbePath"
+    Test-SqlServerBulkRead -Server $sqlcmdServerInstance -Database $DatabaseName -FilePath $snapshotProbePath -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+  }
+}
 
 Write-Host 'Applying base schema...'
-Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $schemaFile -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+Invoke-DatabaseBuildStage -Name 'schema' -ScriptBlock {
+  Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $schemaFile -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+}
 
 Write-Host 'Applying migrations (if any)...'
 $migrationFiles = @()
@@ -469,8 +544,10 @@ if ($migrationFiles.Count -eq 0) {
   Write-Host 'No migration scripts found.'
 } else {
   foreach ($migration in $migrationFiles) {
-    Write-Host "Applying migration: $($migration.Name)"
-    Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $migration.FullName -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+    Invoke-DatabaseBuildStage -Name "migration $($migration.Name)" -ScriptBlock {
+      Write-Host "Applying migration: $($migration.Name)"
+      Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $migration.FullName -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+    }
   }
 }
 
@@ -482,23 +559,29 @@ $loadVariables = @{
 }
 
 if ($normalizedDataLoadMode -eq 'ClientPayload') {
-  Invoke-ClientPayloadLoad `
-    -Server $sqlcmdServerInstance `
-    -Database $DatabaseName `
-    -AuthMode $sqlAuthMode `
-    -User $SqlUser `
-    -Password $SqlPassword `
-    -Encrypt $EncryptConnection.IsPresent `
-    -TrustServerCertificate $TrustServerCertificate.IsPresent `
-    -PayloadFiles $payloadFiles `
-    -LoadDataSql $loadDataSql `
-    -Variables $loadVariables
+  Invoke-DatabaseBuildStage -Name 'data load ClientPayload' -ScriptBlock {
+    Invoke-ClientPayloadLoad `
+      -Server $sqlcmdServerInstance `
+      -Database $DatabaseName `
+      -AuthMode $sqlAuthMode `
+      -User $SqlUser `
+      -Password $SqlPassword `
+      -Encrypt $EncryptConnection.IsPresent `
+      -TrustServerCertificate $TrustServerCertificate.IsPresent `
+      -PayloadFiles $payloadFiles `
+      -LoadDataSql $loadDataSql `
+      -Variables $loadVariables
+  }
 } else {
-  Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs -Variables $loadVariables
+  Invoke-DatabaseBuildStage -Name 'data load SqlServerFiles' -ScriptBlock {
+    Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $loadDataSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs -Variables $loadVariables
+  }
 }
 
 Write-Host 'Running validation checks...'
-Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $validateSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+Invoke-DatabaseBuildStage -Name 'validation' -ScriptBlock {
+  Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $validateSql -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
+}
 
 $summarySql = @"
 SET NOCOUNT ON;
@@ -514,13 +597,15 @@ ORDER BY s.name, t.name;
 "@
 
 $summaryArgs = @('-S', $sqlcmdServerInstance, '-d', $DatabaseName) + $sqlAuthArgs + $sqlSecurityArgs + @('-Q', $summarySql, '-W', '-s', '|', '-h', '-1')
-$summaryOutput = & $script:SqlcmdExecutable @summaryArgs
-if ($LASTEXITCODE -ne 0) {
-  throw 'Failed to collect final summary row counts.'
+Invoke-DatabaseBuildStage -Name 'summary' -ScriptBlock {
+  $script:summaryOutput = & $script:SqlcmdExecutable @summaryArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Failed to collect final summary row counts.'
+  }
 }
 
 $summaryFile = Join-Path $loaderDir 'last-build-summary.txt'
-$summaryOutput | Set-Content -LiteralPath $summaryFile -Encoding UTF8
+$script:summaryOutput | Set-Content -LiteralPath $summaryFile -Encoding UTF8
 
 Write-Host 'Database build and load completed successfully.'
 Write-Host "Summary written to: $summaryFile"

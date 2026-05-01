@@ -84,7 +84,11 @@ function Copy-And-VerifyFiles {
     [Parameter(Mandatory = $true)][string]$DestinationRoot
   )
 
-  [void][System.IO.Directory]::CreateDirectory($DestinationRoot)
+  try {
+    [void][System.IO.Directory]::CreateDirectory($DestinationRoot)
+  } catch {
+    throw "App server could not create SqlServerFiles staging directory: $DestinationRoot. Confirm the setup account has write access to the UNC share. $($_.Exception.Message)"
+  }
 
   foreach ($file in $Files) {
     $sourceItem = Get-Item -LiteralPath ([string]$file.SourcePath) -ErrorAction Stop
@@ -93,7 +97,11 @@ function Copy-And-VerifyFiles {
     }
 
     $destinationPath = Join-Path $DestinationRoot ([string]$file.FileName)
-    [System.IO.File]::Copy($sourceItem.FullName, $destinationPath, $true)
+    try {
+      [System.IO.File]::Copy($sourceItem.FullName, $destinationPath, $true)
+    } catch {
+      throw "App server could not write staged JSON file: $destinationPath. Confirm the setup account has share and NTFS write permission on the UNC root. $($_.Exception.Message)"
+    }
 
     $destinationItem = Get-Item -LiteralPath $destinationPath -ErrorAction Stop
     if ($destinationItem.PSIsContainer) {

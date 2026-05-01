@@ -134,7 +134,7 @@ if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" set "DB_ENCRYPT=true"
 if /I not "%DB_ENCRYPT%"=="true" set "DB_TRUST_SERVER_CERTIFICATE=false"
 if "%DB_ENCRYPT%"=="" set "DB_ENCRYPT=false"
 if "%DB_TRUST_SERVER_CERTIFICATE%"=="" set "DB_TRUST_SERVER_CERTIFICATE=false"
-if "%DB_SERVER%"=="" set "DB_SERVER=localhost\\SQLEXPRESS"
+if "%DB_SERVER%"=="" set "DB_SERVER=localhost\SQLEXPRESS"
 if "%DB_APP_DATABASE%"=="" set "DB_APP_DATABASE=TSAAT"
 if /I "%DB_ENCRYPT%"=="true" (
   if /I "%DB_TRUST_SERVER_CERTIFICATE%"=="true" (
@@ -263,10 +263,11 @@ if /I "%DATA_LOAD_MODE_ARG%"=="SqlServerFiles" (
 exit /b 0
 
 :stageSqlServerFiles
+echo [STAGE] SqlServerFiles staging
 echo [INFO] Staging SqlServerFiles JSON payloads to UNC path...
 for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%DB_LOAD_STAGING_SCRIPT%" -RepoRoot "%REPO_ROOT%" -StagingRoot "%SQL_SERVER_STAGING_UNC_ROOT%"`) do %%I
 if errorlevel 1 (
-  call :fail "Failed to stage SqlServerFiles payloads to UNC path."
+  call :fail "Database build stage failed: SqlServerFiles staging. App server could not stage JSON payloads to UNC path: %SQL_SERVER_STAGING_UNC_ROOT%."
   exit /b 1
 )
 if not defined SQL_SERVER_PACKAGE_DATA_ROOT (

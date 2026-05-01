@@ -1,4 +1,4 @@
-﻿/*
+/*
   TSAAT SQL Server schema package (Microsoft SQL / T-SQL).
   Primary source model:
   - lib/types.ts
