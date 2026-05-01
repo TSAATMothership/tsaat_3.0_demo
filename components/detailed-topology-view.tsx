@@ -4216,6 +4216,7 @@ export function DetailedTopologyView({
       cameraRef.current = null;
     };
   }, [
+    coreNode?.id,
     highlightedEdgeIds,
     isOpen,
     isTileFilterActive,
