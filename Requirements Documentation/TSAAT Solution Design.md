@@ -953,8 +953,8 @@ Primary data dependencies:
 
 ## 1. Page Overview
 - **Page name:** Measures
-- **Purpose:** provide the KPI and SPI measure catalogue, summary charts, tasking-report launch points, and configurable severity mapping.
-- **User outcome:** the user can understand how performance is measured, inspect KPI and SPI scores for the current scope, generate tasking reports, and manage the severity model applied to findings.
+- **Purpose:** provide the KPI and SPI measure catalogue, summary charts, SPI tasking/trend report launch points, and configurable severity mapping.
+- **User outcome:** the user can understand how performance is measured, inspect KPI and SPI scores for the current scope, generate tasking and trend reports, and manage the severity model applied to findings.
 - **Primary user roles:** cyber governance users, assurance teams, reporting users, cyber analysts, product administrators.
 
 ## 2. Page Summary
@@ -1002,10 +1002,10 @@ Important hidden behaviour:
 - **Outcome:** KPI performance details are shown in a dedicated tab.
 
 ### Feature: Measures-SPI Tab
-- **What it does:** shows the SPI matrix, including descriptions, success measures, scores, and report links.
-- **User perspective:** the user can inspect SPI score details and launch tasking reports.
-- **System behaviour:** SPI rows come from `buildSpiRows()` and report links carry the active filter scope into `/api/tasking-report`.
-- **Outcome:** SPI performance details are shown in a dedicated tab.
+- **What it does:** shows the SPI report index, including descriptions, success measures, scores, asset-type impact summaries, and report links.
+- **User perspective:** the user can inspect SPI score details and launch either the current SPI report or the 12-month SPI trend report.
+- **System behaviour:** SPI rows come from the shared SPI report model and report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
+- **Outcome:** SPI performance details and per-SPI PDF report actions are shown in a dedicated tab.
 
 ### Feature: SPI-Settings Tab
 - **What it does:** lets users maintain the severity matrix that maps SPI and asset type combinations to finding severity across all six canonical asset types.
@@ -1026,7 +1026,7 @@ Important hidden behaviour:
 | Measures | Shared scope | Common measure filter scope plus severity selector | Apply filters | Re-runs analytics and KPI/SPI rows | shared filters plus `severity` | Filtered charts and matrix | one scope for all visible scores | supported values come from filter options or severity list | `FilterBar`, `getCoreAppData()` | Consistent measures scope | |
 | Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives compliance points from runtime rows | analytics, systems, networks | Charts | charts show recalculated runtime scores | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | |
 | Measures | Measures-KPI tab | KPI-only detailed measure table and report launch surface | Open tab, click report link | Builds KPI rows and carries filter scope into report URL | analytics, filters | KPI matrix and PDF report links | KPI reports for 1-3 are disabled | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view | disabled KPI reports show `Not available` |
-| Measures | Measures-SPI tab | SPI-only detailed measure table and report launch surface | Open tab, click report link | Builds SPI rows and carries filter scope into report URL | analytics, filters | SPI matrix and PDF report links | SPI rows respect SPI applicability rules | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view | |
+| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with current and trend reports | |
 | Measures | SPI settings | Maintain severity mapping by SPI and asset type | Edit rows, save, reset | Validates and persists latest settings version | measures settings rows | Updated measures settings | saved matrix affects future severity remap; matrix includes six canonical asset types per SPI; `Data Gap` values are normalized to `Moderate` | panel-level validation in component and API | `/api/measures/settings` | Updated severity model | non-applicable SPI/asset combinations remain harmless configuration entries |
 | Measures | KPI settings placeholder | Reserved future KPI settings tab | Open tab | Renders placeholder only | none | Placeholder panel | intentionally no save behavior | none | measures route rendering | Future-ready tab model | no API usage |
 
@@ -1037,6 +1037,7 @@ Primary data dependencies:
 
 - `tsaat.asset` and posture child tables
 - `tsaat.finding`
+- `tsaat.dataset_snapshot`
 - `tsaat.ict_system`
 - `tsaat.managed_network`
 - `tsaat.measures_settings_version`
@@ -1051,6 +1052,7 @@ Primary data dependencies:
 | Measures | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | KPI counts tied to urgent work and exposure | Read | finding scope joins back to asset and system | severity may be remapped at runtime | runtime aggregation only | |
 | Measures | System and network context | `tsaat` | `ict_system`, `managed_network` | IDs, `criticality`, `security_domain`, `diis_defined`, `modelling_status`, `discovery_status` | mixed | KPI denominators and scope grouping | Read | assets and findings roll up through these relationships | some KPIs use system and network counts directly | direct grouping and filtering | |
 | Measures | SPI metadata | `tsaat` | `spi_definition`, `spi_applicable_asset_type` | SPI IDs, descriptions, applicable asset types | mixed | explanatory context and applicability rules | Read | joins by SPI ID and asset type | metadata shapes evaluation applicability | reference lookup | new asset types are currently scoped to SPI 10 applicability |
+| Measures | SPI trend report snapshots | `tsaat` | `dataset_snapshot` | `snapshot_date` | date | selects historical snapshots for SPI trend PDFs | Read | trend report loads snapshots within the 12 calendar months ending at selected `dataDate` | latest selected snapshot when no date is supplied | date-window filtering | no monthly points are fabricated when snapshots are unavailable |
 | Measures | Severity settings | `tsaat` | `measures_settings_version`, `measures_severity_matrix` | versioning, SPI ID, asset type, severity | mixed | finding severity remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults apply if tables are empty | runtime severity rewrite | matrix keys include all SPI IDs x all six canonical asset types |
 
 ## 7. Calculations and Derived Logic
@@ -1070,8 +1072,9 @@ Primary data dependencies:
 
 ## 8. Non-Database Calculations
 - KPI-7 and KPI-8 are entirely runtime calculations using deterministic hash functions.
-- Tasking-report URLs are assembled from the current filter query string and are not stored.
+- Tasking and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
+- SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - Severity remap is applied at runtime to findings before they are counted or displayed on dependent pages.
 
 ## 9. Rules, Assumptions, and Constraints

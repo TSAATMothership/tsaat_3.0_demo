@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
-import { normalizeDataDate, todayDateKey } from "@/lib/data-date";
+import { normalizeDataDate, subtractCalendarMonthsDateKey, todayDateKey } from "@/lib/data-date";
 import {
   defaultDiscoveryToolsSettings,
   DiscoveryToolsSettings,
@@ -965,6 +965,19 @@ export async function loadLatestSnapshotsForDate(requestedDate: string | undefin
   const snapshots = await loadSnapshotRows();
   const target = targetDateKey(requestedDate);
   const selected = snapshots.filter((snapshot) => snapshot.snapshotDate <= target).slice(-Math.max(0, limit));
+  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots)));
+}
+
+export async function loadSnapshotsForDateWindow(
+  requestedDate: string | undefined,
+  monthsBack = 12
+): Promise<Dataset[]> {
+  const snapshots = await loadSnapshotRows();
+  const endSnapshot = selectSnapshotRowForDate(snapshots, requestedDate);
+  const startDate = subtractCalendarMonthsDateKey(endSnapshot.snapshotDate, monthsBack);
+  const selected = snapshots.filter(
+    (snapshot) => snapshot.snapshotDate >= startDate && snapshot.snapshotDate <= endSnapshot.snapshotDate
+  );
   return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots)));
 }
 

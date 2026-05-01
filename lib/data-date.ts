@@ -26,6 +26,37 @@ export function normalizeDataDate(value: string | undefined | null): string | un
   return value;
 }
 
+function daysInMonth(year: number, monthIndex: number): number {
+  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+}
+
+function toDateKey(year: number, monthIndex: number, day: number): string {
+  return [
+    String(year).padStart(4, "0"),
+    String(monthIndex + 1).padStart(2, "0"),
+    String(day).padStart(2, "0")
+  ].join("-");
+}
+
+export function subtractCalendarMonthsDateKey(dateKey: string, monthsBack: number): string {
+  const normalizedDate = normalizeDataDate(dateKey);
+  if (!normalizedDate) {
+    return dateKey;
+  }
+
+  const [yearPart, monthPart, dayPart] = normalizedDate.split("-");
+  const year = Number(yearPart);
+  const monthIndex = Number(monthPart) - 1;
+  const day = Number(dayPart);
+  const safeMonthsBack = Math.max(0, Math.trunc(monthsBack));
+  const totalMonthIndex = year * 12 + monthIndex - safeMonthsBack;
+  const targetYear = Math.floor(totalMonthIndex / 12);
+  const targetMonthIndex = totalMonthIndex - targetYear * 12;
+  const targetDay = Math.min(day, daysInMonth(targetYear, targetMonthIndex));
+
+  return toDateKey(targetYear, targetMonthIndex, targetDay);
+}
+
 export function extractDataDateParam(
   searchParams: Record<string, SearchParamValue>
 ): string | undefined {
@@ -44,6 +75,7 @@ export function isDataDateScopedPath(pathname: string): boolean {
   return (
     pathname === "/cyber-cop" ||
     pathname === "/discovery-coverage" ||
+    pathname === "/measures" ||
     pathname === "/report" ||
     pathname === "/networks" ||
     pathname.startsWith("/networks/") ||

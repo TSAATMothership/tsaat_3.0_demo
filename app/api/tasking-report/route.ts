@@ -1,23 +1,36 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
-import { buildKpiRows, buildSpiRows } from "@/lib/measures";
+import {
+  loadDatasetForDate,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSnapshotsForDateWindow
+} from "@/lib/data-loader";
+import { buildKpiRows } from "@/lib/measures";
+import {
+  buildSpiReportModel,
+  buildSpiTrendReportModel,
+  SpiReportModel,
+  SpiTrendReportModel
+} from "@/lib/spi-report-model";
 import {
   remediationActionsForKpi,
-  remediationActionsForSpi,
   taskingConditionForKpi,
-  taskingConditionForSpi,
-  teamsForKpi,
-  teamsForSpi
+  teamsForKpi
 } from "@/lib/tasking";
+import {
+  TASKING_REPORT_CONTENT_TYPE,
+  taskingReportDataDateFromSearchParams,
+  taskingReportFilename
+} from "@/lib/tasking-report-links";
 import { filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
 import { AnalyticsResult, Dataset, ICTSystem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type Kind = "kpi" | "spi";
+type Kind = "kpi" | "spi" | "spi-trend";
 
 interface CriticalSystemComplianceRow {
   systemId: string;
@@ -212,16 +225,502 @@ function unmodelledSystemRows(systems: ICTSystem[]): UnmodelledSystemRow[] {
     .sort((a, b) => a.systemName.localeCompare(b.systemName));
 }
 
+interface PdfDrawContext {
+  pdfDoc: PDFDocument;
+  page: PDFPage;
+  y: number;
+  pageTitle: string;
+  snapshotDate: string;
+  fontRegular: PDFFont;
+  fontBold: PDFFont;
+}
+
+const PAGE_WIDTH = 595.28;
+const PAGE_HEIGHT = 841.89;
+const LEFT_MARGIN = 32;
+const RIGHT_MARGIN = 32;
+const BOTTOM_MARGIN = 36;
+const CONTENT_WIDTH = PAGE_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
+
+function createReportPage({
+  pdfDoc,
+  pageTitle,
+  snapshotDate,
+  fontRegular,
+  fontBold
+}: {
+  pdfDoc: PDFDocument;
+  pageTitle: string;
+  snapshotDate: string;
+  fontRegular: PDFFont;
+  fontBold: PDFFont;
+}): { page: PDFPage; y: number } {
+  const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 62, width: PAGE_WIDTH, height: 62, color: rgb(0.04, 0.16, 0.27) });
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 67, width: PAGE_WIDTH, height: 5, color: rgb(0.36, 0.75, 0.88) });
+  page.drawText(pageTitle, {
+    x: LEFT_MARGIN,
+    y: PAGE_HEIGHT - 34,
+    size: 13,
+    font: fontBold,
+    color: rgb(0.92, 0.97, 1)
+  });
+  page.drawText(`Snapshot Date: ${snapshotDate}`, {
+    x: LEFT_MARGIN,
+    y: PAGE_HEIGHT - 52,
+    size: 9,
+    font: fontRegular,
+    color: rgb(0.84, 0.91, 0.96)
+  });
+  page.drawText("Generated from the current filtered operational scope.", {
+    x: LEFT_MARGIN,
+    y: 20,
+    size: 8,
+    font: fontRegular,
+    color: rgb(0.42, 0.47, 0.54)
+  });
+  return { page, y: PAGE_HEIGHT - 92 };
+}
+
+function startNewReportPage(context: PdfDrawContext) {
+  const pageState = createReportPage(context);
+  context.page = pageState.page;
+  context.y = pageState.y;
+}
+
+function ensureReportSpace(context: PdfDrawContext, requiredHeight: number) {
+  if (context.y - requiredHeight < BOTTOM_MARGIN) {
+    startNewReportPage(context);
+  }
+}
+
+function drawReportHeading(context: PdfDrawContext, text: string) {
+  ensureReportSpace(context, 28);
+  context.page.drawText(text, {
+    x: LEFT_MARGIN,
+    y: context.y,
+    size: 12,
+    font: context.fontBold,
+    color: rgb(0.07, 0.2, 0.31)
+  });
+  context.y -= 18;
+}
+
+function drawReportParagraph(context: PdfDrawContext, text: string, options: { size?: number; indent?: number } = {}) {
+  const size = options.size ?? 10;
+  const indent = options.indent ?? 0;
+  const lineHeight = size + 3;
+  const lines = wrapText(text, context.fontRegular, size, CONTENT_WIDTH - indent);
+  ensureReportSpace(context, lines.length * lineHeight + 8);
+  for (const line of lines) {
+    context.page.drawText(line, {
+      x: LEFT_MARGIN + indent,
+      y: context.y,
+      size,
+      font: context.fontRegular,
+      color: rgb(0.14, 0.17, 0.22)
+    });
+    context.y -= lineHeight;
+  }
+  context.y -= 6;
+}
+
+function drawReportBullet(context: PdfDrawContext, text: string) {
+  drawReportParagraph(context, `- ${text}`, { indent: 8 });
+}
+
+function drawReportTable(context: PdfDrawContext, headers: string[], rows: string[][], columnWidths: number[]) {
+  const drawHeader = () => {
+    const headerHeight = 22;
+    ensureReportSpace(context, headerHeight + 8);
+    let x = LEFT_MARGIN;
+    for (let index = 0; index < headers.length; index += 1) {
+      const width = columnWidths[index] ?? 80;
+      context.page.drawRectangle({
+        x,
+        y: context.y - headerHeight + 5,
+        width,
+        height: headerHeight,
+        color: rgb(0.06, 0.18, 0.3),
+        borderColor: rgb(0.58, 0.73, 0.84),
+        borderWidth: 0.5
+      });
+      context.page.drawText(headers[index] ?? "", {
+        x: x + 4,
+        y: context.y - 9,
+        size: 8,
+        font: context.fontBold,
+        color: rgb(0.92, 0.97, 1)
+      });
+      x += width;
+    }
+    context.y -= headerHeight;
+  };
+
+  drawHeader();
+
+  const visibleRows = rows.length ? rows : [["None in current filtered scope.", ...headers.slice(1).map(() => "")]];
+
+  for (const row of visibleRows) {
+    const cellLines = row.map((cell, index) =>
+      wrapText(String(cell ?? ""), context.fontRegular, 8, Math.max((columnWidths[index] ?? 80) - 8, 20))
+    );
+    const rowHeight = Math.max(22, Math.max(...cellLines.map((lines) => lines.length)) * 10 + 10);
+
+    if (context.y - rowHeight < BOTTOM_MARGIN) {
+      startNewReportPage(context);
+      drawHeader();
+    }
+
+    let x = LEFT_MARGIN;
+    for (let index = 0; index < headers.length; index += 1) {
+      const width = columnWidths[index] ?? 80;
+      context.page.drawRectangle({
+        x,
+        y: context.y - rowHeight + 5,
+        width,
+        height: rowHeight,
+        color: rgb(0.98, 0.99, 1),
+        borderColor: rgb(0.82, 0.88, 0.95),
+        borderWidth: 0.5
+      });
+
+      let textY = context.y - 8;
+      for (const line of cellLines[index] ?? [""]) {
+        context.page.drawText(line, {
+          x: x + 4,
+          y: textY,
+          size: 8,
+          font: context.fontRegular,
+          color: rgb(0.16, 0.2, 0.27)
+        });
+        textY -= 10;
+      }
+      x += width;
+    }
+
+    context.y -= rowHeight;
+  }
+
+  context.y -= 12;
+}
+
+function drawSpiTrendChart(context: PdfDrawContext, model: SpiTrendReportModel) {
+  const points = model.trendPoints;
+  const chartHeight = 224;
+  ensureReportSpace(context, chartHeight + 8);
+
+  const top = context.y;
+  const chartX = LEFT_MARGIN;
+  const chartY = top - chartHeight + 10;
+  const chartWidth = CONTENT_WIDTH;
+  const plotLeft = chartX + 44;
+  const plotRight = chartX + chartWidth - 12;
+  const plotTop = top - 30;
+  const plotBottom = chartY + 34;
+  const plotWidth = plotRight - plotLeft;
+  const plotHeight = plotTop - plotBottom;
+  const maxCount = Math.max(
+    1,
+    ...points.flatMap((point) => [point.compliant, point.nonCompliant, point.unknown])
+  );
+
+  context.page.drawRectangle({
+    x: chartX,
+    y: chartY,
+    width: chartWidth,
+    height: chartHeight - 10,
+    color: rgb(0.97, 0.99, 1),
+    borderColor: rgb(0.82, 0.88, 0.95),
+    borderWidth: 0.6
+  });
+
+  const legend = [
+    { label: "Compliant", color: rgb(0.05, 0.52, 0.31) },
+    { label: "Non-compliant", color: rgb(0.79, 0.11, 0.16) },
+    { label: "Unknown", color: rgb(0.74, 0.45, 0.03) }
+  ];
+  let legendX = plotLeft;
+  for (const item of legend) {
+    context.page.drawRectangle({ x: legendX, y: top - 18, width: 8, height: 8, color: item.color });
+    context.page.drawText(item.label, {
+      x: legendX + 12,
+      y: top - 18,
+      size: 8,
+      font: context.fontRegular,
+      color: rgb(0.16, 0.2, 0.27)
+    });
+    legendX += 88;
+  }
+
+  for (const tick of [0, 0.5, 1]) {
+    const y = plotBottom + plotHeight * tick;
+    const value = Math.round(maxCount * tick);
+    context.page.drawLine({
+      start: { x: plotLeft, y },
+      end: { x: plotRight, y },
+      thickness: 0.35,
+      color: rgb(0.82, 0.88, 0.95)
+    });
+    context.page.drawText(String(value), {
+      x: chartX + 12,
+      y: y - 3,
+      size: 7,
+      font: context.fontRegular,
+      color: rgb(0.42, 0.47, 0.54)
+    });
+  }
+
+  context.page.drawLine({
+    start: { x: plotLeft, y: plotBottom },
+    end: { x: plotLeft, y: plotTop },
+    thickness: 0.6,
+    color: rgb(0.46, 0.56, 0.66)
+  });
+  context.page.drawLine({
+    start: { x: plotLeft, y: plotBottom },
+    end: { x: plotRight, y: plotBottom },
+    thickness: 0.6,
+    color: rgb(0.46, 0.56, 0.66)
+  });
+
+  const xForIndex = (index: number) => {
+    if (points.length <= 1) {
+      return plotLeft + plotWidth / 2;
+    }
+    return plotLeft + (plotWidth * index) / (points.length - 1);
+  };
+  const yForValue = (value: number) => plotBottom + (plotHeight * value) / maxCount;
+
+  const drawSeries = (
+    valueForPoint: (point: SpiTrendReportModel["trendPoints"][number]) => number,
+    color: { r: number; g: number; b: number }
+  ) => {
+    const seriesColor = rgb(color.r, color.g, color.b);
+    for (let index = 1; index < points.length; index += 1) {
+      const previous = points[index - 1];
+      const current = points[index];
+      context.page.drawLine({
+        start: { x: xForIndex(index - 1), y: yForValue(valueForPoint(previous)) },
+        end: { x: xForIndex(index), y: yForValue(valueForPoint(current)) },
+        thickness: 1.4,
+        color: seriesColor
+      });
+    }
+    points.forEach((point, index) => {
+      const x = xForIndex(index);
+      const y = yForValue(valueForPoint(point));
+      context.page.drawRectangle({ x: x - 2, y: y - 2, width: 4, height: 4, color: seriesColor });
+    });
+  };
+
+  drawSeries((point) => point.compliant, { r: 0.05, g: 0.52, b: 0.31 });
+  drawSeries((point) => point.nonCompliant, { r: 0.79, g: 0.11, b: 0.16 });
+  drawSeries((point) => point.unknown, { r: 0.74, g: 0.45, b: 0.03 });
+
+  const labelEvery = Math.max(1, Math.ceil(points.length / 5));
+  points.forEach((point, index) => {
+    if (index % labelEvery !== 0 && index !== points.length - 1) {
+      return;
+    }
+    const x = xForIndex(index);
+    context.page.drawText(point.snapshotDate.slice(5), {
+      x: x - 14,
+      y: chartY + 16,
+      size: 7,
+      font: context.fontRegular,
+      color: rgb(0.42, 0.47, 0.54)
+    });
+  });
+
+  context.y -= chartHeight;
+}
+
+function drawSpiTemplateReport({
+  pdfDoc,
+  fontRegular,
+  fontBold,
+  model,
+  snapshotDate,
+  filterText
+}: {
+  pdfDoc: PDFDocument;
+  fontRegular: PDFFont;
+  fontBold: PDFFont;
+  model: SpiReportModel;
+  snapshotDate: string;
+  filterText: string;
+}) {
+  const pageState = createReportPage({
+    pdfDoc,
+    pageTitle: model.reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  });
+  const context: PdfDrawContext = {
+    pdfDoc,
+    page: pageState.page,
+    y: pageState.y,
+    pageTitle: model.reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  };
+
+  drawReportHeading(context, "Report Name");
+  drawReportParagraph(context, model.reportName);
+  drawReportHeading(context, "Filter Scope");
+  drawReportParagraph(context, filterText, { size: 9 });
+  drawReportHeading(context, `Indicator: ${model.indicatorLabel}`);
+  drawReportParagraph(context, `Description: ${model.description}`);
+  drawReportParagraph(context, `Success Measure: ${model.successMeasure}`);
+  drawReportParagraph(context, `Score: ${model.scorePercent}%`);
+
+  drawReportTable(
+    context,
+    ["Current Score", "Compliant CIs", "Non-Compliant CIs", "Unknown", "Total CIs"],
+    [[`${model.scorePercent}%`, String(model.compliant), String(model.nonCompliant), String(model.unknown), String(model.total)]],
+    [104, 104, 116, 94, 84]
+  );
+
+  drawReportHeading(context, "Non-Compliant CIs by Asset Type");
+  drawReportTable(
+    context,
+    model.assetTypeBreakdown.map((group) => group.label),
+    [model.assetTypeBreakdown.map((group) => String(group.nonCompliant))],
+    [84, 92, 99, 99, 84, 73]
+  );
+
+  drawReportHeading(context, "Unknown Score CIs by Asset Type");
+  drawReportTable(
+    context,
+    model.assetTypeBreakdown.map((group) => group.label),
+    [model.assetTypeBreakdown.map((group) => String(group.unknown))],
+    [84, 92, 99, 99, 84, 73]
+  );
+
+  drawReportHeading(context, "Observed Non-compliant Condition");
+  drawReportParagraph(context, model.observedNonCompliantCondition);
+  drawReportHeading(context, "Observed Unknown CI Score needing investigation");
+  drawReportParagraph(context, model.observedUnknownCondition);
+
+  drawReportHeading(context, "Remediation Actions");
+  for (const action of model.remediationActions) {
+    drawReportBullet(context, action);
+  }
+
+  drawReportHeading(context, "Supporting Findings Annex A:");
+  drawReportParagraph(context, "This table presents the list of CIs where a compliance score can be calculated.");
+  drawReportTable(
+    context,
+    ["CI Name", "Asset Type", "Score (Compliant/Non-Compliant)"],
+    model.annexA.map((row) => [row.ciName, row.assetTypeLabel, row.score]),
+    [255, 126, 150]
+  );
+
+  drawReportHeading(context, "Supporting Findings Annex B:");
+  drawReportParagraph(context, "This table presents the list of CIs where a compliance score cannot be calculated (Unknown).");
+  drawReportTable(
+    context,
+    ["CI Name", "Asset Type", "Score (Unknown)"],
+    model.annexB.map((row) => [row.ciName, row.assetTypeLabel, row.score]),
+    [255, 126, 150]
+  );
+}
+
+function drawSpiTrendTemplateReport({
+  pdfDoc,
+  fontRegular,
+  fontBold,
+  model,
+  snapshotDate,
+  filterText
+}: {
+  pdfDoc: PDFDocument;
+  fontRegular: PDFFont;
+  fontBold: PDFFont;
+  model: SpiTrendReportModel;
+  snapshotDate: string;
+  filterText: string;
+}) {
+  const current = model.current;
+  const pageState = createReportPage({
+    pdfDoc,
+    pageTitle: model.reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  });
+  const context: PdfDrawContext = {
+    pdfDoc,
+    page: pageState.page,
+    y: pageState.y,
+    pageTitle: model.reportName,
+    snapshotDate,
+    fontRegular,
+    fontBold
+  };
+
+  drawReportHeading(context, "Report Name");
+  drawReportParagraph(context, model.reportName);
+  drawReportHeading(context, "Filter Scope");
+  drawReportParagraph(context, filterText, { size: 9 });
+  drawReportHeading(context, `Indicator: ${current.indicatorLabel}`);
+  drawReportParagraph(context, `Description: ${current.description}`);
+  drawReportParagraph(context, `Success Measure: ${current.successMeasure}`);
+  drawReportParagraph(context, `Score: ${current.scorePercent}%`);
+
+  drawReportTable(
+    context,
+    ["Current Score", "Compliant CIs", "Non-Compliant CIs", "Unknown", "Total CIs"],
+    [
+      [
+        `${current.scorePercent}%`,
+        String(current.compliant),
+        String(current.nonCompliant),
+        String(current.unknown),
+        String(current.total)
+      ]
+    ],
+    [104, 104, 116, 94, 84]
+  );
+
+  drawReportHeading(context, "Non-Compliant CIs by Asset Type");
+  drawReportTable(
+    context,
+    current.assetTypeBreakdown.map((group) => group.label),
+    [current.assetTypeBreakdown.map((group) => String(group.nonCompliant))],
+    [84, 92, 99, 99, 84, 73]
+  );
+
+  drawReportHeading(context, "Unknown Score CIs by Asset Type");
+  drawReportTable(
+    context,
+    current.assetTypeBreakdown.map((group) => group.label),
+    [current.assetTypeBreakdown.map((group) => String(group.unknown))],
+    [84, 92, 99, 99, 84, 73]
+  );
+
+  drawReportHeading(context, "12 months Trend Chart");
+  drawReportParagraph(
+    context,
+    `This chart shows the Compliant CIs, Non-compliant CIs and Unknown CIs over the available snapshot period between ${model.rangeStartDate} and ${model.rangeEndDate}.`
+  );
+  drawSpiTrendChart(context, model);
+}
+
 export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get("kind") as Kind | null;
   const id = request.nextUrl.searchParams.get("id");
 
-  if (!kind || !id || !["kpi", "spi"].includes(kind)) {
+  if (!kind || !id || !["kpi", "spi", "spi-trend"].includes(kind)) {
     return NextResponse.json({ error: "Missing or invalid kind/id parameters." }, { status: 400 });
   }
 
+  const requestedDataDate = taskingReportDataDateFromSearchParams(request.nextUrl.searchParams);
   const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
-    loadCurrentDataset(),
+    loadDatasetForDate(requestedDataDate),
     loadMeasuresSettings(),
     loadDiscoveryToolsSettings()
   ]);
@@ -231,12 +730,77 @@ export async function GET(request: NextRequest) {
   const scopedNetworks = filterNetworks(dataset.managedNetworks, filters);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
 
-  const kpiRows = buildKpiRows(analytics, scopedSystems, scopedNetworks);
-  const spiRows = buildSpiRows(analytics);
-
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  if (kind === "spi") {
+    const spiModel = buildSpiReportModel({ dataset, analytics, spiId: Number(id) });
+    if (!spiModel) {
+      return notFoundResponse("SPI row not found for supplied id.");
+    }
+
+    drawSpiTemplateReport({
+      pdfDoc,
+      fontRegular,
+      fontBold,
+      model: spiModel,
+      snapshotDate: dataset.snapshotDate,
+      filterText: filterSummary(request.nextUrl.searchParams)
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;
+
+    return new Response(pdfArrayBuffer, {
+      headers: {
+        "Content-Type": TASKING_REPORT_CONTENT_TYPE,
+        "Content-Disposition": `attachment; filename=${taskingReportFilename(kind, id)}`
+      }
+    });
+  }
+
+  if (kind === "spi-trend") {
+    const trendDatasets = await loadSnapshotsForDateWindow(dataset.snapshotDate, 12);
+    const trendModel = buildSpiTrendReportModel({
+      spiId: Number(id),
+      snapshots: trendDatasets.map((trendDataset) => ({
+        dataset: trendDataset,
+        analytics: buildAnalytics(
+          trendDataset,
+          trendDataset.ictSystems,
+          filters,
+          measuresSettings,
+          discoveryToolsSettings
+        )
+      }))
+    });
+
+    if (!trendModel) {
+      return notFoundResponse("SPI trend row not found for supplied id.");
+    }
+
+    drawSpiTrendTemplateReport({
+      pdfDoc,
+      fontRegular,
+      fontBold,
+      model: trendModel,
+      snapshotDate: dataset.snapshotDate,
+      filterText: filterSummary(request.nextUrl.searchParams)
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;
+
+    return new Response(pdfArrayBuffer, {
+      headers: {
+        "Content-Type": TASKING_REPORT_CONTENT_TYPE,
+        "Content-Disposition": `attachment; filename=${taskingReportFilename(kind, id)}`
+      }
+    });
+  }
+
+  const kpiRows = buildKpiRows(analytics, scopedSystems, scopedNetworks);
 
   const page = pdfDoc.addPage([595.28, 841.89]);
 
@@ -536,113 +1100,6 @@ export async function GET(request: NextRequest) {
         color: { r: 0.14, g: 0.17, b: 0.22 }
       });
     }
-  } else {
-    const spiId = Number(id);
-    const row = spiRows.find((item) => item.spiId === spiId);
-    if (!row) {
-      return notFoundResponse("SPI row not found for supplied id.");
-    }
-
-    page.drawText(`Indicator: SPI-${row.spiId}`, {
-      x: 32,
-      y,
-      size: 12,
-      font: fontBold,
-      color: rgb(0.07, 0.2, 0.31)
-    });
-    y -= 18;
-
-    y = drawWrappedBlock({
-      page,
-      text: `Description: ${row.description}`,
-      x: 32,
-      y,
-      maxWidth: 535,
-      lineHeight: 13,
-      font: fontRegular,
-      size: 10,
-      color: { r: 0.14, g: 0.17, b: 0.22 }
-    });
-    y = drawWrappedBlock({
-      page,
-      text: `Success Measure: ${row.successMeasure}`,
-      x: 32,
-      y: y - 4,
-      maxWidth: 535,
-      lineHeight: 13,
-      font: fontRegular,
-      size: 10,
-      color: { r: 0.14, g: 0.17, b: 0.22 }
-    });
-    y = drawWrappedBlock({
-      page,
-      text: `Current Score: ${row.scorePercent}% | Compliant=${row.compliant} | Non-compliant=${row.nonCompliant} | Unknown=${row.unknown} | Applicable=${row.total}`,
-      x: 32,
-      y: y - 4,
-      maxWidth: 535,
-      lineHeight: 13,
-      font: fontBold,
-      size: 10,
-      color: { r: 0.62, g: 0.16, b: 0.11 }
-    });
-
-    y -= 10;
-    page.drawText("Observed Non-compliant Condition", {
-      x: 32,
-      y,
-      size: 11,
-      font: fontBold,
-      color: rgb(0.07, 0.2, 0.31)
-    });
-    y = drawWrappedBlock({
-      page,
-      text: taskingConditionForSpi(row),
-      x: 32,
-      y: y - 14,
-      maxWidth: 535,
-      lineHeight: 13,
-      font: fontRegular,
-      size: 10,
-      color: { r: 0.14, g: 0.17, b: 0.22 }
-    });
-
-    y -= 8;
-    page.drawText("Remediation Actions", { x: 32, y, size: 11, font: fontBold, color: rgb(0.07, 0.2, 0.31) });
-    for (const action of remediationActionsForSpi(row)) {
-      y = drawWrappedBlock({
-        page,
-        text: `- ${action}`,
-        x: 40,
-        y: y - 14,
-        maxWidth: 525,
-        lineHeight: 13,
-        font: fontRegular,
-        size: 10,
-        color: { r: 0.14, g: 0.17, b: 0.22 }
-      });
-    }
-
-    y -= 6;
-    page.drawText("Operations Team to Contact", {
-      x: 32,
-      y,
-      size: 11,
-      font: fontBold,
-      color: rgb(0.07, 0.2, 0.31)
-    });
-    for (const team of teamsForSpi(row.spiId)) {
-      y = drawWrappedBlock({
-        page,
-        text: `- ${team.team} | Queue: ${team.supportQueue} | Email: ${team.contactEmail}`,
-        x: 40,
-        y: y - 14,
-        maxWidth: 525,
-        lineHeight: 13,
-        font: fontRegular,
-        size: 9,
-        color: { r: 0.14, g: 0.17, b: 0.22 }
-      });
-    }
   }
 
   page.drawText("This tasking report is generated from the current filtered operational scope.", {
@@ -654,13 +1111,12 @@ export async function GET(request: NextRequest) {
   });
 
   const pdfBytes = await pdfDoc.save();
-  const fileId = `${kind}-${String(id).toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
   const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;
 
   return new Response(pdfArrayBuffer, {
     headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename=tsaat-tasking-report-${fileId}.pdf`
+      "Content-Type": TASKING_REPORT_CONTENT_TYPE,
+      "Content-Disposition": `attachment; filename=${taskingReportFilename(kind, id)}`
     }
   });
 }

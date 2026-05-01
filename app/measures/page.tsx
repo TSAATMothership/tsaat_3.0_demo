@@ -103,9 +103,11 @@ export default async function MeasuresPage({
                 enableLoadingOverlay
               />
             </div>
-            <section className="grid min-h-0 auto-rows-fr gap-2 overflow-auto pr-1 xl:grid-cols-2">
-              <KpiComplianceChart data={kpiCompliancePoints} />
-              <SecurityPerformanceIndicatorComplianceChart data={spiCompliancePoints} />
+            <section className="min-h-0 overflow-auto pr-1">
+              <div className="grid h-full min-h-[28rem] w-full min-w-[calc(50rem+0.5rem)] grid-cols-[repeat(2,minmax(25rem,1fr))] gap-2">
+                <KpiComplianceChart data={kpiCompliancePoints} />
+                <SecurityPerformanceIndicatorComplianceChart data={spiCompliancePoints} />
+              </div>
             </section>
           </div>
         ) : activeTab === "measures-kpi" ? (
@@ -121,6 +123,7 @@ export default async function MeasuresPage({
             </div>
             <div className="min-h-0 flex-1">
               <KpiSpiMatrix
+                dataset={dataset}
                 analytics={analytics}
                 systems={systems}
                 networks={networks}
@@ -143,6 +146,7 @@ export default async function MeasuresPage({
             </div>
             <div className="min-h-0 flex-1">
               <KpiSpiMatrix
+                dataset={dataset}
                 analytics={analytics}
                 systems={systems}
                 networks={networks}

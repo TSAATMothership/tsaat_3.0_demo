@@ -1,5 +1,8 @@
-import { buildKpiRows, buildSpiRows } from "@/lib/measures";
-import { AnalyticsResult, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
+import type { ReactNode } from "react";
+import { buildKpiRows } from "@/lib/measures";
+import { buildSpiReportModels } from "@/lib/spi-report-model";
+import { buildTaskingReportHref } from "@/lib/tasking-report-links";
+import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 interface Option {
   id: string;
@@ -35,45 +38,95 @@ function summarizeFilterScope(filters: Filters, options: FilterOptions): string 
   ].join(" | ");
 }
 
-function toTaskingHref(kind: "kpi" | "spi", id: string, filters: Filters): string {
-  const params = new URLSearchParams();
-  params.set("kind", kind);
-  params.set("id", id);
-
-  if (filters.managedNetwork) {
-    params.set("network", filters.managedNetwork);
-  }
-  if (filters.ictSystem) {
-    params.set("system", filters.ictSystem);
-  }
-  if (filters.systemCriticality) {
-    params.set("criticality", filters.systemCriticality);
-  }
-  if (filters.securityDomain) {
-    params.set("securityDomain", filters.securityDomain);
-  }
-  if (filters.environment) {
-    params.set("environment", filters.environment);
-  }
-  if (filters.assetType) {
-    params.set("assetType", filters.assetType);
-  }
-  if (filters.severity) {
-    params.set("severity", filters.severity);
-  }
-  if (filters.missionCapability) {
-    params.set("mission", filters.missionCapability);
-  }
-  if (filters.businessService) {
-    params.set("service", filters.businessService);
-  }
-
-  return `/api/tasking-report?${params.toString()}`;
-}
-
 const KPI_TASKING_DISABLED = new Set(["KPI-1", "KPI-2", "KPI-3"]);
 
+function SpiField({
+  label,
+  children,
+  className = ""
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`min-w-0 px-4 py-3 ${className}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400/90">{label}</p>
+      <div className="mt-1.5 text-sm leading-5 text-slate-200">{children}</div>
+    </div>
+  );
+}
+
+function SpiMetric({
+  label,
+  value,
+  tone = "neutral"
+}: {
+  label: string;
+  value: string | number;
+  tone?: "neutral" | "good" | "danger" | "warning";
+}) {
+  const valueClass =
+    tone === "good"
+      ? "text-emerald-100"
+      : tone === "danger"
+        ? "text-red-100"
+        : tone === "warning"
+          ? "text-amber-100"
+          : "text-sky-100";
+  const cellClass =
+    tone === "good"
+      ? "bg-emerald-500/10 shadow-[inset_0_1px_0_rgba(110,231,183,0.08)]"
+      : tone === "danger"
+        ? "bg-red-500/10 shadow-[inset_0_1px_0_rgba(252,165,165,0.08)]"
+        : tone === "warning"
+          ? "bg-amber-500/10 shadow-[inset_0_1px_0_rgba(252,211,77,0.08)]"
+          : "bg-sky-500/10 shadow-[inset_0_1px_0_rgba(125,211,252,0.08)]";
+  const labelClass =
+    tone === "good"
+      ? "text-emerald-100/75"
+      : tone === "danger"
+        ? "text-red-100/75"
+        : tone === "warning"
+          ? "text-amber-100/75"
+          : "text-sky-100/75";
+
+  return (
+    <div className={`min-w-0 px-4 py-3 ${cellClass}`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${labelClass}`}>{label}</p>
+      <p className={`mt-2 text-2xl font-semibold ${valueClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function SpiAssetTypeCell({
+  label,
+  nonCompliant,
+  unknown
+}: {
+  label: string;
+  nonCompliant: number;
+  unknown: number;
+}) {
+  return (
+    <div className="min-w-0 border-r border-slate-600/30 bg-slate-800/45 px-4 py-3 last:border-r-0">
+      <div className="flex min-h-6 items-center justify-between gap-2">
+        <p className="truncate text-sm font-semibold text-slate-100">{label}</p>
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-xs">
+        <span className="rounded-sm border border-red-300/20 bg-red-500/10 px-2 py-1 text-red-100">
+          NC {nonCompliant}
+        </span>
+        <span className="rounded-sm border border-amber-200/20 bg-amber-500/10 px-2 py-1 text-amber-100">
+          U {unknown}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function KpiSpiMatrix({
+  dataset,
   analytics,
   systems,
   networks,
@@ -81,6 +134,7 @@ export function KpiSpiMatrix({
   filterOptions,
   mode
 }: {
+  dataset: Dataset;
   analytics: AnalyticsResult;
   systems: ICTSystem[];
   networks: ManagedNetwork[];
@@ -89,13 +143,13 @@ export function KpiSpiMatrix({
   mode: "kpi" | "spi";
 }) {
   const kpiRows = mode === "kpi" ? buildKpiRows(analytics, systems, networks) : [];
-  const spiRows = mode === "spi" ? buildSpiRows(analytics) : [];
+  const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics) : [];
 
   return (
     <section className="panel flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-sky-400/15 px-4 py-3">
         <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-          {mode === "kpi" ? "KPI Performance Matrix" : "SPI Performance Matrix"}
+          {mode === "kpi" ? "KPI Performance Matrix" : "SPI Report Index"}
         </h2>
         <p className="mt-2 text-xs text-slate-300/80">Scores are computed on currently filtered scope.</p>
         <p className="mt-1 text-xs text-slate-300/70">{summarizeFilterScope(filters, filterOptions)}</p>
@@ -132,7 +186,12 @@ export function KpiSpiMatrix({
                         <span className="text-xs text-slate-400/80">Not available</span>
                       ) : (
                         <a
-                          href={toTaskingHref("kpi", row.id, filters)}
+                          href={buildTaskingReportHref({
+                            kind: "kpi",
+                            id: row.id,
+                            filters,
+                            dataDate: dataset.snapshotDate
+                          })}
                           className="text-xs font-semibold text-sky-200 underline"
                         >
                           Generate PDF
@@ -147,47 +206,72 @@ export function KpiSpiMatrix({
         ) : (
           <>
             <h3 className="mb-2 text-xs uppercase tracking-[0.14em] text-slate-300/85">
-              Security Posture Indicators (SPI)
+              Security Posture Indicator Report Index
             </h3>
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                <tr>
-                  <th className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-2">SPI</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2">Success Measure</th>
-                  <th className="px-3 py-2">Score (%)</th>
-                  <th className="px-3 py-2">Compliant</th>
-                  <th className="px-3 py-2">Non-compliant</th>
-                  <th className="px-3 py-2">Unknown</th>
-                  <th className="px-3 py-2">Applicable</th>
-                  <th className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-2">Tasking Report</th>
-                </tr>
-              </thead>
-              <tbody>
-                {spiRows.map((row) => (
-                  <tr key={row.spiId} className="border-t border-sky-400/10 align-top">
-                    <td className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-3 font-semibold text-slate-100">
-                      SPI {row.spiId}
-                    </td>
-                    <td className="px-3 py-3 text-slate-300/90">{row.description}</td>
-                    <td className="px-3 py-3 text-slate-300/90">{row.successMeasure}</td>
-                    <td className="px-3 py-3 text-slate-100">{row.scorePercent}%</td>
-                    <td className="px-3 py-3 text-emerald-200">{row.compliant}</td>
-                    <td className="px-3 py-3 text-red-200">{row.nonCompliant}</td>
-                    <td className="px-3 py-3 text-amber-100">{row.unknown}</td>
-                    <td className="px-3 py-3 text-slate-200">{row.total}</td>
-                    <td className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-3">
-                      <a
-                        href={toTaskingHref("spi", String(row.spiId), filters)}
-                        className="text-xs font-semibold text-sky-200 underline"
-                      >
-                        Generate PDF
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid min-w-[96rem] gap-4">
+              {spiReports.map((report) => (
+                <article
+                  key={report.spiId}
+                  className="overflow-hidden rounded-lg border border-sky-400/20 bg-slate-950/45 shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
+                >
+                  <div className="grid grid-cols-2 border-b border-sky-400/15">
+                    <div className="grid grid-cols-[minmax(12rem,0.72fr)_minmax(17rem,1fr)_minmax(19rem,1.1fr)] divide-x divide-sky-400/10 bg-slate-900/30">
+                      <SpiField label={report.indicatorLabel}>
+                        <p className="text-base font-semibold text-sky-100">{report.name}</p>
+                      </SpiField>
+                      <SpiField label="Description">{report.description}</SpiField>
+                      <SpiField label="Success Measure">{report.successMeasure}</SpiField>
+                    </div>
+
+                    <div className="grid grid-cols-[repeat(4,minmax(7rem,1fr))_minmax(12rem,0.95fr)] divide-x divide-sky-400/10 bg-slate-950/25">
+                      <SpiMetric label="Score" value={`${report.scorePercent}%`} />
+                      <SpiMetric label="Compliant" value={report.compliant} tone="good" />
+                      <SpiMetric label="Non-Compliant" value={report.nonCompliant} tone="danger" />
+                      <SpiMetric label="Unknown" value={report.unknown} tone="warning" />
+                      <div className="flex flex-col items-stretch justify-center gap-2 px-4 py-3">
+                        <a
+                          href={buildTaskingReportHref({
+                            kind: "spi",
+                            id: String(report.spiId),
+                            filters,
+                            dataDate: dataset.snapshotDate
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-sky-100 transition hover:border-sky-200/70 hover:bg-sky-500/25"
+                        >
+                          Generate SPI Report
+                        </a>
+                        <a
+                          href={buildTaskingReportHref({
+                            kind: "spi-trend",
+                            id: String(report.spiId),
+                            filters,
+                            dataDate: dataset.snapshotDate
+                          })}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-md border border-emerald-300/35 bg-emerald-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-500/20"
+                        >
+                          Generate Trend Report
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-6 bg-slate-900/20">
+                    {report.assetTypeBreakdown.map((group) => (
+                      <SpiAssetTypeCell
+                        key={group.id}
+                        label={group.label}
+                        nonCompliant={group.nonCompliant}
+                        unknown={group.unknown}
+                      />
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
           </>
         )}
       </div>

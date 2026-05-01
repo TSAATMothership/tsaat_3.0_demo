@@ -36,85 +36,97 @@ function ComplianceRadarChart({
   subtitle: string;
   data: CompliancePoint[];
 }) {
+  const panelClassName = "panel flex h-full min-h-[28rem] min-w-0 flex-col overflow-hidden p-4";
+
   if (!data.length) {
     return (
-      <div className="panel p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">{title}</h3>
-        <p className="mt-3 text-sm text-slate-300/80">No compliance data in the current filter scope.</p>
+      <div className={panelClassName}>
+        <h3 className="shrink-0 text-sm uppercase tracking-[0.14em] text-slate-200/85">{title}</h3>
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <p className="text-sm text-slate-300/80">No compliance data in the current filter scope.</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="panel p-4">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">{title}</h3>
-      <div className="mt-3 h-[796px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <RadarChart data={data} outerRadius="84%" margin={{ top: 8, right: 18, bottom: 8, left: 18 }}>
-            <PolarGrid stroke="rgba(120,180,210,0.2)" />
-            <PolarAngleAxis dataKey="label" tick={{ fill: "#c8ddec", fontSize: 11 }} />
-            <PolarRadiusAxis
-              domain={[0, 100]}
-              tickCount={6}
-              tick={{ fill: "#a2c2d4", fontSize: 10 }}
-              tickFormatter={(value) => `${value}%`}
-            />
-            <Tooltip
-              contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #94a3b8", color: "#000000" }}
-              labelStyle={{ color: "#000000" }}
-              labelFormatter={(_, payload) => {
-                const point = payload?.[0]?.payload as CompliancePoint | undefined;
-                if (!point) {
-                  return "Metric";
-                }
-                return `${point.label} - ${point.description}`;
-              }}
-              formatter={(value, name, payload) => {
-                if (name === "Target 100%") {
-                  return [
-                    <span key="target-value" style={{ color: "#46c0de" }}>
-                      {possibleComplianceDisplay(payload?.payload)}
-                    </span>,
-                    <span key="target-name" style={{ color: "#46c0de" }}>
-                      Target 100%
-                    </span>
-                  ];
-                }
-                if (name === "Compliance Score") {
-                  const raw = payload?.payload?.actualCompliance ?? 0;
-                  return [
-                    <span key="score-value" style={{ color: "#ff5a40" }}>
-                      {`${raw} (${value}%)`}
-                    </span>,
-                    <span key="score-name" style={{ color: "#ff5a40" }}>
-                      Compliance Score
-                    </span>
-                  ];
-                }
-                return [value, name];
-              }}
-            />
-            <Legend />
-            <Radar
-              name="Target 100%"
-              dataKey="possibleCompliancePercent"
-              stroke="#46c0de"
-              fill="#46c0de"
-              fillOpacity={0.18}
-              isAnimationActive={false}
-            />
-            <Radar
-              name="Compliance Score"
-              dataKey="actualCompliancePercent"
-              stroke="#ff5a40"
-              fill="#ff5a40"
-              fillOpacity={0.28}
-              isAnimationActive={false}
-            />
-          </RadarChart>
-        </ResponsiveContainer>
+    <div className={panelClassName}>
+      <h3 className="shrink-0 text-sm uppercase tracking-[0.14em] text-slate-200/85">{title}</h3>
+      <div className="mt-3 flex min-h-[20rem] flex-1 items-center justify-center overflow-hidden">
+        <div className="h-full min-h-[20rem] w-full min-w-[20rem]">
+          <ResponsiveContainer width="100%" height="100%" minWidth={320} minHeight={320}>
+            <RadarChart
+              data={data}
+              cx="50%"
+              cy="50%"
+              outerRadius="84%"
+              margin={{ top: 8, right: 18, bottom: 8, left: 18 }}
+            >
+              <PolarGrid stroke="rgba(120,180,210,0.2)" />
+              <PolarAngleAxis dataKey="label" tick={{ fill: "#c8ddec", fontSize: 11 }} />
+              <PolarRadiusAxis
+                domain={[0, 100]}
+                tickCount={6}
+                tick={{ fill: "#a2c2d4", fontSize: 10 }}
+                tickFormatter={(value) => `${value}%`}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #94a3b8", color: "#000000" }}
+                labelStyle={{ color: "#000000" }}
+                labelFormatter={(_, payload) => {
+                  const point = payload?.[0]?.payload as CompliancePoint | undefined;
+                  if (!point) {
+                    return "Metric";
+                  }
+                  return `${point.label} - ${point.description}`;
+                }}
+                formatter={(value, name, payload) => {
+                  if (name === "Target 100%") {
+                    return [
+                      <span key="target-value" style={{ color: "#46c0de" }}>
+                        {possibleComplianceDisplay(payload?.payload)}
+                      </span>,
+                      <span key="target-name" style={{ color: "#46c0de" }}>
+                        Target 100%
+                      </span>
+                    ];
+                  }
+                  if (name === "Compliance Score") {
+                    const raw = payload?.payload?.actualCompliance ?? 0;
+                    return [
+                      <span key="score-value" style={{ color: "#ff5a40" }}>
+                        {`${raw} (${value}%)`}
+                      </span>,
+                      <span key="score-name" style={{ color: "#ff5a40" }}>
+                        Compliance Score
+                      </span>
+                    ];
+                  }
+                  return [value, name];
+                }}
+              />
+              <Legend />
+              <Radar
+                name="Target 100%"
+                dataKey="possibleCompliancePercent"
+                stroke="#46c0de"
+                fill="#46c0de"
+                fillOpacity={0.18}
+                isAnimationActive={false}
+              />
+              <Radar
+                name="Compliance Score"
+                dataKey="actualCompliancePercent"
+                stroke="#ff5a40"
+                fill="#ff5a40"
+                fillOpacity={0.28}
+                isAnimationActive={false}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
-      <p className="mt-2 text-xs text-slate-300/75">{subtitle}</p>
+      <p className="mt-2 shrink-0 text-xs text-slate-300/75">{subtitle}</p>
     </div>
   );
 }
