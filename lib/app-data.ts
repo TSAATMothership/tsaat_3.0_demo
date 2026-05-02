@@ -1,4 +1,10 @@
-import { getCachedAnalytics } from "@/lib/analytics-cache";
+import {
+  datasetCacheSignature,
+  filtersCacheKey,
+  getCachedAnalytics,
+  settingsCacheSignature
+} from "@/lib/analytics-cache";
+import { getCachedCoreAppData, getCachedTrendAppData } from "@/lib/app-data-cache";
 import {
   loadDiscoveryToolsSettings,
   loadDatasetForDate,
@@ -7,6 +13,7 @@ import {
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
 import { buildFilterOptions, filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
+import { stableCacheKey } from "@/lib/server-cache";
 import { buildTrendPoints } from "@/lib/trends";
 
 export async function getCoreAppData(searchParams: Record<string, string | string[] | undefined> = {}) {
@@ -18,21 +25,31 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
   ]);
   const filters = parseFilters(searchParams);
 
-  const analytics = getCachedAnalytics(dataset, filters, measuresSettings, discoveryToolsSettings);
-  const networks = filterNetworks(dataset.managedNetworks, filters);
-  const systems = filterSystems(dataset.ictSystems, filters);
-  const filterOptions = buildFilterOptions(dataset.managedNetworks, dataset.ictSystems);
+  const cacheKey = stableCacheKey([
+    "core",
+    dataDate ?? "",
+    datasetCacheSignature(dataset),
+    filtersCacheKey(filters),
+    settingsCacheSignature(measuresSettings, discoveryToolsSettings)
+  ]);
 
-  return {
-    dataset,
-    filters,
-    analytics,
-    networks,
-    systems,
-    filterOptions,
-    measuresSettings,
-    discoveryToolsSettings
-  };
+  return getCachedCoreAppData(cacheKey, async () => {
+    const analytics = getCachedAnalytics(dataset, filters, measuresSettings, discoveryToolsSettings);
+    const networks = filterNetworks(dataset.managedNetworks, filters);
+    const systems = filterSystems(dataset.ictSystems, filters);
+    const filterOptions = buildFilterOptions(dataset.managedNetworks, dataset.ictSystems);
+
+    return {
+      dataset,
+      filters,
+      analytics,
+      networks,
+      systems,
+      filterOptions,
+      measuresSettings,
+      discoveryToolsSettings
+    };
+  });
 }
 
 export async function getTrendAppData(
@@ -45,13 +62,26 @@ export async function getTrendAppData(
     getCoreAppData(searchParams),
     loadLatestSnapshotsForDate(dataDate, lookback)
   ]);
-  const trendPoints = options.includeTrendPoints
-    ? buildTrendPoints(snapshots, core.filters, core.measuresSettings, core.discoveryToolsSettings)
-    : undefined;
+  const cacheKey = stableCacheKey([
+    "trend",
+    dataDate ?? "",
+    lookback,
+    Boolean(options.includeTrendPoints),
+    datasetCacheSignature(core.dataset),
+    snapshots.map((snapshot) => datasetCacheSignature(snapshot)),
+    filtersCacheKey(core.filters),
+    settingsCacheSignature(core.measuresSettings, core.discoveryToolsSettings)
+  ]);
 
-  return {
-    ...core,
-    snapshots,
-    trendPoints
-  };
+  return getCachedTrendAppData(cacheKey, async () => {
+    const trendPoints = options.includeTrendPoints
+      ? buildTrendPoints(snapshots, core.filters, core.measuresSettings, core.discoveryToolsSettings)
+      : undefined;
+
+    return {
+      ...core,
+      snapshots,
+      trendPoints
+    };
+  });
 }

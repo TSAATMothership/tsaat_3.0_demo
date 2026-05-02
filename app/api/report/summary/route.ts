@@ -5,6 +5,8 @@ import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } 
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
 
+export const dynamic = "force-dynamic";
+
 function summaryReportFileName(snapshotDate: string): string {
   const safeDate = snapshotDate.replace(/[^0-9-]/g, "");
   return `tsaat-cyber-posture-summary-${safeDate}.pdf`;

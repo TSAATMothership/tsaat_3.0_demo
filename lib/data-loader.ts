@@ -9,6 +9,9 @@ import {
   normalizeDiscoveryToolsSettings
 } from "@/lib/discovery-tools-settings";
 import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } from "@/lib/measures-settings";
+import { clearAnalyticsCache } from "@/lib/analytics-cache";
+import { clearAppDataCaches } from "@/lib/app-data-cache";
+import { ServerMemoryCache } from "@/lib/server-cache";
 import { Asset, AssetType, Dataset, EnvironmentType, Finding, ReferenceVersions, SpiId } from "@/lib/types";
 import { executeSqlJson, executeSqlText, toSqlUnicodeLiteral } from "@/lib/sql-server";
 
@@ -16,6 +19,11 @@ type SnapshotRow = {
   snapshotId: number;
   snapshotDate: string;
   generatedAt: string;
+};
+
+type SettingsVersionRow = {
+  settingsVersionId: number;
+  updatedAt: string;
 };
 
 type ManagedNetworkRow = {
@@ -238,8 +246,54 @@ type DiscoveryToolScopeRow = {
 const DATA_SCHEMA = "tsaat";
 const SPI_ID_VALUES: SpiId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const ASSET_TYPES: AssetType[] = [...CANONICAL_ASSET_TYPES];
+const SNAPSHOT_ROWS_CACHE_TTL_MS = 60 * 1000;
+const DATASET_CACHE_TTL_MS = 30 * 60 * 1000;
+const REFERENCE_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SETTINGS_VERSION_CACHE_TTL_MS = 60 * 1000;
+const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
 
-const datasetBySnapshotIdCache = new Map<number, Dataset>();
+const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
+  namespace: "data:snapshot-rows",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const datasetBySnapshotIdCache = new ServerMemoryCache<Dataset>({
+  namespace: "data:dataset",
+  ttlMs: DATASET_CACHE_TTL_MS,
+  maxEntries: 36,
+  sliding: true
+});
+
+const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
+  namespace: "data:reference-versions",
+  ttlMs: REFERENCE_VERSIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const measuresSettingsVersionCache = new ServerMemoryCache<SettingsVersionRow | null>({
+  namespace: "settings:measures-version",
+  ttlMs: SETTINGS_VERSION_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const measuresSettingsByVersionCache = new ServerMemoryCache<MeasuresSettings>({
+  namespace: "settings:measures",
+  ttlMs: SETTINGS_BY_VERSION_CACHE_TTL_MS,
+  maxEntries: 24
+});
+
+const discoveryToolsSettingsVersionCache = new ServerMemoryCache<SettingsVersionRow | null>({
+  namespace: "settings:discovery-tools-version",
+  ttlMs: SETTINGS_VERSION_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const discoveryToolsSettingsByVersionCache = new ServerMemoryCache<DiscoveryToolsSettings>({
+  namespace: "settings:discovery-tools",
+  ttlMs: SETTINGS_BY_VERSION_CACHE_TTL_MS,
+  maxEntries: 24
+});
 
 function targetDateKey(requestedDate: string | undefined): string {
   return normalizeDataDate(requestedDate) ?? todayDateKey();
@@ -303,7 +357,8 @@ function ensureValidSnapshotId(snapshotId: number): number {
 }
 
 async function loadSnapshotRows(): Promise<SnapshotRow[]> {
-  return executeSqlJson<SnapshotRow[]>(`
+  return snapshotRowsCache.getOrSet("all", () =>
+    executeSqlJson<SnapshotRow[]>(`
 SELECT
   ds.[snapshot_id] AS [snapshotId],
   CONVERT(CHAR(10), ds.[snapshot_date], 23) AS [snapshotDate],
@@ -311,7 +366,8 @@ SELECT
 FROM [${DATA_SCHEMA}].[dataset_snapshot] ds
 ORDER BY ds.[snapshot_date] ASC, ds.[snapshot_id] ASC
 FOR JSON PATH;
-`);
+`)
+  );
 }
 
 function selectSnapshotRowForDate(rows: SnapshotRow[], requestedDate: string | undefined): SnapshotRow {
@@ -926,21 +982,16 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
 
 async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotRow[]): Promise<Dataset> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const cached = datasetBySnapshotIdCache.get(safeSnapshotId);
-  if (cached) {
-    return cached;
-  }
-
   const snapshotRows = snapshots ?? (await loadSnapshotRows());
   const snapshot = snapshotRows.find((row) => row.snapshotId === safeSnapshotId);
   if (!snapshot) {
     throw new Error(`Unable to find snapshot ${safeSnapshotId}.`);
   }
 
-  const payload = await loadSnapshotPayload(safeSnapshotId);
-  const dataset = buildDatasetFromSnapshotRow(snapshot, payload);
-  datasetBySnapshotIdCache.set(safeSnapshotId, dataset);
-  return dataset;
+  return datasetBySnapshotIdCache.getOrSet(`snapshot:${safeSnapshotId}:${snapshot.generatedAt}`, async () => {
+    const payload = await loadSnapshotPayload(safeSnapshotId);
+    return buildDatasetFromSnapshotRow(snapshot, payload);
+  });
 }
 
 export async function loadCurrentDataset(): Promise<Dataset> {
@@ -991,7 +1042,8 @@ export async function loadSnapshotsForDateWindow(
 }
 
 export async function loadReferenceVersions(): Promise<ReferenceVersions> {
-  const row = await executeSqlJson<{ versionSetId: number } | null>(`
+  return referenceVersionsCache.getOrSet("latest", async () => {
+    const row = await executeSqlJson<{ versionSetId: number } | null>(`
 SELECT TOP (1)
   version_ref.[version_set_id] AS [versionSetId]
 FROM (
@@ -1009,17 +1061,17 @@ ORDER BY
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `);
 
-  if (!row) {
-    return {
-      osCurrentMajor: {},
-      softwareSupportMatrix: {}
-    };
-  }
+    if (!row) {
+      return {
+        osCurrentMajor: {},
+        softwareSupportMatrix: {}
+      };
+    }
 
-  const versionSetId = row.versionSetId;
-  const [osRows, softwareRows] = await Promise.all([
-    executeSqlJson<Array<{ osKey: string; currentSupportedMajor: number }>>(
-      `
+    const versionSetId = row.versionSetId;
+    const [osRows, softwareRows] = await Promise.all([
+      executeSqlJson<Array<{ osKey: string; currentSupportedMajor: number }>>(
+        `
 SELECT
   osm.[os_key] AS [osKey],
   osm.[current_supported_major] AS [currentSupportedMajor]
@@ -1028,9 +1080,9 @@ WHERE osm.[version_set_id] = ${versionSetId}
 ORDER BY osm.[os_key]
 FOR JSON PATH;
 `
-    ),
-    executeSqlJson<Array<{ softwareName: string; versionOrdinal: number; version: string }>>(
-      `
+      ),
+      executeSqlJson<Array<{ softwareName: string; versionOrdinal: number; version: string }>>(
+        `
 SELECT
   ssv.[software_name] AS [softwareName],
   ssv.[version_ordinal] AS [versionOrdinal],
@@ -1040,45 +1092,72 @@ WHERE ssv.[version_set_id] = ${versionSetId}
 ORDER BY ssv.[software_name], ssv.[version_ordinal]
 FOR JSON PATH;
 `
-    )
-  ]);
+      )
+    ]);
 
-  const osCurrentMajor: Record<string, number> = {};
-  for (const rowItem of osRows) {
-    osCurrentMajor[rowItem.osKey] = rowItem.currentSupportedMajor;
-  }
-
-  const softwareSupportMatrix: Record<string, string[]> = {};
-  for (const rowItem of softwareRows) {
-    const existing = softwareSupportMatrix[rowItem.softwareName];
-    if (existing) {
-      existing.push(rowItem.version);
-    } else {
-      softwareSupportMatrix[rowItem.softwareName] = [rowItem.version];
+    const osCurrentMajor: Record<string, number> = {};
+    for (const rowItem of osRows) {
+      osCurrentMajor[rowItem.osKey] = rowItem.currentSupportedMajor;
     }
-  }
 
-  return {
-    osCurrentMajor,
-    softwareSupportMatrix
-  };
+    const softwareSupportMatrix: Record<string, string[]> = {};
+    for (const rowItem of softwareRows) {
+      const existing = softwareSupportMatrix[rowItem.softwareName];
+      if (existing) {
+        existing.push(rowItem.version);
+      } else {
+        softwareSupportMatrix[rowItem.softwareName] = [rowItem.version];
+      }
+    }
+
+    return {
+      osCurrentMajor,
+      softwareSupportMatrix
+    };
+  });
 }
 
-export async function loadMeasuresSettings(): Promise<MeasuresSettings> {
-  const version = await executeSqlJson<{ settingsVersionId: number; updatedAt: string } | null>(`
+function clearSettingsDependentCaches(): void {
+  clearAnalyticsCache();
+  clearAppDataCaches();
+}
+
+function clearMeasuresSettingsCaches(): void {
+  measuresSettingsVersionCache.clear();
+  measuresSettingsByVersionCache.clear();
+  clearSettingsDependentCaches();
+}
+
+function clearDiscoveryToolsSettingsCaches(): void {
+  discoveryToolsSettingsVersionCache.clear();
+  discoveryToolsSettingsByVersionCache.clear();
+  clearSettingsDependentCaches();
+}
+
+async function loadLatestMeasuresSettingsVersion(): Promise<SettingsVersionRow | null> {
+  return measuresSettingsVersionCache.getOrSet("latest", () =>
+    executeSqlJson<SettingsVersionRow | null>(`
 SELECT TOP (1)
   msv.[settings_version_id] AS [settingsVersionId],
   CONVERT(NVARCHAR(40), msv.[updated_at], 127) AS [updatedAt]
 FROM [${DATA_SCHEMA}].[measures_settings_version] msv
 ORDER BY msv.[updated_at] DESC, msv.[settings_version_id] DESC
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`);
+`)
+  );
+}
+
+export async function loadMeasuresSettings(): Promise<MeasuresSettings> {
+  const version = await loadLatestMeasuresSettingsVersion();
 
   if (!version) {
     return defaultMeasuresSettings();
   }
 
-  const rows = await executeSqlJson<MeasuresMatrixRow[]>(`
+  return measuresSettingsByVersionCache.getOrSet(
+    `version:${version.settingsVersionId}:${version.updatedAt}`,
+    async () => {
+      const rows = await executeSqlJson<MeasuresMatrixRow[]>(`
 SELECT
   msm.[spi_id] AS [spiId],
   msm.[asset_type] AS [assetType],
@@ -1089,15 +1168,17 @@ ORDER BY msm.[spi_id], msm.[asset_type]
 FOR JSON PATH;
 `);
 
-  const severityMatrix: Record<string, MeasuresMatrixRow["severity"]> = {};
-  for (const row of rows) {
-    severityMatrix[`${row.spiId}:${row.assetType}`] = row.severity;
-  }
+      const severityMatrix: Record<string, MeasuresMatrixRow["severity"]> = {};
+      for (const row of rows) {
+        severityMatrix[`${row.spiId}:${row.assetType}`] = row.severity;
+      }
 
-  return normalizeMeasuresSettings({
-    updatedAt: coerceIsoTimestamp(version.updatedAt),
-    severityMatrix
-  });
+      return normalizeMeasuresSettings({
+        updatedAt: coerceIsoTimestamp(version.updatedAt),
+        severityMatrix
+      });
+    }
+  );
 }
 
 export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSettings> {
@@ -1144,25 +1225,35 @@ ${valueTuples.join(",\n")};
 COMMIT TRANSACTION;
 `);
 
+  clearMeasuresSettingsCaches();
   return persisted;
 }
 
-export async function loadDiscoveryToolsSettings(): Promise<DiscoveryToolsSettings> {
-  const version = await executeSqlJson<{ settingsVersionId: number; updatedAt: string } | null>(`
+async function loadLatestDiscoveryToolsSettingsVersion(): Promise<SettingsVersionRow | null> {
+  return discoveryToolsSettingsVersionCache.getOrSet("latest", () =>
+    executeSqlJson<SettingsVersionRow | null>(`
 SELECT TOP (1)
   dsv.[settings_version_id] AS [settingsVersionId],
   CONVERT(NVARCHAR(40), dsv.[updated_at], 127) AS [updatedAt]
 FROM [${DATA_SCHEMA}].[discovery_tools_settings_version] dsv
 ORDER BY dsv.[updated_at] DESC, dsv.[settings_version_id] DESC
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`);
+`)
+  );
+}
+
+export async function loadDiscoveryToolsSettings(): Promise<DiscoveryToolsSettings> {
+  const version = await loadLatestDiscoveryToolsSettingsVersion();
 
   if (!version) {
     return defaultDiscoveryToolsSettings();
   }
 
-  const [toolRows, scopeRows] = await Promise.all([
-    executeSqlJson<DiscoveryToolRow[]>(`
+  return discoveryToolsSettingsByVersionCache.getOrSet(
+    `version:${version.settingsVersionId}:${version.updatedAt}`,
+    async () => {
+      const [toolRows, scopeRows] = await Promise.all([
+        executeSqlJson<DiscoveryToolRow[]>(`
 SELECT
   dt.[tool_id] AS [id],
   dt.[name] AS [name],
@@ -1174,7 +1265,7 @@ WHERE dt.[settings_version_id] = ${version.settingsVersionId}
 ORDER BY dt.[tool_id]
 FOR JSON PATH;
 `),
-    executeSqlJson<DiscoveryToolScopeRow[]>(`
+        executeSqlJson<DiscoveryToolScopeRow[]>(`
 SELECT
   dts.[tool_id] AS [toolId],
   dts.[asset_type] AS [assetType],
@@ -1184,31 +1275,33 @@ WHERE dts.[settings_version_id] = ${version.settingsVersionId}
 ORDER BY dts.[tool_id], dts.[asset_type]
 FOR JSON PATH;
 `)
-  ]);
+      ]);
 
-  const scopeByTool = toArrayMap(scopeRows, (row) => row.toolId);
-  const tools = toolRows.map((tool) => {
-    const toolScopes = scopeByTool.get(tool.id) ?? [];
-    const assetTypeScope: Record<AssetType, "required" | "na"> = createAssetTypeRecord(() => "required");
+      const scopeByTool = toArrayMap(scopeRows, (row) => row.toolId);
+      const tools = toolRows.map((tool) => {
+        const toolScopes = scopeByTool.get(tool.id) ?? [];
+        const assetTypeScope: Record<AssetType, "required" | "na"> = createAssetTypeRecord(() => "required");
 
-    for (const scope of toolScopes) {
-      assetTypeScope[scope.assetType] = scope.scopeSetting;
+        for (const scope of toolScopes) {
+          assetTypeScope[scope.assetType] = scope.scopeSetting;
+        }
+
+        return {
+          id: tool.id,
+          name: tool.name,
+          description: tool.description,
+          el2Owner: tool.el2Owner,
+          el2OperationsManager: tool.el2OperationsManager,
+          assetTypeScope
+        };
+      });
+
+      return normalizeDiscoveryToolsSettings({
+        updatedAt: coerceIsoTimestamp(version.updatedAt),
+        tools
+      });
     }
-
-    return {
-      id: tool.id,
-      name: tool.name,
-      description: tool.description,
-      el2Owner: tool.el2Owner,
-      el2OperationsManager: tool.el2OperationsManager,
-      assetTypeScope
-    };
-  });
-
-  return normalizeDiscoveryToolsSettings({
-    updatedAt: coerceIsoTimestamp(version.updatedAt),
-    tools
-  });
+  );
 }
 
 export async function saveDiscoveryToolsSettings(input: unknown): Promise<DiscoveryToolsSettings> {
@@ -1275,5 +1368,28 @@ ${scopeValues.join(",\n")};`
 COMMIT TRANSACTION;
 `);
 
+  clearDiscoveryToolsSettingsCaches();
   return persisted;
+}
+
+export function clearDataLoaderCaches(): void {
+  snapshotRowsCache.clear();
+  datasetBySnapshotIdCache.clear();
+  referenceVersionsCache.clear();
+  measuresSettingsVersionCache.clear();
+  measuresSettingsByVersionCache.clear();
+  discoveryToolsSettingsVersionCache.clear();
+  discoveryToolsSettingsByVersionCache.clear();
+  clearSettingsDependentCaches();
+}
+
+export function __resetDataLoaderCachesForTest(): void {
+  clearDataLoaderCaches();
+  snapshotRowsCache.resetStats();
+  datasetBySnapshotIdCache.resetStats();
+  referenceVersionsCache.resetStats();
+  measuresSettingsVersionCache.resetStats();
+  measuresSettingsByVersionCache.resetStats();
+  discoveryToolsSettingsVersionCache.resetStats();
+  discoveryToolsSettingsByVersionCache.resetStats();
 }

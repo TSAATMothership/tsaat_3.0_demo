@@ -6,6 +6,8 @@ import { loadDatasetForDate, loadDiscoveryToolsSettings, loadMeasuresSettings } 
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { Asset, ComplianceStatus } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 type KpiFilterKey =
   | "nonCompliantAssets"
   | "nonCompliantServers"
