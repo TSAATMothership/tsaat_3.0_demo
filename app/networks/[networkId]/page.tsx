@@ -25,6 +25,10 @@ import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from 
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { buildNetworkTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
+import {
+  buildScopedDiscoveryToolCoverage,
+  discoveryCoverageValueLabel
+} from "@/lib/scoped-discovery-tool-coverage";
 import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
 import { Suspense } from "react";
 
@@ -37,7 +41,6 @@ type KpiFilterKey =
   | "highRiskP12Findings"
   | "outOfWarrantyAssets"
   | "nonCompliantDiscoveryCoverage";
-type DiscoveryToolFilterKey = "ucmdb" | "tanium" | "tenable" | "servicenow";
 
 type NetworkDetailTab = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
 
@@ -57,13 +60,6 @@ function isKpiFilterKey(value: string | undefined): value is KpiFilterKey {
     return false;
   }
   return value in KPI_FILTER_LABELS;
-}
-
-function isDiscoveryToolFilterKey(value: string | undefined): value is DiscoveryToolFilterKey {
-  if (!value) {
-    return false;
-  }
-  return value === "ucmdb" || value === "tanium" || value === "tenable" || value === "servicenow";
 }
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -415,26 +411,22 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function coverageFlag(value: DiscoveryCoverageValue | undefined): number {
-  return value === 0 ? 0 : 1;
-}
-
 function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
   const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
-  const ucmdb = coverageFlag(coverage.toolValues.ucmdb);
-  const tanium = coverageFlag(coverage.toolValues.tanium);
-  const tenable = coverageFlag(coverage.toolValues.tenable);
-  const snow = coverageFlag(coverage.toolValues.snow);
-  const seviceNow = coverageFlag(coverage.toolValues.servicenow ?? coverage.toolValues["service-now"]);
 
   return {
-    ucmdb,
-    tanium,
-    tenable,
-    snow,
-    seviceNow,
     coverageCompliance: coverage.coverageCompliance
   };
+}
+
+function discoveryCoverageValueClass(value: DiscoveryCoverageValue | undefined): string {
+  if (value === 1) {
+    return "border-emerald-400/35 bg-emerald-500/10 text-emerald-200";
+  }
+  if (value === 0) {
+    return "border-red-400/45 bg-red-500/15 text-red-100";
+  }
+  return "border-slate-500/40 bg-slate-700/25 text-slate-300";
 }
 
 function buildNetworkKpiSnapshotMetrics(
@@ -570,9 +562,6 @@ export default async function NetworkDetailPage({
   const normalizedDiscoverySearchTerm = selectedDiscoverySearchTerm.toLowerCase();
   const selectedDiscoveryAssetType = firstParam(requestParams.discoveryAssetType)?.trim() ?? "";
   const requestedDiscoveryToolFilter = firstParam(requestParams.discoveryToolFilter)?.trim().toLowerCase();
-  const selectedDiscoveryToolFilter = isDiscoveryToolFilterKey(requestedDiscoveryToolFilter)
-    ? requestedDiscoveryToolFilter
-    : undefined;
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12AssetIds = new Set(p12Findings.map((finding) => finding.scope.assetId));
   const highRiskP12AssetIds = new Set(
@@ -641,6 +630,13 @@ export default async function NetworkDetailPage({
   };
 
   const filteredAssets = selectedKpiFilter ? assets.filter((asset) => matchesSelectedKpiFilter(asset)) : assets;
+  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(filteredAssets, discoveryToolsSettings);
+  const discoveryToolCoverageCharts = discoveryToolCoverageModel.toolCards;
+  const applicableDiscoveryToolIds = new Set(discoveryToolCoverageModel.toolColumns.map((tool) => tool.id));
+  const selectedDiscoveryToolFilter =
+    requestedDiscoveryToolFilter && applicableDiscoveryToolIds.has(requestedDiscoveryToolFilter)
+      ? requestedDiscoveryToolFilter
+      : undefined;
   const filteredAssetIds = new Set(filteredAssets.map((asset) => asset.id));
   const coveragePageState = parsePageState(requestParams, "page", "pageSize");
   const inventoryPageState = parsePageState(requestParams, "inventoryPage", "inventoryPageSize");
@@ -1154,7 +1150,7 @@ export default async function NetworkDetailPage({
   });
   const discoveryCoverageRows = filteredAssets
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
+      const coverage = discoveryToolCoverageModel.assetCoverageById.get(asset.id);
       return {
         assetId: asset.id,
         hostname: asset.hostname,
@@ -1162,11 +1158,8 @@ export default async function NetworkDetailPage({
         assetType: asset.type,
         environment: asset.systemContext?.environmentType ?? "-",
         ictSystem: asset.systemContext?.systemId ?? "-",
-        ucmdb: coverage.ucmdb,
-        tanium: coverage.tanium,
-        tenable: coverage.tenable,
-        seviceNow: coverage.seviceNow,
-        coverageCompliance: coverage.coverageCompliance
+        toolValues: coverage?.toolValues ?? {},
+        coverageCompliance: coverage?.coverageCompliance ?? true
       };
     })
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
@@ -1178,15 +1171,7 @@ export default async function NetworkDetailPage({
       return false;
     }
     if (selectedDiscoveryToolFilter) {
-      const hasCoverageForSelectedTool =
-        selectedDiscoveryToolFilter === "ucmdb"
-          ? row.ucmdb === 1
-          : selectedDiscoveryToolFilter === "tanium"
-            ? row.tanium === 1
-            : selectedDiscoveryToolFilter === "tenable"
-              ? row.tenable === 1
-              : row.seviceNow === 1;
-      if (hasCoverageForSelectedTool) {
+      if (row.toolValues[selectedDiscoveryToolFilter] !== 0) {
         return false;
       }
     }
@@ -1197,42 +1182,6 @@ export default async function NetworkDetailPage({
       .join(" ")
       .toLowerCase();
     return text.includes(normalizedDiscoverySearchTerm);
-  });
-  const discoveryCoverageTotal = discoveryCoverageRows.length;
-  const discoveryToolCoverageCharts = [
-    {
-      id: "ucmdb",
-      label: "UCMDB",
-      covered: discoveryCoverageRows.filter((row) => row.ucmdb === 1).length
-    },
-    {
-      id: "tanium",
-      label: "TANIUM",
-      covered: discoveryCoverageRows.filter((row) => row.tanium === 1).length
-    },
-    {
-      id: "tenable",
-      label: "TENABLE",
-      covered: discoveryCoverageRows.filter((row) => row.tenable === 1).length
-    },
-    {
-      id: "servicenow",
-      label: "SERVICENOW",
-      covered: discoveryCoverageRows.filter((row) => row.seviceNow === 1).length
-    }
-  ].map((tool) => {
-    const coveragePercent = discoveryCoverageTotal
-      ? Number(((tool.covered / discoveryCoverageTotal) * 100).toFixed(1))
-      : 0;
-    const coveredStop = (coveragePercent / 100) * 360;
-    return {
-      ...tool,
-      missing: Math.max(0, discoveryCoverageTotal - tool.covered),
-      coveragePercent,
-      chartBackground: discoveryCoverageTotal
-        ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${coveredStop}deg, rgba(248,113,113,0.95) ${coveredStop}deg 360deg)`
-        : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)"
-    };
   });
   const coverageRowsPage = paginate(discoveryCoverageFilteredRows, coveragePageState.page, coveragePageState.pageSize);
   const inventoryRowsPage = paginate(filteredAssets, inventoryPageState.page, inventoryPageState.pageSize);
@@ -1676,13 +1625,17 @@ export default async function NetworkDetailPage({
       >
         <ServerStreamHint />
         <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-          <section className="panel p-4">
-            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h2>
-            <p className="mt-1 text-xs text-slate-300/80">
-              Coverage score by discovery tool across current network scope.
-            </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {discoveryToolCoverageCharts.map((tool) => {
+          <section className="panel p-3">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h2>
+                <p className="mt-0.5 text-[11px] text-slate-300/75">Current network scope by required tool.</p>
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400/80">Click a tool to show gaps</p>
+            </div>
+            <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2">
+              {discoveryToolCoverageCharts.length ? (
+                discoveryToolCoverageCharts.map((tool) => {
                 const isToolFilterActive = selectedDiscoveryToolFilter === tool.id;
                 const toolFilterHref = scopedPageHref(
                   {
@@ -1699,35 +1652,42 @@ export default async function NetworkDetailPage({
                     scroll={false}
                     data-filter-loading="true"
                     data-filter-loading-message="Applying discovery filters..."
-                    className={`panel-alt border-sky-300/25 p-3 transition hover:bg-slate-900/70 ${
+                    aria-label={`Show non-compliant assets for ${tool.label}`}
+                    className={`panel-alt border-sky-300/25 p-2.5 transition hover:bg-slate-900/70 ${
                       isToolFilterActive ? "ring-2 ring-red-300/65" : ""
                     }`}
                   >
-                    <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">{tool.label}</p>
-                    <div className="mt-3 flex items-center gap-3">
-                      <div
-                        className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-200/45"
-                        style={{
-                          background: tool.chartBackground
-                        }}
-                      >
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-950/95">
-                          <span className="text-sm font-semibold text-emerald-100">{tool.coveragePercent}%</span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-100">
-                          {tool.covered}/{discoveryCoverageTotal} covered
-                        </p>
-                        <p className="mt-1 text-xs text-red-100/90">{tool.missing} non-compliant</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200">
+                        {tool.label}
+                      </p>
+                      <span className="shrink-0 rounded-full border border-emerald-300/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-100">
+                        {tool.coveragePercent}%
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/90">
+                      <div className="flex h-full w-full">
+                        <div className="h-full bg-emerald-400" style={{ width: `${tool.coveragePercent}%` }} />
+                        <div className="h-full bg-red-400" style={{ width: `${100 - tool.coveragePercent}%` }} />
                       </div>
                     </div>
-                    <p className="mt-2 text-[11px] text-sky-200/85">
-                      {isToolFilterActive ? "Showing non-compliant assets for this tool" : "Select to filter non-compliant assets"}
-                    </p>
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-semibold text-emerald-100">
+                        {tool.covered}/{tool.applicable} covered
+                      </span>
+                      <span className="text-red-100/90">{tool.missing} gaps</span>
+                    </div>
+                    {isToolFilterActive ? (
+                      <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-red-100/90">Filtered gaps</p>
+                    ) : null}
                   </Link>
                 );
-              })}
+                })
+              ) : (
+                <div className="panel-alt border-slate-500/30 p-3 text-sm text-slate-300/85">
+                  No discovery tools apply to the asset types in this network scope.
+                </div>
+              )}
             </div>
           </section>
 
@@ -1814,10 +1774,11 @@ export default async function NetworkDetailPage({
                     <th className="px-3 py-2">Type</th>
                     <th className="px-3 py-2">Environment</th>
                     <th className="px-3 py-2">ICT System</th>
-                    <th className="px-3 py-2">UCMDB</th>
-                    <th className="px-3 py-2">Tanium</th>
-                    <th className="px-3 py-2">Tenable</th>
-                    <th className="px-3 py-2">SeviceNow</th>
+                    {discoveryToolCoverageModel.toolColumns.map((tool) => (
+                      <th key={tool.id} className="px-3 py-2">
+                        {tool.label}
+                      </th>
+                    ))}
                     <th className="px-3 py-2">Coverage Compliance</th>
                   </tr>
                 </thead>
@@ -1829,50 +1790,16 @@ export default async function NetworkDetailPage({
                       <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
                       <td className="px-3 py-2 text-slate-300">{row.environment}</td>
                       <td className="px-3 py-2 text-slate-300">{row.ictSystem}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs ${
-                            row.ucmdb === 1
-                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                              : "border-red-400/45 bg-red-500/15 text-red-100"
-                          }`}
-                        >
-                          {row.ucmdb}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs ${
-                            row.tanium === 1
-                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                              : "border-red-400/45 bg-red-500/15 text-red-100"
-                          }`}
-                        >
-                          {row.tanium}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs ${
-                            row.tenable === 1
-                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                              : "border-red-400/45 bg-red-500/15 text-red-100"
-                          }`}
-                        >
-                          {row.tenable}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-xs ${
-                            row.seviceNow === 1
-                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
-                              : "border-red-400/45 bg-red-500/15 text-red-100"
-                          }`}
-                        >
-                          {row.seviceNow}
-                        </span>
-                      </td>
+                      {discoveryToolCoverageModel.toolColumns.map((tool) => {
+                        const value = row.toolValues[tool.id];
+                        return (
+                          <td key={tool.id} className="px-3 py-2">
+                            <span className={`rounded-full border px-2 py-0.5 text-xs ${discoveryCoverageValueClass(value)}`}>
+                              {discoveryCoverageValueLabel(value)}
+                            </span>
+                          </td>
+                        );
+                      })}
                       <td className="px-3 py-2">
                         <span
                           className={`rounded-full border px-2 py-0.5 text-xs ${
@@ -1888,7 +1815,10 @@ export default async function NetworkDetailPage({
                   ))}
                   {coverageRowsPage.totalItems === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                      <td
+                        colSpan={6 + discoveryToolCoverageModel.toolColumns.length}
+                        className="px-3 py-6 text-center text-sm text-slate-300/80"
+                      >
                         No assets match the selected discovery filters.
                       </td>
                     </tr>

@@ -147,16 +147,6 @@ function percentage(part: number, whole: number): number {
   return Number(((part / whole) * 100).toFixed(1));
 }
 
-function statusBadgeClass(status: ComplianceStatus): string {
-  if (status === "Compliant") {
-    return "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
-  }
-  if (status === "Non-compliant") {
-    return "border-red-400/45 bg-red-500/15 text-red-100";
-  }
-  return "border-slate-400/40 bg-slate-500/10 text-slate-200";
-}
-
 function workflowBadgeClass(status: "open" | "closed"): string {
   return status === "open"
     ? "border-amber-400/45 bg-amber-500/15 text-amber-100"
@@ -522,19 +512,9 @@ export function NetworkComplianceOverview({
       return [];
     }
 
-    const linkedAssetFindings = filteredTimelineFindings.filter(
-      (entry) =>
-        entry.finding.spiId === selectedFindingForAssets.finding.spiId &&
-        entry.finding.title === selectedFindingForAssets.finding.title
-    );
-    const latestFindingByAsset = new Map<string, ComplianceOverviewFindingRow>();
-    for (const entry of linkedAssetFindings) {
-      if (!latestFindingByAsset.has(entry.finding.assetId)) {
-        latestFindingByAsset.set(entry.finding.assetId, entry.finding);
-      }
-    }
+    const selectedFinding = selectedFindingForAssets.finding;
 
-    return Array.from(latestFindingByAsset.values())
+    return [selectedFinding]
       .map((finding) => {
         const counts = findingCountsByAsset.get(finding.assetId) ?? {
           criticalExposureFindings: 0,
@@ -556,22 +536,8 @@ export function NetworkComplianceOverview({
           highRiskCveVulnerabilities: assetHighRiskCvesByAssetId[finding.assetId] ?? []
         };
       })
-      .sort((a, b) => {
-        if (b.totalHighRiskCveVulnerabilities !== a.totalHighRiskCveVulnerabilities) {
-          return b.totalHighRiskCveVulnerabilities - a.totalHighRiskCveVulnerabilities;
-        }
-        if (b.criticalExposureFindings !== a.criticalExposureFindings) {
-          return b.criticalExposureFindings - a.criticalExposureFindings;
-        }
-        if (b.highRiskFindings !== a.highRiskFindings) {
-          return b.highRiskFindings - a.highRiskFindings;
-        }
-        if (b.totalFindings !== a.totalFindings) {
-          return b.totalFindings - a.totalFindings;
-        }
-        return a.assetName.localeCompare(b.assetName);
-      });
-  }, [assetHighRiskCvesByAssetId, filteredTimelineFindings, findingCountsByAsset, selectedFindingForAssets]);
+      .sort((a, b) => a.assetName.localeCompare(b.assetName));
+  }, [assetHighRiskCvesByAssetId, findingCountsByAsset, selectedFindingForAssets]);
 
   const downloadAssetDetailsCsv = () => {
     if (!assetDetailsRows.length) {
@@ -1137,7 +1103,7 @@ export function NetworkComplianceOverview({
                     htmlFor="measure-findings-severity-filter"
                     className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
                   >
-                    Severity
+                    Findings Severity
                   </label>
                   <select
                     id="measure-findings-severity-filter"
@@ -1174,9 +1140,9 @@ export function NetworkComplianceOverview({
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                       <tr>
-                        <th className="px-3 py-2">Timestamp</th>
+                        <th className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2">Timestamp</th>
                         <th className="px-3 py-2">Title</th>
-                        <th className="px-3 py-2">Status</th>
+                        <th className="w-[6.5rem] min-w-[6.5rem] px-3 py-2">Status</th>
                         <th className="px-3 py-2">Scope</th>
                         <th className="px-3 py-2">Evidence</th>
                         <th className="px-3 py-2">Recommended Action</th>
@@ -1185,7 +1151,9 @@ export function NetworkComplianceOverview({
                     <tbody>
                       {filteredFindings.map((entry) => (
                         <tr key={entry.finding.id} className="border-t border-sky-400/10 align-top">
-                          <td className="px-3 py-2 text-slate-200">{entry.finding.timestampLabel}</td>
+                          <td className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2 text-slate-200">
+                            {entry.finding.timestampLabel}
+                          </td>
                           <td className="px-3 py-2 text-slate-100">
                             <button
                               type="button"
@@ -1196,23 +1164,11 @@ export function NetworkComplianceOverview({
                             </button>
                           </td>
                           <td className="px-3 py-2">
-                            <div className="flex flex-wrap gap-1.5">
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${workflowBadgeClass(entry.asOfStatus)}`}
-                              >
-                                {entry.asOfStatus}
-                              </span>
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${statusBadgeClass(entry.finding.complianceStatus)}`}
-                              >
-                                Finding {entry.finding.complianceStatus}
-                              </span>
-                              <span
-                                className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${statusBadgeClass(entry.finding.evaluationStatus)}`}
-                              >
-                                Eval {entry.finding.evaluationStatus}
-                              </span>
-                            </div>
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${workflowBadgeClass(entry.asOfStatus)}`}
+                            >
+                              {entry.asOfStatus === "open" ? "Open" : "Closed"}
+                            </span>
                           </td>
                           <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.scopeLabel}</td>
                           <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.evidencePreview}</td>

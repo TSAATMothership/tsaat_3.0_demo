@@ -24,6 +24,10 @@ import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from 
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildSystemTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
+import {
+  buildScopedDiscoveryToolCoverage,
+  discoveryCoverageValueLabel
+} from "@/lib/scoped-discovery-tool-coverage";
 import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding, FindingSeverity } from "@/lib/types";
 import { Suspense } from "react";
 
@@ -414,30 +418,22 @@ function n2PlusStatusLabel(nMinus: number | null): string {
   return nMinus <= 2 ? "Within N-2+" : "Outside N-2+";
 }
 
-function coverageFlag(value: DiscoveryCoverageValue | undefined): number {
-  return value === 0 ? 0 : 1;
-}
-
 function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
   const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
-  const ucmdb = coverageFlag(coverage.toolValues.ucmdb);
-  const tanium = coverageFlag(coverage.toolValues.tanium);
-  const tenable = coverageFlag(coverage.toolValues.tenable);
-  const snow = coverageFlag(coverage.toolValues.snow);
-  const seviceNow = coverageFlag(coverage.toolValues.servicenow ?? coverage.toolValues["service-now"]);
-  const dsocSiem = coverageFlag(coverage.toolValues["dsoc-siem"] ?? coverage.toolValues.siem);
-  const elastic = coverageFlag(coverage.toolValues.elastic);
 
   return {
-    ucmdb,
-    tanium,
-    tenable,
-    snow,
-    seviceNow,
-    dsocSiem,
-    elastic,
     coverageCompliance: coverage.coverageCompliance
   };
+}
+
+function discoveryCoverageValueClass(value: DiscoveryCoverageValue | undefined): string {
+  if (value === 1) {
+    return "border-emerald-400/35 bg-emerald-500/10 text-emerald-200";
+  }
+  if (value === 0) {
+    return "border-red-400/45 bg-red-500/15 text-red-100";
+  }
+  return "border-slate-500/40 bg-slate-700/25 text-slate-300";
 }
 
 interface SystemKpiSnapshotMetrics {
@@ -949,23 +945,19 @@ export default async function SystemDetailPage({
     return query ? `/systems/${system.id}?${query}#p12-findings` : `/systems/${system.id}#p12-findings`;
   })();
 
+  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(filteredAssets, discoveryToolsSettings);
+  const discoveryToolCoverageCharts = discoveryToolCoverageModel.toolCards;
   const discoveryCoverageRows = filteredAssets
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
+      const coverage = discoveryToolCoverageModel.assetCoverageById.get(asset.id);
 
       return {
         assetId: asset.id,
         hostname: asset.hostname,
         assetType: asset.type,
         environment: asset.systemContext?.environmentType ?? "-",
-        ucmdb: coverage.ucmdb,
-        tanium: coverage.tanium,
-        tenable: coverage.tenable,
-        snow: coverage.snow,
-        seviceNow: coverage.seviceNow,
-        dsocSiem: coverage.dsocSiem,
-        elastic: coverage.elastic,
-        coverageCompliance: coverage.coverageCompliance
+        toolValues: coverage?.toolValues ?? {},
+        coverageCompliance: coverage?.coverageCompliance ?? true
       };
     })
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
@@ -1422,31 +1414,6 @@ export default async function SystemDetailPage({
     ? Number(((discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 100).toFixed(1))
     : 0;
 
-  const discoveryToolCoverageCharts = [
-    { id: "ucmdb", label: "UCMDB", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.ucmdb },
-    { id: "tanium", label: "Tanium", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.tanium },
-    { id: "tenable", label: "Tenable", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.tenable },
-    { id: "servicenow", label: "ServiceNow", accessor: (row: (typeof discoveryCoverageRows)[number]) => row.seviceNow }
-  ].map((tool) => {
-    const total = discoveryCoverageRows.length;
-    const compliant = discoveryCoverageRows.filter((row) => tool.accessor(row) === 1).length;
-    const nonCompliant = Math.max(total - compliant, 0);
-    const score = total ? Number(((compliant / total) * 100).toFixed(1)) : 0;
-    const compliantStop = total ? (compliant / total) * 360 : 0;
-    const nonCompliantStop = total ? ((compliant + nonCompliant) / total) * 360 : 0;
-    const chartBackground = total
-      ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${compliantStop}deg, rgba(248,113,113,0.95) ${compliantStop}deg ${nonCompliantStop}deg, rgba(148,163,184,0.92) ${nonCompliantStop}deg 360deg)`
-      : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
-    return {
-      ...tool,
-      total,
-      compliant,
-      nonCompliant,
-      score,
-      chartBackground
-    };
-  });
-
   const scopeHref = (scope: {
     environment?: EnvironmentType;
     serverSearch?: string;
@@ -1487,6 +1454,22 @@ export default async function SystemDetailPage({
     const href = query ? `/systems/${system.id}?${query}` : `/systems/${system.id}`;
     return hash ? `${href}#${hash}` : href;
   };
+  const discoveryCoverageExportHref = (() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(requestParams)) {
+      if (key === "coveragePage" || key === "coveragePageSize") {
+        continue;
+      }
+      if (!value) {
+        continue;
+      }
+      params.set(key, Array.isArray(value) ? value[0] : value);
+    }
+    const query = params.toString();
+    return query
+      ? `/api/systems/${system.id}/discovery-coverage-export?${query}`
+      : `/api/systems/${system.id}/discovery-coverage-export`;
+  })();
 
   const environmentHref = (environment?: EnvironmentType) => {
     return scopeHref({
@@ -1886,40 +1869,60 @@ export default async function SystemDetailPage({
 
       {activeDetailTab === "discovery-compliance" ? (
       <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
-        <section className="panel p-4">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h2>
-          <p className="mt-1 text-xs text-slate-300/80">
-            Coverage score by discovery tool across the current ICT System drill-through context.
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {discoveryToolCoverageCharts.map((tool) => (
-              <article key={tool.id} className="panel-alt border-sky-300/25 p-3">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">{tool.label}</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <div
-                    className="flex h-20 w-20 items-center justify-center rounded-full border border-sky-200/45"
-                    style={{ background: tool.chartBackground }}
-                  >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-950/95">
-                      <span className="text-sm font-semibold text-emerald-100">{tool.score}%</span>
+        <section className="panel p-3">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h2>
+              <p className="mt-0.5 text-[11px] text-slate-300/75">Current ICT System scope by required tool.</p>
+            </div>
+            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400/80">Covered / applicable</p>
+          </div>
+          <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-2">
+            {discoveryToolCoverageCharts.length ? (
+              discoveryToolCoverageCharts.map((tool) => (
+                <article key={tool.id} className="panel-alt border-sky-300/25 p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200">
+                      {tool.label}
+                    </p>
+                    <span className="shrink-0 rounded-full border border-emerald-300/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-100">
+                      {tool.coveragePercent}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/90">
+                    <div className="flex h-full w-full">
+                      <div className="h-full bg-emerald-400" style={{ width: `${tool.coveragePercent}%` }} />
+                      <div className="h-full bg-red-400" style={{ width: `${100 - tool.coveragePercent}%` }} />
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-100">
-                      {tool.compliant}/{tool.total} covered
-                    </p>
-                    <p className="mt-1 text-xs text-red-100/90">{tool.nonCompliant} non-compliant</p>
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                    <span className="font-semibold text-emerald-100">
+                      {tool.covered}/{tool.applicable} covered
+                    </span>
+                    <span className="text-red-100/90">{tool.missing} gaps</span>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              ))
+            ) : (
+              <div className="panel-alt border-slate-500/30 p-3 text-sm text-slate-300/85">
+                No discovery tools apply to the asset types in this ICT System scope.
+              </div>
+            )}
           </div>
         </section>
 
         <section id="asset-discovery-coverage" className="panel flex min-h-0 flex-col overflow-hidden">
-          <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
-            Asset Discovery Coverage ({selectedLabel})
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/15 px-4 py-3">
+            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+              Asset Discovery Coverage ({selectedLabel})
+            </h2>
+            <Link
+              href={discoveryCoverageExportHref}
+              className="shrink-0 rounded-md border border-emerald-300/45 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-200/70"
+            >
+              Export to CSV
+            </Link>
+          </div>
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
@@ -1927,13 +1930,11 @@ export default async function SystemDetailPage({
                   <th className="px-3 py-2">Asset</th>
                   <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Environment</th>
-                  <th className="px-3 py-2">UCMDB</th>
-                  <th className="px-3 py-2">Tanium</th>
-                  <th className="px-3 py-2">Tenable</th>
-                  <th className="px-3 py-2">SNOW</th>
-                  <th className="px-3 py-2">ServiceNow</th>
-                  <th className="px-3 py-2">DSOC SIEM</th>
-                  <th className="px-3 py-2">Elastic</th>
+                  {discoveryToolCoverageModel.toolColumns.map((tool) => (
+                    <th key={tool.id} className="px-3 py-2">
+                      {tool.label}
+                    </th>
+                  ))}
                   <th className="px-3 py-2">Coverage Compliance</th>
                 </tr>
               </thead>
@@ -1943,13 +1944,16 @@ export default async function SystemDetailPage({
                     <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
                     <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
                     <td className="px-3 py-2 text-slate-300">{row.environment}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.ucmdb}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.tanium}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.tenable}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.snow}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.seviceNow}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.dsocSiem}</td>
-                    <td className="px-3 py-2 text-slate-200">{row.elastic}</td>
+                    {discoveryToolCoverageModel.toolColumns.map((tool) => {
+                      const value = row.toolValues[tool.id];
+                      return (
+                        <td key={tool.id} className="px-3 py-2">
+                          <span className={`rounded-full border px-2 py-0.5 text-xs ${discoveryCoverageValueClass(value)}`}>
+                            {discoveryCoverageValueLabel(value)}
+                          </span>
+                        </td>
+                      );
+                    })}
                     <td className="px-3 py-2">
                       <span
                         className={`rounded-full border px-2 py-0.5 text-xs ${
@@ -1965,7 +1969,10 @@ export default async function SystemDetailPage({
                 ))}
                 {coverageRowsPage.totalItems === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-3 py-6 text-center text-sm text-slate-300/80">
+                    <td
+                      colSpan={4 + discoveryToolCoverageModel.toolColumns.length}
+                      className="px-3 py-6 text-center text-sm text-slate-300/80"
+                    >
                       No assets in this scope.
                     </td>
                   </tr>

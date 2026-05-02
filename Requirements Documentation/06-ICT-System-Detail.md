@@ -18,6 +18,7 @@ Major dependencies:
 - `NetworkComplianceOverview`
 - `DetailedTopologyView`
 - `NetworkDetailRiskCharts`
+- `/api/systems/[systemId]/discovery-coverage-export`
 - runtime topology generation from dataset relationships and CI dependencies
 
 Important hidden behaviour:
@@ -52,9 +53,9 @@ Important hidden behaviour:
 - **Outcome:** the page exposes the evidence behind the system posture score.
 
 ### Feature: Discovery Compliance Tab
-- **What it does:** shows discovery tool scorecards and a paginated asset coverage table for the current system scope.
-- **User perspective:** the user can see which in-scope assets fail required discovery tool coverage.
-- **System behaviour:** tool values are derived at runtime from discovery settings and asset evidence; pagination uses `coveragePage` and `coveragePageSize`. Asset rows and tool applicability respect the shared six-type asset taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
+- **What it does:** shows discovery tool scorecards and a paginated asset coverage table for the current system scope, with CSV export.
+- **User perspective:** the user can see which in-scope assets fail required discovery tool coverage and export the scoped asset list.
+- **System behaviour:** tool values are derived at runtime from discovery settings and asset evidence; scorecards and table tool columns are generated from tools required for at least one asset type in the current system scope. Pagination uses `coveragePage` and `coveragePageSize`. Asset rows and tool applicability respect the shared six-type asset taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`), and non-applicable asset/tool cells display `N/A`.
 - **Outcome:** discovery gaps can be actioned at asset level.
 
 ### Feature: Latent Query-Driven Scope States
@@ -70,7 +71,7 @@ Important hidden behaviour:
 | ICT System Detail | Tab routing | Switches among visible tabs | Click tab | Updates `systemDetailTab` and reloads | `systemDetailTab` | Different drill-through layout | default tab is `system-details` | unsupported values fall back to default | `SystemDetailTabs` | Bookmarkable tab state | topology modal state is local |
 | ICT System Detail | System Details tab | Metadata, accreditation, service context, risk charts | Open tab | Resolves details, links, and risk profile | system columns, mission and service links, findings | Narrative and ownership view | fallback metadata allowed when source columns blank | none | `NetworkDetailRiskCharts`, Link components | Operational context | several URLs are synthetic fallbacks |
 | ICT System Detail | Compliance Overview | SPI table with findings and CVE drillthroughs | Open tab, click measure, finding, asset, or CVE count | Opens layered overlays over system-scoped evidence | measures, findings, asset vulnerability index | Evidence drillthrough chain | evidence respects selected `dataDate` | runtime filtering only | `NetworkComplianceOverview` | Explains non-compliance | non-route layered drillthrough |
-| ICT System Detail | Discovery Compliance | Tool cards and asset coverage list | Open tab, paginate | Evaluates tool coverage per asset and paginates results | discovery settings, scoped assets, `coveragePage` | Coverage cards and table | coverage is based on required tools only | invalid page values clamp through pagination helper | discovery settings | Discovery remediation list | no export action is exposed here; all six canonical asset types are supported |
+| ICT System Detail | Discovery Compliance | Dynamic tool cards, asset coverage list, and CSV export | Open tab, paginate, export CSV | Evaluates tool coverage per asset, paginates configured tool columns, and exports current scope | discovery settings, scoped assets, `coveragePage` | Coverage cards, table, and CSV | coverage is based on tools required by current scope asset types only | invalid page values clamp through pagination helper | discovery settings, export API | Discovery remediation list | all six canonical asset types are supported; `N/A` cells are excluded from denominators |
 | ICT System Detail | Hidden scope parameters | Direct-URL scoping for environment, KPI, server search, and P1/P2 list | Navigate with query params | Narrows assets, counts, and findings before render | `environment`, `serverSearch`, `kpiFilter`, `p12*`, `page`, `findingsPage*` | Narrowed system view | server-side scope applies even without visible controls | invalid environment or KPI values are ignored | pagination helper, runtime analytics | Bookmarkable hidden scope states | calculated helper links exist even where not rendered |
 
 ## 5. Database Mapping
@@ -103,7 +104,7 @@ Key dependencies:
 | Selected posture badge | header status badge | `Non-compliant` takes precedence over `Unknown`, otherwise `Compliant` | runtime scoped statuses | Runtime | backend | returns `Unknown` when no scoped statuses exist |
 | Environment card posture | environment-level rollup | apply posture precedence across evaluations within each environment | runtime evaluations plus system environments | Runtime | backend | helper is calculated even where no visible control exposes environment drilldown |
 | System weekly risk trend | stacked risk chart | for each of 13 weekly points, count High Risk and Critical Exposure findings open on that date | findings timestamps and close timestamps | Runtime | backend | future points beyond available data return `null` |
-| Discovery tool scorecards | discovery tab summary | covered assets divided by total applicable assets per tool | discovery coverage rows | Runtime | backend | asset-type scope can make a tool N/A |
+| Discovery tool scorecards | discovery tab summary | covered assets divided by total applicable assets per tool; only tools required for at least one scoped asset type are shown | discovery coverage rows and discovery settings | Runtime | backend | asset-type scope can make a tool N/A, which is excluded from tool denominators |
 | Asset discovery compliance | discovery table | `coverageCompliance = missing required tools count == 0` | discovery settings plus asset evidence | Runtime | backend | N/A tools do not count against compliance |
 | P1/P2 findings filters | hidden scoped list | filter by SPI, priority, severity, search term, environment, and KPI-matched assets | findings plus request params | Runtime | backend | page contains this logic even though the list is not exposed as a separate visible tab |
 
