@@ -663,8 +663,7 @@ export default async function SystemDetailPage({
   const systemSupportEmail = system.supportEmail?.trim() || `ict-support+${system.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}@tsaat.local`;
   const systemServiceCatalogueUrl = system.serviceCatalogueUrl?.trim() || `/systems/${system.id}`;
   const systemAtoNumber = system.atoNumber?.trim() || `ATO-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
-  const systemDiisId = system.diisId?.trim() || `DIIS-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
-  const systemDiisUrl = system.diisUrl?.trim() || `https://diis.defence.gov.au/systems/${encodeURIComponent(system.id)}`;
+  const systemDiisId = system.diisId?.trim() || "Missing";
   const systemGrcUrl = system.grcUrl?.trim() || `https://grc.defence.gov.au/ato/${encodeURIComponent(systemAtoNumber)}`;
   const systemApmNumber = `APM-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
   const systemApmUrl = `https://apm.defence.gov.au/applications/${encodeURIComponent(systemApmNumber)}`;
@@ -1709,14 +1708,6 @@ export default async function SystemDetailPage({
                     <td className="px-2 py-2">
                       <div className="flex flex-wrap gap-3 text-sky-100">
                         <Link
-                          href={systemDiisUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(systemDiisUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(systemDiisUrl) ? "noreferrer" : undefined}
-                        >
-                          View in DIIS
-                        </Link>
-                        <Link
                           href={systemGrcUrl}
                           className="underline decoration-sky-300/70 underline-offset-2"
                           target={isExternalLink(systemGrcUrl) ? "_blank" : undefined}
@@ -1778,14 +1769,6 @@ export default async function SystemDetailPage({
                     <td className="px-2 py-2 font-semibold text-slate-100">{systemDiisId}</td>
                     <td className="px-2 py-2">
                       <div className="flex flex-wrap gap-3 text-sky-100">
-                        <Link
-                          href={systemDiisUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(systemDiisUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(systemDiisUrl) ? "noreferrer" : undefined}
-                        >
-                          View in DIIS
-                        </Link>
                         <Link
                           href={systemGrcUrl}
                           className="underline decoration-sky-300/70 underline-offset-2"

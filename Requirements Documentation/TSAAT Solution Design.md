@@ -460,10 +460,10 @@ Major dependencies:
 - **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from snapshot relationships and CI dependencies.
 - **Outcome:** tab states are bookmarkable; topology is not.
 
-### Feature: Network Details Tab
+### Feature: Details Tab
 - **What it does:** shows network metadata, service links, security accreditation links, and stacked risk charts.
 - **User perspective:** the user sees descriptive context and current risk profile together.
-- **System behaviour:** network detail fields are resolved from DB columns when present, otherwise synthesized from the network ID and name.
+- **System behaviour:** network detail fields are resolved from DB columns when present, otherwise synthesized from the network ID and name; the security accreditation table shows stored `diis_id` or `Missing` and does not render a DIIS link.
 - **Outcome:** the tab acts as the narrative and ownership view for the network.
 
 ### Feature: Compliance Overview Tab
@@ -489,7 +489,7 @@ Major dependencies:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Network Detail | Shared scope header | Identifies selected network and current KPI filter state | Open page or adjust query params | Rebuilds scoped analytics and headline score cards | route param, `dataDate`, `kpiFilter` | Header title and scores | all tabs share same network anchor | invalid route param returns not-found earlier in page load | snapshot loader, route param | Stable drill-through context | scope pills are intentionally not rendered under the heading |
 | Network Detail | Tab routing | Switches among visible tabs | Click tab | Updates `networkDetailTab` and reloads | `networkDetailTab` | Different drill-through layout | default tab is `network-details` | unsupported values fall back to default except hidden state is accepted explicitly | `NetworkDetailTabs` | Bookmarkable tab states | topology modal state is local |
-| Network Detail | Network Details tab | Metadata and risk charts | Open tab | Resolves metadata, renders links and stacked risk charts | network detail fields, findings | Ownership and risk context | metadata may fall back when source columns blank | none | `resolveNetworkDetailFields()`, risk charts | Narrative network view | support and service links may be synthetic |
+| Network Detail | Details tab | Metadata and risk charts | Open tab | Resolves metadata, renders accreditation references and stacked risk charts | network detail fields, findings | Ownership and risk context | metadata may fall back when source columns blank; DIIS ID displays stored value or `Missing` | none | `resolveNetworkDetailFields()`, risk charts | Narrative network view | support and service links may be synthetic; DIIS is not linked from the Security Accreditation table |
 | Network Detail | Compliance Overview | SPI measure table with findings drillthroughs | Open tab, click a measure, click finding title, optionally click CVE count | Opens layered overlays for findings, linked assets, and CVE details with criticality filtering; shows all six asset-type tiles even where counts are zero | measures, findings, asset vulnerability index, scoped assets | Evidence drillthrough chain | evidence must reflect the selected `asOf` date; CVE export follows active search and criticality filters | filtering is runtime only | `NetworkComplianceOverview` | Explains non-compliance | Non-route multi-step drillthrough |
 | Network Detail | Discovery Compliance | Dynamic tool scorecards, search, filters, export | Filter table, click tool tiles, export CSV | Applies discovery filters via query string and exports current scope with configured tool columns | `discoverySearch`, `discoveryAssetType`, `discoveryToolFilter`, `page` | Asset coverage table and CSV | coverage is based on tools required by current scope asset types only | invalid or non-applicable tool filter ignored | discovery settings, export API | Discovery remediation list | `discoveryAssetType` accepts all six canonical asset types; `N/A` cells are excluded from denominators |
 | Network Detail | Hidden cyber posture | KPI snapshot, asset inventory, P1/P2 findings | Directly navigate with `networkDetailTab=cyber-posture` | Renders hidden section with KPI filters and lists | `kpiFilter`, `inventoryPage`, `p12*` | Hidden drill-through surface | route is accepted even though UI tab is absent | unsupported KPI filters ignored | snapshot history, findings, assets | Additional analysis state | latent and undocumented UI state |
@@ -510,7 +510,7 @@ Key dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Network Detail | Network metadata | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, ownership and link columns, `diis_id`, `ato_number`, `modelling_status`, `discovery_status` | mixed | header, details tab, discovery summary | Read | root network record for page | deterministic DIIS/ATO values are loaded for seed data; other blanks may use fallback display values | direct display | network modelling status is persisted for future use |
+| Network Detail | Network metadata | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, ownership and link columns, `diis_id`, `ato_number`, `modelling_status`, `discovery_status` | mixed | header, details tab, discovery summary | Read | root network record for page | deterministic DIIS/ATO values are loaded for seed data; blank DIIS displays as `Missing`; other blanks may use fallback display values | direct display | network modelling status is persisted for future use |
 | Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal and relationship context | Read | combined into topology graph | no persisted graph view | runtime graph build | topology includes synthetic relation edges |
 | Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
 | Network Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | synthetic fallback if no rows loaded | severity remap applied at runtime | |
@@ -538,12 +538,12 @@ Key dependencies:
 - The page is date-scoped.
 - The visible tab strip does not expose every route state the page supports.
 - Discovery CSV export is scoped to the current network and current discovery query state.
-- Metadata fields may be synthetic when source columns are blank.
+- Metadata fields may be synthetic when source columns are blank, except the Security Accreditation DIIS ID displays `Missing` when blank.
 - The page combines server-rendered scope logic with client-only overlay drillthroughs.
 
 ## 10. Open Questions / Gaps
 - **Open question:** should `networkDetailTab=cyber-posture` remain supported if it is not reachable from the visible tab bar?
-- **Open question:** should generated fallback values for owner, support email, service catalogue URL, ATO, DIIS, and GRC be visually marked as inferred values?
+- **Open question:** should generated fallback values for owner, support email, service catalogue URL, ATO, and GRC be visually marked as inferred values?
 - **Open question:** is the topology modal intended to be a read-only analysis surface, or should it support the same exports and filters as the parent page?
 
 
@@ -709,10 +709,10 @@ Important hidden behaviour:
 - **System behaviour:** `systemDetailTab` in the query string controls the main visible tab; the topology modal is client-side only and receives runtime topology data built from the snapshot model.
 - **Outcome:** tab states are bookmarkable; topology modal state is not.
 
-### Feature: System Details Tab
+### Feature: Details Tab
 - **What it does:** shows description, owner, support, service catalogue links, accreditation data, APM details, DIIS details, mission capabilities, business services, and risk charts.
 - **User perspective:** the user gets the narrative and ownership context for the selected system.
-- **System behaviour:** the page uses source columns where present and fills gaps with deterministic fallback values based on the system ID and name.
+- **System behaviour:** the page uses source columns where present and fills gaps with deterministic fallback values based on the system ID and name; DIIS ID displays the stored `diis_id` or `Missing` and DIIS links are not rendered in the Details tab.
 - **Outcome:** the tab acts as the business and support profile for the system.
 
 ### Feature: Compliance Overview Tab
@@ -738,7 +738,7 @@ Important hidden behaviour:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ICT System Detail | Shared scope header | Identifies selected system and current hidden scope filters | Open page or alter query params | Rebuilds scoped analytics and headline score cards | route param, `dataDate`, `environment`, `serverSearch`, `kpiFilter` | Header title and scores | all tabs share one system anchor | invalid system route returns not-found | snapshot loader, route param | Stable drill-through context | hidden scope filters still apply but are not rendered as header pills |
 | ICT System Detail | Tab routing | Switches among visible tabs | Click tab | Updates `systemDetailTab` and reloads | `systemDetailTab` | Different drill-through layout | default tab is `system-details` | unsupported values fall back to default | `SystemDetailTabs` | Bookmarkable tab state | topology modal state is local |
-| ICT System Detail | System Details tab | Metadata, accreditation, service context, risk charts | Open tab | Resolves details, links, and risk profile | system columns, mission and service links, findings | Narrative and ownership view | fallback metadata allowed when source columns blank | none | `NetworkDetailRiskCharts`, Link components | Operational context | several URLs are synthetic fallbacks |
+| ICT System Detail | Details tab | Metadata, accreditation, service context, risk charts | Open tab | Resolves details, accreditation references, links, and risk profile | system columns, mission and service links, findings | Narrative and ownership view | fallback metadata allowed when source columns blank; DIIS ID displays stored value or `Missing` | none | `NetworkDetailRiskCharts`, Link components | Operational context | several URLs are synthetic fallbacks; DIIS links are not rendered in the Details tab |
 | ICT System Detail | Compliance Overview | SPI table with findings and CVE drillthroughs | Open tab, click measure, finding, asset, or CVE count | Opens layered overlays over system-scoped evidence, including all CVEs with criticality filtering; shows all six asset-type tiles even where counts are zero | measures, findings, asset vulnerability index, scoped assets | Evidence drillthrough chain | evidence respects selected `dataDate`; CVE export follows active search and criticality filters | runtime filtering only | `NetworkComplianceOverview` | Explains non-compliance | non-route layered drillthrough |
 | ICT System Detail | Discovery Compliance | Dynamic tool cards, asset coverage list, and CSV export | Open tab, paginate, export CSV | Evaluates tool coverage per asset, paginates configured tool columns, and exports current scope | discovery settings, scoped assets, `coveragePage` | Coverage cards, table, and CSV | coverage is based on tools required by current scope asset types only | invalid page values clamp through pagination helper | discovery settings, export API | Discovery remediation list | all six canonical asset types are supported; `N/A` cells are excluded from denominators |
 | ICT System Detail | Hidden scope parameters | Direct-URL scoping for environment, KPI, server search, and P1/P2 list | Navigate with query params | Narrows assets, counts, and findings before render | `environment`, `serverSearch`, `kpiFilter`, `p12*`, `page`, `findingsPage*` | Narrowed system view | server-side scope applies even without visible controls | invalid environment or KPI values are ignored | pagination helper, runtime analytics | Bookmarkable hidden scope states | calculated helper links exist even where not rendered |
@@ -758,7 +758,7 @@ Key dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ICT System Detail | System metadata | `tsaat` | `ict_system` | `system_id`, `network_id`, `name`, `criticality`, `security_domain`, description, ownership and link columns, `diis_id`, `ato_number`, `modelling_status`, `diis_defined` | mixed | header, details tab, accreditation tables | Read | root record for the page | fallback values generated when blank | direct display | synthetic support and reference URLs may appear |
+| ICT System Detail | System metadata | `tsaat` | `ict_system` | `system_id`, `network_id`, `name`, `criticality`, `security_domain`, description, ownership and link columns, `diis_id`, `ato_number`, `modelling_status`, `diis_defined` | mixed | header, details tab, accreditation tables | Read | root record for the page | blank DIIS displays as `Missing`; other blank fields may use fallback values | direct display | synthetic support and reference URLs may appear |
 | ICT System Detail | Mission, service, and environment context | `tsaat` | `system_mission_capability`, `system_business_service`, `system_environment`, `system_environment_asset` | IDs, names, `criticality`, `environment_type`, `asset_id` | mixed | mission/service lists, scope badges, environment-aware counts | Read | one system to many related rows | environment filter must match a defined environment type | joined into lists and scoped counts | |
 | ICT System Detail | Asset posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, lifecycle, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance rows, discovery rows, risk charts | Read | scoped to assets where `asset.system_id = system_id` | hidden query parameters may narrow further | runtime SPI, discovery evaluation, and CVE criticality filtering | |
 | ICT System Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity remap applies at runtime | workflow reconstructed for as-of logic in reused components | |
@@ -779,7 +779,7 @@ Key dependencies:
 
 ## 8. Non-Database Calculations
 - `DetailedTopologyView` creates runtime graph layouts and modal-only interactions from already loaded topology data.
-- The page synthesises description, owner, support email, service catalogue URL, ATO, DIIS, GRC, and APM values when source columns are blank.
+- The page synthesises description, owner, support email, service catalogue URL, ATO, GRC, and APM values when source columns are blank; DIIS ID is shown from the database or as `Missing`.
 - Compliance overview side panels, asset detail overlays, and the all-CVE detail modal with criticality filtering are client-only UI states.
 - Query-driven scopes for `environment`, `serverSearch`, and `kpiFilter` are runtime view filters over the selected snapshot, not persisted state.
 - Several helper links and KPI trend series are calculated in code but not currently rendered in the visible UI.
@@ -793,7 +793,7 @@ Key dependencies:
 
 ## 10. Open Questions / Gaps
 - **Open question:** should the page expose visible controls for `environment`, `serverSearch`, and `kpiFilter`, or are these route states intended to remain hidden?
-- **Open question:** should generated fallback values for support, accreditation, DIIS, GRC, and APM be visually marked as inferred values?
+- **Open question:** should generated fallback values for support, accreditation, GRC, and APM be visually marked as inferred values?
 - **Open question:** should the currently calculated KPI trend series and scoped helper links be surfaced in the UI, or removed if they are not part of the intended design?
 
 

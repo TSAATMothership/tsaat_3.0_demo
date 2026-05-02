@@ -1224,6 +1224,7 @@ export default async function NetworkDetailPage({
   };
 
   const networkDetailFields = resolveNetworkDetailFields(network);
+  const networkDiisId = network.diisId?.trim() || "Missing";
   const headerComplianceCounts =
     activeDetailTab === "compliance-overview"
       ? complianceOverviewSummaryCounts
@@ -1418,22 +1419,16 @@ export default async function NetworkDetailPage({
                     <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
                       <tr>
                         <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
+                        <th className="px-2 py-1.5">DIIS ID</th>
                         <th className="px-2 py-1.5">Links</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr className="border-t border-sky-300/30 text-slate-100">
                         <td className="px-2 py-2 font-semibold text-slate-100">{networkDetailFields.atoNumber}</td>
+                        <td className="px-2 py-2 text-slate-100">{networkDiisId}</td>
                         <td className="px-2 py-2">
                           <div className="flex flex-wrap gap-3 text-sky-100">
-                            <Link
-                              href={networkDetailFields.diisUrl}
-                              className="underline decoration-sky-300/70 underline-offset-2"
-                              target={isExternalLink(networkDetailFields.diisUrl) ? "_blank" : undefined}
-                              rel={isExternalLink(networkDetailFields.diisUrl) ? "noreferrer" : undefined}
-                            >
-                              View in DIIS
-                            </Link>
                             <Link
                               href={networkDetailFields.grcUrl}
                               className="underline decoration-sky-300/70 underline-offset-2"

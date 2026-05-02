@@ -22,7 +22,7 @@ function nextProgressValue(current: number): number {
 }
 
 const tabs: Array<{ id: SystemDetailTabId; label: string }> = [
-  { id: "system-details", label: "System Details" },
+  { id: "system-details", label: "Details" },
   { id: "compliance-overview", label: "Compliance Overview" },
   { id: "discovery-compliance", label: "Discovery Compliance" }
 ];
@@ -114,7 +114,7 @@ export function SystemDetailTabs({
       ? "Compliance Overview"
       : pendingTab === "discovery-compliance"
         ? "Discovery Compliance"
-        : "System Details";
+        : "Details";
 
   return (
     <>
