@@ -327,6 +327,81 @@ function complianceScore(statuses: ComplianceStatus[]): number {
   return Number(((compliant / statuses.length) * 100).toFixed(1));
 }
 
+function segmentWidth(value: number, total: number): string {
+  if (!total || value <= 0) {
+    return "0%";
+  }
+  return `${Math.max((value / total) * 100, 2).toFixed(2)}%`;
+}
+
+function CompactScoreCard({
+  title,
+  score,
+  total,
+  segments,
+  contextLabel
+}: {
+  title: string;
+  score: number;
+  total: number;
+  contextLabel: string;
+  segments: Array<{
+    label: string;
+    shortLabel: string;
+    value: number;
+    barClassName: string;
+    chipClassName: string;
+  }>;
+}) {
+  return (
+    <article className="rounded-lg border border-sky-300/25 bg-slate-950/55 p-3 shadow-[inset_0_1px_0_rgba(148,163,184,0.08)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-slate-300/75">{title}</p>
+          <p className="mt-1 text-[11px] text-sky-200/75">{contextLabel}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-3xl font-semibold leading-none text-emerald-100">{score}%</p>
+          <p className="mt-1 text-[10px] uppercase tracking-[0.1em] text-slate-400">{total} checks</p>
+        </div>
+      </div>
+
+      <div
+        className="mt-3 flex h-2.5 overflow-hidden rounded-full border border-sky-300/20 bg-slate-800/80"
+        aria-label={`${title}: ${score}%`}
+      >
+        {total ? (
+          segments.map((segment) =>
+            segment.value > 0 ? (
+              <div
+                key={segment.label}
+                className={segment.barClassName}
+                style={{ width: segmentWidth(segment.value, total) }}
+                title={`${segment.label}: ${segment.value}`}
+              />
+            ) : null
+          )
+        ) : (
+          <div className="h-full w-full bg-slate-600/60" />
+        )}
+      </div>
+
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        {segments.map((segment) => (
+          <div
+            key={segment.label}
+            className={`rounded-md border px-2 py-1 text-[11px] leading-tight ${segment.chipClassName}`}
+            title={segment.label}
+          >
+            <span className="font-semibold">{segment.shortLabel}</span>{" "}
+            <span className="tabular-nums">{segment.value}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStatus {
   if (!statuses.length) {
     return "Unknown";
@@ -1204,17 +1279,13 @@ export default async function NetworkDetailPage({
       : evaluationComplianceSummaryCounts;
   const headerComplianceScore =
     activeDetailTab === "compliance-overview" ? complianceOverviewScore : networkComplianceScore;
-  const complianceChartTotal =
+  const headerComplianceTotal =
     headerComplianceCounts.compliant + headerComplianceCounts.nonCompliant + headerComplianceCounts.unknown;
-  const complianceChartCompliantStop = complianceChartTotal
-    ? (headerComplianceCounts.compliant / complianceChartTotal) * 360
-    : 0;
-  const complianceChartNonCompliantStop = complianceChartTotal
-    ? ((headerComplianceCounts.compliant + headerComplianceCounts.nonCompliant) / complianceChartTotal) * 360
-    : 0;
-  const complianceChartBackground = complianceChartTotal
-    ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${complianceChartCompliantStop}deg, rgba(248,113,113,0.95) ${complianceChartCompliantStop}deg ${complianceChartNonCompliantStop}deg, rgba(148,163,184,0.92) ${complianceChartNonCompliantStop}deg 360deg)`
-    : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
+  const headerComplianceContextLabel = selectedKpiFilter
+    ? KPI_FILTER_LABELS[selectedKpiFilter]
+    : activeDetailTab === "compliance-overview"
+      ? "Compliance Overview open findings"
+      : "Current drill-through scope";
   const discoveryComplianceCounts = discoveryCoverageRows.reduce(
     (accumulator, row) => {
       const sourceAsset = filteredAssetsById.get(row.assetId);
@@ -1237,15 +1308,6 @@ export default async function NetworkDetailPage({
   const discoveryComplianceScore = discoveryComplianceTotal
     ? Number(((discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 100).toFixed(1))
     : 0;
-  const discoveryComplianceCompliantStop = discoveryComplianceTotal
-    ? (discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 360
-    : 0;
-  const discoveryComplianceNonCompliantStop = discoveryComplianceTotal
-    ? ((discoveryComplianceCounts.compliant + discoveryComplianceCounts.nonCompliant) / discoveryComplianceTotal) * 360
-    : 0;
-  const discoveryComplianceChartBackground = discoveryComplianceTotal
-    ? `conic-gradient(rgba(52,211,153,0.95) 0deg ${discoveryComplianceCompliantStop}deg, rgba(248,113,113,0.95) ${discoveryComplianceCompliantStop}deg ${discoveryComplianceNonCompliantStop}deg, rgba(148,163,184,0.92) ${discoveryComplianceNonCompliantStop}deg 360deg)`
-    : "conic-gradient(rgba(148,163,184,0.92) 0deg 360deg)";
   const routeReadyLocationKey = buildLocationKeyFromParamsRecord(`/networks/${network.id}`, requestParams);
 
   return (
@@ -1275,52 +1337,65 @@ export default async function NetworkDetailPage({
             </div>
           </div>
 
-          <div className="grid min-w-[250px] gap-3 self-stretch md:grid-cols-2 lg:self-auto">
-            <div className="panel-alt border-sky-300/25 p-4">
-              <div className="text-center">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliance Score</p>
-                <div
-                  className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
-                  style={{
-                    background: complianceChartBackground
-                  }}
-                >
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
-                    <span className="text-2xl font-semibold text-emerald-100">{headerComplianceScore}%</span>
-                  </div>
-                </div>
-                <p className="mt-2 text-xs text-slate-300/80">
-                  {selectedKpiFilter ? "Network scope with KPI filter" : "Network scope"}
-                </p>
-                {selectedKpiFilter ? (
-                  <p className="mt-1 text-[11px] text-sky-200/90">{KPI_FILTER_LABELS[selectedKpiFilter]}</p>
-                ) : activeDetailTab === "compliance-overview" ? (
-                  <p className="mt-1 text-[11px] text-sky-200/90">Aligned to Compliance Overview (open findings)</p>
-                ) : (
-                  <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
-                )}
-              </div>
-            </div>
-            <div className="panel-alt border-sky-300/25 p-4">
-              <div className="text-center">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Discovery Compliance Score</p>
-                <div
-                  className="mx-auto mt-3 flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/45"
-                  style={{
-                    background: discoveryComplianceChartBackground
-                  }}
-                >
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-950/95">
-                    <span className="text-2xl font-semibold text-emerald-100">{discoveryComplianceScore}%</span>
-                  </div>
-                </div>
-                <p className="mt-2 text-xs text-slate-300/80">
-                  C {discoveryComplianceCounts.compliant} | NC {discoveryComplianceCounts.nonCompliant} | Other{" "}
-                  {discoveryComplianceCounts.other}
-                </p>
-                <p className="mt-1 text-[11px] text-sky-200/90">Aligned to current drill-through context</p>
-              </div>
-            </div>
+          <div className="grid w-full gap-2 self-stretch md:grid-cols-2 lg:w-[min(720px,48vw)] lg:self-auto">
+            <CompactScoreCard
+              title="Compliance Score"
+              score={headerComplianceScore}
+              total={headerComplianceTotal}
+              contextLabel={headerComplianceContextLabel}
+              segments={[
+                {
+                  label: "Compliant",
+                  shortLabel: "C",
+                  value: headerComplianceCounts.compliant,
+                  barClassName: "h-full bg-emerald-400/90",
+                  chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
+                },
+                {
+                  label: "Non-compliant",
+                  shortLabel: "NC",
+                  value: headerComplianceCounts.nonCompliant,
+                  barClassName: "h-full bg-rose-400/90",
+                  chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
+                },
+                {
+                  label: "Unknown",
+                  shortLabel: "U",
+                  value: headerComplianceCounts.unknown,
+                  barClassName: "h-full bg-slate-400/90",
+                  chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
+                }
+              ]}
+            />
+            <CompactScoreCard
+              title="Discovery Compliance Score"
+              score={discoveryComplianceScore}
+              total={discoveryComplianceTotal}
+              contextLabel="Current discovery scope"
+              segments={[
+                {
+                  label: "Compliant",
+                  shortLabel: "C",
+                  value: discoveryComplianceCounts.compliant,
+                  barClassName: "h-full bg-emerald-400/90",
+                  chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
+                },
+                {
+                  label: "Non-compliant",
+                  shortLabel: "NC",
+                  value: discoveryComplianceCounts.nonCompliant,
+                  barClassName: "h-full bg-rose-400/90",
+                  chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
+                },
+                {
+                  label: "Other",
+                  shortLabel: "O",
+                  value: discoveryComplianceCounts.other,
+                  barClassName: "h-full bg-slate-400/90",
+                  chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
+                }
+              ]}
+            />
           </div>
         </div>
       </section>
