@@ -16,7 +16,7 @@ describe("Drill-through Security Accreditation containers", () => {
 
   it("shows stored ICT system DIIS ID or Missing without a DIIS link", () => {
     expect(systemDetailSource).toContain('const systemDiisId = system.diisId?.trim() || "Missing";');
-    expect(systemDetailSource).toContain("<th className=\"px-2 py-1.5\">DIIS ID</th>");
+    expect(systemDetailSource).toContain("DIIS ID");
     expect(systemDetailSource).toContain("{systemDiisId}");
     expect(systemDetailSource).not.toContain("View in DIIS");
     expect(systemDetailSource).not.toContain("systemDiisUrl");

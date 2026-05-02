@@ -484,7 +484,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-001",
-      "atoNumber": "ATO-NET-001"
+      "atoNumber": "ATO-NET-001",
+      "apmNumber": "APM-NET-001"
     },
     {
       "id": "net-2",
@@ -834,7 +835,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-002",
-      "atoNumber": "ATO-NET-002"
+      "atoNumber": "ATO-NET-002",
+      "apmNumber": "APM-NET-002"
     },
     {
       "id": "net-3",
@@ -1299,7 +1301,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-003",
-      "atoNumber": "ATO-NET-003"
+      "atoNumber": "ATO-NET-003",
+      "apmNumber": "APM-NET-003"
     },
     {
       "id": "net-4",
@@ -1638,7 +1641,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-004",
-      "atoNumber": "ATO-NET-004"
+      "atoNumber": "ATO-NET-004",
+      "apmNumber": "APM-NET-004"
     },
     {
       "id": "net-5",
@@ -2013,7 +2017,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-005",
-      "atoNumber": "ATO-NET-005"
+      "atoNumber": "ATO-NET-005",
+      "apmNumber": "APM-NET-005"
     },
     {
       "id": "net-new-1",
@@ -2062,7 +2067,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-006",
-      "atoNumber": "ATO-NET-006"
+      "atoNumber": "ATO-NET-006",
+      "apmNumber": "APM-NET-006"
     },
     {
       "id": "net-new-2",
@@ -2107,7 +2113,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-007",
-      "atoNumber": "ATO-NET-007"
+      "atoNumber": "ATO-NET-007",
+      "apmNumber": "APM-NET-007"
     },
     {
       "id": "net-new-3",
@@ -2170,7 +2177,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-008",
-      "atoNumber": "ATO-NET-008"
+      "atoNumber": "ATO-NET-008",
+      "apmNumber": "APM-NET-008"
     },
     {
       "id": "net-new-4",
@@ -2215,7 +2223,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-009",
-      "atoNumber": "ATO-NET-009"
+      "atoNumber": "ATO-NET-009",
+      "apmNumber": "APM-NET-009"
     },
     {
       "id": "net-new-5",
@@ -2268,7 +2277,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-010",
-      "atoNumber": "ATO-NET-010"
+      "atoNumber": "ATO-NET-010",
+      "apmNumber": "APM-NET-010"
     },
     {
       "id": "net-new-6",
@@ -2336,7 +2346,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-011",
-      "atoNumber": "ATO-NET-011"
+      "atoNumber": "ATO-NET-011",
+      "apmNumber": "APM-NET-011"
     },
     {
       "id": "net-new-7",
@@ -2404,7 +2415,8 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-012",
-      "atoNumber": "ATO-NET-012"
+      "atoNumber": "ATO-NET-012",
+      "apmNumber": "APM-NET-012"
     },
     {
       "id": "net-disabled-reference",
@@ -2424,7 +2436,10 @@
         "storage-device": [],
         "printer-device": [],
         "other": []
-      }
+      },
+      "diisId": "DIIS-NET-013",
+      "atoNumber": "ATO-NET-013",
+      "apmNumber": "APM-NET-013"
     }
   ],
   "ictSystems": [
@@ -2530,7 +2545,10 @@
             "srv-0655"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-001",
+      "atoNumber": "ATO-SYS-001",
+      "apmNumber": "APM-SYS-001"
     },
     {
       "id": "sys-2",
@@ -2618,7 +2636,10 @@
             "srv-0741"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-002",
+      "atoNumber": "ATO-SYS-002",
+      "apmNumber": "APM-SYS-002"
     },
     {
       "id": "sys-3",
@@ -2695,7 +2716,10 @@
             "srv-0743"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-003",
+      "atoNumber": "ATO-SYS-003",
+      "apmNumber": "APM-SYS-003"
     },
     {
       "id": "sys-4",
@@ -2777,7 +2801,10 @@
             "srv-0780"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-004",
+      "atoNumber": "ATO-SYS-004",
+      "apmNumber": "APM-SYS-004"
     },
     {
       "id": "sys-5",
@@ -2874,7 +2901,10 @@
             "srv-0750"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-005",
+      "atoNumber": "ATO-SYS-005",
+      "apmNumber": "APM-SYS-005"
     },
     {
       "id": "sys-6",
@@ -2972,7 +3002,10 @@
             "srv-0707"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-006",
+      "atoNumber": "ATO-SYS-006",
+      "apmNumber": "APM-SYS-006"
     },
     {
       "id": "sys-7",
@@ -3064,7 +3097,10 @@
             "srv-0713"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-007",
+      "atoNumber": "ATO-SYS-007",
+      "apmNumber": "APM-SYS-007"
     },
     {
       "id": "sys-8",
@@ -3159,7 +3195,10 @@
             "srv-0756"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-008",
+      "atoNumber": "ATO-SYS-008",
+      "apmNumber": "APM-SYS-008"
     },
     {
       "id": "sys-9",
@@ -3259,7 +3298,10 @@
             "srv-0623"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-009",
+      "atoNumber": "ATO-SYS-009",
+      "apmNumber": "APM-SYS-009"
     },
     {
       "id": "sys-10",
@@ -3346,7 +3388,10 @@
             "srv-0714"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-010",
+      "atoNumber": "ATO-SYS-010",
+      "apmNumber": "APM-SYS-010"
     },
     {
       "id": "sys-11",
@@ -3426,7 +3471,10 @@
             "srv-0721"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-011",
+      "atoNumber": "ATO-SYS-011",
+      "apmNumber": "APM-SYS-011"
     },
     {
       "id": "sys-12",
@@ -3528,7 +3576,10 @@
             "srv-0719"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-012",
+      "atoNumber": "ATO-SYS-012",
+      "apmNumber": "APM-SYS-012"
     },
     {
       "id": "sys-13",
@@ -3642,7 +3693,10 @@
             "srv-0718"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-013",
+      "atoNumber": "ATO-SYS-013",
+      "apmNumber": "APM-SYS-013"
     },
     {
       "id": "sys-14",
@@ -3728,7 +3782,10 @@
             "srv-0555"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-014",
+      "atoNumber": "ATO-SYS-014",
+      "apmNumber": "APM-SYS-014"
     },
     {
       "id": "sys-15",
@@ -3819,7 +3876,10 @@
             "srv-0649"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-015",
+      "atoNumber": "ATO-SYS-015",
+      "apmNumber": "APM-SYS-015"
     },
     {
       "id": "sys-16",
@@ -3911,7 +3971,10 @@
             "srv-0776"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-016",
+      "atoNumber": "ATO-SYS-016",
+      "apmNumber": "APM-SYS-016"
     },
     {
       "id": "sys-17",
@@ -4011,7 +4074,10 @@
             "srv-0586"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-017",
+      "atoNumber": "ATO-SYS-017",
+      "apmNumber": "APM-SYS-017"
     },
     {
       "id": "sys-18",
@@ -4104,7 +4170,10 @@
             "srv-0732"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-018",
+      "atoNumber": "ATO-SYS-018",
+      "apmNumber": "APM-SYS-018"
     },
     {
       "id": "sys-19",
@@ -4191,7 +4260,10 @@
             "srv-0727"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-019",
+      "atoNumber": "ATO-SYS-019",
+      "apmNumber": "APM-SYS-019"
     },
     {
       "id": "sys-20",
@@ -4268,7 +4340,10 @@
             "srv-0761"
           ]
         }
-      ]
+      ],
+      "diisId": "DIIS-SYS-020",
+      "atoNumber": "ATO-SYS-020",
+      "apmNumber": "APM-SYS-020"
     },
     {
       "id": "sys-21",
@@ -4282,7 +4357,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-021",
+      "atoNumber": "ATO-SYS-021",
+      "apmNumber": "APM-SYS-021"
     },
     {
       "id": "sys-22",
@@ -4296,7 +4374,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-022",
+      "atoNumber": "ATO-SYS-022",
+      "apmNumber": "APM-SYS-022"
     },
     {
       "id": "sys-23",
@@ -4310,7 +4391,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-023",
+      "atoNumber": "ATO-SYS-023",
+      "apmNumber": "APM-SYS-023"
     },
     {
       "id": "sys-24",
@@ -4324,7 +4408,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-024",
+      "atoNumber": "ATO-SYS-024",
+      "apmNumber": "APM-SYS-024"
     },
     {
       "id": "sys-25",
@@ -4338,7 +4425,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-025",
+      "atoNumber": "ATO-SYS-025",
+      "apmNumber": "APM-SYS-025"
     },
     {
       "id": "sys-26",
@@ -4352,7 +4442,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-026",
+      "atoNumber": "ATO-SYS-026",
+      "apmNumber": "APM-SYS-026"
     },
     {
       "id": "sys-27",
@@ -4366,7 +4459,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-027",
+      "atoNumber": "ATO-SYS-027",
+      "apmNumber": "APM-SYS-027"
     },
     {
       "id": "sys-28",
@@ -4380,7 +4476,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-028",
+      "atoNumber": "ATO-SYS-028",
+      "apmNumber": "APM-SYS-028"
     },
     {
       "id": "sys-29",
@@ -4394,7 +4493,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-029",
+      "atoNumber": "ATO-SYS-029",
+      "apmNumber": "APM-SYS-029"
     },
     {
       "id": "sys-30",
@@ -4408,7 +4510,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-030",
+      "atoNumber": "ATO-SYS-030",
+      "apmNumber": "APM-SYS-030"
     },
     {
       "id": "sys-31",
@@ -4422,7 +4527,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-031",
+      "atoNumber": "ATO-SYS-031",
+      "apmNumber": "APM-SYS-031"
     },
     {
       "id": "sys-32",
@@ -4436,7 +4544,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-032",
+      "atoNumber": "ATO-SYS-032",
+      "apmNumber": "APM-SYS-032"
     },
     {
       "id": "sys-33",
@@ -4450,7 +4561,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-033",
+      "atoNumber": "ATO-SYS-033",
+      "apmNumber": "APM-SYS-033"
     },
     {
       "id": "sys-34",
@@ -4464,7 +4578,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-034",
+      "atoNumber": "ATO-SYS-034",
+      "apmNumber": "APM-SYS-034"
     },
     {
       "id": "sys-35",
@@ -4478,7 +4595,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-035",
+      "atoNumber": "ATO-SYS-035",
+      "apmNumber": "APM-SYS-035"
     },
     {
       "id": "sys-36",
@@ -4492,7 +4612,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-036",
+      "atoNumber": "ATO-SYS-036",
+      "apmNumber": "APM-SYS-036"
     },
     {
       "id": "sys-37",
@@ -4506,7 +4629,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-037",
+      "atoNumber": "ATO-SYS-037",
+      "apmNumber": "APM-SYS-037"
     },
     {
       "id": "sys-38",
@@ -4520,7 +4646,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-038",
+      "atoNumber": "ATO-SYS-038",
+      "apmNumber": "APM-SYS-038"
     },
     {
       "id": "sys-39",
@@ -4534,7 +4663,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-039",
+      "atoNumber": "ATO-SYS-039",
+      "apmNumber": "APM-SYS-039"
     },
     {
       "id": "sys-40",
@@ -4548,7 +4680,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-040",
+      "atoNumber": "ATO-SYS-040",
+      "apmNumber": "APM-SYS-040"
     },
     {
       "id": "sys-41",
@@ -4562,7 +4697,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-041",
+      "atoNumber": "ATO-SYS-041",
+      "apmNumber": "APM-SYS-041"
     },
     {
       "id": "sys-42",
@@ -4576,7 +4714,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-042",
+      "atoNumber": "ATO-SYS-042",
+      "apmNumber": "APM-SYS-042"
     },
     {
       "id": "sys-43",
@@ -4590,7 +4731,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-043",
+      "atoNumber": "ATO-SYS-043",
+      "apmNumber": "APM-SYS-043"
     },
     {
       "id": "sys-44",
@@ -4604,7 +4748,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-044",
+      "atoNumber": "ATO-SYS-044",
+      "apmNumber": "APM-SYS-044"
     },
     {
       "id": "sys-45",
@@ -4618,7 +4765,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-045",
+      "atoNumber": "ATO-SYS-045",
+      "apmNumber": "APM-SYS-045"
     },
     {
       "id": "sys-46",
@@ -4632,7 +4782,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-046",
+      "atoNumber": "ATO-SYS-046",
+      "apmNumber": "APM-SYS-046"
     },
     {
       "id": "sys-47",
@@ -4646,7 +4799,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-047",
+      "atoNumber": "ATO-SYS-047",
+      "apmNumber": "APM-SYS-047"
     },
     {
       "id": "sys-48",
@@ -4660,7 +4816,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-048",
+      "atoNumber": "ATO-SYS-048",
+      "apmNumber": "APM-SYS-048"
     },
     {
       "id": "sys-49",
@@ -4674,7 +4833,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-049",
+      "atoNumber": "ATO-SYS-049",
+      "apmNumber": "APM-SYS-049"
     },
     {
       "id": "sys-50",
@@ -4688,7 +4850,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-050",
+      "atoNumber": "ATO-SYS-050",
+      "apmNumber": "APM-SYS-050"
     },
     {
       "id": "sys-51",
@@ -4702,7 +4867,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-051",
+      "atoNumber": "ATO-SYS-051",
+      "apmNumber": "APM-SYS-051"
     },
     {
       "id": "sys-52",
@@ -4716,7 +4884,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-052",
+      "atoNumber": "ATO-SYS-052",
+      "apmNumber": "APM-SYS-052"
     },
     {
       "id": "sys-53",
@@ -4730,7 +4901,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-053",
+      "atoNumber": "ATO-SYS-053",
+      "apmNumber": "APM-SYS-053"
     },
     {
       "id": "sys-54",
@@ -4744,7 +4918,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-054",
+      "atoNumber": "ATO-SYS-054",
+      "apmNumber": "APM-SYS-054"
     },
     {
       "id": "sys-55",
@@ -4758,7 +4935,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-055",
+      "atoNumber": "ATO-SYS-055",
+      "apmNumber": "APM-SYS-055"
     },
     {
       "id": "sys-56",
@@ -4772,7 +4952,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-056",
+      "atoNumber": "ATO-SYS-056",
+      "apmNumber": "APM-SYS-056"
     },
     {
       "id": "sys-57",
@@ -4786,7 +4969,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-057",
+      "atoNumber": "ATO-SYS-057",
+      "apmNumber": "APM-SYS-057"
     },
     {
       "id": "sys-58",
@@ -4800,7 +4986,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-058",
+      "atoNumber": "ATO-SYS-058",
+      "apmNumber": "APM-SYS-058"
     },
     {
       "id": "sys-59",
@@ -4814,7 +5003,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-059",
+      "atoNumber": "ATO-SYS-059",
+      "apmNumber": "APM-SYS-059"
     },
     {
       "id": "sys-60",
@@ -4828,7 +5020,10 @@
       "securityDomain": "Unclassified",
       "missionCapabilities": [],
       "businessServices": [],
-      "environments": []
+      "environments": [],
+      "diisId": "DIIS-SYS-060",
+      "atoNumber": "ATO-SYS-060",
+      "apmNumber": "APM-SYS-060"
     }
   ],
   "assets": [

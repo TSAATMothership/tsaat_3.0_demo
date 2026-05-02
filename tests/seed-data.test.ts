@@ -71,8 +71,6 @@ describe("seed dataset", () => {
       if (network.id === DISABLED_REFERENCE_NETWORK_ID) {
         expect(network.name).toBe(DISABLED_REFERENCE_NETWORK_NAME);
         expect(network.description).toBe(DISABLED_REFERENCE_NETWORK_DESCRIPTION);
-        expect(network.diisId).toBeUndefined();
-        expect(network.atoNumber).toBeUndefined();
         expect(network.ictSystemIds).toEqual([]);
         expect(network.assetIds).toEqual([]);
         expect(network.targetStateAssets).toBeDefined();
@@ -86,10 +84,10 @@ describe("seed dataset", () => {
         ] as const) {
           expect(network.targetStateAssets?.[assetType]).toEqual([]);
         }
-      } else {
-        expect(network.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
-        expect(network.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
       }
+      expect(network.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
+      expect(network.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
+      expect(network.apmNumber).toBe(`APM-NET-${expectedReferenceOrdinal}`);
       expect(["Critical", "Non-Critical"]).toContain(network.criticality);
       expect(typeof network.adfPlatform).toBe("boolean");
       expect(typeof network.enterprisePlatform).toBe("boolean");
@@ -210,6 +208,13 @@ describe("seed dataset", () => {
     const modelledSystems = dataset.ictSystems.filter((system) => system.modellingStatus === true);
     const unmodelledSystems = dataset.ictSystems.filter((system) => system.modellingStatus === false);
 
+    for (const [systemIndex, system] of dataset.ictSystems.entries()) {
+      const expectedReferenceOrdinal = String(systemIndex + 1).padStart(3, "0");
+      expect(system.diisId).toBe(`DIIS-SYS-${expectedReferenceOrdinal}`);
+      expect(system.atoNumber).toBe(`ATO-SYS-${expectedReferenceOrdinal}`);
+      expect(system.apmNumber).toBe(`APM-SYS-${expectedReferenceOrdinal}`);
+    }
+
     for (const system of modelledSystems) {
       expect(system.environments.some((environment) => environment.type === "Production")).toBe(true);
       expect(system.environments.length).toBeGreaterThanOrEqual(2);
@@ -299,8 +304,13 @@ describe("seed dataset", () => {
         ictSystemIds: [],
         assetIds: []
       });
-      expect(disabledNetwork?.diisId).toBeUndefined();
-      expect(disabledNetwork?.atoNumber).toBeUndefined();
+      const disabledNetworkIndex = snapshot.managedNetworks.findIndex(
+        (network) => network.id === DISABLED_REFERENCE_NETWORK_ID
+      );
+      const expectedReferenceOrdinal = String(disabledNetworkIndex + 1).padStart(3, "0");
+      expect(disabledNetwork?.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
+      expect(disabledNetwork?.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
+      expect(disabledNetwork?.apmNumber).toBe(`APM-NET-${expectedReferenceOrdinal}`);
     }
   });
 });

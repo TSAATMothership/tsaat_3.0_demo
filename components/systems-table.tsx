@@ -75,6 +75,10 @@ function fallbackGrcUrl(system: ICTSystem, atoNumber: string): string {
 }
 
 function fallbackApmNumber(system: ICTSystem): string {
+  if (system.apmNumber?.trim()) {
+    return system.apmNumber.trim();
+  }
+
   const normalizedId = system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase();
   return `APM-${normalizedId}`;
 }

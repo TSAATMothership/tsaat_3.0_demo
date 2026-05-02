@@ -362,6 +362,7 @@ BEGIN
       [service_catalogue_url] NVARCHAR(1024) '$.serviceCatalogueUrl',
       [diis_id] NVARCHAR(100) '$.diisId',
       [ato_number] NVARCHAR(100) '$.atoNumber',
+      [apm_number] NVARCHAR(100) '$.apmNumber',
       [diis_url] NVARCHAR(1024) '$.diisUrl',
       [grc_url] NVARCHAR(1024) '$.grcUrl',
       [discovery_status] NVARCHAR(40) '$.discoveryStatus'
@@ -382,6 +383,7 @@ BEGIN
     [service_catalogue_url],
     [diis_id],
     [ato_number],
+    [apm_number],
     [diis_url],
     [grc_url],
     [discovery_status]
@@ -409,7 +411,6 @@ BEGIN
       NULLIF(LTRIM(RTRIM(n.[diis_id])), N''),
       CASE
         WHEN n.[id] = N'net-unassigned' THEN N'DIIS-NET-000'
-        WHEN n.[id] = N'net-disabled-reference' THEN NULL
         ELSE CONCAT(N'DIIS-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
       END
     ),
@@ -417,8 +418,14 @@ BEGIN
       NULLIF(LTRIM(RTRIM(n.[ato_number])), N''),
       CASE
         WHEN n.[id] = N'net-unassigned' THEN N'ATO-NET-000'
-        WHEN n.[id] = N'net-disabled-reference' THEN NULL
         ELSE CONCAT(N'ATO-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
+      END
+    ),
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(n.[apm_number])), N''),
+      CASE
+        WHEN n.[id] = N'net-unassigned' THEN N'APM-NET-000'
+        ELSE CONCAT(N'APM-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
       END
     ),
     n.[diis_url],
@@ -446,6 +453,7 @@ BEGIN
       [description],
       [diis_id],
       [ato_number],
+      [apm_number],
       [discovery_status]
     )
     VALUES (
@@ -460,6 +468,7 @@ BEGIN
       N'Synthetic network created during load for systems without networkId.',
       N'DIIS-NET-000',
       N'ATO-NET-000',
+      N'APM-NET-000',
       N'Discovery Non Enabled'
     );
   END;
@@ -502,6 +511,42 @@ BEGIN
     AND links.[child_network_id] IS NOT NULL
     AND links.[parent_network_id] <> links.[child_network_id];
 
+  ;WITH system_source AS (
+    SELECT
+      s.*,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          CASE
+            WHEN s.[id] LIKE N'sys-[0-9]%' THEN 1
+            ELSE 2
+          END,
+          CASE
+            WHEN s.[id] LIKE N'sys-[0-9]%' THEN TRY_CONVERT(INT, SUBSTRING(s.[id], 5, 32))
+            ELSE NULL
+          END,
+          s.[id]
+      ) AS [system_ordinal]
+    FROM OPENJSON(@Json, '$.ictSystems') WITH (
+      [id] NVARCHAR(255) '$.id',
+      [network_id] NVARCHAR(255) '$.networkId',
+      [name] NVARCHAR(255) '$.name',
+      [adf_platform] BIT '$.adfPlatform',
+      [enterprise_platform] BIT '$.enterprisePlatform',
+      [description] NVARCHAR(2000) '$.description',
+      [diis_id] NVARCHAR(100) '$.diisId',
+      [owner] NVARCHAR(255) '$.owner',
+      [support_email] NVARCHAR(320) '$.supportEmail',
+      [service_catalogue_url] NVARCHAR(1024) '$.serviceCatalogueUrl',
+      [ato_number] NVARCHAR(100) '$.atoNumber',
+      [apm_number] NVARCHAR(100) '$.apmNumber',
+      [diis_url] NVARCHAR(1024) '$.diisUrl',
+      [grc_url] NVARCHAR(1024) '$.grcUrl',
+      [modelling_status] BIT '$.modellingStatus',
+      [diis_defined] BIT '$.diisDefined',
+      [criticality] NVARCHAR(20) '$.criticality',
+      [security_domain] NVARCHAR(20) '$.securityDomain'
+    ) AS s
+  )
   INSERT INTO [tsaat].[ict_system] (
     [snapshot_id],
     [system_id],
@@ -515,6 +560,7 @@ BEGIN
     [support_email],
     [service_catalogue_url],
     [ato_number],
+    [apm_number],
     [diis_url],
     [grc_url],
     [modelling_status],
@@ -530,36 +576,28 @@ BEGIN
     s.[adf_platform],
     s.[enterprise_platform],
     s.[description],
-    s.[diis_id],
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(s.[diis_id])), N''),
+      CONCAT(N'DIIS-SYS-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), s.[system_ordinal])), 3))
+    ),
     s.[owner],
     s.[support_email],
     s.[service_catalogue_url],
-    s.[ato_number],
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(s.[ato_number])), N''),
+      CONCAT(N'ATO-SYS-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), s.[system_ordinal])), 3))
+    ),
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(s.[apm_number])), N''),
+      CONCAT(N'APM-SYS-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), s.[system_ordinal])), 3))
+    ),
     s.[diis_url],
     s.[grc_url],
     s.[modelling_status],
     s.[diis_defined],
     s.[criticality],
     s.[security_domain]
-  FROM OPENJSON(@Json, '$.ictSystems') WITH (
-    [id] NVARCHAR(255) '$.id',
-    [network_id] NVARCHAR(255) '$.networkId',
-    [name] NVARCHAR(255) '$.name',
-    [adf_platform] BIT '$.adfPlatform',
-    [enterprise_platform] BIT '$.enterprisePlatform',
-    [description] NVARCHAR(2000) '$.description',
-    [diis_id] NVARCHAR(100) '$.diisId',
-    [owner] NVARCHAR(255) '$.owner',
-    [support_email] NVARCHAR(320) '$.supportEmail',
-    [service_catalogue_url] NVARCHAR(1024) '$.serviceCatalogueUrl',
-    [ato_number] NVARCHAR(100) '$.atoNumber',
-    [diis_url] NVARCHAR(1024) '$.diisUrl',
-    [grc_url] NVARCHAR(1024) '$.grcUrl',
-    [modelling_status] BIT '$.modellingStatus',
-    [diis_defined] BIT '$.diisDefined',
-    [criticality] NVARCHAR(20) '$.criticality',
-    [security_domain] NVARCHAR(20) '$.securityDomain'
-  ) AS s;
+  FROM system_source AS s;
 
   ;WITH parent_links AS (
     SELECT

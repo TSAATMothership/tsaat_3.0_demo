@@ -40,6 +40,7 @@ type ManagedNetworkRow = {
   serviceCatalogueUrl: string | null;
   diisId: string | null;
   atoNumber: string | null;
+  apmNumber: string | null;
   diisUrl: string | null;
   grcUrl: string | null;
   discoveryStatus: "Discovery Enabled" | "Discovery Non Enabled";
@@ -78,6 +79,7 @@ type SystemRow = {
   supportEmail: string | null;
   serviceCatalogueUrl: string | null;
   atoNumber: string | null;
+  apmNumber: string | null;
   diisUrl: string | null;
   grcUrl: string | null;
   modellingStatus: boolean;
@@ -408,6 +410,7 @@ SELECT
       n.[service_catalogue_url] AS [serviceCatalogueUrl],
       n.[diis_id] AS [diisId],
       n.[ato_number] AS [atoNumber],
+      n.[apm_number] AS [apmNumber],
       n.[diis_url] AS [diisUrl],
       n.[grc_url] AS [grcUrl],
       n.[discovery_status] AS [discoveryStatus]
@@ -466,6 +469,7 @@ SELECT
       s.[support_email] AS [supportEmail],
       s.[service_catalogue_url] AS [serviceCatalogueUrl],
       s.[ato_number] AS [atoNumber],
+      s.[apm_number] AS [apmNumber],
       s.[diis_url] AS [diisUrl],
       s.[grc_url] AS [grcUrl],
       s.[modelling_status] AS [modellingStatus],
@@ -743,6 +747,7 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       ...(network.serviceCatalogueUrl ? { serviceCatalogueUrl: network.serviceCatalogueUrl } : {}),
       ...(network.diisId ? { diisId: network.diisId } : {}),
       ...(network.atoNumber ? { atoNumber: network.atoNumber } : {}),
+      ...(network.apmNumber ? { apmNumber: network.apmNumber } : {}),
       ...(network.diisUrl ? { diisUrl: network.diisUrl } : {}),
       ...(network.grcUrl ? { grcUrl: network.grcUrl } : {}),
       discoveryStatus: network.discoveryStatus,
@@ -809,6 +814,7 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
       ...(system.supportEmail ? { supportEmail: system.supportEmail } : {}),
       ...(system.serviceCatalogueUrl ? { serviceCatalogueUrl: system.serviceCatalogueUrl } : {}),
       ...(system.atoNumber ? { atoNumber: system.atoNumber } : {}),
+      ...(system.apmNumber ? { apmNumber: system.apmNumber } : {}),
       ...(system.diisUrl ? { diisUrl: system.diisUrl } : {}),
       ...(system.grcUrl ? { grcUrl: system.grcUrl } : {}),
       modellingStatus: Boolean(system.modellingStatus),

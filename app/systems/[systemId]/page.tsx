@@ -662,11 +662,11 @@ export default async function SystemDetailPage({
   const systemOwner = system.owner?.trim() || `${system.name} Operations Team`;
   const systemSupportEmail = system.supportEmail?.trim() || `ict-support+${system.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}@tsaat.local`;
   const systemServiceCatalogueUrl = system.serviceCatalogueUrl?.trim() || `/systems/${system.id}`;
-  const systemAtoNumber = system.atoNumber?.trim() || `ATO-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+  const missingReferenceLabel = "Missing";
+  const systemAtoNumber = system.atoNumber?.trim() || missingReferenceLabel;
   const systemDiisId = system.diisId?.trim() || "Missing";
-  const systemGrcUrl = system.grcUrl?.trim() || `https://grc.defence.gov.au/ato/${encodeURIComponent(systemAtoNumber)}`;
-  const systemApmNumber = `APM-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
-  const systemApmUrl = `https://apm.defence.gov.au/applications/${encodeURIComponent(systemApmNumber)}`;
+  const systemGrcUrl = system.grcUrl?.trim();
+  const systemApmNumber = system.apmNumber?.trim() || missingReferenceLabel;
 
   const analytics = buildAnalytics(
     dataset,
@@ -1636,158 +1636,108 @@ export default async function SystemDetailPage({
       ) : null}
 
       {activeDetailTab === "system-details" ? (
-      <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+      <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,0.92fr)_minmax(18rem,0.62fr)_minmax(0,0.95fr)]">
       <section className="panel flex min-h-0 flex-col overflow-hidden p-2.5">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">System Details</h2>
-        <div className="mt-2 min-h-0 overflow-auto pr-1">
-        <div className="grid gap-1.5 xl:grid-cols-2">
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5 xl:row-span-2">
-            <h3 className="text-base font-medium text-slate-100">Description</h3>
-            <p className="mt-2 text-sm leading-5 text-slate-200/90">{systemDescription}</p>
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Details Overview</h2>
+        <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+          <article className="flex h-36 shrink-0 flex-col rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Description</h3>
+            <div className="mt-2 min-h-0 flex-1 overflow-auto pr-1">
+              <p className="text-sm leading-5 text-slate-200/90">{systemDescription}</p>
+            </div>
           </article>
 
           <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
-            <dl className="space-y-3.5">
-              <div>
-                <dt className="text-base font-medium text-slate-100">Owner:</dt>
-                <dd className="mt-0.5 text-sm text-slate-200">{systemOwner}</dd>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Operational Contacts</h3>
+            <dl className="mt-2 grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Owner</dt>
+                <dd className="mt-0.5 text-slate-100">{systemOwner}</dd>
               </div>
-              <div>
-                <dt className="text-base font-medium text-slate-100">Support Email:</dt>
-                <dd className="mt-0.5 text-sm text-sky-100">
+              <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Support Email</dt>
+                <dd className="mt-0.5 truncate text-sky-100">
                   <a className="underline decoration-sky-300/60 underline-offset-2" href={`mailto:${systemSupportEmail}`}>
                     {systemSupportEmail}
                   </a>
                 </dd>
               </div>
-              <div>
-                <dt className="text-base font-medium text-slate-100">Service Catalogue Item:</dt>
-                <dd className="mt-0.5 text-sm text-sky-100">
-                  <ul className="list-disc space-y-0.5 pl-5">
-                    <li>
-                      <Link
-                        href={systemServiceCatalogueUrl}
-                        className="underline decoration-sky-300/60 underline-offset-2"
-                        target={isExternalLink(systemServiceCatalogueUrl) ? "_blank" : undefined}
-                        rel={isExternalLink(systemServiceCatalogueUrl) ? "noreferrer" : undefined}
-                      >
-                        Support Request
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href={systemServiceCatalogueUrl}
-                        className="underline decoration-sky-300/60 underline-offset-2"
-                        target={isExternalLink(systemServiceCatalogueUrl) ? "_blank" : undefined}
-                        rel={isExternalLink(systemServiceCatalogueUrl) ? "noreferrer" : undefined}
-                      >
-                        Issue Request
-                      </Link>
-                    </li>
-                  </ul>
+              <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 px-2 py-1.5 md:col-span-2 xl:col-span-1 2xl:col-span-2">
+                <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Service Catalogue Items</dt>
+                <dd className="mt-1 flex flex-wrap gap-2 text-sky-100">
+                  <Link
+                    href={systemServiceCatalogueUrl}
+                    className="rounded-md border border-sky-300/25 bg-sky-400/10 px-2 py-1 text-xs font-semibold text-sky-100 hover:border-sky-200/60"
+                    target={isExternalLink(systemServiceCatalogueUrl) ? "_blank" : undefined}
+                    rel={isExternalLink(systemServiceCatalogueUrl) ? "noreferrer" : undefined}
+                  >
+                    Support Request
+                  </Link>
+                  <Link
+                    href={systemServiceCatalogueUrl}
+                    className="rounded-md border border-sky-300/25 bg-sky-400/10 px-2 py-1 text-xs font-semibold text-sky-100 hover:border-sky-200/60"
+                    target={isExternalLink(systemServiceCatalogueUrl) ? "_blank" : undefined}
+                    rel={isExternalLink(systemServiceCatalogueUrl) ? "noreferrer" : undefined}
+                  >
+                    Issue Request
+                  </Link>
                 </dd>
               </div>
             </dl>
           </article>
 
-          <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
-            <h3 className="text-base font-medium text-slate-100">Security Accreditation</h3>
-            <div className="mt-2 overflow-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
-                  <tr>
-                    <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
-                    <th className="px-2 py-1.5">DIIS ID</th>
-                    <th className="px-2 py-1.5">Links</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-sky-300/30 text-slate-100">
-                    <td className="px-2 py-2 font-semibold text-slate-100">{systemAtoNumber}</td>
-                    <td className="px-2 py-2 text-slate-100">{systemDiisId}</td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-3 text-sky-100">
-                        <Link
-                          href={systemGrcUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(systemGrcUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(systemGrcUrl) ? "noreferrer" : undefined}
-                        >
-                          View in Cyber GRC Portal
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-auto pr-1">
+            <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Security Accreditation</h3>
+                {systemGrcUrl ? (
+                  <Link
+                    href={systemGrcUrl}
+                    className="rounded-md border border-yellow-200/35 bg-yellow-300/10 px-2 py-0.5 text-[11px] font-semibold text-yellow-50 hover:border-yellow-100/70"
+                    target={isExternalLink(systemGrcUrl) ? "_blank" : undefined}
+                    rel={isExternalLink(systemGrcUrl) ? "noreferrer" : undefined}
+                  >
+                    Cyber GRC
+                  </Link>
+                ) : null}
+              </div>
+              <dl className="mt-1.5 text-sm">
+                <div className="rounded-md border border-yellow-200/25 bg-slate-950/45 px-2 py-1">
+                  <dt className="text-[10px] uppercase tracking-[0.12em] text-slate-300/85">ATO</dt>
+                  <dd className="truncate font-semibold text-slate-100">{systemAtoNumber}</dd>
+                </div>
+              </dl>
+            </article>
 
-          <article className="security-accreditation-pulse rounded-xl border border-lime-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(190,242,100,0.34)]">
-            <h3 className="text-base font-medium text-slate-100">Application Portfolio Management</h3>
-            <div className="mt-2 overflow-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
-                  <tr>
-                    <th className="px-2 py-1.5">APM Number</th>
-                    <th className="px-2 py-1.5">Links</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-sky-300/30 text-slate-100">
-                    <td className="px-2 py-2 font-semibold text-slate-100">{systemApmNumber}</td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-3 text-sky-100">
-                        <Link
-                          href={systemApmUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(systemApmUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(systemApmUrl) ? "noreferrer" : undefined}
-                        >
-                          View in APM
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
+            <article className="security-accreditation-pulse rounded-xl border border-lime-300/90 bg-sky-400/16 p-2 shadow-[0_0_14px_rgba(190,242,100,0.34)]">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Application Portfolio Management</h3>
+              <dl className="mt-1.5 text-sm">
+                <div className="rounded-md border border-lime-200/25 bg-slate-950/45 px-2 py-1">
+                  <dt className="text-[10px] uppercase tracking-[0.12em] text-slate-300/85">APM Number</dt>
+                  <dd className="truncate font-semibold text-slate-100">{systemApmNumber}</dd>
+                </div>
+              </dl>
+            </article>
 
-          <article className="security-accreditation-pulse rounded-xl border border-fuchsia-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(232,121,249,0.34)]">
-            <h3 className="text-base font-medium text-slate-100">Defence ICT Inventory System</h3>
-            <div className="mt-2 overflow-auto">
-              <table className="min-w-full text-sm">
-                <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
-                  <tr>
-                    <th className="px-2 py-1.5">DIIS ID</th>
-                    <th className="px-2 py-1.5">Links</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-t border-sky-300/30 text-slate-100">
-                    <td className="px-2 py-2 font-semibold text-slate-100">{systemDiisId}</td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-3 text-sky-100">
-                        <Link
-                          href={systemGrcUrl}
-                          className="underline decoration-sky-300/70 underline-offset-2"
-                          target={isExternalLink(systemGrcUrl) ? "_blank" : undefined}
-                          rel={isExternalLink(systemGrcUrl) ? "noreferrer" : undefined}
-                        >
-                          View in Cyber GRC Portal
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
+            <article className="security-accreditation-pulse rounded-xl border border-fuchsia-300/90 bg-sky-400/16 p-2 shadow-[0_0_14px_rgba(232,121,249,0.34)]">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Defence ICT Inventory System</h3>
+              <dl className="mt-1.5 text-sm">
+                <div className="rounded-md border border-fuchsia-200/25 bg-slate-950/45 px-2 py-1">
+                  <dt className="text-[10px] uppercase tracking-[0.12em] text-slate-300/85">DIIS ID</dt>
+                  <dd className="truncate font-semibold text-slate-100">{systemDiisId}</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+        </div>
+      </section>
 
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
-            <h3 className="text-base font-medium text-slate-100">Mission Capabilities</h3>
-            <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+      <section className="panel flex min-h-0 flex-col overflow-hidden p-2.5">
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Impact Overview</h2>
+        <div className="mt-2 grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5 md:grid-cols-2 md:grid-rows-1 xl:grid-cols-1 xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Mission Capabilities</h3>
+            <ul className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden pr-1 text-sm text-slate-200">
               {system.missionCapabilities.map((capability) => (
                 <li key={capability.id} className="rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5">
                   {capability.name} ({capability.criticality})
@@ -1796,9 +1746,9 @@ export default async function SystemDetailPage({
             </ul>
           </article>
 
-          <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
-            <h3 className="text-base font-medium text-slate-100">Business Services</h3>
-            <ul className="mt-2 space-y-1.5 text-sm text-slate-200">
+          <article className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Business Services</h3>
+            <ul className="mt-2 min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden pr-1 text-sm text-slate-200">
               {system.businessServices.map((service) => (
                 <li key={service.id} className="rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5">
                   {service.name} ({service.criticality})
@@ -1807,25 +1757,27 @@ export default async function SystemDetailPage({
             </ul>
           </article>
         </div>
-        </div>
       </section>
 
-      <section className="panel min-h-0 overflow-hidden p-2.5">
-        <NetworkDetailRiskCharts
-          layout="stacked"
-          asOfDate={requestedDataDate ?? dataset.snapshotDate}
-          scopeDescription="Open findings by severity in current ICT system detail scope."
-          riskProfile={{
-            openFindings: openSystemScopedRiskFindings.length,
-            p1p2Count: openSystemScopedRiskFindings.filter((finding) => finding.priorityRank <= 2).length,
-            highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
-            criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
-            severitySummary: riskSeveritySummary,
-            weeklyTrend: systemDetailWeeklyRiskTrend
-          }}
-          findings={riskProfileFindings}
-          assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
-        />
+      <section className="panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-2.5">
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Risk Overview</h2>
+        <div className="mt-2 min-h-0 overflow-hidden">
+          <NetworkDetailRiskCharts
+            layout="stacked"
+            asOfDate={requestedDataDate ?? dataset.snapshotDate}
+            scopeDescription="Open findings by severity in current ICT system detail scope."
+            riskProfile={{
+              openFindings: openSystemScopedRiskFindings.length,
+              p1p2Count: openSystemScopedRiskFindings.filter((finding) => finding.priorityRank <= 2).length,
+              highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
+              criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
+              severitySummary: riskSeveritySummary,
+              weeklyTrend: systemDetailWeeklyRiskTrend
+            }}
+            findings={riskProfileFindings}
+            assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+          />
+        </div>
       </section>
       </div>
       ) : null}

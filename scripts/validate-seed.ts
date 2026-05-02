@@ -79,17 +79,15 @@ async function main() {
         network.description === DISABLED_REFERENCE_NETWORK_DESCRIPTION,
         "Disabled reference network must keep its fixture description."
       );
-      assert(!network.diisId, "Disabled reference network must not have a DIIS ID.");
-      assert(!network.atoNumber, "Disabled reference network must not have an ATO number.");
       assert(network.ictSystemIds.length === 0, "Disabled reference network must not link ICT systems.");
       assert(network.assetIds.length === 0, "Disabled reference network must not link discovered assets.");
       assert(network.criticality === "Non-Critical", "Disabled reference network must be Non-Critical.");
       assert(network.adfPlatform === false, "Disabled reference network must not be an ADF platform.");
       assert(network.enterprisePlatform === false, "Disabled reference network must not be an enterprise platform.");
-    } else {
-      assert(network.diisId === `DIIS-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have a DIIS ID.`);
-      assert(network.atoNumber === `ATO-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an ATO number.`);
     }
+    assert(network.diisId === `DIIS-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have a DIIS ID.`);
+    assert(network.atoNumber === `ATO-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an ATO number.`);
+    assert(network.apmNumber === `APM-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an APM number.`);
     assert(ENTITY_CRITICALITY.has(network.criticality), `Network ${network.id} must have valid criticality.`);
     assert(typeof network.adfPlatform === "boolean", `Network ${network.id} must include adfPlatform as boolean.`);
     assert(
@@ -181,6 +179,12 @@ async function main() {
   assert(modelledSystems.length >= 20, "Modelled ICT systems must be at least 20.");
   assert(unmodelledSystems.length === 40, "Unmodelled ICT systems must equal 40.");
   assert(diisSystems.length === current.ictSystems.length, "All ICT systems must be represented in DIIS.");
+  for (const [systemIndex, system] of current.ictSystems.entries()) {
+    const expectedReferenceOrdinal = String(systemIndex + 1).padStart(3, "0");
+    assert(system.diisId === `DIIS-SYS-${expectedReferenceOrdinal}`, `ICT system ${system.id} must have a DIIS ID.`);
+    assert(system.atoNumber === `ATO-SYS-${expectedReferenceOrdinal}`, `ICT system ${system.id} must have an ATO number.`);
+    assert(system.apmNumber === `APM-SYS-${expectedReferenceOrdinal}`, `ICT system ${system.id} must have an APM number.`);
+  }
   assert(
     current.ictSystems.every((system) => typeof system.adfPlatform === "boolean"),
     "All ICT systems must include adfPlatform as boolean."

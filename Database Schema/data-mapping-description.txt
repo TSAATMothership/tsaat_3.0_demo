@@ -105,19 +105,19 @@ Snapshots and domain entities:
   - source_label = snapshot file name
 
 - managedNetworks[]:
-  - id,name,criticality,adfPlatform,enterprisePlatform,modellingStatus,classification,description,owner,supportEmail,serviceCatalogueUrl,diisId,atoNumber,diisUrl,grcUrl,discoveryStatus
+  - id,name,criticality,adfPlatform,enterprisePlatform,modellingStatus,classification,description,owner,supportEmail,serviceCatalogueUrl,diisId,atoNumber,apmNumber,diisUrl,grcUrl,discoveryStatus
     -> managed_network
   - if modellingStatus is omitted, the loader derives it from discoveryStatus: `Discovery Non Enabled` -> false, otherwise true
-  - if diisId or atoNumber is omitted, the loader derives deterministic values as `DIIS-NET-XXX` and `ATO-NET-XXX`
-  - the explicit `net-disabled-reference` fixture is the exception: it preserves null/blank diisId and atoNumber so the UI can show unavailable network metadata without synthetic fallback references
+  - if diisId, atoNumber, or apmNumber is omitted, the loader derives deterministic values as `DIIS-NET-XXX`, `ATO-NET-XXX`, and `APM-NET-XXX`
   - parentNetworkId + childNetworkIds[] -> managed_network_hierarchy
   - ictSystemIds[] -> network_declared_system
   - assetIds[] -> network_declared_asset
   - targetStateAssets.<assetType>[] (name-only target records) -> network_target_state_asset
 
 - ictSystems[]:
-  - id,networkId,name,adfPlatform,enterprisePlatform,description,diisId,owner,supportEmail,serviceCatalogueUrl,atoNumber,diisUrl,grcUrl,modellingStatus,diisDefined,criticality,securityDomain
+  - id,networkId,name,adfPlatform,enterprisePlatform,description,diisId,owner,supportEmail,serviceCatalogueUrl,atoNumber,apmNumber,diisUrl,grcUrl,modellingStatus,diisDefined,criticality,securityDomain
     -> ict_system
+  - if diisId, atoNumber, or apmNumber is omitted, the loader derives deterministic values as `DIIS-SYS-XXX`, `ATO-SYS-XXX`, and `APM-SYS-XXX`
   - parentSystemId + childSystemIds[] -> ict_system_hierarchy
   - missionCapabilities[] -> system_mission_capability
   - businessServices[] -> system_business_service
@@ -155,6 +155,7 @@ Normalization rule applied for relational integrity:
   - modelling_status = 0
   - diis_id = `DIIS-NET-000`
   - ato_number = `ATO-NET-000`
+  - apm_number = `APM-NET-000`
   - criticality = `Non-Critical`
   - discovery_status = `Discovery Non Enabled`
 - If ciDependencies[] is absent for a snapshot, loader synthesizes deterministic dependency examples:

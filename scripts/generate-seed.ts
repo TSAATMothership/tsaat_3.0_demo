@@ -900,6 +900,10 @@ function formatNetworkReferenceOrdinal(ordinal: number): string {
   return String(ordinal).padStart(3, "0");
 }
 
+function formatSystemReferenceOrdinal(ordinal: number): string {
+  return String(ordinal).padStart(3, "0");
+}
+
 function buildNetworks(random: Random): ManagedNetwork[] {
   const count = randomInt(random, 5, 6);
   const baselineNetworks = NETWORK_NAMES.slice(0, count).map((name, index) => {
@@ -915,6 +919,7 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       classification,
       diisId: `DIIS-NET-${referenceOrdinal}`,
       atoNumber: `ATO-NET-${referenceOrdinal}`,
+      apmNumber: `APM-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
       assetIds: []
@@ -934,11 +939,13 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       classification,
       diisId: `DIIS-NET-${referenceOrdinal}`,
       atoNumber: `ATO-NET-${referenceOrdinal}`,
+      apmNumber: `APM-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
       assetIds: []
     };
   });
+  const disabledReferenceOrdinal = formatNetworkReferenceOrdinal(referenceBase + newNetworks.length + 1);
   const disabledReferenceNetwork: ManagedNetwork = {
     id: DISABLED_REFERENCE_NETWORK_ID,
     name: DISABLED_REFERENCE_NETWORK_NAME,
@@ -947,6 +954,9 @@ function buildNetworks(random: Random): ManagedNetwork[] {
     adfPlatform: false,
     enterprisePlatform: false,
     modellingStatus: false,
+    diisId: `DIIS-NET-${disabledReferenceOrdinal}`,
+    atoNumber: `ATO-NET-${disabledReferenceOrdinal}`,
+    apmNumber: `APM-NET-${disabledReferenceOrdinal}`,
     discoveryStatus: "Discovery Non Enabled",
     ictSystemIds: [],
     assetIds: []
@@ -970,6 +980,7 @@ function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
   const systems: ICTSystem[] = [];
 
   for (let index = 0; index < count; index += 1) {
+    const systemReferenceOrdinal = formatSystemReferenceOrdinal(index + 1);
     const network = networks[index % networks.length];
     const envTypes = pickMany(random, ENV_TYPES, randomInt(random, 1, 3));
     const environments: SystemEnvironment[] = [
@@ -1014,6 +1025,9 @@ function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
       enterprisePlatform: chance(random, 0.35),
       modellingStatus: true,
       diisDefined: true,
+      diisId: `DIIS-SYS-${systemReferenceOrdinal}`,
+      atoNumber: `ATO-SYS-${systemReferenceOrdinal}`,
+      apmNumber: `APM-SYS-${systemReferenceOrdinal}`,
       networkId: network.id,
       criticality,
       securityDomain: pick(random, SECURITY_DOMAINS),
@@ -1031,6 +1045,7 @@ function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
 function buildUnmodelledSystems(random: Random, startIndex: number, count: number): ICTSystem[] {
   return Array.from({ length: count }, (_, index) => {
     const systemNumber = startIndex + index + 1;
+    const systemReferenceOrdinal = formatSystemReferenceOrdinal(systemNumber);
     return {
       id: `sys-${systemNumber}`,
       name: `Unmodelled ICT System ${String(index + 1).padStart(2, "0")}`,
@@ -1038,6 +1053,9 @@ function buildUnmodelledSystems(random: Random, startIndex: number, count: numbe
       enterprisePlatform: chance(random, 0.2),
       modellingStatus: false,
       diisDefined: true,
+      diisId: `DIIS-SYS-${systemReferenceOrdinal}`,
+      atoNumber: `ATO-SYS-${systemReferenceOrdinal}`,
+      apmNumber: `APM-SYS-${systemReferenceOrdinal}`,
       networkId: "",
       criticality: "Non-Critical",
       securityDomain: "Unclassified",

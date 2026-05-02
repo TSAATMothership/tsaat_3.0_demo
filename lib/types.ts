@@ -53,6 +53,7 @@ export interface ManagedNetwork {
   serviceCatalogueUrl?: string;
   diisId?: string;
   atoNumber?: string;
+  apmNumber?: string;
   diisUrl?: string;
   grcUrl?: string;
   discoveryStatus: NetworkDiscoveryStatus;
@@ -81,6 +82,7 @@ export interface ICTSystem {
   supportEmail?: string;
   serviceCatalogueUrl?: string;
   atoNumber?: string;
+  apmNumber?: string;
   diisUrl?: string;
   grcUrl?: string;
   modellingStatus: boolean;
