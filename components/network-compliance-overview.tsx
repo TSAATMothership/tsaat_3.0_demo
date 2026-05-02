@@ -40,7 +40,7 @@ export interface ComplianceOverviewAssetTypeSummary {
 
 function iconWrapper(icon: ReactNode) {
   return (
-    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-300/25 bg-sky-500/10 text-sky-100">
+    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-sky-300/25 bg-sky-500/10 text-sky-100">
       {icon}
     </span>
   );
@@ -853,80 +853,86 @@ export function NetworkComplianceOverview({
 
   return (
     <>
-      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4">
-      <section className="panel relative overflow-hidden p-4">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 left-8 h-48 w-48 rounded-full bg-emerald-400/10 blur-3xl" />
+      <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+      <section className="panel relative overflow-hidden p-3">
         <div className="relative">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Compliance Overview</h2>
-          <p className="mt-1 text-sm text-slate-300/80">
-            Visual score composition for {networkName} using evaluation statuses only. Formula: compliant evaluations /
-            total evaluations x 100.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <article className="panel-alt border-emerald-400/30 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Compliant</p>
-              <p className="mt-1 text-2xl font-semibold text-emerald-100">{summary.compliant}</p>
-              <p className="text-xs text-emerald-100/85">{compliantPercent}% of total</p>
-            </article>
-            <article className="panel-alt border-red-400/35 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Non-compliant</p>
-              <p className="mt-1 text-2xl font-semibold text-red-100">{summary.nonCompliant}</p>
-              <p className="text-xs text-red-100/85">{nonCompliantPercent}% of total</p>
-            </article>
-            <article className="panel-alt border-slate-400/35 p-3">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Unknown</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{summary.unknown}</p>
-              <p className="text-xs text-slate-200/85">{unknownPercent}% of total</p>
-            </article>
+          <div>
+            <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Compliance Overview</h2>
+            <p className="mt-1 text-xs leading-4 text-slate-300/80">
+              {networkName} evaluation status mix across {summary.total} evaluations.
+            </p>
           </div>
-          <div className="mt-3 panel-alt border-sky-300/25 p-3">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Total Assets By Asset Type</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-4">
-              <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-slate-300/75">Total</p>
+
+          <div className="mt-2.5 grid gap-2 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)]">
+            <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
+              <p className="text-[10px] uppercase tracking-[0.13em] text-slate-300/75">Status Mix</p>
+              <div className="mt-2 grid grid-cols-3 gap-1.5">
+                <div className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-2 py-1.5">
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-emerald-100/85">C</p>
+                  <p className="text-lg font-semibold leading-none text-emerald-100">{summary.compliant}</p>
+                  <p className="mt-0.5 text-[10px] text-emerald-100/75">{compliantPercent}%</p>
+                </div>
+                <div className="rounded-md border border-red-400/30 bg-red-500/10 px-2 py-1.5">
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-red-100/85">NC</p>
+                  <p className="text-lg font-semibold leading-none text-red-100">{summary.nonCompliant}</p>
+                  <p className="mt-0.5 text-[10px] text-red-100/75">{nonCompliantPercent}%</p>
+                </div>
+                <div className="rounded-md border border-slate-400/25 bg-slate-500/10 px-2 py-1.5">
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-slate-200/85">U</p>
+                  <p className="text-lg font-semibold leading-none text-slate-100">{summary.unknown}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-300/75">{unknownPercent}%</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
+              <p className="text-[10px] uppercase tracking-[0.13em] text-slate-300/75">Assets By Type</p>
+              <div className="mt-2 grid gap-1.5 sm:grid-cols-4">
+                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Total</p>
+                    <p className="text-lg font-semibold leading-none text-slate-100">{assetTypeSummary.totalAssets}</p>
+                  </div>
                   <TotalAssetsIcon />
                 </div>
-                <p className="mt-1 text-xl font-semibold text-slate-100">{assetTypeSummary.totalAssets}</p>
-                <p className="text-[11px] text-slate-300/75">100% of scoped assets</p>
-              </div>
-              <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-slate-300/75">Servers</p>
+                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Servers</p>
+                    <p className="text-lg font-semibold leading-none text-sky-100">{assetTypeSummary.serverCount}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-300/75">{typePercent(assetTypeSummary.serverCount)}%</p>
+                  </div>
                   <ServerIcon />
                 </div>
-                <p className="mt-1 text-xl font-semibold text-sky-100">{assetTypeSummary.serverCount}</p>
-                <p className="text-[11px] text-slate-300/75">{typePercent(assetTypeSummary.serverCount)}%</p>
-              </div>
-              <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-slate-300/75">Workstations</p>
+                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Workstations</p>
+                    <p className="text-lg font-semibold leading-none text-sky-100">{assetTypeSummary.workstationCount}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-300/75">{typePercent(assetTypeSummary.workstationCount)}%</p>
+                  </div>
                   <WorkstationIcon />
                 </div>
-                <p className="mt-1 text-xl font-semibold text-sky-100">{assetTypeSummary.workstationCount}</p>
-                <p className="text-[11px] text-slate-300/75">{typePercent(assetTypeSummary.workstationCount)}%</p>
-              </div>
-              <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-slate-300/75">Network Devices</p>
+                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Net Devices</p>
+                    <p className="text-lg font-semibold leading-none text-sky-100">{assetTypeSummary.networkDeviceCount}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-300/75">
+                      {typePercent(assetTypeSummary.networkDeviceCount)}%
+                    </p>
+                  </div>
                   <NetworkDeviceIcon />
                 </div>
-                <p className="mt-1 text-xl font-semibold text-sky-100">{assetTypeSummary.networkDeviceCount}</p>
-                <p className="text-[11px] text-slate-300/75">{typePercent(assetTypeSummary.networkDeviceCount)}%</p>
               </div>
             </div>
           </div>
-          <div className="mt-4 overflow-hidden rounded-full border border-sky-300/20 bg-slate-950/60">
+
+          <div className="mt-2.5 overflow-hidden rounded-full border border-sky-300/20 bg-slate-950/60">
             <div className="flex h-3 w-full">
               <div className="bg-emerald-400/80" style={{ width: `${compliantPercent}%` }} />
               <div className="bg-red-400/80" style={{ width: `${nonCompliantPercent}%` }} />
               <div className="bg-slate-400/70" style={{ width: `${unknownPercent}%` }} />
             </div>
           </div>
-          <p className="mt-2 text-xs text-slate-300/75">
-            Total evaluations: {summary.total}. Select a measure below to open filtered findings and evidence.
-          </p>
+          <p className="mt-1.5 text-xs text-slate-300/75">Select a measure below to open filtered findings and evidence.</p>
         </div>
       </section>
 

@@ -1451,7 +1451,7 @@ export function CyberCopDashboard({
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)_minmax(0,0.82fr)] gap-2 overflow-hidden">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
               <div className="min-h-0">{filtersSlot}</div>
 
               <section className="panel cop-reveal relative overflow-hidden p-3">

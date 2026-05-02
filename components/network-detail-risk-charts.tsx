@@ -1111,37 +1111,48 @@ export function NetworkDetailRiskCharts({
 
   const containerClass =
     layout === "stacked"
-      ? "grid h-full min-h-0 gap-3 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"
-      : "grid h-full min-h-0 gap-3 lg:grid-cols-2";
+      ? "grid min-h-[449px] gap-2.5 grid-rows-[minmax(285px,1fr)_minmax(156px,1fr)]"
+      : "grid h-full min-h-[285px] gap-3 lg:grid-cols-2";
 
   return (
     <>
+      <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden pr-1">
       <div className={containerClass}>
-        <section className="panel-alt flex min-h-0 flex-col p-2.5">
-          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h3>
-          <p className="mt-1 text-xs text-slate-300/80">{scopeDescription}</p>
-          <p className="mt-1 text-[11px] text-sky-200/90">Select a severity bar to open Findings.</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-lg border border-sky-300/25 bg-slate-950/50 p-2">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Open Findings</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{riskProfile.openFindings}</p>
+        <section className="panel-alt flex min-h-[285px] flex-col p-2.5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-[220px] flex-1">
+              <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h3>
+              <p className="mt-1 text-xs leading-4 text-slate-300/80">{scopeDescription}</p>
             </div>
-            <div className="rounded-lg border border-sky-300/25 bg-slate-950/50 p-2">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">P1-P2 Findings</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-100">{riskProfile.p1p2Count}</p>
+            <p className="rounded-md border border-sky-300/20 bg-slate-950/50 px-2 py-1 text-[11px] text-sky-200/90">
+              Select a severity bar to open Findings.
+            </p>
+          </div>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-md border border-sky-300/25 bg-slate-950/50 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-slate-300/80">Open</p>
+              <p className="mt-0.5 text-lg font-semibold leading-none text-slate-100">{riskProfile.openFindings}</p>
             </div>
-            <div className="rounded-lg border border-red-400/25 bg-red-500/10 p-2">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">Critical Exposure (Open)</p>
-              <p className="mt-1 text-2xl font-semibold text-red-100">{riskProfile.criticalExposureOpenCount}</p>
+            <div className="rounded-md border border-sky-300/25 bg-slate-950/50 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-slate-300/80">P1-P2</p>
+              <p className="mt-0.5 text-lg font-semibold leading-none text-slate-100">{riskProfile.p1p2Count}</p>
             </div>
-            <div className="rounded-lg border border-orange-400/25 bg-orange-500/10 p-2">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/80">High Risk (Open)</p>
-              <p className="mt-1 text-2xl font-semibold text-orange-100">{riskProfile.highRiskOpenCount}</p>
+            <div className="rounded-md border border-red-400/25 bg-red-500/10 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-slate-300/80">Critical</p>
+              <p className="mt-0.5 text-lg font-semibold leading-none text-red-100">
+                {riskProfile.criticalExposureOpenCount}
+              </p>
+            </div>
+            <div className="rounded-md border border-orange-400/25 bg-orange-500/10 px-2 py-1.5">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-slate-300/80">High</p>
+              <p className="mt-0.5 text-lg font-semibold leading-none text-orange-100">
+                {riskProfile.highRiskOpenCount}
+              </p>
             </div>
           </div>
-          <div className="mt-1.5 min-h-0 flex-1">
+          <div className="mt-1.5 min-h-[170px] flex-1">
             {isMounted ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={170}>
                 <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                   <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -1174,7 +1185,7 @@ export function NetworkDetailRiskCharts({
           </div>
         </section>
 
-        <section className="panel-alt flex min-h-0 flex-col p-2.5">
+        <section className="panel-alt flex min-h-[156px] flex-col p-2.5">
           <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h3>
           <p className="mt-1 text-xs text-slate-300/80">
             Weekly open finding counts for Critical Exposure and High Risk.
@@ -1189,9 +1200,9 @@ export function NetworkDetailRiskCharts({
               Critical Exposure
             </span>
           </div>
-          <div className="mt-1.5 min-h-0 flex-1">
+          <div className="mt-1.5 min-h-[108px] flex-1">
             {isMounted ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={108}>
                 <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                   <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -1217,6 +1228,7 @@ export function NetworkDetailRiskCharts({
             ) : null}
           </div>
         </section>
+      </div>
       </div>
 
       {isFindingsPanelVisible && selectedSeverity ? (
