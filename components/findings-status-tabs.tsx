@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -17,7 +18,13 @@ function nextProgressValue(current: number): number {
   return current + 5;
 }
 
-export function FindingsStatusTabs({ activeTab }: { activeTab: "open" | "closed" }) {
+export function FindingsStatusTabs({
+  activeTab,
+  children
+}: {
+  activeTab: "open" | "closed";
+  children?: ReactNode;
+}) {
   const searchParams = useSearchParams();
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -97,7 +104,7 @@ export function FindingsStatusTabs({ activeTab }: { activeTab: "open" | "closed"
   return (
     <>
       <section className="panel overflow-hidden">
-        <div className="border-b border-sky-400/15 px-4 py-3">
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {tabs.map((tab) => (
               <button
@@ -114,6 +121,7 @@ export function FindingsStatusTabs({ activeTab }: { activeTab: "open" | "closed"
               </button>
             ))}
           </div>
+          {children ? <div className="w-full min-w-0 lg:max-w-[54rem] lg:flex-1">{children}</div> : null}
         </div>
       </section>
 

@@ -26,7 +26,8 @@ function formatDisplayDate(value: string): string {
 export function FindingsHistoryLineChart({
   points,
   status,
-  titleAction
+  titleAction,
+  variant = "default"
 }: {
   points: FindingsHistoryPoint[];
   status: "open" | "closed";
@@ -34,9 +35,11 @@ export function FindingsHistoryLineChart({
     label: string;
     onClick: () => void;
   };
+  variant?: "default" | "compact";
 }) {
   const currentTotal = points[points.length - 1]?.openFindings ?? 0;
   const isClosed = status === "closed";
+  const isCompact = variant === "compact";
   const lineLabel = isClosed ? "Closed Findings" : "Open Findings";
   const lineStroke = isClosed ? "#ef4444" : "#46c0de";
   const subtitle = isClosed
@@ -44,10 +47,10 @@ export function FindingsHistoryLineChart({
     : "Open findings over time from two years ago to today.";
 
   return (
-    <section className="panel p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
+    <section className={`panel flex min-h-0 flex-col ${isCompact ? "p-3" : "p-4"}`}>
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Findings History (2 Years)</h2>
             {titleAction ? (
               <button
@@ -59,14 +62,16 @@ export function FindingsHistoryLineChart({
               </button>
             ) : null}
           </div>
-          <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+          <p className={isCompact ? "mt-0.5 text-xs text-slate-300/80" : "mt-1 text-xs text-slate-300/80"}>{subtitle}</p>
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Total Findings (Current Date)</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-100">{currentTotal.toLocaleString("en-US")}</p>
+          <p className={isCompact ? "mt-0.5 text-xl font-semibold text-slate-100" : "mt-1 text-2xl font-semibold text-slate-100"}>
+            {currentTotal.toLocaleString("en-US")}
+          </p>
         </div>
       </div>
-      <div className="mt-3 h-64 w-full">
+      <div className={`${isCompact ? "mt-2 min-h-[12rem] flex-1" : "mt-3 h-64"} w-full`}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points}>
             <CartesianGrid stroke="rgba(120,180,210,0.15)" />

@@ -64,11 +64,13 @@ function normalizeQuery(query: string): string {
 export function FindingsTimelineFilter({
   selectedAsOf,
   minDate,
-  maxDate
+  maxDate,
+  variant = "panel"
 }: {
   selectedAsOf?: string;
   minDate: string;
   maxDate: string;
+  variant?: "panel" | "embedded";
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname() ?? "/";
@@ -161,11 +163,27 @@ export function FindingsTimelineFilter({
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  return (
-    <section className="panel p-4">
+  const timelineControl = (
+    <div className={variant === "embedded" ? "w-full" : undefined}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Findings Timeline</p>
-        <p className="text-xs text-slate-300/80">As Of: {displayDate(hasPendingChanges ? pendingDate : activeDate)}</p>
+        <div className="flex min-h-[1.875rem] items-center gap-2">
+          <p className="text-xs text-slate-300/80">As Of: {displayDate(hasPendingChanges ? pendingDate : activeDate)}</p>
+          <button
+            type="button"
+            onClick={applyAsOf}
+            disabled={!hasPendingChanges || isLoading}
+            className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
+              hasPendingChanges
+                ? "border-sky-300/40 bg-sky-500/15 text-sky-100 hover:bg-sky-500/25"
+                : "pointer-events-none border-slate-600/25 bg-slate-900/20 text-slate-500 opacity-0"
+            }`}
+            aria-hidden={!hasPendingChanges}
+            tabIndex={hasPendingChanges ? 0 : -1}
+          >
+            {isLoading ? "Applying..." : "Apply"}
+          </button>
+        </div>
       </div>
       <div className="mt-3">
         <input
@@ -182,19 +200,12 @@ export function FindingsTimelineFilter({
         <span>{displayDate(minDate)}</span>
         <span>{displayDate(maxDate)}</span>
       </div>
-      {hasPendingChanges ? (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={applyAsOf}
-            disabled={isLoading}
-            className="rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-100"
-          >
-            {isLoading ? "Applying..." : "Apply"}
-          </button>
-        </div>
-      ) : null}
+    </div>
+  );
 
+  return (
+    <>
+      {variant === "embedded" ? timelineControl : <section className="panel p-4">{timelineControl}</section>}
       {isMounted && isLoading
         ? createPortal(
             <div className="fixed inset-0 z-[9999] cursor-wait bg-slate-950/60">
@@ -218,6 +229,6 @@ export function FindingsTimelineFilter({
             document.body
           )
         : null}
-    </section>
+    </>
   );
 }

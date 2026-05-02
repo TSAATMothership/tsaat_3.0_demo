@@ -27,6 +27,13 @@ interface ExtraSelectField {
   options: Option[];
 }
 
+interface DropdownPosition {
+  left: number;
+  top: number;
+  width: number;
+  maxHeight: number;
+}
+
 type FilterField =
   | "managedNetwork"
   | "ictSystem"
@@ -73,9 +80,11 @@ function SelectField({
   onChange: (value: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null);
 
   const selectedOption = useMemo(() => options.find((option) => option.id === value), [options, value]);
 
@@ -90,12 +99,13 @@ function SelectField({
 
   useEffect(() => {
     if (!isOpen) {
+      setDropdownPosition(null);
       return;
     }
 
     const closeOnOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (!containerRef.current?.contains(target)) {
+      if (!containerRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
         setIsOpen(false);
         setSearchTerm("");
       }
@@ -108,20 +118,41 @@ function SelectField({
       }
     };
 
+    const updateDropdownPosition = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+
+      const viewportMargin = 12;
+      const top = rect.bottom + 4;
+      setDropdownPosition({
+        left: Math.max(viewportMargin, Math.min(rect.left, window.innerWidth - rect.width - viewportMargin)),
+        top,
+        width: rect.width,
+        maxHeight: Math.max(180, window.innerHeight - top - viewportMargin)
+      });
+    };
+
+    updateDropdownPosition();
     document.addEventListener("mousedown", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", updateDropdownPosition);
+    window.addEventListener("scroll", updateDropdownPosition, true);
 
     return () => {
       document.removeEventListener("mousedown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", updateDropdownPosition);
+      window.removeEventListener("scroll", updateDropdownPosition, true);
     };
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      searchInputRef.current?.focus();
+    if (isOpen && dropdownPosition) {
+      window.requestAnimationFrame(() => searchInputRef.current?.focus());
     }
-  }, [isOpen]);
+  }, [dropdownPosition, isOpen]);
 
   const selectValue = (nextValue: string) => {
     onChange(nextValue);
@@ -143,46 +174,60 @@ function SelectField({
           <span className="truncate">{selectedOption?.label ?? "All"}</span>
           <span className="ml-3 text-xs text-slate-300/70">{isOpen ? "▲" : "▼"}</span>
         </button>
-        {isOpen ? (
-          <div className="absolute z-[160] mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950 p-2 shadow-2xl">
-            <input
-              ref={searchInputRef}
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={`Search ${label.toLowerCase()}`}
-              className="w-full rounded-md border border-sky-400/20 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/60"
-              aria-label={`Search ${label} options`}
-            />
-            <div className="mt-2 max-h-56 overflow-y-auto rounded-md border border-sky-400/20 bg-slate-950/40 p-1">
-              <button
-                type="button"
-                onClick={() => selectValue("")}
-                className={`w-full rounded px-2 py-1.5 text-left text-sm ${
-                  !value ? "bg-sky-500/20 text-sky-200" : "text-slate-200 hover:bg-slate-800/80"
-                }`}
+      </div>
+      {isOpen && dropdownPosition
+        ? createPortal(
+            <div
+              ref={dropdownRef}
+              className="fixed z-[10000] rounded-md border border-sky-400/20 bg-slate-950 p-2 shadow-2xl"
+              style={{
+                left: dropdownPosition.left,
+                top: dropdownPosition.top,
+                width: dropdownPosition.width
+              }}
+            >
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={`Search ${label.toLowerCase()}`}
+                className="w-full rounded-md border border-sky-400/20 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/60"
+                aria-label={`Search ${label} options`}
+              />
+              <div
+                className="mt-2 overflow-y-auto rounded-md border border-sky-400/20 bg-slate-950/40 p-1"
+                style={{ maxHeight: Math.min(224, dropdownPosition.maxHeight) }}
               >
-                All
-              </button>
-              {filteredOptions.map((option) => (
                 <button
-                  key={option.id}
                   type="button"
-                  onClick={() => selectValue(option.id)}
+                  onClick={() => selectValue("")}
                   className={`w-full rounded px-2 py-1.5 text-left text-sm ${
-                    value === option.id ? "bg-sky-500/20 text-sky-200" : "text-slate-200 hover:bg-slate-800/80"
+                    !value ? "bg-sky-500/20 text-sky-200" : "text-slate-200 hover:bg-slate-800/80"
                   }`}
                 >
-                  {option.label}
+                  All
                 </button>
-              ))}
-              {filteredOptions.length === 0 ? (
-                <p className="px-2 py-1.5 text-sm text-slate-400">No matches</p>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </div>
+                {filteredOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => selectValue(option.id)}
+                    className={`w-full rounded px-2 py-1.5 text-left text-sm ${
+                      value === option.id ? "bg-sky-500/20 text-sky-200" : "text-slate-200 hover:bg-slate-800/80"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+                {filteredOptions.length === 0 ? (
+                  <p className="px-2 py-1.5 text-sm text-slate-400">No matches</p>
+                ) : null}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
@@ -193,7 +238,8 @@ export function FilterBar({
   hiddenFields = [],
   extraSelectFields = [],
   enableLoadingOverlay = false,
-  actions
+  actions,
+  className = "panel no-print mt-4 flex flex-wrap gap-3 p-4"
 }: {
   options: FilterOptions;
   filters: Filters;
@@ -201,6 +247,7 @@ export function FilterBar({
   extraSelectFields?: ExtraSelectField[];
   enableLoadingOverlay?: boolean;
   actions?: ReactNode;
+  className?: string;
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname() ?? "/";
@@ -283,7 +330,7 @@ export function FilterBar({
 
   return (
     <>
-      <div className="panel no-print mt-4 flex flex-wrap gap-3 p-4">
+      <div className={className}>
         {!hidden.has("managedNetwork") ? (
           <SelectField
             label="Network"

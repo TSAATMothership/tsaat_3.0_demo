@@ -71,7 +71,8 @@ export function FindingsHistoryDrillthrough({
   maxDate,
   filterOptions,
   filters,
-  extraSelectFields
+  extraSelectFields,
+  variant = "default"
 }: {
   points: Array<{ date: string; openFindings: number }>;
   status: "open" | "closed";
@@ -83,6 +84,7 @@ export function FindingsHistoryDrillthrough({
   filterOptions: FilterOptionsProp;
   filters: FiltersProp;
   extraSelectFields: ExtraSelectField[];
+  variant?: "default" | "compact";
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
@@ -194,6 +196,7 @@ export function FindingsHistoryDrillthrough({
       <FindingsHistoryLineChart
         points={points}
         status={status}
+        variant={variant}
         titleAction={{ label: "Open SPI Trend Drill-Through", onClick: openPanel }}
       />
 

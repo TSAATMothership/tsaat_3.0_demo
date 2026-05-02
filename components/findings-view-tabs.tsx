@@ -91,6 +91,9 @@ export function FindingsViewTabs({ activeTab }: { activeTab: FindingsViewTabId }
 
     const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.set("findingsViewTab", tab);
+    if (tab === "overview") {
+      params.delete("spi");
+    }
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
   };

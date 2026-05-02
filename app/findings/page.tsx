@@ -317,16 +317,18 @@ export default async function FindingsPage({
     ? findings.slice((findingsCurrentPage - 1) * openTabPageSize, findingsCurrentPage * openTabPageSize)
     : findings;
   const criticalExposure = findings.filter((finding) => finding.severity === "Critical Exposure").length;
-  const p1P2Findings = findings.filter((finding) => finding.priorityRank <= 2).length;
+  const mediumAndLowerRiskFindings = Math.max(totalFindings - criticalExposure - highRisk, 0);
   const assetTypeSummaries = ASSET_TYPES.map((assetType) => {
     const typeFindings = findings.filter((finding) => String(finding.evidence.assetType ?? "") === assetType);
+    const criticalExposureCount = typeFindings.filter((finding) => finding.severity === "Critical Exposure").length;
+    const highRiskCount = typeFindings.filter((finding) => finding.severity === "High Risk").length;
     return {
       id: assetType,
       label: assetTypeLabel(assetType),
       totalFindings: typeFindings.length,
-      highRisk: typeFindings.filter((finding) => finding.severity === "High Risk").length,
-      criticalExposure: typeFindings.filter((finding) => finding.severity === "Critical Exposure").length,
-      p1P2Findings: typeFindings.filter((finding) => finding.priorityRank <= 2).length
+      highRisk: highRiskCount,
+      criticalExposure: criticalExposureCount,
+      otherRisk: Math.max(typeFindings.length - criticalExposureCount - highRiskCount, 0)
     };
   });
   const openFindingsForSpiSummary = timelineFindings.filter(
@@ -351,6 +353,17 @@ export default async function FindingsPage({
     (maxValue, row) => Math.max(maxValue, row.totalOpenFindings),
     0
   );
+  const overviewMetricCards = [
+    { label: "Total Findings", value: totalFindings, labelClass: "text-slate-200", valueClass: "text-slate-100" },
+    { label: "Critical Exposure", value: criticalExposure, labelClass: "text-red-300", valueClass: "text-red-100" },
+    { label: "High Risk", value: highRisk, labelClass: "text-orange-200", valueClass: "text-orange-100" },
+    {
+      label: "Medium and Lower Risk",
+      value: mediumAndLowerRiskFindings,
+      labelClass: "text-sky-200",
+      valueClass: "text-sky-100"
+    }
+  ];
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -365,86 +378,81 @@ export default async function FindingsPage({
       <FindingsViewTabs activeTab={activeViewTab} />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <div
-          className={`grid h-full min-h-0 gap-2 ${
-            activeViewTab === "overview"
-              ? "grid-rows-[auto_auto_auto_auto_minmax(0,1fr)]"
-              : "grid-rows-[auto_auto_auto_minmax(0,1fr)]"
-          }`}
-        >
-          <FindingsStatusTabs activeTab={selectedStatus} />
-
-          {activeViewTab === "overview" ? (
-            <FindingsHistoryDrillthrough
-              points={findingsHistoryPoints}
-              status={selectedStatus}
-              spiCatalog={spiCatalog}
-              spiHistoryPoints={spiHistoryPoints}
+        <div className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
+          <FindingsStatusTabs activeTab={selectedStatus}>
+            <FindingsTimelineFilter
               selectedAsOf={selectedAsOf}
               minDate={historyStart}
               maxDate={today}
-              filterOptions={filterOptions}
-              filters={filters}
-              extraSelectFields={findingsFilterExtraSelects}
+              variant="embedded"
             />
-          ) : null}
-
-          <FindingsTimelineFilter selectedAsOf={selectedAsOf} minDate={historyStart} maxDate={today} />
+          </FindingsStatusTabs>
 
           <FilterBar
             options={filterOptions}
             filters={filters}
             extraSelectFields={findingsFilterExtraSelects}
             enableLoadingOverlay
+            className="panel no-print flex max-h-[8.5rem] flex-wrap gap-2 overflow-y-auto p-3"
           />
 
           {activeViewTab === "overview" ? (
-            <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-              <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="panel p-4">
-                  <p className="text-xs uppercase tracking-[0.14em] text-slate-200">Total Findings</p>
-                  <p className="mt-1 text-3xl font-semibold">{totalFindings}</p>
-                </div>
-                <div className="panel p-4">
-                  <p className="text-xs uppercase tracking-[0.14em] text-red-300">Critical Exposure</p>
-                  <p className="mt-1 text-3xl font-semibold">{criticalExposure}</p>
-                </div>
-                <div className="panel p-4">
-                  <p className="text-xs uppercase tracking-[0.14em] text-orange-200">High Risk</p>
-                  <p className="mt-1 text-3xl font-semibold">{highRisk}</p>
-                </div>
-                <div className="panel p-4">
-                  <p className="text-xs uppercase tracking-[0.14em] text-sky-200">P1-P2 Findings</p>
-                  <p className="mt-1 text-3xl font-semibold">{p1P2Findings}</p>
-                </div>
-              </section>
+            <div className="min-h-0 overflow-auto pr-1 xl:overflow-hidden">
+              <div className="grid min-h-[46rem] gap-2 xl:h-full xl:min-h-0 xl:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)]">
+                <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+                  <section className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
+                    {overviewMetricCards.map((metric) => (
+                      <div key={metric.label} className="panel p-3">
+                        <p className={`text-[11px] uppercase tracking-[0.14em] ${metric.labelClass}`}>{metric.label}</p>
+                        <p className={`mt-1 text-2xl font-semibold leading-none ${metric.valueClass}`}>
+                          {metric.value.toLocaleString("en-US")}
+                        </p>
+                      </div>
+                    ))}
+                  </section>
 
-              <div className="min-h-0 overflow-auto pr-1">
-                <section className="grid gap-2 xl:grid-cols-2">
-                  <article className="panel p-4">
-                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Assets by Asset Type</h2>
-                    <p className="mt-1 text-xs text-slate-300/80">
-                      Findings breakdown by asset type in the current filtered scope.
-                    </p>
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-slate-900/60 text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                  <FindingsHistoryDrillthrough
+                    points={findingsHistoryPoints}
+                    status={selectedStatus}
+                    spiCatalog={spiCatalog}
+                    spiHistoryPoints={spiHistoryPoints}
+                    selectedAsOf={selectedAsOf}
+                    minDate={historyStart}
+                    maxDate={today}
+                    filterOptions={filterOptions}
+                    filters={filters}
+                    extraSelectFields={findingsFilterExtraSelects}
+                    variant="compact"
+                  />
+                </section>
+
+                <section className="grid min-h-0 grid-rows-[minmax(0,0.82fr)_minmax(0,1.18fr)] gap-2">
+                  <article className="panel flex min-h-0 flex-col p-3">
+                    <div className="shrink-0">
+                      <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Assets by Asset Type</h2>
+                      <p className="mt-0.5 text-xs text-slate-300/80">
+                        Findings breakdown by asset type in the current filtered scope.
+                      </p>
+                    </div>
+                    <div className="mt-2 min-h-0 overflow-auto">
+                      <table className="min-w-full text-xs">
+                        <thead className="sticky top-0 z-10 bg-slate-900 text-left text-[10px] uppercase tracking-[0.12em] text-slate-300/80">
                           <tr>
-                            <th className="px-3 py-2">Asset Type</th>
-                            <th className="px-3 py-2">Total Findings</th>
-                            <th className="px-3 py-2">Critical Exposure</th>
-                            <th className="px-3 py-2">High Risk</th>
-                            <th className="px-3 py-2">P1-P2 Findings</th>
+                            <th className="px-2 py-1.5">Asset Type</th>
+                            <th className="px-2 py-1.5 text-right">Total</th>
+                            <th className="px-2 py-1.5 text-right">Critical</th>
+                            <th className="px-2 py-1.5 text-right">High</th>
+                            <th className="px-2 py-1.5 text-right">Other</th>
                           </tr>
                         </thead>
                         <tbody>
                           {assetTypeSummaries.map((summary) => (
                             <tr key={summary.id} className="border-t border-sky-400/10">
-                              <td className="px-3 py-2 text-slate-100">{summary.label}</td>
-                              <td className="px-3 py-2 text-slate-200">{summary.totalFindings}</td>
-                              <td className="px-3 py-2 text-orange-100">{summary.criticalExposure}</td>
-                              <td className="px-3 py-2 text-red-100">{summary.highRisk}</td>
-                              <td className="px-3 py-2 text-amber-100">{summary.p1P2Findings}</td>
+                              <td className="px-2 py-1.5 text-slate-100">{summary.label}</td>
+                              <td className="px-2 py-1.5 text-right text-slate-200">{summary.totalFindings}</td>
+                              <td className="px-2 py-1.5 text-right text-orange-100">{summary.criticalExposure}</td>
+                              <td className="px-2 py-1.5 text-right text-red-100">{summary.highRisk}</td>
+                              <td className="px-2 py-1.5 text-right text-sky-100">{summary.otherRisk}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -452,31 +460,49 @@ export default async function FindingsPage({
                     </div>
                   </article>
 
-                  <article className="panel p-4">
-                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
-                      Security Posture Indicator Summary
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-300/80">
-                      Total open findings by SPI at the selected findings timeline date.
-                    </p>
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-slate-900/60 text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                  <article className="panel flex min-h-0 flex-col p-3">
+                    <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">
+                          Security Posture Indicator Summary
+                        </h2>
+                        <p className="mt-0.5 text-xs text-slate-300/80">
+                          Total open findings by SPI at the selected findings timeline date.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.08em] text-slate-300/80">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-sm bg-red-500/85" />
+                          Critical Risk
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-sm bg-orange-500/85" />
+                          High Risk
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-sm bg-sky-500/85" />
+                          Medium Risk and Lower
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-2 min-h-0 overflow-auto">
+                      <table className="min-w-full text-xs">
+                        <thead className="sticky top-0 z-10 bg-slate-900 text-left text-[10px] uppercase tracking-[0.12em] text-slate-300/80">
                           <tr>
-                            <th className="px-3 py-2">SPI</th>
-                            <th className="px-3 py-2">Description</th>
-                            <th className="px-3 py-2">Open Findings Mix</th>
+                            <th className="px-2 py-1.5">SPI</th>
+                            <th className="px-2 py-1.5">Description</th>
+                            <th className="px-2 py-1.5">Open Findings Mix</th>
                           </tr>
                         </thead>
                         <tbody>
                           {openFindingsBySpiSummary.map((row) => (
                             <tr key={row.spiId} className="border-t border-sky-400/10">
-                              <td className="px-3 py-2 text-slate-100">SPI {row.spiId}</td>
-                              <td className="px-3 py-2 text-slate-200">{row.description}</td>
-                              <td className="px-3 py-2">
-                                <div className="w-[260px] max-w-full">
+                              <td className="whitespace-nowrap px-2 py-1.5 text-slate-100">SPI {row.spiId}</td>
+                              <td className="px-2 py-1.5 text-slate-200">{row.description}</td>
+                              <td className="px-2 py-1.5">
+                                <div className="w-[210px] max-w-full">
                                   <div className="overflow-hidden rounded-full border border-sky-300/20 bg-slate-950/60">
-                                    <div className="flex h-2.5 w-full">
+                                    <div className="flex h-2 w-full">
                                       <div
                                         className="bg-red-500/85"
                                         style={{
@@ -507,7 +533,7 @@ export default async function FindingsPage({
                                       />
                                     </div>
                                   </div>
-                                  <p className="mt-1 text-[11px] text-slate-300/80">
+                                  <p className="mt-1 text-[10px] text-slate-300/80">
                                     Total {row.totalOpenFindings} | CE {row.criticalExposureCount} | HR {row.highRiskCount}
                                     {" | "}Other {row.otherCount}
                                   </p>
