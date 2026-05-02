@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
-import { ComplianceStatus, FindingSeverity, HighRiskCveDetail } from "@/lib/types";
+import { ComplianceStatus, CveVulnerabilityDetail, FindingSeverity, VulnerabilitySeverity } from "@/lib/types";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 const PANEL_TWEEN_MS = 260;
@@ -22,6 +22,7 @@ const FINDING_SEVERITY_COLORS: Record<FindingSeverity, string> = {
   Moderate: "#22d3ee",
   "Data Gap": "#94a3b8"
 };
+const CVE_CRITICALITY_FILTERS: VulnerabilitySeverity[] = ["Critical", "High", "Medium", "Low"];
 
 export interface ComplianceOverviewSummary {
   score: number;
@@ -36,6 +37,9 @@ export interface ComplianceOverviewAssetTypeSummary {
   serverCount: number;
   workstationCount: number;
   networkDeviceCount: number;
+  storageDeviceCount: number;
+  printerDeviceCount: number;
+  otherCount: number;
 }
 
 function iconWrapper(icon: ReactNode) {
@@ -84,6 +88,38 @@ function NetworkDeviceIcon() {
   );
 }
 
+function StorageDeviceIcon() {
+  return iconWrapper(
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <ellipse cx="12" cy="6" rx="7" ry="3" />
+      <path d="M5 6v7c0 1.7 3.1 3 7 3s7-1.3 7-3V6" />
+      <path d="M5 10.5c0 1.7 3.1 3 7 3s7-1.3 7-3" />
+      <path d="M5 15c0 1.7 3.1 3 7 3s7-1.3 7-3" />
+    </svg>
+  );
+}
+
+function PrinterDeviceIcon() {
+  return iconWrapper(
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path d="M7 8V4h10v4" />
+      <rect x="5" y="8" width="14" height="8" rx="2" />
+      <path d="M8 14h8v6H8zM8 12h.01" />
+    </svg>
+  );
+}
+
+function OtherDeviceIcon() {
+  return iconWrapper(
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <rect x="4" y="4" width="6" height="6" rx="1.5" />
+      <rect x="14" y="4" width="6" height="6" rx="1.5" />
+      <rect x="4" y="14" width="6" height="6" rx="1.5" />
+      <path d="M17 14v6M14 17h6" />
+    </svg>
+  );
+}
+
 export interface ComplianceOverviewMeasureRow {
   spiId: number;
   label: string;
@@ -124,20 +160,17 @@ export interface ComplianceOverviewFindingRow {
 }
 
 type TimelineFindingEntry = { finding: ComplianceOverviewFindingRow; asOfStatus: "open" | "closed" };
-type AssetHighRiskCveEntry = HighRiskCveDetail;
+type AssetCveEntry = CveVulnerabilityDetail;
 type AssetDetailsRow = {
   assetId: string;
   assetName: string;
   assetIpAddress: string;
   assetType: string;
-  criticalExposureFindings: number;
-  highRiskFindings: number;
-  totalFindings: number;
   assetChangeAssignmentGroup: string;
   assetIncidentAssignmentGroup: string;
   owner: string;
-  totalHighRiskCveVulnerabilities: number;
-  highRiskCveVulnerabilities: AssetHighRiskCveEntry[];
+  totalCveVulnerabilities: number;
+  cveVulnerabilities: AssetCveEntry[];
 };
 
 function percentage(part: number, whole: number): number {
@@ -151,6 +184,19 @@ function workflowBadgeClass(status: "open" | "closed"): string {
   return status === "open"
     ? "border-amber-400/45 bg-amber-500/15 text-amber-100"
     : "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
+}
+
+function cveCriticalityClass(criticality: VulnerabilitySeverity): string {
+  if (criticality === "Critical") {
+    return "text-red-100";
+  }
+  if (criticality === "High") {
+    return "text-orange-100";
+  }
+  if (criticality === "Medium") {
+    return "text-sky-100";
+  }
+  return "text-emerald-100";
 }
 
 function csvCell(value: string | number): string {
@@ -184,7 +230,7 @@ export function NetworkComplianceOverview({
   assetTypeSummary,
   measures,
   findings,
-  assetHighRiskCvesByAssetId = {}
+  assetCvesByAssetId = {}
 }: {
   networkName: string;
   asOfDate: string;
@@ -192,7 +238,7 @@ export function NetworkComplianceOverview({
   assetTypeSummary: ComplianceOverviewAssetTypeSummary;
   measures: ComplianceOverviewMeasureRow[];
   findings: ComplianceOverviewFindingRow[];
-  assetHighRiskCvesByAssetId?: Record<string, AssetHighRiskCveEntry[]>;
+  assetCvesByAssetId?: Record<string, AssetCveEntry[]>;
 }) {
   const [selectedMeasure, setSelectedMeasure] = useState<ComplianceOverviewMeasureRow | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -207,6 +253,7 @@ export function NetworkComplianceOverview({
   const [isCveDetailsModalVisible, setIsCveDetailsModalVisible] = useState(false);
   const [isCveDetailsModalOpen, setIsCveDetailsModalOpen] = useState(false);
   const [cveSearchTerm, setCveSearchTerm] = useState("");
+  const [cveCriticalityFilter, setCveCriticalityFilter] = useState<"all" | VulnerabilitySeverity>("all");
   const [isMounted, setIsMounted] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const assetDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -298,6 +345,7 @@ export function NetworkComplianceOverview({
     setIsCveDetailsModalVisible(false);
     setIsCveDetailsModalOpen(false);
     setCveSearchTerm("");
+    setCveCriticalityFilter("all");
     setIsFindingsPanelVisible(true);
     requestAnimationFrame(() => {
       setIsFindingsPanelOpen(true);
@@ -313,6 +361,7 @@ export function NetworkComplianceOverview({
     setSelectedFindingForAssets(null);
     setSelectedAssetForCveDetails(null);
     setCveSearchTerm("");
+    setCveCriticalityFilter("all");
     if (assetDetailsCloseTimerRef.current) {
       clearTimeout(assetDetailsCloseTimerRef.current);
       assetDetailsCloseTimerRef.current = null;
@@ -345,6 +394,7 @@ export function NetworkComplianceOverview({
     setIsCveDetailsModalVisible(false);
     setIsCveDetailsModalOpen(false);
     setCveSearchTerm("");
+    setCveCriticalityFilter("all");
     setIsAssetDetailsPanelVisible(true);
     requestAnimationFrame(() => {
       setIsAssetDetailsPanelOpen(true);
@@ -357,6 +407,7 @@ export function NetworkComplianceOverview({
     setIsCveDetailsModalVisible(false);
     setSelectedAssetForCveDetails(null);
     setCveSearchTerm("");
+    setCveCriticalityFilter("all");
     if (cveDetailsCloseTimerRef.current) {
       clearTimeout(cveDetailsCloseTimerRef.current);
       cveDetailsCloseTimerRef.current = null;
@@ -372,7 +423,7 @@ export function NetworkComplianceOverview({
   };
 
   const openCveDetailsModal = (assetRow: AssetDetailsRow) => {
-    if (!assetRow.totalHighRiskCveVulnerabilities) {
+    if (!assetRow.totalCveVulnerabilities) {
       return;
     }
     if (cveDetailsCloseTimerRef.current) {
@@ -381,6 +432,7 @@ export function NetworkComplianceOverview({
     }
     setSelectedAssetForCveDetails(assetRow);
     setCveSearchTerm("");
+    setCveCriticalityFilter("all");
     setIsCveDetailsModalVisible(true);
     requestAnimationFrame(() => {
       setIsCveDetailsModalOpen(true);
@@ -396,6 +448,7 @@ export function NetworkComplianceOverview({
       setIsCveDetailsModalVisible(false);
       setSelectedAssetForCveDetails(null);
       setCveSearchTerm("");
+      setCveCriticalityFilter("all");
       cveDetailsCloseTimerRef.current = null;
     }, PANEL_TWEEN_MS);
   };
@@ -487,26 +540,6 @@ export function NetworkComplianceOverview({
 
   const filteredFindings = useMemo(() => filteredTimelineFindings.slice(0, 200), [filteredTimelineFindings]);
 
-  const findingCountsByAsset = useMemo(() => {
-    const counts = new Map<string, { criticalExposureFindings: number; highRiskFindings: number; totalFindings: number }>();
-    for (const finding of findings) {
-      const current = counts.get(finding.assetId) ?? {
-        criticalExposureFindings: 0,
-        highRiskFindings: 0,
-        totalFindings: 0
-      };
-      current.totalFindings += 1;
-      if (finding.severity === "Critical Exposure") {
-        current.criticalExposureFindings += 1;
-      }
-      if (finding.severity === "High Risk") {
-        current.highRiskFindings += 1;
-      }
-      counts.set(finding.assetId, current);
-    }
-    return counts;
-  }, [findings]);
-
   const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
     if (!selectedFindingForAssets) {
       return [];
@@ -516,28 +549,20 @@ export function NetworkComplianceOverview({
 
     return [selectedFinding]
       .map((finding) => {
-        const counts = findingCountsByAsset.get(finding.assetId) ?? {
-          criticalExposureFindings: 0,
-          highRiskFindings: 0,
-          totalFindings: 0
-        };
         return {
           assetId: finding.assetId,
           assetName: finding.assetName,
           assetIpAddress: finding.assetIpAddress,
           assetType: finding.assetType,
-          criticalExposureFindings: counts.criticalExposureFindings,
-          highRiskFindings: counts.highRiskFindings,
-          totalFindings: counts.totalFindings,
           assetChangeAssignmentGroup: finding.assetChangeAssignmentGroup,
           assetIncidentAssignmentGroup: finding.assetIncidentAssignmentGroup,
           owner: finding.owner,
-          totalHighRiskCveVulnerabilities: (assetHighRiskCvesByAssetId[finding.assetId] ?? []).length,
-          highRiskCveVulnerabilities: assetHighRiskCvesByAssetId[finding.assetId] ?? []
+          totalCveVulnerabilities: (assetCvesByAssetId[finding.assetId] ?? []).length,
+          cveVulnerabilities: assetCvesByAssetId[finding.assetId] ?? []
         };
       })
       .sort((a, b) => a.assetName.localeCompare(b.assetName));
-  }, [assetHighRiskCvesByAssetId, findingCountsByAsset, selectedFindingForAssets]);
+  }, [assetCvesByAssetId, selectedFindingForAssets]);
 
   const downloadAssetDetailsCsv = () => {
     if (!assetDetailsRows.length) {
@@ -548,10 +573,7 @@ export function NetworkComplianceOverview({
       "Asset Name",
       "Asset IP address",
       "Asset Type",
-      "Total Critical Exposure Findings",
-      "Total High Risk Findings",
-      "Total High Risk CVE Vulnerabilities",
-      "Total Findings",
+      "CVE Vulnerabilities",
       "Asset Change Assignment Group",
       "Asset Incident Assignment Group",
       "Owner"
@@ -560,10 +582,7 @@ export function NetworkComplianceOverview({
       assetRow.assetName,
       assetRow.assetIpAddress,
       assetRow.assetType,
-      assetRow.criticalExposureFindings,
-      assetRow.highRiskFindings,
-      assetRow.totalHighRiskCveVulnerabilities,
-      assetRow.totalFindings,
+      assetRow.totalCveVulnerabilities,
       assetRow.assetChangeAssignmentGroup,
       assetRow.assetIncidentAssignmentGroup,
       assetRow.owner
@@ -588,16 +607,19 @@ export function NetworkComplianceOverview({
     URL.revokeObjectURL(url);
   };
 
-  const selectedAssetHighRiskCves = useMemo(() => {
+  const selectedAssetCves = useMemo(() => {
     if (!selectedAssetForCveDetails) {
       return [];
     }
-    return selectedAssetForCveDetails.highRiskCveVulnerabilities;
+    return selectedAssetForCveDetails.cveVulnerabilities;
   }, [selectedAssetForCveDetails]);
 
-  const filteredAssetHighRiskCves = useMemo(() => {
+  const filteredAssetCves = useMemo(() => {
     const normalizedSearch = cveSearchTerm.trim().toLowerCase();
-    return selectedAssetHighRiskCves.filter((entry) => {
+    return selectedAssetCves.filter((entry) => {
+      if (cveCriticalityFilter !== "all" && entry.criticality !== cveCriticalityFilter) {
+        return false;
+      }
       if (!normalizedSearch) {
         return true;
       }
@@ -613,15 +635,15 @@ export function NetworkComplianceOverview({
         .toLowerCase();
       return searchText.includes(normalizedSearch);
     });
-  }, [cveSearchTerm, selectedAssetHighRiskCves]);
+  }, [cveCriticalityFilter, cveSearchTerm, selectedAssetCves]);
 
-  const downloadHighRiskCvesCsv = () => {
-    if (!selectedAssetForCveDetails || !filteredAssetHighRiskCves.length) {
+  const downloadCvesCsv = () => {
+    if (!selectedAssetForCveDetails || !filteredAssetCves.length) {
       return;
     }
 
     const headers = ["Asset Name", "Asset ID", "CVE", "Description", "Remediation Guidance", "Criticality", "Timestamp"];
-    const rows = filteredAssetHighRiskCves.map((entry) => [
+    const rows = filteredAssetCves.map((entry) => [
       selectedAssetForCveDetails.assetName,
       selectedAssetForCveDetails.assetId,
       entry.cve,
@@ -642,7 +664,7 @@ export function NetworkComplianceOverview({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `high-risk-cves-${safeAssetLabel}.csv`;
+    anchor.download = `cve-vulnerabilities-${safeAssetLabel}.csv`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -705,6 +727,14 @@ export function NetworkComplianceOverview({
   const nonCompliantPercent = percentage(summary.nonCompliant, summary.total);
   const unknownPercent = percentage(summary.unknown, summary.total);
   const typePercent = (count: number) => percentage(count, assetTypeSummary.totalAssets);
+  const assetTypeTiles = [
+    { label: "Servers", count: assetTypeSummary.serverCount, icon: <ServerIcon /> },
+    { label: "Workstations", count: assetTypeSummary.workstationCount, icon: <WorkstationIcon /> },
+    { label: "Network Devices", count: assetTypeSummary.networkDeviceCount, icon: <NetworkDeviceIcon /> },
+    { label: "Storage Devices", count: assetTypeSummary.storageDeviceCount, icon: <StorageDeviceIcon /> },
+    { label: "Printer Devices", count: assetTypeSummary.printerDeviceCount, icon: <PrinterDeviceIcon /> },
+    { label: "Other Devices", count: assetTypeSummary.otherCount, icon: <OtherDeviceIcon /> }
+  ];
   const cveDetailsModal =
     isMounted && isCveDetailsModalVisible && selectedAssetForCveDetails
       ? createPortal(
@@ -738,38 +768,63 @@ export function NetworkComplianceOverview({
 
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-300/75">CVE Details</p>
                 <h6 id="asset-cve-details-modal-title" className="mt-2 pr-16 text-xl font-semibold text-slate-100">
-                  High Risk CVE Vulnerabilities
+                  CVE Vulnerabilities
                 </h6>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-xs text-slate-300/80">Asset: {selectedAssetForCveDetails.assetName}</p>
-                    <p className="mt-1 text-xs text-slate-300/80">CVEs in scope: {filteredAssetHighRiskCves.length}</p>
+                    <p className="mt-1 text-xs text-slate-300/80">
+                      CVEs in scope: {filteredAssetCves.length} of {selectedAssetCves.length}
+                    </p>
                   </div>
                   <button
                     type="button"
-                    onClick={downloadHighRiskCvesCsv}
-                    disabled={!filteredAssetHighRiskCves.length}
+                    onClick={downloadCvesCsv}
+                    disabled={!filteredAssetCves.length}
                     className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
                   >
                     Export CSV
                   </button>
                 </div>
 
-                <div className="mt-3">
-                  <label
-                    htmlFor="asset-cve-search"
-                    className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
-                  >
-                    Text Search
-                  </label>
-                  <input
-                    id="asset-cve-search"
-                    type="search"
-                    value={cveSearchTerm}
-                    onChange={(event) => setCveSearchTerm(event.target.value)}
-                    placeholder="Search CVE, description, remediation, criticality, timestamp..."
-                    className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
-                  />
+                <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem]">
+                  <div>
+                    <label
+                      htmlFor="asset-cve-search"
+                      className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
+                    >
+                      Text Search
+                    </label>
+                    <input
+                      id="asset-cve-search"
+                      type="search"
+                      value={cveSearchTerm}
+                      onChange={(event) => setCveSearchTerm(event.target.value)}
+                      placeholder="Search CVE, description, remediation, criticality, timestamp..."
+                      className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="asset-cve-criticality"
+                      className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75"
+                    >
+                      CVE Criticality
+                    </label>
+                    <select
+                      id="asset-cve-criticality"
+                      value={cveCriticalityFilter}
+                      onChange={(event) => setCveCriticalityFilter(event.target.value as "all" | VulnerabilitySeverity)}
+                      className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                    >
+                      <option value="all">All</option>
+                      {CVE_CRITICALITY_FILTERS.map((criticality) => (
+                        <option key={criticality} value={criticality}>
+                          {criticality}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
@@ -784,7 +839,7 @@ export function NetworkComplianceOverview({
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredAssetHighRiskCves.map((entry, index) => (
+                      {filteredAssetCves.map((entry, index) => (
                         <tr
                           key={`${selectedAssetForCveDetails.assetId}-${entry.cve}-${entry.capturedAt}-${index}`}
                           className="border-t border-sky-400/10 align-top"
@@ -792,18 +847,20 @@ export function NetworkComplianceOverview({
                           <td className="whitespace-nowrap px-3 py-2 font-medium text-sky-100">{entry.cve}</td>
                           <td className="px-3 py-2 text-slate-300/85">{entry.description}</td>
                           <td className="px-3 py-2 text-slate-300/85">{entry.remediationGuidance}</td>
-                          <td className="whitespace-nowrap px-3 py-2 text-red-100">{entry.criticality}</td>
+                          <td className={`whitespace-nowrap px-3 py-2 ${cveCriticalityClass(entry.criticality)}`}>
+                            {entry.criticality}
+                          </td>
                           <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">
                             {formatCapturedTimestamp(entry.capturedAt)}
                           </td>
                         </tr>
                       ))}
-                      {filteredAssetHighRiskCves.length === 0 ? (
+                      {filteredAssetCves.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                            {selectedAssetHighRiskCves.length === 0
-                              ? "No high-risk CVE vulnerabilities for this asset."
-                              : "No CVE records match the active search."}
+                            {selectedAssetCves.length === 0
+                              ? "No CVE vulnerabilities for this asset."
+                              : "No CVE records match the active filters."}
                           </td>
                         </tr>
                       ) : null}
@@ -853,7 +910,7 @@ export function NetworkComplianceOverview({
 
             <div className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
               <p className="text-[10px] uppercase tracking-[0.13em] text-slate-300/75">Assets By Type</p>
-              <div className="mt-2 grid gap-1.5 sm:grid-cols-4">
+              <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-1.5">
                 <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Total</p>
@@ -861,32 +918,19 @@ export function NetworkComplianceOverview({
                   </div>
                   <TotalAssetsIcon />
                 </div>
-                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Servers</p>
-                    <p className="text-lg font-semibold leading-none text-sky-100">{assetTypeSummary.serverCount}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-300/75">{typePercent(assetTypeSummary.serverCount)}%</p>
+                {assetTypeTiles.map((tile) => (
+                  <div
+                    key={tile.label}
+                    className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5"
+                  >
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">{tile.label}</p>
+                      <p className="text-lg font-semibold leading-none text-sky-100">{tile.count}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-300/75">{typePercent(tile.count)}%</p>
+                    </div>
+                    {tile.icon}
                   </div>
-                  <ServerIcon />
-                </div>
-                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Workstations</p>
-                    <p className="text-lg font-semibold leading-none text-sky-100">{assetTypeSummary.workstationCount}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-300/75">{typePercent(assetTypeSummary.workstationCount)}%</p>
-                  </div>
-                  <WorkstationIcon />
-                </div>
-                <div className="flex items-center justify-between gap-2 rounded-md border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-slate-300/75">Net Devices</p>
-                    <p className="text-lg font-semibold leading-none text-sky-100">{assetTypeSummary.networkDeviceCount}</p>
-                    <p className="mt-0.5 text-[10px] text-slate-300/75">
-                      {typePercent(assetTypeSummary.networkDeviceCount)}%
-                    </p>
-                  </div>
-                  <NetworkDeviceIcon />
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1239,10 +1283,7 @@ export function NetworkComplianceOverview({
                                 <th className="px-3 py-2">Asset Name</th>
                                 <th className="px-3 py-2">Asset IP address</th>
                                 <th className="px-3 py-2">Asset Type</th>
-                                <th className="px-3 py-2">Total Critical Exposure Findings</th>
-                                <th className="px-3 py-2">Total High Risk Findings</th>
-                                <th className="px-3 py-2">Total High Risk CVE Vulnerabilities</th>
-                                <th className="px-3 py-2">Total Findings</th>
+                                <th className="px-3 py-2">CVE Vulnerabilities</th>
                                 <th className="px-3 py-2">Asset Change Assignment Group</th>
                                 <th className="px-3 py-2">Asset Incident Assignment Group</th>
                                 <th className="px-3 py-2">Owner</th>
@@ -1254,22 +1295,19 @@ export function NetworkComplianceOverview({
                                   <td className="px-3 py-2 text-slate-100">{assetRow.assetName}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
-                                  <td className="px-3 py-2 text-red-100">{assetRow.criticalExposureFindings}</td>
-                                  <td className="px-3 py-2 text-orange-100">{assetRow.highRiskFindings}</td>
                                   <td className="px-3 py-2">
-                                    {assetRow.totalHighRiskCveVulnerabilities > 0 ? (
+                                    {assetRow.totalCveVulnerabilities > 0 ? (
                                       <button
                                         type="button"
                                         onClick={() => openCveDetailsModal(assetRow)}
                                         className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                                       >
-                                        {assetRow.totalHighRiskCveVulnerabilities}
+                                        {assetRow.totalCveVulnerabilities}
                                       </button>
                                     ) : (
                                       <span className="text-slate-400/90">0</span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-2 text-slate-200">{assetRow.totalFindings}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
@@ -1277,7 +1315,7 @@ export function NetworkComplianceOverview({
                               ))}
                               {assetDetailsRows.length === 0 ? (
                                 <tr>
-                                  <td colSpan={10} className="px-3 py-6 text-center text-sm text-emerald-200/90">
+                                  <td colSpan={7} className="px-3 py-6 text-center text-sm text-emerald-200/90">
                                     No linked assets found for this finding.
                                   </td>
                                 </tr>

@@ -128,7 +128,7 @@ export interface Vulnerability {
   source: string;
 }
 
-export interface HighRiskCveDetail {
+export interface CveVulnerabilityDetail {
   cve: string;
   description: string;
   remediationGuidance: string;
@@ -136,6 +136,8 @@ export interface HighRiskCveDetail {
   exploitability: VulnerabilityExploitability;
   capturedAt: string;
 }
+
+export type HighRiskCveDetail = CveVulnerabilityDetail;
 
 export interface Lifecycle {
   eolStatus: EolStatus;

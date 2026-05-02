@@ -4,12 +4,11 @@ import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
-import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { SystemDetailTabId, SystemDetailTabs } from "@/components/system-detail-tabs";
 import { buildAnalytics } from "@/lib/analytics";
 import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
-import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
+import { buildCveVulnerabilityIndexByAssetId, buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { SPI_IDS } from "@/lib/spi-metadata";
 import {
   loadDatasetForDate,
@@ -1055,7 +1054,6 @@ export default async function SystemDetailPage({
     .filter((evaluation) => !selectedEnvironment || evaluation.environmentType === selectedEnvironment)
     .flatMap((evaluation) => evaluation.evaluations.map((evaluationItem) => evaluationItem.status));
   const selectedComplianceScore = complianceScore(selectedStatuses);
-  const selectedPosture = overallStatusFromStatuses(selectedStatuses);
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
 
   const scopedEvaluationRows = analytics.evaluations
@@ -1367,8 +1365,12 @@ export default async function SystemDetailPage({
     totalAssets: filteredAssets.length,
     serverCount: filteredAssets.filter((asset) => asset.type === "server").length,
     workstationCount: filteredAssets.filter((asset) => asset.type === "workstation").length,
-    networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length
+    networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length,
+    storageDeviceCount: filteredAssets.filter((asset) => asset.type === "storage-device").length,
+    printerDeviceCount: filteredAssets.filter((asset) => asset.type === "printer-device").length,
+    otherCount: filteredAssets.filter((asset) => asset.type === "other").length
   };
+  const cvesByAssetId = buildCveVulnerabilityIndexByAssetId(filteredAssets);
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
 
   const selectedComplianceSummaryCounts = selectedStatuses.reduce(
@@ -1540,28 +1542,6 @@ export default async function SystemDetailPage({
               Back to ICT Systems
             </DrillthroughBackLink>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{system.name}</h1>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <PostureBadge status={selectedPosture} />
-              <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
-                Network: {system.networkId}
-              </span>
-              <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
-                Assets: {filteredAssets.length}
-              </span>
-              <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
-                Scope: {selectedLabel}
-              </span>
-              {serverSearchTerm ? (
-                <span className="rounded-full border border-sky-300/40 bg-sky-500/10 px-3 py-1 text-xs text-sky-100">
-                  Server search: {serverSearchTerm}
-                </span>
-              ) : null}
-              {selectedKpiFilter ? (
-                <span className="rounded-full border border-amber-300/45 bg-amber-500/10 px-3 py-1 text-xs text-amber-100">
-                  KPI filter: {KPI_FILTER_LABELS[selectedKpiFilter]}
-                </span>
-              ) : null}
-            </div>
           </div>
 
           <div className="grid w-full gap-2 self-stretch md:grid-cols-2 lg:w-[min(720px,48vw)] lg:self-auto">
@@ -1652,7 +1632,7 @@ export default async function SystemDetailPage({
         assetTypeSummary={assetTypeSummary}
         measures={complianceMeasureRows}
         findings={complianceOverviewFindings}
-        assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+        assetCvesByAssetId={cvesByAssetId}
       />
       ) : null}
 

@@ -5,7 +5,6 @@ import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailTabs } from "@/components/network-detail-tabs";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
-import { PostureBadge } from "@/components/posture-badge";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import {
   loadDatasetForDate,
@@ -17,7 +16,7 @@ import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discove
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
 import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
-import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
+import { buildCveVulnerabilityIndexByAssetId, buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { SPI_IDS } from "@/lib/spi-metadata";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
@@ -763,7 +762,6 @@ export default async function NetworkDetailPage({
     { compliant: 0, nonCompliant: 0, unknown: 0 }
   );
   const networkComplianceScore = complianceScore(statuses);
-  const selectedPosture = overallStatusFromStatuses(statuses);
 
   const scopedEvaluationRows = filteredEvaluations.flatMap((evaluation) =>
     evaluation.evaluations.map((item) => ({
@@ -1097,8 +1095,12 @@ export default async function NetworkDetailPage({
     totalAssets: filteredAssets.length,
     serverCount: filteredAssets.filter((asset) => asset.type === "server").length,
     workstationCount: filteredAssets.filter((asset) => asset.type === "workstation").length,
-    networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length
+    networkDeviceCount: filteredAssets.filter((asset) => asset.type === "network-device").length,
+    storageDeviceCount: filteredAssets.filter((asset) => asset.type === "storage-device").length,
+    printerDeviceCount: filteredAssets.filter((asset) => asset.type === "printer-device").length,
+    otherCount: filteredAssets.filter((asset) => asset.type === "other").length
   };
+  const cvesByAssetId = buildCveVulnerabilityIndexByAssetId(filteredAssets);
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
 
   const snapshotByDate = new Map<string, Dataset>();
@@ -1275,15 +1277,6 @@ export default async function NetworkDetailPage({
               Back to Networks
             </DrillthroughBackLink>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{network.name}</h1>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <PostureBadge status={selectedPosture} />
-              <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
-                Classification: {network.classification}
-              </span>
-              <span className="rounded-full border border-sky-400/25 px-3 py-1 text-xs text-slate-200">
-                Assets: {filteredAssets.length}
-              </span>
-            </div>
           </div>
 
           <div className="grid w-full gap-2 self-stretch md:grid-cols-2 lg:w-[min(720px,48vw)] lg:self-auto">
@@ -1493,7 +1486,7 @@ export default async function NetworkDetailPage({
         assetTypeSummary={assetTypeSummary}
         measures={complianceMeasureRows}
         findings={complianceOverviewFindings}
-        assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+        assetCvesByAssetId={cvesByAssetId}
       />
       ) : null}
 

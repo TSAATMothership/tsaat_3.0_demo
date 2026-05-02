@@ -449,7 +449,7 @@ Major dependencies:
 
 ## 3. Feature Breakdown
 ### Feature: Header, Breadcrumb, and Shared Drill-Through Scope
-- **What it does:** identifies the selected network, exposes the back link, and shows current scope badges.
+- **What it does:** identifies the selected network, exposes the back link, and shows headline score cards without header pills.
 - **User perspective:** the user can confirm the network and return to the networks posture list.
 - **System behaviour:** the page resolves the route parameter, scopes analytics to the network, and recalculates compliance and discovery scores for the active drill-through context.
 - **Outcome:** all downstream tabs share one network anchor.
@@ -467,9 +467,9 @@ Major dependencies:
 - **Outcome:** the tab acts as the narrative and ownership view for the network.
 
 ### Feature: Compliance Overview Tab
-- **What it does:** shows per-SPI compliance rows and a deep drillthrough to findings, affected assets, and high-risk CVE details.
+- **What it does:** shows per-SPI compliance rows and a deep drillthrough to findings, affected assets, and CVE vulnerability details.
 - **User perspective:** the user can inspect the reasons a network is non-compliant and open evidence-heavy side panels.
-- **System behaviour:** runtime measure rows and findings are passed into `NetworkComplianceOverview`, which supports additional non-route drillthrough layers.
+- **System behaviour:** runtime measure rows, findings, all asset CVE vulnerabilities, and six-type asset counts are passed into `NetworkComplianceOverview`, which supports additional non-route drillthrough layers and a CVE criticality filter.
 - **Outcome:** the page exposes evidence behind the network posture score.
 
 ### Feature: Discovery Compliance Tab
@@ -487,10 +487,10 @@ Major dependencies:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Network Detail | Shared scope header | Identifies selected network and current KPI filter state | Open page or adjust query params | Rebuilds scoped analytics and badges | route param, `dataDate`, `kpiFilter` | Header scores and badges | all tabs share same network anchor | invalid route param returns not-found earlier in page load | snapshot loader, route param | Stable drill-through context | |
+| Network Detail | Shared scope header | Identifies selected network and current KPI filter state | Open page or adjust query params | Rebuilds scoped analytics and headline score cards | route param, `dataDate`, `kpiFilter` | Header title and scores | all tabs share same network anchor | invalid route param returns not-found earlier in page load | snapshot loader, route param | Stable drill-through context | scope pills are intentionally not rendered under the heading |
 | Network Detail | Tab routing | Switches among visible tabs | Click tab | Updates `networkDetailTab` and reloads | `networkDetailTab` | Different drill-through layout | default tab is `network-details` | unsupported values fall back to default except hidden state is accepted explicitly | `NetworkDetailTabs` | Bookmarkable tab states | topology modal state is local |
 | Network Detail | Network Details tab | Metadata and risk charts | Open tab | Resolves metadata, renders links and stacked risk charts | network detail fields, findings | Ownership and risk context | metadata may fall back when source columns blank | none | `resolveNetworkDetailFields()`, risk charts | Narrative network view | support and service links may be synthetic |
-| Network Detail | Compliance Overview | SPI measure table with findings drillthroughs | Open tab, click a measure, click finding title, optionally click CVE count | Opens layered overlays for findings, linked assets, and CVE details | measures, findings, asset vulnerability index | Evidence drillthrough chain | evidence must reflect the selected `asOf` date | filtering is runtime only | `NetworkComplianceOverview` | Explains non-compliance | Non-route multi-step drillthrough |
+| Network Detail | Compliance Overview | SPI measure table with findings drillthroughs | Open tab, click a measure, click finding title, optionally click CVE count | Opens layered overlays for findings, linked assets, and CVE details with criticality filtering; shows all six asset-type tiles even where counts are zero | measures, findings, asset vulnerability index, scoped assets | Evidence drillthrough chain | evidence must reflect the selected `asOf` date; CVE export follows active search and criticality filters | filtering is runtime only | `NetworkComplianceOverview` | Explains non-compliance | Non-route multi-step drillthrough |
 | Network Detail | Discovery Compliance | Dynamic tool scorecards, search, filters, export | Filter table, click tool tiles, export CSV | Applies discovery filters via query string and exports current scope with configured tool columns | `discoverySearch`, `discoveryAssetType`, `discoveryToolFilter`, `page` | Asset coverage table and CSV | coverage is based on tools required by current scope asset types only | invalid or non-applicable tool filter ignored | discovery settings, export API | Discovery remediation list | `discoveryAssetType` accepts all six canonical asset types; `N/A` cells are excluded from denominators |
 | Network Detail | Hidden cyber posture | KPI snapshot, asset inventory, P1/P2 findings | Directly navigate with `networkDetailTab=cyber-posture` | Renders hidden section with KPI filters and lists | `kpiFilter`, `inventoryPage`, `p12*` | Hidden drill-through surface | route is accepted even though UI tab is absent | unsupported KPI filters ignored | snapshot history, findings, assets | Additional analysis state | latent and undocumented UI state |
 
@@ -512,7 +512,7 @@ Key dependencies:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Network Detail | Network metadata | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, ownership and link columns, `diis_id`, `ato_number`, `modelling_status`, `discovery_status` | mixed | header, details tab, discovery summary | Read | root network record for page | deterministic DIIS/ATO values are loaded for seed data; other blanks may use fallback display values | direct display | network modelling status is persisted for future use |
 | Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal and relationship context | Read | combined into topology graph | no persisted graph view | runtime graph build | topology includes synthetic relation edges |
-| Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, and discovery evaluation | |
+| Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
 | Network Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | synthetic fallback if no rows loaded | severity remap applied at runtime | |
 | Network Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings versions applied | defaults if settings tables are empty | runtime only | |
 
@@ -530,7 +530,7 @@ Key dependencies:
 
 ## 8. Non-Database Calculations
 - `DetailedTopologyView` creates runtime graph layouts and client-only interactions from already-loaded topology data.
-- Compliance overview side panels, asset detail overlays, and CVE detail modal are client-only UI states.
+- Compliance overview side panels, asset detail overlays, and the all-CVE detail modal with criticality filtering are client-only UI states.
 - Hidden cyber-posture P1/P2 findings list caps visible rows at `80`.
 - Discovery search, tool filter, and asset-type filter are query-parameter-driven view filters over the already selected snapshot.
 
@@ -698,7 +698,7 @@ Important hidden behaviour:
 
 ## 3. Feature Breakdown
 ### Feature: Header, Breadcrumb, and Shared Drill-Through Scope
-- **What it does:** identifies the selected ICT system, exposes the back link, shows scope badges, and recalculates headline scores.
+- **What it does:** identifies the selected ICT system, exposes the back link, and recalculates headline score cards without header pills.
 - **User perspective:** the user confirms the selected system, its parent network, current scope, and whether hidden scope filters are active.
 - **System behaviour:** the route parameter anchors the page to one system; optional `environment`, `serverSearch`, and `kpiFilter` parameters reduce the effective asset and finding scope before downstream tabs render.
 - **Outcome:** every downstream tab shares one scoped system context.
@@ -716,9 +716,9 @@ Important hidden behaviour:
 - **Outcome:** the tab acts as the business and support profile for the system.
 
 ### Feature: Compliance Overview Tab
-- **What it does:** shows per-SPI compliance rows and deep drillthroughs to findings, affected assets, and high-risk CVE detail.
+- **What it does:** shows per-SPI compliance rows and deep drillthroughs to findings, affected assets, and CVE vulnerability detail.
 - **User perspective:** the user can inspect why the system is non-compliant and navigate from summary measures into evidence.
-- **System behaviour:** the system detail page reuses `NetworkComplianceOverview`, passing system-scoped measures, findings, and high-risk CVE indexes.
+- **System behaviour:** the system detail page reuses `NetworkComplianceOverview`, passing system-scoped measures, findings, all asset CVE vulnerabilities, and six-type asset counts with criticality filtering.
 - **Outcome:** the page exposes the evidence behind the system posture score.
 
 ### Feature: Discovery Compliance Tab
@@ -736,10 +736,10 @@ Important hidden behaviour:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ICT System Detail | Shared scope header | Identifies selected system and current hidden scope filters | Open page or alter query params | Rebuilds scoped analytics and header badges | route param, `dataDate`, `environment`, `serverSearch`, `kpiFilter` | Header scores and badges | all tabs share one system anchor | invalid system route returns not-found | snapshot loader, route param | Stable drill-through context | hidden scope filters are visible only as badges |
+| ICT System Detail | Shared scope header | Identifies selected system and current hidden scope filters | Open page or alter query params | Rebuilds scoped analytics and headline score cards | route param, `dataDate`, `environment`, `serverSearch`, `kpiFilter` | Header title and scores | all tabs share one system anchor | invalid system route returns not-found | snapshot loader, route param | Stable drill-through context | hidden scope filters still apply but are not rendered as header pills |
 | ICT System Detail | Tab routing | Switches among visible tabs | Click tab | Updates `systemDetailTab` and reloads | `systemDetailTab` | Different drill-through layout | default tab is `system-details` | unsupported values fall back to default | `SystemDetailTabs` | Bookmarkable tab state | topology modal state is local |
 | ICT System Detail | System Details tab | Metadata, accreditation, service context, risk charts | Open tab | Resolves details, links, and risk profile | system columns, mission and service links, findings | Narrative and ownership view | fallback metadata allowed when source columns blank | none | `NetworkDetailRiskCharts`, Link components | Operational context | several URLs are synthetic fallbacks |
-| ICT System Detail | Compliance Overview | SPI table with findings and CVE drillthroughs | Open tab, click measure, finding, asset, or CVE count | Opens layered overlays over system-scoped evidence | measures, findings, asset vulnerability index | Evidence drillthrough chain | evidence respects selected `dataDate` | runtime filtering only | `NetworkComplianceOverview` | Explains non-compliance | non-route layered drillthrough |
+| ICT System Detail | Compliance Overview | SPI table with findings and CVE drillthroughs | Open tab, click measure, finding, asset, or CVE count | Opens layered overlays over system-scoped evidence, including all CVEs with criticality filtering; shows all six asset-type tiles even where counts are zero | measures, findings, asset vulnerability index, scoped assets | Evidence drillthrough chain | evidence respects selected `dataDate`; CVE export follows active search and criticality filters | runtime filtering only | `NetworkComplianceOverview` | Explains non-compliance | non-route layered drillthrough |
 | ICT System Detail | Discovery Compliance | Dynamic tool cards, asset coverage list, and CSV export | Open tab, paginate, export CSV | Evaluates tool coverage per asset, paginates configured tool columns, and exports current scope | discovery settings, scoped assets, `coveragePage` | Coverage cards, table, and CSV | coverage is based on tools required by current scope asset types only | invalid page values clamp through pagination helper | discovery settings, export API | Discovery remediation list | all six canonical asset types are supported; `N/A` cells are excluded from denominators |
 | ICT System Detail | Hidden scope parameters | Direct-URL scoping for environment, KPI, server search, and P1/P2 list | Navigate with query params | Narrows assets, counts, and findings before render | `environment`, `serverSearch`, `kpiFilter`, `p12*`, `page`, `findingsPage*` | Narrowed system view | server-side scope applies even without visible controls | invalid environment or KPI values are ignored | pagination helper, runtime analytics | Bookmarkable hidden scope states | calculated helper links exist even where not rendered |
 
@@ -760,7 +760,7 @@ Key dependencies:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ICT System Detail | System metadata | `tsaat` | `ict_system` | `system_id`, `network_id`, `name`, `criticality`, `security_domain`, description, ownership and link columns, `diis_id`, `ato_number`, `modelling_status`, `diis_defined` | mixed | header, details tab, accreditation tables | Read | root record for the page | fallback values generated when blank | direct display | synthetic support and reference URLs may appear |
 | ICT System Detail | Mission, service, and environment context | `tsaat` | `system_mission_capability`, `system_business_service`, `system_environment`, `system_environment_asset` | IDs, names, `criticality`, `environment_type`, `asset_id` | mixed | mission/service lists, scope badges, environment-aware counts | Read | one system to many related rows | environment filter must match a defined environment type | joined into lists and scoped counts | |
-| ICT System Detail | Asset posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, lifecycle, OS, patch, software, vulnerability fields | mixed | compliance rows, discovery rows, risk charts | Read | scoped to assets where `asset.system_id = system_id` | hidden query parameters may narrow further | runtime SPI and discovery evaluation | |
+| ICT System Detail | Asset posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, lifecycle, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance rows, discovery rows, risk charts | Read | scoped to assets where `asset.system_id = system_id` | hidden query parameters may narrow further | runtime SPI, discovery evaluation, and CVE criticality filtering | |
 | ICT System Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity remap applies at runtime | workflow reconstructed for as-of logic in reused components | |
 | ICT System Detail | Topology relationships | `tsaat` | `ict_system_hierarchy`, `ci_dependency`, `network_declared_asset`, `network_declared_system` | parent-child keys, dependency endpoints, declared relationship keys | mixed | topology modal and relationship context | Read | combined into a runtime graph | no persisted graph view | runtime topology layout only | |
 | ICT System Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings version applied | defaults if settings tables are empty | runtime only | |
@@ -780,6 +780,7 @@ Key dependencies:
 ## 8. Non-Database Calculations
 - `DetailedTopologyView` creates runtime graph layouts and modal-only interactions from already loaded topology data.
 - The page synthesises description, owner, support email, service catalogue URL, ATO, DIIS, GRC, and APM values when source columns are blank.
+- Compliance overview side panels, asset detail overlays, and the all-CVE detail modal with criticality filtering are client-only UI states.
 - Query-driven scopes for `environment`, `serverSearch`, and `kpiFilter` are runtime view filters over the selected snapshot, not persisted state.
 - Several helper links and KPI trend series are calculated in code but not currently rendered in the visible UI.
 
