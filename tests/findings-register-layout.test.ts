@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const pageSource = readFileSync(path.join(process.cwd(), "app", "findings", "page.tsx"), "utf8");
 const statusTabsSource = readFileSync(path.join(process.cwd(), "components", "findings-status-tabs.tsx"), "utf8");
 const viewTabsSource = readFileSync(path.join(process.cwd(), "components", "findings-view-tabs.tsx"), "utf8");
+const registerSource = readFileSync(path.join(process.cwd(), "components", "findings-table.tsx"), "utf8");
 const timelineSource = readFileSync(path.join(process.cwd(), "components", "findings-timeline-filter.tsx"), "utf8");
 const filterBarSource = readFileSync(path.join(process.cwd(), "components", "filter-bar.tsx"), "utf8");
 const historyChartSource = readFileSync(path.join(process.cwd(), "components", "findings-history-line-chart.tsx"), "utf8");
@@ -26,6 +27,15 @@ describe("Findings register layout", () => {
     expect(timelineSource).toContain('className="flex min-h-[1.875rem] items-center gap-2"');
     expect(timelineSource).toContain("disabled={!hasPendingChanges || isLoading}");
     expect(timelineSource).toContain("pointer-events-none border-slate-600/25 bg-slate-900/20 text-slate-500 opacity-0");
+  });
+
+  it("dismisses register overlays before switching Open and Closed Findings tabs", () => {
+    expect(statusTabsSource).toContain('window.dispatchEvent(new Event("tsaat:findings-register-dismiss-overlays"))');
+    expect(registerSource).toContain('window.addEventListener("tsaat:findings-register-dismiss-overlays", dismissOverlaysImmediately)');
+    expect(registerSource).toContain('window.removeEventListener("tsaat:findings-register-dismiss-overlays", dismissOverlaysImmediately)');
+    expect(registerSource).toContain("const dismissOverlaysImmediately = useCallback(() => {");
+    expect(registerSource).toContain("setIsAssetDetailsPanelVisible(false);");
+    expect(registerSource).toContain("setIsCveDetailsModalVisible(false);");
   });
 
   it("keeps the findings overview dashboard compact and scroll-contained", () => {
@@ -57,5 +67,40 @@ describe("Findings register layout", () => {
     expect(pageSource).toContain("value: selectedSpi ? String(selectedSpi) : undefined");
     expect(viewTabsSource).toContain('if (tab === "overview")');
     expect(viewTabsSource).toContain('params.delete("spi")');
+  });
+
+  it("renders the register as a compliance detail-style scrollable worklist", () => {
+    expect(pageSource).toContain("findings={findings}");
+    expect(pageSource).toContain("buildCveVulnerabilityIndexByAssetId(dataset.assets)");
+    expect(pageSource).not.toContain("paginatedFindings");
+    expect(pageSource).not.toContain("openTabPageSize");
+    expect(pageSource).not.toContain("selectedPage");
+    expect(registerSource).toContain("Compliance detail-style worklist");
+    expect(registerSource).toContain('<th className="w-[12rem] min-w-[12rem] px-3 py-2">Measure</th>');
+    expect(registerSource).toContain('<th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>');
+    expect(registerSource).toContain(
+      '<th className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2">Timestamp</th>'
+    );
+    expect(registerSource).toContain('{asOfStatus === "open" ? "Open" : "Closed"}');
+    expect(registerSource).toContain("Findings Severity");
+    expect(registerSource).not.toContain("<th className=\"px-3 py-2\">Scope</th>");
+    expect(registerSource).not.toContain("buildScopeLabel");
+    expect(registerSource).not.toContain("Findings History (2 Years)");
+    expect(registerSource).not.toContain("Findings by Severity");
+    expect(registerSource).not.toContain("Page {pagination.currentPage}");
+    expect(registerSource).not.toContain("Previous");
+    expect(registerSource).not.toContain("fetch(`/api/findings/asset-details");
+  });
+
+  it("uses the updated affected CIs and filtered CVE drillthrough in the register", () => {
+    expect(registerSource).toContain("Affected CIs");
+    expect(registerSource).toContain("return [buildAssetDetailsRow(selectedFindingForAssets, assetCvesByAssetId)]");
+    expect(registerSource).toContain("CVE Vulnerabilities");
+    expect(registerSource).toContain("CVE Criticality");
+    expect(registerSource).toContain("const rows = filteredAssetCves.map((entry) => [");
+    expect(registerSource).toContain("disabled={!filteredAssetCves.length}");
+    expect(registerSource).not.toContain("Total Critical Exposure Findings");
+    expect(registerSource).not.toContain("Total High Risk Findings");
+    expect(registerSource).not.toContain("<th className=\"px-3 py-2\">Total Findings</th>");
   });
 });

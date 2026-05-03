@@ -7,6 +7,7 @@ import { FindingsViewTabId, FindingsViewTabs } from "@/components/findings-view-
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { buildCveVulnerabilityIndexByAssetId } from "@/lib/cve";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { Finding } from "@/lib/types";
 
@@ -104,8 +105,6 @@ export default async function FindingsPage({
     Number.isInteger(requestedPriority) && requestedPriority >= 1 && requestedPriority !== 90
       ? requestedPriority
       : undefined;
-  const requestedPage = Number(firstParam(searchParams.page));
-  const selectedPage = Number.isInteger(requestedPage) && requestedPage >= 1 ? requestedPage : 1;
   const selectedSeverity = firstParam(searchParams.severity)?.trim() || undefined;
   const selectedSearchTerm = firstParam(searchParams.search)?.trim() ?? "";
   const normalizedSearchTerm = selectedSearchTerm.toLowerCase();
@@ -279,8 +278,8 @@ export default async function FindingsPage({
   const priorityOptions = Array.from(
     new Set(timelineFindings.map((finding) => finding.priorityRank).filter((priorityRank) => priorityRank !== 90))
   ).sort((a, b) => a - b);
-  const findingsFilterExtraSelects = [
-    ...(activeViewTab === "overview"
+  const findingsFilterExtraSelects =
+    activeViewTab === "overview"
       ? [
           {
             key: "spi",
@@ -290,32 +289,24 @@ export default async function FindingsPage({
               id: String(spi),
               label: `SPI ${spi} - ${SPI_DESCRIPTIONS[spi as keyof typeof SPI_DESCRIPTIONS]}`
             }))
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: selectedPriority ? String(selectedPriority) : undefined,
+            options: priorityOptions.map((priority) => ({ id: String(priority), label: `P${priority}` }))
+          },
+          {
+            key: "severity",
+            label: "Severity",
+            value: selectedSeverity,
+            options: severityOptions.map((severity) => ({ id: severity, label: severity }))
           }
         ]
-      : []),
-    {
-      key: "priority",
-      label: "Priority",
-      value: selectedPriority ? String(selectedPriority) : undefined,
-      options: priorityOptions.map((priority) => ({ id: String(priority), label: `P${priority}` }))
-    },
-    {
-      key: "severity",
-      label: "Severity",
-      value: selectedSeverity,
-      options: severityOptions.map((severity) => ({ id: severity, label: severity }))
-    }
-  ];
+      : [];
 
   const highRisk = findings.filter((finding) => finding.severity === "High Risk").length;
   const totalFindings = findings.length;
-  const openTabPageSize = 10;
-  const shouldPaginateFindings = true;
-  const findingsTotalPages = shouldPaginateFindings ? Math.max(1, Math.ceil(totalFindings / openTabPageSize)) : 1;
-  const findingsCurrentPage = shouldPaginateFindings ? Math.min(selectedPage, findingsTotalPages) : 1;
-  const paginatedFindings = shouldPaginateFindings
-    ? findings.slice((findingsCurrentPage - 1) * openTabPageSize, findingsCurrentPage * openTabPageSize)
-    : findings;
   const criticalExposure = findings.filter((finding) => finding.severity === "Critical Exposure").length;
   const mediumAndLowerRiskFindings = Math.max(totalFindings - criticalExposure - highRisk, 0);
   const assetTypeSummaries = ASSET_TYPES.map((assetType) => {
@@ -364,6 +355,7 @@ export default async function FindingsPage({
       valueClass: "text-sky-100"
     }
   ];
+  const cvesByAssetId = buildCveVulnerabilityIndexByAssetId(dataset.assets);
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -551,23 +543,18 @@ export default async function FindingsPage({
           ) : (
             <div className="min-h-0">
               <FindingsTable
-                findings={paginatedFindings}
+                findings={findings}
                 searchParams={searchParams}
                 selectedAsOf={selectedAsOf}
                 selectedSpi={selectedSpi}
+                selectedPriority={selectedPriority}
+                selectedSeverity={selectedSeverity}
                 selectedStatus={selectedStatus}
                 selectedSearchTerm={selectedSearchTerm}
                 spiOptions={spiOptions}
-                pagination={
-                  shouldPaginateFindings
-                    ? {
-                        currentPage: findingsCurrentPage,
-                        totalPages: findingsTotalPages,
-                        pageSize: openTabPageSize,
-                        totalItems: totalFindings
-                      }
-                    : undefined
-                }
+                priorityOptions={priorityOptions}
+                severityOptions={severityOptions}
+                assetCvesByAssetId={cvesByAssetId}
               />
             </div>
           )}

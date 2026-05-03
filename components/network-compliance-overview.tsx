@@ -186,6 +186,16 @@ function workflowBadgeClass(status: "open" | "closed"): string {
     : "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
 }
 
+function findingSeverityBadgeClass(severity: FindingSeverity): string {
+  if (severity === "Critical Exposure") {
+    return "border-red-400/35 bg-red-500/10 text-red-100";
+  }
+  if (severity === "High Risk") {
+    return "border-orange-400/35 bg-orange-500/10 text-orange-100";
+  }
+  return "border-sky-300/25 bg-sky-500/10 text-sky-100";
+}
+
 function cveCriticalityClass(criticality: VulnerabilitySeverity): string {
   if (criticality === "Critical") {
     return "text-red-100";
@@ -1184,10 +1194,10 @@ export function NetworkComplianceOverview({
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                       <tr>
+                        <th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>
                         <th className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2">Timestamp</th>
                         <th className="px-3 py-2">Title</th>
                         <th className="w-[6.5rem] min-w-[6.5rem] px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Scope</th>
                         <th className="px-3 py-2">Evidence</th>
                         <th className="px-3 py-2">Recommended Action</th>
                       </tr>
@@ -1195,6 +1205,15 @@ export function NetworkComplianceOverview({
                     <tbody>
                       {filteredFindings.map((entry) => (
                         <tr key={entry.finding.id} className="border-t border-sky-400/10 align-top">
+                          <td className="w-[11rem] min-w-[11rem] px-3 py-2">
+                            <span
+                              className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${findingSeverityBadgeClass(
+                                entry.finding.severity
+                              )}`}
+                            >
+                              {entry.finding.severity}
+                            </span>
+                          </td>
                           <td className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2 text-slate-200">
                             {entry.finding.timestampLabel}
                           </td>
@@ -1214,7 +1233,6 @@ export function NetworkComplianceOverview({
                               {entry.asOfStatus === "open" ? "Open" : "Closed"}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.scopeLabel}</td>
                           <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.evidencePreview}</td>
                           <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.recommendedAction}</td>
                         </tr>

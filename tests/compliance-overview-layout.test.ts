@@ -14,8 +14,13 @@ describe("Compliance overview details panel layout", () => {
   });
 
   it("keeps details table timestamps on one line with a fixed readable width", () => {
+    expect(source).toContain('<th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>');
     expect(source).toContain('className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2"');
     expect(source).toContain('className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2 text-slate-200"');
+    expect(source).toContain("findingSeverityBadgeClass(");
+    expect(source).toContain("entry.finding.severity");
+    expect(source).not.toContain('<th className="px-3 py-2">Scope</th>');
+    expect(source).not.toContain("{entry.finding.scopeLabel}</td>");
   });
 
   it("scopes affected CIs to the selected compliance detail row", () => {

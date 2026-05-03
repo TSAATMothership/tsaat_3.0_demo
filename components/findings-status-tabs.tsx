@@ -71,6 +71,8 @@ export function FindingsStatusTabs({
   }, [activeTab, isLoading, pendingTab]);
 
   const onSelectTab = (tab: "open" | "closed") => {
+    window.dispatchEvent(new Event("tsaat:findings-register-dismiss-overlays"));
+
     if (tab === activeTab) {
       return;
     }
