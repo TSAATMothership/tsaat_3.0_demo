@@ -28,6 +28,8 @@ describe("dynamic route cache policy", () => {
       "app/api/tasking-report/route.ts",
       "app/api/discovery-coverage/network-report/route.ts",
       "app/api/discovery-coverage/target-state-template/route.ts",
+      "app/api/networks/performance-report/route.ts",
+      "app/api/systems/performance-report/route.ts",
       "app/api/systems/remediation-report/route.ts",
       "app/api/systems/[systemId]/discovery-coverage-export/route.ts",
       "app/api/networks/[networkId]/discovery-coverage-export/route.ts",

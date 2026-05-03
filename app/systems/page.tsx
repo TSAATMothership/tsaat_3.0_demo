@@ -9,6 +9,7 @@ import { SystemsTabs } from "@/components/systems-tabs";
 import { getTrendAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
+import { buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { deriveOverallStatus } from "@/lib/posture";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
@@ -528,18 +529,19 @@ export default async function SystemsPage({
     filterOptions,
     filters,
     systems,
+    networks,
     dataset
   } = await getTrendAppData(
     systemsOnlySearchParams
   );
   const queryEntries = toQueryEntries(systemsOnlySearchParams);
-  const remediationReportHref = (() => {
+  const performanceReportHref = (() => {
     const params = new URLSearchParams();
     for (const [key, value] of queryEntries) {
       params.append(key, value);
     }
     const query = params.toString();
-    return query ? `/api/systems/remediation-report?${query}` : "/api/systems/remediation-report";
+    return query ? `/api/systems/performance-report?${query}` : "/api/systems/performance-report";
   })();
 
   const requestedTab = firstParam(searchParams.systemsTab)?.trim().toLowerCase();
@@ -818,6 +820,14 @@ export default async function SystemsPage({
     12
   );
   const actionQuickWins = buildActionQuickWins(openFindings, 10);
+  const actionPerformanceModel = buildSystemPerformanceReportModel({
+    dataset,
+    analytics,
+    filters,
+    networks,
+    systems,
+    asOfDate: chartAnchorDateKey
+  });
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -938,29 +948,16 @@ export default async function SystemsPage({
                 enableLoadingOverlay
                 actions={
                   <a
-                    href={remediationReportHref}
+                    href={performanceReportHref}
                     className="inline-flex h-[42px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-4 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-500/25"
                   >
-                    Generate Remediation Report
+                    Performance Report
                   </a>
                 }
               />
             </div>
             <div className="min-h-0">
-              <SystemsActionPanel
-                actionPlan={{
-                  immediateAction,
-                  plannedRemediation,
-                  nonCompliantOs,
-                  outOfWarranty,
-                  discoveryCoverageGaps,
-                  systemsNotModelled
-                }}
-                actionThroughput={actionThroughput}
-                actionAgeBuckets={actionAgeBuckets}
-                actionOldestOpenFindings={actionOldestOpenFindings}
-                actionQuickWins={actionQuickWins}
-              />
+              <SystemsActionPanel model={actionPerformanceModel} />
             </div>
           </div>
         ) : (

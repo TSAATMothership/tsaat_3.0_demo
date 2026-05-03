@@ -24,6 +24,8 @@ import {
   SystemsBlastRadiusSelectionDetail
 } from "@/lib/systems-blast-radius-selection";
 import { OverviewComplianceScoreStrip, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
+import { PerformanceActionDashboard } from "@/components/performance-action-dashboard";
+import type { PerformanceReportModel } from "@/lib/performance-report-model";
 import { FindingSeverity, HighRiskCveDetail } from "@/lib/types";
 
 export interface SystemSeveritySummary {
@@ -638,79 +640,9 @@ export function SystemsOverviewPanel({
 }
 
 export function SystemsActionPanel({
-  actionPlan,
-  actionThroughput,
-  actionAgeBuckets,
-  actionOldestOpenFindings,
-  actionQuickWins
+  model
 }: {
-  actionPlan: {
-    immediateAction: number;
-    plannedRemediation: number;
-    nonCompliantOs: number;
-    outOfWarranty: number;
-    discoveryCoverageGaps: number;
-    systemsNotModelled: number;
-  };
-  actionThroughput: SystemActionThroughputPoint[];
-  actionAgeBuckets: SystemActionAgeBucketRow[];
-  actionOldestOpenFindings: SystemActionOldestFindingRow[];
-  actionQuickWins: SystemActionQuickWinRow[];
+  model: PerformanceReportModel;
 }) {
-  return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,0.88fr)] gap-2">
-      <section className="panel cyber-cop-pulse-border p-3">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
-        <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
-        <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-6">
-          <ActionTile
-            title="Immediate Action"
-            value={actionPlan.immediateAction}
-            subtitle="Critical Exposure + High Risk findings"
-            tone="critical"
-          />
-          <ActionTile
-            title="Planned Remediation"
-            value={actionPlan.plannedRemediation}
-            subtitle="P3+ findings backlog"
-            tone="warning"
-          />
-          <ActionTile
-            title="Total Non-Compliant OS"
-            value={actionPlan.nonCompliantOs}
-            subtitle="Server/workstation OS SPI 1-2 non-compliance"
-            tone="critical"
-          />
-          <ActionTile
-            title="Assets Out of Warranty"
-            value={actionPlan.outOfWarranty}
-            subtitle="Physical assets beyond support coverage"
-            tone="critical"
-          />
-          <ActionTile
-            title="Discovery Coverage Gaps"
-            value={actionPlan.discoveryCoverageGaps}
-            subtitle="Assets not meeting discovery compliance"
-            tone="watch"
-          />
-          <ActionTile
-            title="ICT Systems Not Modelled"
-            value={actionPlan.systemsNotModelled}
-            subtitle="Scoped ICT systems with modelling status not enabled"
-            tone="warning"
-          />
-        </div>
-      </section>
-
-      <div className="grid min-h-0 gap-2 lg:grid-cols-2">
-        <RemediationThroughputChart rows={actionThroughput} />
-        <FindingAgingBucketsChart rows={actionAgeBuckets} />
-      </div>
-
-      <div className="grid min-h-0 auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
-        <OldestOpenFindingsTable rows={actionOldestOpenFindings.slice(0, 6)} />
-        <ActionQuickWinsTable rows={actionQuickWins.slice(0, 6)} />
-      </div>
-    </div>
-  );
+  return <PerformanceActionDashboard model={model} />;
 }

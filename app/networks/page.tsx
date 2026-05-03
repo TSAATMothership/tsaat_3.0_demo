@@ -10,6 +10,7 @@ import { getTrendAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { filterRealNetworkEvaluations, filterRealNetworkFindings, filterRealNetworks } from "@/lib/network-scope";
+import { buildNetworkPerformanceReportModel } from "@/lib/performance-report-model";
 import { deriveOverallStatus } from "@/lib/posture";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
@@ -514,13 +515,13 @@ export default async function NetworksPage({
   const activeTab: "overview" | "action" | "posture" =
     requestedTab === "action" ? "action" : requestedTab === "posture" ? "posture" : "overview";
   const queryEntries = toQueryEntries(searchParams);
-  const remediationReportHref = (() => {
+  const performanceReportHref = (() => {
     const params = new URLSearchParams();
     for (const [key, value] of queryEntries) {
       params.append(key, value);
     }
     const query = params.toString();
-    return query ? `/api/networks/remediation-report?${query}` : "/api/networks/remediation-report";
+    return query ? `/api/networks/performance-report?${query}` : "/api/networks/performance-report";
   })();
   const filtersSection = (
     <div className="-mt-4">
@@ -531,10 +532,10 @@ export default async function NetworksPage({
         enableLoadingOverlay
         actions={
           <a
-            href={remediationReportHref}
+            href={performanceReportHref}
             className="inline-flex h-[42px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-4 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-500/25"
           >
-            Generate Remediation Report
+            Performance Report
           </a>
         }
       />
@@ -831,6 +832,14 @@ export default async function NetworksPage({
     12
   );
   const actionQuickWins = buildActionQuickWins(openFindings, 10);
+  const actionPerformanceModel = buildNetworkPerformanceReportModel({
+    dataset,
+    analytics,
+    filters,
+    networks,
+    systems,
+    asOfDate: chartAnchorDateKey
+  });
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
@@ -938,20 +947,7 @@ export default async function NetworksPage({
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
             {filtersSection}
             <div className="min-h-0">
-              <NetworksActionPanel
-                actionPlan={{
-                  immediateAction,
-                  plannedRemediation,
-                  nonCompliantOs,
-                  outOfWarranty,
-                  discoveryCoverageGaps,
-                  networkNotDiscovered
-                }}
-                actionThroughput={actionThroughput}
-                actionAgeBuckets={actionAgeBuckets}
-                actionOldestOpenFindings={actionOldestOpenFindings}
-                actionQuickWins={actionQuickWins}
-              />
+              <NetworksActionPanel model={actionPerformanceModel} />
             </div>
           </div>
         ) : (
