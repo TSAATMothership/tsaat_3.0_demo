@@ -1111,14 +1111,20 @@ export function NetworkDetailRiskCharts({
 
   const containerClass =
     layout === "stacked"
-      ? "grid min-h-[449px] gap-2.5 grid-rows-[minmax(285px,1fr)_minmax(156px,1fr)]"
+      ? "grid h-full min-h-0 gap-2.5 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"
       : "grid h-full min-h-[285px] gap-3 lg:grid-cols-2";
+  const riskPanelClass =
+    layout === "stacked"
+      ? "panel-alt flex min-h-0 flex-col overflow-hidden p-2.5"
+      : "panel-alt flex min-h-[285px] flex-col overflow-hidden p-2.5";
+  const chartBodyClass = layout === "stacked" ? "mt-1.5 min-h-0 flex-1" : "mt-1.5 min-h-[170px] flex-1";
+  const chartMinHeight = layout === "stacked" ? 1 : 170;
 
   return (
     <>
-      <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden pr-1">
+      <div className="h-full min-h-0 overflow-hidden">
       <div className={containerClass}>
-        <section className="panel-alt flex min-h-[285px] flex-col p-2.5">
+        <section className={riskPanelClass}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-[220px] flex-1">
               <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Profile</h3>
@@ -1150,9 +1156,9 @@ export function NetworkDetailRiskCharts({
               </p>
             </div>
           </div>
-          <div className="mt-1.5 min-h-[170px] flex-1">
+          <div className={chartBodyClass}>
             {isMounted ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={170}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={chartMinHeight}>
                 <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                   <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -1185,7 +1191,7 @@ export function NetworkDetailRiskCharts({
           </div>
         </section>
 
-        <section className="panel-alt flex min-h-[156px] flex-col p-2.5">
+        <section className={riskPanelClass}>
           <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h3>
           <p className="mt-1 text-xs text-slate-300/80">
             Weekly open finding counts for Critical Exposure and High Risk.
@@ -1200,9 +1206,9 @@ export function NetworkDetailRiskCharts({
               Critical Exposure
             </span>
           </div>
-          <div className="mt-1.5 min-h-[108px] flex-1">
+          <div className={chartBodyClass}>
             {isMounted ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={108}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={chartMinHeight}>
                 <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                   <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />

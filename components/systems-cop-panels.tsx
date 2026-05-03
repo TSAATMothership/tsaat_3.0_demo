@@ -23,6 +23,7 @@ import {
   SYSTEMS_BLAST_RADIUS_SELECTION_EVENT,
   SystemsBlastRadiusSelectionDetail
 } from "@/lib/systems-blast-radius-selection";
+import { OverviewComplianceScoreStrip, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { FindingSeverity, HighRiskCveDetail } from "@/lib/types";
 
 export interface SystemSeveritySummary {
@@ -82,64 +83,6 @@ export interface SystemBlastRadiusPoint {
   systemName: string;
   endpointCount: number;
   highRiskP12FindingsCount: number;
-}
-
-function ComplianceTile({ title, score }: { title: string; score: number }) {
-  const toneClass =
-    score >= 90
-      ? "border-emerald-300/35 text-emerald-100 bg-emerald-500/8"
-      : score >= 75
-        ? "border-cyan-300/35 text-cyan-100 bg-cyan-500/8"
-        : "border-amber-300/35 text-amber-100 bg-amber-500/8";
-  return (
-    <article className={`panel-alt p-3 ${toneClass}`}>
-      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/80">{title}</p>
-      <p className="mt-1.5 text-2xl font-semibold">{score}%</p>
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800/90">
-        <div className="h-full rounded-full bg-current" style={{ width: `${Math.min(100, score)}%` }} />
-      </div>
-    </article>
-  );
-}
-
-function ModellingBulletTile({
-  modelledPercent,
-  notModelledPercent,
-  modelledCount,
-  notModelledCount,
-  totalCount
-}: {
-  modelledPercent: number;
-  notModelledPercent: number;
-  modelledCount: number;
-  notModelledCount: number;
-  totalCount: number;
-}) {
-  return (
-    <article className="panel-alt border-amber-300/35 bg-amber-500/10 p-3 text-amber-100">
-      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-200/90">ICT Systems not modelled</p>
-      <p className="mt-1.5 text-2xl font-semibold">{notModelledPercent}%</p>
-      <p className="mt-0.5 text-xs text-slate-300/90">
-        {notModelledCount} of {totalCount} ICT systems
-      </p>
-      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full border border-sky-300/25 bg-slate-900/80">
-        <div className="flex h-full w-full">
-          <div className="h-full bg-emerald-400/90" style={{ width: `${modelledPercent}%` }} />
-          <div className="h-full bg-amber-300/95" style={{ width: `${notModelledPercent}%` }} />
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-200/90">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-          Modelled: {modelledPercent}% ({modelledCount})
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-amber-300" />
-          Not Modelled: {notModelledPercent}% ({notModelledCount})
-        </span>
-      </div>
-    </article>
-  );
 }
 
 function ActionTile({
@@ -624,7 +567,7 @@ function ActionQuickWinsTable({ rows }: { rows: SystemActionQuickWinRow[] }) {
 
 export function SystemsOverviewPanel({
   snapshotDate,
-  complianceScores,
+  scoreCards,
   modellingCoverage,
   riskProfile,
   riskFindings,
@@ -634,12 +577,7 @@ export function SystemsOverviewPanel({
   dailyCriticalExposure
 }: {
   snapshotDate: string;
-  complianceScores: {
-    overall: number;
-    dse: number;
-    dpe: number;
-    systems: number;
-  };
+  scoreCards: [OverviewScoreCard, OverviewScoreCard];
   modellingCoverage: {
     modelledPercent: number;
     notModelledPercent: number;
@@ -663,34 +601,13 @@ export function SystemsOverviewPanel({
 }) {
   return (
     <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,0.82fr)] gap-2">
-      <section className="panel relative overflow-hidden p-3">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.22),transparent_44%),radial-gradient(circle_at_88%_16%,rgba(239,68,68,0.16),transparent_38%)]" />
-        <div className="relative">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-sm uppercase tracking-[0.16em] text-slate-100">Compliance Scores</h2>
-              <p className="mt-1 text-xs text-slate-300/80">
-                Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
-              </p>
-            </div>
-            <span className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-              ICT System-Scoped Operational Briefing
-            </span>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <ComplianceTile title="Overall Compliance" score={complianceScores.overall} />
-            <ComplianceTile title="DSE Compliance" score={complianceScores.dse} />
-            <ComplianceTile title="DPE Compliance" score={complianceScores.dpe} />
-            <ModellingBulletTile
-              modelledPercent={modellingCoverage.modelledPercent}
-              notModelledPercent={modellingCoverage.notModelledPercent}
-              modelledCount={modellingCoverage.modelledCount}
-              notModelledCount={modellingCoverage.notModelledCount}
-              totalCount={modellingCoverage.totalCount}
-            />
-          </div>
-        </div>
-      </section>
+      <OverviewComplianceScoreStrip
+        snapshotDate={snapshotDate}
+        modellingGapLabel="ICT Systems not modelled"
+        modellingEntityLabel="ICT systems"
+        scoreCards={scoreCards}
+        modellingCoverage={modellingCoverage}
+      />
 
       <div className="min-h-0">
         <NetworkDetailRiskCharts
@@ -797,4 +714,3 @@ export function SystemsActionPanel({
     </div>
   );
 }
-

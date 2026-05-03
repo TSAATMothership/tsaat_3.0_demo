@@ -34,50 +34,25 @@ function toQueryEntries(searchParams: Record<string, string | string[] | undefin
   return entries;
 }
 
-function complianceScore(statuses: ComplianceStatus[]): number {
-  if (!statuses.length) {
-    return 0;
-  }
-
-  const compliant = statuses.filter((status) => status === "Compliant").length;
-  return Number(((compliant / statuses.length) * 100).toFixed(1));
-}
-
-function dpeComplianceScore(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): number {
-  return complianceScore(
-    statuses.filter((item) => item.environmentType === "Production").map((item) => item.status)
-  );
-}
-
-function dseComplianceScore(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): number {
-  return complianceScore(
-    statuses
-      .filter((item) => item.environmentType !== null && item.environmentType !== "Production")
-      .map((item) => item.status)
-  );
-}
-
-function complianceFromRollupCounts(
-  rollups: Array<{
-    counts: { compliant: number; nonCompliant: number; unknown: number };
-  }>
-): number {
-  const totals = rollups.reduce(
-    (accumulator, rollup) => {
-      accumulator.compliant += rollup.counts.compliant;
-      accumulator.nonCompliant += rollup.counts.nonCompliant;
-      accumulator.unknown += rollup.counts.unknown;
+function complianceCounts(statuses: ComplianceStatus[]) {
+  return statuses.reduce(
+    (accumulator, status) => {
+      if (status === "Compliant") {
+        accumulator.compliant += 1;
+      } else if (status === "Non-compliant") {
+        accumulator.nonCompliant += 1;
+      } else {
+        accumulator.unknown += 1;
+      }
       return accumulator;
     },
     { compliant: 0, nonCompliant: 0, unknown: 0 }
   );
+}
 
-  const denominator = totals.compliant + totals.nonCompliant + totals.unknown;
-  if (!denominator) {
-    return 0;
-  }
-
-  return Number(((totals.compliant / denominator) * 100).toFixed(1));
+function scoreFromCounts(counts: { compliant: number; nonCompliant: number; unknown?: number; other?: number }) {
+  const denominator = counts.compliant + counts.nonCompliant + (counts.unknown ?? 0) + (counts.other ?? 0);
+  return denominator ? Number(((counts.compliant / denominator) * 100).toFixed(1)) : 0;
 }
 
 function toUtcDateKey(date: Date): string {
@@ -577,6 +552,10 @@ export default async function SystemsPage({
     const systemId = asset.systemContext?.systemId;
     return Boolean(systemId) && scopedSystemIds.has(systemId as string);
   });
+  const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
+  const systemScopedEvaluations = analytics.evaluations.filter(
+    (evaluation) => Boolean(evaluation.systemId) && scopedSystemIds.has(evaluation.systemId as string)
+  );
   const systemScopedFindings = analytics.findings.filter(
     (finding) => Boolean(finding.scope.systemId) && scopedSystemIds.has(finding.scope.systemId as string)
   );
@@ -654,19 +633,38 @@ export default async function SystemsPage({
       return a.systemName.localeCompare(b.systemName);
     });
 
-  const statusesWithEnvironment = analytics.evaluations
-    .filter((evaluation) => Boolean(evaluation.systemId) && scopedSystemIds.has(evaluation.systemId as string))
-    .flatMap((evaluation) =>
-      evaluation.evaluations.map((item) => ({
-        environmentType: evaluation.environmentType,
-        status: item.status
-      }))
-    );
-
-  const scopedSystemRollups = analytics.systemRollups.filter(
-    (rollup) => rollup.scopeType === "system" && scopedSystemIds.has(rollup.scopeId)
+  const statusesWithEnvironment = systemScopedEvaluations.flatMap((evaluation) =>
+    evaluation.evaluations.map((item) => ({
+      environmentType: evaluation.environmentType,
+      status: item.status
+    }))
   );
-  const systemsCompliance = complianceFromRollupCounts(scopedSystemRollups);
+  const overviewComplianceCounts = complianceCounts(statusesWithEnvironment.map((item) => item.status));
+  const overviewComplianceTotal =
+    overviewComplianceCounts.compliant + overviewComplianceCounts.nonCompliant + overviewComplianceCounts.unknown;
+  const overviewComplianceScore = scoreFromCounts(overviewComplianceCounts);
+  const overviewDiscoveryComplianceCounts = systemScopedEvaluations.reduce(
+    (accumulator, evaluation) => {
+      const sourceAsset = filteredAssetsById.get(evaluation.assetId);
+      const isOther =
+        sourceAsset?.lifecycle.eolStatus === "Unknown" || sourceAsset?.lifecycle.warrantyStatus === "Unknown";
+
+      if (isOther) {
+        accumulator.other += 1;
+      } else if (evaluation.discoveryCoverageCompliant) {
+        accumulator.compliant += 1;
+      } else {
+        accumulator.nonCompliant += 1;
+      }
+      return accumulator;
+    },
+    { compliant: 0, nonCompliant: 0, other: 0 }
+  );
+  const overviewDiscoveryComplianceTotal =
+    overviewDiscoveryComplianceCounts.compliant +
+    overviewDiscoveryComplianceCounts.nonCompliant +
+    overviewDiscoveryComplianceCounts.other;
+  const overviewDiscoveryComplianceScore = scoreFromCounts(overviewDiscoveryComplianceCounts);
 
   const openFindings = systemScopedFindings.filter((finding) => finding.status === "open");
   const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
@@ -699,7 +697,6 @@ export default async function SystemsPage({
   );
   const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
 
-  const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
   const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
   const riskProfileFindings = systemScopedFindings
@@ -848,12 +845,66 @@ export default async function SystemsPage({
             <div className="min-h-0">
               <SystemsOverviewPanel
                 snapshotDate={dataset.snapshotDate}
-                complianceScores={{
-                  overall: complianceScore(statusesWithEnvironment.map((item) => item.status)),
-                  dse: dseComplianceScore(statusesWithEnvironment),
-                  dpe: dpeComplianceScore(statusesWithEnvironment),
-                  systems: systemsCompliance
-                }}
+                scoreCards={[
+                  {
+                    title: "Compliance Score",
+                    score: overviewComplianceScore,
+                    total: overviewComplianceTotal,
+                    contextLabel: "Current ICT system overview scope",
+                    segments: [
+                      {
+                        label: "Compliant",
+                        shortLabel: "C",
+                        value: overviewComplianceCounts.compliant,
+                        barClassName: "h-full bg-emerald-400/90",
+                        chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
+                      },
+                      {
+                        label: "Non-compliant",
+                        shortLabel: "NC",
+                        value: overviewComplianceCounts.nonCompliant,
+                        barClassName: "h-full bg-rose-400/90",
+                        chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
+                      },
+                      {
+                        label: "Unknown",
+                        shortLabel: "U",
+                        value: overviewComplianceCounts.unknown,
+                        barClassName: "h-full bg-slate-400/90",
+                        chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
+                      }
+                    ]
+                  },
+                  {
+                    title: "Discovery Compliance Score",
+                    score: overviewDiscoveryComplianceScore,
+                    total: overviewDiscoveryComplianceTotal,
+                    contextLabel: "Current discovery scope",
+                    segments: [
+                      {
+                        label: "Compliant",
+                        shortLabel: "C",
+                        value: overviewDiscoveryComplianceCounts.compliant,
+                        barClassName: "h-full bg-emerald-400/90",
+                        chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
+                      },
+                      {
+                        label: "Non-compliant",
+                        shortLabel: "NC",
+                        value: overviewDiscoveryComplianceCounts.nonCompliant,
+                        barClassName: "h-full bg-rose-400/90",
+                        chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
+                      },
+                      {
+                        label: "Other",
+                        shortLabel: "O",
+                        value: overviewDiscoveryComplianceCounts.other,
+                        barClassName: "h-full bg-slate-400/90",
+                        chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
+                      }
+                    ]
+                  }
+                ]}
                 modellingCoverage={{
                   modelledPercent,
                   notModelledPercent,
