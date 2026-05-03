@@ -672,6 +672,20 @@ CREATE TABLE [tsaat].[measures_severity_matrix] (
 );
 GO
 
+CREATE TABLE [tsaat].[measures_priority_matrix] (
+  [settings_version_id] BIGINT NOT NULL,
+  [spi_id] SMALLINT NOT NULL,
+  [priority_rank] INT NOT NULL,
+  CONSTRAINT [PK_measures_priority_matrix] PRIMARY KEY CLUSTERED ([settings_version_id], [spi_id]),
+  CONSTRAINT [FK_measures_priority_matrix_version]
+    FOREIGN KEY ([settings_version_id]) REFERENCES [tsaat].[measures_settings_version]([settings_version_id]),
+  CONSTRAINT [FK_measures_priority_matrix_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [CK_measures_priority_matrix_priority_rank]
+    CHECK ([priority_rank] BETWEEN 1 AND 7)
+);
+GO
+
 CREATE INDEX [IX_ict_system_network] ON [tsaat].[ict_system] ([snapshot_id], [network_id]);
 CREATE INDEX [IX_managed_network_hierarchy_parent] ON [tsaat].[managed_network_hierarchy] ([snapshot_id], [parent_network_id]);
 CREATE INDEX [IX_managed_network_hierarchy_child] ON [tsaat].[managed_network_hierarchy] ([snapshot_id], [child_network_id]);

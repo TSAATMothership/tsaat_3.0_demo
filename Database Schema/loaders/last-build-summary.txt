@@ -14,6 +14,7 @@ tsaat.ict_system|480
 tsaat.ict_system_hierarchy|0
 tsaat.managed_network|112
 tsaat.managed_network_hierarchy|0
+tsaat.measures_priority_matrix|10
 tsaat.measures_settings_version|1
 tsaat.measures_severity_matrix|60
 tsaat.network_declared_asset|8000

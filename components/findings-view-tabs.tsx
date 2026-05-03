@@ -93,6 +93,7 @@ export function FindingsViewTabs({ activeTab }: { activeTab: FindingsViewTabId }
     params.set("findingsViewTab", tab);
     if (tab === "overview") {
       params.delete("spi");
+      params.delete("criticality");
     }
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);

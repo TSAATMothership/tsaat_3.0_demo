@@ -1,6 +1,6 @@
 import { Asset, AssetType, Finding, FindingSeverity, SpiId } from "@/lib/types";
 import { ASSET_TYPES } from "@/lib/asset-taxonomy";
-import { SPI_IDS } from "@/lib/spi-metadata";
+import { SPI_IDS, SPI_PRIORITY_ORDER } from "@/lib/spi-metadata";
 
 export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
   "Critical Exposure",
@@ -17,10 +17,13 @@ export const MEASURES_SELECTABLE_SEVERITY_OPTIONS: Exclude<FindingSeverity, "Dat
 
 export const MEASURES_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
 export const MEASURES_SPI_IDS: SpiId[] = [...SPI_IDS];
+export const MEASURES_PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+export type MeasuresPriorityRank = (typeof MEASURES_PRIORITY_OPTIONS)[number];
 
 export interface MeasuresSettings {
   updatedAt: string;
   severityMatrix: Record<string, FindingSeverity>;
+  priorityMatrix: Record<string, MeasuresPriorityRank>;
 }
 
 const DEFAULT_SEVERITY_BY_SPI: Record<SpiId, FindingSeverity> = {
@@ -40,18 +43,25 @@ export function severityMatrixKey(spiId: SpiId, assetType: AssetType): string {
   return `${spiId}:${assetType}`;
 }
 
+export function priorityMatrixKey(spiId: SpiId): string {
+  return String(spiId);
+}
+
 export function defaultMeasuresSettings(): MeasuresSettings {
   const severityMatrix: Record<string, FindingSeverity> = {};
+  const priorityMatrix: Record<string, MeasuresPriorityRank> = {};
 
   for (const spiId of MEASURES_SPI_IDS) {
     for (const assetType of MEASURES_ASSET_TYPES) {
       severityMatrix[severityMatrixKey(spiId, assetType)] = DEFAULT_SEVERITY_BY_SPI[spiId];
     }
+    priorityMatrix[priorityMatrixKey(spiId)] = SPI_PRIORITY_ORDER[spiId] as MeasuresPriorityRank;
   }
 
   return {
     updatedAt: new Date().toISOString(),
-    severityMatrix
+    severityMatrix,
+    priorityMatrix
   };
 }
 
@@ -67,6 +77,14 @@ function isSpiId(value: unknown): value is SpiId {
   return typeof value === "number" && Number.isInteger(value) && MEASURES_SPI_IDS.includes(value as SpiId);
 }
 
+function isMeasuresPriorityRank(value: unknown): value is MeasuresPriorityRank {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    MEASURES_PRIORITY_OPTIONS.includes(value as MeasuresPriorityRank)
+  );
+}
+
 function isAssetType(value: unknown): value is AssetType {
   return typeof value === "string" && MEASURES_ASSET_TYPES.includes(value as AssetType);
 }
@@ -77,8 +95,9 @@ export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
     return fallback;
   }
 
-  const candidate = input as { updatedAt?: unknown; severityMatrix?: unknown };
+  const candidate = input as { updatedAt?: unknown; severityMatrix?: unknown; priorityMatrix?: unknown };
   const severityMatrix: Record<string, FindingSeverity> = { ...fallback.severityMatrix };
+  const priorityMatrix: Record<string, MeasuresPriorityRank> = { ...fallback.priorityMatrix };
 
   if (candidate.severityMatrix && typeof candidate.severityMatrix === "object") {
     for (const [rawKey, rawSeverity] of Object.entries(candidate.severityMatrix as Record<string, unknown>)) {
@@ -91,6 +110,17 @@ export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
     }
   }
 
+  if (candidate.priorityMatrix && typeof candidate.priorityMatrix === "object") {
+    for (const [rawKey, rawPriority] of Object.entries(candidate.priorityMatrix as Record<string, unknown>)) {
+      const spiId = Number(rawKey);
+      const priority = typeof rawPriority === "string" ? Number(rawPriority) : rawPriority;
+      if (!isSpiId(spiId) || !isMeasuresPriorityRank(priority)) {
+        continue;
+      }
+      priorityMatrix[priorityMatrixKey(spiId)] = priority;
+    }
+  }
+
   const updatedAt =
     typeof candidate.updatedAt === "string" && !Number.isNaN(new Date(candidate.updatedAt).getTime())
       ? candidate.updatedAt
@@ -98,7 +128,8 @@ export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
 
   return {
     updatedAt,
-    severityMatrix
+    severityMatrix,
+    priorityMatrix
   };
 }
 
@@ -137,6 +168,24 @@ export function applyMeasuresSeveritySettings(
     return {
       ...finding,
       severity: mappedSeverity
+    };
+  });
+}
+
+export function applyMeasuresPrioritySettings(findings: Finding[], settings: MeasuresSettings): Finding[] {
+  return findings.map((finding) => {
+    if (finding.complianceStatus !== "Non-compliant" || !isSpiId(finding.spiId)) {
+      return finding;
+    }
+
+    const mappedPriority = settings.priorityMatrix[priorityMatrixKey(finding.spiId)];
+    if (!isMeasuresPriorityRank(mappedPriority)) {
+      return finding;
+    }
+
+    return {
+      ...finding,
+      priorityRank: mappedPriority
     };
   });
 }

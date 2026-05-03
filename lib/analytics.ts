@@ -2,7 +2,12 @@ import { buildFindings } from "@/lib/findings";
 import { deduplicateFindings } from "@/lib/findings-normalization";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { applyMeasuresSeveritySettings, defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
+import {
+  applyMeasuresPrioritySettings,
+  applyMeasuresSeveritySettings,
+  defaultMeasuresSettings,
+  MeasuresSettings
+} from "@/lib/measures-settings";
 import { buildRollups, mergeStatusCounts } from "@/lib/rollup";
 import { applyAssetFilters } from "@/lib/selectors";
 import { evaluateAssetSpis, hasProductionCriticalVulnerability } from "@/lib/spi-rules";
@@ -81,8 +86,9 @@ export function buildAnalytics(
     });
   })();
   const findingsWithConfiguredSeverity = applyMeasuresSeveritySettings(sourceFindings, dataset.assets, measuresSettings);
+  const findingsWithConfiguredSettings = applyMeasuresPrioritySettings(findingsWithConfiguredSeverity, measuresSettings);
   const scopedFindings = deduplicateFindings(
-    findingsWithConfiguredSeverity.filter((finding) => filteredAssetIds.has(finding.scope.assetId))
+    findingsWithConfiguredSettings.filter((finding) => filteredAssetIds.has(finding.scope.assetId))
   );
   const findings = filters.severity
     ? scopedFindings.filter((finding) => finding.severity === filters.severity)

@@ -86,7 +86,11 @@ describe("app data model caches", () => {
     __resetAppDataCachesForTest();
     loadDatasetForDateMock.mockResolvedValue(dataset);
     loadLatestSnapshotsForDateMock.mockResolvedValue([dataset]);
-    loadMeasuresSettingsMock.mockResolvedValue({ updatedAt: "2026-04-30T01:00:00.000Z", severityMatrix: {} });
+    loadMeasuresSettingsMock.mockResolvedValue({
+      updatedAt: "2026-04-30T01:00:00.000Z",
+      severityMatrix: {},
+      priorityMatrix: {}
+    });
     loadDiscoveryToolsSettingsMock.mockResolvedValue({ updatedAt: "2026-04-30T02:00:00.000Z", tools: [] });
     getCachedAnalyticsMock.mockReturnValue({ marker: "analytics" });
     buildTrendPointsMock.mockReturnValue([{ weekLabel: "W01", snapshotDate: "2026-04-30" }]);

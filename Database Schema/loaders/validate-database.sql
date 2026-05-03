@@ -7,7 +7,8 @@ DECLARE @AssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[asset]);
 DECLARE @FindingCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[finding]);
 DECLARE @CiDependencyCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[ci_dependency]);
 DECLARE @DiscoveryToolCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_tool]);
-DECLARE @MeasureCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_severity_matrix]);
+DECLARE @MeasureSeverityCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_severity_matrix]);
+DECLARE @MeasurePriorityCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_priority_matrix]);
 DECLARE @NetworkTargetStateAssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[network_target_state_asset]);
 
 IF @SnapshotCount <> 8
@@ -28,8 +29,11 @@ IF @CiDependencyCount <= 0
 IF @DiscoveryToolCount <= 0
   THROW 52000, 'Validation failed: discovery_tool table is empty.', 1;
 
-IF @MeasureCount <= 0
+IF @MeasureSeverityCount <= 0
   THROW 52000, 'Validation failed: measures_severity_matrix table is empty.', 1;
+
+IF @MeasurePriorityCount <= 0
+  THROW 52000, 'Validation failed: measures_priority_matrix table is empty.', 1;
 
 IF @NetworkTargetStateAssetCount <= 0
   THROW 52000, 'Validation failed: network_target_state_asset table is empty.', 1;
@@ -55,6 +59,7 @@ SELECT
   @FindingCount AS [finding_count],
   @CiDependencyCount AS [ci_dependency_count],
   @DiscoveryToolCount AS [discovery_tool_count],
-  @MeasureCount AS [measures_severity_matrix_count],
+  @MeasureSeverityCount AS [measures_severity_matrix_count],
+  @MeasurePriorityCount AS [measures_priority_matrix_count],
   @NetworkTargetStateAssetCount AS [network_target_state_asset_count],
   CAST(1 AS BIT) AS [ready_for_application];

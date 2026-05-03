@@ -34,7 +34,7 @@ Important hidden behaviour:
 ### Feature: Shared Findings Filter Scope
 - **What it does:** filters the page by the shared scope plus findings-specific SPI, priority, severity, search, status, view, page, and as-of date parameters.
 - **User perspective:** the user can narrow the findings set to the relevant scope and time slice.
-- **System behaviour:** the page loads the shared filtered analytics, reconstructs open or closed status at `asOf`, and then applies findings-specific filters.
+- **System behaviour:** the page loads the shared filtered analytics, reconstructs open or closed status at `asOf`, and then applies findings-specific filters; the Overview view hides and ignores the system criticality filter.
 - **Outcome:** the findings set reflects both structural scope and time-based workflow reconstruction.
 
 ### Feature: Overview View
@@ -58,12 +58,12 @@ Important hidden behaviour:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Findings and Evidence | View routing | Switches between overview and register | Click view tab | Updates `findingsViewTab` query parameter | `findingsViewTab` | Different layout | overview is default | unsupported values fall back to overview | `FindingsViewTabs` | Bookmarkable view state | |
+| Findings and Evidence | View routing | Switches between overview and register | Click view tab | Updates `findingsViewTab` query parameter; opening overview clears `criticality` and `spi` query state | `findingsViewTab` | Different layout | overview is default; overview ignores system criticality | unsupported values fall back to overview | `FindingsViewTabs` | Bookmarkable view state | |
 | Findings and Evidence | Status routing | Switches between open and closed findings | Click status tab | Dismisses any open register affected-CI/CVE overlays, then updates `findingsTab` query parameter | `findingsTab` | Open or closed scope | open is default | unsupported values fall back to open | `FindingsStatusTabs` | Bookmarkable workflow state | |
 | Findings and Evidence | As-of timeline filter | Changes date used to reconstruct workflow state | Pick date | Clamps date and recomputes timeline status for each finding | `asOf` | Rebuilt findings set and charts | max date is current snapshot date; min date is two years earlier | invalid or out-of-range dates are corrected | `workflowStatusAtAsOf()` | Stable as-of reporting | hidden clamping rule |
 | Findings and Evidence | Overview analytics | Two-year trend and summary cards | Open overview | Builds daily history points and summary cards | findings, reconstructed statuses | Trend chart, cards, summaries | overview can include SPI filter not shown on register | zero-safe counts | chart components | Analytical overview | |
 | Findings and Evidence | History drillthrough | Full-screen SPI trend analysis | Click drillthrough action | Toggles `historyDrillthrough=1` and renders overlay | current filter state plus history series | Overlay charts | overlay preserves current findings scope | none beyond preserved query params | `FindingsHistoryDrillthrough` | Deep trend analysis | non-route overlay |
-| Findings and Evidence | Register table | Compliance-detail style register with evidence | Open register, filter, export, open affected CIs and CVEs | Renders all filtered rows in a scrollable table, builds export URLs, and derives selected-row CI/CVE details client-side | filtered findings, CVE index, `asOf`, search params | Table, export files, affected-CIs slideout, CVE modal | register-specific filters are URL-aligned; no register pagination | unsupported filters are ignored by existing parsing | `FindingsTable`, export API, retained asset-details API | Operational findings list | selected-row drillthrough is client-side |
+| Findings and Evidence | Register table | Compliance-detail style register with evidence | Open register, filter, export, open affected CIs and CVEs | Renders all filtered rows in a scrollable table, exposes priority in the tab filter bar, builds export URLs, and derives selected-row CI/CVE details client-side | filtered findings, CVE index, `asOf`, search params | Table, export files, affected-CIs slideout, CVE modal | register-specific filters are URL-aligned; no register pagination | unsupported filters are ignored by existing parsing | `FindingsTable`, export API, retained asset-details API | Operational findings list | selected-row drillthrough is client-side |
 
 ## 5. Database Mapping
 The page reads the filtered findings set from runtime analytics. That set may come from persisted `tsaat.finding` rows or, when absent, from synthetic findings generated from evaluation outcomes.
@@ -75,15 +75,15 @@ Primary data dependencies:
 - `tsaat.asset_vulnerability`
 - `tsaat.ict_system`
 - `tsaat.managed_network`
-- measures settings tables used for severity remap
+- measures settings tables used for severity and non-compliant priority remap
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Findings and Evidence | Findings register | `tsaat` | `finding` | `finding_id`, `spi_id`, `priority_rank`, `severity`, `compliance_status`, scope columns, `title`, `evidence`, `recommended_action`, `workflow_status`, `observed_at`, `closed_at` | mixed | main finding rows, trend input, exports | Read | findings join back to asset, system, and network by scope fields | severity may be remapped at runtime | as-of status reconstructed from timestamps | synthetic fallback may replace missing persisted rows |
+| Findings and Evidence | Findings register | `tsaat` | `finding` | `finding_id`, `spi_id`, `priority_rank`, `severity`, `compliance_status`, scope columns, `title`, `evidence`, `recommended_action`, `workflow_status`, `observed_at`, `closed_at` | mixed | main finding rows, trend input, exports | Read | findings join back to asset, system, and network by scope fields | severity and non-compliant priority may be remapped at runtime | as-of status reconstructed from timestamps | synthetic fallback may replace missing persisted rows |
 | Findings and Evidence | Asset evidence drillthrough | `tsaat` | `asset`, `asset_vulnerability` | asset identity, type, IP, vulnerability fields | mixed | affected CI and CVE details for a selected finding | Read | register uses the selected finding row; compatibility API can narrow rows by current findings context | scoped to active finding filters and as-of date | CVE details use the snapshot vulnerability index and criticality filter | |
 | Findings and Evidence | Scope context | `tsaat` | `ict_system`, `managed_network` | IDs and names | mixed | scope filtering, search text, export context | Read | findings link through scope columns | none | direct display outside the register table | |
-| Findings and Evidence | Severity remap context | `tsaat` | `measures_settings_version`, `measures_severity_matrix` | SPI and asset-type severity mapping | mixed | determines visible severity on page and exports | Read | latest settings version applied | defaults if settings are absent | runtime rewrite before display | |
+| Findings and Evidence | Measures remap context | `tsaat` | `measures_settings_version`, `measures_severity_matrix`, `measures_priority_matrix` | SPI severity and priority mappings | mixed | determines visible severity and non-compliant priority on page and exports | Read | latest settings version applied | defaults if settings are absent | runtime rewrite before display | Unknown/Data Gap remains P90 |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -109,7 +109,7 @@ Primary data dependencies:
 - The page is date-scoped through the underlying snapshot date and explicit `asOf` control.
 - `asOf` is limited to the two-year history window ending at the active snapshot date.
 - The register table is scrollable and does not paginate rows.
-- Visible severity may differ from persisted `finding.severity` due to measures severity remap.
+- Visible severity may differ from persisted `finding.severity` due to measures severity remap; non-compliant priority may differ from persisted `finding.priority_rank` due to measures priority remap.
 - Asset-type summaries use the shared six-type taxonomy and do not assume a fixed 3-column model.
 - Affected-CI drillthrough is scoped to the selected register row; `/api/findings/asset-details` remains available for compatibility with older asset-details paths.
 

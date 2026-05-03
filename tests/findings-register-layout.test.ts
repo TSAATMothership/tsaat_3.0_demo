@@ -69,9 +69,18 @@ describe("Findings register layout", () => {
     expect(viewTabsSource).toContain('params.delete("spi")');
   });
 
+  it("removes the Criticality filter from the Findings Overview tab", () => {
+    expect(pageSource).toContain("criticality: undefined");
+    expect(pageSource).toContain('hiddenFields={activeViewTab === "overview" ? ["systemCriticality"] : []}');
+    expect(viewTabsSource).toContain('params.delete("criticality")');
+    expect(historyDrillthroughSource).toContain('hiddenFields={["systemCriticality"]}');
+  });
+
   it("renders the register as a compliance detail-style scrollable worklist", () => {
     expect(pageSource).toContain("findings={findings}");
     expect(pageSource).toContain("buildCveVulnerabilityIndexByAssetId(dataset.assets)");
+    expect(pageSource).toContain("const priorityFilterSelect = {");
+    expect(pageSource).toContain(": [priorityFilterSelect]");
     expect(pageSource).not.toContain("paginatedFindings");
     expect(pageSource).not.toContain("openTabPageSize");
     expect(pageSource).not.toContain("selectedPage");

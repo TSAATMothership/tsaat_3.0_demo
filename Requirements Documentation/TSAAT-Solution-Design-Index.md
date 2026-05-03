@@ -98,6 +98,7 @@ The most frequently referenced tables across the pages are:
 - `tsaat.spi_applicable_asset_type`
 - `tsaat.measures_settings_version`
 - `tsaat.measures_severity_matrix`
+- `tsaat.measures_priority_matrix`
 - `tsaat.discovery_tools_settings_version`
 - `tsaat.discovery_tool`
 - `tsaat.discovery_tool_asset_scope`

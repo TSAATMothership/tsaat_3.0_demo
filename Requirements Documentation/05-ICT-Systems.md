@@ -76,7 +76,7 @@ Primary data dependencies:
 | ICT Systems | Mission and service context | `tsaat` | `system_mission_capability`, `system_business_service` | IDs, names, criticality | string | posture table columns and slideout context | Read | one system to many capabilities and services | none | joined into comma-separated labels | |
 | ICT Systems | Environment scope | `tsaat` | `system_environment`, `system_environment_asset` | `environment_id`, `environment_type`, `asset_id` | string | production posture and discovery scope | Read | environment rows tie systems to assets | none | environment-aware counts | |
 | ICT Systems | Asset posture | `tsaat` | `asset` and child posture tables | asset identity, lifecycle, OS, software, vulnerability columns | mixed | compliance scores, discovery scores, action metrics | Read | system-scoped through asset context | filtered through shared scope | runtime evaluation and counts | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
-| ICT Systems | Findings | `tsaat` | `finding` | scope columns, severity, priority, timestamps | mixed | risk summaries and action metrics | Read | grouped by `system_id` | severity remap applies | runtime only | |
+| ICT Systems | Findings | `tsaat` | `finding` | scope columns, severity, priority, timestamps | mixed | risk summaries and action metrics | Read | grouped by `system_id` | severity and non-compliant priority remap applies | runtime only | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |

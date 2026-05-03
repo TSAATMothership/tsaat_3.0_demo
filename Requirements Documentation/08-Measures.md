@@ -32,6 +32,7 @@ Important hidden behaviour:
   - `measuresTab=settings` maps to `spi-settings`
   - unknown or empty values map to `summary`
 - SPI severity settings no longer allow selecting `Data Gap`; legacy saved `Data Gap` matrix entries are normalized to `Moderate` during load/save normalization.
+- SPI priority settings map non-compliant SPI findings to P1-P7; Unknown/Data Gap findings remain P90.
 
 ## 3. Feature Breakdown
 ### Feature: Shared Measures Filter Scope
@@ -59,10 +60,10 @@ Important hidden behaviour:
 - **Outcome:** SPI performance details and per-SPI PDF report actions are shown in a dedicated tab.
 
 ### Feature: SPI-Settings Tab
-- **What it does:** lets users maintain the severity matrix that maps SPI and asset type combinations to finding severity across all six canonical asset types.
-- **User perspective:** the user can tune how findings are classified without changing code.
-- **System behaviour:** the settings panel loads the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; matrix keys cover every SPI and every canonical asset type; legacy `Data Gap` values normalize to `Moderate`.
-- **Outcome:** future analytics and findings displays use the updated severity mapping.
+- **What it does:** lets users maintain nested SPI severity and priority matrix settings.
+- **User perspective:** the user can tune finding severity and non-compliant finding priority without changing code.
+- **System behaviour:** the settings panel loads the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; severity matrix keys cover every SPI and every canonical asset type, while priority matrix keys cover every SPI mapped to P1-P7.
+- **Outcome:** future analytics and findings displays use the updated severity and priority mappings.
 
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
@@ -72,7 +73,7 @@ Important hidden behaviour:
 | Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives compliance points from runtime rows | analytics, systems, networks | Charts | charts show recalculated runtime scores | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | |
 | Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | KPI tiles and PDF report links | KPI reports and KPI trend reports are available only for KPI-5 through KPI-10; KPI-1 through KPI-4 show `Unavailable` | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view with current and trend reports | |
 | Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; all-SPI report summarizes every SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
-| Measures | SPI settings | Maintain severity mapping by SPI and asset type | Edit rows, save, reset | Validates and persists latest settings version | measures settings rows | Updated measures settings | saved matrix affects future severity remap; matrix includes six canonical asset types per SPI; `Data Gap` values are normalized to `Moderate` | panel-level validation in component and API | `/api/measures/settings` | Updated severity model | non-applicable SPI/asset combinations remain harmless configuration entries |
+| Measures | SPI settings | Maintain nested severity and priority mappings | Edit rows, switch nested settings tab, save, reset | Validates and persists latest settings version with both matrices | measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
 
 ## 5. Database Mapping
 The page reads snapshot analytics plus the measures settings tables. Most KPI and SPI values are calculated at runtime from asset evaluations and findings rather than stored as facts.
@@ -86,6 +87,7 @@ Primary data dependencies:
 - `tsaat.managed_network`
 - `tsaat.measures_settings_version`
 - `tsaat.measures_severity_matrix`
+- `tsaat.measures_priority_matrix`
 - `tsaat.spi_definition`
 - `tsaat.spi_applicable_asset_type`
 
@@ -98,6 +100,7 @@ Primary data dependencies:
 | Measures | SPI metadata | `tsaat` | `spi_definition`, `spi_applicable_asset_type` | SPI IDs, descriptions, applicable asset types | mixed | explanatory context and applicability rules | Read | joins by SPI ID and asset type | metadata shapes evaluation applicability | reference lookup | new asset types are currently scoped to SPI 10 applicability |
 | Measures | SPI trend report snapshots | `tsaat` | `dataset_snapshot` | `snapshot_date` | date | selects historical snapshots for SPI trend PDFs | Read | trend report loads snapshots within the 12 calendar months ending at selected `dataDate` | latest selected snapshot when no date is supplied | date-window filtering | no monthly points are fabricated when snapshots are unavailable |
 | Measures | Severity settings | `tsaat` | `measures_settings_version`, `measures_severity_matrix` | versioning, SPI ID, asset type, severity | mixed | finding severity remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults apply if tables are empty | runtime severity rewrite | matrix keys include all SPI IDs x all six canonical asset types |
+| Measures | Priority settings | `tsaat` | `measures_settings_version`, `measures_priority_matrix` | versioning, SPI ID, priority rank | mixed | non-compliant finding priority remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults come from `spi_definition.priority_order` | runtime priority rewrite | matrix keys include SPI IDs 1..10 with P1-P7 values |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -121,15 +124,18 @@ Primary data dependencies:
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - KPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - Severity remap is applied at runtime to findings before they are counted or displayed on dependent pages.
+- Priority remap is applied at runtime to non-compliant findings before they are counted or displayed on dependent pages.
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is not date-scoped through a local control, but it respects shared route date state where supplied.
 - KPI and SPI values are recalculated at runtime for the current scope.
 - KPI tasking and trend reports are disabled for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - The saved severity matrix affects downstream findings analytics and page displays.
+- The saved priority matrix affects downstream non-compliant finding analytics and page displays.
 - SPI settings dropdown options exclude `Data Gap`.
 - persisted SPI settings values of `Data Gap` are normalized to `Moderate` during settings normalization.
 - Severity matrix settings are stored for all six canonical asset types (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`) across SPI 1..10.
+- Priority matrix settings are stored for SPI 1..10 as P1-P7 values; Unknown/Data Gap findings remain P90.
 - New asset types (`storage-device`, `printer-device`, `other`) are currently evaluated against SPI 10 only.
 - KPI-7 and KPI-8 currently represent synthetic proxy logic rather than persisted accreditation or DIIS data.
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAnalytics } from "@/lib/analytics";
-import { MeasuresSettings } from "@/lib/measures-settings";
+import { defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
 import { Dataset, Finding } from "@/lib/types";
 
 function baseFinding(id: string, assetId: string): Finding {
@@ -256,16 +256,105 @@ describe("analytics findings filtering", () => {
     };
 
     const settings: MeasuresSettings = {
+      ...defaultMeasuresSettings(),
       updatedAt: "2026-03-01T00:00:00.000Z",
       severityMatrix: {
+        ...defaultMeasuresSettings().severityMatrix,
         "1:server": "High Risk",
         "1:workstation": "Major",
         "1:network-device": "Major"
-      }
+      },
+      priorityMatrix: defaultMeasuresSettings().priorityMatrix
     };
 
     const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, settings);
     expect(analytics.findings).toHaveLength(1);
     expect(analytics.findings[0]?.severity).toBe("High Risk");
+  });
+
+  it("applies SPI priority overrides to non-compliant findings while leaving Unknown findings at P90", () => {
+    const dataset: Dataset = {
+      generatedAt: "2026-02-28T00:00:00.000Z",
+      snapshotDate: "2026-02-28",
+      managedNetworks: [
+        {
+          id: "net-1",
+          name: "Network 1",
+          criticality: "Critical",
+          adfPlatform: false,
+          enterprisePlatform: false,
+          modellingStatus: true,
+          discoveryStatus: "Discovery Enabled",
+          ictSystemIds: ["sys-1"],
+          assetIds: ["srv-1", "wks-1"]
+        }
+      ],
+      ictSystems: [
+        {
+          id: "sys-1",
+          name: "System 1",
+          adfPlatform: false,
+          enterprisePlatform: false,
+          modellingStatus: true,
+          diisDefined: true,
+          networkId: "net-1",
+          criticality: "Critical",
+          securityDomain: "Protected",
+          missionCapabilities: [],
+          businessServices: [],
+          environments: [{ id: "env-1", name: "Production", type: "Production", assetIds: ["srv-1", "wks-1"] }]
+        }
+      ],
+      assets: [
+        {
+          id: "srv-1",
+          name: "Server 1",
+          hostname: "srv-1",
+          type: "server",
+          networkId: "net-1",
+          securityDomain: "Protected",
+          lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+          vulnerabilities: [],
+          operatingSystem: null,
+          installedSoftware: [],
+          systemContext: { systemId: "sys-1", environmentType: "Production" }
+        },
+        {
+          id: "wks-1",
+          name: "Workstation 1",
+          hostname: "wks-1",
+          type: "workstation",
+          networkId: "net-1",
+          securityDomain: "Protected",
+          lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+          vulnerabilities: [],
+          operatingSystem: null,
+          installedSoftware: [],
+          systemContext: { systemId: "sys-1", environmentType: "Production" }
+        }
+      ],
+      findings: [
+        { ...baseFinding("finding-non-compliant", "srv-1"), spiId: 1, priorityRank: 3 },
+        {
+          ...baseFinding("finding-unknown", "wks-1"),
+          spiId: 1,
+          priorityRank: 90,
+          severity: "Data Gap",
+          complianceStatus: "Unknown"
+        }
+      ]
+    };
+
+    const defaults = defaultMeasuresSettings();
+    const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, {
+      ...defaults,
+      priorityMatrix: {
+        ...defaults.priorityMatrix,
+        "1": 7
+      }
+    });
+
+    expect(analytics.findings.find((finding) => finding.id === "finding-non-compliant")?.priorityRank).toBe(7);
+    expect(analytics.findings.find((finding) => finding.id === "finding-unknown")?.priorityRank).toBe(90);
   });
 });

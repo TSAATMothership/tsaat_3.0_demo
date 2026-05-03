@@ -240,6 +240,7 @@ export function FindingsHistoryDrillthrough({
               <FilterBar
                 options={filterOptions}
                 filters={filters}
+                hiddenFields={["systemCriticality"]}
                 extraSelectFields={extraSelectFields}
                 enableLoadingOverlay
               />

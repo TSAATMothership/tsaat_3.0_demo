@@ -20,6 +20,7 @@ describe("asset taxonomy settings integration", () => {
       for (const assetType of ASSET_TYPES) {
         expect(settings.severityMatrix[`${spiId}:${assetType}`]).toBeTruthy();
       }
+      expect(settings.priorityMatrix[String(spiId)]).toBeTruthy();
     }
   });
 

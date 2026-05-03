@@ -31,6 +31,11 @@ erDiagram
 
   asset ||--o{ ci_dependency : "source_asset_id"
   asset ||--o{ ci_dependency : "target_asset_id"
+
+  measures_settings_version ||--o{ measures_severity_matrix : "settings_version_id"
+  measures_settings_version ||--o{ measures_priority_matrix : "settings_version_id"
+  spi_definition ||--o{ measures_severity_matrix : "spi_id"
+  spi_definition ||--o{ measures_priority_matrix : "spi_id"
 ```
 
 ## CI Dependency Domain
@@ -58,3 +63,6 @@ erDiagram
   - `diis_id` (`NVARCHAR(100)`)
   - `ato_number` (`NVARCHAR(100)`)
   - `apm_number` (`NVARCHAR(100)`)
+- Measures settings are versioned:
+  - `measures_severity_matrix` maps SPI and asset type to finding severity.
+  - `measures_priority_matrix` maps SPI to P1-P7 priority rank for non-compliant findings.

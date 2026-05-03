@@ -86,7 +86,16 @@ export default async function FindingsPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const { analytics, dataset, filterOptions, filters } = await getCoreAppData(searchParams);
+  const requestedViewTab = firstParam(searchParams.findingsViewTab)?.trim().toLowerCase();
+  const activeViewTab: FindingsViewTabId = requestedViewTab === "register" ? "register" : "overview";
+  const effectiveSearchParams =
+    activeViewTab === "overview"
+      ? {
+          ...searchParams,
+          criticality: undefined
+        }
+      : searchParams;
+  const { analytics, dataset, filterOptions, filters } = await getCoreAppData(effectiveSearchParams);
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
   historyStartDate.setUTCFullYear(historyStartDate.getUTCFullYear() - 2);
@@ -95,9 +104,6 @@ export default async function FindingsPage({
   const selectedAsOf = isDateOnly(requestedAsOf) ? clampDateOnly(requestedAsOf, historyStart, today) : today;
   const requestedTab = firstParam(searchParams.findingsTab)?.trim().toLowerCase();
   const selectedStatus: "open" | "closed" = requestedTab === "closed" ? "closed" : "open";
-  const requestedViewTab = firstParam(searchParams.findingsViewTab)?.trim().toLowerCase();
-  const activeViewTab: FindingsViewTabId = requestedViewTab === "register" ? "register" : "overview";
-
   const requestedSpi = Number(firstParam(searchParams.spi));
   const selectedSpi = Number.isInteger(requestedSpi) && requestedSpi >= 1 && requestedSpi <= 10 ? requestedSpi : undefined;
   const requestedPriority = Number(firstParam(searchParams.priority));
@@ -278,6 +284,12 @@ export default async function FindingsPage({
   const priorityOptions = Array.from(
     new Set(timelineFindings.map((finding) => finding.priorityRank).filter((priorityRank) => priorityRank !== 90))
   ).sort((a, b) => a - b);
+  const priorityFilterSelect = {
+    key: "priority",
+    label: "Priority",
+    value: selectedPriority ? String(selectedPriority) : undefined,
+    options: priorityOptions.map((priority) => ({ id: String(priority), label: `P${priority}` }))
+  };
   const findingsFilterExtraSelects =
     activeViewTab === "overview"
       ? [
@@ -290,12 +302,7 @@ export default async function FindingsPage({
               label: `SPI ${spi} - ${SPI_DESCRIPTIONS[spi as keyof typeof SPI_DESCRIPTIONS]}`
             }))
           },
-          {
-            key: "priority",
-            label: "Priority",
-            value: selectedPriority ? String(selectedPriority) : undefined,
-            options: priorityOptions.map((priority) => ({ id: String(priority), label: `P${priority}` }))
-          },
+          priorityFilterSelect,
           {
             key: "severity",
             label: "Severity",
@@ -303,7 +310,7 @@ export default async function FindingsPage({
             options: severityOptions.map((severity) => ({ id: severity, label: severity }))
           }
         ]
-      : [];
+      : [priorityFilterSelect];
 
   const highRisk = findings.filter((finding) => finding.severity === "High Risk").length;
   const totalFindings = findings.length;
@@ -383,6 +390,7 @@ export default async function FindingsPage({
           <FilterBar
             options={filterOptions}
             filters={filters}
+            hiddenFields={activeViewTab === "overview" ? ["systemCriticality"] : []}
             extraSelectFields={findingsFilterExtraSelects}
             enableLoadingOverlay
             className="panel no-print flex max-h-[8.5rem] flex-wrap gap-2 overflow-y-auto p-3"

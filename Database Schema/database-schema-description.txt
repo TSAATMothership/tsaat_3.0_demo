@@ -47,7 +47,7 @@ Key domain groups
 - `spi_definition`
 - `spi_applicable_asset_type`
 - `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope`
-- `measures_settings_version`, `measures_severity_matrix`
+- `measures_settings_version`, `measures_severity_matrix`, `measures_priority_matrix`
 
 2) Snapshot root:
 - `dataset_snapshot`

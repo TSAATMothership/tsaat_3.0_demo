@@ -106,6 +106,7 @@ The most frequently referenced tables across the pages are:
 - `tsaat.spi_applicable_asset_type`
 - `tsaat.measures_settings_version`
 - `tsaat.measures_severity_matrix`
+- `tsaat.measures_priority_matrix`
 - `tsaat.discovery_tools_settings_version`
 - `tsaat.discovery_tool`
 - `tsaat.discovery_tool_asset_scope`
@@ -203,7 +204,7 @@ Major dependencies:
 - `CyberCopDashboard`
 - `FilterBar`
 - runtime analytics in `lib/analytics.ts`
-- measures settings severity remap
+- measures settings severity and priority remap
 - discovery coverage evaluation from discovery tool settings
 
 ## 3. Feature Breakdown
@@ -256,7 +257,7 @@ The page depends on the shared dataset snapshot loader and analytics builder. Mo
 - `tsaat.finding`
 - `tsaat.system_mission_capability`
 - `tsaat.system_business_service`
-- `tsaat.measures_settings_version` and `tsaat.measures_severity_matrix`
+- `tsaat.measures_settings_version`, `tsaat.measures_severity_matrix`, and `tsaat.measures_priority_matrix`
 - `tsaat.discovery_tools_settings_version`, `tsaat.discovery_tool`, and `tsaat.discovery_tool_asset_scope`
 
 If `tsaat.finding` has no rows for the selected snapshot, the page still shows findings by generating them at runtime from non-compliant SPI evaluations.
@@ -267,7 +268,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 | Cyber COP | Snapshot selection | `tsaat` | `dataset_snapshot` | `snapshot_id`, `snapshot_date`, `generated_at` | integer, date, datetime | Selects the dataset version | Read | root join for snapshot-aware tables | latest snapshot unless `dataDate` supplied | date-only conversion for display | Shared by all date-scoped pages |
 | Cyber COP | Scope context | `tsaat` | `managed_network`, `ict_system` | IDs, names, `criticality`, `security_domain`, ownership columns | string, enum-like | Filter options and scope labels | Read | assets link to network and system IDs | fallback values possible in downstream views | used directly and in rollups | |
 | Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | runtime SPI evaluation | not stored as a precomputed fact table |
-| Cyber COP | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, `workflow_status`, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | synthetic fallback if no rows exist | severity may be remapped | |
+| Cyber COP | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, `workflow_status`, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | synthetic fallback if no rows exist | severity and non-compliant priority may be remapped | |
 | Cyber COP | Settings-driven logic | `tsaat` | measures and discovery settings tables | version, severity, tool metadata, scope settings | mixed | Severity remap and discovery compliance | Read | latest settings version applied | defaults if no saved settings exist | settings alter runtime analytics | |
 
 ## 7. Calculations and Derived Logic
@@ -278,7 +279,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 | DSE compliance | dashboard tile | compliant statuses where `environmentType != Production` and not null divided by non-production statuses | runtime evaluations | Runtime | backend | naming differs from KPI page meaning |
 | Networks compliance | dashboard tile | compliant counts across network rollups divided by total rollup counts | runtime rollups | Runtime | backend | returns `0` if no rollups |
 | Immediate action | urgent work count | `open High Risk + open Critical Exposure` | findings | Runtime | backend | derived after severity remap |
-| Planned remediation | backlog count | count of open findings where `priorityRank` is between `3` and `89` | findings | Runtime | backend | `90` is treated as data-gap / non-priority |
+| Planned remediation | backlog count | count of open findings where `priorityRank` is between `3` and `89` | findings | Runtime | backend | priority remap applies before counting; `90` is treated as data-gap / non-priority |
 | Weekly risk trend | trend cards | sample every 7 days from a 365-day open-finding series | finding timestamps | Runtime | backend | future dates beyond snapshot show `null` |
 | ICT systems modelled coverage | modelling summary | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems * 100` | `ict_system.diis_defined`, `ict_system.modelling_status` | Runtime | backend | `0` if no DIIS-defined systems |
 | Findings generation fallback | keep dashboard populated | derive findings from non-compliant or unknown SPI evaluations and assign deterministic severity, priority, and timestamps | asset evaluations and vulnerabilities | Runtime | backend | only used when dataset has no persisted findings |
@@ -384,7 +385,7 @@ Primary data dependencies:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | ATO, DIIS, and APM references are loaded/backfilled; fallback metadata allowed in slideouts | used directly and in drill-down hrefs | `modelling_status` is persisted but current overview modelling card still uses the discovery-status proxy |
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
-| Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity remapped before use | |
+| Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity and non-compliant priority remapped before use | |
 | Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
 | Networks | Discovery settings | `tsaat` | discovery settings tables | version and tool scope columns | mixed | discovery compliance score by network | Read | latest settings version applied to all evaluations | defaults if no saved settings exist | runtime evaluation only | |
 
@@ -513,7 +514,7 @@ Key dependencies:
 | Network Detail | Network metadata | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, ownership and link columns, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status` | mixed | header, details tab, discovery summary | Read | root network record for page | deterministic ATO, DIIS, and APM values are loaded/backfilled; legacy blank references display as `Missing`; descriptive blanks may use fallback display values | direct display | network modelling status is persisted for future use |
 | Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal and relationship context | Read | combined into topology graph | no persisted graph view | runtime graph build | topology includes synthetic relation edges |
 | Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
-| Network Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | synthetic fallback if no rows loaded | severity remap applied at runtime | |
+| Network Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | synthetic fallback if no rows loaded | severity and non-compliant priority remap applied at runtime | |
 | Network Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings versions applied | defaults if settings tables are empty | runtime only | |
 
 ## 7. Calculations and Derived Logic
@@ -630,7 +631,7 @@ Primary data dependencies:
 | ICT Systems | Mission and service context | `tsaat` | `system_mission_capability`, `system_business_service` | IDs, names, criticality | string | posture table columns and slideout context | Read | one system to many capabilities and services | none | joined into comma-separated labels | |
 | ICT Systems | Environment scope | `tsaat` | `system_environment`, `system_environment_asset` | `environment_id`, `environment_type`, `asset_id` | string | production posture and discovery scope | Read | environment rows tie systems to assets | none | environment-aware counts | |
 | ICT Systems | Asset posture | `tsaat` | `asset` and child posture tables | asset identity, lifecycle, OS, software, vulnerability columns | mixed | compliance scores, discovery scores, action metrics | Read | system-scoped through asset context | filtered through shared scope | runtime evaluation and counts | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
-| ICT Systems | Findings | `tsaat` | `finding` | scope columns, severity, priority, timestamps | mixed | risk summaries and action metrics | Read | grouped by `system_id` | severity remap applies | runtime only | |
+| ICT Systems | Findings | `tsaat` | `finding` | scope columns, severity, priority, timestamps | mixed | risk summaries and action metrics | Read | grouped by `system_id` | severity and non-compliant priority remap applies | runtime only | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -761,7 +762,7 @@ Key dependencies:
 | ICT System Detail | System metadata | `tsaat` | `ict_system` | `system_id`, `network_id`, `name`, `criticality`, `security_domain`, description, ownership and link columns, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `diis_defined` | mixed | header, details tab, accreditation tables | Read | root record for the page | ATO, APM, and DIIS reference values are loaded/backfilled; legacy blank Details Overview references display as `Missing`; descriptive blank fields may use fallback values | direct display | synthetic support and service catalogue URLs may appear |
 | ICT System Detail | Mission, service, and environment context | `tsaat` | `system_mission_capability`, `system_business_service`, `system_environment`, `system_environment_asset` | IDs, names, `criticality`, `environment_type`, `asset_id` | mixed | mission/service lists, scope badges, environment-aware counts | Read | one system to many related rows | environment filter must match a defined environment type | joined into lists and scoped counts | |
 | ICT System Detail | Asset posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, lifecycle, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance rows, discovery rows, risk charts | Read | scoped to assets where `asset.system_id = system_id` | hidden query parameters may narrow further | runtime SPI, discovery evaluation, and CVE criticality filtering | |
-| ICT System Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity remap applies at runtime | workflow reconstructed for as-of logic in reused components | |
+| ICT System Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity and non-compliant priority remap applies at runtime | workflow reconstructed for as-of logic in reused components | |
 | ICT System Detail | Topology relationships | `tsaat` | `ict_system_hierarchy`, `ci_dependency`, `network_declared_asset`, `network_declared_system` | parent-child keys, dependency endpoints, declared relationship keys | mixed | topology modal and relationship context | Read | combined into a runtime graph | no persisted graph view | runtime topology layout only | |
 | ICT System Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings version applied | defaults if settings tables are empty | runtime only | |
 
@@ -985,6 +986,7 @@ Important hidden behaviour:
   - `measuresTab=settings` maps to `spi-settings`
   - unknown or empty values map to `summary`
 - SPI severity settings no longer allow selecting `Data Gap`; legacy saved `Data Gap` matrix entries are normalized to `Moderate` during load/save normalization.
+- SPI priority settings map non-compliant SPI findings to P1-P7; Unknown/Data Gap findings remain P90.
 
 ## 3. Feature Breakdown
 ### Feature: Shared Measures Filter Scope
@@ -1012,10 +1014,10 @@ Important hidden behaviour:
 - **Outcome:** SPI performance details and per-SPI PDF report actions are shown in a dedicated tab.
 
 ### Feature: SPI-Settings Tab
-- **What it does:** lets users maintain the severity matrix that maps SPI and asset type combinations to finding severity across all six canonical asset types.
-- **User perspective:** the user can tune how findings are classified without changing code.
-- **System behaviour:** the settings panel loads the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; matrix keys cover every SPI and every canonical asset type; legacy `Data Gap` values normalize to `Moderate`.
-- **Outcome:** future analytics and findings displays use the updated severity mapping.
+- **What it does:** lets users maintain nested SPI severity and priority matrix settings.
+- **User perspective:** the user can tune finding severity and non-compliant finding priority without changing code.
+- **System behaviour:** the settings panel loads the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; severity matrix keys cover every SPI and every canonical asset type, while priority matrix keys cover every SPI mapped to P1-P7.
+- **Outcome:** future analytics and findings displays use the updated severity and priority mappings.
 
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
@@ -1025,7 +1027,7 @@ Important hidden behaviour:
 | Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives compliance points from runtime rows | analytics, systems, networks | Charts | charts show recalculated runtime scores | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | |
 | Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | KPI tiles and PDF report links | KPI reports and KPI trend reports are available only for KPI-5 through KPI-10; KPI-1 through KPI-4 show `Unavailable` | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view with current and trend reports | |
 | Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; all-SPI report summarizes every SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
-| Measures | SPI settings | Maintain severity mapping by SPI and asset type | Edit rows, save, reset | Validates and persists latest settings version | measures settings rows | Updated measures settings | saved matrix affects future severity remap; matrix includes six canonical asset types per SPI; `Data Gap` values are normalized to `Moderate` | panel-level validation in component and API | `/api/measures/settings` | Updated severity model | non-applicable SPI/asset combinations remain harmless configuration entries |
+| Measures | SPI settings | Maintain nested severity and priority mappings | Edit rows, switch nested settings tab, save, reset | Validates and persists latest settings version with both matrices | measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
 
 ## 5. Database Mapping
 The page reads snapshot analytics plus the measures settings tables. Most KPI and SPI values are calculated at runtime from asset evaluations and findings rather than stored as facts.
@@ -1039,6 +1041,7 @@ Primary data dependencies:
 - `tsaat.managed_network`
 - `tsaat.measures_settings_version`
 - `tsaat.measures_severity_matrix`
+- `tsaat.measures_priority_matrix`
 - `tsaat.spi_definition`
 - `tsaat.spi_applicable_asset_type`
 
@@ -1046,11 +1049,12 @@ Primary data dependencies:
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Measures | Runtime evaluations | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity and evidence fields | mixed | drives SPI compliance and several KPI calculations | Read | evaluation rows are built by asset within one snapshot | applicable SPI rules depend on asset type | runtime SPI evaluation | `storage-device`, `printer-device`, and `other` evaluate SPI 10 only |
-| Measures | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | KPI counts tied to urgent work and exposure | Read | finding scope joins back to asset and system | severity may be remapped at runtime | runtime aggregation only | |
+| Measures | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | KPI counts tied to urgent work and exposure | Read | finding scope joins back to asset and system | severity and non-compliant priority may be remapped at runtime | runtime aggregation only | |
 | Measures | System and network context | `tsaat` | `ict_system`, `managed_network` | IDs, `criticality`, `security_domain`, `diis_defined`, system/network `modelling_status`, `discovery_status` | mixed | KPI denominators and scope grouping | Read | assets and findings roll up through these relationships | some KPIs use system and network counts directly | direct grouping and filtering | KPI-10 remains discovery-status based |
 | Measures | SPI metadata | `tsaat` | `spi_definition`, `spi_applicable_asset_type` | SPI IDs, descriptions, applicable asset types | mixed | explanatory context and applicability rules | Read | joins by SPI ID and asset type | metadata shapes evaluation applicability | reference lookup | new asset types are currently scoped to SPI 10 applicability |
 | Measures | SPI trend report snapshots | `tsaat` | `dataset_snapshot` | `snapshot_date` | date | selects historical snapshots for SPI trend PDFs | Read | trend report loads snapshots within the 12 calendar months ending at selected `dataDate` | latest selected snapshot when no date is supplied | date-window filtering | no monthly points are fabricated when snapshots are unavailable |
 | Measures | Severity settings | `tsaat` | `measures_settings_version`, `measures_severity_matrix` | versioning, SPI ID, asset type, severity | mixed | finding severity remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults apply if tables are empty | runtime severity rewrite | matrix keys include all SPI IDs x all six canonical asset types |
+| Measures | Priority settings | `tsaat` | `measures_settings_version`, `measures_priority_matrix` | versioning, SPI ID, priority rank | mixed | non-compliant finding priority remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults come from `spi_definition.priority_order` | runtime priority rewrite | matrix keys include SPI IDs 1..10 with P1-P7 values |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -1074,15 +1078,18 @@ Primary data dependencies:
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - KPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - Severity remap is applied at runtime to findings before they are counted or displayed on dependent pages.
+- Priority remap is applied at runtime to non-compliant findings before they are counted or displayed on dependent pages.
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is not date-scoped through a local control, but it respects shared route date state where supplied.
 - KPI and SPI values are recalculated at runtime for the current scope.
 - KPI tasking and trend reports are disabled for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - The saved severity matrix affects downstream findings analytics and page displays.
+- The saved priority matrix affects downstream non-compliant finding analytics and page displays.
 - SPI settings dropdown options exclude `Data Gap`.
 - persisted SPI settings values of `Data Gap` are normalized to `Moderate` during settings normalization.
 - Severity matrix settings are stored for all six canonical asset types (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`) across SPI 1..10.
+- Priority matrix settings are stored for SPI 1..10 as P1-P7 values; Unknown/Data Gap findings remain P90.
 - New asset types (`storage-device`, `printer-device`, `other`) are currently evaluated against SPI 10 only.
 - KPI-7 and KPI-8 currently represent synthetic proxy logic rather than persisted accreditation or DIIS data.
 
@@ -1133,7 +1140,7 @@ Important hidden behaviour:
 ### Feature: Shared Findings Filter Scope
 - **What it does:** filters the page by the shared scope plus findings-specific SPI, priority, severity, search, status, view, page, and as-of date parameters.
 - **User perspective:** the user can narrow the findings set to the relevant scope and time slice.
-- **System behaviour:** the page loads the shared filtered analytics, reconstructs open or closed status at `asOf`, and then applies findings-specific filters.
+- **System behaviour:** the page loads the shared filtered analytics, reconstructs open or closed status at `asOf`, and then applies findings-specific filters; the Overview view hides and ignores the system criticality filter.
 - **Outcome:** the findings set reflects both structural scope and time-based workflow reconstruction.
 
 ### Feature: Overview View
@@ -1157,12 +1164,12 @@ Important hidden behaviour:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Findings and Evidence | View routing | Switches between overview and register | Click view tab | Updates `findingsViewTab` query parameter | `findingsViewTab` | Different layout | overview is default | unsupported values fall back to overview | `FindingsViewTabs` | Bookmarkable view state | |
+| Findings and Evidence | View routing | Switches between overview and register | Click view tab | Updates `findingsViewTab` query parameter; opening overview clears `criticality` and `spi` query state | `findingsViewTab` | Different layout | overview is default; overview ignores system criticality | unsupported values fall back to overview | `FindingsViewTabs` | Bookmarkable view state | |
 | Findings and Evidence | Status routing | Switches between open and closed findings | Click status tab | Dismisses any open register affected-CI/CVE overlays, then updates `findingsTab` query parameter | `findingsTab` | Open or closed scope | open is default | unsupported values fall back to open | `FindingsStatusTabs` | Bookmarkable workflow state | |
 | Findings and Evidence | As-of timeline filter | Changes date used to reconstruct workflow state | Pick date | Clamps date and recomputes timeline status for each finding | `asOf` | Rebuilt findings set and charts | max date is current snapshot date; min date is two years earlier | invalid or out-of-range dates are corrected | `workflowStatusAtAsOf()` | Stable as-of reporting | hidden clamping rule |
 | Findings and Evidence | Overview analytics | Two-year trend and summary cards | Open overview | Builds daily history points and summary cards | findings, reconstructed statuses | Trend chart, cards, summaries | overview can include SPI filter not shown on register | zero-safe counts | chart components | Analytical overview | |
 | Findings and Evidence | History drillthrough | Full-screen SPI trend analysis | Click drillthrough action | Toggles `historyDrillthrough=1` and renders overlay | current filter state plus history series | Overlay charts | overlay preserves current findings scope | none beyond preserved query params | `FindingsHistoryDrillthrough` | Deep trend analysis | non-route overlay |
-| Findings and Evidence | Register table | Compliance-detail style register with evidence | Open register, filter, export, open affected CIs and CVEs | Renders all filtered rows in a scrollable table, builds export URLs, and derives selected-row CI/CVE details client-side | filtered findings, CVE index, `asOf`, search params | Table, export files, affected-CIs slideout, CVE modal | register-specific filters are URL-aligned; no register pagination | unsupported filters are ignored by existing parsing | `FindingsTable`, export API, retained asset-details API | Operational findings list | selected-row drillthrough is client-side |
+| Findings and Evidence | Register table | Compliance-detail style register with evidence | Open register, filter, export, open affected CIs and CVEs | Renders all filtered rows in a scrollable table, exposes priority in the tab filter bar, builds export URLs, and derives selected-row CI/CVE details client-side | filtered findings, CVE index, `asOf`, search params | Table, export files, affected-CIs slideout, CVE modal | register-specific filters are URL-aligned; no register pagination | unsupported filters are ignored by existing parsing | `FindingsTable`, export API, retained asset-details API | Operational findings list | selected-row drillthrough is client-side |
 
 ## 5. Database Mapping
 The page reads the filtered findings set from runtime analytics. That set may come from persisted `tsaat.finding` rows or, when absent, from synthetic findings generated from evaluation outcomes.
@@ -1174,15 +1181,15 @@ Primary data dependencies:
 - `tsaat.asset_vulnerability`
 - `tsaat.ict_system`
 - `tsaat.managed_network`
-- measures settings tables used for severity remap
+- measures settings tables used for severity and non-compliant priority remap
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Findings and Evidence | Findings register | `tsaat` | `finding` | `finding_id`, `spi_id`, `priority_rank`, `severity`, `compliance_status`, scope columns, `title`, `evidence`, `recommended_action`, `workflow_status`, `observed_at`, `closed_at` | mixed | main finding rows, trend input, exports | Read | findings join back to asset, system, and network by scope fields | severity may be remapped at runtime | as-of status reconstructed from timestamps | synthetic fallback may replace missing persisted rows |
+| Findings and Evidence | Findings register | `tsaat` | `finding` | `finding_id`, `spi_id`, `priority_rank`, `severity`, `compliance_status`, scope columns, `title`, `evidence`, `recommended_action`, `workflow_status`, `observed_at`, `closed_at` | mixed | main finding rows, trend input, exports | Read | findings join back to asset, system, and network by scope fields | severity and non-compliant priority may be remapped at runtime | as-of status reconstructed from timestamps | synthetic fallback may replace missing persisted rows |
 | Findings and Evidence | Asset evidence drillthrough | `tsaat` | `asset`, `asset_vulnerability` | asset identity, type, IP, vulnerability fields | mixed | affected CI and CVE details for a selected finding | Read | register uses the selected finding row; compatibility API can narrow rows by current findings context | scoped to active finding filters and as-of date | CVE details use the snapshot vulnerability index and criticality filter | |
 | Findings and Evidence | Scope context | `tsaat` | `ict_system`, `managed_network` | IDs and names | mixed | scope filtering, search text, export context | Read | findings link through scope columns | none | direct display outside the register table | |
-| Findings and Evidence | Severity remap context | `tsaat` | `measures_settings_version`, `measures_severity_matrix` | SPI and asset-type severity mapping | mixed | determines visible severity on page and exports | Read | latest settings version applied | defaults if settings are absent | runtime rewrite before display | |
+| Findings and Evidence | Measures remap context | `tsaat` | `measures_settings_version`, `measures_severity_matrix`, `measures_priority_matrix` | SPI severity and priority mappings | mixed | determines visible severity and non-compliant priority on page and exports | Read | latest settings version applied | defaults if settings are absent | runtime rewrite before display | Unknown/Data Gap remains P90 |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -1208,7 +1215,7 @@ Primary data dependencies:
 - The page is date-scoped through the underlying snapshot date and explicit `asOf` control.
 - `asOf` is limited to the two-year history window ending at the active snapshot date.
 - The register table is scrollable and does not paginate rows.
-- Visible severity may differ from persisted `finding.severity` due to measures severity remap.
+- Visible severity may differ from persisted `finding.severity` due to measures severity remap; non-compliant priority may differ from persisted `finding.priority_rank` due to measures priority remap.
 - Asset-type summaries use the shared six-type taxonomy and do not assume a fixed 3-column model.
 - Affected-CI drillthrough is scoped to the selected register row; `/api/findings/asset-details` remains available for compatibility with older asset-details paths.
 

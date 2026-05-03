@@ -17,7 +17,7 @@ Major dependencies:
 - `CyberCopDashboard`
 - `FilterBar`
 - runtime analytics in `lib/analytics.ts`
-- measures settings severity remap
+- measures settings severity and priority remap
 - discovery coverage evaluation from discovery tool settings
 
 ## 3. Feature Breakdown
@@ -70,7 +70,7 @@ The page depends on the shared dataset snapshot loader and analytics builder. Mo
 - `tsaat.finding`
 - `tsaat.system_mission_capability`
 - `tsaat.system_business_service`
-- `tsaat.measures_settings_version` and `tsaat.measures_severity_matrix`
+- `tsaat.measures_settings_version`, `tsaat.measures_severity_matrix`, and `tsaat.measures_priority_matrix`
 - `tsaat.discovery_tools_settings_version`, `tsaat.discovery_tool`, and `tsaat.discovery_tool_asset_scope`
 
 If `tsaat.finding` has no rows for the selected snapshot, the page still shows findings by generating them at runtime from non-compliant SPI evaluations.
@@ -81,7 +81,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 | Cyber COP | Snapshot selection | `tsaat` | `dataset_snapshot` | `snapshot_id`, `snapshot_date`, `generated_at` | integer, date, datetime | Selects the dataset version | Read | root join for snapshot-aware tables | latest snapshot unless `dataDate` supplied | date-only conversion for display | Shared by all date-scoped pages |
 | Cyber COP | Scope context | `tsaat` | `managed_network`, `ict_system` | IDs, names, `criticality`, `security_domain`, ownership columns | string, enum-like | Filter options and scope labels | Read | assets link to network and system IDs | fallback values possible in downstream views | used directly and in rollups | |
 | Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | runtime SPI evaluation | not stored as a precomputed fact table |
-| Cyber COP | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, `workflow_status`, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | synthetic fallback if no rows exist | severity may be remapped | |
+| Cyber COP | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, `workflow_status`, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | synthetic fallback if no rows exist | severity and non-compliant priority may be remapped | |
 | Cyber COP | Settings-driven logic | `tsaat` | measures and discovery settings tables | version, severity, tool metadata, scope settings | mixed | Severity remap and discovery compliance | Read | latest settings version applied | defaults if no saved settings exist | settings alter runtime analytics | |
 
 ## 7. Calculations and Derived Logic
@@ -92,7 +92,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 | DSE compliance | dashboard tile | compliant statuses where `environmentType != Production` and not null divided by non-production statuses | runtime evaluations | Runtime | backend | naming differs from KPI page meaning |
 | Networks compliance | dashboard tile | compliant counts across network rollups divided by total rollup counts | runtime rollups | Runtime | backend | returns `0` if no rollups |
 | Immediate action | urgent work count | `open High Risk + open Critical Exposure` | findings | Runtime | backend | derived after severity remap |
-| Planned remediation | backlog count | count of open findings where `priorityRank` is between `3` and `89` | findings | Runtime | backend | `90` is treated as data-gap / non-priority |
+| Planned remediation | backlog count | count of open findings where `priorityRank` is between `3` and `89` | findings | Runtime | backend | priority remap applies before counting; `90` is treated as data-gap / non-priority |
 | Weekly risk trend | trend cards | sample every 7 days from a 365-day open-finding series | finding timestamps | Runtime | backend | future dates beyond snapshot show `null` |
 | ICT systems modelled coverage | modelling summary | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems * 100` | `ict_system.diis_defined`, `ict_system.modelling_status` | Runtime | backend | `0` if no DIIS-defined systems |
 | Findings generation fallback | keep dashboard populated | derive findings from non-compliant or unknown SPI evaluations and assign deterministic severity, priority, and timestamps | asset evaluations and vulnerabilities | Runtime | backend | only used when dataset has no persisted findings |

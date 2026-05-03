@@ -231,6 +231,11 @@ type MeasuresMatrixRow = {
   severity: "High Risk" | "Critical Exposure" | "Major" | "Moderate" | "Data Gap";
 };
 
+type MeasuresPriorityMatrixRow = {
+  spiId: number;
+  priorityRank: number;
+};
+
 type DiscoveryToolRow = {
   id: string;
   name: string;
@@ -1163,7 +1168,8 @@ export async function loadMeasuresSettings(): Promise<MeasuresSettings> {
   return measuresSettingsByVersionCache.getOrSet(
     `version:${version.settingsVersionId}:${version.updatedAt}`,
     async () => {
-      const rows = await executeSqlJson<MeasuresMatrixRow[]>(`
+      const [severityRows, priorityRows] = await Promise.all([
+        executeSqlJson<MeasuresMatrixRow[]>(`
 SELECT
   msm.[spi_id] AS [spiId],
   msm.[asset_type] AS [assetType],
@@ -1172,16 +1178,32 @@ FROM [${DATA_SCHEMA}].[measures_severity_matrix] msm
 WHERE msm.[settings_version_id] = ${version.settingsVersionId}
 ORDER BY msm.[spi_id], msm.[asset_type]
 FOR JSON PATH;
-`);
+`),
+        executeSqlJson<MeasuresPriorityMatrixRow[]>(`
+SELECT
+  mpm.[spi_id] AS [spiId],
+  mpm.[priority_rank] AS [priorityRank]
+FROM [${DATA_SCHEMA}].[measures_priority_matrix] mpm
+WHERE mpm.[settings_version_id] = ${version.settingsVersionId}
+ORDER BY mpm.[spi_id]
+FOR JSON PATH;
+`)
+      ]);
 
       const severityMatrix: Record<string, MeasuresMatrixRow["severity"]> = {};
-      for (const row of rows) {
+      for (const row of severityRows) {
         severityMatrix[`${row.spiId}:${row.assetType}`] = row.severity;
+      }
+
+      const priorityMatrix: Record<string, number> = {};
+      for (const row of priorityRows) {
+        priorityMatrix[String(row.spiId)] = row.priorityRank;
       }
 
       return normalizeMeasuresSettings({
         updatedAt: coerceIsoTimestamp(version.updatedAt),
-        severityMatrix
+        severityMatrix,
+        priorityMatrix
       });
     }
   );
@@ -1194,19 +1216,30 @@ export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSett
     updatedAt: new Date().toISOString()
   };
 
-  const valueTuples: string[] = [];
+  const severityValueTuples: string[] = [];
   for (const spiId of SPI_ID_VALUES) {
     for (const assetType of ASSET_TYPES) {
       const key = `${spiId}:${assetType}`;
       const severity = persisted.severityMatrix[key];
       if (severity) {
-        valueTuples.push(`(@newVersionId, ${spiId}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(severity)})`);
+        severityValueTuples.push(`(@newVersionId, ${spiId}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(severity)})`);
       }
     }
   }
 
-  if (!valueTuples.length) {
+  const priorityValueTuples: string[] = [];
+  for (const spiId of SPI_ID_VALUES) {
+    const priorityRank = persisted.priorityMatrix[String(spiId)];
+    if (priorityRank) {
+      priorityValueTuples.push(`(@newVersionId, ${spiId}, ${priorityRank})`);
+    }
+  }
+
+  if (!severityValueTuples.length) {
     throw new Error("No measures severity mappings were produced after normalization.");
+  }
+  if (!priorityValueTuples.length) {
+    throw new Error("No measures priority mappings were produced after normalization.");
   }
 
   await executeSqlText(`
@@ -1226,7 +1259,15 @@ INSERT INTO [${DATA_SCHEMA}].[measures_severity_matrix] (
   [severity]
 )
 VALUES
-${valueTuples.join(",\n")};
+${severityValueTuples.join(",\n")};
+
+INSERT INTO [${DATA_SCHEMA}].[measures_priority_matrix] (
+  [settings_version_id],
+  [spi_id],
+  [priority_rank]
+)
+VALUES
+${priorityValueTuples.join(",\n")};
 
 COMMIT TRANSACTION;
 `);

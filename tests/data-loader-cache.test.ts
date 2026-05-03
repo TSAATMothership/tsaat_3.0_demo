@@ -62,6 +62,10 @@ function installSqlMock(): void {
       }));
     }
 
+    if (sql.includes("FROM [tsaat].[measures_priority_matrix]")) {
+      return [{ spiId: 1, priorityRank: 3 }];
+    }
+
     if (sql.includes("version_ref.[version_set_id] AS [versionSetId]")) {
       return { versionSetId: 3 };
     }
@@ -104,6 +108,7 @@ describe("data loader caches", () => {
 
     expect(sqlCallsContaining("FROM [tsaat].[measures_settings_version]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[measures_severity_matrix]")).toBe(1);
+    expect(sqlCallsContaining("FROM [tsaat].[measures_priority_matrix]")).toBe(1);
   });
 
   it("invalidates measures settings cache after a save", async () => {
@@ -115,6 +120,7 @@ describe("data loader caches", () => {
 
     expect(sqlCallsContaining("FROM [tsaat].[measures_settings_version]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[measures_severity_matrix]")).toBe(1);
+    expect(sqlCallsContaining("FROM [tsaat].[measures_priority_matrix]")).toBe(1);
   });
 
   it("caches reference versions for repeated reads", async () => {

@@ -264,6 +264,21 @@ SELECT
 FROM OPENJSON(@Json, '$.severityMatrix') AS ms
 WHERE CHARINDEX(':', ms.[key]) > 0;
 
+INSERT INTO [tsaat].[measures_priority_matrix] (
+  [settings_version_id],
+  [spi_id],
+  [priority_rank]
+)
+SELECT
+  1,
+  sd.[spi_id],
+  COALESCE(mp.[priority_rank], sd.[priority_order])
+FROM [tsaat].[spi_definition] AS sd
+OUTER APPLY (
+  SELECT TRY_CONVERT(INT, JSON_VALUE(@Json, CONCAT('$.priorityMatrix."', sd.[spi_id], '"'))) AS [priority_rank]
+) AS mp
+WHERE COALESCE(mp.[priority_rank], sd.[priority_order]) BETWEEN 1 AND 7;
+
 PRINT 'Loading snapshot/application data...';
 
 DECLARE @SnapshotFiles TABLE (
