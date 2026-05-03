@@ -9,6 +9,7 @@ import { NetworksTabs } from "@/components/networks-tabs";
 import { getTrendAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
+import { filterRealNetworkEvaluations, filterRealNetworkFindings, filterRealNetworks } from "@/lib/network-scope";
 import { deriveOverallStatus } from "@/lib/posture";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
@@ -575,7 +576,13 @@ export default async function NetworksPage({
     </div>
   );
 
-  const scopedNetworkIds = new Set(networks.map((network) => network.id));
+  const scopedNetworkIds = new Set(filterRealNetworks(networks).map((network) => network.id));
+  const networkScopedEvaluations = filterRealNetworkEvaluations(analytics.evaluations).filter((evaluation) =>
+    scopedNetworkIds.has(evaluation.networkId)
+  );
+  const networkScopedFindings = filterRealNetworkFindings(analytics.findings).filter((finding) =>
+    scopedNetworkIds.has(finding.scope.networkId)
+  );
   const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters).filter((asset) =>
     scopedNetworkIds.has(asset.networkId)
   );
@@ -586,7 +593,7 @@ export default async function NetworksPage({
 
   let highRiskP12FindingsCount = 0;
 
-  for (const finding of analytics.findings) {
+  for (const finding of networkScopedFindings) {
     if (finding.priorityRank > 2) {
       continue;
     }
@@ -610,7 +617,7 @@ export default async function NetworksPage({
   }
 
   const discoveryCoverageTotalsByNetwork = new Map<string, { compliant: number; total: number }>();
-  for (const evaluation of analytics.evaluations) {
+  for (const evaluation of networkScopedEvaluations) {
     const current = discoveryCoverageTotalsByNetwork.get(evaluation.networkId) ?? { compliant: 0, total: 0 };
     current.total += 1;
     if (evaluation.discoveryCoverageCompliant) {
@@ -633,7 +640,7 @@ export default async function NetworksPage({
     const counts = discoveryCoverageTotalsByNetwork.get(network.id);
     return Boolean(counts && counts.total > 0 && counts.compliant === counts.total);
   }).length;
-  const totalFindingsCount = analytics.findings.length;
+  const totalFindingsCount = networkScopedFindings.length;
   const endpointCountByNetwork = filteredAssets.reduce((map, asset) => {
     const networkId = asset.networkId;
     if (!scopedNetworkIds.has(networkId)) {
@@ -659,7 +666,7 @@ export default async function NetworksPage({
       return a.networkName.localeCompare(b.networkName);
     });
 
-  const statusesWithEnvironment = analytics.evaluations.flatMap((evaluation) =>
+  const statusesWithEnvironment = networkScopedEvaluations.flatMap((evaluation) =>
     evaluation.evaluations.map((item) => ({
       environmentType: evaluation.environmentType,
       status: item.status
@@ -671,7 +678,7 @@ export default async function NetworksPage({
   );
   const networksCompliance = complianceFromRollupCounts(scopedNetworkRollups);
 
-  const openFindings = analytics.findings.filter((finding) => finding.status === "open");
+  const openFindings = networkScopedFindings.filter((finding) => finding.status === "open");
   const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const severityCounts = openFindings.reduce<Map<FindingSeverity, number>>((accumulator, finding) => {
     accumulator.set(finding.severity, (accumulator.get(finding.severity) ?? 0) + 1);
@@ -689,13 +696,13 @@ export default async function NetworksPage({
   const chartAnchorDateKey = selectedDataDate ?? dataset.snapshotDate;
   const chartWindowEndDateKey = selectedDataDate ?? todayDateKey();
   const highRiskDaily = buildOpenFindingsDailySeries(
-    analytics.findings,
+    networkScopedFindings,
     "High Risk",
     chartWindowEndDateKey,
     dataset.snapshotDate
   );
   const criticalExposureDaily = buildOpenFindingsDailySeries(
-    analytics.findings,
+    networkScopedFindings,
     "Critical Exposure",
     chartWindowEndDateKey,
     dataset.snapshotDate
@@ -703,10 +710,10 @@ export default async function NetworksPage({
   const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
 
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
-  const networkOwnerById = new Map(dataset.managedNetworks.map((network) => [network.id, network.owner?.trim() ?? ""]));
+  const networkOwnerById = new Map(filterRealNetworks(dataset.managedNetworks).map((network) => [network.id, network.owner?.trim() ?? ""]));
   const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
-  const riskProfileFindings = analytics.findings
+  const riskProfileFindings = networkScopedFindings
     .map((finding) => {
       const asset = filteredAssetsById.get(finding.scope.assetId);
       const evidencePreview =
@@ -791,7 +798,7 @@ export default async function NetworksPage({
       return bTime - aTime;
     });
   const outOfWarranty = filteredAssets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
-  const discoveryCoverageGaps = analytics.evaluations.filter((evaluation) => !evaluation.discoveryCoverageCompliant).length;
+  const discoveryCoverageGaps = networkScopedEvaluations.filter((evaluation) => !evaluation.discoveryCoverageCompliant).length;
   const totalNetworksCount = networks.length;
   const modelledNetworksCount = networks.filter(
     (network) => network.discoveryStatus !== "Discovery Non Enabled"
@@ -810,7 +817,7 @@ export default async function NetworksPage({
   const plannedRemediation = openFindings.filter(
     (finding) => finding.priorityRank >= 3 && finding.priorityRank < 90
   ).length;
-  const nonCompliantOs = analytics.evaluations.filter(
+  const nonCompliantOs = networkScopedEvaluations.filter(
     (evaluation) =>
       (evaluation.assetType === "server" || evaluation.assetType === "workstation") &&
       evaluation.evaluations.some(
@@ -818,9 +825,9 @@ export default async function NetworksPage({
           (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
       )
   ).length;
-  const actionThroughput = buildActionThroughput(analytics.findings, chartAnchorDateKey, 13);
+  const actionThroughput = buildActionThroughput(networkScopedFindings, chartAnchorDateKey, 13);
   const actionAgeBuckets = buildActionAgeBuckets(openFindings, chartAnchorDateKey);
-  const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
+  const networkNameById = new Map(filterRealNetworks(dataset.managedNetworks).map((network) => [network.id, network.name]));
   const actionOldestOpenFindings = buildActionOldestOpenFindings(
     openFindings,
     networkNameById,
@@ -849,7 +856,7 @@ export default async function NetworksPage({
               <NetworksOverviewPanel
                 snapshotDate={dataset.snapshotDate}
                 complianceScores={{
-                  overall: analytics.overallCompliancePercent,
+                  overall: complianceScore(statusesWithEnvironment.map((item) => item.status)),
                   dse: dseComplianceScore(statusesWithEnvironment),
                   dpe: dpeComplianceScore(statusesWithEnvironment),
                   networks: networksCompliance

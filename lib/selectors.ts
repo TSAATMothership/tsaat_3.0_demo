@@ -1,4 +1,5 @@
 import { Asset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
+import { filterRealNetworks, normalizeManagedNetworkFilter } from "@/lib/network-scope";
 
 export function parseFilters(searchParams: Record<string, string | string[] | undefined>): Filters {
   const getValue = (key: string): string | undefined => {
@@ -10,7 +11,7 @@ export function parseFilters(searchParams: Record<string, string | string[] | un
   };
 
   return {
-    managedNetwork: getValue("network") || undefined,
+    managedNetwork: normalizeManagedNetworkFilter(getValue("network")),
     ictSystem: getValue("system") || undefined,
     systemCriticality: (getValue("criticality") as Filters["systemCriticality"]) || undefined,
     securityDomain: (getValue("securityDomain") as Filters["securityDomain"]) || undefined,
@@ -28,9 +29,10 @@ export function applyAssetFilters(
   filters: Filters
 ): Asset[] {
   const systemById = new Map(systems.map((system) => [system.id, system]));
+  const managedNetwork = normalizeManagedNetworkFilter(filters.managedNetwork);
 
   return assets.filter((asset) => {
-    if (filters.managedNetwork && asset.networkId !== filters.managedNetwork) {
+    if (managedNetwork && asset.networkId !== managedNetwork) {
       return false;
     }
 
@@ -76,15 +78,18 @@ export function applyAssetFilters(
 }
 
 export function filterNetworks(networks: ManagedNetwork[], filters: Filters): ManagedNetwork[] {
-  if (!filters.managedNetwork) {
-    return networks;
+  const realNetworks = filterRealNetworks(networks);
+  const managedNetwork = normalizeManagedNetworkFilter(filters.managedNetwork);
+  if (!managedNetwork) {
+    return realNetworks;
   }
-  return networks.filter((network) => network.id === filters.managedNetwork);
+  return realNetworks.filter((network) => network.id === managedNetwork);
 }
 
 export function filterSystems(systems: ICTSystem[], filters: Filters): ICTSystem[] {
+  const managedNetwork = normalizeManagedNetworkFilter(filters.managedNetwork);
   return systems.filter((system) => {
-    if (filters.managedNetwork && system.networkId !== filters.managedNetwork) {
+    if (managedNetwork && system.networkId !== managedNetwork) {
       return false;
     }
     if (filters.ictSystem && system.id !== filters.ictSystem) {
@@ -126,7 +131,7 @@ export function buildFilterOptions(networks: ManagedNetwork[], systems: ICTSyste
   }
 
   return {
-    networks: networks.map((network) => ({ id: network.id, label: network.name })),
+    networks: filterRealNetworks(networks).map((network) => ({ id: network.id, label: network.name })),
     systems: systems.map((system) => ({ id: system.id, label: system.name })),
     systemCriticalities: (["Critical", "Non-Critical"] as const).map((criticality) => ({
       id: criticality,

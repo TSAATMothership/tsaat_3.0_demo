@@ -4,6 +4,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { isUnassignedNetworkId } from "@/lib/network-scope";
 import { Asset, ComplianceStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -179,6 +180,14 @@ export async function GET(
     loadMeasuresSettings(),
     loadDiscoveryToolsSettings()
   ]);
+
+  if (isUnassignedNetworkId(params.networkId)) {
+    return NextResponse.json(
+      { error: "Unassigned Systems is not a network and cannot be used for network reports." },
+      { status: 400 }
+    );
+  }
+
   const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
 
   if (!network) {

@@ -211,7 +211,7 @@ Major dependencies:
 ### Feature: Shared Filter Scope and Snapshot Date
 - **What it does:** scopes the dashboard by network, ICT system, criticality, security domain, environment, asset type, mission capability, and business service.
 - **User perspective:** the user changes filters and the dashboard reloads in place.
-- **System behaviour:** query parameters are parsed by `parseFilters()`, date scope is resolved from `dataDate`, and analytics are rebuilt for the selected snapshot. Asset type filters use the shared canonical taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
+- **System behaviour:** query parameters are parsed by `parseFilters()`, date scope is resolved from `dataDate`, and analytics are rebuilt for the selected snapshot. The synthetic loader-only `net-unassigned` bucket is treated as `All` when supplied as a network query and is not offered as a network filter option. Asset type filters use the shared canonical taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** every dashboard number reflects one scope.
 
 ### Feature: Overview Tab
@@ -332,13 +332,13 @@ Major dependencies:
 ### Feature: Shared Network Filter Scope
 - **What it does:** filters the page by network, security domain, asset type, mission capability, business service, and date.
 - **User perspective:** the user narrows the network estate and all tab content changes together.
-- **System behaviour:** the page uses the shared filter model, but intentionally hides ICT system, criticality, and environment selectors from the visible filter bar.
+- **System behaviour:** the page uses the shared filter model, but intentionally hides ICT system, criticality, and environment selectors from the visible filter bar. The synthetic loader-only `net-unassigned` / `Unassigned Systems` bucket is excluded from the network selector and treated as `All` if supplied manually.
 - **Outcome:** the page remains network-centric.
 
 ### Feature: Overview Tab
 - **What it does:** shows network posture, modelling coverage, risk profile, and daily and weekly trends.
 - **User perspective:** the user gets a network-level executive summary.
-- **System behaviour:** compliance, modelling, and risk metrics are aggregated from filtered asset evaluations and findings.
+- **System behaviour:** compliance, modelling, and risk metrics are aggregated from filtered asset evaluations and findings after excluding the synthetic `net-unassigned` bucket from network-model calculations.
 - **Outcome:** users can identify whether network scope is improving or degrading.
 
 ### Feature: Action Tab
@@ -350,7 +350,7 @@ Major dependencies:
 ### Feature: Posture Tab
 - **What it does:** shows KPI summary cards, blast-radius data, searchable network roll-up table, detail slideout, and drill-down links.
 - **User perspective:** the user can compare networks and open either a summary slideout or the full network detail page.
-- **System behaviour:** each row combines network metadata, rollup posture, P1/P2 counts, discovery compliance, and drill-down links.
+- **System behaviour:** each row combines real network metadata, rollup posture, P1/P2 counts, discovery compliance, and drill-down links.
 - **Outcome:** the page acts as the routing surface for `/networks/[networkId]`.
 
 ### Feature: Blast Radius Selection
@@ -363,9 +363,9 @@ Major dependencies:
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | loading overlay displayed |
-| Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends | dataset, findings, evaluations | Dashboard cards and charts | network scope only | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
+| Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends for real networks only | dataset, findings, evaluations | Dashboard cards and charts | network scope only; `net-unassigned` excluded | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
 | Networks | Action | Remediation planning | Open tab or generate report | Builds action metrics and remediation report link | findings, lifecycle, discovery status | Action board and PDF link | report reflects current filters | none beyond scope parsing | `/api/networks/remediation-report` | Action planning and export | |
-| Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
+| Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | real network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source; `Unassigned Systems` is not a network | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
 | Networks | Blast radius filter | Links chart choice to table scope | Select or clear chart item | Event-based client filter | selected network ID | Filtered posture table | chart filter is temporary and client-side | cleared when selection no longer exists | custom browser event | Faster comparison workflow | |
 
 ## 5. Database Mapping
@@ -383,7 +383,7 @@ Primary data dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | ATO, DIIS, and APM references are loaded/backfilled; fallback metadata allowed in slideouts | used directly and in drill-down hrefs | `modelling_status` is persisted but current overview modelling card still uses the discovery-status proxy |
+| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | ATO, DIIS, and APM references are loaded/backfilled; fallback metadata allowed in slideouts | used directly and in drill-down hrefs for real networks only | `modelling_status` is persisted but current overview modelling card still uses the discovery-status proxy; `net-unassigned` remains loader-only |
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity and non-compliant priority remapped before use | |
 | Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
@@ -409,6 +409,7 @@ Primary data dependencies:
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is date-scoped.
+- `net-unassigned` / `Unassigned Systems` remains in the database for loader integrity but is excluded from network filters, network-model counts, drill-down routes, and network reports.
 - ICT system, environment, and criticality are intentionally hidden from the visible filter bar.
 - The posture tab is the source of drill-down navigation into network detail.
 - Summary slideouts and posture rows may show fallback descriptive metadata when source fields are blank; loaded network reference values are populated by seed data, loader fallback, and migration backfill.
@@ -435,7 +436,7 @@ Primary data dependencies:
 - **Primary user roles:** network owners, cyber analysts, remediation coordinators, architecture and assurance teams.
 
 ## 2. Page Summary
-The page is a date-scoped drill-through for a single managed network. It supports visible route states for `network-details`, `compliance-overview`, and `discovery-compliance`.
+The page is a date-scoped drill-through for a single real managed network. It supports visible route states for `network-details`, `compliance-overview`, and `discovery-compliance`. The synthetic loader-only `net-unassigned` bucket is rejected because it is not a network model.
 
 The page also contains a latent route state: `cyber-posture`.
 
@@ -452,13 +453,13 @@ Major dependencies:
 ### Feature: Header, Breadcrumb, and Shared Drill-Through Scope
 - **What it does:** identifies the selected network, exposes the back link, and shows headline score cards without header pills.
 - **User perspective:** the user can confirm the network and return to the networks posture list.
-- **System behaviour:** the page resolves the route parameter, scopes analytics to the network, and recalculates compliance and discovery scores for the active drill-through context.
+- **System behaviour:** the page resolves the route parameter, rejects `net-unassigned`, scopes analytics to the network, and recalculates compliance and discovery scores for the active drill-through context.
 - **Outcome:** all downstream tabs share one network anchor.
 
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches among visible tabs and opens a topology modal.
 - **User perspective:** the user can move between metadata, compliance, and discovery views, and open a richer topology representation.
-- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from snapshot relationships and CI dependencies.
+- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes.
 - **Outcome:** tab states are bookmarkable; topology is not.
 
 ### Feature: Details Tab
@@ -844,7 +845,7 @@ Important hidden behaviour:
 ### Feature: Shared Discovery Filter Scope
 - **What it does:** filters the page by network, system, security domain, environment, asset type, mission capability, business service, and date.
 - **User perspective:** the user scopes the discovery view to a subset of the estate.
-- **System behaviour:** the server strips `criticality` for all discovery views, strips the synthetic loader-only `net-unassigned` network from Discovery network filter options and all Discovery network/asset calculations, treats a manually supplied `network=net-unassigned` query as `All`, and additionally strips `system` and `environment` when the target-state tab is active; asset type options use the shared six-type taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
+- **System behaviour:** the server strips `criticality` for all discovery views, relies on the shared network scope to remove the synthetic loader-only `net-unassigned` network from network filter options, removes `net-unassigned` assets from Discovery network/asset calculations, treats a manually supplied `network=net-unassigned` query as `All`, and additionally strips `system` and `environment` when the target-state tab is active; asset type options use the shared six-type taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** some user-supplied filter state is intentionally ignored by the page.
 
 ### Feature: Summary Tab
@@ -881,7 +882,7 @@ Important hidden behaviour:
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Discovery | Tab routing | Switches among summary, coverage-by-network, tool-settings, and network discovery status | Click tab | Updates `discoveryCoverageTab` query parameter | `discoveryCoverageTab` | Different layout | summary is default | unsupported values fall back to summary | `DiscoveryCoverageTabs` | Bookmarkable tab state | `target-state` route value is labeled `Network Discovery Status` |
-| Discovery | Shared scope | Common filter scope with hidden stripping rules | Apply filters | Re-runs analytics after removing unsupported filter keys and excluding the loader-only `net-unassigned` bucket from Discovery network/asset calculations | filter query params | Filtered discovery view | `criticality` and `net-unassigned` are ignored everywhere; `system` and `environment` ignored for target-state | query parsing only | `FilterBar`, `getCoreAppData()` | Discovery-specific view scope | synthetic `Unassigned Systems` is not offered in the Discovery network filter or network rows |
+| Discovery | Shared scope | Common filter scope with hidden stripping rules | Apply filters | Re-runs analytics after removing unsupported filter keys and excluding the loader-only `net-unassigned` bucket from Discovery network/asset calculations | filter query params | Filtered discovery view | `criticality` is ignored in Discovery and `net-unassigned` is ignored by the shared network filter; `system` and `environment` ignored for target-state | query parsing only | `FilterBar`, `getCoreAppData()` | Discovery-specific view scope | synthetic `Unassigned Systems` is not offered in any network filter or network rows |
 | Discovery | Summary tab | Operational discovery dashboard | Open tab | Builds coverage snapshot cards and fills the remaining tab area with coverage-by-tool analysis | scoped assets, discovery settings | Snapshot cards and coverage-by-tool panel | reflects current filtered scope | none beyond scope parsing | `DiscoveryCoverageByToolSection` | Discovery gap summary | remediation report launcher removed from this tab |
 | Discovery | Coverage-by-tool drillthrough | Tool-level asset detail slideout | Click tool, search, filter, paginate, export CSV | Calls tool-assets API and renders slideout rows | `toolId`, `toolSearch`, `toolAssetType`, pagination params | Slideout rows and CSV | pagination defaults to 200, export batches up to 5000 | invalid API params return client error messages | `/api/discovery-coverage/tool-assets` | Tool-specific gap evidence | non-route slideout |
 | Discovery | Coverage-by-network | Row-based network coverage summary with accreditation facts, per-network radar visualisation, per-tool coverage table, and per-network PDF report action | Open tab, apply filters, drill down, generate network report | Aggregates covered/missing/applicable tool stats by network, includes managed networks that have no scoped asset aggregate, resolves descriptive metadata fallbacks only for discovery-enabled networks, renders only stored fields for discovery-disabled networks, renders radar/table coverage only when measured coverage is available, and provides data-date-aware drill-down and network report links | scoped asset coverage rows + managed network metadata + optional `dataDate` query | Network rows with available metadata, optional radar visual + per-tool table + overall coverage badges + drill-down link + PDF report link | report is forced to the selected tile network while preserving other active filters; discovery-disabled network tiles do not show zero-filled measured coverage | zero-safe percentages, zero-safe drill-down date handling, missing network returns API error | `DiscoveryCoverageByNetworkSection`, `CoverageByToolRadar`, `withDataDate`, network detail resolver, `/api/discovery-coverage/network-report` | First-class network coverage view with direct navigation into network drill-through and report export | PDF follows the SPI report visual style and includes target-state discovery, tool coverage, Annex A discovered assets, and Annex B gap assets; `net-disabled-reference` demonstrates blank operational and coverage sections while still carrying generated reference IDs |

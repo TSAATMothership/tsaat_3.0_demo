@@ -22,6 +22,7 @@ import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-dat
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
+import { isUnassignedNetworkId } from "@/lib/network-scope";
 import { buildNetworkTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
 import {
@@ -520,6 +521,10 @@ export default async function NetworkDetailPage({
     loadMeasuresSettings(),
     loadDiscoveryToolsSettings()
   ]);
+  if (isUnassignedNetworkId(params.networkId)) {
+    notFound();
+  }
+
   const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
 
   if (!network) {

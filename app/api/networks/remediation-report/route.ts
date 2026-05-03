@@ -4,6 +4,12 @@ import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import {
+  filterRealNetworkAssets,
+  filterRealNetworkEvaluations,
+  filterRealNetworkFindings,
+  filterRealNetworks
+} from "@/lib/network-scope";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus } from "@/lib/types";
@@ -153,19 +159,20 @@ export async function GET(request: NextRequest) {
   const filters = parseFilters(queryObject);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
 
-  const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
-  const scopedAssets = dataset.assets.filter((asset) => scopedAssetIds.has(asset.id));
+  const scopedEvaluations = filterRealNetworkEvaluations(analytics.evaluations);
+  const scopedAssetIds = new Set(scopedEvaluations.map((evaluation) => evaluation.assetId));
+  const scopedAssets = filterRealNetworkAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)));
   const scopedNetworkIds = new Set(scopedAssets.map((asset) => asset.networkId));
-  const scopedNetworks = dataset.managedNetworks
+  const scopedNetworks = filterRealNetworks(dataset.managedNetworks)
     .filter((network) => scopedNetworkIds.has(network.id))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const findings = analytics.findings;
+  const findings = filterRealNetworkFindings(analytics.findings);
   const p12Findings = findings.filter((finding) => finding.priorityRank <= 2);
   const highRiskFindings = findings.filter((finding) => finding.severity === "High Risk");
   const nonCompliantFindings = findings.filter((finding) => finding.complianceStatus === "Non-compliant");
 
-  const scopedStatuses = analytics.evaluations.flatMap((evaluation) =>
+  const scopedStatuses = scopedEvaluations.flatMap((evaluation) =>
     evaluation.evaluations.map((evaluationItem) => evaluationItem.status)
   );
   const compliantStatusCount = scopedStatuses.filter((status) => status === "Compliant").length;
@@ -174,7 +181,7 @@ export async function GET(request: NextRequest) {
   const scopedComplianceScore = complianceScore(scopedStatuses);
   const scopedPosture = overallStatusFromStatuses(scopedStatuses);
 
-  const nonCompliantAssetCount = analytics.evaluations.filter((evaluation) =>
+  const nonCompliantAssetCount = scopedEvaluations.filter((evaluation) =>
     evaluation.evaluations.some((evaluationItem) => evaluationItem.status === "Non-compliant")
   ).length;
 
@@ -203,7 +210,7 @@ export async function GET(request: NextRequest) {
     .filter((item) => item.missingTools.length > 0)
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
 
-  const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
+  const networkNameById = new Map(filterRealNetworks(dataset.managedNetworks).map((network) => [network.id, network.name]));
   const assetNameById = new Map(dataset.assets.map((asset) => [asset.id, asset.hostname]));
   const maxFindingsInReport = 300;
   const findingsForReport = findings.slice(0, maxFindingsInReport);

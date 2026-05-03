@@ -4,6 +4,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { loadDatasetForDate, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { isUnassignedNetworkId } from "@/lib/network-scope";
 import {
   buildScopedDiscoveryToolCoverage,
   discoveryCoverageValueLabel
@@ -84,6 +85,13 @@ export async function GET(
     loadMeasuresSettings(),
     loadDiscoveryToolsSettings()
   ]);
+
+  if (isUnassignedNetworkId(params.networkId)) {
+    return NextResponse.json(
+      { error: "Unassigned Systems is not a network and cannot be used for network exports." },
+      { status: 400 }
+    );
+  }
 
   const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
   if (!network) {

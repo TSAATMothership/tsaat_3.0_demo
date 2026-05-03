@@ -1,4 +1,11 @@
-export const UNASSIGNED_NETWORK_ID = "net-unassigned";
+import {
+  filterRealNetworkAssets,
+  filterRealNetworks,
+  isUnassignedNetworkId,
+  UNASSIGNED_NETWORK_ID
+} from "@/lib/network-scope";
+
+export { isUnassignedNetworkId, UNASSIGNED_NETWORK_ID };
 
 type SearchParamValue = string | string[] | undefined;
 
@@ -25,12 +32,8 @@ export function sanitizeDiscoverySearchParams<T extends Record<string, SearchPar
   return sanitized;
 }
 
-export function isUnassignedNetworkId(networkId: string | null | undefined): boolean {
-  return networkId === UNASSIGNED_NETWORK_ID;
-}
-
 export function filterDiscoveryNetworks<T extends { id: string }>(networks: T[]): T[] {
-  return networks.filter((network) => !isUnassignedNetworkId(network.id));
+  return filterRealNetworks(networks);
 }
 
 export function normalizeDiscoveryNetworkModellingStatus(
@@ -73,7 +76,7 @@ export function filterDiscoveryNetworksByStatus<T extends { modellingStatus: boo
 }
 
 export function filterDiscoveryAssets<T extends { networkId: string }>(assets: T[]): T[] {
-  return assets.filter((asset) => !isUnassignedNetworkId(asset.networkId));
+  return filterRealNetworkAssets(assets);
 }
 
 export function removeUnassignedNetworkOption<T extends { networks: Array<{ id: string; label: string }> }>(

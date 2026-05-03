@@ -1,6 +1,7 @@
 import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { Asset, AssetType, AnalyticsResult, CiDependencyType, ComplianceStatus, Dataset, EnvironmentType, ICTSystem } from "@/lib/types";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
+import { filterRealNetworks, isRealNetworkId } from "@/lib/network-scope";
 
 export type TopologyEntityType = "network" | "mission-capability" | "service" | "ict-system";
 
@@ -817,7 +818,7 @@ function buildDependencyNetworkTopologyData(
   const networkNodeId = `network:${networkId}`;
   const systemsById = new Map(dataset.ictSystems.map((system) => [system.id, system]));
 
-  const networkHierarchy = buildHierarchyMaps(dataset.managedNetworks, NETWORK_PARENT_KEYS, NETWORK_CHILD_KEYS);
+  const networkHierarchy = buildHierarchyMaps(filterRealNetworks(dataset.managedNetworks), NETWORK_PARENT_KEYS, NETWORK_CHILD_KEYS);
   const networkScopeIds = new Set<string>([networkId]);
   for (const ancestorId of collectAncestors(networkId, networkHierarchy)) {
     networkScopeIds.add(ancestorId);
@@ -1207,7 +1208,7 @@ function buildDependencySystemTopologyData(
 
   const systemNodeId = `system:${system.id}`;
   const systemsById = new Map(dataset.ictSystems.map((item) => [item.id, item]));
-  const networkById = new Map(dataset.managedNetworks.map((network) => [network.id, network]));
+  const networkById = new Map(filterRealNetworks(dataset.managedNetworks).map((network) => [network.id, network]));
   const assetById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
   const modelAssetIds = new Set<string>();
   for (const environment of system.environments) {
@@ -1233,7 +1234,7 @@ function buildDependencySystemTopologyData(
   const modelAssetIdsByNetworkId = new Map<string, Set<string>>();
   const systemIdsByNetworkId = new Map<string, Set<string>>();
   for (const asset of modelAssets) {
-    if (networkById.has(asset.networkId)) {
+    if (isRealNetworkId(asset.networkId) && networkById.has(asset.networkId)) {
       const assetsForNetwork = modelAssetIdsByNetworkId.get(asset.networkId) ?? new Set<string>();
       assetsForNetwork.add(asset.id);
       modelAssetIdsByNetworkId.set(asset.networkId, assetsForNetwork);
@@ -1247,9 +1248,11 @@ function buildDependencySystemTopologyData(
     assetsForSystem.add(asset.id);
     modelAssetIdsBySystemId.set(ownerSystemId, assetsForSystem);
 
-    const systemsForNetwork = systemIdsByNetworkId.get(asset.networkId) ?? new Set<string>();
-    systemsForNetwork.add(ownerSystemId);
-    systemIdsByNetworkId.set(asset.networkId, systemsForNetwork);
+    if (isRealNetworkId(asset.networkId)) {
+      const systemsForNetwork = systemIdsByNetworkId.get(asset.networkId) ?? new Set<string>();
+      systemsForNetwork.add(ownerSystemId);
+      systemIdsByNetworkId.set(asset.networkId, systemsForNetwork);
+    }
   }
 
   const dependentSystemIds = Array.from(modelAssetIdsBySystemId.keys())
@@ -1272,7 +1275,7 @@ function buildDependencySystemTopologyData(
     .filter((item) => scopedSystemIds.has(item.id))
     .sort((a, b) => a.name.localeCompare(b.name));
   const scopedNetworkIds = new Set<string>(dependentNetworkIds);
-  const scopedNetworks = dataset.managedNetworks
+  const scopedNetworks = filterRealNetworks(dataset.managedNetworks)
     .filter((network) => scopedNetworkIds.has(network.id))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1355,15 +1358,18 @@ function buildDependencySystemTopologyData(
   const includedSystemIds = filteredSystemIds.size ? filteredSystemIds : scopedSystemIds;
   const cmdbNetworkScopeIds = new Set<string>();
   for (const asset of modelAssets) {
-    if (networkById.has(asset.networkId)) {
+    if (isRealNetworkId(asset.networkId) && networkById.has(asset.networkId)) {
       cmdbNetworkScopeIds.add(asset.networkId);
     }
   }
-  if (!cmdbNetworkScopeIds.size && networkById.has(system.networkId)) {
+  if (!cmdbNetworkScopeIds.size && isRealNetworkId(system.networkId) && networkById.has(system.networkId)) {
     cmdbNetworkScopeIds.add(system.networkId);
   }
   const cmdbScopedAssetIds = new Set<string>();
   for (const asset of modelAssets) {
+    if (!isRealNetworkId(asset.networkId)) {
+      continue;
+    }
     const ownerSystemId = asset.systemContext?.systemId;
     if (!ownerSystemId || !includedSystemIds.has(ownerSystemId)) {
       continue;

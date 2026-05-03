@@ -23,13 +23,13 @@ Major dependencies:
 ### Feature: Shared Network Filter Scope
 - **What it does:** filters the page by network, security domain, asset type, mission capability, business service, and date.
 - **User perspective:** the user narrows the network estate and all tab content changes together.
-- **System behaviour:** the page uses the shared filter model, but intentionally hides ICT system, criticality, and environment selectors from the visible filter bar.
+- **System behaviour:** the page uses the shared filter model, but intentionally hides ICT system, criticality, and environment selectors from the visible filter bar. The synthetic loader-only `net-unassigned` / `Unassigned Systems` bucket is excluded from the network selector and treated as `All` if supplied manually.
 - **Outcome:** the page remains network-centric.
 
 ### Feature: Overview Tab
 - **What it does:** shows network posture, modelling coverage, risk profile, and daily and weekly trends.
 - **User perspective:** the user gets a network-level executive summary.
-- **System behaviour:** compliance, modelling, and risk metrics are aggregated from filtered asset evaluations and findings.
+- **System behaviour:** compliance, modelling, and risk metrics are aggregated from filtered asset evaluations and findings after excluding the synthetic `net-unassigned` bucket from network-model calculations.
 - **Outcome:** users can identify whether network scope is improving or degrading.
 
 ### Feature: Action Tab
@@ -41,7 +41,7 @@ Major dependencies:
 ### Feature: Posture Tab
 - **What it does:** shows KPI summary cards, blast-radius data, searchable network roll-up table, detail slideout, and drill-down links.
 - **User perspective:** the user can compare networks and open either a summary slideout or the full network detail page.
-- **System behaviour:** each row combines network metadata, rollup posture, P1/P2 counts, discovery compliance, and drill-down links.
+- **System behaviour:** each row combines real network metadata, rollup posture, P1/P2 counts, discovery compliance, and drill-down links.
 - **Outcome:** the page acts as the routing surface for `/networks/[networkId]`.
 
 ### Feature: Blast Radius Selection
@@ -54,9 +54,9 @@ Major dependencies:
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | loading overlay displayed |
-| Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends | dataset, findings, evaluations | Dashboard cards and charts | network scope only | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
+| Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends for real networks only | dataset, findings, evaluations | Dashboard cards and charts | network scope only; `net-unassigned` excluded | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
 | Networks | Action | Remediation planning | Open tab or generate report | Builds action metrics and remediation report link | findings, lifecycle, discovery status | Action board and PDF link | report reflects current filters | none beyond scope parsing | `/api/networks/remediation-report` | Action planning and export | |
-| Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
+| Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | real network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source; `Unassigned Systems` is not a network | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
 | Networks | Blast radius filter | Links chart choice to table scope | Select or clear chart item | Event-based client filter | selected network ID | Filtered posture table | chart filter is temporary and client-side | cleared when selection no longer exists | custom browser event | Faster comparison workflow | |
 
 ## 5. Database Mapping
@@ -74,7 +74,7 @@ Primary data dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | ATO, DIIS, and APM references are loaded/backfilled; fallback descriptive metadata allowed in slideouts | used directly and in drill-down hrefs | `modelling_status` is persisted but current overview modelling card still uses the discovery-status proxy |
+| Networks | Network identity | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, `criticality`, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status`, detail columns | string, enum-like | row identity, posture context, slideout metadata | Read | joined to assets and systems by `network_id` | ATO, DIIS, and APM references are loaded/backfilled; fallback descriptive metadata allowed in slideouts | used directly and in drill-down hrefs for real networks only | `modelling_status` is persisted but current overview modelling card still uses the discovery-status proxy; `net-unassigned` remains loader-only |
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity and non-compliant priority remapped before use | |
 | Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
@@ -100,6 +100,7 @@ Primary data dependencies:
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is date-scoped.
+- `net-unassigned` / `Unassigned Systems` remains in the database for loader integrity but is excluded from network filters, network-model counts, drill-down routes, and network reports.
 - ICT system, environment, and criticality are intentionally hidden from the visible filter bar.
 - The posture tab is the source of drill-down navigation into network detail.
 - Summary slideouts and posture rows may show fallback descriptive metadata when source fields are blank; loaded ATO, DIIS, and APM reference values are populated by seed data, loader fallback, and migration backfill.

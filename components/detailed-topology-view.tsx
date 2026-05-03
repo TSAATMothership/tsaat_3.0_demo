@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
+import { isRealNetworkId } from "@/lib/network-scope";
 import type { NetworkTopologyData, TopologyEntityType, TopologyNodeDetails } from "@/lib/network-topology";
 import type { AssetType } from "@/lib/types";
 
@@ -1560,7 +1561,7 @@ export function DetailedTopologyView({
         pushModel("ict-system", relatedCi.systemId, relatedCi.systemName ?? relatedCi.systemId);
       }
       if (
-        relatedCi.networkId &&
+        isRealNetworkId(relatedCi.networkId) &&
         relatedCi.networkId !== sourceCi.networkId &&
         (!excludedNetworkId || relatedCi.networkId !== excludedNetworkId)
       ) {
@@ -2046,7 +2047,7 @@ export function DetailedTopologyView({
             "shared-resource"
           );
         }
-        if (sourceCi.networkId) {
+        if (isRealNetworkId(sourceCi.networkId)) {
           addModelLink(
             ciNode.id,
             "network-model",
@@ -2073,7 +2074,7 @@ export function DetailedTopologyView({
             "related-model"
           );
         }
-        if (relatedCi.networkId && relatedCi.networkId !== sourceCi.networkId) {
+        if (isRealNetworkId(relatedCi.networkId) && relatedCi.networkId !== sourceCi.networkId) {
           addModelLink(
             ciNode.id,
             "network-model",
@@ -2757,7 +2758,7 @@ export function DetailedTopologyView({
           "scope"
         );
       }
-      if (sourceCi.networkId) {
+      if (isRealNetworkId(sourceCi.networkId)) {
         linkNodeToModel(
           "network-model",
           sourceCi.networkId,
@@ -2776,7 +2777,7 @@ export function DetailedTopologyView({
             "shared-resource"
           );
         }
-        if (sourceCi.networkId && sourceCi.networkId !== rootNetworkId) {
+        if (isRealNetworkId(sourceCi.networkId) && sourceCi.networkId !== rootNetworkId) {
           linkNodeToModel(
             "network-model",
             sourceCi.networkId,
@@ -2829,7 +2830,7 @@ export function DetailedTopologyView({
                 "related-model"
               );
             }
-            if (relatedCi.networkId && relatedCi.networkId !== sourceCi.networkId) {
+            if (isRealNetworkId(relatedCi.networkId) && relatedCi.networkId !== sourceCi.networkId) {
               linkNodeToModel(
                 "network-model",
                 relatedCi.networkId,

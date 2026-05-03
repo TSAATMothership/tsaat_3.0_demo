@@ -24,7 +24,7 @@ Major dependencies:
 ### Feature: Shared Filter Scope and Snapshot Date
 - **What it does:** scopes the dashboard by network, ICT system, criticality, security domain, environment, asset type, mission capability, and business service.
 - **User perspective:** the user changes filters and the dashboard reloads in place.
-- **System behaviour:** query parameters are parsed by `parseFilters()`, date scope is resolved from `dataDate`, and analytics are rebuilt for the selected snapshot. Asset type filters use the shared canonical taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
+- **System behaviour:** query parameters are parsed by `parseFilters()`, date scope is resolved from `dataDate`, and analytics are rebuilt for the selected snapshot. The synthetic loader-only `net-unassigned` bucket is treated as `All` when supplied as a network query and is not offered as a network filter option. Asset type filters use the shared canonical taxonomy (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`).
 - **Outcome:** every dashboard number reflects one scope.
 
 ### Feature: Overview Tab

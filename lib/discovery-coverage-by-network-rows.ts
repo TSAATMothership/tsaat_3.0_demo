@@ -1,7 +1,7 @@
 import { type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
-import { UNASSIGNED_NETWORK_ID } from "@/lib/discovery-filter-scope";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { resolveNetworkReferenceFields } from "@/lib/network-reference-fields";
+import { filterRealNetworks } from "@/lib/network-scope";
 import type { ManagedNetwork } from "@/lib/types";
 
 export interface NetworkToolCoverage {
@@ -114,8 +114,7 @@ export function buildDiscoveryCoverageByNetworkRows({
 }): DiscoveryCoverageByNetworkRow[] {
   const aggregates = buildAggregate(coverageRows, toolColumns);
 
-  return networks
-    .filter((network) => network.id !== UNASSIGNED_NETWORK_ID)
+  return filterRealNetworks(networks)
     .map((network) => {
       const aggregate = aggregates.get(network.id);
       const discoveryEnabled = network.discoveryStatus === "Discovery Enabled";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSystemTopologyData } from "@/lib/network-topology";
+import { UNASSIGNED_NETWORK_ID } from "@/lib/network-scope";
 import { AnalyticsResult, Dataset } from "@/lib/types";
 
 function buildAnalyticsResult(): AnalyticsResult {
@@ -32,6 +33,17 @@ function buildAnalyticsResult(): AnalyticsResult {
         assetType: "server",
         networkId: "net-dep",
         systemId: "sys-dep",
+        environmentType: "Production",
+        securityDomain: "Protected",
+        systemCriticality: "Critical",
+        discoveryCoverageCompliant: true,
+        evaluations: [{ spiId: 1, status: "Compliant", evidence: {}, reasons: [] }]
+      },
+      {
+        assetId: "asset-unassigned",
+        assetType: "server",
+        networkId: UNASSIGNED_NETWORK_ID,
+        systemId: "sys-core",
         environmentType: "Production",
         securityDomain: "Protected",
         systemCriticality: "Critical",
@@ -80,6 +92,17 @@ function buildDataset(): Dataset {
         discoveryStatus: "Discovery Enabled",
         ictSystemIds: ["sys-dep"],
         assetIds: ["asset-dep-in-model", "asset-dep-out-of-model"]
+      },
+      {
+        id: UNASSIGNED_NETWORK_ID,
+        name: "Unassigned Systems",
+        criticality: "Non-Critical",
+        adfPlatform: false,
+        enterprisePlatform: false,
+        modellingStatus: false,
+        discoveryStatus: "Discovery Non Enabled",
+        ictSystemIds: ["sys-core"],
+        assetIds: ["asset-unassigned"]
       }
     ],
     ictSystems: [
@@ -100,7 +123,7 @@ function buildDataset(): Dataset {
             id: "env-core-prod",
             name: "Production",
             type: "Production",
-            assetIds: ["asset-core-1", "asset-dep-in-model"]
+            assetIds: ["asset-core-1", "asset-dep-in-model", "asset-unassigned"]
           }
         ]
       },
@@ -165,6 +188,19 @@ function buildDataset(): Dataset {
         operatingSystem: null,
         installedSoftware: [],
         systemContext: { systemId: "sys-dep", environmentType: "Production" }
+      },
+      {
+        id: "asset-unassigned",
+        name: "Unassigned Server",
+        hostname: "unassigned-1",
+        type: "server",
+        networkId: UNASSIGNED_NETWORK_ID,
+        securityDomain: "Protected",
+        lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+        vulnerabilities: [],
+        operatingSystem: null,
+        installedSoftware: [],
+        systemContext: { systemId: "sys-core", environmentType: "Production" }
       }
     ],
     ciDependencies: [
@@ -224,6 +260,6 @@ describe("buildSystemTopologyData model-scoped dependencies", () => {
       "asset-dep-in-model",
       "asset-dep-out-of-model"
     ]);
-    expect(topology.modelAssetIds.sort()).toEqual(["asset-core-1", "asset-dep-in-model"]);
+    expect(topology.modelAssetIds.sort()).toEqual(["asset-core-1", "asset-dep-in-model", "asset-unassigned"]);
   });
 });

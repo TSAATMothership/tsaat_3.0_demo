@@ -9,7 +9,7 @@
 - **Primary user roles:** network owners, cyber analysts, remediation coordinators, architecture and assurance teams.
 
 ## 2. Page Summary
-The page is a date-scoped drill-through for a single managed network. It supports visible route states for `network-details`, `compliance-overview`, and `discovery-compliance`.
+The page is a date-scoped drill-through for a single real managed network. It supports visible route states for `network-details`, `compliance-overview`, and `discovery-compliance`. The synthetic loader-only `net-unassigned` bucket is rejected because it is not a network model.
 
 The page also contains a latent route state: `cyber-posture`.
 
@@ -26,13 +26,13 @@ Major dependencies:
 ### Feature: Header, Breadcrumb, and Shared Drill-Through Scope
 - **What it does:** identifies the selected network, exposes the back link, and shows headline score cards without header pills.
 - **User perspective:** the user can confirm the network and return to the networks posture list.
-- **System behaviour:** the page resolves the route parameter, scopes analytics to the network, and recalculates compliance and discovery scores for the active drill-through context.
+- **System behaviour:** the page resolves the route parameter, rejects `net-unassigned`, scopes analytics to the network, and recalculates compliance and discovery scores for the active drill-through context.
 - **Outcome:** all downstream tabs share one network anchor.
 
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches among visible tabs and opens a topology modal.
 - **User perspective:** the user can move between metadata, compliance, and discovery views, and open a richer topology representation.
-- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from snapshot relationships and CI dependencies.
+- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes.
 - **Outcome:** tab states are bookmarkable; topology is not.
 
 ### Feature: Details Tab
