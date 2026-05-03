@@ -1100,6 +1100,21 @@ export default async function NetworkDetailPage({
     printerDeviceCount: filteredAssets.filter((asset) => asset.type === "printer-device").length,
     otherCount: filteredAssets.filter((asset) => asset.type === "other").length
   };
+  const networkImpactSystems = dataset.ictSystems
+    .filter((system) => system.networkId === network.id)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const networkAssetTypeFootprint = ([
+    "server",
+    "workstation",
+    "network-device",
+    "storage-device",
+    "printer-device",
+    "other"
+  ] as const).map((assetType) => ({
+    assetType,
+    label: formatAssetTypeLabel(assetType),
+    count: assets.filter((asset) => asset.type === assetType).length
+  }));
   const cvesByAssetId = buildCveVulnerabilityIndexByAssetId(filteredAssets);
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
 
@@ -1224,7 +1239,6 @@ export default async function NetworkDetailPage({
   };
 
   const networkDetailFields = resolveNetworkDetailFields(network);
-  const networkDiisId = network.diisId?.trim() || "Missing";
   const headerComplianceCounts =
     activeDetailTab === "compliance-overview"
       ? complianceOverviewSummaryCounts
@@ -1355,114 +1369,155 @@ export default async function NetworkDetailPage({
         }
       >
       {activeDetailTab === "network-details" ? (
-      <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
+      <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,0.92fr)_minmax(18rem,0.62fr)_minmax(0,0.95fr)]">
         <section className="panel flex min-h-0 flex-col overflow-hidden p-2.5">
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Network Details</h2>
-          <div className="mt-2 min-h-0 overflow-auto pr-1">
-            <div className="grid gap-1.5 xl:grid-cols-2">
-              <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5 xl:row-span-2">
-                <h3 className="text-base font-medium text-slate-100">Description</h3>
-                <p className="mt-2 text-sm leading-5 text-slate-200/90">{networkDetailFields.description}</p>
-              </article>
+          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Details Overview</h2>
+          <div className="mt-2 flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+            <article className="flex h-36 shrink-0 flex-col rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Description</h3>
+              <div className="mt-2 min-h-0 flex-1 overflow-auto pr-1">
+                <p className="text-sm leading-5 text-slate-200/90">{networkDetailFields.description}</p>
+              </div>
+            </article>
 
-              <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
-                <dl className="space-y-3.5">
-                  <div>
-                    <dt className="text-base font-medium text-slate-100">Owner:</dt>
-                    <dd className="mt-0.5 text-sm text-slate-200">{networkDetailFields.owner}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-base font-medium text-slate-100">Support Email:</dt>
-                    <dd className="mt-0.5 text-sm text-sky-100">
-                      <a
-                        className="underline decoration-sky-300/60 underline-offset-2"
-                        href={`mailto:${networkDetailFields.supportEmail}`}
-                      >
-                        {networkDetailFields.supportEmail}
-                      </a>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-base font-medium text-slate-100">Service Catalogue Item:</dt>
-                    <dd className="mt-0.5 text-sm text-sky-100">
-                      <ul className="list-disc space-y-0.5 pl-5">
-                        <li>
-                          <Link
-                            href={networkDetailFields.serviceCatalogueUrl}
-                            className="underline decoration-sky-300/60 underline-offset-2"
-                            target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
-                            rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
-                          >
-                            Support Request
-                          </Link>
-                        </li>
-                        <li>
-                          <Link
-                            href={networkDetailFields.serviceCatalogueUrl}
-                            className="underline decoration-sky-300/60 underline-offset-2"
-                            target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
-                            rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
-                          >
-                            Issue Request
-                          </Link>
-                        </li>
-                      </ul>
-                    </dd>
+            <article className="rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Operational Contacts</h3>
+              <dl className="mt-2 grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                  <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Owner</dt>
+                  <dd className="mt-0.5 text-slate-100">{networkDetailFields.owner}</dd>
+                </div>
+                <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 px-2 py-1.5">
+                  <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Support Email</dt>
+                  <dd className="mt-0.5 truncate text-sky-100">
+                    <a
+                      className="underline decoration-sky-300/60 underline-offset-2"
+                      href={`mailto:${networkDetailFields.supportEmail}`}
+                    >
+                      {networkDetailFields.supportEmail}
+                    </a>
+                  </dd>
+                </div>
+                <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 px-2 py-1.5 md:col-span-2 xl:col-span-1 2xl:col-span-2">
+                  <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-400">Service Catalogue Items</dt>
+                  <dd className="mt-1 flex flex-wrap gap-2 text-sky-100">
+                    <Link
+                      href={networkDetailFields.serviceCatalogueUrl}
+                      className="rounded-md border border-sky-300/25 bg-sky-400/10 px-2 py-1 text-xs font-semibold text-sky-100 hover:border-sky-200/60"
+                      target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
+                      rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                    >
+                      Support Request
+                    </Link>
+                    <Link
+                      href={networkDetailFields.serviceCatalogueUrl}
+                      className="rounded-md border border-sky-300/25 bg-sky-400/10 px-2 py-1 text-xs font-semibold text-sky-100 hover:border-sky-200/60"
+                      target={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "_blank" : undefined}
+                      rel={isExternalLink(networkDetailFields.serviceCatalogueUrl) ? "noreferrer" : undefined}
+                    >
+                      Issue Request
+                    </Link>
+                  </dd>
+                </div>
+              </dl>
+            </article>
+
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-auto pr-1">
+              <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Security Accreditation</h3>
+                  <Link
+                    href={networkDetailFields.grcUrl}
+                    className="rounded-md border border-yellow-200/35 bg-yellow-300/10 px-2 py-0.5 text-[11px] font-semibold text-yellow-50 hover:border-yellow-100/70"
+                    target={isExternalLink(networkDetailFields.grcUrl) ? "_blank" : undefined}
+                    rel={isExternalLink(networkDetailFields.grcUrl) ? "noreferrer" : undefined}
+                  >
+                    Cyber GRC
+                  </Link>
+                </div>
+                <dl className="mt-1.5 text-sm">
+                  <div className="rounded-md border border-yellow-200/25 bg-slate-950/45 px-2 py-1">
+                    <dt className="text-[10px] uppercase tracking-[0.12em] text-slate-300/85">ATO</dt>
+                    <dd className="truncate font-semibold text-slate-100">{networkDetailFields.atoNumber}</dd>
                   </div>
                 </dl>
-              </article>
-
-              <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2.5 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
-                <h3 className="text-base font-medium text-slate-100">Security Accreditation</h3>
-                <div className="mt-2 overflow-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="text-left text-[11px] uppercase tracking-[0.12em] text-slate-300/85">
-                      <tr>
-                        <th className="px-2 py-1.5">Authority to Operate (ATO)</th>
-                        <th className="px-2 py-1.5">DIIS ID</th>
-                        <th className="px-2 py-1.5">Links</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-sky-300/30 text-slate-100">
-                        <td className="px-2 py-2 font-semibold text-slate-100">{networkDetailFields.atoNumber}</td>
-                        <td className="px-2 py-2 text-slate-100">{networkDiisId}</td>
-                        <td className="px-2 py-2">
-                          <div className="flex flex-wrap gap-3 text-sky-100">
-                            <Link
-                              href={networkDetailFields.grcUrl}
-                              className="underline decoration-sky-300/70 underline-offset-2"
-                              target={isExternalLink(networkDetailFields.grcUrl) ? "_blank" : undefined}
-                              rel={isExternalLink(networkDetailFields.grcUrl) ? "noreferrer" : undefined}
-                            >
-                              View in Cyber GRC Portal
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
               </article>
             </div>
           </div>
         </section>
 
-        <section className="panel min-h-0 overflow-hidden p-2.5">
-          <NetworkDetailRiskCharts
-            layout="stacked"
-            asOfDate={requestedDataDate ?? todayDateKey()}
-            riskProfile={{
-              openFindings: openNetworkScopedFindings.length,
-              p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,
-              highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
-              criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
-              severitySummary: riskSeveritySummary,
-              weeklyTrend: networkDetailWeeklyRiskTrend
-            }}
-            findings={riskProfileFindings}
-            assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
-          />
+        <section className="panel flex min-h-0 flex-col overflow-hidden p-2.5">
+          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Impact Overview</h2>
+          <div className="mt-2 grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-1.5 md:grid-cols-2 md:grid-rows-1 xl:grid-cols-1 xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+            <article className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Linked ICT Systems</h3>
+              <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+                {networkImpactSystems.length ? (
+                  <ul className="space-y-1.5 text-sm text-slate-200">
+                    {networkImpactSystems.map((system) => (
+                      <li key={system.id} className="rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5">
+                        <Link
+                          href={withDataDate(`/systems/${system.id}`, requestedDataDate)}
+                          className="font-semibold text-sky-100 underline decoration-sky-300/50 underline-offset-2"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {system.name}
+                        </Link>
+                        <p className="mt-0.5 text-xs text-slate-300/80">
+                          {system.criticality} / {system.securityDomain}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5 text-sm text-slate-300/85">
+                    No linked ICT systems in this snapshot.
+                  </p>
+                )}
+              </div>
+            </article>
+
+            <article className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-sky-300/35 bg-slate-950/55 p-2.5">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-200/90">Asset Type Footprint</h3>
+              <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+                <div className="grid gap-1.5 text-sm">
+                  {networkAssetTypeFootprint.map((row) => (
+                    <div
+                      key={row.assetType}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-sky-300/20 bg-slate-900/55 px-2 py-1.5"
+                    >
+                      <span className="min-w-0 truncate text-slate-200">{row.label}</span>
+                      <span className="rounded-md border border-sky-300/20 bg-sky-400/10 px-2 py-0.5 text-xs font-semibold text-sky-100">
+                        {row.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section className="panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-2.5">
+          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Risk Overview</h2>
+          <div className="mt-2 min-h-0 overflow-hidden">
+            <NetworkDetailRiskCharts
+              layout="stacked"
+              asOfDate={requestedDataDate ?? todayDateKey()}
+              scopeDescription="Open findings by severity in current network detail scope."
+              riskProfile={{
+                openFindings: openNetworkScopedFindings.length,
+                p1p2Count: openNetworkScopedFindings.filter((finding) => finding.priorityRank <= 2).length,
+                highRiskOpenCount: riskSeverityCounts.get("High Risk") ?? 0,
+                criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
+                severitySummary: riskSeveritySummary,
+                weeklyTrend: networkDetailWeeklyRiskTrend
+              }}
+              findings={riskProfileFindings}
+              assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+            />
+          </div>
         </section>
       </div>
       ) : null}

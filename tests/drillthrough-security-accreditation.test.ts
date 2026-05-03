@@ -6,10 +6,12 @@ const networkDetailSource = readFileSync(path.join(process.cwd(), "app", "networ
 const systemDetailSource = readFileSync(path.join(process.cwd(), "app", "systems", "[systemId]", "page.tsx"), "utf8");
 
 describe("Drill-through Security Accreditation containers", () => {
-  it("shows stored network DIIS ID or Missing without a DIIS link", () => {
-    expect(networkDetailSource).toContain('const networkDiisId = network.diisId?.trim() || "Missing";');
-    expect(networkDetailSource).toContain("<th className=\"px-2 py-1.5\">DIIS ID</th>");
-    expect(networkDetailSource).toContain("{networkDiisId}");
+  it("shows network ATO without a DIIS detail field or DIIS link", () => {
+    expect(networkDetailSource).toContain("Security Accreditation");
+    expect(networkDetailSource).toContain("networkDetailFields.atoNumber");
+    expect(networkDetailSource).toContain("Cyber GRC");
+    expect(networkDetailSource).not.toContain("networkDiisId");
+    expect(networkDetailSource).not.toContain("DIIS ID");
     expect(networkDetailSource).not.toContain("View in DIIS");
     expect(networkDetailSource).not.toContain("networkDetailFields.diisUrl");
   });
