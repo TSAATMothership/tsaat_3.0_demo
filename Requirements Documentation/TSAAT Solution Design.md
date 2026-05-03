@@ -463,7 +463,7 @@ Major dependencies:
 ### Feature: Details Tab
 - **What it does:** shows Details Overview, Impact Overview, and Risk Overview sections.
 - **User perspective:** the user sees descriptive context, network impact, and current risk profile in a compact three-column layout.
-- **System behaviour:** Details Overview contains bounded description, owner, support email, service catalogue actions, and an ATO-only Security Accreditation tile with Cyber GRC access. Impact Overview lists linked ICT systems, opening each system drill-through in a new browser tab/window, and asset-type footprint counts. Risk Overview embeds the existing risk profile and trend charts. Persisted network APM/DIIS values remain in the data contract for compatibility, but the Network Details tab does not render APM or Defence ICT Inventory tiles and does not display DIIS ID.
+- **System behaviour:** Details Overview contains bounded description, owner, support email, service catalogue actions, and an ATO-only Security Accreditation tile. Impact Overview lists linked ICT systems, opening each system drill-through in a new browser tab/window, and asset-type footprint counts. Risk Overview embeds the existing risk profile and trend charts. Persisted network APM/DIIS values remain in the data contract for compatibility, but the Network Details tab does not render APM or Defence ICT Inventory tiles and does not display DIIS ID.
 - **Outcome:** the tab acts as the narrative and ownership view for the network.
 
 ### Feature: Compliance Overview Tab

@@ -1424,17 +1424,7 @@ export default async function NetworkDetailPage({
 
             <div className="min-h-0 flex-1 space-y-1.5 overflow-auto pr-1">
               <article className="security-accreditation-pulse rounded-xl border border-yellow-300/90 bg-sky-400/16 p-2 shadow-[0_0_14px_rgba(253,224,71,0.32)]">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Security Accreditation</h3>
-                  <Link
-                    href={networkDetailFields.grcUrl}
-                    className="rounded-md border border-yellow-200/35 bg-yellow-300/10 px-2 py-0.5 text-[11px] font-semibold text-yellow-50 hover:border-yellow-100/70"
-                    target={isExternalLink(networkDetailFields.grcUrl) ? "_blank" : undefined}
-                    rel={isExternalLink(networkDetailFields.grcUrl) ? "noreferrer" : undefined}
-                  >
-                    Cyber GRC
-                  </Link>
-                </div>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Security Accreditation</h3>
                 <dl className="mt-1.5 text-sm">
                   <div className="rounded-md border border-yellow-200/25 bg-slate-950/45 px-2 py-1">
                     <dt className="text-[10px] uppercase tracking-[0.12em] text-slate-300/85">ATO</dt>

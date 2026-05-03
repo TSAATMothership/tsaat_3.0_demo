@@ -30,7 +30,7 @@ describe("Network Details tab layout", () => {
     expect(detailsOverviewBlock).toContain("Support Request");
     expect(detailsOverviewBlock).toContain("Issue Request");
     expect(detailsOverviewBlock).toContain("ATO");
-    expect(detailsOverviewBlock).toContain("Cyber GRC");
+    expect(detailsOverviewBlock).not.toContain("Cyber GRC");
     expect(detailsOverviewBlock).not.toContain("DIIS ID");
     expect(detailsOverviewBlock).not.toContain("Application Portfolio Management");
     expect(detailsOverviewBlock).not.toContain("Defence ICT Inventory System");
