@@ -18,17 +18,7 @@ import {
   ZAxis
 } from "recharts";
 import { NetworkDetailRiskCharts, NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
-import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { AssetType, Criticality, FindingSeverity, HighRiskCveDetail } from "@/lib/types";
-
-const BLAST_RADIUS_COLOR_BY_ASSET_TYPE: Record<AssetType, string> = {
-  server: "#38bdf8",
-  workstation: "#22c55e",
-  "network-device": "#f59e0b",
-  "storage-device": "#a78bfa",
-  "printer-device": "#f43f5e",
-  other: "#94a3b8"
-};
 
 export interface CyberCopImpactItem {
   id: string;
@@ -129,9 +119,17 @@ export interface CyberCopImpactLinks {
   missionToSystems: Record<string, string[]>;
 }
 
-export interface CyberCopBlastRadiusSystemMeta {
-  totalAssets: number;
-  primaryAssetType: AssetType;
+export interface CyberCopAssetTypeHeatmapAsset {
+  id: string;
+  name: string;
+  hostname: string;
+  assetType: AssetType;
+  systemId: string;
+  systemName: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  severeFindingCount: number;
+  riskScore: number;
 }
 
 export interface CyberCopDashboardProps {
@@ -161,7 +159,7 @@ export interface CyberCopDashboardProps {
     systems: CyberCopImpactItem[];
   };
   impactLinks: CyberCopImpactLinks;
-  impactBlastRadiusBySystemId: Record<string, CyberCopBlastRadiusSystemMeta>;
+  impactAssetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   impactSpiDrivers: CyberCopImpactSpiDriver[];
   impactSpiDriversBySystemId: Record<string, CyberCopImpactSpiDriver[]>;
   impactEnvironmentSplit: CyberCopImpactEnvironmentSplitRow[];
@@ -190,6 +188,7 @@ export interface CyberCopDashboardProps {
 }
 
 type CyberCopTabId = "overview" | "impact" | "action";
+type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
 
 const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -197,7 +196,44 @@ const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
   { id: "action", label: "Action" }
 ];
 
+const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
+  { id: "spi", label: "SPI Driver" },
+  { id: "blast-radius", label: "Server Risk Heatmap" },
+  { id: "environment", label: "Environment Split" },
+  { id: "mission-business", label: "Critical Findings Blast Radius" }
+];
+
 const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
+
+function chartSurfaceClass(embedded?: boolean): string {
+  return embedded
+    ? "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-4"
+    : "panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-4";
+}
+
+function interpolateColor(
+  start: [number, number, number],
+  end: [number, number, number],
+  ratio: number
+): string {
+  const clampedRatio = Math.max(0, Math.min(1, ratio));
+  const [red, green, blue] = start.map((channel, index) =>
+    Math.round(channel + (end[index] - channel) * clampedRatio)
+  );
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function assetHeatmapColor(score: number, maxScore: number): string {
+  if (score <= 0 || maxScore <= 0) {
+    return "rgb(34, 197, 94)";
+  }
+
+  const ratio = Math.min(1, score / maxScore);
+  if (ratio <= 0.5) {
+    return interpolateColor([34, 197, 94], [250, 204, 21], ratio / 0.5);
+  }
+  return interpolateColor([250, 204, 21], [239, 68, 68], (ratio - 0.5) / 0.5);
+}
 
 function formatDateKey(
   dateKey: string,
@@ -315,7 +351,7 @@ function ImpactLeaderboard({
   }, [filteredItems, normalizedQuery, onFilterScopeChange]);
 
   return (
-    <section className="panel p-3">
+    <section className="panel flex h-full min-h-0 flex-col p-3">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
         <p className="min-h-[1rem] text-[11px] text-right text-cyan-100/90">
@@ -323,19 +359,19 @@ function ImpactLeaderboard({
         </p>
       </div>
       <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <input
           type="search"
           list={listId}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={`Search ${title.toLowerCase()}`}
-          className="w-full rounded-md border border-sky-300/25 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
+          className="min-w-[13rem] flex-1 rounded-md border border-sky-300/25 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
         />
         <button
           type="button"
           onClick={() => setQuery("")}
-          className="rounded-md border border-sky-300/25 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:bg-slate-800/90"
+          className="whitespace-nowrap rounded-md border border-sky-300/25 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:bg-slate-800/90"
         >
           Clear
         </button>
@@ -344,7 +380,7 @@ function ImpactLeaderboard({
             type="button"
             onClick={onClearSelection}
             disabled={clearSelectionDisabled}
-            className="rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+            className="whitespace-nowrap rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
           >
             Clear Selection
           </button>
@@ -356,7 +392,7 @@ function ImpactLeaderboard({
         </datalist>
       </div>
       {riskScopedItems.length ? (
-        <div className="mt-2.5 max-h-[14.5rem] overflow-x-hidden overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <div className="mt-2.5 min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
           <table className="w-full table-fixed text-xs xl:text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
@@ -554,128 +590,113 @@ function DailyTrendPanel({
   );
 }
 
-function BlastRadiusChart({
+function AssetTypeHeatmapChart({
   items,
-  metaBySystemId
+  assetsBySystemId,
+  embedded = false
 }: {
   items: CyberCopImpactItem[];
-  metaBySystemId: Record<string, CyberCopBlastRadiusSystemMeta>;
+  assetsBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  embedded?: boolean;
 }) {
-  const points = useMemo(
-    () =>
-      items
-        .map((item) => {
-          const meta = metaBySystemId[item.id];
-          if (!meta) {
-            return null;
-          }
-          return {
-            ...item,
-            totalAssets: meta.totalAssets,
-            primaryAssetType: meta.primaryAssetType,
-            criticalExposureBubbleSize: Math.max(1, item.criticalExposureCount)
-          };
-        })
-        .filter((item): item is NonNullable<typeof item> => Boolean(item))
-        .filter((item) => item.criticalExposureCount > 0 && item.totalAssets > 0)
-        .sort((a, b) => {
-          if (b.criticalExposureCount !== a.criticalExposureCount) {
-            return b.criticalExposureCount - a.criticalExposureCount;
-          }
-          return b.totalAssets - a.totalAssets;
-        })
-        .slice(0, 30),
-    [items, metaBySystemId]
-  );
+  const serverAssets = useMemo(() => {
+    const seenAssetIds = new Set<string>();
+    return items
+      .flatMap((item) => assetsBySystemId[item.id] ?? [])
+      .filter((asset) => asset.assetType === "server")
+      .filter((asset) => {
+        if (seenAssetIds.has(asset.id)) {
+          return false;
+        }
+        seenAssetIds.add(asset.id);
+        return true;
+      })
+      .sort((a, b) => {
+        if (b.riskScore !== a.riskScore) {
+          return b.riskScore - a.riskScore;
+        }
+        if (b.criticalExposureCount !== a.criticalExposureCount) {
+          return b.criticalExposureCount - a.criticalExposureCount;
+        }
+        if (b.highRiskCount !== a.highRiskCount) {
+          return b.highRiskCount - a.highRiskCount;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [assetsBySystemId, items]);
 
-  if (!points.length) {
+  const maxRiskScore = serverAssets.reduce((maxScore, asset) => Math.max(maxScore, asset.riskScore), 0);
+  const serverCriticalExposureCount = serverAssets.reduce(
+    (total, asset) => total + asset.criticalExposureCount,
+    0
+  );
+  const serverHighRiskCount = serverAssets.reduce((total, asset) => total + asset.highRiskCount, 0);
+
+  if (!serverAssets.length) {
     return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Blast Radius</h3>
+      <section className={chartSurfaceClass(embedded)}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Server Risk Heatmap</h3>
         <p className="mt-1 text-xs text-slate-300/80">
-          X: total assets, Y: critical exposure findings, bubble radius: critical exposure volume.
+          Servers coloured by open critical and high finding volume.
         </p>
-        <p className="mt-3 text-sm text-slate-300/80">No blast-radius points in current scope.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No server heatmap data in current scope.</p>
       </section>
     );
   }
 
-  const pointsByAssetType = Object.fromEntries(
-    ASSET_TYPES.map((assetType) => [assetType, points.filter((item) => item.primaryAssetType === assetType)])
-  ) as Record<AssetType, typeof points>;
-
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Blast Radius</h3>
-      <p className="mt-1 text-xs text-slate-300/80">
-        X: total assets, Y: critical exposure findings, bubble radius: critical exposure volume.
-      </p>
-      <p className="mt-1 text-[11px] text-slate-300/70">
-        Only systems with open critical exposure findings. Colour key by primary asset type.
-      </p>
-      <div className="mt-2.5 min-h-[10rem] flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
-            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-            <XAxis
-              type="number"
-              dataKey="totalAssets"
-              name="Total Assets"
-              allowDecimals={false}
-              tick={{ fill: "#a8c6d8", fontSize: 11 }}
-            />
-            <YAxis
-              type="number"
-              dataKey="criticalExposureCount"
-              name="Critical Exposure"
-              allowDecimals={false}
-              tick={{ fill: "#a8c6d8", fontSize: 11 }}
-            />
-            <ZAxis type="number" dataKey="criticalExposureBubbleSize" range={[70, 520]} />
-            <Tooltip
-              cursor={{ strokeDasharray: "3 3" }}
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) {
-                  return null;
-                }
-                const row = payload[0].payload as {
-                  name: string;
-                  totalAssets: number;
-                  criticalExposureCount: number;
-                  primaryAssetType: AssetType;
-                };
-
-                return (
-                  <div className="rounded-md border border-slate-500/60 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
-                    <p className="font-semibold text-slate-100">{row.name}</p>
-                    <p className="mt-1 text-slate-200">Total Assets: {row.totalAssets}</p>
-                    <p className="text-red-200">Total Critical Exposure: {row.criticalExposureCount}</p>
-                    <p className="text-slate-300">Primary Asset Type: {row.primaryAssetType}</p>
-                  </div>
-                );
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
-            {ASSET_TYPES.map((assetType) => (
-              <Scatter
-                key={`blast-radius-${assetType}`}
-                name={assetTypeLabel(assetType)}
-                data={pointsByAssetType[assetType]}
-                fill={BLAST_RADIUS_COLOR_BY_ASSET_TYPE[assetType]}
-                isAnimationActive={false}
+    <section className={chartSurfaceClass(embedded)}>
+      <div className="flex min-w-0 shrink-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-sm uppercase tracking-[0.14em] text-slate-100">Server Risk Heatmap</h3>
+          <p className="mt-1 text-xs text-slate-300/80">
+            Servers coloured by open critical and high finding volume.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+          <span>Low</span>
+          <span className="h-2 w-24 max-w-[36vw] rounded-full bg-[linear-gradient(90deg,#22c55e,#facc15,#ef4444)]" />
+          <span>High</span>
+        </div>
+      </div>
+      <div className="mt-2.5 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-3">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h4 className="break-words text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">Servers</h4>
+            <p className="mt-0.5 text-[11px] text-slate-300/75">{serverAssets.length} servers</p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1.5 text-[11px] tabular-nums">
+            <span className="rounded border border-red-400/20 bg-red-500/10 px-2 py-0.5 text-red-100">
+              {serverCriticalExposureCount} critical
+            </span>
+            <span className="rounded border border-orange-300/20 bg-orange-400/10 px-2 py-0.5 text-orange-100">
+              {serverHighRiskCount} high
+            </span>
+          </div>
+        </div>
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+          <div className="flex w-full flex-wrap content-start gap-1">
+            {serverAssets.map((asset) => (
+              <span
+                key={`asset-heatmap-cell-${asset.id}`}
+                aria-label={`${asset.name}, Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
+                className="h-4 w-4 shrink-0 rounded-[4px] border border-white/15 shadow-[0_0_10px_rgba(15,23,42,0.35)]"
+                role="img"
+                style={{ backgroundColor: assetHeatmapColor(asset.riskScore, maxRiskScore) }}
+                title={`${asset.name}\n${asset.systemName}\nServer\nCritical Exposure: ${asset.criticalExposureCount}\nHigh Risk: ${asset.highRiskCount}`}
               />
             ))}
-          </ScatterChart>
-        </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
+function SpiDriverChart({ rows, embedded = false }: { rows: CyberCopImpactSpiDriver[]; embedded?: boolean }) {
   if (!rows.length) {
     return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
+      <section className={chartSurfaceClass(embedded)}>
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
         <p className="mt-1 text-xs text-slate-300/80">Control families driving severe open impact.</p>
         <p className="mt-3 text-sm text-slate-300/80">No severe SPI driver data in current scope.</p>
@@ -690,10 +711,10 @@ function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
   }));
 
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
+    <section className={chartSurfaceClass(embedded)}>
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
       <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
-      <div className="mt-2.5 min-h-[10rem] flex-1">
+      <div className="mt-2.5 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -744,10 +765,16 @@ function SpiDriverChart({ rows }: { rows: CyberCopImpactSpiDriver[] }) {
   );
 }
 
-function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironmentSplitRow[] }) {
+function EnvironmentImpactSplitChart({
+  rows,
+  embedded = false
+}: {
+  rows: CyberCopImpactEnvironmentSplitRow[];
+  embedded?: boolean;
+}) {
   if (!rows.length) {
     return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
+      <section className={chartSurfaceClass(embedded)}>
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
         <p className="mt-1 text-xs text-slate-300/80">Open finding impact by environment type.</p>
         <p className="mt-3 text-sm text-slate-300/80">No environment impact data in current scope.</p>
@@ -756,10 +783,10 @@ function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironment
   }
 
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
+    <section className={chartSurfaceClass(embedded)}>
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
       <p className="mt-1 text-xs text-slate-300/80">Open findings grouped by environment and severity band.</p>
-      <div className="mt-2.5 min-h-[10rem] flex-1">
+      <div className="mt-2.5 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -794,10 +821,12 @@ function EnvironmentImpactSplitChart({ rows }: { rows: CyberCopImpactEnvironment
 
 function MissionBusinessBlastRadiusChart({
   missionRows,
-  businessRows
+  businessRows,
+  embedded = false
 }: {
   missionRows: CyberCopImpactItem[];
   businessRows: CyberCopImpactItem[];
+  embedded?: boolean;
 }) {
   type DomainPoint = {
     id: string;
@@ -869,9 +898,9 @@ function MissionBusinessBlastRadiusChart({
 
   if (!hasPoints) {
     return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
+      <section className={chartSurfaceClass(embedded)}>
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">
-          Mission/Business Blast Radius (Critical Exposure)
+          Critical Findings Blast Radius
         </h3>
         <p className="mt-1 text-xs text-slate-300/80">
           Mission capabilities and business services with open critical exposure findings.
@@ -882,9 +911,9 @@ function MissionBusinessBlastRadiusChart({
   }
 
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
+    <section className={chartSurfaceClass(embedded)}>
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">
-        Mission/Business Blast Radius (Critical Exposure)
+        Critical Findings Blast Radius
       </h3>
       <p className="mt-1 text-xs text-slate-300/80">
         X: impacted assets, Y: open critical exposure findings, bubble size: total open findings.
@@ -899,7 +928,7 @@ function MissionBusinessBlastRadiusChart({
           Business Service
         </span>
       </div>
-      <div className="mt-2.5 min-h-[10rem] flex-1">
+      <div className="mt-2.5 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -943,6 +972,84 @@ function MissionBusinessBlastRadiusChart({
             <Scatter name="Business Service" data={businessPoints} fill="#67e8f9" isAnimationActive={false} />
           </ScatterChart>
         </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function ImpactChartTabs({
+  spiRows,
+  systemRows,
+  assetTypeHeatmapBySystemId,
+  environmentRows,
+  missionRows,
+  businessRows
+}: {
+  spiRows: CyberCopImpactSpiDriver[];
+  systemRows: CyberCopImpactItem[];
+  assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  environmentRows: CyberCopImpactEnvironmentSplitRow[];
+  missionRows: CyberCopImpactItem[];
+  businessRows: CyberCopImpactItem[];
+}) {
+  const [activeChartTab, setActiveChartTab] = useState<ImpactChartTabId>("spi");
+
+  return (
+    <section className="panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-3">
+      <div
+        role="tablist"
+        aria-label="Cyber COP impact chart tabs"
+        className="grid min-w-0 shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {impactChartTabs.map((tab) => {
+          const isActive = activeChartTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              id={`cyber-cop-impact-chart-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls="cyber-cop-impact-chart-panel"
+              onClick={() => setActiveChartTab(tab.id)}
+              className={`min-w-0 rounded-md border px-3 py-2 text-left text-xs font-semibold uppercase leading-snug tracking-[0.12em] transition ${
+                isActive
+                  ? "border-cyan-300/55 bg-cyan-500/15 text-cyan-100"
+                  : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        id="cyber-cop-impact-chart-panel"
+        role="tabpanel"
+        aria-labelledby={`cyber-cop-impact-chart-tab-${activeChartTab}`}
+        className="mt-3 min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-sky-300/10 bg-slate-950/30 p-3 sm:p-4"
+      >
+        <div className="flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden">
+          <div className="h-full min-h-[22rem] max-h-[42rem] min-w-0 max-w-full w-full">
+            {activeChartTab === "spi" ? <SpiDriverChart rows={spiRows} embedded /> : null}
+            {activeChartTab === "blast-radius" ? (
+              <AssetTypeHeatmapChart
+                items={systemRows}
+                assetsBySystemId={assetTypeHeatmapBySystemId}
+                embedded
+              />
+            ) : null}
+            {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
+            {activeChartTab === "mission-business" ? (
+              <MissionBusinessBlastRadiusChart
+                missionRows={missionRows}
+                businessRows={businessRows}
+                embedded
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -1192,7 +1299,7 @@ export function CyberCopDashboard({
   asOfDate,
   impact,
   impactLinks,
-  impactBlastRadiusBySystemId,
+  impactAssetTypeHeatmapBySystemId,
   impactSpiDrivers,
   impactSpiDriversBySystemId,
   impactEnvironmentSplit,
@@ -1517,87 +1624,91 @@ export function CyberCopDashboard({
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
-              <div className="cop-reveal cop-reveal-delay-2 grid gap-2 lg:grid-cols-3">
-                <ImpactLeaderboard
-                  title="Business Services Impact"
-                  subtitle="Services carrying concentrated findings."
-                  items={businessImpactForLeaderboard}
-                  selectedItemId={selectedBusinessServiceId}
-                  selectedText={selectedBusinessService?.name ?? null}
-                  onSelectItem={(item) => {
-                    setSelectedMissionCapabilityId(null);
-                    setSelectedIctSystemId(null);
-                    setSelectedBusinessServiceId((current) => (current === item.id ? null : item.id));
-                  }}
-                  onFilterScopeChange={({ active, itemIds }) =>
-                    setBusinessSearchScope((current) => {
-                      if (
-                        current.active === active &&
-                        current.itemIds.length === itemIds.length &&
-                        current.itemIds.every((id, index) => id === itemIds[index])
-                      ) {
-                        return current;
-                      }
-                      return { active, itemIds };
-                    })
-                  }
-                  showClearSelectionButton
-                  clearSelectionDisabled={!selectedBusinessServiceId}
-                  onClearSelection={() => setSelectedBusinessServiceId(null)}
-                />
-                <ImpactLeaderboard
-                  title="Mission Capabilities Impact"
-                  subtitle="Capabilities affected by current findings."
-                  items={missionImpactForLeaderboard}
-                  selectedItemId={selectedMissionCapabilityId}
-                  selectedText={selectedMissionCapability?.name ?? null}
-                  onSelectItem={(item) => {
-                    setSelectedBusinessServiceId(null);
-                    setSelectedIctSystemId(null);
-                    setSelectedMissionCapabilityId((current) => (current === item.id ? null : item.id));
-                  }}
-                  onFilterScopeChange={({ active, itemIds }) =>
-                    setMissionSearchScope((current) => {
-                      if (
-                        current.active === active &&
-                        current.itemIds.length === itemIds.length &&
-                        current.itemIds.every((id, index) => id === itemIds[index])
-                      ) {
-                        return current;
-                      }
-                      return { active, itemIds };
-                    })
-                  }
-                  showClearSelectionButton
-                  clearSelectionDisabled={!selectedMissionCapabilityId}
-                  onClearSelection={() => setSelectedMissionCapabilityId(null)}
-                />
-                <ImpactLeaderboard
-                  title="ICT Systems Impact"
-                  subtitle={ictSystemsSubtitle}
-                  items={scopedSystemImpact}
-                  selectedItemId={selectedIctSystemId}
-                  selectedText={ictSystemsSelectedText}
-                  onSelectItem={(item) => {
-                    setSelectedBusinessServiceId(null);
-                    setSelectedMissionCapabilityId(null);
-                    setSelectedIctSystemId((current) => (current === item.id ? null : item.id));
-                  }}
-                  showClearSelectionButton
-                  clearSelectionDisabled={!selectedIctSystemId}
-                  onClearSelection={() => setSelectedIctSystemId(null)}
-                />
+            <div className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(26rem,0.92fr)_minmax(0,1.42fr)] xl:overflow-hidden">
+              <div className="cop-reveal cop-reveal-delay-2 grid min-h-0 min-w-0 auto-rows-[minmax(20rem,auto)] gap-2 xl:grid-rows-3 xl:auto-rows-auto xl:overflow-hidden">
+                <div className="min-h-[20rem] xl:min-h-0">
+                  <ImpactLeaderboard
+                    title="Business Services Impact"
+                    subtitle="Services carrying concentrated findings."
+                    items={businessImpactForLeaderboard}
+                    selectedItemId={selectedBusinessServiceId}
+                    selectedText={selectedBusinessService?.name ?? null}
+                    onSelectItem={(item) => {
+                      setSelectedMissionCapabilityId(null);
+                      setSelectedIctSystemId(null);
+                      setSelectedBusinessServiceId((current) => (current === item.id ? null : item.id));
+                    }}
+                    onFilterScopeChange={({ active, itemIds }) =>
+                      setBusinessSearchScope((current) => {
+                        if (
+                          current.active === active &&
+                          current.itemIds.length === itemIds.length &&
+                          current.itemIds.every((id, index) => id === itemIds[index])
+                        ) {
+                          return current;
+                        }
+                        return { active, itemIds };
+                      })
+                    }
+                    showClearSelectionButton
+                    clearSelectionDisabled={!selectedBusinessServiceId}
+                    onClearSelection={() => setSelectedBusinessServiceId(null)}
+                  />
+                </div>
+                <div className="min-h-[20rem] xl:min-h-0">
+                  <ImpactLeaderboard
+                    title="Mission Capabilities Impact"
+                    subtitle="Capabilities affected by current findings."
+                    items={missionImpactForLeaderboard}
+                    selectedItemId={selectedMissionCapabilityId}
+                    selectedText={selectedMissionCapability?.name ?? null}
+                    onSelectItem={(item) => {
+                      setSelectedBusinessServiceId(null);
+                      setSelectedIctSystemId(null);
+                      setSelectedMissionCapabilityId((current) => (current === item.id ? null : item.id));
+                    }}
+                    onFilterScopeChange={({ active, itemIds }) =>
+                      setMissionSearchScope((current) => {
+                        if (
+                          current.active === active &&
+                          current.itemIds.length === itemIds.length &&
+                          current.itemIds.every((id, index) => id === itemIds[index])
+                        ) {
+                          return current;
+                        }
+                        return { active, itemIds };
+                      })
+                    }
+                    showClearSelectionButton
+                    clearSelectionDisabled={!selectedMissionCapabilityId}
+                    onClearSelection={() => setSelectedMissionCapabilityId(null)}
+                  />
+                </div>
+                <div className="min-h-[20rem] xl:min-h-0">
+                  <ImpactLeaderboard
+                    title="ICT Systems Impact"
+                    subtitle={ictSystemsSubtitle}
+                    items={scopedSystemImpact}
+                    selectedItemId={selectedIctSystemId}
+                    selectedText={ictSystemsSelectedText}
+                    onSelectItem={(item) => {
+                      setSelectedBusinessServiceId(null);
+                      setSelectedMissionCapabilityId(null);
+                      setSelectedIctSystemId((current) => (current === item.id ? null : item.id));
+                    }}
+                    showClearSelectionButton
+                    clearSelectionDisabled={!selectedIctSystemId}
+                    onClearSelection={() => setSelectedIctSystemId(null)}
+                  />
+                </div>
               </div>
 
-              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
-                <SpiDriverChart rows={filteredImpactSpiDrivers} />
-                <BlastRadiusChart items={chartFilteredSystemImpact} metaBySystemId={impactBlastRadiusBySystemId} />
-              </div>
-
-              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
-                <EnvironmentImpactSplitChart rows={filteredImpactEnvironmentSplit} />
-                <MissionBusinessBlastRadiusChart
+              <div className="cop-reveal cop-reveal-delay-3 min-h-[34rem] min-w-0 max-w-full overflow-hidden xl:min-h-0">
+                <ImpactChartTabs
+                  spiRows={filteredImpactSpiDrivers}
+                  systemRows={chartFilteredSystemImpact}
+                  assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
+                  environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}
                   businessRows={filteredBusinessImpact}
                 />

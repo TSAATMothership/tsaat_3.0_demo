@@ -1,10 +1,13 @@
 import { buildKpiRows } from "@/lib/measures";
+import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { filterRealNetworks } from "@/lib/network-scope";
-import { SPI_IDS } from "@/lib/spi-metadata";
+import { SPI_DESCRIPTIONS, SPI_IDS, SPI_NAMES, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
 import {
   AnalyticsResult,
   Asset,
   AssetSpiEvaluation,
+  CveVulnerabilityDetail,
   ComplianceStatus,
   Dataset,
   Filters,
@@ -60,6 +63,56 @@ export interface PerformanceKpiMatrixRow {
   entityId: string;
   entityName: string;
   kpis: PerformanceKpiScore[];
+}
+
+export interface PerformanceAffectedCiRow {
+  assetId: string;
+  assetName: string;
+  assetIpAddress: string;
+  assetType: string;
+  assetChangeAssignmentGroup: string;
+  assetIncidentAssignmentGroup: string;
+  owner: string;
+  totalCveVulnerabilities: number;
+  cveVulnerabilities: CveVulnerabilityDetail[];
+}
+
+export interface PerformanceEntityDetails {
+  scopeType: PerformanceScopeType;
+  id: string;
+  name: string;
+  description: string;
+  owner: string;
+  supportEmail: string;
+  serviceCatalogueUrl: string;
+  atoNumber: string;
+  diisUrl: string;
+  grcUrl: string;
+  classification?: string;
+  missionCapabilities?: string;
+  businessServices?: string;
+  diisId?: string;
+  apmNumber?: string;
+  apmUrl?: string;
+}
+
+export interface PerformanceSpiScore extends PerformanceStatusCounts {
+  spiId: SpiId;
+  id: string;
+  label: string;
+  name: string;
+  description: string;
+  successMeasure: string;
+  affectedCis: PerformanceAffectedCiRow[];
+}
+
+export interface PerformanceSpiMatrixRow {
+  id: string;
+  securityDomain: SecurityDomain;
+  entityId: string;
+  entityName: string;
+  entityDetails: PerformanceEntityDetails;
+  spis: PerformanceSpiScore[];
 }
 
 export interface PerformanceFindingDetail {
@@ -163,6 +216,7 @@ export interface PerformanceReportModel {
   discoveryStatusMix: PerformanceDiscoveryCounts;
   domainEntityRows: PerformanceDomainEntityRow[];
   kpiMatrixRows: PerformanceKpiMatrixRow[];
+  spiMatrixRows: PerformanceSpiMatrixRow[];
   findingAgeThresholdRows: PerformanceFindingAgeThresholdRow[];
   findingSpiRows: PerformanceFindingSpiRow[];
   discoveryGapRows: PerformanceDiscoveryGapRow[];
@@ -387,6 +441,199 @@ function assetDisplayName(asset: Asset | undefined, fallbackId: string): string 
   return asset?.hostname || asset?.name || fallbackId;
 }
 
+function readRecordStringValue(
+  source: Record<string, unknown> | undefined,
+  candidateKeys: string[]
+): string | null {
+  if (!source) {
+    return null;
+  }
+
+  const entries = Object.entries(source).map(([key, value]) => [key.toLowerCase(), value] as const);
+  for (const candidateKey of candidateKeys) {
+    const matched = entries.find(([key]) => key === candidateKey.toLowerCase());
+    if (!matched || matched[1] === null || typeof matched[1] === "undefined") {
+      continue;
+    }
+    const text = String(matched[1]).trim();
+    if (text && text.toLowerCase() !== "null" && text.toLowerCase() !== "undefined") {
+      return text;
+    }
+  }
+  return null;
+}
+
+function resolveAssetIpAddress(asset: Asset | undefined): string {
+  return (
+    readRecordStringValue(asset as unknown as Record<string, unknown> | undefined, [
+      "assetIpAddress",
+      "ipAddress",
+      "assetIp",
+      "ip",
+      "ipv4Address",
+      "ipv4",
+      "primaryIp",
+      "ip_address"
+    ]) ?? "Not available"
+  );
+}
+
+function assetCveDetails(asset: Asset | undefined): CveVulnerabilityDetail[] {
+  return (asset?.vulnerabilities ?? []).map((vulnerability) => ({
+    cve: vulnerability.cve,
+    description: vulnerability.description,
+    remediationGuidance: vulnerability.remediationGuidance,
+    criticality: vulnerability.criticality,
+    exploitability: vulnerability.exploitability,
+    capturedAt: vulnerability.capturedAt
+  }));
+}
+
+function affectedCiOwner(asset: Asset | undefined, fallbackOwner: string): string {
+  return (
+    readRecordStringValue(asset as unknown as Record<string, unknown> | undefined, [
+      "assetOwner",
+      "owner",
+      "serviceOwner"
+    ]) ?? fallbackOwner
+  );
+}
+
+function buildAffectedCiRows(
+  evaluations: AssetSpiEvaluation[],
+  spiId: SpiId,
+  assetById: Map<string, Asset>,
+  fallbackOwner: string
+): PerformanceAffectedCiRow[] {
+  return evaluations
+    .filter((evaluation) =>
+      evaluation.evaluations.some((item) => item.spiId === spiId && item.status === "Non-compliant")
+    )
+    .map((evaluation) => {
+      const asset = assetById.get(evaluation.assetId);
+      const cveVulnerabilities = assetCveDetails(asset);
+      const assetRecord = asset as unknown as Record<string, unknown> | undefined;
+
+      return {
+        assetId: evaluation.assetId,
+        assetName: assetDisplayName(asset, evaluation.assetId),
+        assetIpAddress: resolveAssetIpAddress(asset),
+        assetType: formatAssetTypeLabel(asset?.type ?? evaluation.assetType),
+        assetChangeAssignmentGroup:
+          readRecordStringValue(assetRecord, [
+            "assetChangeAssignmentGroup",
+            "changeAssignmentGroup",
+            "changeGroup",
+            "change_assignment_group"
+          ]) ?? "Not assigned",
+        assetIncidentAssignmentGroup:
+          readRecordStringValue(assetRecord, [
+            "assetIncidentAssignmentGroup",
+            "incidentAssignmentGroup",
+            "incidentGroup",
+            "incident_assignment_group"
+          ]) ?? "Not assigned",
+        owner: affectedCiOwner(asset, fallbackOwner),
+        totalCveVulnerabilities: cveVulnerabilities.length,
+        cveVulnerabilities
+      };
+    })
+    .sort((a, b) => {
+      if (b.totalCveVulnerabilities !== a.totalCveVulnerabilities) {
+        return b.totalCveVulnerabilities - a.totalCveVulnerabilities;
+      }
+      return a.assetName.localeCompare(b.assetName);
+    });
+}
+
+function fallbackSystemDescription(system: ICTSystem): string {
+  if (system.description?.trim()) {
+    return system.description.trim();
+  }
+
+  const missionSummary =
+    system.missionCapabilities.map((capability) => capability.name).join(", ") || "assigned mission capabilities";
+  const serviceSummary =
+    system.businessServices.map((service) => service.name).join(", ") || "assigned business services";
+
+  return `${system.name} is a ${system.criticality.toLowerCase()} ICT system in the ${system.securityDomain} domain supporting ${missionSummary} and ${serviceSummary}.`;
+}
+
+function fallbackSystemOwner(system: ICTSystem): string {
+  return system.owner?.trim() || `${system.name} Operations Team`;
+}
+
+function fallbackSystemDiisId(system: ICTSystem): string {
+  return system.diisId?.trim() || `DIIS-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+}
+
+function fallbackSystemSupportEmail(system: ICTSystem): string {
+  return system.supportEmail?.trim() || `ict-support+${system.id.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}@tsaat.local`;
+}
+
+function fallbackSystemServiceCatalogueUrl(system: ICTSystem): string {
+  return system.serviceCatalogueUrl?.trim() || `/systems/${system.id}`;
+}
+
+function fallbackSystemAtoNumber(system: ICTSystem): string {
+  return system.atoNumber?.trim() || `ATO-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+}
+
+function fallbackSystemDiisUrl(system: ICTSystem): string {
+  return system.diisUrl?.trim() || `https://diis.defence.gov.au/systems/${encodeURIComponent(system.id)}`;
+}
+
+function fallbackSystemGrcUrl(system: ICTSystem, atoNumber: string): string {
+  return system.grcUrl?.trim() || `https://grc.defence.gov.au/ato/${encodeURIComponent(atoNumber)}`;
+}
+
+function fallbackSystemApmNumber(system: ICTSystem): string {
+  return system.apmNumber?.trim() || `APM-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
+}
+
+function fallbackSystemApmUrl(system: ICTSystem, apmNumber: string): string {
+  return `https://apm.defence.gov.au/applications/${encodeURIComponent(apmNumber)}`;
+}
+
+function networkEntityDetails(network: ManagedNetwork): PerformanceEntityDetails {
+  const detailFields = resolveNetworkDetailFields(network);
+  return {
+    scopeType: "network",
+    id: network.id,
+    name: network.name,
+    classification: network.classification ?? "-",
+    description: detailFields.description,
+    owner: detailFields.owner,
+    supportEmail: detailFields.supportEmail,
+    serviceCatalogueUrl: detailFields.serviceCatalogueUrl,
+    atoNumber: detailFields.atoNumber,
+    diisUrl: detailFields.diisUrl,
+    grcUrl: detailFields.grcUrl
+  };
+}
+
+function systemEntityDetails(system: ICTSystem): PerformanceEntityDetails {
+  const atoNumber = fallbackSystemAtoNumber(system);
+  const apmNumber = fallbackSystemApmNumber(system);
+  return {
+    scopeType: "system",
+    id: system.id,
+    name: system.name,
+    description: fallbackSystemDescription(system),
+    missionCapabilities: system.missionCapabilities.map((capability) => capability.name).join(", ") || "-",
+    businessServices: system.businessServices.map((service) => service.name).join(", ") || "-",
+    owner: fallbackSystemOwner(system),
+    supportEmail: fallbackSystemSupportEmail(system),
+    serviceCatalogueUrl: fallbackSystemServiceCatalogueUrl(system),
+    atoNumber,
+    diisId: fallbackSystemDiisId(system),
+    diisUrl: fallbackSystemDiisUrl(system),
+    grcUrl: fallbackSystemGrcUrl(system, atoNumber),
+    apmNumber,
+    apmUrl: fallbackSystemApmUrl(system, apmNumber)
+  };
+}
+
 export function buildPerformanceReportModel({
   scopeType,
   dataset,
@@ -418,6 +665,11 @@ export function buildPerformanceReportModel({
           securityDomain: system.securityDomain
         }));
   const entityById = new Map(entityRows.map((entity) => [entity.id, entity]));
+  const entityDetailsById = new Map<string, PerformanceEntityDetails>(
+    scopeType === "network"
+      ? scopedNetworks.map((network) => [network.id, networkEntityDetails(network)])
+      : scopedSystems.map((system) => [system.id, systemEntityDetails(system)])
+  );
   const entityIds = new Set(entityRows.map((entity) => entity.id));
   const assetById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
 
@@ -486,6 +738,56 @@ export function buildPerformanceReportModel({
         unknownCount: kpi.unknownCount,
         highPriorityCount: kpi.highPriorityCount
       }))
+    };
+  });
+
+  const spiMatrixRows = domainEntityRows.map((row) => {
+    const evaluations = groupedEvaluations.get(row.id) ?? [];
+
+    return {
+      id: row.id,
+      securityDomain: row.securityDomain,
+      entityId: row.entityId,
+      entityName: row.entityName,
+      entityDetails:
+        entityDetailsById.get(row.entityId) ??
+        ({
+          scopeType,
+          id: row.entityId,
+          name: row.entityName,
+          description: "No entity details available.",
+          owner: "Not assigned",
+          supportEmail: "Not assigned",
+          serviceCatalogueUrl: scopeType === "network" ? `/networks/${row.entityId}` : `/systems/${row.entityId}`,
+          atoNumber: "-",
+          diisUrl: "#",
+          grcUrl: "#"
+        } satisfies PerformanceEntityDetails),
+      spis: SPI_IDS.map((spiId) => {
+        const counts = statusCounts(
+          evaluations.flatMap((evaluation) =>
+            evaluation.evaluations
+              .filter((item) => item.spiId === spiId)
+              .map((item) => item.status)
+          )
+        );
+
+        return {
+          spiId,
+          id: `SPI-${spiId}`,
+          label: `SPI ${spiId}`,
+          name: SPI_NAMES[spiId],
+          description: SPI_DESCRIPTIONS[spiId],
+          successMeasure: SPI_SUCCESS_MEASURES[spiId],
+          affectedCis: buildAffectedCiRows(
+            evaluations,
+            spiId,
+            assetById,
+            entityDetailsById.get(row.entityId)?.owner ?? "Not assigned"
+          ),
+          ...counts
+        };
+      })
     };
   });
 
@@ -657,6 +959,7 @@ export function buildPerformanceReportModel({
     discoveryStatusMix,
     domainEntityRows,
     kpiMatrixRows,
+    spiMatrixRows,
     findingAgeThresholdRows,
     findingSpiRows,
     discoveryGapRows,

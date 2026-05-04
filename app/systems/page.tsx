@@ -1,6 +1,5 @@
 import { FilterBar } from "@/components/filter-bar";
 import {
-  SystemsActionPanel,
   SystemsOverviewPanel,
   SystemsPostureKpiSummary
 } from "@/components/systems-cop-panels";
@@ -9,7 +8,6 @@ import { SystemsTabs } from "@/components/systems-tabs";
 import { getTrendAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
-import { buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { deriveOverallStatus } from "@/lib/posture";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
@@ -19,20 +17,6 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return value[0];
   }
   return value;
-}
-
-function toQueryEntries(searchParams: Record<string, string | string[] | undefined>): Array<[string, string]> {
-  const entries: Array<[string, string]> = [];
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        entries.push([key, item]);
-      }
-    } else if (typeof value === "string") {
-      entries.push([key, value]);
-    }
-  }
-  return entries;
 }
 
 function complianceCounts(statuses: ComplianceStatus[]) {
@@ -269,254 +253,6 @@ function buildWeeklyRiskTrend(
   });
 }
 
-function differenceInWholeUtcDays(fromDate: Date, toDate: Date): number {
-  const deltaMs = toDate.getTime() - fromDate.getTime();
-  return Math.max(0, Math.floor(deltaMs / 86_400_000));
-}
-
-function throughputWeekIndex(startDate: Date, dateKey: string, weeks: number): number {
-  const date = parseUtcDateKey(dateKey);
-  const diffDays = differenceInWholeUtcDays(startDate, date);
-  if (diffDays < 0 || diffDays >= weeks * 7) {
-    return -1;
-  }
-  return Math.floor(diffDays / 7);
-}
-
-function buildActionThroughput(findings: Finding[], endDateKey: string, weeks = 13) {
-  const endDate = parseUtcDateKey(endDateKey);
-  const startDate = addUtcDays(endDate, -(weeks * 7 - 1));
-
-  const rows = Array.from({ length: weeks }, (_, index) => {
-    const weekEndDate = addUtcDays(startDate, index * 7 + 6);
-    return {
-      weekLabel: formatUtcDay(weekEndDate),
-      openedCount: 0,
-      closedCount: 0,
-      netChange: 0
-    };
-  });
-
-  for (const finding of findings) {
-    const openedDateKey = toFindingDateKey(finding.timestamp);
-    if (openedDateKey) {
-      const openedIndex = throughputWeekIndex(startDate, openedDateKey, weeks);
-      if (openedIndex >= 0) {
-        rows[openedIndex].openedCount += 1;
-      }
-    }
-
-    const closedDateKey = toFindingDateKey(finding.closedTimestamp);
-    if (closedDateKey) {
-      const closedIndex = throughputWeekIndex(startDate, closedDateKey, weeks);
-      if (closedIndex >= 0) {
-        rows[closedIndex].closedCount += 1;
-      }
-    }
-  }
-
-  return rows.map((row) => ({
-    ...row,
-    netChange: row.openedCount - row.closedCount
-  }));
-}
-
-const actionAgeBucketBoundaries: Array<{ label: string; minDays: number; maxDays: number | null }> = [
-  { label: "0-30d", minDays: 0, maxDays: 30 },
-  { label: "31-60d", minDays: 31, maxDays: 60 },
-  { label: "61-90d", minDays: 61, maxDays: 90 },
-  { label: "91-180d", minDays: 91, maxDays: 180 },
-  { label: "181d+", minDays: 181, maxDays: null }
-];
-
-function resolveActionAgeBucket(ageDays: number): string {
-  for (const bucket of actionAgeBucketBoundaries) {
-    if (ageDays < bucket.minDays) {
-      continue;
-    }
-    if (bucket.maxDays === null || ageDays <= bucket.maxDays) {
-      return bucket.label;
-    }
-  }
-  return actionAgeBucketBoundaries[actionAgeBucketBoundaries.length - 1].label;
-}
-
-function buildActionAgeBuckets(openFindings: Finding[], endDateKey: string) {
-  const today = parseUtcDateKey(endDateKey);
-  const rowsByLabel = new Map(
-    actionAgeBucketBoundaries.map((bucket) => [
-      bucket.label,
-      {
-        bucketLabel: bucket.label,
-        criticalExposureCount: 0,
-        highRiskCount: 0,
-        otherCount: 0,
-        total: 0
-      }
-    ])
-  );
-
-  for (const finding of openFindings) {
-    const openedDateKey = toFindingDateKey(finding.timestamp);
-    if (!openedDateKey) {
-      continue;
-    }
-
-    const ageDays = differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today);
-    const bucketLabel = resolveActionAgeBucket(ageDays);
-    const row = rowsByLabel.get(bucketLabel);
-    if (!row) {
-      continue;
-    }
-
-    if (finding.severity === "Critical Exposure") {
-      row.criticalExposureCount += 1;
-    } else if (finding.severity === "High Risk") {
-      row.highRiskCount += 1;
-    } else {
-      row.otherCount += 1;
-    }
-    row.total += 1;
-  }
-
-  return actionAgeBucketBoundaries
-    .map((bucket) => rowsByLabel.get(bucket.label))
-    .filter(
-      (
-        row
-      ): row is {
-        bucketLabel: string;
-        criticalExposureCount: number;
-        highRiskCount: number;
-        otherCount: number;
-        total: number;
-      } => Boolean(row)
-    );
-}
-
-function formatActionDate(dateKey: string): string {
-  return parseUtcDateKey(dateKey).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC"
-  });
-}
-
-function buildActionOldestOpenFindings(
-  openFindings: Finding[],
-  systemNameById: Map<string, string>,
-  endDateKey: string,
-  topCount = 12
-) {
-  const today = parseUtcDateKey(endDateKey);
-
-  return openFindings
-    .map((finding) => {
-      const openedDateKey = toFindingDateKey(finding.timestamp);
-      if (!openedDateKey || !finding.scope.systemId) {
-        return null;
-      }
-
-      return {
-        findingId: finding.id,
-        title: finding.title,
-        severity: finding.severity,
-        spiLabel: `SPI ${finding.spiId}`,
-        systemName: systemNameById.get(finding.scope.systemId) ?? "Unassigned",
-        impactedDevices:
-          typeof finding.evidence.assetName === "string" && finding.evidence.assetName.trim().length > 0
-            ? finding.evidence.assetName
-            : finding.scope.assetId,
-        openedDate: formatActionDate(openedDateKey),
-        ageDays: differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today)
-      };
-    })
-    .filter(
-      (
-        row
-      ): row is {
-        findingId: string;
-        title: string;
-        severity: FindingSeverity;
-        spiLabel: string;
-        systemName: string;
-        impactedDevices: string;
-        openedDate: string;
-        ageDays: number;
-      } => Boolean(row)
-    )
-    .sort((a, b) => {
-      if (b.ageDays !== a.ageDays) {
-        return b.ageDays - a.ageDays;
-      }
-      return a.findingId.localeCompare(b.findingId);
-    })
-    .slice(0, topCount);
-}
-
-function buildActionQuickWins(openFindings: Finding[], topCount = 10) {
-  const grouped = new Map<
-    string,
-    {
-      actionText: string;
-      criticalExposureCount: number;
-      highRiskCount: number;
-      otherCount: number;
-      total: number;
-      systemIds: Set<string>;
-    }
-  >();
-
-  for (const finding of openFindings) {
-    const actionText = finding.recommendedAction?.trim() || "No recommended action provided";
-    const key = actionText.toLowerCase();
-    const row = grouped.get(key) ?? {
-      actionText,
-      criticalExposureCount: 0,
-      highRiskCount: 0,
-      otherCount: 0,
-      total: 0,
-      systemIds: new Set<string>()
-    };
-
-    if (finding.severity === "Critical Exposure") {
-      row.criticalExposureCount += 1;
-    } else if (finding.severity === "High Risk") {
-      row.highRiskCount += 1;
-    } else {
-      row.otherCount += 1;
-    }
-    row.total += 1;
-    if (finding.scope.systemId) {
-      row.systemIds.add(finding.scope.systemId);
-    }
-    grouped.set(key, row);
-  }
-
-  return Array.from(grouped.values())
-    .sort((a, b) => {
-      const severeA = a.criticalExposureCount + a.highRiskCount;
-      const severeB = b.criticalExposureCount + b.highRiskCount;
-      if (severeB !== severeA) {
-        return severeB - severeA;
-      }
-      if (b.total !== a.total) {
-        return b.total - a.total;
-      }
-      return a.actionText.localeCompare(b.actionText);
-    })
-    .slice(0, topCount)
-    .map((row) => ({
-      actionText: row.actionText,
-      criticalExposureCount: row.criticalExposureCount,
-      highRiskCount: row.highRiskCount,
-      otherCount: row.otherCount,
-      total: row.total,
-      systemCount: row.systemIds.size
-    }));
-}
-
 export default async function SystemsPage({
   searchParams
 }: {
@@ -534,19 +270,9 @@ export default async function SystemsPage({
   } = await getTrendAppData(
     systemsOnlySearchParams
   );
-  const queryEntries = toQueryEntries(systemsOnlySearchParams);
-  const performanceReportHref = (() => {
-    const params = new URLSearchParams();
-    for (const [key, value] of queryEntries) {
-      params.append(key, value);
-    }
-    const query = params.toString();
-    return query ? `/api/systems/performance-report?${query}` : "/api/systems/performance-report";
-  })();
 
   const requestedTab = firstParam(searchParams.systemsTab)?.trim().toLowerCase();
-  const activeTab: "overview" | "action" | "posture" =
-    requestedTab === "action" ? "action" : requestedTab === "posture" ? "posture" : "overview";
+  const activeTab: "overview" | "posture" = requestedTab === "posture" ? "posture" : "overview";
 
   const scopedSystemIds = new Set(systems.map((system) => system.id));
   const totalSystemsCount = systems.length;
@@ -782,13 +508,6 @@ export default async function SystemsPage({
       const bTime = new Date(b.timestamp).getTime();
       return bTime - aTime;
     });
-  const outOfWarranty = filteredAssets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
-  const discoveryCoverageGaps = analytics.evaluations.filter(
-    (evaluation) =>
-      Boolean(evaluation.systemId) &&
-      scopedSystemIds.has(evaluation.systemId as string) &&
-      !evaluation.discoveryCoverageCompliant
-  ).length;
   const modelledSystemsCount = systems.filter((system) => system.modellingStatus).length;
   const systemsNotModelled = systems.filter((system) => !system.modellingStatus).length;
   const modelledPercent = totalSystemsCount ? Number(((modelledSystemsCount / totalSystemsCount) * 100).toFixed(1)) : 0;
@@ -796,46 +515,13 @@ export default async function SystemsPage({
     ? Number(((systemsNotModelled / totalSystemsCount) * 100).toFixed(1))
     : 0;
 
-  const immediateAction = highRiskOpenCount + criticalExposureOpenCount;
-  const plannedRemediation = openFindings.filter(
-    (finding) => finding.priorityRank >= 3 && finding.priorityRank < 90
-  ).length;
-  const nonCompliantOs = analytics.evaluations.filter(
-    (evaluation) =>
-      Boolean(evaluation.systemId) &&
-      scopedSystemIds.has(evaluation.systemId as string) &&
-      (evaluation.assetType === "server" || evaluation.assetType === "workstation") &&
-      evaluation.evaluations.some(
-        (evaluationItem) =>
-          (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
-      )
-  ).length;
-  const actionThroughput = buildActionThroughput(systemScopedFindings, chartAnchorDateKey, 13);
-  const actionAgeBuckets = buildActionAgeBuckets(openFindings, chartAnchorDateKey);
-  const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
-  const actionOldestOpenFindings = buildActionOldestOpenFindings(
-    openFindings,
-    systemNameById,
-    chartAnchorDateKey,
-    12
-  );
-  const actionQuickWins = buildActionQuickWins(openFindings, 10);
-  const actionPerformanceModel = buildSystemPerformanceReportModel({
-    dataset,
-    analytics,
-    filters,
-    networks,
-    systems,
-    asOfDate: chartAnchorDateKey
-  });
-
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">ICT Systems View</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-100">ICT System Cyber Security Posture</h1>
         <p className="mt-1 text-sm text-slate-300/80">
-          ICT-system-scoped operational posture with Cyber COP aligned overview and action views.
+          ICT-system-scoped operational posture with Cyber COP aligned overview and posture views.
         </p>
       </section>
 
@@ -936,28 +622,6 @@ export default async function SystemsPage({
                 dailyHighRisk={highRiskDaily}
                 dailyCriticalExposure={criticalExposureDaily}
               />
-            </div>
-          </div>
-        ) : activeTab === "action" ? (
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-            <div className="-mt-4">
-              <FilterBar
-                options={filterOptions}
-                filters={filters}
-                hiddenFields={["managedNetwork"]}
-                enableLoadingOverlay
-                actions={
-                  <a
-                    href={performanceReportHref}
-                    className="inline-flex h-[42px] items-center justify-center whitespace-nowrap rounded-md border border-amber-300/45 bg-amber-500/15 px-4 text-sm font-semibold text-amber-100 transition-colors hover:bg-amber-500/25"
-                  >
-                    Performance Report
-                  </a>
-                }
-              />
-            </div>
-            <div className="min-h-0">
-              <SystemsActionPanel model={actionPerformanceModel} />
             </div>
           </div>
         ) : (

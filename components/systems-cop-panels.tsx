@@ -2,13 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Line,
   LineChart,
-  Legend,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -24,8 +21,6 @@ import {
   SystemsBlastRadiusSelectionDetail
 } from "@/lib/systems-blast-radius-selection";
 import { OverviewComplianceScoreStrip, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
-import { PerformanceActionDashboard } from "@/components/performance-action-dashboard";
-import type { PerformanceReportModel } from "@/lib/performance-report-model";
 import { FindingSeverity, HighRiskCveDetail } from "@/lib/types";
 
 export interface SystemSeveritySummary {
@@ -45,73 +40,11 @@ export interface SystemDailyTrendPoint {
   count: number | null;
 }
 
-export interface SystemActionThroughputPoint {
-  weekLabel: string;
-  openedCount: number;
-  closedCount: number;
-  netChange: number;
-}
-
-export interface SystemActionAgeBucketRow {
-  bucketLabel: string;
-  criticalExposureCount: number;
-  highRiskCount: number;
-  otherCount: number;
-  total: number;
-}
-
-export interface SystemActionOldestFindingRow {
-  findingId: string;
-  title: string;
-  severity: FindingSeverity;
-  spiLabel: string;
-  systemName: string;
-  impactedDevices: string;
-  openedDate: string;
-  ageDays: number;
-}
-
-export interface SystemActionQuickWinRow {
-  actionText: string;
-  criticalExposureCount: number;
-  highRiskCount: number;
-  otherCount: number;
-  total: number;
-  systemCount: number;
-}
-
 export interface SystemBlastRadiusPoint {
   systemId: string;
   systemName: string;
   endpointCount: number;
   highRiskP12FindingsCount: number;
-}
-
-function ActionTile({
-  title,
-  value,
-  subtitle,
-  tone
-}: {
-  title: string;
-  value: number;
-  subtitle: string;
-  tone: "critical" | "warning" | "watch";
-}) {
-  const toneClass =
-    tone === "critical"
-      ? "border-red-400/35 text-red-100"
-      : tone === "warning"
-        ? "border-amber-300/35 text-amber-100"
-        : "border-sky-300/35 text-sky-100";
-
-  return (
-    <article className={`panel-alt ${toneClass} p-3`}>
-      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/75">{title}</p>
-      <p className="mt-1.5 text-xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
-    </article>
-  );
 }
 
 function KpiBulletRow({
@@ -401,172 +334,6 @@ function DailyTrendPanel({
   );
 }
 
-function RemediationThroughputChart({ rows }: { rows: SystemActionThroughputPoint[] }) {
-  const totalOpened = rows.reduce((accumulator, row) => accumulator + row.openedCount, 0);
-  const totalClosed = rows.reduce((accumulator, row) => accumulator + row.closedCount, 0);
-
-  return (
-    <section className="panel flex min-h-0 flex-col p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
-          <p className="mt-1 text-xs text-slate-300/80">Opened vs closed findings over the last 13 weeks.</p>
-        </div>
-        <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-          Opened: {totalOpened} | Closed: {totalClosed}
-        </p>
-      </div>
-      <div className="mt-2 min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
-            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-            <XAxis dataKey="weekLabel" minTickGap={18} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-              formatter={(value, name) => [value, name === "openedCount" ? "Opened" : "Closed"]}
-            />
-            <Legend
-              formatter={(value) => (value === "openedCount" ? "Opened" : "Closed")}
-              wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }}
-            />
-            <Bar dataKey="openedCount" fill="#f59e0b" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="closedCount" fill="#22c55e" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-  );
-}
-
-function FindingAgingBucketsChart({ rows }: { rows: SystemActionAgeBucketRow[] }) {
-  return (
-    <section className="panel flex min-h-0 flex-col p-3">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
-      <div className="mt-2 min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
-            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-            <XAxis dataKey="bucketLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-              formatter={(value, key) => {
-                if (key === "criticalExposureCount") {
-                  return [value, "Critical Exposure"];
-                }
-                if (key === "highRiskCount") {
-                  return [value, "High Risk"];
-                }
-                return [value, "Other"];
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
-            <Bar dataKey="criticalExposureCount" stackId="severity" name="Critical Exposure" fill="#ef4444" isAnimationActive={false} />
-            <Bar dataKey="highRiskCount" stackId="severity" name="High Risk" fill="#f97316" isAnimationActive={false} />
-            <Bar dataKey="otherCount" stackId="severity" name="Other" fill="#38bdf8" isAnimationActive={false} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-  );
-}
-
-function severityPillClass(severity: FindingSeverity): string {
-  if (severity === "Critical Exposure") {
-    return "border-red-400/35 text-red-100";
-  }
-  if (severity === "High Risk") {
-    return "border-orange-400/35 text-orange-100";
-  }
-  if (severity === "Major") {
-    return "border-amber-300/35 text-amber-100";
-  }
-  if (severity === "Moderate") {
-    return "border-sky-300/35 text-sky-100";
-  }
-  return "border-slate-400/35 text-slate-200";
-}
-
-function OldestOpenFindingsTable({ rows }: { rows: SystemActionOldestFindingRow[] }) {
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-3">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
-        <table className="min-w-full text-sm">
-          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
-            <tr>
-              <th className="min-w-[11rem] px-3 py-2 text-left">Severity</th>
-              <th className="px-3 py-2 text-right">Age (Days)</th>
-              <th className="px-3 py-2 text-left">SPI</th>
-              <th className="px-3 py-2 text-left">ICT System</th>
-              <th className="px-3 py-2 text-left">Imacted Devices</th>
-              <th className="px-3 py-2 text-left">Opened</th>
-              <th className="px-3 py-2 text-left">Title</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.findingId} className="border-t border-sky-300/10">
-                <td className="min-w-[11rem] px-3 py-2">
-                  <span
-                    className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}
-                  >
-                    {row.severity}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right text-slate-100">{row.ageDays}</td>
-                <td className="px-3 py-2 text-slate-200">{row.spiLabel}</td>
-                <td className="px-3 py-2 text-slate-200">{row.systemName}</td>
-                <td className="px-3 py-2 text-slate-200">{row.impactedDevices}</td>
-                <td className="px-3 py-2 text-slate-300">{row.openedDate}</td>
-                <td className="px-3 py-2 text-slate-200">{row.title}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function ActionQuickWinsTable({ rows }: { rows: SystemActionQuickWinRow[] }) {
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-3">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
-        <table className="min-w-full text-sm">
-          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
-            <tr>
-              <th className="px-3 py-2 text-left">Recommended Action</th>
-              <th className="px-3 py-2 text-right">Critical Exposure</th>
-              <th className="px-3 py-2 text-right">High Risk</th>
-              <th className="px-3 py-2 text-right">Other</th>
-              <th className="px-3 py-2 text-right">Total</th>
-              <th className="px-3 py-2 text-right">ICT Systems</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.actionText} className="border-t border-sky-300/10">
-                <td className="px-3 py-2 text-slate-100">{row.actionText}</td>
-                <td className="px-3 py-2 text-right text-red-100">{row.criticalExposureCount}</td>
-                <td className="px-3 py-2 text-right text-orange-100">{row.highRiskCount}</td>
-                <td className="px-3 py-2 text-right text-sky-100">{row.otherCount}</td>
-                <td className="px-3 py-2 text-right text-slate-200">{row.total}</td>
-                <td className="px-3 py-2 text-right text-slate-200">{row.systemCount}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 export function SystemsOverviewPanel({
   snapshotDate,
   scoreCards,
@@ -637,12 +404,4 @@ export function SystemsOverviewPanel({
       </div>
     </div>
   );
-}
-
-export function SystemsActionPanel({
-  model
-}: {
-  model: PerformanceReportModel;
-}) {
-  return <PerformanceActionDashboard model={model} />;
 }

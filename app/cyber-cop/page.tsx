@@ -4,7 +4,7 @@ import {
   type CyberCopActionOldestFindingRow,
   type CyberCopActionQuickWinRow,
   type CyberCopActionThroughputPoint,
-  type CyberCopBlastRadiusSystemMeta,
+  type CyberCopAssetTypeHeatmapAsset,
   type CyberCopDailyTrendPoint,
   type CyberCopImpactItem,
   type CyberCopImpactEnvironmentSplitRow,
@@ -17,7 +17,7 @@ import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
-import { ASSET_TYPES, createAssetTypeRecord, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
@@ -830,78 +830,87 @@ function buildImpactLinks(
   };
 }
 
-function pickPrimaryAssetType(counts: Record<AssetType, number>): AssetType {
-  const orderedTypes: AssetType[] = [...ASSET_TYPES];
-  return orderedTypes.reduce((currentBest, candidate) =>
-    counts[candidate] > counts[currentBest] ? candidate : currentBest
-  );
-}
-
-function buildImpactBlastRadiusBySystemId(
+function buildImpactAssetTypeHeatmapBySystemId(
   assets: Asset[],
-  findings: Finding[]
-): Record<string, CyberCopBlastRadiusSystemMeta> {
-  const bySystem = new Map<
+  findings: Finding[],
+  systems: Array<{ id: string; name: string }>
+): Record<string, CyberCopAssetTypeHeatmapAsset[]> {
+  const systemNameById = new Map(systems.map((system) => [system.id, system.name]));
+  const severeCountsByAssetId = new Map<
     string,
     {
-      totalAssets: number;
-      typeCounts: Record<AssetType, number>;
+      criticalExposureCount: number;
+      highRiskCount: number;
     }
   >();
 
+  for (const finding of findings) {
+    if (finding.severity !== "Critical Exposure" && finding.severity !== "High Risk") {
+      continue;
+    }
+
+    const row = severeCountsByAssetId.get(finding.scope.assetId) ?? {
+      criticalExposureCount: 0,
+      highRiskCount: 0
+    };
+
+    if (finding.severity === "Critical Exposure") {
+      row.criticalExposureCount += 1;
+    } else {
+      row.highRiskCount += 1;
+    }
+    severeCountsByAssetId.set(finding.scope.assetId, row);
+  }
+
+  const bySystem = new Map<string, CyberCopAssetTypeHeatmapAsset[]>();
   for (const asset of assets) {
     const systemId = asset.systemContext?.systemId;
     if (!systemId) {
       continue;
     }
 
-    const row = bySystem.get(systemId) ?? {
-      totalAssets: 0,
-      typeCounts: createAssetTypeRecord(() => 0)
+    const counts = severeCountsByAssetId.get(asset.id) ?? {
+      criticalExposureCount: 0,
+      highRiskCount: 0
+    };
+    const row: CyberCopAssetTypeHeatmapAsset = {
+      id: asset.id,
+      name: asset.name || asset.hostname || asset.id,
+      hostname: asset.hostname || asset.name || asset.id,
+      assetType: asset.type,
+      systemId,
+      systemName: systemNameById.get(systemId) ?? "Unassigned ICT System",
+      criticalExposureCount: counts.criticalExposureCount,
+      highRiskCount: counts.highRiskCount,
+      severeFindingCount: counts.criticalExposureCount + counts.highRiskCount,
+      riskScore: counts.criticalExposureCount * 2 + counts.highRiskCount
     };
 
-    row.totalAssets += 1;
-    row.typeCounts[asset.type] += 1;
-    bySystem.set(systemId, row);
-  }
-
-  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
-  const impactedTypeCountsBySystem = new Map<
-    string,
-    {
-      impactedAssetIds: Set<string>;
-      typeCounts: Record<AssetType, number>;
-    }
-  >();
-
-  for (const finding of findings) {
-    if (!finding.scope.systemId) {
-      continue;
-    }
-
-    const asset = assetsById.get(finding.scope.assetId);
-    if (!asset) {
-      continue;
-    }
-
-    const row = impactedTypeCountsBySystem.get(finding.scope.systemId) ?? {
-      impactedAssetIds: new Set<string>(),
-      typeCounts: createAssetTypeRecord(() => 0)
-    };
-    if (!row.impactedAssetIds.has(asset.id)) {
-      row.impactedAssetIds.add(asset.id);
-      row.typeCounts[asset.type] += 1;
-    }
-    impactedTypeCountsBySystem.set(finding.scope.systemId, row);
+    const rows = bySystem.get(systemId) ?? [];
+    rows.push(row);
+    bySystem.set(systemId, rows);
   }
 
   return Object.fromEntries(
-    Array.from(bySystem.entries()).map(([systemId, row]) => [
+    Array.from(bySystem.entries()).map(([systemId, rows]) => [
       systemId,
-      {
-        totalAssets: row.totalAssets,
-        primaryAssetType: pickPrimaryAssetType(impactedTypeCountsBySystem.get(systemId)?.typeCounts ?? row.typeCounts)
-      }
+      rows.sort((left, right) => {
+        const leftTypeIndex = ASSET_TYPES.indexOf(left.assetType);
+        const rightTypeIndex = ASSET_TYPES.indexOf(right.assetType);
+        if (leftTypeIndex !== rightTypeIndex) {
+          return leftTypeIndex - rightTypeIndex;
+        }
+        if (right.riskScore !== left.riskScore) {
+          return right.riskScore - left.riskScore;
+        }
+        if (right.criticalExposureCount !== left.criticalExposureCount) {
+          return right.criticalExposureCount - left.criticalExposureCount;
+        }
+        if (right.highRiskCount !== left.highRiskCount) {
+          return right.highRiskCount - left.highRiskCount;
+        }
+        return left.name.localeCompare(right.name);
+      })
     ])
   );
 }
@@ -1294,7 +1303,7 @@ export default async function CyberCopPage({
   const businessImpact = buildBusinessServiceImpact(openFindings, systems);
   const systemImpact = buildSystemImpact(openFindings, systems);
   const impactLinks = buildImpactLinks(systems);
-  const impactBlastRadiusBySystemId = buildImpactBlastRadiusBySystemId(filteredAssets, openFindings);
+  const impactAssetTypeHeatmapBySystemId = buildImpactAssetTypeHeatmapBySystemId(filteredAssets, openFindings, systems);
   const impactSpiDrivers = buildImpactSpiDrivers(openFindings);
   const impactSpiDriversBySystemId = buildImpactSpiDriversBySystemId(openFindings);
   const impactEnvironmentSplit = buildImpactEnvironmentSplit(openFindings);
@@ -1364,7 +1373,7 @@ export default async function CyberCopPage({
           systems: systemImpact
         }}
         impactLinks={impactLinks}
-        impactBlastRadiusBySystemId={impactBlastRadiusBySystemId}
+        impactAssetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
         impactSpiDrivers={impactSpiDrivers}
         impactSpiDriversBySystemId={impactSpiDriversBySystemId}
         impactEnvironmentSplit={impactEnvironmentSplit}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-type SystemsTabId = "overview" | "action" | "posture";
+type SystemsTabId = "overview" | "posture";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -21,7 +21,6 @@ function nextProgressValue(current: number): number {
 
 const tabs: Array<{ id: SystemsTabId; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "action", label: "Action" },
   { id: "posture", label: "ICT Systems Roll-Up Posture Summary" }
 ];
 
@@ -139,9 +138,7 @@ export function SystemsTabs({ activeTab }: { activeTab: SystemsTabId }) {
                     Opening{" "}
                     {pendingTab === "posture"
                       ? "ICT Systems Roll-Up Posture Summary"
-                      : pendingTab === "action"
-                        ? "Action"
-                        : "Overview"}
+                      : "Overview"}
                     ...
                   </span>
                 </div>

@@ -131,6 +131,20 @@ function fixture() {
     asset("asset-2", "net-a", "sys-a", "Protected"),
     asset("asset-3", "net-b", "sys-b", "Protected", true)
   ];
+  assets[0].vulnerabilities = [
+    {
+      assetId: "asset-1",
+      cve: "CVE-2026-0001",
+      description: "OpenSSL package requires patching.",
+      remediationGuidance: "Apply the current vendor patch.",
+      criticality: "High",
+      severity: "High",
+      exploitability: "Known Exploited",
+      detectedDate: "2026-04-01T00:00:00.000Z",
+      capturedAt: "2026-04-02T00:00:00.000Z",
+      source: "scanner"
+    }
+  ];
   const evaluations = [
     evaluation("asset-1", "net-a", "sys-a", "Secret", true, [
       { spiId: 1, status: "Compliant", evidence: {}, reasons: [] },
@@ -213,6 +227,53 @@ describe("performance report model", () => {
     expect(alphaSecretKpis).toHaveLength(10);
     expect(alphaSecretKpis.find((kpi) => kpi.id === "KPI-1")?.scorePercent).toBe(50);
 
+    const alphaSecretSpiRow = model.spiMatrixRows.find((row) => row.id === "Secret::net-a");
+    expect(alphaSecretSpiRow?.entityDetails).toMatchObject({
+      scopeType: "network",
+      id: "net-a",
+      name: "Alpha Network"
+    });
+
+    const alphaSecretSpis = alphaSecretSpiRow?.spis ?? [];
+    expect(alphaSecretSpis).toHaveLength(10);
+    expect(alphaSecretSpis.find((spi) => spi.spiId === 1)).toMatchObject({
+      scorePercent: 100,
+      compliant: 1,
+      nonCompliant: 0,
+      unknown: 0,
+      total: 1
+    });
+    expect(alphaSecretSpis.find((spi) => spi.spiId === 2)).toMatchObject({
+      scorePercent: 0,
+      compliant: 0,
+      nonCompliant: 1,
+      unknown: 0,
+      total: 1
+    });
+    expect(alphaSecretSpis.find((spi) => spi.spiId === 2)?.affectedCis).toMatchObject([
+      {
+        assetId: "asset-1",
+        assetName: "asset-1.example",
+        assetType: "Server",
+        totalCveVulnerabilities: 1,
+        cveVulnerabilities: [
+          {
+            cve: "CVE-2026-0001",
+            criticality: "High"
+          }
+        ]
+      }
+    ]);
+
+    const protectedAlphaSpis = model.spiMatrixRows.find((row) => row.id === "Protected::net-a")?.spis ?? [];
+    expect(protectedAlphaSpis.find((spi) => spi.spiId === 1)).toMatchObject({
+      scorePercent: 0,
+      compliant: 0,
+      nonCompliant: 0,
+      unknown: 1,
+      total: 1
+    });
+
     const protectedAlphaDiscovery = model.discoveryGapRows.find((row) => row.id === "Protected::net-a");
     expect(protectedAlphaDiscovery).toMatchObject({ scorePercent: 0, compliant: 0, nonCompliant: 1, other: 0 });
 
@@ -267,6 +328,12 @@ describe("performance report model", () => {
 
     expect(model.entityLabelSingular).toBe("ICT System");
     expect(model.domainEntityRows.some((row) => row.id === "Secret::sys-a")).toBe(true);
+    expect(model.spiMatrixRows.find((row) => row.id === "Secret::sys-a")?.entityDetails).toMatchObject({
+      scopeType: "system",
+      id: "sys-a",
+      name: "Alpha System",
+      owner: "Alpha System Owner"
+    });
     expect(model.modellingGapRows.map((row) => row.entityName)).toEqual(["Beta System"]);
   });
 });

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { buildKpiReportModels } from "@/lib/kpi-report-model";
 import { buildSpiReportModels } from "@/lib/spi-report-model";
 import { buildTaskingReportHref } from "@/lib/tasking-report-links";
-import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
+import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork, type SpiId } from "@/lib/types";
 
 interface Option {
   id: string;
@@ -130,7 +130,9 @@ export function KpiSpiMatrix({
   networks,
   filters,
   filterOptions,
-  mode
+  mode,
+  selectedSpiId,
+  searchValue = ""
 }: {
   dataset: Dataset;
   analytics: AnalyticsResult;
@@ -139,9 +141,28 @@ export function KpiSpiMatrix({
   filters: Filters;
   filterOptions: FilterOptions;
   mode: "kpi" | "spi";
+  selectedSpiId?: SpiId;
+  searchValue?: string;
 }) {
   const kpiReports = mode === "kpi" ? buildKpiReportModels(analytics, systems, networks) : [];
   const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics) : [];
+  const normalizedSearch = searchValue.trim().toLowerCase();
+  const filteredSpiReports = spiReports.filter((report) => {
+    if (selectedSpiId && report.spiId !== selectedSpiId) {
+      return false;
+    }
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return [
+      report.indicatorLabel,
+      `SPI ${report.spiId}`,
+      report.name,
+      report.description,
+      report.successMeasure
+    ].join(" ").toLowerCase().includes(normalizedSearch);
+  });
 
   return (
     <section className="panel flex h-full min-h-0 flex-col overflow-hidden">
@@ -246,7 +267,7 @@ export function KpiSpiMatrix({
               Security Posture Indicator Report Index
             </h3>
             <div className="grid min-w-[96rem] gap-4">
-              {spiReports.map((report) => (
+              {filteredSpiReports.map((report) => (
                 <article
                   key={report.spiId}
                   className="overflow-hidden rounded-lg border border-sky-400/20 bg-slate-950/45 shadow-[0_14px_34px_rgba(0,0,0,0.24)]"
@@ -310,6 +331,11 @@ export function KpiSpiMatrix({
                   </div>
                 </article>
               ))}
+              {!filteredSpiReports.length ? (
+                <div className="rounded-lg border border-sky-400/20 bg-slate-950/45 px-4 py-6 text-sm text-slate-300/80">
+                  No SPI reports match the current SPI and text search filters.
+                </div>
+              ) : null}
             </div>
           </>
         )}
