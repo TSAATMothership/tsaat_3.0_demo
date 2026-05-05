@@ -1,16 +1,15 @@
 import {
   CyberCopDashboard,
-  type CyberCopActionAgeBucketRow,
   type CyberCopActionOldestFindingRow,
   type CyberCopActionQuickWinRow,
-  type CyberCopActionThroughputPoint,
   type CyberCopAssetTypeHeatmapAsset,
   type CyberCopDailyTrendPoint,
   type CyberCopImpactItem,
   type CyberCopImpactEnvironmentSplitRow,
   type CyberCopImpactEntityTrend,
   type CyberCopImpactLinks,
-  type CyberCopImpactSpiDriver
+  type CyberCopImpactSpiDriver,
+  type CyberCopNetworkDiagramRow
 } from "@/components/cyber-cop-dashboard";
 import { FilterBar } from "@/components/filter-bar";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
@@ -18,45 +17,87 @@ import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
+import { buildNetworkPerformanceReportModel, buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { applyAssetFilters } from "@/lib/selectors";
+import { SPI_IDS } from "@/lib/spi-metadata";
 import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
-function complianceScore(statuses: ComplianceStatus[]): number {
-  if (!statuses.length) {
-    return 0;
+function firstParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
   }
-
-  const compliant = statuses.filter((status) => status === "Compliant").length;
-  return Number(((compliant / statuses.length) * 100).toFixed(1));
+  return value;
 }
 
-function dpeComplianceScore(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): number {
-  return complianceScore(
-    statuses.filter((item) => item.environmentType === "Production").map((item) => item.status)
+function omitSearchParams(
+  searchParams: Record<string, string | string[] | undefined>,
+  keysToOmit: string[]
+): Record<string, string | string[] | undefined> {
+  const omittedKeys = new Set(keysToOmit);
+  const result: Record<string, string | string[] | undefined> = {};
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (!omittedKeys.has(key)) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function readSpiFilter(searchParams: Record<string, string | string[] | undefined>): SpiId | undefined {
+  const value = firstParam(searchParams.spi)?.trim();
+  const numericValue = Number(value);
+  if (SPI_IDS.includes(numericValue as SpiId)) {
+    return numericValue as SpiId;
+  }
+  return undefined;
+}
+
+function readMeasureSearch(searchParams: Record<string, string | string[] | undefined>): string {
+  return firstParam(searchParams.measureSearch)?.trim() ?? "";
+}
+
+type ComplianceCounts = { compliant: number; nonCompliant: number; unknown: number };
+
+function complianceCounts(statuses: ComplianceStatus[]): ComplianceCounts {
+  return statuses.reduce<ComplianceCounts>(
+    (counts, status) => {
+      if (status === "Compliant") {
+        counts.compliant += 1;
+      } else if (status === "Non-compliant") {
+        counts.nonCompliant += 1;
+      } else {
+        counts.unknown += 1;
+      }
+      return counts;
+    },
+    { compliant: 0, nonCompliant: 0, unknown: 0 }
   );
 }
 
-function dseComplianceScore(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): number {
-  return complianceScore(
+function scoreFromComplianceCounts(counts: ComplianceCounts): number {
+  const total = counts.compliant + counts.nonCompliant + counts.unknown;
+  return total ? Number(((counts.compliant / total) * 100).toFixed(1)) : 0;
+}
+
+function dpeComplianceCounts(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): ComplianceCounts {
+  return complianceCounts(statuses.filter((item) => item.environmentType === "Production").map((item) => item.status));
+}
+
+function dseComplianceCounts(statuses: Array<{ environmentType: string | null; status: ComplianceStatus }>): ComplianceCounts {
+  return complianceCounts(
     statuses
       .filter((item) => item.environmentType !== null && item.environmentType !== "Production")
       .map((item) => item.status)
   );
 }
 
-function ratioPercent(numerator: number, denominator: number): number {
-  if (!denominator) {
-    return 0;
-  }
-  return Number(((numerator / denominator) * 100).toFixed(1));
-}
-
-function complianceFromRollupCounts(
+function rollupComplianceCounts(
   rollups: Array<{
     counts: { compliant: number; nonCompliant: number; unknown: number };
   }>
-): number {
-  const totals = rollups.reduce(
+): ComplianceCounts {
+  return rollups.reduce<ComplianceCounts>(
     (accumulator, rollup) => {
       accumulator.compliant += rollup.counts.compliant;
       accumulator.nonCompliant += rollup.counts.nonCompliant;
@@ -65,13 +106,39 @@ function complianceFromRollupCounts(
     },
     { compliant: 0, nonCompliant: 0, unknown: 0 }
   );
+}
 
-  const denominator = totals.compliant + totals.nonCompliant + totals.unknown;
-  if (!denominator) {
-    return 0;
-  }
-
-  return Number(((totals.compliant / denominator) * 100).toFixed(1));
+function complianceScoreCard(title: string, contextLabel: string, counts: ComplianceCounts) {
+  const total = counts.compliant + counts.nonCompliant + counts.unknown;
+  return {
+    title,
+    score: scoreFromComplianceCounts(counts),
+    total,
+    contextLabel,
+    segments: [
+      {
+        label: "Compliant",
+        shortLabel: "C",
+        value: counts.compliant,
+        barClassName: "h-full bg-emerald-400/90",
+        chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
+      },
+      {
+        label: "Non-compliant",
+        shortLabel: "NC",
+        value: counts.nonCompliant,
+        barClassName: "h-full bg-rose-400/90",
+        chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
+      },
+      {
+        label: "Unknown",
+        shortLabel: "U",
+        value: counts.unknown,
+        barClassName: "h-full bg-slate-400/90",
+        chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
+      }
+    ]
+  };
 }
 
 function countNonCompliantOs(
@@ -880,6 +947,8 @@ function buildImpactAssetTypeHeatmapBySystemId(
       assetType: asset.type,
       systemId,
       systemName: systemNameById.get(systemId) ?? "Unassigned ICT System",
+      environmentType: asset.systemContext?.environmentType ?? null,
+      securityDomain: asset.securityDomain,
       criticalExposureCount: counts.criticalExposureCount,
       highRiskCount: counts.highRiskCount,
       severeFindingCount: counts.criticalExposureCount + counts.highRiskCount,
@@ -915,126 +984,70 @@ function buildImpactAssetTypeHeatmapBySystemId(
   );
 }
 
+function buildNetworkDiagramRows(
+  assets: Asset[],
+  findings: Finding[],
+  systems: Array<{ id: string; name: string }>
+): CyberCopNetworkDiagramRow[] {
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const systemNameById = new Map(systems.map((system) => [system.id, system.name]));
+  const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const rows: CyberCopNetworkDiagramRow[] = [];
+
+  for (const finding of findings) {
+    if (finding.status !== "open") {
+      continue;
+    }
+
+    const asset = assetsById.get(finding.scope.assetId);
+    if (!asset || asset.type !== "server") {
+      continue;
+    }
+
+    const systemId = finding.scope.systemId ?? asset.systemContext?.systemId ?? null;
+    if (!systemId) {
+      continue;
+    }
+
+    rows.push({
+      findingId: finding.id,
+      systemId,
+      systemName: systemNameById.get(systemId) ?? "Unassigned ICT System",
+      environmentType: finding.scope.environmentType ?? asset.systemContext?.environmentType ?? null,
+      serverId: asset.id,
+      serverName: asset.name || asset.hostname || asset.id,
+      serverHostname: asset.hostname || asset.name || asset.id,
+      securityDomain: asset.securityDomain,
+      severity: finding.severity,
+      spiId: finding.spiId,
+      spiLabel: `SPI ${finding.spiId}`
+    });
+  }
+
+  return rows.sort((left, right) => {
+      const systemDiff = left.systemName.localeCompare(right.systemName);
+      if (systemDiff !== 0) {
+        return systemDiff;
+      }
+      const environmentDiff = (left.environmentType ?? "Unassigned").localeCompare(right.environmentType ?? "Unassigned");
+      if (environmentDiff !== 0) {
+        return environmentDiff;
+      }
+      const serverDiff = left.serverName.localeCompare(right.serverName);
+      if (serverDiff !== 0) {
+        return serverDiff;
+      }
+      const severityDiff = severityOrder.indexOf(left.severity) - severityOrder.indexOf(right.severity);
+      if (severityDiff !== 0) {
+        return severityDiff;
+      }
+      return left.spiId - right.spiId;
+    });
+}
+
 function differenceInWholeUtcDays(fromDate: Date, toDate: Date): number {
   const deltaMs = toDate.getTime() - fromDate.getTime();
   return Math.max(0, Math.floor(deltaMs / 86_400_000));
-}
-
-function throughputWeekIndex(startDate: Date, dateKey: string, weeks: number): number {
-  const date = parseUtcDateKey(dateKey);
-  const diffDays = differenceInWholeUtcDays(startDate, date);
-  if (diffDays < 0 || diffDays >= weeks * 7) {
-    return -1;
-  }
-  return Math.floor(diffDays / 7);
-}
-
-function buildActionThroughput(
-  findings: Finding[],
-  endDateKey: string,
-  weeks = 13
-): CyberCopActionThroughputPoint[] {
-  const endDate = parseUtcDateKey(endDateKey);
-  const startDate = addUtcDays(endDate, -(weeks * 7 - 1));
-
-  const rows = Array.from({ length: weeks }, (_, index) => {
-    const weekEndDate = addUtcDays(startDate, index * 7 + 6);
-    return {
-      weekLabel: formatUtcDay(weekEndDate),
-      openedCount: 0,
-      closedCount: 0,
-      netChange: 0
-    };
-  });
-
-  for (const finding of findings) {
-    const openedDateKey = toFindingDateKey(finding.timestamp);
-    if (openedDateKey) {
-      const openedIndex = throughputWeekIndex(startDate, openedDateKey, weeks);
-      if (openedIndex >= 0) {
-        rows[openedIndex].openedCount += 1;
-      }
-    }
-
-    const closedDateKey = toFindingDateKey(finding.closedTimestamp);
-    if (closedDateKey) {
-      const closedIndex = throughputWeekIndex(startDate, closedDateKey, weeks);
-      if (closedIndex >= 0) {
-        rows[closedIndex].closedCount += 1;
-      }
-    }
-  }
-
-  return rows.map((row) => ({
-    ...row,
-    netChange: row.openedCount - row.closedCount
-  }));
-}
-
-const actionAgeBucketBoundaries: Array<{ label: string; minDays: number; maxDays: number | null }> = [
-  { label: "0-30d", minDays: 0, maxDays: 30 },
-  { label: "31-60d", minDays: 31, maxDays: 60 },
-  { label: "61-90d", minDays: 61, maxDays: 90 },
-  { label: "91-180d", minDays: 91, maxDays: 180 },
-  { label: "181d+", minDays: 181, maxDays: null }
-];
-
-function resolveActionAgeBucket(ageDays: number): string {
-  for (const bucket of actionAgeBucketBoundaries) {
-    if (ageDays < bucket.minDays) {
-      continue;
-    }
-    if (bucket.maxDays === null || ageDays <= bucket.maxDays) {
-      return bucket.label;
-    }
-  }
-  return actionAgeBucketBoundaries[actionAgeBucketBoundaries.length - 1].label;
-}
-
-function buildActionAgeBuckets(
-  openFindings: Finding[],
-  endDateKey: string
-): CyberCopActionAgeBucketRow[] {
-  const today = parseUtcDateKey(endDateKey);
-  const rowsByLabel = new Map<string, CyberCopActionAgeBucketRow>(
-    actionAgeBucketBoundaries.map((bucket) => [
-      bucket.label,
-      {
-        bucketLabel: bucket.label,
-        criticalExposureCount: 0,
-        highRiskCount: 0,
-        otherCount: 0,
-        total: 0
-      }
-    ])
-  );
-
-  for (const finding of openFindings) {
-    const openedDateKey = toFindingDateKey(finding.timestamp);
-    if (!openedDateKey) {
-      continue;
-    }
-
-    const ageDays = differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today);
-    const bucketLabel = resolveActionAgeBucket(ageDays);
-    const row = rowsByLabel.get(bucketLabel);
-    if (!row) {
-      continue;
-    }
-
-    if (finding.severity === "Critical Exposure") {
-      row.criticalExposureCount += 1;
-    } else if (finding.severity === "High Risk") {
-      row.highRiskCount += 1;
-    } else {
-      row.otherCount += 1;
-    }
-    row.total += 1;
-  }
-
-  return actionAgeBucketBoundaries
-    .map((bucket) => rowsByLabel.get(bucket.label))
-    .filter((row): row is CyberCopActionAgeBucketRow => Boolean(row));
 }
 
 function formatActionDate(dateKey: string): string {
@@ -1051,6 +1064,7 @@ function buildActionOldestOpenFindings(
   const today = parseUtcDateKey(endDateKey);
 
   return openFindings
+    .filter((finding) => finding.severity === "Critical Exposure" || finding.severity === "High Risk")
     .map((finding) => {
       const openedDateKey = toFindingDateKey(finding.timestamp);
       if (!openedDateKey) {
@@ -1144,8 +1158,53 @@ export default async function CyberCopPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const { analytics, filterOptions, filters, dataset, systems, networks } = await getCoreAppData(searchParams);
+  const selectedSpiId = readSpiFilter(searchParams);
+  const measureSearch = readMeasureSearch(searchParams);
+  const networkHeatmapSearchParams = omitSearchParams(searchParams, ["system", "criticality", "environment"]);
+  const systemHeatmapSearchParams = omitSearchParams(searchParams, ["network"]);
+  const [
+    { analytics, filterOptions, filters, dataset, systems, networks },
+    networkHeatmapData,
+    systemHeatmapData
+  ] = await Promise.all([
+    getCoreAppData(searchParams),
+    getCoreAppData(networkHeatmapSearchParams),
+    getCoreAppData(systemHeatmapSearchParams)
+  ]);
   const selectedDataDate = extractDataDateParam(searchParams);
+  const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const networkHeatmapExtraSelects = [
+    {
+      key: "severity",
+      label: "Severity",
+      value: networkHeatmapData.filters.severity,
+      options: severityOptions.map((severity) => ({ id: severity, label: severity }))
+    }
+  ];
+  const systemHeatmapExtraSelects = [
+    {
+      key: "severity",
+      label: "Severity",
+      value: systemHeatmapData.filters.severity,
+      options: severityOptions.map((severity) => ({ id: severity, label: severity }))
+    }
+  ];
+  const networkSpiHeatmapModel = buildNetworkPerformanceReportModel({
+    dataset: networkHeatmapData.dataset,
+    analytics: networkHeatmapData.analytics,
+    filters: networkHeatmapData.filters,
+    networks: networkHeatmapData.networks,
+    systems: networkHeatmapData.systems,
+    asOfDate: networkHeatmapData.dataset.snapshotDate
+  });
+  const systemSpiHeatmapModel = buildSystemPerformanceReportModel({
+    dataset: systemHeatmapData.dataset,
+    analytics: systemHeatmapData.analytics,
+    filters: systemHeatmapData.filters,
+    networks: systemHeatmapData.networks,
+    systems: systemHeatmapData.systems,
+    asOfDate: systemHeatmapData.dataset.snapshotDate
+  });
 
   const statusesWithEnvironment = analytics.evaluations.flatMap((evaluation) =>
     evaluation.evaluations.map((item) => ({
@@ -1247,22 +1306,58 @@ export default async function CyberCopPage({
     });
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const nonCompliantOs = countNonCompliantOs(filteredAssets, evaluationByAssetId);
-  const outOfWarranty = filteredAssets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
-  const discoveryCoverageGaps = analytics.evaluations.filter((evaluation) => !evaluation.discoveryCoverageCompliant).length;
-  const networkNotDiscovered = networks.filter(
+  const nonCompliantOsTotal = filteredAssets.filter((asset) => asset.type === "server" || asset.type === "workstation").length;
+  const scopedAssetsTotal = filteredAssets.length;
+  const scopedServersTotal = filteredAssets.filter((asset) => asset.type === "server").length;
+  const assetsOutOfWarrantyEol = filteredAssets.filter(
+    (asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty" || asset.lifecycle.eolStatus === "EOL"
+  ).length;
+  const networksWithoutDiscoveryEnabled = networks.filter(
     (network) => network.discoveryStatus === "Discovery Non Enabled"
+  ).length;
+  const discoveryEnabledNetworkIds = new Set(
+    networks.filter((network) => network.discoveryStatus === "Discovery Enabled").map((network) => network.id)
+  );
+  const networksDiscoveryNonCompliant = new Set(
+    analytics.evaluations
+      .filter(
+        (evaluation) =>
+          discoveryEnabledNetworkIds.has(evaluation.networkId) && !evaluation.discoveryCoverageCompliant
+      )
+      .map((evaluation) => evaluation.networkId)
+  ).size;
+  const targetStateSummaryByNetworkId = buildNetworkTargetStateSummary(
+    networks,
+    filteredAssets.map((asset) => ({
+      networkId: asset.networkId,
+      assetType: asset.type,
+      name: asset.name || asset.hostname || asset.id
+    }))
+  );
+  const networksWithNoTargetState = networks.filter(
+    (network) => !targetStateSummaryByNetworkId.get(network.id)?.targetStateProvided
   ).length;
 
   const criticalIctStatuses = analytics.evaluations
     .filter((evaluation) => evaluation.systemCriticality === "Critical")
     .flatMap((evaluation) => evaluation.evaluations.map((item) => item.status));
-  const criticalIctSystemsCompliance = complianceScore(criticalIctStatuses);
 
   const scopedNetworkIds = new Set(networks.map((network) => network.id));
   const scopedNetworkRollups = analytics.networkRollups.filter(
     (rollup) => rollup.scopeType === "network" && scopedNetworkIds.has(rollup.scopeId)
   );
-  const networksCompliance = complianceFromRollupCounts(scopedNetworkRollups);
+  const allComplianceCounts = complianceCounts(statusesWithEnvironment.map((item) => item.status));
+  const dseCounts = dseComplianceCounts(statusesWithEnvironment);
+  const dpeCounts = dpeComplianceCounts(statusesWithEnvironment);
+  const criticalIctCounts = complianceCounts(criticalIctStatuses);
+  const networkComplianceCounts = rollupComplianceCounts(scopedNetworkRollups);
+  const complianceScoreCards = [
+    complianceScoreCard("Overall Compliance", "Current Cyber COP scope", allComplianceCounts),
+    complianceScoreCard("DSE Compliance", "Non-production environments", dseCounts),
+    complianceScoreCard("DPE Compliance", "Production environments", dpeCounts),
+    complianceScoreCard("Critical ICT Systems Compliance", "Critical ICT systems", criticalIctCounts),
+    complianceScoreCard("Networks Compliance", "Current network scope", networkComplianceCounts)
+  ];
 
   const openFindings = analytics.findings.filter((finding) => finding.status === "open");
   const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
@@ -1279,9 +1374,13 @@ export default async function CyberCopPage({
   const criticalExposureOpenCount = severityCounts.get("Critical Exposure") ?? 0;
   const p1p2Count = openFindings.filter((finding) => finding.priorityRank <= 2).length;
   const immediateAction = highRiskOpenCount + criticalExposureOpenCount;
-  const plannedRemediation = openFindings.filter(
-    (finding) => finding.priorityRank >= 3 && finding.priorityRank < 90
-  ).length;
+  const serversWithCriticalFindings = new Set(
+    openFindings
+      .filter((finding) => finding.severity === "Critical Exposure")
+      .map((finding) => filteredAssetsById.get(finding.scope.assetId))
+      .filter((asset): asset is Asset => asset !== undefined && asset.type === "server")
+      .map((asset) => asset.id)
+  ).size;
 
   const chartAnchorDateKey = selectedDataDate ?? dataset.snapshotDate;
   const chartWindowEndDateKey = selectedDataDate ?? todayDateKey();
@@ -1304,13 +1403,12 @@ export default async function CyberCopPage({
   const systemImpact = buildSystemImpact(openFindings, systems);
   const impactLinks = buildImpactLinks(systems);
   const impactAssetTypeHeatmapBySystemId = buildImpactAssetTypeHeatmapBySystemId(filteredAssets, openFindings, systems);
+  const impactNetworkDiagramRows = buildNetworkDiagramRows(filteredAssets, openFindings, systems);
   const impactSpiDrivers = buildImpactSpiDrivers(openFindings);
   const impactSpiDriversBySystemId = buildImpactSpiDriversBySystemId(openFindings);
   const impactEnvironmentSplit = buildImpactEnvironmentSplit(openFindings);
   const impactEnvironmentSplitBySystemId = buildImpactEnvironmentSplitBySystemId(openFindings);
   const impactEntityTrends = buildImpactEntityTrends(analytics.findings, systemImpact, chartAnchorDateKey, 5);
-  const actionThroughput = buildActionThroughput(analytics.findings, chartAnchorDateKey, 13);
-  const actionAgeBuckets = buildActionAgeBuckets(openFindings, chartAnchorDateKey);
   const actionOldestOpenFindings = buildActionOldestOpenFindings(
     openFindings,
     systems,
@@ -1320,6 +1418,7 @@ export default async function CyberCopPage({
   const actionQuickWins = buildActionQuickWins(openFindings, 10);
   const diisSystems = systems.filter((system) => system.diisDefined);
   const modelledDiisSystems = diisSystems.filter((system) => system.modellingStatus);
+  const ictSystemsNotModelled = diisSystems.length - modelledDiisSystems.length;
   const modelledDiisSystemIds = new Set(modelledDiisSystems.map((system) => system.id));
   const modelledDiscoveryNonCompliantCount = new Set(
     analytics.evaluations
@@ -1349,13 +1448,33 @@ export default async function CyberCopPage({
             />
           </div>
         }
-        complianceScores={{
-          overall: analytics.overallCompliancePercent,
-          dse: dseComplianceScore(statusesWithEnvironment),
-          dpe: dpeComplianceScore(statusesWithEnvironment),
-          ictSystems: criticalIctSystemsCompliance,
-          networks: networksCompliance
-        }}
+        networkSpiHeatmapFilterSlot={
+          <div className="-mt-2">
+            <FilterBar
+              options={networkHeatmapData.filterOptions}
+              filters={networkHeatmapData.filters}
+              hiddenFields={["ictSystem", "systemCriticality", "environment"]}
+              extraSelectFields={networkHeatmapExtraSelects}
+              enableLoadingOverlay
+            />
+          </div>
+        }
+        systemSpiHeatmapFilterSlot={
+          <div className="-mt-2">
+            <FilterBar
+              options={systemHeatmapData.filterOptions}
+              filters={systemHeatmapData.filters}
+              hiddenFields={["managedNetwork"]}
+              extraSelectFields={systemHeatmapExtraSelects}
+              enableLoadingOverlay
+            />
+          </div>
+        }
+        networkSpiHeatmapModel={networkSpiHeatmapModel}
+        systemSpiHeatmapModel={systemSpiHeatmapModel}
+        selectedSpiId={selectedSpiId}
+        initialMeasureSearch={measureSearch}
+        complianceScoreCards={complianceScoreCards}
         riskProfile={{
           openFindings: openFindings.length,
           p1p2Count,
@@ -1374,27 +1493,29 @@ export default async function CyberCopPage({
         }}
         impactLinks={impactLinks}
         impactAssetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
+        impactNetworkDiagramRows={impactNetworkDiagramRows}
         impactSpiDrivers={impactSpiDrivers}
         impactSpiDriversBySystemId={impactSpiDriversBySystemId}
         impactEnvironmentSplit={impactEnvironmentSplit}
         impactEnvironmentSplitBySystemId={impactEnvironmentSplitBySystemId}
         impactEntityTrends={impactEntityTrends}
-        modellingSummary={{
-          diisDefinedCount: diisSystems.length,
-          modelledCount: modelledDiisSystems.length,
-          modelledDiscoveryNonCompliantCount
-        }}
         actionPlan={{
           immediateAction,
-          plannedRemediation,
           nonCompliantOs,
-          outOfWarranty,
-          discoveryCoverageGaps,
-          networkNotDiscovered,
-          unmodelledIctSystems: diisSystems.length - modelledDiisSystems.length
+          nonCompliantOsTotal,
+          assetsOutOfWarrantyEol,
+          scopedAssetsTotal,
+          serversWithCriticalFindings,
+          scopedServersTotal,
+          networksWithoutDiscoveryEnabled,
+          scopedNetworksTotal: networks.length,
+          networksDiscoveryNonCompliant,
+          networksWithNoTargetState,
+          diisIctSystemsDefined: diisSystems.length,
+          ictSystemsNotModelled,
+          ictSystemsModelled: modelledDiisSystems.length,
+          ictSystemsModelledDiscoveryNonCompliant: modelledDiscoveryNonCompliantCount
         }}
-        actionThroughput={actionThroughput}
-        actionAgeBuckets={actionAgeBuckets}
         actionOldestOpenFindings={actionOldestOpenFindings}
         actionQuickWins={actionQuickWins}
         dailyHighRisk={highRiskDaily}

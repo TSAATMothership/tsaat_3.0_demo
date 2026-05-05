@@ -6,18 +6,26 @@ function readRepoFile(relativePath: string): string {
   return readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
-describe("Measures SPI heatmap tabs", () => {
-  it("wires the Network and ICT System SPI heatmaps into the Measures page", () => {
+describe("SPI heatmap tabs", () => {
+  it("wires the Network and ICT System SPI heatmaps into the Cyber COP page", () => {
+    const cyberCopPage = readRepoFile("app/cyber-cop/page.tsx");
+    const cyberCopDashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const measuresPage = readRepoFile("app/measures/page.tsx");
 
-    expect(measuresPage).toContain("MeasuresSpiHeatmapSection");
-    expect(measuresPage).toContain("MeasuresSpiFilters");
-    expect(measuresPage).toContain("buildNetworkPerformanceReportModel");
-    expect(measuresPage).toContain("buildSystemPerformanceReportModel");
-    expect(measuresPage).toContain('activeTab === "networks-spi-heatmap"');
-    expect(measuresPage).toContain('activeTab === "systems-spi-heatmap"');
-    expect(measuresPage).toContain('omitSearchParams(searchParams, ["system", "criticality", "environment"])');
-    expect(measuresPage).toContain('omitSearchParams(searchParams, ["network"])');
+    expect(cyberCopDashboard).toContain('{ id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" }');
+    expect(cyberCopDashboard).toContain('{ id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }');
+    expect(cyberCopDashboard).toContain('activeTab === "networks-spi-heatmap"');
+    expect(cyberCopDashboard).toContain('activeTab === "systems-spi-heatmap"');
+    expect(cyberCopDashboard).toContain("MeasuresSpiHeatmapSection");
+    expect(cyberCopDashboard).toContain("localSpiFilter");
+    expect(cyberCopPage).toContain("buildNetworkPerformanceReportModel");
+    expect(cyberCopPage).toContain("buildSystemPerformanceReportModel");
+    expect(cyberCopPage).toContain('omitSearchParams(searchParams, ["system", "criticality", "environment"])');
+    expect(cyberCopPage).toContain('omitSearchParams(searchParams, ["network"])');
+    expect(cyberCopPage).toContain("networkSpiHeatmapFilterSlot");
+    expect(cyberCopPage).toContain("systemSpiHeatmapFilterSlot");
+    expect(measuresPage).not.toContain('activeTab === "networks-spi-heatmap"');
+    expect(measuresPage).not.toContain('activeTab === "systems-spi-heatmap"');
   });
 
   it("adds SPI and text search controls for Measures SPI views", () => {
@@ -30,6 +38,8 @@ describe("Measures SPI heatmap tabs", () => {
     expect(filters).toContain("SPI_DESCRIPTIONS");
     expect(filters).toContain("selectedSpiDetails");
     expect(filters).toContain("dynamicSearch");
+    expect(filters).toContain("localSpiFilter");
+    expect(filters).toContain("onSelectedSpiIdChange");
     expect(filters).toContain("onSearchValueChange");
     expect(filters).toContain("Filters rows as you type");
     expect(filters).toContain('!dynamicSearch ? (');
@@ -54,7 +64,9 @@ describe("Measures SPI heatmap tabs", () => {
     expect(model).toContain("affectedCis: buildAffectedCiRows");
     expect(model).toContain("entityDetails:");
     expect(heatmapSection).toContain("useState(initialSearchValue)");
+    expect(heatmapSection).toContain("localSelectedSpiId");
     expect(heatmapSection).toContain("dynamicSearch");
+    expect(heatmapSection).toContain("localSpiFilter={localSpiFilter}");
     expect(heatmapSection).toContain("onSearchValueChange={setSearchValue}");
     expect(heatmap).toContain("model.spiMatrixRows");
     expect(heatmap).toContain("SPI Heatmap Drill-Through");

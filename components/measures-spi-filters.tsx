@@ -37,13 +37,17 @@ export function MeasuresSpiFilters({
   searchValue,
   placeholder,
   dynamicSearch = false,
-  onSearchValueChange
+  localSpiFilter = false,
+  onSearchValueChange,
+  onSelectedSpiIdChange
 }: {
   selectedSpiId?: SpiId;
   searchValue: string;
   placeholder: string;
   dynamicSearch?: boolean;
+  localSpiFilter?: boolean;
   onSearchValueChange?: (value: string) => void;
+  onSelectedSpiIdChange?: (value: SpiId | undefined) => void;
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname() ?? "/";
@@ -120,6 +124,11 @@ export function MeasuresSpiFilters({
   };
 
   const onSpiChange = (value: string) => {
+    if (localSpiFilter) {
+      const numericValue = Number(value);
+      onSelectedSpiIdChange?.(SPI_IDS.includes(numericValue as SpiId) ? (numericValue as SpiId) : undefined);
+      return;
+    }
     const params = new URLSearchParams((searchParams?.toString() ?? ""));
     if (value) {
       params.set("spi", value);

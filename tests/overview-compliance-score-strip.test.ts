@@ -10,6 +10,8 @@ const networkPanelsSource = readFileSync(path.join(process.cwd(), "components", 
 const systemPanelsSource = readFileSync(path.join(process.cwd(), "components", "systems-cop-panels.tsx"), "utf8");
 const networksPageSource = readFileSync(path.join(process.cwd(), "app", "networks", "page.tsx"), "utf8");
 const systemsPageSource = readFileSync(path.join(process.cwd(), "app", "systems", "page.tsx"), "utf8");
+const cyberCopDashboardSource = readFileSync(path.join(process.cwd(), "components", "cyber-cop-dashboard.tsx"), "utf8");
+const cyberCopPageSource = readFileSync(path.join(process.cwd(), "app", "cyber-cop", "page.tsx"), "utf8");
 
 describe("overview compliance score strip", () => {
   it("uses drill-through-style score cards for overview score sections", () => {
@@ -58,5 +60,18 @@ describe("overview compliance score strip", () => {
       expect(pageSource).not.toContain("dseComplianceScore");
       expect(pageSource).not.toContain("dpeComplianceScore");
     }
+  });
+
+  it("reuses the network overview score-card styling in Cyber COP overview tiles", () => {
+    expect(stripSource).toContain("export function ScoreCard");
+    expect(cyberCopDashboardSource).toContain("ScoreCard as OverviewScoreCardTile");
+    expect(cyberCopDashboardSource).toContain("complianceScoreCards: OverviewScoreCard[]");
+    expect(cyberCopDashboardSource).toContain("<OverviewScoreCardTile key={card.title} card={card} />");
+    expect(cyberCopDashboardSource).not.toContain("function ComplianceTile");
+    expect(cyberCopDashboardSource).not.toContain("Senior Cyber Operations Briefing");
+
+    expect(cyberCopPageSource).toContain("function complianceScoreCard");
+    expect(cyberCopPageSource).toContain("rollupComplianceCounts(scopedNetworkRollups)");
+    expect(cyberCopPageSource).toContain("complianceScoreCards={complianceScoreCards}");
   });
 });

@@ -17,8 +17,12 @@ import {
   YAxis,
   ZAxis
 } from "recharts";
+import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
 import { NetworkDetailRiskCharts, NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
-import { AssetType, Criticality, FindingSeverity, HighRiskCveDetail } from "@/lib/types";
+import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
+import { type PerformanceReportModel } from "@/lib/performance-report-model";
+import { SPI_DESCRIPTIONS, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
+import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain, type SpiId } from "@/lib/types";
 
 export interface CyberCopImpactItem {
   id: string;
@@ -79,21 +83,6 @@ export interface CyberCopImpactEntityTrend {
   weeklyTrend: CyberCopImpactEntityTrendPoint[];
 }
 
-export interface CyberCopActionThroughputPoint {
-  weekLabel: string;
-  openedCount: number;
-  closedCount: number;
-  netChange: number;
-}
-
-export interface CyberCopActionAgeBucketRow {
-  bucketLabel: string;
-  criticalExposureCount: number;
-  highRiskCount: number;
-  otherCount: number;
-  total: number;
-}
-
 export interface CyberCopActionOldestFindingRow {
   findingId: string;
   title: string;
@@ -126,22 +115,42 @@ export interface CyberCopAssetTypeHeatmapAsset {
   assetType: AssetType;
   systemId: string;
   systemName: string;
+  environmentType: EnvironmentType | null;
+  securityDomain: SecurityDomain;
   criticalExposureCount: number;
   highRiskCount: number;
   severeFindingCount: number;
   riskScore: number;
 }
 
+export interface CyberCopNetworkDiagramRow {
+  findingId: string;
+  systemId: string;
+  systemName: string;
+  environmentType: EnvironmentType | null;
+  serverId: string;
+  serverName: string;
+  serverHostname: string;
+  securityDomain: SecurityDomain;
+  severity: FindingSeverity;
+  spiId: number;
+  spiLabel: string;
+}
+
+type ServerHeatmapEnvironmentOption = EnvironmentType | "Unassigned";
+type ServerHeatmapSecurityDomainOption = SecurityDomain;
+type NetworkDiagramSelectedNode = { axisKey: string; value: string } | null;
+
 export interface CyberCopDashboardProps {
   snapshotDate: string;
   filtersSlot?: ReactNode;
-  complianceScores: {
-    overall: number;
-    dse: number;
-    dpe: number;
-    ictSystems: number;
-    networks: number;
-  };
+  networkSpiHeatmapFilterSlot?: ReactNode;
+  systemSpiHeatmapFilterSlot?: ReactNode;
+  networkSpiHeatmapModel: PerformanceReportModel;
+  systemSpiHeatmapModel: PerformanceReportModel;
+  selectedSpiId?: SpiId;
+  initialMeasureSearch: string;
+  complianceScoreCards: OverviewScoreCard[];
   riskProfile: {
     openFindings: number;
     p1p2Count: number;
@@ -160,54 +169,61 @@ export interface CyberCopDashboardProps {
   };
   impactLinks: CyberCopImpactLinks;
   impactAssetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  impactNetworkDiagramRows: CyberCopNetworkDiagramRow[];
   impactSpiDrivers: CyberCopImpactSpiDriver[];
   impactSpiDriversBySystemId: Record<string, CyberCopImpactSpiDriver[]>;
   impactEnvironmentSplit: CyberCopImpactEnvironmentSplitRow[];
   impactEnvironmentSplitBySystemId: Record<string, CyberCopImpactEnvironmentSplitRow[]>;
   impactEntityTrends: CyberCopImpactEntityTrend[];
-  modellingSummary: {
-    diisDefinedCount: number;
-    modelledCount: number;
-    modelledDiscoveryNonCompliantCount: number;
-  };
   actionPlan: {
     immediateAction: number;
-    plannedRemediation: number;
     nonCompliantOs: number;
-    outOfWarranty: number;
-    discoveryCoverageGaps: number;
-    networkNotDiscovered: number;
-    unmodelledIctSystems: number;
+    nonCompliantOsTotal: number;
+    assetsOutOfWarrantyEol: number;
+    scopedAssetsTotal: number;
+    serversWithCriticalFindings: number;
+    scopedServersTotal: number;
+    networksWithoutDiscoveryEnabled: number;
+    scopedNetworksTotal: number;
+    networksDiscoveryNonCompliant: number;
+    networksWithNoTargetState: number;
+    diisIctSystemsDefined: number;
+    ictSystemsNotModelled: number;
+    ictSystemsModelled: number;
+    ictSystemsModelledDiscoveryNonCompliant: number;
   };
-  actionThroughput: CyberCopActionThroughputPoint[];
-  actionAgeBuckets: CyberCopActionAgeBucketRow[];
   actionOldestOpenFindings: CyberCopActionOldestFindingRow[];
   actionQuickWins: CyberCopActionQuickWinRow[];
   dailyHighRisk: CyberCopDailyTrendPoint[];
   dailyCriticalExposure: CyberCopDailyTrendPoint[];
 }
 
-type CyberCopTabId = "overview" | "impact" | "action";
-type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
+type CyberCopTabId = "overview" | "impact" | "action" | "networks-spi-heatmap" | "systems-spi-heatmap";
+type ImpactChartTabId = "spi" | "blast-radius" | "network-diagram" | "environment" | "mission-business";
 
 const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "impact", label: "Impact" },
-  { id: "action", label: "Action" }
+  { id: "action", label: "Action" },
+  { id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" },
+  { id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }
 ];
 
 const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "spi", label: "SPI Driver" },
   { id: "blast-radius", label: "Server Risk Heatmap" },
+  { id: "network-diagram", label: "Network Diagram" },
   { id: "environment", label: "Environment Split" },
   { id: "mission-business", label: "Critical Findings Blast Radius" }
 ];
 
 const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
+const impactSeverityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
 
 function chartSurfaceClass(embedded?: boolean): string {
   return embedded
-    ? "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-4"
+    ? "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2"
     : "panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-4";
 }
 
@@ -235,6 +251,38 @@ function assetHeatmapColor(score: number, maxScore: number): string {
   return interpolateColor([250, 204, 21], [239, 68, 68], (ratio - 0.5) / 0.5);
 }
 
+function severityStrokeColor(severity: FindingSeverity): string {
+  if (severity === "Critical Exposure") {
+    return "#ef4444";
+  }
+  if (severity === "High Risk") {
+    return "#f97316";
+  }
+  if (severity === "Major") {
+    return "#facc15";
+  }
+  if (severity === "Moderate") {
+    return "#38bdf8";
+  }
+  return "#a78bfa";
+}
+
+function sortEnvironmentLabel(left: ServerHeatmapEnvironmentOption, right: ServerHeatmapEnvironmentOption): number {
+  if (left === "Production") {
+    return -1;
+  }
+  if (right === "Production") {
+    return 1;
+  }
+  if (left === "Unassigned") {
+    return 1;
+  }
+  if (right === "Unassigned") {
+    return -1;
+  }
+  return left.localeCompare(right);
+}
+
 function formatDateKey(
   dateKey: string,
   options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }
@@ -246,46 +294,11 @@ function formatDateKey(
   return parsed.toLocaleDateString("en-US", { ...options, timeZone: "UTC" });
 }
 
-function complianceTone(value: number): { borderClass: string; textClass: string; meterClass: string } {
-  if (value >= 90) {
-    return {
-      borderClass: "border-emerald-300/35",
-      textClass: "text-emerald-100",
-      meterClass: "bg-emerald-400"
-    };
-  }
-  if (value >= 75) {
-    return {
-      borderClass: "border-cyan-300/35",
-      textClass: "text-cyan-100",
-      meterClass: "bg-cyan-400"
-    };
-  }
-  return {
-    borderClass: "border-amber-300/35",
-    textClass: "text-amber-100",
-    meterClass: "bg-amber-400"
-  };
-}
-
 function criticalityClass(criticality: Criticality): string {
   if (criticality === "Critical") {
     return "border-red-400/40 text-red-100";
   }
   return "border-sky-300/35 text-sky-100";
-}
-
-function ComplianceTile({ title, score }: { title: string; score: number }) {
-  const tone = complianceTone(score);
-  return (
-    <article className={`panel-alt ${tone.borderClass} p-3`}>
-      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/80">{title}</p>
-      <p className={`mt-1.5 text-2xl font-semibold ${tone.textClass}`}>{score}%</p>
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800/90">
-        <div className={`h-full rounded-full ${tone.meterClass}`} style={{ width: `${Math.min(100, score)}%` }} />
-      </div>
-    </article>
-  );
 }
 
 function ImpactLeaderboard({
@@ -456,70 +469,150 @@ function ImpactLeaderboard({
   );
 }
 
-function ActionTile({
-  title,
-  value,
-  subtitle,
-  tone
-}: {
-  title: string;
-  value: number;
-  subtitle: string;
-  tone: "critical" | "warning" | "watch";
-}) {
-  const toneClass =
-    tone === "critical"
-      ? "border-red-400/35 text-red-100"
-      : tone === "warning"
-        ? "border-amber-300/35 text-amber-100"
-        : "border-sky-300/35 text-sky-100";
-
-  return (
-    <article className={`panel-alt ${toneClass} p-3`}>
-      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-300/75">{title}</p>
-      <p className="mt-1.5 text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
-    </article>
-  );
+function actionSegmentWidth(value: number, total: number): string {
+  if (!total || value <= 0) {
+    return "0%";
+  }
+  return `${Math.max(2, (value / total) * 100)}%`;
 }
 
-function IctSystemsModelledBulletTile({
-  modelledCount,
-  totalCount
-}: {
-  modelledCount: number;
-  totalCount: number;
-}) {
-  const safeTotal = Math.max(0, totalCount);
-  const boundedModelledCount = Math.min(Math.max(0, modelledCount), safeTotal);
-  const notModelledCount = Math.max(0, safeTotal - boundedModelledCount);
-  const modelledPercent = safeTotal ? Number(((boundedModelledCount / safeTotal) * 100).toFixed(1)) : 0;
-  const notModelledPercent = safeTotal ? Number((100 - modelledPercent).toFixed(1)) : 0;
+type ActionPlanMatrixTone = "critical" | "warning" | "watch";
 
+type ActionPlanMatrixRow = {
+  action: string;
+  detail: string;
+  count: number;
+  scope: string;
+  total?: number;
+  actionLabel?: string;
+  clearLabel?: string;
+  statusLabel: string;
+  tone: ActionPlanMatrixTone;
+  emphasized?: boolean;
+};
+
+function actionMatrixToneClasses(tone: ActionPlanMatrixTone) {
+  if (tone === "critical") {
+    return {
+      count: "text-red-100",
+      segment: "bg-red-400/95",
+      badge: "border-red-300/30 bg-red-500/10 text-red-100",
+      row: "bg-red-500/[0.06]"
+    };
+  }
+  if (tone === "warning") {
+    return {
+      count: "text-amber-100",
+      segment: "bg-amber-300/95",
+      badge: "border-amber-300/30 bg-amber-500/10 text-amber-100",
+      row: "bg-amber-500/[0.045]"
+    };
+  }
+  return {
+    count: "text-sky-100",
+    segment: "bg-sky-300/95",
+    badge: "border-sky-300/30 bg-sky-500/10 text-sky-100",
+    row: "bg-sky-500/[0.045]"
+  };
+}
+
+function actionRateLabel(count: number, total?: number): string {
+  if (typeof total !== "number") {
+    return "Baseline";
+  }
+  if (total <= 0) {
+    return "0%";
+  }
+  return `${Number(((Math.max(0, count) / total) * 100).toFixed(1))}%`;
+}
+
+function ActionPlanMatrix({ title, rows }: { title: string; rows: ActionPlanMatrixRow[] }) {
   return (
-    <article className="panel-alt border-emerald-300/35 bg-emerald-500/10 p-3 text-emerald-100">
-      <p className="text-[11px] uppercase tracking-[0.15em] text-slate-200/90">ICT Systems Modelled</p>
-      <p className="mt-1.5 text-2xl font-semibold">{modelledPercent}%</p>
-      <p className="mt-0.5 text-xs text-slate-300/90">
-        {boundedModelledCount} of {safeTotal} ICT systems
-      </p>
-      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full border border-sky-300/25 bg-slate-900/80">
-        <div className="flex h-full w-full">
-          <div className="h-full bg-emerald-400/90" style={{ width: `${modelledPercent}%` }} />
-          <div className="h-full bg-amber-300/95" style={{ width: `${notModelledPercent}%` }} />
-        </div>
+    <section className="min-w-0 overflow-hidden rounded-xl border border-sky-300/15 bg-slate-950/35">
+      <div className="border-b border-sky-300/10 px-3 py-2">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">{title}</h3>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-200/90">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-          Modelled: {modelledPercent}% ({boundedModelledCount})
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-amber-300" />
-          Not Modelled: {notModelledPercent}% ({notModelledCount})
-        </span>
+      <div className="overflow-hidden">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[38%]" />
+            <col className="w-[11%]" />
+            <col className="w-[18%]" />
+            <col className="w-[11%]" />
+            <col className="w-[22%]" />
+          </colgroup>
+          <thead className="bg-slate-900/70 text-[10px] uppercase tracking-[0.13em] text-slate-300/70">
+            <tr>
+              <th className="px-2 py-2 text-left">Action</th>
+              <th className="px-2 py-2 text-right">Count</th>
+              <th className="px-2 py-2 text-left">Scope</th>
+              <th className="px-2 py-2 text-right">Rate</th>
+              <th className="px-2 py-2 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const toneClasses = actionMatrixToneClasses(row.tone);
+              const safeTotal = typeof row.total === "number" ? Math.max(0, row.total) : undefined;
+              const boundedCount = safeTotal === undefined ? Math.max(0, row.count) : Math.min(Math.max(0, row.count), safeTotal);
+              const clearCount = safeTotal === undefined ? 0 : Math.max(0, safeTotal - boundedCount);
+              const statusTitle =
+                safeTotal === undefined
+                  ? row.statusLabel
+                  : `${clearCount} ${row.clearLabel?.toLowerCase() ?? "clear"}, ${boundedCount} ${
+                      row.actionLabel?.toLowerCase() ?? "requiring action"
+                    }`;
+
+              return (
+                <tr
+                  key={`${title}-${row.action}`}
+                  className={`border-t border-sky-300/10 ${row.emphasized ? toneClasses.row : ""}`}
+                >
+                  <td className="px-2 py-2">
+                    <p className={row.emphasized ? "font-semibold text-slate-100" : "font-medium text-slate-200"}>{row.action}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{row.detail}</p>
+                  </td>
+                  <td className={`px-2 py-2 text-right text-base font-semibold tabular-nums ${toneClasses.count}`}>
+                    {row.count}
+                  </td>
+                  <td className="break-words px-2 py-2 text-xs text-slate-300">{row.scope}</td>
+                  <td className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-slate-100">
+                    {actionRateLabel(row.count, row.total)}
+                  </td>
+                  <td className="px-2 py-2">
+                    {safeTotal === undefined ? (
+                      <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] ${toneClasses.badge}`}>
+                        {row.statusLabel}
+                      </span>
+                    ) : (
+                      <div className="w-full" title={statusTitle}>
+                        <div
+                          className="flex h-2.5 overflow-hidden rounded-full border border-sky-300/20 bg-slate-800/80"
+                          aria-label={`${row.action}: ${row.count}`}
+                        >
+                          <div
+                            className="h-full bg-emerald-400/90"
+                            style={{ width: actionSegmentWidth(clearCount, safeTotal) }}
+                          />
+                          <div
+                            className={`h-full ${toneClasses.segment}`}
+                            style={{ width: actionSegmentWidth(boundedCount, safeTotal) }}
+                          />
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                          <span>{row.clearLabel}</span>
+                          <span className={toneClasses.count}>{row.actionLabel}</span>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </article>
+    </section>
   );
 }
 
@@ -599,7 +692,7 @@ function AssetTypeHeatmapChart({
   assetsBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   embedded?: boolean;
 }) {
-  const serverAssets = useMemo(() => {
+  const allServerAssets = useMemo(() => {
     const seenAssetIds = new Set<string>();
     return items
       .flatMap((item) => assetsBySystemId[item.id] ?? [])
@@ -625,6 +718,45 @@ function AssetTypeHeatmapChart({
       });
   }, [assetsBySystemId, items]);
 
+  const environmentOptions = useMemo<ServerHeatmapEnvironmentOption[]>(
+    () =>
+      Array.from(new Set(allServerAssets.map((asset) => asset.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
+    [allServerAssets]
+  );
+  const securityDomainOptions = useMemo<ServerHeatmapSecurityDomainOption[]>(
+    () =>
+      Array.from(new Set(allServerAssets.map((asset) => asset.securityDomain))).sort(
+        (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
+      ),
+    [allServerAssets]
+  );
+  const [selectedEnvironment, setSelectedEnvironment] = useState<ServerHeatmapEnvironmentOption | "all">("all");
+  const [selectedSecurityDomain, setSelectedSecurityDomain] = useState<ServerHeatmapSecurityDomainOption | "all">("all");
+
+  useEffect(() => {
+    if (selectedEnvironment !== "all" && !environmentOptions.includes(selectedEnvironment)) {
+      setSelectedEnvironment("all");
+    }
+  }, [environmentOptions, selectedEnvironment]);
+
+  useEffect(() => {
+    if (selectedSecurityDomain !== "all" && !securityDomainOptions.includes(selectedSecurityDomain)) {
+      setSelectedSecurityDomain("all");
+    }
+  }, [securityDomainOptions, selectedSecurityDomain]);
+
+  const serverAssets = useMemo(() => {
+    return allServerAssets.filter((asset) => {
+      if (selectedEnvironment !== "all" && (asset.environmentType ?? "Unassigned") !== selectedEnvironment) {
+        return false;
+      }
+      if (selectedSecurityDomain !== "all" && asset.securityDomain !== selectedSecurityDomain) {
+        return false;
+      }
+      return true;
+    });
+  }, [allServerAssets, selectedEnvironment, selectedSecurityDomain]);
+
   const maxRiskScore = serverAssets.reduce((maxScore, asset) => Math.max(maxScore, asset.riskScore), 0);
   const serverCriticalExposureCount = serverAssets.reduce(
     (total, asset) => total + asset.criticalExposureCount,
@@ -632,7 +764,7 @@ function AssetTypeHeatmapChart({
   );
   const serverHighRiskCount = serverAssets.reduce((total, asset) => total + asset.highRiskCount, 0);
 
-  if (!serverAssets.length) {
+  if (!allServerAssets.length) {
     return (
       <section className={chartSurfaceClass(embedded)}>
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Server Risk Heatmap</h3>
@@ -653,17 +785,55 @@ function AssetTypeHeatmapChart({
             Servers coloured by open critical and high finding volume.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-          <span>Low</span>
-          <span className="h-2 w-24 max-w-[36vw] rounded-full bg-[linear-gradient(90deg,#22c55e,#facc15,#ef4444)]" />
-          <span>High</span>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Environment</span>
+            <select
+              value={selectedEnvironment}
+              onChange={(event) =>
+                setSelectedEnvironment(event.target.value as ServerHeatmapEnvironmentOption | "all")
+              }
+              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {environmentOptions.map((environment) => (
+                <option key={`server-heatmap-environment-${environment}`} value={environment}>
+                  {environment}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Security Domain</span>
+            <select
+              value={selectedSecurityDomain}
+              onChange={(event) =>
+                setSelectedSecurityDomain(event.target.value as ServerHeatmapSecurityDomainOption | "all")
+              }
+              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {securityDomainOptions.map((domain) => (
+                <option key={`server-heatmap-security-domain-${domain}`} value={domain}>
+                  {domain}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Low</span>
+            <span className="h-2 w-24 max-w-[36vw] rounded-full bg-[linear-gradient(90deg,#22c55e,#facc15,#ef4444)]" />
+            <span>High</span>
+          </div>
         </div>
       </div>
-      <div className="mt-2.5 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-3">
+      <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
         <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <h4 className="break-words text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">Servers</h4>
-            <p className="mt-0.5 text-[11px] text-slate-300/75">{serverAssets.length} servers</p>
+            <p className="mt-0.5 text-[11px] text-slate-300/75">
+              {serverAssets.length} of {allServerAssets.length} servers
+            </p>
           </div>
           <div className="flex flex-wrap justify-end gap-1.5 text-[11px] tabular-nums">
             <span className="rounded border border-red-400/20 bg-red-500/10 px-2 py-0.5 text-red-100">
@@ -674,19 +844,347 @@ function AssetTypeHeatmapChart({
             </span>
           </div>
         </div>
-        <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
-          <div className="flex w-full flex-wrap content-start gap-1">
-            {serverAssets.map((asset) => (
-              <span
-                key={`asset-heatmap-cell-${asset.id}`}
-                aria-label={`${asset.name}, Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
-                className="h-4 w-4 shrink-0 rounded-[4px] border border-white/15 shadow-[0_0_10px_rgba(15,23,42,0.35)]"
-                role="img"
-                style={{ backgroundColor: assetHeatmapColor(asset.riskScore, maxRiskScore) }}
-                title={`${asset.name}\n${asset.systemName}\nServer\nCritical Exposure: ${asset.criticalExposureCount}\nHigh Risk: ${asset.highRiskCount}`}
-              />
+        <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+          {serverAssets.length ? (
+            <div className="flex w-full flex-wrap content-start gap-1">
+              {serverAssets.map((asset) => (
+                <span
+                  key={`asset-heatmap-cell-${asset.id}`}
+                  aria-label={`${asset.name}, Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
+                  className="h-4 w-4 shrink-0 rounded-[4px] border border-white/15 shadow-[0_0_10px_rgba(15,23,42,0.35)]"
+                  role="img"
+                  style={{ backgroundColor: assetHeatmapColor(asset.riskScore, maxRiskScore) }}
+                  title={`${asset.name}\n${asset.systemName}\n${asset.environmentType ?? "Unassigned"}\n${asset.securityDomain}\nServer\nCritical Exposure: ${asset.criticalExposureCount}\nHigh Risk: ${asset.highRiskCount}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-sky-300/15 bg-slate-900/55 px-3 py-2 text-xs text-slate-300/80">
+              No servers match the selected filters.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function NetworkDiagramChart({
+  rows,
+  embedded = false
+}: {
+  rows: CyberCopNetworkDiagramRow[];
+  embedded?: boolean;
+}) {
+  const environmentOptions = useMemo<ServerHeatmapEnvironmentOption[]>(
+    () => Array.from(new Set(rows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
+    [rows]
+  );
+  const securityDomainOptions = useMemo<SecurityDomain[]>(
+    () =>
+      Array.from(new Set(rows.map((row) => row.securityDomain))).sort(
+        (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
+      ),
+    [rows]
+  );
+  const [selectedEnvironment, setSelectedEnvironment] = useState<ServerHeatmapEnvironmentOption | "all">("all");
+  const [selectedSecurityDomain, setSelectedSecurityDomain] = useState<SecurityDomain | "all">("all");
+  const [selectedNode, setSelectedNode] = useState<NetworkDiagramSelectedNode>(null);
+
+  useEffect(() => {
+    if (selectedEnvironment !== "all" && !environmentOptions.includes(selectedEnvironment)) {
+      setSelectedEnvironment("all");
+    }
+  }, [environmentOptions, selectedEnvironment]);
+
+  useEffect(() => {
+    if (selectedSecurityDomain !== "all" && !securityDomainOptions.includes(selectedSecurityDomain)) {
+      setSelectedSecurityDomain("all");
+    }
+  }, [securityDomainOptions, selectedSecurityDomain]);
+
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (selectedEnvironment !== "all" && (row.environmentType ?? "Unassigned") !== selectedEnvironment) {
+          return false;
+        }
+        if (selectedSecurityDomain !== "all" && row.securityDomain !== selectedSecurityDomain) {
+          return false;
+        }
+        return true;
+      }),
+    [rows, selectedEnvironment, selectedSecurityDomain]
+  );
+  useEffect(() => {
+    setSelectedNode(null);
+  }, [selectedEnvironment, selectedSecurityDomain]);
+
+  const uniqueSorted = (values: string[]) => Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
+  const axisDefinitions = useMemo(
+    () => [
+      { key: "system", label: "ICT System", values: uniqueSorted(filteredRows.map((row) => row.systemName)) },
+      {
+        key: "environment",
+        label: "Environment",
+        values: Array.from(new Set(filteredRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel)
+      },
+      { key: "server", label: "Server", values: uniqueSorted(filteredRows.map((row) => row.serverName)) },
+      {
+        key: "severity",
+        label: "Finding Severity",
+        values: impactSeverityOrder.filter((severity) => filteredRows.some((row) => row.severity === severity))
+      },
+      {
+        key: "spi",
+        label: "SPI",
+        values: Array.from(new Set(filteredRows.map((row) => row.spiLabel))).sort(
+          (left, right) => Number(left.replace("SPI ", "")) - Number(right.replace("SPI ", ""))
+        )
+      }
+    ],
+    [filteredRows]
+  );
+  const maxCategoryCount = Math.max(1, ...axisDefinitions.map((axis) => axis.values.length));
+  const svgWidth = 1080;
+  const chartHeight = Math.max(320, maxCategoryCount * 30 + 96);
+  const top = 58;
+  const bottom = 30;
+  const left = 72;
+  const right = 72;
+  const innerHeight = chartHeight - top - bottom;
+  const innerWidth = svgWidth - left - right;
+  const xForAxis = (index: number) => left + (index * innerWidth) / Math.max(1, axisDefinitions.length - 1);
+  const yForValue = (axisIndex: number, value: string) => {
+    const values = axisDefinitions[axisIndex].values;
+    const valueIndex = Math.max(0, values.indexOf(value));
+    if (values.length <= 1) {
+      return top + innerHeight / 2;
+    }
+    return top + (valueIndex * innerHeight) / (values.length - 1);
+  };
+  const labelForRowAxis = (row: CyberCopNetworkDiagramRow, axisKey: string) => {
+    if (axisKey === "system") {
+      return row.systemName;
+    }
+    if (axisKey === "environment") {
+      return row.environmentType ?? "Unassigned";
+    }
+    if (axisKey === "server") {
+      return row.serverName;
+    }
+    if (axisKey === "severity") {
+      return row.severity;
+    }
+    return row.spiLabel;
+  };
+  const rowsMatchingSelectedNode = selectedNode
+    ? filteredRows.filter((row) => labelForRowAxis(row, selectedNode.axisKey) === selectedNode.value)
+    : [];
+  const isNodeSelected = (axisKey: string, value: string) =>
+    selectedNode?.axisKey === axisKey && selectedNode.value === value;
+  const nodeHoverTitle = (axisKey: string, value: string) => {
+    if (axisKey !== "spi") {
+      return value;
+    }
+    const spiId = Number(value.replace("SPI ", ""));
+    const description = SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS] ?? "No SPI description available.";
+    const successMeasure =
+      SPI_SUCCESS_MEASURES[spiId as keyof typeof SPI_SUCCESS_MEASURES] ?? "No SPI success measure available.";
+    return `${value}\n${description}\nSuccess Measure: ${successMeasure}`;
+  };
+  const truncateAxisLabel = (value: string) => (value.length > 22 ? `${value.slice(0, 21)}...` : value);
+  const pointsForRow = (row: CyberCopNetworkDiagramRow) =>
+    axisDefinitions
+      .map((axis, axisIndex) => `${xForAxis(axisIndex)},${yForValue(axisIndex, labelForRowAxis(row, axis.key))}`)
+      .join(" ");
+  const displayedSeverities = impactSeverityOrder.filter((severity) =>
+    filteredRows.some((row) => row.severity === severity)
+  );
+
+  if (!rows.length) {
+    return (
+      <section className={chartSurfaceClass(embedded)}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Network Diagram</h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          Parallel coordinates for open server findings by system, environment, server, severity, and SPI.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No open server findings in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={chartSurfaceClass(embedded)}>
+      <div className="flex min-w-0 shrink-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-sm uppercase tracking-[0.14em] text-slate-100">Network Diagram</h3>
+          <p className="mt-1 text-xs text-slate-300/80">
+            One line per open server finding across ICT system, environment, server, severity, and SPI.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Environment</span>
+            <select
+              value={selectedEnvironment}
+              onChange={(event) => setSelectedEnvironment(event.target.value as ServerHeatmapEnvironmentOption | "all")}
+              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {environmentOptions.map((environment) => (
+                <option key={`network-diagram-environment-${environment}`} value={environment}>
+                  {environment}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Security Domain</span>
+            <select
+              value={selectedSecurityDomain}
+              onChange={(event) => setSelectedSecurityDomain(event.target.value as SecurityDomain | "all")}
+              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {securityDomainOptions.map((domain) => (
+                <option key={`network-diagram-security-domain-${domain}`} value={domain}>
+                  {domain}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+      <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] text-slate-300/75">
+            {filteredRows.length} of {rows.length} open server findings
+            {selectedNode ? ` | ${rowsMatchingSelectedNode.length} highlighted via ${selectedNode.value}` : ""}
+          </p>
+          <div className="flex flex-wrap justify-end gap-2 text-[11px] text-slate-300/80">
+            {displayedSeverities.map((severity) => (
+              <span key={`network-diagram-legend-${severity}`} className="inline-flex items-center gap-1">
+                <span className="h-2 w-4 rounded-full" style={{ backgroundColor: severityStrokeColor(severity) }} />
+                {severity}
+              </span>
             ))}
           </div>
+        </div>
+        <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-sky-300/10 bg-slate-950/35">
+          {filteredRows.length ? (
+            <div className="min-w-0" style={{ height: chartHeight }}>
+              <svg
+                role="img"
+                aria-label="Network Diagram parallel coordinates"
+                className="h-full w-full"
+                viewBox={`0 0 ${svgWidth} ${chartHeight}`}
+                preserveAspectRatio="none"
+                onClick={() => setSelectedNode(null)}
+              >
+                <defs>
+                  <filter id="network-diagram-glow" x="-25%" y="-25%" width="150%" height="150%">
+                    <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                    <feMerge>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                {axisDefinitions.map((axis, axisIndex) => {
+                  const x = xForAxis(axisIndex);
+                  return (
+                    <g key={`network-diagram-axis-${axis.key}`}>
+                      <line x1={x} y1={top} x2={x} y2={chartHeight - bottom} stroke="rgba(125, 211, 252, 0.34)" strokeWidth={1} />
+                      <text x={x} y={24} textAnchor="middle" className="fill-slate-100 text-[12px] font-semibold uppercase tracking-[0.12em]">
+                        {axis.label}
+                      </text>
+                      {axis.values.map((value) => {
+                        const y = yForValue(axisIndex, value);
+                        const selected = isNodeSelected(axis.key, value);
+                        return (
+                          <g
+                            key={`network-diagram-axis-${axis.key}-${value}`}
+                            role="button"
+                            tabIndex={0}
+                            className="cursor-pointer outline-none"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedNode((current) =>
+                                current?.axisKey === axis.key && current.value === value ? null : { axisKey: axis.key, value }
+                              );
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setSelectedNode((current) =>
+                                  current?.axisKey === axis.key && current.value === value ? null : { axisKey: axis.key, value }
+                                );
+                              }
+                            }}
+                          >
+                            <title>{nodeHoverTitle(axis.key, value)}</title>
+                            <circle
+                              cx={x}
+                              cy={y}
+                              r={selected ? 12 : 7}
+                              fill={selected ? "#67e8f9" : "rgba(14, 165, 233, 0.72)"}
+                              stroke={selected ? "#ecfeff" : "transparent"}
+                              strokeWidth={selected ? 1.8 : 0}
+                            />
+                            <text
+                              x={x}
+                              y={y + 14}
+                              textAnchor="middle"
+                              className={selected ? "fill-cyan-100 text-[10px] font-semibold" : "fill-slate-300 text-[10px]"}
+                            >
+                              {truncateAxisLabel(value)}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  );
+                })}
+                {filteredRows.map((row) => {
+                  const points = pointsForRow(row);
+                  return (
+                    <polyline
+                      key={`network-diagram-line-${row.findingId}`}
+                      points={points}
+                      fill="none"
+                      stroke={severityStrokeColor(row.severity)}
+                      strokeOpacity={selectedNode ? 0.12 : 0.38}
+                      strokeWidth={1.45}
+                    >
+                      <title>{`${row.systemName} | ${row.environmentType ?? "Unassigned"} | ${row.serverName} | ${row.securityDomain} | ${row.severity} | ${row.spiLabel}`}</title>
+                    </polyline>
+                  );
+                })}
+                {rowsMatchingSelectedNode.map((row) => (
+                  <polyline
+                    key={`network-diagram-selected-glow-${row.findingId}`}
+                    points={pointsForRow(row)}
+                    fill="none"
+                    stroke={severityStrokeColor(row.severity)}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeOpacity={0.9}
+                    strokeWidth={3.4}
+                    filter="url(#network-diagram-glow)"
+                  >
+                    <animate attributeName="stroke-opacity" values="0.35;1;0.35" dur="1.35s" repeatCount="indefinite" />
+                    <animate attributeName="stroke-width" values="2.4;5.2;2.4" dur="1.35s" repeatCount="indefinite" />
+                    <title>{`${row.systemName} | ${row.environmentType ?? "Unassigned"} | ${row.serverName} | ${row.securityDomain} | ${row.severity} | ${row.spiLabel}`}</title>
+                  </polyline>
+                ))}
+              </svg>
+            </div>
+          ) : (
+            <p className="m-3 rounded-md border border-sky-300/15 bg-slate-900/55 px-3 py-2 text-xs text-slate-300/80">
+              No network diagram findings match the selected filters.
+            </p>
+          )}
         </div>
       </div>
     </section>
@@ -714,7 +1212,7 @@ function SpiDriverChart({ rows, embedded = false }: { rows: CyberCopImpactSpiDri
     <section className={chartSurfaceClass(embedded)}>
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
       <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
-      <div className="mt-2.5 min-h-0 flex-1">
+      <div className="mt-2 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -786,7 +1284,7 @@ function EnvironmentImpactSplitChart({
     <section className={chartSurfaceClass(embedded)}>
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
       <p className="mt-1 text-xs text-slate-300/80">Open findings grouped by environment and severity band.</p>
-      <div className="mt-2.5 min-h-0 flex-1">
+      <div className="mt-2 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -928,7 +1426,7 @@ function MissionBusinessBlastRadiusChart({
           Business Service
         </span>
       </div>
-      <div className="mt-2.5 min-h-0 flex-1">
+      <div className="mt-2 min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
             <CartesianGrid stroke="rgba(120,180,210,0.14)" />
@@ -981,6 +1479,7 @@ function ImpactChartTabs({
   spiRows,
   systemRows,
   assetTypeHeatmapBySystemId,
+  networkDiagramRows,
   environmentRows,
   missionRows,
   businessRows
@@ -988,18 +1487,23 @@ function ImpactChartTabs({
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
   assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  networkDiagramRows: CyberCopNetworkDiagramRow[];
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
   missionRows: CyberCopImpactItem[];
   businessRows: CyberCopImpactItem[];
 }) {
   const [activeChartTab, setActiveChartTab] = useState<ImpactChartTabId>("spi");
+  const scopedNetworkDiagramRows = useMemo(() => {
+    const visibleSystemIds = new Set(systemRows.map((row) => row.id));
+    return networkDiagramRows.filter((row) => visibleSystemIds.has(row.systemId));
+  }, [networkDiagramRows, systemRows]);
 
   return (
-    <section className="panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-3">
+    <section className="panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-2">
       <div
         role="tablist"
         aria-label="Cyber COP impact chart tabs"
-        className="grid min-w-0 shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid min-w-0 shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5"
       >
         {impactChartTabs.map((tab) => {
           const isActive = activeChartTab === tab.id;
@@ -1028,10 +1532,10 @@ function ImpactChartTabs({
         id="cyber-cop-impact-chart-panel"
         role="tabpanel"
         aria-labelledby={`cyber-cop-impact-chart-tab-${activeChartTab}`}
-        className="mt-3 min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-sky-300/10 bg-slate-950/30 p-3 sm:p-4"
+        className="mt-2 min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-sky-300/10 bg-slate-950/30 p-1"
       >
-        <div className="flex h-full min-h-0 min-w-0 items-center justify-center overflow-hidden">
-          <div className="h-full min-h-[22rem] max-h-[42rem] min-w-0 max-w-full w-full">
+        <div className="h-full min-h-0 min-w-0 overflow-hidden">
+          <div className="h-full min-h-0 w-full min-w-0 max-w-full overflow-hidden">
             {activeChartTab === "spi" ? <SpiDriverChart rows={spiRows} embedded /> : null}
             {activeChartTab === "blast-radius" ? (
               <AssetTypeHeatmapChart
@@ -1039,6 +1543,9 @@ function ImpactChartTabs({
                 assetsBySystemId={assetTypeHeatmapBySystemId}
                 embedded
               />
+            ) : null}
+            {activeChartTab === "network-diagram" ? (
+              <NetworkDiagramChart rows={scopedNetworkDiagramRows} embedded />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (
@@ -1050,118 +1557,6 @@ function ImpactChartTabs({
             ) : null}
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
-
-function RemediationThroughputChart({ rows }: { rows: CyberCopActionThroughputPoint[] }) {
-  if (!rows.length) {
-    return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
-        <p className="mt-1 text-xs text-slate-300/80">Opened vs closed findings over the last 13 weeks.</p>
-        <p className="mt-3 text-sm text-slate-300/80">No throughput data in current scope.</p>
-      </section>
-    );
-  }
-
-  const totalOpened = rows.reduce((accumulator, row) => accumulator + row.openedCount, 0);
-  const totalClosed = rows.reduce((accumulator, row) => accumulator + row.closedCount, 0);
-
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Remediation Throughput (Weekly)</h3>
-          <p className="mt-1 text-xs text-slate-300/80">Opened vs closed findings over the last 13 weeks.</p>
-        </div>
-        <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-          Opened: {totalOpened} | Closed: {totalClosed}
-        </p>
-      </div>
-      <div className="mt-2.5 min-h-[10rem] flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-            <XAxis dataKey="weekLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} minTickGap={20} />
-            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-              formatter={(value, name) => {
-                if (name === "openedCount") {
-                  return [value, "Opened"];
-                }
-                if (name === "closedCount") {
-                  return [value, "Closed"];
-                }
-                return [value, "Net"];
-              }}
-            />
-            <Legend
-              formatter={(value) => {
-                if (value === "openedCount") {
-                  return "Opened";
-                }
-                if (value === "closedCount") {
-                  return "Closed";
-                }
-                return "Net";
-              }}
-              wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }}
-            />
-            <Bar dataKey="openedCount" name="openedCount" fill="#f59e0b" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="closedCount" name="closedCount" fill="#22c55e" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
-  );
-}
-
-function FindingAgingBucketsChart({ rows }: { rows: CyberCopActionAgeBucketRow[] }) {
-  if (!rows.length) {
-    return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
-        <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
-        <p className="mt-3 text-sm text-slate-300/80">No open findings in current scope.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Open Findings Aging Buckets</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Current open findings grouped by age and severity mix.</p>
-      <div className="mt-2.5 min-h-[10rem] flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
-            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-            <XAxis dataKey="bucketLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <Tooltip
-              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
-              formatter={(value, key, item) => {
-                const row = item.payload as CyberCopActionAgeBucketRow;
-                if (key === "criticalExposureCount") {
-                  return [value, "Critical Exposure"];
-                }
-                if (key === "highRiskCount") {
-                  return [value, "High Risk"];
-                }
-                if (key === "otherCount") {
-                  return [value, "Other"];
-                }
-                return [row.total, "Total"];
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
-            <Bar dataKey="criticalExposureCount" stackId="severity" name="Critical Exposure" fill="#ef4444" isAnimationActive={false} />
-            <Bar dataKey="highRiskCount" stackId="severity" name="High Risk" fill="#f97316" isAnimationActive={false} />
-            <Bar dataKey="otherCount" stackId="severity" name="Other" fill="#38bdf8" isAnimationActive={false} />
-          </BarChart>
-        </ResponsiveContainer>
       </div>
     </section>
   );
@@ -1188,8 +1583,8 @@ function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRo
     return (
       <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
-        <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
-        <p className="mt-3 text-sm text-slate-300/80">No open findings in current scope.</p>
+        <p className="mt-1 text-xs text-slate-300/80">Longest-running open Critical Exposure and High Risk findings requiring escalation or unblock.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No open Critical Exposure or High Risk findings in current scope.</p>
       </section>
     );
   }
@@ -1197,7 +1592,7 @@ function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRo
   return (
     <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Longest-running open findings requiring escalation or unblock.</p>
+      <p className="mt-1 text-xs text-slate-300/80">Longest-running open Critical Exposure and High Risk findings requiring escalation or unblock.</p>
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
         <table className="min-w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
@@ -1292,7 +1687,13 @@ function CyberCopTabFooter() {
 export function CyberCopDashboard({
   snapshotDate,
   filtersSlot,
-  complianceScores,
+  networkSpiHeatmapFilterSlot,
+  systemSpiHeatmapFilterSlot,
+  networkSpiHeatmapModel,
+  systemSpiHeatmapModel,
+  selectedSpiId,
+  initialMeasureSearch,
+  complianceScoreCards,
   riskProfile,
   riskFindings,
   assetHighRiskCvesByAssetId = {},
@@ -1300,14 +1701,12 @@ export function CyberCopDashboard({
   impact,
   impactLinks,
   impactAssetTypeHeatmapBySystemId,
+  impactNetworkDiagramRows,
   impactSpiDrivers,
   impactSpiDriversBySystemId,
   impactEnvironmentSplit,
   impactEnvironmentSplitBySystemId,
-  modellingSummary,
   actionPlan,
-  actionThroughput,
-  actionAgeBuckets,
   actionOldestOpenFindings,
   actionQuickWins,
   dailyHighRisk,
@@ -1517,6 +1916,118 @@ export function CyberCopDashboard({
     ictSystemsSelectedText
       ? `Systems filtered by ${ictSystemsSelectedText}.`
       : "Systems with highest open finding pressure.";
+  const threatSurfaceActionRows: ActionPlanMatrixRow[] = [
+    {
+      action: "Immediate action (critical and High-risk findings)",
+      detail: "Open Critical Exposure + High Risk findings",
+      count: actionPlan.immediateAction,
+      scope: "Open severe findings",
+      statusLabel: "Immediate",
+      tone: "critical",
+      emphasized: true
+    },
+    {
+      action: "Total Non-Compliant OS",
+      detail: "Server and workstation OS controls",
+      count: actionPlan.nonCompliantOs,
+      total: actionPlan.nonCompliantOsTotal,
+      scope: `${actionPlan.nonCompliantOsTotal} endpoints`,
+      actionLabel: "Non-compliant",
+      clearLabel: "Compliant",
+      statusLabel: "OS posture",
+      tone: "warning"
+    },
+    {
+      action: "Assets out of Warranty/EOL",
+      detail: "Scoped asset lifecycle posture",
+      count: actionPlan.assetsOutOfWarrantyEol,
+      total: actionPlan.scopedAssetsTotal,
+      scope: `${actionPlan.scopedAssetsTotal} assets`,
+      actionLabel: "Warranty/EOL",
+      clearLabel: "Current",
+      statusLabel: "Lifecycle",
+      tone: "critical"
+    },
+    {
+      action: "Servers with Critical findings",
+      detail: "Unique server assets",
+      count: actionPlan.serversWithCriticalFindings,
+      total: actionPlan.scopedServersTotal,
+      scope: `${actionPlan.scopedServersTotal} servers`,
+      actionLabel: "Critical",
+      clearLabel: "No critical",
+      statusLabel: "Server risk",
+      tone: "critical"
+    }
+  ];
+  const discoveryActionRows: ActionPlanMatrixRow[] = [
+    {
+      action: "Networks without discovery enabled",
+      detail: "Managed network discovery status",
+      count: actionPlan.networksWithoutDiscoveryEnabled,
+      total: actionPlan.scopedNetworksTotal,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      actionLabel: "Disabled",
+      clearLabel: "Enabled",
+      statusLabel: "Discovery status",
+      tone: "warning"
+    },
+    {
+      action: "Networks Discovery non-compliant",
+      detail: "Discovery-enabled networks with gaps",
+      count: actionPlan.networksDiscoveryNonCompliant,
+      total: actionPlan.scopedNetworksTotal,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      actionLabel: "Non-compliant",
+      clearLabel: "Compliant",
+      statusLabel: "Coverage",
+      tone: "warning"
+    },
+    {
+      action: "Networks with no target state",
+      detail: "Target state inventory coverage",
+      count: actionPlan.networksWithNoTargetState,
+      total: actionPlan.scopedNetworksTotal,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      actionLabel: "No target",
+      clearLabel: "Target set",
+      statusLabel: "Target state",
+      tone: "warning"
+    }
+  ];
+  const ictSystemModellingActionRows: ActionPlanMatrixRow[] = [
+    {
+      action: "DIIS ICT Systems defined",
+      detail: "Total DIIS-defined ICT systems in scope",
+      count: actionPlan.diisIctSystemsDefined,
+      scope: "DIIS inventory",
+      statusLabel: "Defined scope",
+      tone: "watch",
+      emphasized: true
+    },
+    {
+      action: "ICT Systems not modelled",
+      detail: "DIIS systems without TSAAT models",
+      count: actionPlan.ictSystemsNotModelled,
+      total: actionPlan.diisIctSystemsDefined,
+      scope: `${actionPlan.diisIctSystemsDefined} DIIS systems`,
+      actionLabel: "Not modelled",
+      clearLabel: "Modelled",
+      statusLabel: "Modelling",
+      tone: "warning"
+    },
+    {
+      action: "ICT System Modelled and Discovery non-compliant",
+      detail: "Modelled systems with discovery gaps",
+      count: actionPlan.ictSystemsModelledDiscoveryNonCompliant,
+      total: actionPlan.ictSystemsModelled,
+      scope: `${actionPlan.ictSystemsModelled} modelled systems`,
+      actionLabel: "Non-compliant",
+      clearLabel: "Compliant",
+      statusLabel: "Discovery",
+      tone: "critical"
+    }
+  ];
 
   const tabButtonClass = (isActive: boolean): string =>
     `rounded-lg border px-3 py-2.5 text-left text-xs uppercase tracking-[0.14em] transition ${
@@ -1529,7 +2040,7 @@ export function CyberCopDashboard({
   return (
     <div className="space-y-2">
       <section className="panel p-2">
-        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-3">
+        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           {cyberCopTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -1561,26 +2072,19 @@ export function CyberCopDashboard({
             <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
               <div className="min-h-0">{filtersSlot}</div>
 
-              <section className="panel cop-reveal relative overflow-hidden p-3">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,0.22),transparent_44%),radial-gradient(circle_at_88%_16%,rgba(239,68,68,0.16),transparent_38%)]" />
-                <div className="relative">
-                  <div className="flex flex-wrap items-end justify-between gap-2">
-                    <div>
-                      <h2 className="text-sm uppercase tracking-[0.16em] text-slate-100">Compliance Scores</h2>
-                      <p className="mt-1 text-xs text-slate-300/80">
-                        Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
-                      </p>
-                    </div>
-                    <span className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-                      Senior Cyber Operations Briefing
-                    </span>
+              <section className="panel cop-reveal relative overflow-hidden p-2.5">
+                <div className="grid items-center gap-2 xl:grid-cols-[minmax(16rem,0.62fr)_minmax(0,2.4fr)]">
+                  <div className="min-w-0">
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Compliance Scores</h2>
+                    <p className="mt-0.5 text-xs text-slate-300/80">
+                      Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
+                    </p>
                   </div>
-                  <div className="mt-2.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                    <ComplianceTile title="Overall Compliance" score={complianceScores.overall} />
-                    <ComplianceTile title="DSE Compliance" score={complianceScores.dse} />
-                    <ComplianceTile title="DPE Compliance" score={complianceScores.dpe} />
-                    <ComplianceTile title="Critical ICT Systems Compliance" score={complianceScores.ictSystems} />
-                    <ComplianceTile title="Networks Compliance" score={complianceScores.networks} />
+
+                  <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+                    {complianceScoreCards.map((card) => (
+                      <OverviewScoreCardTile key={card.title} card={card} />
+                    ))}
                   </div>
                 </div>
               </section>
@@ -1708,6 +2212,7 @@ export function CyberCopDashboard({
                   spiRows={filteredImpactSpiDrivers}
                   systemRows={chartFilteredSystemImpact}
                   assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
+                  networkDiagramRows={impactNetworkDiagramRows}
                   environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}
                   businessRows={filteredBusinessImpact}
@@ -1727,90 +2232,67 @@ export function CyberCopDashboard({
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
               <section className="panel cyber-cop-pulse-border p-3">
                 <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
-                <p className="mt-1 text-xs text-slate-300/80">Focus of effort for immediate response and planned remediation.</p>
-                <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-7">
-                  <ActionTile
-                    title="Immediate Action"
-                    value={actionPlan.immediateAction}
-                    subtitle="Critical Exposure + High Risk findings"
-                    tone="critical"
-                  />
-                  <ActionTile
-                    title="Planned Remediation"
-                    value={actionPlan.plannedRemediation}
-                    subtitle="P3+ findings backlog"
-                    tone="warning"
-                  />
-                  <ActionTile
-                    title="Total Non-Compliant OS"
-                    value={actionPlan.nonCompliantOs}
-                    subtitle="Assets failing OS SPI controls"
-                    tone="warning"
-                  />
-                  <ActionTile
-                    title="Assets Out of Warranty"
-                    value={actionPlan.outOfWarranty}
-                    subtitle="Physical assets beyond support coverage"
-                    tone="critical"
-                  />
-                  <ActionTile
-                    title="Discovery Coverage Gaps"
-                    value={actionPlan.discoveryCoverageGaps}
-                    subtitle="Assets not meeting discovery compliance"
-                    tone="watch"
-                  />
-                  <ActionTile
-                    title="Network Not Discovered"
-                    value={actionPlan.networkNotDiscovered}
-                    subtitle="Managed networks with Discovery Non Enabled status"
-                    tone="warning"
-                  />
-                  <ActionTile
-                    title="ICT Systems Not Modelled"
-                    value={actionPlan.unmodelledIctSystems}
-                    subtitle="DIIS-defined systems without TSAAT models"
-                    tone="warning"
-                  />
-                </div>
-
-                <div className="mt-3 border-t border-sky-300/20 pt-2.5">
-                  <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">ICT System Modelling Summary</h3>
-                  <p className="mt-1 text-xs text-slate-300/80">
-                    DIIS ICT system inventory coverage versus modelling completeness and discovery readiness.
-                  </p>
-                  <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-                    <ActionTile
-                      title="DIIS ICT Systems Defined"
-                      value={modellingSummary.diisDefinedCount}
-                      subtitle="Total ICT systems defined in DIIS scope"
-                      tone="watch"
-                    />
-                    <IctSystemsModelledBulletTile
-                      modelledCount={modellingSummary.modelledCount}
-                      totalCount={modellingSummary.diisDefinedCount}
-                    />
-                    <ActionTile
-                      title="ICT Systems Modelled with Discovery Non-Compliant"
-                      value={modellingSummary.modelledDiscoveryNonCompliantCount}
-                      subtitle="Modelled systems with discovery coverage gaps"
-                      tone="critical"
-                    />
-                  </div>
+                <p className="mt-1 text-xs text-slate-300/80">Focused action groups for current threat surface, discovery, and modelling risk.</p>
+                <div className="mt-2.5 grid gap-2 xl:grid-cols-2 min-[1900px]:grid-cols-[minmax(0,1fr)_minmax(40rem,0.95fr)_minmax(40rem,0.95fr)]">
+                  <ActionPlanMatrix title="Threat Surface Area Action Plan" rows={threatSurfaceActionRows} />
+                  <ActionPlanMatrix title="Discovery Action Plan" rows={discoveryActionRows} />
+                  <ActionPlanMatrix title="ICT System Modelling Action Plan" rows={ictSystemModellingActionRows} />
                 </div>
               </section>
-
-              <div className="grid min-h-0 gap-2 lg:grid-cols-2">
-                <RemediationThroughputChart rows={actionThroughput} />
-                <FindingAgingBucketsChart rows={actionAgeBuckets} />
-              </div>
 
               <div className="grid min-h-0 auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
                 <OldestOpenFindingsTable rows={actionOldestOpenFindings.slice(0, 8)} />
                 <ActionQuickWinsTable rows={actionQuickWins.slice(0, 8)} />
               </div>
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "networks-spi-heatmap" ? (
+        <div
+          id="cyber-cop-tabpanel-networks-spi-heatmap"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-networks-spi-heatmap"
+          className={tabPanelClass}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
+            <div className="min-h-0">{networkSpiHeatmapFilterSlot}</div>
+            <div className="min-h-0">
+              <MeasuresSpiHeatmapSection
+                model={networkSpiHeatmapModel}
+                selectedSpiId={selectedSpiId}
+                initialSearchValue={initialMeasureSearch}
+                placeholder="Search security domain or network"
+                localSpiFilter
+              />
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "systems-spi-heatmap" ? (
+        <div
+          id="cyber-cop-tabpanel-systems-spi-heatmap"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-systems-spi-heatmap"
+          className={tabPanelClass}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
+            <div className="min-h-0">{systemSpiHeatmapFilterSlot}</div>
+            <div className="min-h-0">
+              <MeasuresSpiHeatmapSection
+                model={systemSpiHeatmapModel}
+                selectedSpiId={selectedSpiId}
+                initialSearchValue={initialMeasureSearch}
+                placeholder="Search security domain or ICT system"
+                localSpiFilter
+              />
             </div>
             <CyberCopTabFooter />
           </div>

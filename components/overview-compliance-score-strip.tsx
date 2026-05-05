@@ -36,7 +36,7 @@ function segmentWidth(value: number, total: number): string {
   return `${Math.max((value / total) * 100, 2).toFixed(2)}%`;
 }
 
-function ScoreCard({ card }: { card: OverviewScoreCard }) {
+export function ScoreCard({ card }: { card: OverviewScoreCard }) {
   return (
     <article className="rounded-lg border border-sky-300/25 bg-slate-950/55 p-3 shadow-[inset_0_1px_0_rgba(148,163,184,0.08)]">
       <div className="flex items-start justify-between gap-3">

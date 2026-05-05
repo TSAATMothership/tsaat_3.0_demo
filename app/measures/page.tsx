@@ -2,7 +2,6 @@ import { FilterBar } from "@/components/filter-bar";
 import { KpiSpiMatrix } from "@/components/kpi-spi-matrix";
 import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { MeasuresSpiFilters } from "@/components/measures-spi-filters";
-import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
 import { MeasuresTabs } from "@/components/measures-tabs";
 import {
   KpiComplianceChart,
@@ -12,7 +11,6 @@ import { SPI_DESCRIPTIONS, SPI_IDS } from "@/lib/spi-metadata";
 import { buildKpiRows } from "@/lib/measures";
 import { getCoreAppData } from "@/lib/app-data";
 import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
-import { buildNetworkPerformanceReportModel, buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { FindingSeverity, type SpiId } from "@/lib/types";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -20,20 +18,6 @@ function firstParam(value: string | string[] | undefined): string | undefined {
     return value[0];
   }
   return value;
-}
-
-function omitSearchParams(
-  searchParams: Record<string, string | string[] | undefined>,
-  keysToOmit: string[]
-): Record<string, string | string[] | undefined> {
-  const omittedKeys = new Set(keysToOmit);
-  const result: Record<string, string | string[] | undefined> = {};
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (!omittedKeys.has(key)) {
-      result[key] = value;
-    }
-  }
-  return result;
 }
 
 function readSpiFilter(searchParams: Record<string, string | string[] | undefined>): SpiId | undefined {
@@ -58,18 +42,7 @@ export default async function MeasuresPage({
   const activeTab = resolveMeasuresTab(requestedTab);
   const selectedSpiId = readSpiFilter(searchParams);
   const measureSearch = readMeasureSearch(searchParams);
-  const networkHeatmapSearchParams = omitSearchParams(searchParams, ["system", "criticality", "environment"]);
-  const systemHeatmapSearchParams = omitSearchParams(searchParams, ["network"]);
-  const baseDataPromise = getCoreAppData(searchParams);
-  const networkHeatmapDataPromise =
-    activeTab === "networks-spi-heatmap" ? getCoreAppData(networkHeatmapSearchParams) : Promise.resolve(null);
-  const systemHeatmapDataPromise =
-    activeTab === "systems-spi-heatmap" ? getCoreAppData(systemHeatmapSearchParams) : Promise.resolve(null);
-  const [
-    { analytics, filterOptions, filters, dataset, systems, networks, measuresSettings },
-    networkHeatmapData,
-    systemHeatmapData
-  ] = await Promise.all([baseDataPromise, networkHeatmapDataPromise, systemHeatmapDataPromise]);
+  const { analytics, filterOptions, filters, dataset, systems, networks, measuresSettings } = await getCoreAppData(searchParams);
   const kpiRows = buildKpiRows(analytics, systems, networks);
   const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const measuresExtraSelects = [
@@ -80,26 +53,6 @@ export default async function MeasuresPage({
       options: severityOptions.map((severity) => ({ id: severity, label: severity }))
     }
   ];
-  const networkSpiHeatmapModel = networkHeatmapData
-    ? buildNetworkPerformanceReportModel({
-        dataset: networkHeatmapData.dataset,
-        analytics: networkHeatmapData.analytics,
-        filters: networkHeatmapData.filters,
-        networks: networkHeatmapData.networks,
-        systems: networkHeatmapData.systems,
-        asOfDate: networkHeatmapData.dataset.snapshotDate
-      })
-    : null;
-  const systemSpiHeatmapModel = systemHeatmapData
-    ? buildSystemPerformanceReportModel({
-        dataset: systemHeatmapData.dataset,
-        analytics: systemHeatmapData.analytics,
-        filters: systemHeatmapData.filters,
-        networks: systemHeatmapData.networks,
-        systems: systemHeatmapData.systems,
-        asOfDate: systemHeatmapData.dataset.snapshotDate
-      })
-    : null;
   const spiCompliancePoints = SPI_IDS.map((spiId) => {
     const statuses = analytics.evaluations.flatMap((assetEvaluation) =>
       assetEvaluation.evaluations
@@ -214,46 +167,6 @@ export default async function MeasuresPage({
                 mode="spi"
                 selectedSpiId={selectedSpiId}
                 searchValue={measureSearch}
-              />
-            </div>
-          </div>
-        ) : activeTab === "networks-spi-heatmap" && networkHeatmapData && networkSpiHeatmapModel ? (
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-            <div className="-mt-4">
-              <FilterBar
-                options={networkHeatmapData.filterOptions}
-                filters={networkHeatmapData.filters}
-                hiddenFields={["ictSystem", "systemCriticality", "environment"]}
-                extraSelectFields={measuresExtraSelects}
-                enableLoadingOverlay
-              />
-            </div>
-            <div className="min-h-0 flex-1">
-              <MeasuresSpiHeatmapSection
-                model={networkSpiHeatmapModel}
-                selectedSpiId={selectedSpiId}
-                initialSearchValue={measureSearch}
-                placeholder="Search security domain or network"
-              />
-            </div>
-          </div>
-        ) : activeTab === "systems-spi-heatmap" && systemHeatmapData && systemSpiHeatmapModel ? (
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
-            <div className="-mt-4">
-              <FilterBar
-                options={systemHeatmapData.filterOptions}
-                filters={systemHeatmapData.filters}
-                hiddenFields={["managedNetwork"]}
-                extraSelectFields={measuresExtraSelects}
-                enableLoadingOverlay
-              />
-            </div>
-            <div className="min-h-0 flex-1">
-              <MeasuresSpiHeatmapSection
-                model={systemSpiHeatmapModel}
-                selectedSpiId={selectedSpiId}
-                initialSearchValue={measureSearch}
-                placeholder="Search security domain or ICT system"
               />
             </div>
           </div>
