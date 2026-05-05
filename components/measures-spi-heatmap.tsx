@@ -453,25 +453,34 @@ function AffectedCisPanel({
           </div>
 
           <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-            <table className="min-w-full text-sm">
+            <table className="min-w-[111rem] table-fixed text-sm">
+              <colgroup>
+                <col className="w-[18rem]" />
+                <col className="w-[12rem]" />
+                <col className="w-[10rem]" />
+                <col className="w-[13rem]" />
+                <col className="w-[20rem]" />
+                <col className="w-[20rem]" />
+                <col className="w-[18rem]" />
+              </colgroup>
               <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                 <tr>
-                  <th className="px-3 py-2">Asset Name</th>
-                  <th className="px-3 py-2">Asset IP address</th>
-                  <th className="px-3 py-2">Asset Type</th>
-                  <th className="px-3 py-2">CVE Vulnerabilities</th>
-                  <th className="px-3 py-2">Asset Change Assignment Group</th>
-                  <th className="px-3 py-2">Asset Incident Assignment Group</th>
-                  <th className="px-3 py-2">Owner</th>
+                  <th className="whitespace-nowrap px-3 py-2">Asset Name</th>
+                  <th className="whitespace-nowrap px-3 py-2">Asset IP address</th>
+                  <th className="whitespace-nowrap px-3 py-2">Asset Type</th>
+                  <th className="whitespace-nowrap px-3 py-2">CVE Vulnerabilities</th>
+                  <th className="whitespace-nowrap px-3 py-2">Asset Change Assignment Group</th>
+                  <th className="whitespace-nowrap px-3 py-2">Asset Incident Assignment Group</th>
+                  <th className="whitespace-nowrap px-3 py-2">Owner</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((assetRow) => (
                   <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
-                    <td className="px-3 py-2 text-slate-100">{assetRow.assetName}</td>
-                    <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
-                    <td className="px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
-                    <td className="px-3 py-2">
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-100">{assetRow.assetName}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
                       {assetRow.totalCveVulnerabilities > 0 ? (
                         <button
                           type="button"
@@ -484,9 +493,9 @@ function AffectedCisPanel({
                         <span className="text-slate-400/90">0</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
-                    <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
-                    <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                   </tr>
                 ))}
                 {!rows.length ? (

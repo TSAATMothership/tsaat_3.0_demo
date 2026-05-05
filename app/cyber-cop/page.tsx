@@ -1292,6 +1292,9 @@ export default async function CyberCopPage({
         severity: finding.severity,
         workflowStatus: finding.status,
         scopeLabel,
+        systemId,
+        networkId,
+        environmentType,
         evidencePreview,
         recommendedAction: finding.recommendedAction
       };

@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   Legend,
   Line,
@@ -18,7 +19,11 @@ import {
   ZAxis
 } from "recharts";
 import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
-import { NetworkDetailRiskCharts, NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
+import {
+  NetworkDetailRiskCharts,
+  NetworkDetailRiskFindingRow,
+  RiskFindingsDrillThrough
+} from "@/components/network-detail-risk-charts";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { type PerformanceReportModel } from "@/lib/performance-report-model";
 import { SPI_DESCRIPTIONS, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
@@ -1191,7 +1196,22 @@ function NetworkDiagramChart({
   );
 }
 
-function SpiDriverChart({ rows, embedded = false }: { rows: CyberCopImpactSpiDriver[]; embedded?: boolean }) {
+function SpiDriverChart({
+  rows,
+  findings,
+  allFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
+  embedded = false
+}: {
+  rows: CyberCopImpactSpiDriver[];
+  findings: NetworkDetailRiskFindingRow[];
+  allFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
+  embedded?: boolean;
+}) {
+  const [selectedSpiId, setSelectedSpiId] = useState<number | null>(null);
   if (!rows.length) {
     return (
       <section className={chartSurfaceClass(embedded)}>
@@ -1207,59 +1227,139 @@ function SpiDriverChart({ rows, embedded = false }: { rows: CyberCopImpactSpiDri
     ...row,
     spiLabel: row.label
   }));
+  const selectedSpiRow = selectedSpiId ? chartData.find((row) => row.spiId === selectedSpiId) ?? null : null;
+  const selectedSpiFindings = selectedSpiId
+    ? findings.filter((finding) => finding.workflowStatus === "open" && finding.spiId === selectedSpiId)
+    : [];
+  const selectedSpiTotalCount = selectedSpiRow?.count ?? selectedSpiFindings.length;
+
+  const openSpiDrillThrough = (spiId: number) => {
+    setSelectedSpiId(spiId);
+  };
 
   return (
-    <section className={chartSurfaceClass(embedded)}>
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
-      <div className="mt-2 min-h-0 flex-1">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
-            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-            <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-            <YAxis dataKey="spiLabel" type="category" width={68} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) {
-                  return null;
-                }
-                const row = payload[0].payload as CyberCopImpactSpiDriver;
-                return (
-                  <div className="rounded-md border border-slate-500/60 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
-                    <p>{row.description}</p>
-                  </div>
-                );
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
-            <Bar
-              dataKey="criticalExposureCount"
-              stackId="severity"
-              name="Critical Exposure"
-              fill="#ef4444"
-              isAnimationActive={false}
-            />
-            <Bar
-              dataKey="highRiskCount"
-              stackId="severity"
-              name="High Risk"
-              fill="#f97316"
-              isAnimationActive={false}
-            />
-            <Bar
-              dataKey="otherCount"
-              stackId="severity"
-              name="Other"
-              fill="#38bdf8"
-              radius={[0, 6, 6, 0]}
-              isAnimationActive={false}
-            >
-              <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
+    <>
+      <section className={chartSurfaceClass(embedded)}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
+            <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
+          </div>
+          <p className="rounded-md border border-sky-300/20 bg-slate-950/50 px-2 py-1 text-[11px] text-sky-200/90">
+            Select an SPI bar to open Findings.
+          </p>
+        </div>
+        <div className="mt-2 min-h-0 flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
+              <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+              <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+              <YAxis dataKey="spiLabel" type="category" width={68} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) {
+                    return null;
+                  }
+                  const row = payload[0].payload as CyberCopImpactSpiDriver;
+                  return (
+                    <div className="rounded-md border border-slate-500/60 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
+                      <p>{row.description}</p>
+                    </div>
+                  );
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+              <Bar
+                dataKey="criticalExposureCount"
+                stackId="severity"
+                name="Critical Exposure"
+                fill="#ef4444"
+                isAnimationActive={false}
+              >
+                {chartData.map((row) => {
+                  const selected = selectedSpiId === row.spiId;
+                  return (
+                    <Cell
+                      key={`spi-driver-critical-${row.spiId}`}
+                      className="cursor-pointer"
+                      fill="#ef4444"
+                      fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
+                      stroke={selected ? "#e2e8f0" : "transparent"}
+                      strokeWidth={selected ? 1.4 : 0}
+                      onClick={() => openSpiDrillThrough(row.spiId)}
+                    />
+                  );
+                })}
+              </Bar>
+              <Bar
+                dataKey="highRiskCount"
+                stackId="severity"
+                name="High Risk"
+                fill="#f97316"
+                isAnimationActive={false}
+              >
+                {chartData.map((row) => {
+                  const selected = selectedSpiId === row.spiId;
+                  return (
+                    <Cell
+                      key={`spi-driver-high-${row.spiId}`}
+                      className="cursor-pointer"
+                      fill="#f97316"
+                      fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
+                      stroke={selected ? "#e2e8f0" : "transparent"}
+                      strokeWidth={selected ? 1.4 : 0}
+                      onClick={() => openSpiDrillThrough(row.spiId)}
+                    />
+                  );
+                })}
+              </Bar>
+              <Bar
+                dataKey="otherCount"
+                stackId="severity"
+                name="Other"
+                fill="#38bdf8"
+                radius={[0, 6, 6, 0]}
+                isAnimationActive={false}
+              >
+                <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
+                {chartData.map((row) => {
+                  const selected = selectedSpiId === row.spiId;
+                  return (
+                    <Cell
+                      key={`spi-driver-other-${row.spiId}`}
+                      className="cursor-pointer"
+                      fill="#38bdf8"
+                      fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
+                      stroke={selected ? "#e2e8f0" : "transparent"}
+                      strokeWidth={selected ? 1.4 : 0}
+                      onClick={() => openSpiDrillThrough(row.spiId)}
+                    />
+                  );
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {selectedSpiId ? (
+        <RiskFindingsDrillThrough
+          selection={{
+            id: `cyber-cop-spi-driver-${selectedSpiId}`,
+            label: `SPI ${selectedSpiId}`,
+            findings: selectedSpiFindings,
+            totalCount: selectedSpiTotalCount,
+            lockedSpiId: selectedSpiId,
+            emptyMessage: "No open findings were generated for the selected SPI bar.",
+            exportSlug: `spi-${selectedSpiId}`
+          }}
+          allFindings={allFindings}
+          assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+          asOfDate={asOfDate}
+          onClose={() => setSelectedSpiId(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -1482,7 +1582,10 @@ function ImpactChartTabs({
   networkDiagramRows,
   environmentRows,
   missionRows,
-  businessRows
+  businessRows,
+  riskFindings,
+  assetHighRiskCvesByAssetId,
+  asOfDate
 }: {
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
@@ -1491,12 +1594,18 @@ function ImpactChartTabs({
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
   missionRows: CyberCopImpactItem[];
   businessRows: CyberCopImpactItem[];
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
 }) {
   const [activeChartTab, setActiveChartTab] = useState<ImpactChartTabId>("spi");
+  const visibleSystemIds = useMemo(() => new Set(systemRows.map((row) => row.id)), [systemRows]);
   const scopedNetworkDiagramRows = useMemo(() => {
-    const visibleSystemIds = new Set(systemRows.map((row) => row.id));
     return networkDiagramRows.filter((row) => visibleSystemIds.has(row.systemId));
-  }, [networkDiagramRows, systemRows]);
+  }, [networkDiagramRows, visibleSystemIds]);
+  const scopedRiskFindings = useMemo(() => {
+    return riskFindings.filter((finding) => Boolean(finding.systemId) && visibleSystemIds.has(finding.systemId as string));
+  }, [riskFindings, visibleSystemIds]);
 
   return (
     <section className="panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-2">
@@ -1536,7 +1645,16 @@ function ImpactChartTabs({
       >
         <div className="h-full min-h-0 min-w-0 overflow-hidden">
           <div className="h-full min-h-0 w-full min-w-0 max-w-full overflow-hidden">
-            {activeChartTab === "spi" ? <SpiDriverChart rows={spiRows} embedded /> : null}
+            {activeChartTab === "spi" ? (
+              <SpiDriverChart
+                rows={spiRows}
+                findings={scopedRiskFindings}
+                allFindings={scopedRiskFindings}
+                assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                asOfDate={asOfDate}
+                embedded
+              />
+            ) : null}
             {activeChartTab === "blast-radius" ? (
               <AssetTypeHeatmapChart
                 items={systemRows}
@@ -2096,6 +2214,7 @@ export function CyberCopDashboard({
                   riskProfile={riskProfile}
                   findings={riskFindings}
                   assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                  enableFindingsDrillThrough={false}
                 />
               </div>
               <div className="cop-reveal cop-reveal-delay-3 grid min-h-0 gap-2 lg:grid-cols-2">
@@ -2216,6 +2335,9 @@ export function CyberCopDashboard({
                   environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}
                   businessRows={filteredBusinessImpact}
+                  riskFindings={riskFindings}
+                  assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                  asOfDate={asOfDate}
                 />
               </div>
             </div>
