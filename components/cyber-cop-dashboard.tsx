@@ -232,7 +232,7 @@ const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
 const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "spi", label: "SPI Driver" },
   { id: "blast-radius", label: "Server Risk Heatmap" },
-  { id: "network-diagram", label: "Network Diagram" },
+  { id: "network-diagram", label: "ICT System Impact Analyser" },
   { id: "environment", label: "Environment Split" },
   { id: "mission-business", label: "Critical Findings Blast Radius" }
 ];
@@ -1215,7 +1215,7 @@ function NetworkDiagramChart({
   if (!rows.length) {
     return (
       <section className={chartSurfaceClass(embedded)}>
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Network Diagram</h3>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">ICT System Impact Analyser Diagram</h3>
         <p className="mt-1 text-xs text-slate-300/80">
           Parallel coordinates for open server findings by system, environment, server, severity, and SPI.
         </p>
@@ -1233,7 +1233,7 @@ function NetworkDiagramChart({
             className="inline-block whitespace-nowrap text-sm uppercase tracking-[0.14em] text-slate-100"
             title="One line per open server finding across ICT system, environment, server, severity, and SPI."
           >
-            Network Diagram
+            ICT System Impact Analyser Diagram
           </h3>
         </div>
         <div className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible">
@@ -1402,7 +1402,7 @@ function NetworkDiagramChart({
                     <g key={`network-diagram-axis-${axis.key}`}>
                       <line x1={x} y1={top} x2={x} y2={chartHeight - bottom} stroke="rgba(125, 211, 252, 0.34)" strokeWidth={1} />
                       <text x={x} y={24} textAnchor="middle" className="fill-slate-100 text-[12px] font-semibold uppercase tracking-[0.12em]">
-                        {axis.label}
+                        {`${axis.label} (${axis.values.length})`}
                       </text>
                       {axis.values.map((value) => {
                         const y = yForValue(axisIndex, value);

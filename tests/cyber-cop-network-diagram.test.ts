@@ -11,7 +11,8 @@ describe("Cyber COP network diagram impact tab", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
 
     expect(dashboard).toContain('"network-diagram"');
-    expect(dashboard).toContain('{ id: "network-diagram", label: "Network Diagram" }');
+    expect(dashboard).toContain('{ id: "network-diagram", label: "ICT System Impact Analyser" }');
+    expect(dashboard).toContain("ICT System Impact Analyser Diagram");
     expect(dashboard).toContain("CyberCopNetworkDiagramRow");
     expect(dashboard).toContain("function NetworkDiagramChart");
     expect(dashboard).toContain("Parallel coordinates for open server findings");
@@ -22,6 +23,7 @@ describe("Cyber COP network diagram impact tab", () => {
     expect(dashboard).toContain('title="One line per open server finding across ICT system, environment, server, severity, and SPI."');
     expect(dashboard).toContain("ICT System");
     expect(dashboard).toContain("Finding Severity");
+    expect(dashboard).toContain("{`${axis.label} (${axis.values.length})`}");
     expect(dashboard).toContain("selectedEnvironment");
     expect(dashboard).toContain("selectedSecurityDomain");
     expect(dashboard).toContain("selectedFindingCriticality");
