@@ -1276,6 +1276,7 @@ export default async function CyberCopPage({
 
       return {
         id: `risk-${finding.id}`,
+        sourceFindingId: finding.id,
         assetId: finding.scope.assetId,
         assetName,
         assetType,

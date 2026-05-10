@@ -33,6 +33,7 @@ export interface NetworkDetailWeeklyRiskPoint {
 
 export interface NetworkDetailRiskFindingRow {
   id: string;
+  sourceFindingId?: string | null;
   assetId: string;
   assetName: string;
   assetType: string;
@@ -598,29 +599,37 @@ export function RiskFindingsDrillThrough({
     return template;
   }, [searchFilteredFindings, selectedAsOfDate]);
 
-  const closedFindingsBySpiChartRows = useMemo(() => {
-    const spiIds = Object.keys(SPI_NAMES)
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value))
-      .sort((a, b) => a - b);
+  const affectedAssetsByTypeRows = useMemo(() => {
+    const buckets = {
+      server: new Set<string>(),
+      workstation: new Set<string>(),
+      networkDevice: new Set<string>(),
+      other: new Set<string>()
+    };
 
-    return spiIds.map((spiId) => {
-      const count = sourceFindings.filter((finding) => {
-        if (finding.spiId !== spiId) {
-          return false;
-        }
-        if (!finding.closedTimestamp) {
-          return false;
-        }
-        return finding.closedTimestamp.slice(0, 10) <= selectedAsOfDate;
-      }).length;
-      return {
-        spiId,
-        spiLabel: `SPI ${spiId}`,
-        count
-      };
-    });
-  }, [selectedAsOfDate, sourceFindings]);
+    for (const finding of filteredFindings) {
+      const assetKey = finding.assetId || `${finding.assetName}-${finding.assetType}`;
+      const bucket = assetTypeBucket(finding.assetType);
+      if (bucket === "server") {
+        buckets.server.add(assetKey);
+      } else if (bucket === "workstation") {
+        buckets.workstation.add(assetKey);
+      } else if (bucket === "network-device") {
+        buckets.networkDevice.add(assetKey);
+      } else {
+        buckets.other.add(assetKey);
+      }
+    }
+
+    return [
+      { key: "server", label: "Server", count: buckets.server.size, fill: "#38bdf8" },
+      { key: "workstation", label: "Workstation", count: buckets.workstation.size, fill: "#22c55e" },
+      { key: "network-device", label: "Network Device", count: buckets.networkDevice.size, fill: "#a78bfa" },
+      { key: "other", label: "Other", count: buckets.other.size, fill: "#94a3b8" }
+    ];
+  }, [filteredFindings]);
+  const affectedAssetsByTypeTotal = affectedAssetsByTypeRows.reduce((total, row) => total + row.count, 0);
+  const affectedAssetsByTypeMax = Math.max(1, ...affectedAssetsByTypeRows.map((row) => row.count));
 
   const affectedAssetTypeTotalsByFinding = useMemo(() => {
     const grouped = new Map<
@@ -1181,39 +1190,29 @@ export function RiskFindingsDrillThrough({
                 </div>
 
                 <div className="rounded-xl border border-sky-300/20 bg-slate-950/45 p-3">
-                  <h5 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Closed Findings by SPI</h5>
-                  <p className="mt-1 text-xs text-slate-300/80">All closed findings up to {selectedAsOfDate} in this risk scope.</p>
-                  <div className="mt-3 h-52 w-full">
-                    {isMounted ? (
-                      <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                        <BarChart data={closedFindingsBySpiChartRows} margin={{ top: 6, right: 8, left: 0, bottom: 2 }}>
-                          <CartesianGrid stroke="rgba(120,180,210,0.14)" />
-                          <XAxis dataKey="spiLabel" tick={{ fill: "#a8c6d8", fontSize: 11 }} interval={0} />
-                          <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (!active || !payload || payload.length === 0) {
-                                return null;
-                              }
-                              const row = payload[0]?.payload as { spiId?: number; count?: number } | undefined;
-                              if (!row?.spiId) {
-                                return null;
-                              }
-                              const name = SPI_NAMES[row.spiId as keyof typeof SPI_NAMES] ?? "Unmapped SPI";
-                              const description = SPI_DESCRIPTIONS[row.spiId as keyof typeof SPI_DESCRIPTIONS] ?? "";
-                              return (
-                                <div className="rounded-md border border-slate-500/55 bg-slate-950/95 p-2 text-xs text-slate-100 shadow-lg">
-                                  <p className="font-semibold">{`SPI ${row.spiId} - ${name}`}</p>
-                                  <p className="mt-1 text-slate-300/90">{description}</p>
-                                  <p className="mt-1 text-cyan-200">{`Closed Findings: ${row.count ?? 0}`}</p>
-                                </div>
-                              );
-                            }}
-                          />
-                          <Bar dataKey="count" fill="#22d3ee" radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : null}
+                  <h5 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Affected Assets by Type</h5>
+                  <p className="mt-1 text-xs text-slate-300/80">
+                    Unique affected assets after the active findings filters.
+                  </p>
+                  <p className="mt-2 text-xs text-cyan-100/90">Total affected assets: {affectedAssetsByTypeTotal}</p>
+                  <div className="mt-3 space-y-3">
+                    {affectedAssetsByTypeRows.map((row) => {
+                      const widthPercent = row.count > 0 ? Math.max(6, Math.round((row.count / affectedAssetsByTypeMax) * 100)) : 0;
+                      return (
+                        <div key={`risk-affected-asset-type-${row.key}`} className="rounded-lg border border-sky-300/10 bg-slate-950/45 p-2">
+                          <div className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-medium text-slate-200">{row.label}</span>
+                            <span className="tabular-nums text-cyan-100">{row.count}</span>
+                          </div>
+                          <div className="mt-2 h-2 rounded-full bg-slate-800/90">
+                            <div
+                              className="h-full rounded-full transition-[width] duration-300"
+                              style={{ width: `${widthPercent}%`, backgroundColor: row.fill }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

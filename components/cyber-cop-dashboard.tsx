@@ -26,7 +26,7 @@ import {
 } from "@/components/network-detail-risk-charts";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { type PerformanceReportModel } from "@/lib/performance-report-model";
-import { SPI_DESCRIPTIONS, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
+import { SPI_DESCRIPTIONS, SPI_NAMES, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
 import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain, type SpiId } from "@/lib/types";
 
 export interface CyberCopImpactItem {
@@ -891,9 +891,15 @@ function AssetTypeHeatmapChart({
 
 function NetworkDiagramChart({
   rows,
+  riskFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
   embedded = false
 }: {
   rows: CyberCopNetworkDiagramRow[];
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
   embedded?: boolean;
 }) {
   const environmentOptions = useMemo<ServerHeatmapEnvironmentOption[]>(
@@ -913,6 +919,7 @@ function NetworkDiagramChart({
   const [networkDiagramSearch, setNetworkDiagramSearch] = useState("");
   const [isNetworkDiagramSearchFocused, setIsNetworkDiagramSearchFocused] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NetworkDiagramSelectedNode>(null);
+  const [selectedSpiDrillThroughId, setSelectedSpiDrillThroughId] = useState<number | null>(null);
   const networkDiagramSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const networkDiagramSearchInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1026,6 +1033,60 @@ function NetworkDiagramChart({
     },
     [networkDiagramSearch, rows, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]
   );
+
+  const filteredRowCountBySpiId = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const row of filteredRows) {
+      counts.set(row.spiId, (counts.get(row.spiId) ?? 0) + 1);
+    }
+    return counts;
+  }, [filteredRows]);
+
+  const riskFindingBySourceFindingId = useMemo(() => {
+    const map = new Map<string, NetworkDetailRiskFindingRow>();
+    for (const finding of riskFindings) {
+      if (finding.sourceFindingId) {
+        map.set(finding.sourceFindingId, finding);
+      }
+      map.set(finding.id, finding);
+      if (finding.id.startsWith("risk-")) {
+        map.set(finding.id.slice(5), finding);
+      }
+    }
+    return map;
+  }, [riskFindings]);
+
+  const filteredNetworkDiagramRiskFindings = useMemo(() => {
+    const seenFindingIds = new Set<string>();
+    const matchedFindings: NetworkDetailRiskFindingRow[] = [];
+    for (const row of filteredRows) {
+      const finding = riskFindingBySourceFindingId.get(row.findingId);
+      if (!finding || seenFindingIds.has(finding.id)) {
+        continue;
+      }
+      seenFindingIds.add(finding.id);
+      matchedFindings.push(finding);
+    }
+    return matchedFindings;
+  }, [filteredRows, riskFindingBySourceFindingId]);
+
+  const selectedSpiRows = useMemo(
+    () => (selectedSpiDrillThroughId ? filteredRows.filter((row) => row.spiId === selectedSpiDrillThroughId) : []),
+    [filteredRows, selectedSpiDrillThroughId]
+  );
+
+  const selectedSpiFindings = useMemo(
+    () =>
+      selectedSpiDrillThroughId
+        ? filteredNetworkDiagramRiskFindings.filter(
+            (finding) => finding.workflowStatus === "open" && finding.spiId === selectedSpiDrillThroughId
+          )
+        : [],
+    [filteredNetworkDiagramRiskFindings, selectedSpiDrillThroughId]
+  );
+
+  const selectedSpiTotalCount = selectedSpiRows.length;
+
   useEffect(() => {
     setSelectedNode(null);
   }, [networkDiagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]);
@@ -1093,15 +1154,24 @@ function NetworkDiagramChart({
     : [];
   const isNodeSelected = (axisKey: string, value: string) =>
     selectedNode?.axisKey === axisKey && selectedNode.value === value;
+  const spiIdFromNodeValue = (value: string) => {
+    const parsed = Number(value.replace("SPI ", ""));
+    return Number.isInteger(parsed) ? parsed : null;
+  };
   const nodeHoverTitle = (axisKey: string, value: string) => {
     if (axisKey !== "spi") {
       return value;
     }
-    const spiId = Number(value.replace("SPI ", ""));
+    const spiId = spiIdFromNodeValue(value);
+    if (!spiId) {
+      return value;
+    }
+    const name = SPI_NAMES[spiId as keyof typeof SPI_NAMES] ?? value;
     const description = SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS] ?? "No SPI description available.";
     const successMeasure =
       SPI_SUCCESS_MEASURES[spiId as keyof typeof SPI_SUCCESS_MEASURES] ?? "No SPI success measure available.";
-    return `${value}\n${description}\nSuccess Measure: ${successMeasure}`;
+    const totalFindings = filteredRowCountBySpiId.get(spiId) ?? 0;
+    return `${value}: ${name}\n${description}\nSuccess Measure: ${successMeasure}\nTotal Findings: ${totalFindings}`;
   };
   const truncateAxisLabel = (value: string) => (value.length > 22 ? `${value.slice(0, 21)}...` : value);
   const pointsForRow = (row: CyberCopNetworkDiagramRow) =>
@@ -1111,6 +1181,36 @@ function NetworkDiagramChart({
   const displayedSeverities = impactSeverityOrder.filter((severity) =>
     filteredRows.some((row) => row.severity === severity)
   );
+  const selectNetworkDiagramNode = (axisKey: string, value: string) => {
+    if (axisKey === "spi") {
+      const spiId = spiIdFromNodeValue(value);
+      if (!spiId) {
+        return;
+      }
+    }
+
+    setSelectedNode((current) =>
+      current?.axisKey === axisKey && current.value === value ? null : { axisKey, value }
+    );
+  };
+  const openNetworkDiagramSpiDrillThrough = (value: string) => {
+    const spiId = spiIdFromNodeValue(value);
+    if (!spiId) {
+      return;
+    }
+    setSelectedNode({ axisKey: "spi", value });
+    setSelectedSpiDrillThroughId(spiId);
+  };
+  const closeNetworkDiagramSpiDrillThrough = () => {
+    const closingSpiId = selectedSpiDrillThroughId;
+    setSelectedSpiDrillThroughId(null);
+    setSelectedNode((current) => {
+      if (!current || current.axisKey !== "spi" || spiIdFromNodeValue(current.value) !== closingSpiId) {
+        return current;
+      }
+      return null;
+    });
+  };
 
   if (!rows.length) {
     return (
@@ -1125,6 +1225,7 @@ function NetworkDiagramChart({
   }
 
   return (
+    <>
     <section className={chartSurfaceClass(embedded)}>
       <div className="flex min-w-0 shrink-0 flex-col gap-2">
         <div className="min-w-0">
@@ -1307,43 +1408,70 @@ function NetworkDiagramChart({
                         const y = yForValue(axisIndex, value);
                         const selected = isNodeSelected(axis.key, value);
                         return (
-                          <g
-                            key={`network-diagram-axis-${axis.key}-${value}`}
-                            role="button"
-                            tabIndex={0}
-                            className="cursor-pointer outline-none"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedNode((current) =>
-                                current?.axisKey === axis.key && current.value === value ? null : { axisKey: axis.key, value }
-                              );
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                setSelectedNode((current) =>
-                                  current?.axisKey === axis.key && current.value === value ? null : { axisKey: axis.key, value }
-                                );
-                              }
-                            }}
-                          >
-                            <title>{nodeHoverTitle(axis.key, value)}</title>
-                            <circle
-                              cx={x}
-                              cy={y}
-                              r={selected ? 12 : 7}
-                              fill={selected ? "#67e8f9" : "rgba(14, 165, 233, 0.72)"}
-                              stroke={selected ? "#ecfeff" : "transparent"}
-                              strokeWidth={selected ? 1.8 : 0}
-                            />
-                            <text
-                              x={x}
-                              y={y + 14}
-                              textAnchor="middle"
-                              className={selected ? "fill-cyan-100 text-[10px] font-semibold" : "fill-slate-300 text-[10px]"}
+                          <g key={`network-diagram-axis-${axis.key}-${value}`}>
+                            <g
+                              role="button"
+                              tabIndex={0}
+                              className="cursor-pointer outline-none"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                selectNetworkDiagramNode(axis.key, value);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  selectNetworkDiagramNode(axis.key, value);
+                                }
+                              }}
                             >
-                              {truncateAxisLabel(value)}
-                            </text>
+                              <title>{nodeHoverTitle(axis.key, value)}</title>
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r={selected ? 12 : 7}
+                                fill={selected ? "#67e8f9" : "rgba(14, 165, 233, 0.72)"}
+                                stroke={selected ? "#ecfeff" : "transparent"}
+                                strokeWidth={selected ? 1.8 : 0}
+                              />
+                              <text
+                                x={x}
+                                y={y + 14}
+                                textAnchor="middle"
+                                className={selected ? "fill-cyan-100 text-[10px] font-semibold" : "fill-slate-300 text-[10px]"}
+                              >
+                                {truncateAxisLabel(value)}
+                              </text>
+                            </g>
+                            {selected && axis.key === "spi" ? (
+                              <g
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Open findings for ${value}`}
+                                className="cursor-pointer outline-none"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openNetworkDiagramSpiDrillThrough(value);
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    openNetworkDiagramSpiDrillThrough(value);
+                                  }
+                                }}
+                              >
+                                <title>{`Open findings for ${value}`}</title>
+                                <circle
+                                  cx={x + 13}
+                                  cy={y - 13}
+                                  r={7}
+                                  fill="#0f172a"
+                                  stroke="#ecfeff"
+                                  strokeWidth={1.4}
+                                />
+                                <line x1={x + 9.5} y1={y - 13} x2={x + 16.5} y2={y - 13} stroke="#ecfeff" strokeWidth={1.6} strokeLinecap="round" />
+                                <line x1={x + 13} y1={y - 16.5} x2={x + 13} y2={y - 9.5} stroke="#ecfeff" strokeWidth={1.6} strokeLinecap="round" />
+                              </g>
+                            ) : null}
                           </g>
                         );
                       })}
@@ -1392,6 +1520,25 @@ function NetworkDiagramChart({
         </div>
       </div>
     </section>
+
+    {selectedSpiDrillThroughId ? (
+      <RiskFindingsDrillThrough
+        selection={{
+          id: `network-diagram-spi-${selectedSpiDrillThroughId}`,
+          label: `SPI ${selectedSpiDrillThroughId}`,
+          findings: selectedSpiFindings,
+          totalCount: selectedSpiTotalCount,
+          lockedSpiId: selectedSpiDrillThroughId,
+          emptyMessage: "No open findings were generated for the selected Network Diagram SPI.",
+          exportSlug: `network-diagram-spi-${selectedSpiDrillThroughId}`
+        }}
+        allFindings={filteredNetworkDiagramRiskFindings}
+        assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+        asOfDate={asOfDate}
+        onClose={closeNetworkDiagramSpiDrillThrough}
+      />
+    ) : null}
+    </>
   );
 }
 
@@ -1862,7 +2009,13 @@ function ImpactChartTabs({
               />
             ) : null}
             {activeChartTab === "network-diagram" ? (
-              <NetworkDiagramChart rows={scopedNetworkDiagramRows} embedded />
+              <NetworkDiagramChart
+                rows={scopedNetworkDiagramRows}
+                riskFindings={scopedRiskFindings}
+                assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                asOfDate={asOfDate}
+                embedded
+              />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (

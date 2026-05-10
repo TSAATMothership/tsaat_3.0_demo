@@ -41,16 +41,39 @@ describe("Cyber COP network diagram impact tab", () => {
     expect(dashboard).toContain("row.spiLabel");
     expect(dashboard).toContain("setNetworkDiagramSearch(\"\")");
     expect(dashboard).toContain("selectedNode");
+    expect(dashboard).toContain("selectedSpiDrillThroughId");
     expect(dashboard).toContain("rowsMatchingSelectedNode");
+    expect(dashboard).toContain("filteredRowCountBySpiId");
+    expect(dashboard).toContain("filteredNetworkDiagramRiskFindings");
+    expect(dashboard).toContain("selectNetworkDiagramNode(axis.key, value)");
+    expect(dashboard).toContain("openNetworkDiagramSpiDrillThrough");
+    expect(dashboard).toContain('selected && axis.key === "spi"');
+    expect(dashboard).toContain('aria-label={`Open findings for ${value}`}');
     expect(dashboard).toContain("onClick={() => setSelectedNode(null)}");
     expect(dashboard).toContain("event.stopPropagation()");
     expect(dashboard).toContain('filter id="network-diagram-glow"');
     expect(dashboard).toContain('repeatCount="indefinite"');
     expect(dashboard).toContain("No network diagram findings match the selected filters.");
     expect(dashboard).toContain("overflow-y-auto overflow-x-hidden");
+    expect(dashboard).toContain("SPI_NAMES");
     expect(dashboard).toContain("SPI_SUCCESS_MEASURES");
     expect(dashboard).toContain("Success Measure:");
+    expect(dashboard).toContain("Total Findings:");
     expect(dashboard).toContain("[networkDiagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]");
+
+    const selectNodeBlock = dashboard.slice(
+      dashboard.indexOf("const selectNetworkDiagramNode"),
+      dashboard.indexOf("const openNetworkDiagramSpiDrillThrough")
+    );
+    expect(selectNodeBlock).not.toContain("setSelectedSpiDrillThroughId");
+    expect(selectNodeBlock).toContain("current?.axisKey === axisKey");
+
+    const plusActionBlock = dashboard.slice(
+      dashboard.indexOf("const openNetworkDiagramSpiDrillThrough"),
+      dashboard.indexOf("const closeNetworkDiagramSpiDrillThrough")
+    );
+    expect(plusActionBlock).toContain("setSelectedNode({ axisKey: \"spi\", value })");
+    expect(plusActionBlock).toContain("setSelectedSpiDrillThroughId(spiId)");
   });
 
   it("builds network diagram rows from open server findings and passes them to Cyber COP", () => {
@@ -70,7 +93,10 @@ describe("Cyber COP network diagram impact tab", () => {
 
     expect(dashboard).toContain("impactNetworkDiagramRows: CyberCopNetworkDiagramRow[]");
     expect(dashboard).toContain("networkDiagramRows={impactNetworkDiagramRows}");
-    expect(dashboard).toContain("<NetworkDiagramChart rows={scopedNetworkDiagramRows} embedded />");
+    expect(page).toContain("sourceFindingId: finding.id");
+    expect(dashboard).toContain("riskFindings={scopedRiskFindings}");
+    expect(dashboard).toContain("assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}");
+    expect(dashboard).toContain("asOfDate={asOfDate}");
   });
 });
 
@@ -84,6 +110,15 @@ describe("Cyber COP SPI driver drill-through", () => {
     expect(riskCharts).toContain("Affected CIs");
     expect(riskCharts).toContain("High Risk CVE Vulnerabilities");
     expect(riskCharts).toContain("Open Findings Aging Buckets");
+    const exportedDrillThrough = riskCharts.slice(
+      riskCharts.indexOf("export function RiskFindingsDrillThrough"),
+      riskCharts.indexOf("export function NetworkDetailRiskCharts")
+    );
+    expect(exportedDrillThrough).not.toContain("Closed Findings by SPI");
+    expect(exportedDrillThrough).toContain("Affected Assets by Type");
+    expect(exportedDrillThrough).toContain("const affectedAssetsByTypeRows = useMemo");
+    expect(exportedDrillThrough).toContain("for (const finding of filteredFindings)");
+    expect(exportedDrillThrough).toContain("const assetKey = finding.assetId");
     expect(riskCharts).toContain('className="min-w-[134rem] table-fixed text-sm"');
     expect(riskCharts).toContain('<col className="w-[18rem]" />');
     expect(riskCharts).toContain("whitespace-nowrap px-3 py-2");
@@ -96,6 +131,9 @@ describe("Cyber COP SPI driver drill-through", () => {
     expect(dashboard).toContain("selectedSpiId === row.spiId");
     expect(dashboard).toContain("lockedSpiId: selectedSpiId");
     expect(dashboard).toContain("Select an SPI bar to open Findings");
+    expect(dashboard).toContain("id: `network-diagram-spi-${selectedSpiDrillThroughId}`");
+    expect(dashboard).toContain("lockedSpiId: selectedSpiDrillThroughId");
+    expect(dashboard).toContain("exportSlug: `network-diagram-spi-${selectedSpiDrillThroughId}`");
   });
 
   it("scopes SPI Driver drill-through findings to the active Impact system selection", () => {
