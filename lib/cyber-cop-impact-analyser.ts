@@ -58,6 +58,7 @@ export interface CyberCopImpactAnalyserLocalFilters {
   selectedSearchAxis?: string | null;
   selectedSearchValue?: string | null;
   spiId?: number | null;
+  systemIds?: string[] | null;
 }
 
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
@@ -213,8 +214,14 @@ export function filterCyberCopImpactAnalyserRows(
   const spiFilter = filters.spiId && Number.isInteger(filters.spiId) ? filters.spiId : null;
   const selectedSearchAxis = filters.selectedSearchAxis?.trim() || null;
   const selectedSearchValue = filters.selectedSearchValue?.trim() || null;
+  const systemIdFilter = filters.systemIds
+    ? new Set(filters.systemIds.map((id) => id.trim()).filter(Boolean))
+    : null;
 
   return rows.filter((row) => {
+    if (systemIdFilter && !systemIdFilter.has(row.systemId)) {
+      return false;
+    }
     if (environmentFilter && (row.environmentType ?? "Unassigned") !== environmentFilter) {
       return false;
     }

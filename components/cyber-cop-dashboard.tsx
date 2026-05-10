@@ -188,6 +188,7 @@ export interface CyberCopDashboardProps {
 }
 
 type CyberCopTabId = "overview" | "impact" | "action" | "networks-spi-heatmap" | "systems-spi-heatmap";
+type ImpactScopeTabId = "business-services" | "mission-capabilities";
 type ImpactChartTabId =
   | "spi"
   | "blast-radius"
@@ -295,14 +296,24 @@ function criticalityClass(criticality: Criticality): string {
   return "border-sky-300/35 text-sky-100";
 }
 
+function sameStringArray(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function ImpactLeaderboard({
   title,
   subtitle,
   items,
   selectedItemId,
+  selectedItemIds = [],
   selectedText,
   onSelectItem,
+  onSelectedItemIdsChange,
   onFilterScopeChange,
+  onVisibleItemIdsChange,
+  selectionMode = "single",
+  embedded = false,
+  hideHeader = false,
   showClearSelectionButton,
   clearSelectionDisabled,
   onClearSelection
@@ -311,9 +322,15 @@ function ImpactLeaderboard({
   subtitle: string;
   items: CyberCopImpactItem[];
   selectedItemId?: string | null;
+  selectedItemIds?: string[];
   selectedText?: string | null;
   onSelectItem?: (item: CyberCopImpactItem) => void;
+  onSelectedItemIdsChange?: (itemIds: string[]) => void;
   onFilterScopeChange?: (scope: { active: boolean; itemIds: string[] }) => void;
+  onVisibleItemIdsChange?: (itemIds: string[]) => void;
+  selectionMode?: "single" | "multi";
+  embedded?: boolean;
+  hideHeader?: boolean;
   showClearSelectionButton?: boolean;
   clearSelectionDisabled?: boolean;
   onClearSelection?: () => void;
@@ -343,9 +360,35 @@ function ImpactLeaderboard({
     () => riskScopedItems.find((item) => item.id === selectedItemId),
     [riskScopedItems, selectedItemId]
   );
+  const selectedItemIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
 
-  const selectable = Boolean(onSelectItem);
-  const selectedLabel = selectedText ?? selectedItem?.name ?? null;
+  const multiSelect = selectionMode === "multi";
+  const selectable = Boolean(onSelectItem) || multiSelect;
+  const selectedLabel = multiSelect
+    ? selectedItemIds.length
+      ? `${selectedItemIds.length} selected`
+      : null
+    : selectedText ?? selectedItem?.name ?? null;
+  const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
+
+  const toggleMultiSelectedItem = (itemId: string) => {
+    if (!onSelectedItemIdsChange) {
+      return;
+    }
+    onSelectedItemIdsChange(
+      selectedItemIdSet.has(itemId)
+        ? selectedItemIds.filter((id) => id !== itemId)
+        : [...selectedItemIds, itemId]
+    );
+  };
+
+  const selectVisibleItems = () => {
+    onSelectedItemIdsChange?.(visibleItemIds);
+  };
+
+  const clearMultiSelection = () => {
+    onSelectedItemIdsChange?.([]);
+  };
 
   useEffect(() => {
     if (!onFilterScopeChange) {
@@ -357,15 +400,30 @@ function ImpactLeaderboard({
     });
   }, [filteredItems, normalizedQuery, onFilterScopeChange]);
 
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-3">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
-        <p className="min-h-[1rem] text-[11px] text-right text-cyan-100/90">
-          {selectedLabel ? `Selected: ${selectedLabel}` : "Selected: none"}
-        </p>
-      </div>
-      <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+  useEffect(() => {
+    onVisibleItemIdsChange?.(visibleItemIds);
+  }, [onVisibleItemIdsChange, visibleItemIds]);
+
+  const content = (
+    <>
+      {hideHeader ? (
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs text-slate-300/80">{subtitle}</p>
+          <p className="min-h-[1rem] shrink-0 text-right text-[11px] text-cyan-100/90">
+            {selectedLabel ? `Selected: ${selectedLabel}` : "Selected: none"}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+            <p className="min-h-[1rem] text-right text-[11px] text-cyan-100/90">
+              {selectedLabel ? `Selected: ${selectedLabel}` : "Selected: none"}
+            </p>
+          </div>
+          <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+        </>
+      )}
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <input
           type="search"
@@ -382,6 +440,26 @@ function ImpactLeaderboard({
         >
           Clear
         </button>
+        {multiSelect && onSelectedItemIdsChange ? (
+          <>
+            <button
+              type="button"
+              onClick={selectVisibleItems}
+              disabled={!visibleItemIds.length}
+              className="whitespace-nowrap rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+            >
+              Select Visible
+            </button>
+            <button
+              type="button"
+              onClick={clearMultiSelection}
+              disabled={!selectedItemIds.length}
+              className="whitespace-nowrap rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+            >
+              Clear Selection
+            </button>
+          </>
+        ) : null}
         {showClearSelectionButton && onClearSelection ? (
           <button
             type="button"
@@ -403,26 +481,38 @@ function ImpactLeaderboard({
           <table className="w-full table-fixed text-xs xl:text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
               <tr>
-                <th className="w-[42%] px-2 py-2 text-left">Name</th>
-                <th className="w-[20%] px-2 py-2 text-left">Criticality</th>
-                <th className="w-[14%] px-2 py-2 text-right">Crit Exp</th>
-                <th className="w-[12%] px-2 py-2 text-right">High</th>
-                <th className="w-[12%] px-2 py-2 text-right">Assets</th>
+                {multiSelect ? <th className="w-[10%] px-2 py-2 text-left">Select</th> : null}
+                <th className={`${multiSelect ? "w-[34%]" : "w-[42%]"} px-2 py-2 text-left`}>Name</th>
+                <th className={`${multiSelect ? "w-[18%]" : "w-[20%]"} px-2 py-2 text-left`}>Criticality</th>
+                <th className={`${multiSelect ? "w-[14%]" : "w-[14%]"} px-2 py-2 text-right`}>Crit Exp</th>
+                <th className={`${multiSelect ? "w-[12%]" : "w-[12%]"} px-2 py-2 text-right`}>High</th>
+                <th className={`${multiSelect ? "w-[12%]" : "w-[12%]"} px-2 py-2 text-right`}>Assets</th>
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item) => (
+              {filteredItems.map((item) => {
+                const rowSelected = multiSelect ? selectedItemIdSet.has(item.id) : selectedItemId === item.id;
+                return (
                 <tr
                   key={item.id}
-                  className={`border-t border-sky-300/10 ${
-                    selectedItemId === item.id ? "bg-cyan-500/10" : ""
-                  }`}
+                  className={`border-t border-sky-300/10 ${rowSelected ? "bg-cyan-500/10" : ""}`}
                 >
+                  {multiSelect ? (
+                    <td className="px-2 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIdSet.has(item.id)}
+                        onChange={() => toggleMultiSelectedItem(item.id)}
+                        aria-label={`Select ${item.name}`}
+                        className="h-4 w-4 rounded border-sky-300/35 bg-slate-900 text-cyan-300"
+                      />
+                    </td>
+                  ) : null}
                   <td className="px-2 py-2 text-slate-100">
                     {selectable ? (
                       <button
                         type="button"
-                        onClick={() => onSelectItem?.(item)}
+                        onClick={() => (multiSelect ? toggleMultiSelectedItem(item.id) : onSelectItem?.(item))}
                         title={item.name}
                         className="block w-full truncate text-left text-slate-100 hover:text-cyan-100"
                       >
@@ -443,10 +533,11 @@ function ImpactLeaderboard({
                   <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-orange-100">{item.highRiskCount}</td>
                   <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-200">{item.impactedAssets}</td>
                 </tr>
-              ))}
+                );
+              })}
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-4 text-center text-sm text-slate-300/80">
+                  <td colSpan={multiSelect ? 6 : 5} className="px-3 py-4 text-center text-sm text-slate-300/80">
                     No matching rows.
                   </td>
                 </tr>
@@ -459,6 +550,16 @@ function ImpactLeaderboard({
           No critical exposure or high risk impact in current scope.
         </p>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex h-full min-h-0 flex-col">{content}</div>;
+  }
+
+  return (
+    <section className="panel flex h-full min-h-0 flex-col p-3">
+      {content}
     </section>
   );
 }
@@ -1245,6 +1346,7 @@ function MissionBusinessBlastRadiusChart({
 function ImpactChartTabs({
   spiRows,
   systemRows,
+  systemScopeIds,
   assetTypeHeatmapBySystemId,
   environmentRows,
   missionRows,
@@ -1255,6 +1357,7 @@ function ImpactChartTabs({
 }: {
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
+  systemScopeIds: string[];
   assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
   missionRows: CyberCopImpactItem[];
@@ -1325,7 +1428,7 @@ function ImpactChartTabs({
               />
             ) : null}
             {activeChartTab === "ict-system-impact-analyser-2" ? (
-              <IctSystemImpactAnalyser2Chart embedded />
+              <IctSystemImpactAnalyser2Chart embedded systemScopeIds={systemScopeIds} />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (
@@ -1492,9 +1595,14 @@ export function CyberCopDashboard({
   dailyCriticalExposure
 }: CyberCopDashboardProps) {
   const [activeTab, setActiveTab] = useState<CyberCopTabId>("overview");
+  const [activeImpactScopeTab, setActiveImpactScopeTab] = useState<ImpactScopeTabId>("business-services");
   const [selectedBusinessServiceId, setSelectedBusinessServiceId] = useState<string | null>(null);
   const [selectedMissionCapabilityId, setSelectedMissionCapabilityId] = useState<string | null>(null);
-  const [selectedIctSystemId, setSelectedIctSystemId] = useState<string | null>(null);
+  const [selectedIctSystemIds, setSelectedIctSystemIds] = useState<string[]>([]);
+  const [ictSystemVisibleScope, setIctSystemVisibleScope] = useState<{ active: boolean; itemIds: string[] }>({
+    active: false,
+    itemIds: []
+  });
   const [businessSearchScope, setBusinessSearchScope] = useState<{ active: boolean; itemIds: string[] }>({
     active: false,
     itemIds: []
@@ -1505,17 +1613,17 @@ export function CyberCopDashboard({
   });
 
   const scopedSystemImpact = useMemo(() => {
-    if (selectedBusinessServiceId) {
+    if (activeImpactScopeTab === "business-services" && selectedBusinessServiceId) {
       const allowedSystemIds = new Set(impactLinks.businessToSystems[selectedBusinessServiceId] ?? []);
       return impact.systems.filter((system) => allowedSystemIds.has(system.id));
     }
 
-    if (selectedMissionCapabilityId) {
+    if (activeImpactScopeTab === "mission-capabilities" && selectedMissionCapabilityId) {
       const allowedSystemIds = new Set(impactLinks.missionToSystems[selectedMissionCapabilityId] ?? []);
       return impact.systems.filter((system) => allowedSystemIds.has(system.id));
     }
 
-    if (businessSearchScope.active) {
+    if (activeImpactScopeTab === "business-services" && businessSearchScope.active) {
       if (!businessSearchScope.itemIds.length) {
         return [];
       }
@@ -1525,7 +1633,7 @@ export function CyberCopDashboard({
       return impact.systems.filter((system) => allowedSystemIds.has(system.id));
     }
 
-    if (missionSearchScope.active) {
+    if (activeImpactScopeTab === "mission-capabilities" && missionSearchScope.active) {
       if (!missionSearchScope.itemIds.length) {
         return [];
       }
@@ -1537,6 +1645,7 @@ export function CyberCopDashboard({
 
     return impact.systems;
   }, [
+    activeImpactScopeTab,
     impact.systems,
     impactLinks.businessToSystems,
     impactLinks.missionToSystems,
@@ -1554,43 +1663,68 @@ export function CyberCopDashboard({
     () => impact.mission.find((item) => item.id === selectedMissionCapabilityId),
     [impact.mission, selectedMissionCapabilityId]
   );
-  const selectedIctSystem = useMemo(
-    () => scopedSystemImpact.find((item) => item.id === selectedIctSystemId),
-    [scopedSystemImpact, selectedIctSystemId]
-  );
-  useEffect(() => {
-    if (selectedIctSystemId && !scopedSystemImpact.some((system) => system.id === selectedIctSystemId)) {
-      setSelectedIctSystemId(null);
-    }
-  }, [scopedSystemImpact, selectedIctSystemId]);
-  const chartFilteredSystemImpact = useMemo(() => {
-    if (!selectedIctSystemId) {
+  const ictSystemTableRows = useMemo(() => {
+    if (!ictSystemVisibleScope.active) {
       return scopedSystemImpact;
     }
+    const visibleIds = new Set(ictSystemVisibleScope.itemIds);
+    return scopedSystemImpact.filter((system) => visibleIds.has(system.id));
+  }, [ictSystemVisibleScope, scopedSystemImpact]);
+  const selectedIctSystems = useMemo(() => {
+    const selectedIds = new Set(selectedIctSystemIds);
+    return ictSystemTableRows.filter((system) => selectedIds.has(system.id));
+  }, [ictSystemTableRows, selectedIctSystemIds]);
+  const activeImpactSystemRows = useMemo(
+    () => (selectedIctSystems.length ? selectedIctSystems : ictSystemTableRows),
+    [ictSystemTableRows, selectedIctSystems]
+  );
+  const activeImpactSystemIds = useMemo(
+    () => activeImpactSystemRows.map((system) => system.id),
+    [activeImpactSystemRows]
+  );
 
-    const selectedRows = scopedSystemImpact.filter((system) => system.id === selectedIctSystemId);
-    return selectedRows.length ? selectedRows : scopedSystemImpact;
-  }, [scopedSystemImpact, selectedIctSystemId]);
+  useEffect(() => {
+    if (!ictSystemVisibleScope.active) {
+      return;
+    }
+    const visibleIds = new Set(ictSystemVisibleScope.itemIds);
+    setSelectedIctSystemIds((current) => {
+      const next = current.filter((id) => visibleIds.has(id));
+      return sameStringArray(current, next) ? current : next;
+    });
+  }, [ictSystemVisibleScope]);
+
+  useEffect(() => {
+    setSelectedIctSystemIds([]);
+    setIctSystemVisibleScope({ active: false, itemIds: [] });
+  }, [activeImpactScopeTab]);
+
   const businessImpactForLeaderboard = useMemo(() => {
-    if (!selectedIctSystemId) {
+    if (!selectedIctSystems.length) {
       return impact.business;
     }
+    const selectedIds = new Set(selectedIctSystems.map((system) => system.id));
 
-    return impact.business.filter((item) => (impactLinks.businessToSystems[item.id] ?? []).includes(selectedIctSystemId));
-  }, [impact.business, impactLinks.businessToSystems, selectedIctSystemId]);
+    return impact.business.filter((item) =>
+      (impactLinks.businessToSystems[item.id] ?? []).some((systemId) => selectedIds.has(systemId))
+    );
+  }, [impact.business, impactLinks.businessToSystems, selectedIctSystems]);
   const missionImpactForLeaderboard = useMemo(() => {
-    if (!selectedIctSystemId) {
+    if (!selectedIctSystems.length) {
       return impact.mission;
     }
+    const selectedIds = new Set(selectedIctSystems.map((system) => system.id));
 
-    return impact.mission.filter((item) => (impactLinks.missionToSystems[item.id] ?? []).includes(selectedIctSystemId));
-  }, [impact.mission, impactLinks.missionToSystems, selectedIctSystemId]);
+    return impact.mission.filter((item) =>
+      (impactLinks.missionToSystems[item.id] ?? []).some((systemId) => selectedIds.has(systemId))
+    );
+  }, [impact.mission, impactLinks.missionToSystems, selectedIctSystems]);
   const filteredBusinessImpact = useMemo(() => {
     if (selectedBusinessServiceId) {
       return impact.business.filter((item) => item.id === selectedBusinessServiceId);
     }
 
-    const activeSystemIds = new Set(chartFilteredSystemImpact.map((system) => system.id));
+    const activeSystemIds = new Set(activeImpactSystemRows.map((system) => system.id));
     const businessScopeIds = businessSearchScope.active ? new Set(businessSearchScope.itemIds) : null;
 
     return impact.business.filter((item) => {
@@ -1603,7 +1737,7 @@ export function CyberCopDashboard({
   }, [
     selectedBusinessServiceId,
     impact.business,
-    chartFilteredSystemImpact,
+    activeImpactSystemRows,
     businessSearchScope,
     impactLinks.businessToSystems
   ]);
@@ -1612,7 +1746,7 @@ export function CyberCopDashboard({
       return impact.mission.filter((item) => item.id === selectedMissionCapabilityId);
     }
 
-    const activeSystemIds = new Set(chartFilteredSystemImpact.map((system) => system.id));
+    const activeSystemIds = new Set(activeImpactSystemRows.map((system) => system.id));
     const missionScopeIds = missionSearchScope.active ? new Set(missionSearchScope.itemIds) : null;
 
     return impact.mission.filter((item) => {
@@ -1625,13 +1759,13 @@ export function CyberCopDashboard({
   }, [
     selectedMissionCapabilityId,
     impact.mission,
-    chartFilteredSystemImpact,
+    activeImpactSystemRows,
     missionSearchScope,
     impactLinks.missionToSystems
   ]);
   const filteredImpactSpiDrivers = useMemo(() => {
     const aggregated = new Map<number, CyberCopImpactSpiDriver>();
-    for (const system of chartFilteredSystemImpact) {
+    for (const system of activeImpactSystemRows) {
       const rows = impactSpiDriversBySystemId[system.id] ?? [];
       for (const row of rows) {
         const current = aggregated.get(row.spiId) ?? {
@@ -1658,12 +1792,12 @@ export function CyberCopDashboard({
       return a.spiId - b.spiId;
     });
   }, [
-    chartFilteredSystemImpact,
+    activeImpactSystemRows,
     impactSpiDriversBySystemId
   ]);
   const filteredImpactEnvironmentSplit = useMemo(() => {
     const aggregated = new Map<string, CyberCopImpactEnvironmentSplitRow>();
-    for (const system of chartFilteredSystemImpact) {
+    for (const system of activeImpactSystemRows) {
       const rows = impactEnvironmentSplitBySystemId[system.id] ?? [];
       for (const row of rows) {
         const current = aggregated.get(row.environment) ?? {
@@ -1686,14 +1820,22 @@ export function CyberCopDashboard({
       .filter((row): row is CyberCopImpactEnvironmentSplitRow => Boolean(row))
       .filter((row) => row.total > 0);
   }, [
-    chartFilteredSystemImpact,
+    activeImpactSystemRows,
     impactEnvironmentSplitBySystemId
   ]);
-  const ictSystemsSelectedText = selectedIctSystem?.name ?? selectedBusinessService?.name ?? selectedMissionCapability?.name ?? null;
+  const ictSystemsSelectedText =
+    selectedIctSystems.length === 1
+      ? selectedIctSystems[0].name
+      : selectedIctSystems.length > 1
+        ? `${selectedIctSystems.length} ICT systems selected`
+        : activeImpactScopeTab === "business-services"
+          ? selectedBusinessService?.name ?? null
+          : selectedMissionCapability?.name ?? null;
 
-  const ictSystemsSubtitle =
-    ictSystemsSelectedText
-      ? `Systems filtered by ${ictSystemsSelectedText}.`
+  const ictSystemsSubtitle = selectedIctSystems.length
+    ? `Charts scoped to ${selectedIctSystems.length} selected ICT system${selectedIctSystems.length === 1 ? "" : "s"}.`
+    : ictSystemVisibleScope.active
+      ? `Charts follow ${ictSystemTableRows.length} visible ICT system row${ictSystemTableRows.length === 1 ? "" : "s"}.`
       : "Systems with highest open finding pressure.";
   const threatSurfaceActionRows: ActionPlanMatrixRow[] = [
     {
@@ -1909,80 +2051,139 @@ export function CyberCopDashboard({
         >
           <div className="flex h-full flex-col">
             <div className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(26rem,0.92fr)_minmax(0,1.42fr)] xl:overflow-hidden">
-              <div className="cop-reveal cop-reveal-delay-2 grid min-h-0 min-w-0 auto-rows-[minmax(20rem,auto)] gap-2 xl:grid-rows-3 xl:auto-rows-auto xl:overflow-hidden">
-                <div className="min-h-[20rem] xl:min-h-0">
-                  <ImpactLeaderboard
-                    title="Business Services Impact"
-                    subtitle="Services carrying concentrated findings."
-                    items={businessImpactForLeaderboard}
-                    selectedItemId={selectedBusinessServiceId}
-                    selectedText={selectedBusinessService?.name ?? null}
-                    onSelectItem={(item) => {
-                      setSelectedMissionCapabilityId(null);
-                      setSelectedIctSystemId(null);
-                      setSelectedBusinessServiceId((current) => (current === item.id ? null : item.id));
-                    }}
-                    onFilterScopeChange={({ active, itemIds }) =>
-                      setBusinessSearchScope((current) => {
-                        if (
-                          current.active === active &&
-                          current.itemIds.length === itemIds.length &&
-                          current.itemIds.every((id, index) => id === itemIds[index])
-                        ) {
-                          return current;
+              <div className="cop-reveal cop-reveal-delay-2 grid min-h-0 min-w-0 auto-rows-[minmax(20rem,auto)] gap-2 xl:grid-rows-[minmax(17rem,0.85fr)_minmax(28rem,1.85fr)] xl:auto-rows-auto xl:overflow-hidden">
+                <section className="panel flex min-h-[20rem] min-w-0 flex-col p-3 xl:min-h-0">
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Business Services Impact</h3>
+                      <p className="mt-1 text-xs text-slate-300/80">
+                        Select the active business or mission scope for the ICT Systems table.
+                      </p>
+                    </div>
+                    <div
+                      role="tablist"
+                      aria-label="Business and mission impact scope tabs"
+                      className="grid shrink-0 grid-cols-2 gap-1 rounded-lg border border-sky-300/15 bg-slate-950/45 p-1"
+                    >
+                      {[
+                        { id: "business-services" as const, label: "Business Services" },
+                        { id: "mission-capabilities" as const, label: "Mission Capabilities" }
+                      ].map((tab) => {
+                        const isActive = activeImpactScopeTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            id={`cyber-cop-impact-scope-tab-${tab.id}`}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            aria-controls={`cyber-cop-impact-scope-panel-${tab.id}`}
+                            onClick={() => setActiveImpactScopeTab(tab.id)}
+                            className={`rounded-md px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                              isActive
+                                ? "bg-cyan-500/18 text-cyan-100"
+                                : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-100"
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 min-h-0 flex-1">
+                    <div
+                      id="cyber-cop-impact-scope-panel-business-services"
+                      role="tabpanel"
+                      aria-labelledby="cyber-cop-impact-scope-tab-business-services"
+                      className={activeImpactScopeTab === "business-services" ? "h-full min-h-0" : "hidden"}
+                    >
+                      <ImpactLeaderboard
+                        title="Business Services"
+                        subtitle="Services carrying concentrated findings."
+                        items={businessImpactForLeaderboard}
+                        selectedItemId={selectedBusinessServiceId}
+                        selectedText={selectedBusinessService?.name ?? null}
+                        onSelectItem={(item) => {
+                          setSelectedIctSystemIds([]);
+                          setIctSystemVisibleScope({ active: false, itemIds: [] });
+                          setSelectedBusinessServiceId((current) => (current === item.id ? null : item.id));
+                        }}
+                        onFilterScopeChange={({ active, itemIds }) =>
+                          setBusinessSearchScope((current) => {
+                            if (
+                              current.active === active &&
+                              current.itemIds.length === itemIds.length &&
+                              current.itemIds.every((id, index) => id === itemIds[index])
+                            ) {
+                              return current;
+                            }
+                            return { active, itemIds };
+                          })
                         }
-                        return { active, itemIds };
-                      })
-                    }
-                    showClearSelectionButton
-                    clearSelectionDisabled={!selectedBusinessServiceId}
-                    onClearSelection={() => setSelectedBusinessServiceId(null)}
-                  />
-                </div>
-                <div className="min-h-[20rem] xl:min-h-0">
-                  <ImpactLeaderboard
-                    title="Mission Capabilities Impact"
-                    subtitle="Capabilities affected by current findings."
-                    items={missionImpactForLeaderboard}
-                    selectedItemId={selectedMissionCapabilityId}
-                    selectedText={selectedMissionCapability?.name ?? null}
-                    onSelectItem={(item) => {
-                      setSelectedBusinessServiceId(null);
-                      setSelectedIctSystemId(null);
-                      setSelectedMissionCapabilityId((current) => (current === item.id ? null : item.id));
-                    }}
-                    onFilterScopeChange={({ active, itemIds }) =>
-                      setMissionSearchScope((current) => {
-                        if (
-                          current.active === active &&
-                          current.itemIds.length === itemIds.length &&
-                          current.itemIds.every((id, index) => id === itemIds[index])
-                        ) {
-                          return current;
+                        showClearSelectionButton
+                        clearSelectionDisabled={!selectedBusinessServiceId}
+                        onClearSelection={() => setSelectedBusinessServiceId(null)}
+                        embedded
+                        hideHeader
+                      />
+                    </div>
+                    <div
+                      id="cyber-cop-impact-scope-panel-mission-capabilities"
+                      role="tabpanel"
+                      aria-labelledby="cyber-cop-impact-scope-tab-mission-capabilities"
+                      className={activeImpactScopeTab === "mission-capabilities" ? "h-full min-h-0" : "hidden"}
+                    >
+                      <ImpactLeaderboard
+                        title="Mission Capabilities"
+                        subtitle="Capabilities affected by current findings."
+                        items={missionImpactForLeaderboard}
+                        selectedItemId={selectedMissionCapabilityId}
+                        selectedText={selectedMissionCapability?.name ?? null}
+                        onSelectItem={(item) => {
+                          setSelectedIctSystemIds([]);
+                          setIctSystemVisibleScope({ active: false, itemIds: [] });
+                          setSelectedMissionCapabilityId((current) => (current === item.id ? null : item.id));
+                        }}
+                        onFilterScopeChange={({ active, itemIds }) =>
+                          setMissionSearchScope((current) => {
+                            if (
+                              current.active === active &&
+                              current.itemIds.length === itemIds.length &&
+                              current.itemIds.every((id, index) => id === itemIds[index])
+                            ) {
+                              return current;
+                            }
+                            return { active, itemIds };
+                          })
                         }
-                        return { active, itemIds };
-                      })
-                    }
-                    showClearSelectionButton
-                    clearSelectionDisabled={!selectedMissionCapabilityId}
-                    onClearSelection={() => setSelectedMissionCapabilityId(null)}
-                  />
-                </div>
-                <div className="min-h-[20rem] xl:min-h-0">
+                        showClearSelectionButton
+                        clearSelectionDisabled={!selectedMissionCapabilityId}
+                        onClearSelection={() => setSelectedMissionCapabilityId(null)}
+                        embedded
+                        hideHeader
+                      />
+                    </div>
+                  </div>
+                </section>
+                <div className="min-h-[28rem] xl:min-h-0">
                   <ImpactLeaderboard
                     title="ICT Systems Impact"
                     subtitle={ictSystemsSubtitle}
                     items={scopedSystemImpact}
-                    selectedItemId={selectedIctSystemId}
                     selectedText={ictSystemsSelectedText}
-                    onSelectItem={(item) => {
-                      setSelectedBusinessServiceId(null);
-                      setSelectedMissionCapabilityId(null);
-                      setSelectedIctSystemId((current) => (current === item.id ? null : item.id));
+                    selectionMode="multi"
+                    selectedItemIds={selectedIctSystemIds}
+                    onSelectedItemIdsChange={setSelectedIctSystemIds}
+                    onVisibleItemIdsChange={(itemIds) => {
+                      setIctSystemVisibleScope((current) => {
+                        if (current.active && sameStringArray(current.itemIds, itemIds)) {
+                          return current;
+                        }
+                        return { active: true, itemIds };
+                      });
                     }}
-                    showClearSelectionButton
-                    clearSelectionDisabled={!selectedIctSystemId}
-                    onClearSelection={() => setSelectedIctSystemId(null)}
                   />
                 </div>
               </div>
@@ -1990,7 +2191,8 @@ export function CyberCopDashboard({
               <div className="cop-reveal cop-reveal-delay-3 min-h-[34rem] min-w-0 max-w-full overflow-hidden xl:min-h-0">
                 <ImpactChartTabs
                   spiRows={filteredImpactSpiDrivers}
-                  systemRows={chartFilteredSystemImpact}
+                  systemRows={activeImpactSystemRows}
+                  systemScopeIds={activeImpactSystemIds}
                   assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
                   environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}

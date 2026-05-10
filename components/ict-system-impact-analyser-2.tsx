@@ -223,7 +223,13 @@ function ImpactAnalyserLoadingOverlay({
   );
 }
 
-export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?: boolean }) {
+export function IctSystemImpactAnalyser2Chart({
+  embedded = false,
+  systemScopeIds
+}: {
+  embedded?: boolean;
+  systemScopeIds?: string[];
+}) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -258,6 +264,12 @@ export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?:
   const [drillThroughData, setDrillThroughData] = useState<ImpactAnalyser2FindingsResponse | null>(null);
   const [drillThroughError, setDrillThroughError] = useState<string | null>(null);
   const [isDrillThroughLoading, setIsDrillThroughLoading] = useState(false);
+  const hasSystemScope = Array.isArray(systemScopeIds);
+  const systemScopeKey = hasSystemScope ? Array.from(new Set(systemScopeIds)).sort().join(",") : "";
+  const normalizedSystemScopeIds = useMemo(
+    () => (hasSystemScope ? (systemScopeKey ? systemScopeKey.split(",").filter(Boolean) : []) : null),
+    [hasSystemScope, systemScopeKey]
+  );
 
   const spiCounts = useMemo(() => new Map(workerResult?.spiCounts ?? []), [workerResult?.spiCounts]);
   const hasActiveHighlight = Boolean(selectedNode);
@@ -405,7 +417,8 @@ export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?:
         securityDomain: selectedSecurityDomain,
         findingCriticality: selectedFindingCriticality,
         search: diagramSearch,
-        selectedSearchOption
+        selectedSearchOption,
+        systemIds: normalizedSystemScopeIds
       },
       selectedNode,
       layout: {
@@ -424,6 +437,7 @@ export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?:
     selectedSearchOption,
     selectedEnvironment,
     selectedFindingCriticality,
+    normalizedSystemScopeIds,
     selectedNode,
     selectedSecurityDomain,
     viewportSize.width,
@@ -437,6 +451,12 @@ export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?:
     setDrillThroughData(null);
     setDrillThroughError(null);
   }, [selectedEnvironment, selectedFindingCriticality, selectedSearchOption, selectedSecurityDomain]);
+
+  useEffect(() => {
+    setSelectedNode(null);
+    setDrillThroughData(null);
+    setDrillThroughError(null);
+  }, [systemScopeKey]);
 
   useEffect(() => {
     if (!selectedNode || !workerResult || !viewportRef.current) {
@@ -737,7 +757,8 @@ export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?:
             diagramFindingCriticality: selectedFindingCriticality,
             diagramSearch,
             diagramSearchAxis: selectedSearchOption?.axisKey,
-            diagramSearchValue: selectedSearchOption?.value
+            diagramSearchValue: selectedSearchOption?.value,
+            diagramSystemIds: systemScopeKey
           }),
           { cache: "no-store" }
         );
@@ -752,7 +773,7 @@ export function IctSystemImpactAnalyser2Chart({ embedded = false }: { embedded?:
         setIsDrillThroughLoading(false);
       }
     },
-    [diagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSearchOption, selectedSecurityDomain]
+    [diagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSearchOption, selectedSecurityDomain, systemScopeKey]
   );
 
   const handleOverlayClick = useCallback(

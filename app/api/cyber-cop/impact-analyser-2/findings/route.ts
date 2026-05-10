@@ -20,9 +20,20 @@ function readNumberParam(value: string | null): number | null {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
+function readCsvParam(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 export async function GET(request: NextRequest) {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const selectedSpiId = readNumberParam(request.nextUrl.searchParams.get("spiId"));
+  const diagramSystemIdsParam = request.nextUrl.searchParams.get("diagramSystemIds");
   const { analytics, dataset, filters, systems } = await getCoreAppData(queryObject);
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
   const allRows = buildCyberCopImpactAnalyserRows(filteredAssets, analytics.findings, systems);
@@ -32,7 +43,8 @@ export async function GET(request: NextRequest) {
     findingCriticality: request.nextUrl.searchParams.get("diagramFindingCriticality"),
     search: request.nextUrl.searchParams.get("diagramSearch"),
     selectedSearchAxis: request.nextUrl.searchParams.get("diagramSearchAxis"),
-    selectedSearchValue: request.nextUrl.searchParams.get("diagramSearchValue")
+    selectedSearchValue: request.nextUrl.searchParams.get("diagramSearchValue"),
+    systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)
   });
   const selectedRows = filterCyberCopImpactAnalyserRows(locallyFilteredRows, { spiId: selectedSpiId });
   const localFindingIds = new Set(locallyFilteredRows.map((row) => row.findingId));

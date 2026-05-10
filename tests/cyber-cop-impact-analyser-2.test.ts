@@ -207,6 +207,49 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
     ).toEqual(["SPI 1"]);
   });
 
+  it("filters compact rows by scoped ICT system ids", () => {
+    const scopedRows: CyberCopImpactAnalyserRow[] = [
+      {
+        findingId: "finding-system-1",
+        systemId: "system-1",
+        systemName: "Payments",
+        environmentType: "Production",
+        serverId: "server-1",
+        serverName: "PAY-SRV-01",
+        serverHostname: "pay-srv-01.example.test",
+        securityDomain: "Secret",
+        severity: "Critical Exposure",
+        spiId: 3,
+        spiLabel: "SPI 3"
+      },
+      {
+        findingId: "finding-system-2",
+        systemId: "system-2",
+        systemName: "Logistics",
+        environmentType: "Production",
+        serverId: "server-2",
+        serverName: "LOG-SRV-01",
+        serverHostname: "log-srv-01.example.test",
+        securityDomain: "Protected",
+        severity: "High Risk",
+        spiId: 4,
+        spiLabel: "SPI 4"
+      }
+    ];
+
+    expect(filterCyberCopImpactAnalyserRows(scopedRows, { systemIds: ["system-1"] }).map((row) => row.systemId)).toEqual([
+      "system-1"
+    ]);
+    expect(filterCyberCopImpactAnalyserRows(scopedRows, { systemIds: [] })).toHaveLength(0);
+    expect(
+      filterCyberCopImpactAnalyserRows(scopedRows, {
+        systemIds: ["system-2"],
+        selectedSearchAxis: "spi",
+        selectedSearchValue: "SPI 4"
+      }).map((row) => row.findingId)
+    ).toEqual(["finding-system-2"]);
+  });
+
   it("builds drill-through finding rows with source finding ids and affected CI fields", () => {
     const rows = buildCyberCopImpactAnalyserFindingRows({
       findings,
@@ -235,13 +278,49 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     const page = readRepoFile("app/cyber-cop/page.tsx");
 
     expect(dashboard).toContain('{ id: "ict-system-impact-analyser-2", label: "ICT System Impact Analyser" }');
-    expect(dashboard).toContain("<IctSystemImpactAnalyser2Chart embedded />");
+    expect(dashboard).toContain("<IctSystemImpactAnalyser2Chart embedded systemScopeIds={systemScopeIds} />");
+    expect(dashboard).toContain('selectionMode="multi"');
+    expect(dashboard).toContain("selectedItemIds={selectedIctSystemIds}");
+    expect(dashboard).toContain("onVisibleItemIdsChange={(itemIds) =>");
+    expect(dashboard).toContain("const activeImpactSystemRows = useMemo");
+    expect(dashboard).toContain("const activeImpactSystemIds = useMemo");
+    expect(dashboard).toContain("systemScopeIds={activeImpactSystemIds}");
     expect(dashboard).not.toContain('"network-diagram"');
     expect(dashboard).not.toContain("NetworkDiagramChart");
     expect(dashboard).not.toContain("CyberCopNetworkDiagramRow");
     expect(dashboard).not.toContain("impactNetworkDiagramRows");
     expect(page).not.toContain("buildNetworkDiagramRows");
     expect(page).not.toContain("impactNetworkDiagramRows");
+  });
+
+  it("combines business and mission impact scopes into one tabbed left panel", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+
+    expect(dashboard).toContain('type ImpactScopeTabId = "business-services" | "mission-capabilities";');
+    expect(dashboard).toContain(
+      'const [activeImpactScopeTab, setActiveImpactScopeTab] = useState<ImpactScopeTabId>("business-services");'
+    );
+    expect(dashboard).toContain('aria-label="Business and mission impact scope tabs"');
+    expect(dashboard).toContain('id={`cyber-cop-impact-scope-tab-${tab.id}`}');
+    expect(dashboard).toContain('id="cyber-cop-impact-scope-panel-business-services"');
+    expect(dashboard).toContain('id="cyber-cop-impact-scope-panel-mission-capabilities"');
+    expect(dashboard).toContain('title="Business Services"');
+    expect(dashboard).toContain('title="Mission Capabilities"');
+    expect(dashboard).toContain("embedded\n                        hideHeader");
+    expect(dashboard).toContain(
+      "xl:grid-rows-[minmax(17rem,0.85fr)_minmax(28rem,1.85fr)]"
+    );
+    expect(dashboard).toContain('className="min-h-[28rem] xl:min-h-0"');
+    expect(dashboard).not.toContain('title="Mission Capabilities Impact"');
+
+    expect(dashboard).toContain('if (activeImpactScopeTab === "business-services" && selectedBusinessServiceId)');
+    expect(dashboard).toContain('if (activeImpactScopeTab === "mission-capabilities" && selectedMissionCapabilityId)');
+    expect(dashboard).toContain('if (activeImpactScopeTab === "business-services" && businessSearchScope.active)');
+    expect(dashboard).toContain('if (activeImpactScopeTab === "mission-capabilities" && missionSearchScope.active)');
+    expect(dashboard).toMatch(
+      /useEffect\(\(\) => \{\s+setSelectedIctSystemIds\(\[\]\);\s+setIctSystemVisibleScope\(\{ active: false, itemIds: \[\] \}\);\s+\}, \[activeImpactScopeTab\]\);/
+    );
+    expect(dashboard).toContain("systemScopeIds={activeImpactSystemIds}");
   });
 
   it("uses lazy dynamic API routes for data and selected SPI findings", () => {
@@ -255,6 +334,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(findingsRoute).toContain("filterCyberCopImpactAnalyserRows");
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSearchAxis")');
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSearchValue")');
+    expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSystemIds")');
+    expect(findingsRoute).toContain("systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)");
     expect(component).toContain('fetch(buildApiUrl("/api/cyber-cop/impact-analyser-2")');
     expect(component).toContain('buildApiUrl("/api/cyber-cop/impact-analyser-2/findings"');
   });
@@ -288,6 +369,10 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("selectedSearchOption");
     expect(component).toContain("setSelectedSearchOption(null)");
     expect(component).toContain("setSelectedSearchOption(exactSearchOption)");
+    expect(component).toContain("systemScopeIds?: string[]");
+    expect(component).toContain("const systemScopeKey = hasSystemScope");
+    expect(component).toContain("systemIds: normalizedSystemScopeIds");
+    expect(component).toContain("diagramSystemIds: systemScopeKey");
     expect(component).toContain("diagramSearchAxis: selectedSearchOption?.axisKey");
     expect(component).toContain("diagramSearchValue: selectedSearchOption?.value");
     expect(component).toContain("exportSlug: `ict-system-impact-analyser-spi-${drillThroughData.selectedSpiId}`");
@@ -298,6 +383,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("filterRows");
     expect(worker).toContain("buildAxes");
     expect(worker).toContain("const normalizedSearch = filters.search.trim().toLowerCase()");
+    expect(worker).toContain("const systemIdFilter = filters.systemIds ? new Set(filters.systemIds) : null");
+    expect(worker).toContain("if (systemIdFilter && !systemIdFilter.has(row.systemId))");
     expect(worker).toContain("filters.selectedSearchOption");
     expect(worker).toContain("rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value");
     expect(worker).toContain("if (!rowMatchesSearch(row, normalizedSearch))");

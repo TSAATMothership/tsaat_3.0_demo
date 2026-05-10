@@ -33,6 +33,7 @@ interface ImpactAnalyser2Filters {
   findingCriticality: string;
   search: string;
   selectedSearchOption: ImpactAnalyser2SelectedSearchOption | null;
+  systemIds: string[] | null;
 }
 
 interface ImpactAnalyser2Axis {
@@ -186,7 +187,11 @@ function rowMatchesSearch(row: ImpactAnalyser2Row, normalizedSearch: string): bo
 
 function filterRows(rows: ImpactAnalyser2Row[], filters: ImpactAnalyser2Filters): ImpactAnalyser2Row[] {
   const normalizedSearch = filters.search.trim().toLowerCase();
+  const systemIdFilter = filters.systemIds ? new Set(filters.systemIds) : null;
   return rows.filter((row) => {
+    if (systemIdFilter && !systemIdFilter.has(row.systemId)) {
+      return false;
+    }
     if (filters.environment !== "all" && (row.environmentType ?? "Unassigned") !== filters.environment) {
       return false;
     }
