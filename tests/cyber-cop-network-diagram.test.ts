@@ -15,10 +15,31 @@ describe("Cyber COP network diagram impact tab", () => {
     expect(dashboard).toContain("CyberCopNetworkDiagramRow");
     expect(dashboard).toContain("function NetworkDiagramChart");
     expect(dashboard).toContain("Parallel coordinates for open server findings");
+    expect(dashboard).toContain("flex min-w-0 shrink-0 flex-col gap-2");
+    expect(dashboard).toContain("inline-block whitespace-nowrap text-sm uppercase");
+    expect(dashboard).toContain("flex w-full min-w-0 flex-nowrap");
+    expect(dashboard).toContain("overflow-visible");
+    expect(dashboard).toContain('title="One line per open server finding across ICT system, environment, server, severity, and SPI."');
     expect(dashboard).toContain("ICT System");
     expect(dashboard).toContain("Finding Severity");
     expect(dashboard).toContain("selectedEnvironment");
     expect(dashboard).toContain("selectedSecurityDomain");
+    expect(dashboard).toContain("selectedFindingCriticality");
+    expect(dashboard).toContain("networkDiagramSearch");
+    expect(dashboard).toContain("isNetworkDiagramSearchFocused");
+    expect(dashboard).toContain("networkDiagramSearchInputRef");
+    expect(dashboard).toContain("filteredNetworkDiagramSearchOptions");
+    expect(dashboard).toContain("selectNetworkDiagramSearchOption");
+    expect(dashboard).toContain("Findings Criticality");
+    expect(dashboard).toContain("Text Search");
+    expect(dashboard).toContain('id="network-diagram-search"');
+    expect(dashboard).toContain("top-[calc(100%+0.25rem)]");
+    expect(dashboard).toContain("row.severity !== selectedFindingCriticality");
+    expect(dashboard).toContain("const haystack = [");
+    expect(dashboard).toContain("row.systemName");
+    expect(dashboard).toContain("row.serverName");
+    expect(dashboard).toContain("row.spiLabel");
+    expect(dashboard).toContain("setNetworkDiagramSearch(\"\")");
     expect(dashboard).toContain("selectedNode");
     expect(dashboard).toContain("rowsMatchingSelectedNode");
     expect(dashboard).toContain("onClick={() => setSelectedNode(null)}");
@@ -29,6 +50,7 @@ describe("Cyber COP network diagram impact tab", () => {
     expect(dashboard).toContain("overflow-y-auto overflow-x-hidden");
     expect(dashboard).toContain("SPI_SUCCESS_MEASURES");
     expect(dashboard).toContain("Success Measure:");
+    expect(dashboard).toContain("[networkDiagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]");
   });
 
   it("builds network diagram rows from open server findings and passes them to Cyber COP", () => {

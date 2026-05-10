@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -145,6 +145,21 @@ export interface CyberCopNetworkDiagramRow {
 type ServerHeatmapEnvironmentOption = EnvironmentType | "Unassigned";
 type ServerHeatmapSecurityDomainOption = SecurityDomain;
 type NetworkDiagramSelectedNode = { axisKey: string; value: string } | null;
+type NetworkDiagramFindingCriticalityOption = FindingSeverity;
+const networkDiagramSearchCategoryOrder = [
+  "ICT System",
+  "Environment",
+  "Server",
+  "Finding Severity",
+  "SPI",
+  "Security Domain"
+] as const;
+type NetworkDiagramSearchCategory = (typeof networkDiagramSearchCategoryOrder)[number];
+type NetworkDiagramSearchOption = {
+  id: string;
+  label: string;
+  category: NetworkDiagramSearchCategory;
+};
 
 export interface CyberCopDashboardProps {
   snapshotDate: string;
@@ -894,7 +909,21 @@ function NetworkDiagramChart({
   );
   const [selectedEnvironment, setSelectedEnvironment] = useState<ServerHeatmapEnvironmentOption | "all">("all");
   const [selectedSecurityDomain, setSelectedSecurityDomain] = useState<SecurityDomain | "all">("all");
+  const [selectedFindingCriticality, setSelectedFindingCriticality] = useState<NetworkDiagramFindingCriticalityOption | "all">("all");
+  const [networkDiagramSearch, setNetworkDiagramSearch] = useState("");
+  const [isNetworkDiagramSearchFocused, setIsNetworkDiagramSearchFocused] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NetworkDiagramSelectedNode>(null);
+  const networkDiagramSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const networkDiagramSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (networkDiagramSearchBlurTimerRef.current) {
+        clearTimeout(networkDiagramSearchBlurTimerRef.current);
+        networkDiagramSearchBlurTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (selectedEnvironment !== "all" && !environmentOptions.includes(selectedEnvironment)) {
@@ -908,22 +937,98 @@ function NetworkDiagramChart({
     }
   }, [securityDomainOptions, selectedSecurityDomain]);
 
+  useEffect(() => {
+    if (selectedFindingCriticality !== "all" && !impactSeverityOrder.includes(selectedFindingCriticality)) {
+      setSelectedFindingCriticality("all");
+    }
+  }, [selectedFindingCriticality]);
+
+  const networkDiagramSearchOptions = useMemo<NetworkDiagramSearchOption[]>(() => {
+    const options = new Map<string, NetworkDiagramSearchOption>();
+    const addOption = (category: NetworkDiagramSearchCategory, label: string) => {
+      const normalizedLabel = label.trim();
+      if (!normalizedLabel) {
+        return;
+      }
+      const id = `${category}:${normalizedLabel.toLowerCase()}`;
+      if (!options.has(id)) {
+        options.set(id, { id, label: normalizedLabel, category });
+      }
+    };
+
+    rows.forEach((row) => {
+      addOption("ICT System", row.systemName);
+      addOption("Environment", row.environmentType ?? "Unassigned");
+      addOption("Server", row.serverName);
+      addOption("Finding Severity", row.severity);
+      addOption("SPI", row.spiLabel);
+      addOption("Security Domain", row.securityDomain);
+    });
+
+    return Array.from(options.values()).sort((left, right) => {
+      const categoryDelta =
+        networkDiagramSearchCategoryOrder.indexOf(left.category) -
+        networkDiagramSearchCategoryOrder.indexOf(right.category);
+      return categoryDelta || left.label.localeCompare(right.label);
+    });
+  }, [rows]);
+
+  const filteredNetworkDiagramSearchOptions = useMemo(() => {
+    const normalizedSearch = networkDiagramSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return networkDiagramSearchOptions;
+    }
+    return networkDiagramSearchOptions.filter((option) =>
+      `${option.category} ${option.label}`.toLowerCase().includes(normalizedSearch)
+    );
+  }, [networkDiagramSearch, networkDiagramSearchOptions]);
+
+  const selectNetworkDiagramSearchOption = (option: NetworkDiagramSearchOption) => {
+    setNetworkDiagramSearch(option.label);
+    setIsNetworkDiagramSearchFocused(false);
+  };
+
+  const clearNetworkDiagramSearch = () => {
+    setNetworkDiagramSearch("");
+    setIsNetworkDiagramSearchFocused(false);
+  };
+
   const filteredRows = useMemo(
-    () =>
-      rows.filter((row) => {
+    () => {
+      const normalizedSearch = networkDiagramSearch.trim().toLowerCase();
+      return rows.filter((row) => {
         if (selectedEnvironment !== "all" && (row.environmentType ?? "Unassigned") !== selectedEnvironment) {
           return false;
         }
         if (selectedSecurityDomain !== "all" && row.securityDomain !== selectedSecurityDomain) {
           return false;
         }
+        if (selectedFindingCriticality !== "all" && row.severity !== selectedFindingCriticality) {
+          return false;
+        }
+        if (normalizedSearch) {
+          const haystack = [
+            row.systemName,
+            row.environmentType ?? "Unassigned",
+            row.serverName,
+            row.severity,
+            row.spiLabel,
+            row.securityDomain
+          ]
+            .join(" ")
+            .toLowerCase();
+          if (!haystack.includes(normalizedSearch)) {
+            return false;
+          }
+        }
         return true;
-      }),
-    [rows, selectedEnvironment, selectedSecurityDomain]
+      });
+    },
+    [networkDiagramSearch, rows, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]
   );
   useEffect(() => {
     setSelectedNode(null);
-  }, [selectedEnvironment, selectedSecurityDomain]);
+  }, [networkDiagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]);
 
   const uniqueSorted = (values: string[]) => Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
   const axisDefinitions = useMemo(
@@ -1021,20 +1126,99 @@ function NetworkDiagramChart({
 
   return (
     <section className={chartSurfaceClass(embedded)}>
-      <div className="flex min-w-0 shrink-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="break-words text-sm uppercase tracking-[0.14em] text-slate-100">Network Diagram</h3>
-          <p className="mt-1 text-xs text-slate-300/80">
-            One line per open server finding across ICT system, environment, server, severity, and SPI.
-          </p>
+      <div className="flex min-w-0 shrink-0 flex-col gap-2">
+        <div className="min-w-0">
+          <h3
+            className="inline-block whitespace-nowrap text-sm uppercase tracking-[0.14em] text-slate-100"
+            title="One line per open server finding across ICT system, environment, server, severity, and SPI."
+          >
+            Network Diagram
+          </h3>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
-          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+        <div className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible">
+          <div className="relative flex h-8 shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <label htmlFor="network-diagram-search" className="whitespace-nowrap">
+              Text Search
+            </label>
+            <div className="relative w-52 shrink-0">
+              <input
+                ref={networkDiagramSearchInputRef}
+                id="network-diagram-search"
+                type="search"
+                value={networkDiagramSearch}
+                onChange={(event) => {
+                  setNetworkDiagramSearch(event.target.value);
+                  setIsNetworkDiagramSearchFocused(true);
+                }}
+                onFocus={() => {
+                  if (networkDiagramSearchBlurTimerRef.current) {
+                    clearTimeout(networkDiagramSearchBlurTimerRef.current);
+                    networkDiagramSearchBlurTimerRef.current = null;
+                  }
+                  setIsNetworkDiagramSearchFocused(true);
+                }}
+                onBlur={() => {
+                  networkDiagramSearchBlurTimerRef.current = setTimeout(() => {
+                    setIsNetworkDiagramSearchFocused(false);
+                    setNetworkDiagramSearch((current) => current.trim());
+                    networkDiagramSearchBlurTimerRef.current = null;
+                  }, 120);
+                }}
+                placeholder="Search diagram"
+                className="h-8 w-full rounded-md border border-sky-300/25 bg-slate-900/90 px-2 pr-14 text-xs normal-case tracking-normal text-slate-100 placeholder:text-slate-400/70"
+              />
+              {networkDiagramSearch ? (
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={clearNetworkDiagramSearch}
+                  className="absolute right-1 top-1/2 h-6 -translate-y-1/2 rounded border border-slate-500/45 bg-slate-950/90 px-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:border-sky-200/50 hover:text-sky-100"
+                >
+                  Clear
+                </button>
+              ) : null}
+              {networkDiagramSearch.trim() && isNetworkDiagramSearchFocused ? (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
+                  {filteredNetworkDiagramSearchOptions.length ? (
+                    <ul className="space-y-1">
+                      {filteredNetworkDiagramSearchOptions.map((option) => (
+                        <li key={`network-diagram-search-${option.id}`}>
+                          <button
+                            type="button"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              if (networkDiagramSearchBlurTimerRef.current) {
+                                clearTimeout(networkDiagramSearchBlurTimerRef.current);
+                                networkDiagramSearchBlurTimerRef.current = null;
+                              }
+                              selectNetworkDiagramSearchOption(option);
+                              networkDiagramSearchInputRef.current?.blur();
+                            }}
+                            className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
+                          >
+                            <span className="block truncate">{option.label}</span>
+                            <span className="block truncate text-[10px] uppercase tracking-[0.12em] text-slate-400/80">
+                              {option.category}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs normal-case tracking-normal text-slate-300">
+                      No matching diagram values
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <label className="flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
             <span>Environment</span>
             <select
               value={selectedEnvironment}
               onChange={(event) => setSelectedEnvironment(event.target.value as ServerHeatmapEnvironmentOption | "all")}
-              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+              className="h-8 w-32 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
             >
               <option value="all">All</option>
               {environmentOptions.map((environment) => (
@@ -1044,12 +1228,27 @@ function NetworkDiagramChart({
               ))}
             </select>
           </label>
-          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+          <label className="flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Findings Criticality</span>
+            <select
+              value={selectedFindingCriticality}
+              onChange={(event) => setSelectedFindingCriticality(event.target.value as NetworkDiagramFindingCriticalityOption | "all")}
+              className="h-8 w-36 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {impactSeverityOrder.map((severity) => (
+                <option key={`network-diagram-finding-criticality-${severity}`} value={severity}>
+                  {severity}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
             <span>Security Domain</span>
             <select
               value={selectedSecurityDomain}
               onChange={(event) => setSelectedSecurityDomain(event.target.value as SecurityDomain | "all")}
-              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+              className="h-8 w-44 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
             >
               <option value="all">All</option>
               {securityDomainOptions.map((domain) => (
