@@ -7,6 +7,17 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe("Cyber COP action plan summary", () => {
+  it("places the Action tab at the far right of the Cyber COP tab bar", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+    const tabsStart = dashboard.indexOf("const cyberCopTabs");
+    const tabsEnd = dashboard.indexOf("];", tabsStart);
+    const tabsBlock = dashboard.slice(tabsStart, tabsEnd);
+
+    expect(tabsBlock.indexOf('{ id: "action", label: "Action" }')).toBeGreaterThan(
+      tabsBlock.indexOf('{ id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }')
+    );
+  });
+
   it("renders the grouped action plan matrix sections and requested actions", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
 

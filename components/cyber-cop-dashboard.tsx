@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useId, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -19,6 +19,7 @@ import {
   ZAxis
 } from "recharts";
 import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
+import { IctSystemImpactAnalyser2Chart } from "@/components/ict-system-impact-analyser-2";
 import {
   NetworkDetailRiskCharts,
   NetworkDetailRiskFindingRow,
@@ -26,7 +27,6 @@ import {
 } from "@/components/network-detail-risk-charts";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { type PerformanceReportModel } from "@/lib/performance-report-model";
-import { SPI_DESCRIPTIONS, SPI_NAMES, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
 import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain, type SpiId } from "@/lib/types";
 
 export interface CyberCopImpactItem {
@@ -128,38 +128,8 @@ export interface CyberCopAssetTypeHeatmapAsset {
   riskScore: number;
 }
 
-export interface CyberCopNetworkDiagramRow {
-  findingId: string;
-  systemId: string;
-  systemName: string;
-  environmentType: EnvironmentType | null;
-  serverId: string;
-  serverName: string;
-  serverHostname: string;
-  securityDomain: SecurityDomain;
-  severity: FindingSeverity;
-  spiId: number;
-  spiLabel: string;
-}
-
 type ServerHeatmapEnvironmentOption = EnvironmentType | "Unassigned";
 type ServerHeatmapSecurityDomainOption = SecurityDomain;
-type NetworkDiagramSelectedNode = { axisKey: string; value: string } | null;
-type NetworkDiagramFindingCriticalityOption = FindingSeverity;
-const networkDiagramSearchCategoryOrder = [
-  "ICT System",
-  "Environment",
-  "Server",
-  "Finding Severity",
-  "SPI",
-  "Security Domain"
-] as const;
-type NetworkDiagramSearchCategory = (typeof networkDiagramSearchCategoryOrder)[number];
-type NetworkDiagramSearchOption = {
-  id: string;
-  label: string;
-  category: NetworkDiagramSearchCategory;
-};
 
 export interface CyberCopDashboardProps {
   snapshotDate: string;
@@ -189,7 +159,6 @@ export interface CyberCopDashboardProps {
   };
   impactLinks: CyberCopImpactLinks;
   impactAssetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
-  impactNetworkDiagramRows: CyberCopNetworkDiagramRow[];
   impactSpiDrivers: CyberCopImpactSpiDriver[];
   impactSpiDriversBySystemId: Record<string, CyberCopImpactSpiDriver[]>;
   impactEnvironmentSplit: CyberCopImpactEnvironmentSplitRow[];
@@ -219,20 +188,25 @@ export interface CyberCopDashboardProps {
 }
 
 type CyberCopTabId = "overview" | "impact" | "action" | "networks-spi-heatmap" | "systems-spi-heatmap";
-type ImpactChartTabId = "spi" | "blast-radius" | "network-diagram" | "environment" | "mission-business";
+type ImpactChartTabId =
+  | "spi"
+  | "blast-radius"
+  | "ict-system-impact-analyser-2"
+  | "environment"
+  | "mission-business";
 
 const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "impact", label: "Impact" },
-  { id: "action", label: "Action" },
   { id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" },
-  { id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }
+  { id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" },
+  { id: "action", label: "Action" }
 ];
 
 const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
-  { id: "spi", label: "SPI Driver" },
+  { id: "spi", label: "SPI Barchart" },
   { id: "blast-radius", label: "Server Risk Heatmap" },
-  { id: "network-diagram", label: "ICT System Impact Analyser" },
+  { id: "ict-system-impact-analyser-2", label: "ICT System Impact Analyser" },
   { id: "environment", label: "Environment Split" },
   { id: "mission-business", label: "Critical Findings Blast Radius" }
 ];
@@ -889,659 +863,6 @@ function AssetTypeHeatmapChart({
   );
 }
 
-function NetworkDiagramChart({
-  rows,
-  riskFindings,
-  assetHighRiskCvesByAssetId = {},
-  asOfDate,
-  embedded = false
-}: {
-  rows: CyberCopNetworkDiagramRow[];
-  riskFindings: NetworkDetailRiskFindingRow[];
-  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
-  asOfDate?: string;
-  embedded?: boolean;
-}) {
-  const environmentOptions = useMemo<ServerHeatmapEnvironmentOption[]>(
-    () => Array.from(new Set(rows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
-    [rows]
-  );
-  const securityDomainOptions = useMemo<SecurityDomain[]>(
-    () =>
-      Array.from(new Set(rows.map((row) => row.securityDomain))).sort(
-        (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
-      ),
-    [rows]
-  );
-  const [selectedEnvironment, setSelectedEnvironment] = useState<ServerHeatmapEnvironmentOption | "all">("all");
-  const [selectedSecurityDomain, setSelectedSecurityDomain] = useState<SecurityDomain | "all">("all");
-  const [selectedFindingCriticality, setSelectedFindingCriticality] = useState<NetworkDiagramFindingCriticalityOption | "all">("all");
-  const [networkDiagramSearch, setNetworkDiagramSearch] = useState("");
-  const [isNetworkDiagramSearchFocused, setIsNetworkDiagramSearchFocused] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<NetworkDiagramSelectedNode>(null);
-  const [selectedSpiDrillThroughId, setSelectedSpiDrillThroughId] = useState<number | null>(null);
-  const networkDiagramSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const networkDiagramSearchInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (networkDiagramSearchBlurTimerRef.current) {
-        clearTimeout(networkDiagramSearchBlurTimerRef.current);
-        networkDiagramSearchBlurTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (selectedEnvironment !== "all" && !environmentOptions.includes(selectedEnvironment)) {
-      setSelectedEnvironment("all");
-    }
-  }, [environmentOptions, selectedEnvironment]);
-
-  useEffect(() => {
-    if (selectedSecurityDomain !== "all" && !securityDomainOptions.includes(selectedSecurityDomain)) {
-      setSelectedSecurityDomain("all");
-    }
-  }, [securityDomainOptions, selectedSecurityDomain]);
-
-  useEffect(() => {
-    if (selectedFindingCriticality !== "all" && !impactSeverityOrder.includes(selectedFindingCriticality)) {
-      setSelectedFindingCriticality("all");
-    }
-  }, [selectedFindingCriticality]);
-
-  const networkDiagramSearchOptions = useMemo<NetworkDiagramSearchOption[]>(() => {
-    const options = new Map<string, NetworkDiagramSearchOption>();
-    const addOption = (category: NetworkDiagramSearchCategory, label: string) => {
-      const normalizedLabel = label.trim();
-      if (!normalizedLabel) {
-        return;
-      }
-      const id = `${category}:${normalizedLabel.toLowerCase()}`;
-      if (!options.has(id)) {
-        options.set(id, { id, label: normalizedLabel, category });
-      }
-    };
-
-    rows.forEach((row) => {
-      addOption("ICT System", row.systemName);
-      addOption("Environment", row.environmentType ?? "Unassigned");
-      addOption("Server", row.serverName);
-      addOption("Finding Severity", row.severity);
-      addOption("SPI", row.spiLabel);
-      addOption("Security Domain", row.securityDomain);
-    });
-
-    return Array.from(options.values()).sort((left, right) => {
-      const categoryDelta =
-        networkDiagramSearchCategoryOrder.indexOf(left.category) -
-        networkDiagramSearchCategoryOrder.indexOf(right.category);
-      return categoryDelta || left.label.localeCompare(right.label);
-    });
-  }, [rows]);
-
-  const filteredNetworkDiagramSearchOptions = useMemo(() => {
-    const normalizedSearch = networkDiagramSearch.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return networkDiagramSearchOptions;
-    }
-    return networkDiagramSearchOptions.filter((option) =>
-      `${option.category} ${option.label}`.toLowerCase().includes(normalizedSearch)
-    );
-  }, [networkDiagramSearch, networkDiagramSearchOptions]);
-
-  const selectNetworkDiagramSearchOption = (option: NetworkDiagramSearchOption) => {
-    setNetworkDiagramSearch(option.label);
-    setIsNetworkDiagramSearchFocused(false);
-  };
-
-  const clearNetworkDiagramSearch = () => {
-    setNetworkDiagramSearch("");
-    setIsNetworkDiagramSearchFocused(false);
-  };
-
-  const filteredRows = useMemo(
-    () => {
-      const normalizedSearch = networkDiagramSearch.trim().toLowerCase();
-      return rows.filter((row) => {
-        if (selectedEnvironment !== "all" && (row.environmentType ?? "Unassigned") !== selectedEnvironment) {
-          return false;
-        }
-        if (selectedSecurityDomain !== "all" && row.securityDomain !== selectedSecurityDomain) {
-          return false;
-        }
-        if (selectedFindingCriticality !== "all" && row.severity !== selectedFindingCriticality) {
-          return false;
-        }
-        if (normalizedSearch) {
-          const haystack = [
-            row.systemName,
-            row.environmentType ?? "Unassigned",
-            row.serverName,
-            row.severity,
-            row.spiLabel,
-            row.securityDomain
-          ]
-            .join(" ")
-            .toLowerCase();
-          if (!haystack.includes(normalizedSearch)) {
-            return false;
-          }
-        }
-        return true;
-      });
-    },
-    [networkDiagramSearch, rows, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]
-  );
-
-  const filteredRowCountBySpiId = useMemo(() => {
-    const counts = new Map<number, number>();
-    for (const row of filteredRows) {
-      counts.set(row.spiId, (counts.get(row.spiId) ?? 0) + 1);
-    }
-    return counts;
-  }, [filteredRows]);
-
-  const riskFindingBySourceFindingId = useMemo(() => {
-    const map = new Map<string, NetworkDetailRiskFindingRow>();
-    for (const finding of riskFindings) {
-      if (finding.sourceFindingId) {
-        map.set(finding.sourceFindingId, finding);
-      }
-      map.set(finding.id, finding);
-      if (finding.id.startsWith("risk-")) {
-        map.set(finding.id.slice(5), finding);
-      }
-    }
-    return map;
-  }, [riskFindings]);
-
-  const filteredNetworkDiagramRiskFindings = useMemo(() => {
-    const seenFindingIds = new Set<string>();
-    const matchedFindings: NetworkDetailRiskFindingRow[] = [];
-    for (const row of filteredRows) {
-      const finding = riskFindingBySourceFindingId.get(row.findingId);
-      if (!finding || seenFindingIds.has(finding.id)) {
-        continue;
-      }
-      seenFindingIds.add(finding.id);
-      matchedFindings.push(finding);
-    }
-    return matchedFindings;
-  }, [filteredRows, riskFindingBySourceFindingId]);
-
-  const selectedSpiRows = useMemo(
-    () => (selectedSpiDrillThroughId ? filteredRows.filter((row) => row.spiId === selectedSpiDrillThroughId) : []),
-    [filteredRows, selectedSpiDrillThroughId]
-  );
-
-  const selectedSpiFindings = useMemo(
-    () =>
-      selectedSpiDrillThroughId
-        ? filteredNetworkDiagramRiskFindings.filter(
-            (finding) => finding.workflowStatus === "open" && finding.spiId === selectedSpiDrillThroughId
-          )
-        : [],
-    [filteredNetworkDiagramRiskFindings, selectedSpiDrillThroughId]
-  );
-
-  const selectedSpiTotalCount = selectedSpiRows.length;
-
-  useEffect(() => {
-    setSelectedNode(null);
-  }, [networkDiagramSearch, selectedEnvironment, selectedFindingCriticality, selectedSecurityDomain]);
-
-  const uniqueSorted = (values: string[]) => Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
-  const axisDefinitions = useMemo(
-    () => [
-      { key: "system", label: "ICT System", values: uniqueSorted(filteredRows.map((row) => row.systemName)) },
-      {
-        key: "environment",
-        label: "Environment",
-        values: Array.from(new Set(filteredRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel)
-      },
-      { key: "server", label: "Server", values: uniqueSorted(filteredRows.map((row) => row.serverName)) },
-      {
-        key: "severity",
-        label: "Finding Severity",
-        values: impactSeverityOrder.filter((severity) => filteredRows.some((row) => row.severity === severity))
-      },
-      {
-        key: "spi",
-        label: "SPI",
-        values: Array.from(new Set(filteredRows.map((row) => row.spiLabel))).sort(
-          (left, right) => Number(left.replace("SPI ", "")) - Number(right.replace("SPI ", ""))
-        )
-      }
-    ],
-    [filteredRows]
-  );
-  const maxCategoryCount = Math.max(1, ...axisDefinitions.map((axis) => axis.values.length));
-  const svgWidth = 1080;
-  const chartHeight = Math.max(320, maxCategoryCount * 30 + 96);
-  const top = 58;
-  const bottom = 30;
-  const left = 72;
-  const right = 72;
-  const innerHeight = chartHeight - top - bottom;
-  const innerWidth = svgWidth - left - right;
-  const xForAxis = (index: number) => left + (index * innerWidth) / Math.max(1, axisDefinitions.length - 1);
-  const yForValue = (axisIndex: number, value: string) => {
-    const values = axisDefinitions[axisIndex].values;
-    const valueIndex = Math.max(0, values.indexOf(value));
-    if (values.length <= 1) {
-      return top + innerHeight / 2;
-    }
-    return top + (valueIndex * innerHeight) / (values.length - 1);
-  };
-  const labelForRowAxis = (row: CyberCopNetworkDiagramRow, axisKey: string) => {
-    if (axisKey === "system") {
-      return row.systemName;
-    }
-    if (axisKey === "environment") {
-      return row.environmentType ?? "Unassigned";
-    }
-    if (axisKey === "server") {
-      return row.serverName;
-    }
-    if (axisKey === "severity") {
-      return row.severity;
-    }
-    return row.spiLabel;
-  };
-  const rowsMatchingSelectedNode = selectedNode
-    ? filteredRows.filter((row) => labelForRowAxis(row, selectedNode.axisKey) === selectedNode.value)
-    : [];
-  const isNodeSelected = (axisKey: string, value: string) =>
-    selectedNode?.axisKey === axisKey && selectedNode.value === value;
-  const spiIdFromNodeValue = (value: string) => {
-    const parsed = Number(value.replace("SPI ", ""));
-    return Number.isInteger(parsed) ? parsed : null;
-  };
-  const nodeHoverTitle = (axisKey: string, value: string) => {
-    if (axisKey !== "spi") {
-      return value;
-    }
-    const spiId = spiIdFromNodeValue(value);
-    if (!spiId) {
-      return value;
-    }
-    const name = SPI_NAMES[spiId as keyof typeof SPI_NAMES] ?? value;
-    const description = SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS] ?? "No SPI description available.";
-    const successMeasure =
-      SPI_SUCCESS_MEASURES[spiId as keyof typeof SPI_SUCCESS_MEASURES] ?? "No SPI success measure available.";
-    const totalFindings = filteredRowCountBySpiId.get(spiId) ?? 0;
-    return `${value}: ${name}\n${description}\nSuccess Measure: ${successMeasure}\nTotal Findings: ${totalFindings}`;
-  };
-  const truncateAxisLabel = (value: string) => (value.length > 22 ? `${value.slice(0, 21)}...` : value);
-  const pointsForRow = (row: CyberCopNetworkDiagramRow) =>
-    axisDefinitions
-      .map((axis, axisIndex) => `${xForAxis(axisIndex)},${yForValue(axisIndex, labelForRowAxis(row, axis.key))}`)
-      .join(" ");
-  const displayedSeverities = impactSeverityOrder.filter((severity) =>
-    filteredRows.some((row) => row.severity === severity)
-  );
-  const selectNetworkDiagramNode = (axisKey: string, value: string) => {
-    if (axisKey === "spi") {
-      const spiId = spiIdFromNodeValue(value);
-      if (!spiId) {
-        return;
-      }
-    }
-
-    setSelectedNode((current) =>
-      current?.axisKey === axisKey && current.value === value ? null : { axisKey, value }
-    );
-  };
-  const openNetworkDiagramSpiDrillThrough = (value: string) => {
-    const spiId = spiIdFromNodeValue(value);
-    if (!spiId) {
-      return;
-    }
-    setSelectedNode({ axisKey: "spi", value });
-    setSelectedSpiDrillThroughId(spiId);
-  };
-  const closeNetworkDiagramSpiDrillThrough = () => {
-    const closingSpiId = selectedSpiDrillThroughId;
-    setSelectedSpiDrillThroughId(null);
-    setSelectedNode((current) => {
-      if (!current || current.axisKey !== "spi" || spiIdFromNodeValue(current.value) !== closingSpiId) {
-        return current;
-      }
-      return null;
-    });
-  };
-
-  if (!rows.length) {
-    return (
-      <section className={chartSurfaceClass(embedded)}>
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">ICT System Impact Analyser Diagram</h3>
-        <p className="mt-1 text-xs text-slate-300/80">
-          Parallel coordinates for open server findings by system, environment, server, severity, and SPI.
-        </p>
-        <p className="mt-3 text-sm text-slate-300/80">No open server findings in current scope.</p>
-      </section>
-    );
-  }
-
-  return (
-    <>
-    <section className={chartSurfaceClass(embedded)}>
-      <div className="flex min-w-0 shrink-0 flex-col gap-2">
-        <div className="min-w-0">
-          <h3
-            className="inline-block whitespace-nowrap text-sm uppercase tracking-[0.14em] text-slate-100"
-            title="One line per open server finding across ICT system, environment, server, severity, and SPI."
-          >
-            ICT System Impact Analyser Diagram
-          </h3>
-        </div>
-        <div className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible">
-          <div className="relative flex h-8 shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-            <label htmlFor="network-diagram-search" className="whitespace-nowrap">
-              Text Search
-            </label>
-            <div className="relative w-52 shrink-0">
-              <input
-                ref={networkDiagramSearchInputRef}
-                id="network-diagram-search"
-                type="search"
-                value={networkDiagramSearch}
-                onChange={(event) => {
-                  setNetworkDiagramSearch(event.target.value);
-                  setIsNetworkDiagramSearchFocused(true);
-                }}
-                onFocus={() => {
-                  if (networkDiagramSearchBlurTimerRef.current) {
-                    clearTimeout(networkDiagramSearchBlurTimerRef.current);
-                    networkDiagramSearchBlurTimerRef.current = null;
-                  }
-                  setIsNetworkDiagramSearchFocused(true);
-                }}
-                onBlur={() => {
-                  networkDiagramSearchBlurTimerRef.current = setTimeout(() => {
-                    setIsNetworkDiagramSearchFocused(false);
-                    setNetworkDiagramSearch((current) => current.trim());
-                    networkDiagramSearchBlurTimerRef.current = null;
-                  }, 120);
-                }}
-                placeholder="Search diagram"
-                className="h-8 w-full rounded-md border border-sky-300/25 bg-slate-900/90 px-2 pr-14 text-xs normal-case tracking-normal text-slate-100 placeholder:text-slate-400/70"
-              />
-              {networkDiagramSearch ? (
-                <button
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={clearNetworkDiagramSearch}
-                  className="absolute right-1 top-1/2 h-6 -translate-y-1/2 rounded border border-slate-500/45 bg-slate-950/90 px-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-200 transition hover:border-sky-200/50 hover:text-sky-100"
-                >
-                  Clear
-                </button>
-              ) : null}
-              {networkDiagramSearch.trim() && isNetworkDiagramSearchFocused ? (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
-                  {filteredNetworkDiagramSearchOptions.length ? (
-                    <ul className="space-y-1">
-                      {filteredNetworkDiagramSearchOptions.map((option) => (
-                        <li key={`network-diagram-search-${option.id}`}>
-                          <button
-                            type="button"
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              if (networkDiagramSearchBlurTimerRef.current) {
-                                clearTimeout(networkDiagramSearchBlurTimerRef.current);
-                                networkDiagramSearchBlurTimerRef.current = null;
-                              }
-                              selectNetworkDiagramSearchOption(option);
-                              networkDiagramSearchInputRef.current?.blur();
-                            }}
-                            className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
-                          >
-                            <span className="block truncate">{option.label}</span>
-                            <span className="block truncate text-[10px] uppercase tracking-[0.12em] text-slate-400/80">
-                              {option.category}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs normal-case tracking-normal text-slate-300">
-                      No matching diagram values
-                    </p>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <label className="flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-            <span>Environment</span>
-            <select
-              value={selectedEnvironment}
-              onChange={(event) => setSelectedEnvironment(event.target.value as ServerHeatmapEnvironmentOption | "all")}
-              className="h-8 w-32 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
-            >
-              <option value="all">All</option>
-              {environmentOptions.map((environment) => (
-                <option key={`network-diagram-environment-${environment}`} value={environment}>
-                  {environment}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-            <span>Findings Criticality</span>
-            <select
-              value={selectedFindingCriticality}
-              onChange={(event) => setSelectedFindingCriticality(event.target.value as NetworkDiagramFindingCriticalityOption | "all")}
-              className="h-8 w-36 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
-            >
-              <option value="all">All</option>
-              {impactSeverityOrder.map((severity) => (
-                <option key={`network-diagram-finding-criticality-${severity}`} value={severity}>
-                  {severity}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-            <span>Security Domain</span>
-            <select
-              value={selectedSecurityDomain}
-              onChange={(event) => setSelectedSecurityDomain(event.target.value as SecurityDomain | "all")}
-              className="h-8 w-44 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
-            >
-              <option value="all">All</option>
-              {securityDomainOptions.map((domain) => (
-                <option key={`network-diagram-security-domain-${domain}`} value={domain}>
-                  {domain}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </div>
-      <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] text-slate-300/75">
-            {filteredRows.length} of {rows.length} open server findings
-            {selectedNode ? ` | ${rowsMatchingSelectedNode.length} highlighted via ${selectedNode.value}` : ""}
-          </p>
-          <div className="flex flex-wrap justify-end gap-2 text-[11px] text-slate-300/80">
-            {displayedSeverities.map((severity) => (
-              <span key={`network-diagram-legend-${severity}`} className="inline-flex items-center gap-1">
-                <span className="h-2 w-4 rounded-full" style={{ backgroundColor: severityStrokeColor(severity) }} />
-                {severity}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-sky-300/10 bg-slate-950/35">
-          {filteredRows.length ? (
-            <div className="min-w-0" style={{ height: chartHeight }}>
-              <svg
-                role="img"
-                aria-label="Network Diagram parallel coordinates"
-                className="h-full w-full"
-                viewBox={`0 0 ${svgWidth} ${chartHeight}`}
-                preserveAspectRatio="none"
-                onClick={() => setSelectedNode(null)}
-              >
-                <defs>
-                  <filter id="network-diagram-glow" x="-25%" y="-25%" width="150%" height="150%">
-                    <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                    <feMerge>
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-                {axisDefinitions.map((axis, axisIndex) => {
-                  const x = xForAxis(axisIndex);
-                  return (
-                    <g key={`network-diagram-axis-${axis.key}`}>
-                      <line x1={x} y1={top} x2={x} y2={chartHeight - bottom} stroke="rgba(125, 211, 252, 0.34)" strokeWidth={1} />
-                      <text x={x} y={24} textAnchor="middle" className="fill-slate-100 text-[12px] font-semibold uppercase tracking-[0.12em]">
-                        {`${axis.label} (${axis.values.length})`}
-                      </text>
-                      {axis.values.map((value) => {
-                        const y = yForValue(axisIndex, value);
-                        const selected = isNodeSelected(axis.key, value);
-                        return (
-                          <g key={`network-diagram-axis-${axis.key}-${value}`}>
-                            <g
-                              role="button"
-                              tabIndex={0}
-                              className="cursor-pointer outline-none"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                selectNetworkDiagramNode(axis.key, value);
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault();
-                                  selectNetworkDiagramNode(axis.key, value);
-                                }
-                              }}
-                            >
-                              <title>{nodeHoverTitle(axis.key, value)}</title>
-                              <circle
-                                cx={x}
-                                cy={y}
-                                r={selected ? 12 : 7}
-                                fill={selected ? "#67e8f9" : "rgba(14, 165, 233, 0.72)"}
-                                stroke={selected ? "#ecfeff" : "transparent"}
-                                strokeWidth={selected ? 1.8 : 0}
-                              />
-                              <text
-                                x={x}
-                                y={y + 14}
-                                textAnchor="middle"
-                                className={selected ? "fill-cyan-100 text-[10px] font-semibold" : "fill-slate-300 text-[10px]"}
-                              >
-                                {truncateAxisLabel(value)}
-                              </text>
-                            </g>
-                            {selected && axis.key === "spi" ? (
-                              <g
-                                role="button"
-                                tabIndex={0}
-                                aria-label={`Open findings for ${value}`}
-                                className="cursor-pointer outline-none"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openNetworkDiagramSpiDrillThrough(value);
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter" || event.key === " ") {
-                                    event.preventDefault();
-                                    openNetworkDiagramSpiDrillThrough(value);
-                                  }
-                                }}
-                              >
-                                <title>{`Open findings for ${value}`}</title>
-                                <circle
-                                  cx={x + 13}
-                                  cy={y - 13}
-                                  r={7}
-                                  fill="#0f172a"
-                                  stroke="#ecfeff"
-                                  strokeWidth={1.4}
-                                />
-                                <line x1={x + 9.5} y1={y - 13} x2={x + 16.5} y2={y - 13} stroke="#ecfeff" strokeWidth={1.6} strokeLinecap="round" />
-                                <line x1={x + 13} y1={y - 16.5} x2={x + 13} y2={y - 9.5} stroke="#ecfeff" strokeWidth={1.6} strokeLinecap="round" />
-                              </g>
-                            ) : null}
-                          </g>
-                        );
-                      })}
-                    </g>
-                  );
-                })}
-                {filteredRows.map((row) => {
-                  const points = pointsForRow(row);
-                  return (
-                    <polyline
-                      key={`network-diagram-line-${row.findingId}`}
-                      points={points}
-                      fill="none"
-                      stroke={severityStrokeColor(row.severity)}
-                      strokeOpacity={selectedNode ? 0.12 : 0.38}
-                      strokeWidth={1.45}
-                    >
-                      <title>{`${row.systemName} | ${row.environmentType ?? "Unassigned"} | ${row.serverName} | ${row.securityDomain} | ${row.severity} | ${row.spiLabel}`}</title>
-                    </polyline>
-                  );
-                })}
-                {rowsMatchingSelectedNode.map((row) => (
-                  <polyline
-                    key={`network-diagram-selected-glow-${row.findingId}`}
-                    points={pointsForRow(row)}
-                    fill="none"
-                    stroke={severityStrokeColor(row.severity)}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeOpacity={0.9}
-                    strokeWidth={3.4}
-                    filter="url(#network-diagram-glow)"
-                  >
-                    <animate attributeName="stroke-opacity" values="0.35;1;0.35" dur="1.35s" repeatCount="indefinite" />
-                    <animate attributeName="stroke-width" values="2.4;5.2;2.4" dur="1.35s" repeatCount="indefinite" />
-                    <title>{`${row.systemName} | ${row.environmentType ?? "Unassigned"} | ${row.serverName} | ${row.securityDomain} | ${row.severity} | ${row.spiLabel}`}</title>
-                  </polyline>
-                ))}
-              </svg>
-            </div>
-          ) : (
-            <p className="m-3 rounded-md border border-sky-300/15 bg-slate-900/55 px-3 py-2 text-xs text-slate-300/80">
-              No network diagram findings match the selected filters.
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
-
-    {selectedSpiDrillThroughId ? (
-      <RiskFindingsDrillThrough
-        selection={{
-          id: `network-diagram-spi-${selectedSpiDrillThroughId}`,
-          label: `SPI ${selectedSpiDrillThroughId}`,
-          findings: selectedSpiFindings,
-          totalCount: selectedSpiTotalCount,
-          lockedSpiId: selectedSpiDrillThroughId,
-          emptyMessage: "No open findings were generated for the selected Network Diagram SPI.",
-          exportSlug: `network-diagram-spi-${selectedSpiDrillThroughId}`
-        }}
-        allFindings={filteredNetworkDiagramRiskFindings}
-        assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
-        asOfDate={asOfDate}
-        onClose={closeNetworkDiagramSpiDrillThrough}
-      />
-    ) : null}
-    </>
-  );
-}
-
 function SpiDriverChart({
   rows,
   findings,
@@ -1925,7 +1246,6 @@ function ImpactChartTabs({
   spiRows,
   systemRows,
   assetTypeHeatmapBySystemId,
-  networkDiagramRows,
   environmentRows,
   missionRows,
   businessRows,
@@ -1936,7 +1256,6 @@ function ImpactChartTabs({
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
   assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
-  networkDiagramRows: CyberCopNetworkDiagramRow[];
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
   missionRows: CyberCopImpactItem[];
   businessRows: CyberCopImpactItem[];
@@ -1946,9 +1265,6 @@ function ImpactChartTabs({
 }) {
   const [activeChartTab, setActiveChartTab] = useState<ImpactChartTabId>("spi");
   const visibleSystemIds = useMemo(() => new Set(systemRows.map((row) => row.id)), [systemRows]);
-  const scopedNetworkDiagramRows = useMemo(() => {
-    return networkDiagramRows.filter((row) => visibleSystemIds.has(row.systemId));
-  }, [networkDiagramRows, visibleSystemIds]);
   const scopedRiskFindings = useMemo(() => {
     return riskFindings.filter((finding) => Boolean(finding.systemId) && visibleSystemIds.has(finding.systemId as string));
   }, [riskFindings, visibleSystemIds]);
@@ -2008,14 +1324,8 @@ function ImpactChartTabs({
                 embedded
               />
             ) : null}
-            {activeChartTab === "network-diagram" ? (
-              <NetworkDiagramChart
-                rows={scopedNetworkDiagramRows}
-                riskFindings={scopedRiskFindings}
-                assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
-                asOfDate={asOfDate}
-                embedded
-              />
+            {activeChartTab === "ict-system-impact-analyser-2" ? (
+              <IctSystemImpactAnalyser2Chart embedded />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (
@@ -2171,7 +1481,6 @@ export function CyberCopDashboard({
   impact,
   impactLinks,
   impactAssetTypeHeatmapBySystemId,
-  impactNetworkDiagramRows,
   impactSpiDrivers,
   impactSpiDriversBySystemId,
   impactEnvironmentSplit,
@@ -2683,7 +1992,6 @@ export function CyberCopDashboard({
                   spiRows={filteredImpactSpiDrivers}
                   systemRows={chartFilteredSystemImpact}
                   assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
-                  networkDiagramRows={impactNetworkDiagramRows}
                   environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}
                   businessRows={filteredBusinessImpact}

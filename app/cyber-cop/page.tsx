@@ -8,8 +8,7 @@ import {
   type CyberCopImpactEnvironmentSplitRow,
   type CyberCopImpactEntityTrend,
   type CyberCopImpactLinks,
-  type CyberCopImpactSpiDriver,
-  type CyberCopNetworkDiagramRow
+  type CyberCopImpactSpiDriver
 } from "@/components/cyber-cop-dashboard";
 import { FilterBar } from "@/components/filter-bar";
 import { SPI_DESCRIPTIONS } from "@/lib/constants";
@@ -984,67 +983,6 @@ function buildImpactAssetTypeHeatmapBySystemId(
   );
 }
 
-function buildNetworkDiagramRows(
-  assets: Asset[],
-  findings: Finding[],
-  systems: Array<{ id: string; name: string }>
-): CyberCopNetworkDiagramRow[] {
-  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
-  const systemNameById = new Map(systems.map((system) => [system.id, system.name]));
-  const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
-  const rows: CyberCopNetworkDiagramRow[] = [];
-
-  for (const finding of findings) {
-    if (finding.status !== "open") {
-      continue;
-    }
-
-    const asset = assetsById.get(finding.scope.assetId);
-    if (!asset || asset.type !== "server") {
-      continue;
-    }
-
-    const systemId = finding.scope.systemId ?? asset.systemContext?.systemId ?? null;
-    if (!systemId) {
-      continue;
-    }
-
-    rows.push({
-      findingId: finding.id,
-      systemId,
-      systemName: systemNameById.get(systemId) ?? "Unassigned ICT System",
-      environmentType: finding.scope.environmentType ?? asset.systemContext?.environmentType ?? null,
-      serverId: asset.id,
-      serverName: asset.name || asset.hostname || asset.id,
-      serverHostname: asset.hostname || asset.name || asset.id,
-      securityDomain: asset.securityDomain,
-      severity: finding.severity,
-      spiId: finding.spiId,
-      spiLabel: `SPI ${finding.spiId}`
-    });
-  }
-
-  return rows.sort((left, right) => {
-      const systemDiff = left.systemName.localeCompare(right.systemName);
-      if (systemDiff !== 0) {
-        return systemDiff;
-      }
-      const environmentDiff = (left.environmentType ?? "Unassigned").localeCompare(right.environmentType ?? "Unassigned");
-      if (environmentDiff !== 0) {
-        return environmentDiff;
-      }
-      const serverDiff = left.serverName.localeCompare(right.serverName);
-      if (serverDiff !== 0) {
-        return serverDiff;
-      }
-      const severityDiff = severityOrder.indexOf(left.severity) - severityOrder.indexOf(right.severity);
-      if (severityDiff !== 0) {
-        return severityDiff;
-      }
-      return left.spiId - right.spiId;
-    });
-}
-
 function differenceInWholeUtcDays(fromDate: Date, toDate: Date): number {
   const deltaMs = toDate.getTime() - fromDate.getTime();
   return Math.max(0, Math.floor(deltaMs / 86_400_000));
@@ -1407,7 +1345,6 @@ export default async function CyberCopPage({
   const systemImpact = buildSystemImpact(openFindings, systems);
   const impactLinks = buildImpactLinks(systems);
   const impactAssetTypeHeatmapBySystemId = buildImpactAssetTypeHeatmapBySystemId(filteredAssets, openFindings, systems);
-  const impactNetworkDiagramRows = buildNetworkDiagramRows(filteredAssets, openFindings, systems);
   const impactSpiDrivers = buildImpactSpiDrivers(openFindings);
   const impactSpiDriversBySystemId = buildImpactSpiDriversBySystemId(openFindings);
   const impactEnvironmentSplit = buildImpactEnvironmentSplit(openFindings);
@@ -1497,7 +1434,6 @@ export default async function CyberCopPage({
         }}
         impactLinks={impactLinks}
         impactAssetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
-        impactNetworkDiagramRows={impactNetworkDiagramRows}
         impactSpiDrivers={impactSpiDrivers}
         impactSpiDriversBySystemId={impactSpiDriversBySystemId}
         impactEnvironmentSplit={impactEnvironmentSplit}
