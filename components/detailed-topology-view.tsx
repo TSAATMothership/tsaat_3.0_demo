@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { IctSystemImpactAnalyser2Chart } from "@/components/ict-system-impact-analyser-2";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { isRealNetworkId } from "@/lib/network-scope";
 import type { NetworkTopologyData, TopologyEntityType, TopologyNodeDetails } from "@/lib/network-topology";
@@ -6195,6 +6196,15 @@ export function DetailedTopologyView({
       animateCiFlowTween(0, 1, 520);
     });
   }, [animateCiFlowTween, detailedZoom]);
+  const openCiFlowFocusForAssetId = useCallback(
+    (assetId: string) => {
+      const node = detailedTree?.nodes.find((item) => item.entityType === "ci" && item.ciAssetId === assetId);
+      if (node) {
+        openCiFlowFocusForNode(node);
+      }
+    },
+    [detailedTree?.nodes, openCiFlowFocusForNode]
+  );
 
   const closeCiFlowFocus = () => {
     if (!focusedCiFlowRootAssetId) {
@@ -7308,7 +7318,7 @@ export function DetailedTopologyView({
                     type="button"
                     onClick={exportDetailedTopologyCsv}
                     disabled={!presentedDetailedNodes.length}
-                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                    className="hidden rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
                   >
                     Export CSV
                   </button>
@@ -7316,7 +7326,7 @@ export function DetailedTopologyView({
                     type="button"
                     onClick={exportDetailedTopologySvg}
                     disabled={!presentedDetailedNodes.length}
-                    className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
+                    className="hidden rounded-md border border-cyan-300/45 bg-cyan-500/14 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/24 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
                   >
                     Export SVG
                   </button>
@@ -7330,7 +7340,23 @@ export function DetailedTopologyView({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 border-b border-sky-400/15 px-4 py-3 text-xs">
+              <div className="min-h-0 flex-1 p-2">
+                <IctSystemImpactAnalyser2Chart
+                  embedded
+                  dataPath={`/api/networks/${encodeURIComponent(data.networkId)}/impact-analyser`}
+                  findingsPath={`/api/networks/${encodeURIComponent(data.networkId)}/impact-analyser/findings`}
+                  title="Network Impact Analyser"
+                  headingTooltip="Network-scoped analyser for modelled assets across network, ICT system, environment, assets, severity, and SPI."
+                  assetAxisLabel="Assets"
+                  assetSearchCategory="Assets"
+                  includeNetworkAxis
+                  showAssetTypeFilter
+                  showSelectedTileText
+                  onAssetFocus={openCiFlowFocusForAssetId}
+                />
+              </div>
+
+              <div className="hidden">
                 <label className="text-slate-300/85" htmlFor="detailed-topology-compliance-mode">
                   Compliance
                 </label>
@@ -7508,7 +7534,7 @@ export function DetailedTopologyView({
                 </div>
               </div>
 
-              <div ref={detailedViewportRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/75">
+              <div ref={detailedViewportRef} className="hidden">
                 <canvas ref={detailedCanvasRef} className="absolute inset-0 h-full w-full" />
                 {!isCiFlowFocusPanelOpen && selectedDetailedCanvasTileText ? (
                   <section
@@ -8283,4 +8309,3 @@ export function DetailedTopologyView({
     </div>
   );
 }
-

@@ -3,11 +3,13 @@ import { getCoreAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import {
   buildCyberCopImpactAnalyserFindingRows,
-  buildCyberCopImpactAnalyserRows,
+  buildNetworkImpactAnalyserModelAssetIds,
+  buildNetworkImpactAnalyserRows,
   filterCyberCopImpactAnalyserRows,
   pickHighRiskCvesByAssetId
 } from "@/lib/cyber-cop-impact-analyser";
-import { applyAssetFilters } from "@/lib/selectors";
+import { isUnassignedNetworkId } from "@/lib/network-scope";
+import { buildNetworkTopologyData } from "@/lib/network-topology";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,13 +32,35 @@ function readCsvParam(value: string | null): string[] {
     .filter(Boolean);
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest, { params }: { params: { networkId: string } }) {
+  if (isUnassignedNetworkId(params.networkId)) {
+    return NextResponse.json({ error: "Network not found" }, { status: 404 });
+  }
+
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const selectedSpiId = readNumberParam(request.nextUrl.searchParams.get("spiId"));
   const diagramSystemIdsParam = request.nextUrl.searchParams.get("diagramSystemIds");
-  const { analytics, dataset, filters, systems } = await getCoreAppData(queryObject);
-  const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
-  const allRows = buildCyberCopImpactAnalyserRows(filteredAssets, analytics.findings, systems);
+  const { analytics, dataset, systems } = await getCoreAppData(queryObject);
+  const network = dataset.managedNetworks.find((item) => item.id === params.networkId);
+  if (!network) {
+    return NextResponse.json({ error: "Network not found" }, { status: 404 });
+  }
+
+  const topologyData = buildNetworkTopologyData(dataset, analytics, network.id, network.name);
+  const modelAssetIds = buildNetworkImpactAnalyserModelAssetIds({
+    network,
+    assets: dataset.assets,
+    topologyModelAssetIds: topologyData.modelAssetIds
+  });
+  const modelAssetIdSet = new Set(modelAssetIds);
+  const modelAssets = dataset.assets.filter((asset) => modelAssetIdSet.has(asset.id));
+  const allRows = buildNetworkImpactAnalyserRows({
+    assets: dataset.assets,
+    findings: analytics.findings,
+    systems,
+    modelAssetIds,
+    networkName: network.name
+  });
   const locallyFilteredRows = filterCyberCopImpactAnalyserRows(allRows, {
     environment: request.nextUrl.searchParams.get("diagramEnvironment"),
     securityDomain: request.nextUrl.searchParams.get("diagramSecurityDomain"),
@@ -48,11 +72,15 @@ export async function GET(request: NextRequest) {
     systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)
   });
   const selectedRows = filterCyberCopImpactAnalyserRows(locallyFilteredRows, { spiId: selectedSpiId });
-  const localFindingIds = new Set(locallyFilteredRows.map((row) => row.findingId));
-  const selectedFindingIds = new Set(selectedRows.map((row) => row.findingId));
+  const localFindingIds = new Set(
+    locallyFilteredRows.map((row) => row.findingId).filter((findingId): findingId is string => Boolean(findingId))
+  );
+  const selectedFindingIds = new Set(
+    selectedRows.map((row) => row.findingId).filter((findingId): findingId is string => Boolean(findingId))
+  );
   const riskRows = buildCyberCopImpactAnalyserFindingRows({
     findings: analytics.findings,
-    scopedAssets: filteredAssets,
+    scopedAssets: modelAssets,
     allAssets: dataset.assets,
     systems: dataset.ictSystems,
     networks: dataset.managedNetworks
@@ -71,7 +99,7 @@ export async function GET(request: NextRequest) {
           selectedFindingIds.has(finding.sourceFindingId as string)
       )
     : [];
-  const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
+  const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(modelAssets);
   const assetIds = new Set(allFindings.map((finding) => finding.assetId));
 
   return NextResponse.json({
@@ -79,7 +107,7 @@ export async function GET(request: NextRequest) {
     selectedSpiId,
     findings: selectedFindings,
     allFindings,
-    totalCount: selectedRows.length,
+    totalCount: selectedRows.filter((row) => row.findingId).length,
     assetHighRiskCvesByAssetId: pickHighRiskCvesByAssetId(highRiskCvesByAssetId, assetIds)
   });
 }

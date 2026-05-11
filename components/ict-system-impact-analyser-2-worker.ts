@@ -2,17 +2,26 @@ type FindingSeverity = "High Risk" | "Critical Exposure" | "Major" | "Moderate" 
 type SecurityDomain = "Secret" | "Protected" | "Unclassified";
 
 interface ImpactAnalyser2Row {
-  findingId: string;
-  systemId: string;
+  findingId: string | null;
+  systemId: string | null;
   systemName: string;
   environmentType: string | null;
+  assetId: string;
+  assetName: string;
+  assetHostname: string;
+  assetType: string;
+  assetIpAddress: string;
+  networkId: string;
+  networkName: string;
+  hasIctSystem: boolean;
   serverId: string;
   serverName: string;
   serverHostname: string;
   securityDomain: SecurityDomain;
-  severity: FindingSeverity;
-  spiId: number;
+  severity: FindingSeverity | null;
+  spiId: number | null;
   spiLabel: string;
+  hasOpenFinding: boolean;
 }
 
 interface ImpactAnalyser2SelectedNode {
@@ -28,9 +37,10 @@ interface ImpactAnalyser2SelectedSearchOption {
 }
 
 interface ImpactAnalyser2Filters {
-  environment: string;
-  securityDomain: string;
-  findingCriticality: string;
+  environment: string[];
+  securityDomain: string[];
+  findingCriticality: string[];
+  assetType: string[];
   search: string;
   selectedSearchOption: ImpactAnalyser2SelectedSearchOption | null;
   systemIds: string[] | null;
@@ -45,6 +55,7 @@ interface ImpactAnalyser2Axis {
 interface ImpactAnalyser2SearchOption {
   id: string;
   label: string;
+  value: string;
   category: string;
   axisKey: string;
 }
@@ -60,6 +71,9 @@ type WorkerRequest =
       filters: ImpactAnalyser2Filters;
       selectedNode: ImpactAnalyser2SelectedNode | null;
       layout: {
+        assetAxisLabel: string;
+        assetSearchCategory: string;
+        includeNetworkAxis: boolean;
         width: number;
         left: number;
         right: number;
@@ -78,7 +92,18 @@ const workerScope = self as unknown as {
 const environmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"];
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
 const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
-const searchCategoryOrder = ["ICT System", "Environment", "Server", "Finding Severity", "SPI", "Security Domain"];
+const assetTypeOrder = ["server", "workstation", "network-device", "storage-device", "printer-device", "other"];
+const searchCategoryOrder = [
+  "Network",
+  "ICT System",
+  "Environment",
+  "Assets",
+  "Server",
+  "Asset Type",
+  "Finding Severity",
+  "SPI",
+  "Security Domain"
+];
 
 let sourceRows: ImpactAnalyser2Row[] = [];
 
@@ -96,19 +121,32 @@ function uniqueSorted(values: string[]): string[] {
 }
 
 function rowAxisValue(row: ImpactAnalyser2Row, axisKey: string): string {
+  if (axisKey === "network") {
+    return row.networkName;
+  }
   if (axisKey === "system") {
-    return row.systemName;
+    return row.hasIctSystem ? row.systemName : "";
   }
   if (axisKey === "environment") {
-    return row.environmentType ?? "Unassigned";
+    return row.hasIctSystem ? row.environmentType ?? "Unassigned" : "";
+  }
+  if (axisKey === "asset") {
+    return row.assetId;
   }
   if (axisKey === "server") {
     return row.serverName;
   }
   if (axisKey === "severity") {
-    return row.severity;
+    return row.severity ?? "";
+  }
+  if (axisKey === "assetType") {
+    return row.assetType;
   }
   return row.spiLabel;
+}
+
+function rowHasFindingPath(row: ImpactAnalyser2Row): boolean {
+  return Boolean(row.findingId && row.hasOpenFinding && row.severity && row.spiId && row.spiLabel);
 }
 
 function severityRgb(severity: FindingSeverity): [number, number, number] {
@@ -132,14 +170,20 @@ function labelMatchesSearch(category: string, label: string, normalizedSearch: s
 }
 
 function axisKeyForSearchCategory(category: string): string {
+  if (category === "Network") {
+    return "network";
+  }
   if (category === "ICT System") {
     return "system";
   }
   if (category === "Environment") {
     return "environment";
   }
-  if (category === "Server") {
-    return "server";
+  if (category === "Assets" || category === "Server") {
+    return "asset";
+  }
+  if (category === "Asset Type") {
+    return "assetType";
   }
   if (category === "Finding Severity") {
     return "severity";
@@ -154,6 +198,7 @@ function addSearchOption(
   options: Map<string, ImpactAnalyser2SearchOption>,
   category: string,
   label: string,
+  value: string,
   normalizedSearch: string,
   limit: number
 ) {
@@ -161,9 +206,10 @@ function addSearchOption(
   if (!normalizedLabel || options.size >= limit || !labelMatchesSearch(category, normalizedLabel, normalizedSearch)) {
     return;
   }
-  const id = `${category}:${normalizedLabel.toLowerCase()}`;
+  const normalizedValue = value.trim();
+  const id = `${category}:${normalizedValue.toLowerCase()}`;
   if (!options.has(id)) {
-    options.set(id, { id, label: normalizedLabel, category, axisKey: axisKeyForSearchCategory(category) });
+    options.set(id, { id, label: normalizedLabel, value: normalizedValue, category, axisKey: axisKeyForSearchCategory(category) });
   }
 }
 
@@ -172,11 +218,15 @@ function rowMatchesSearch(row: ImpactAnalyser2Row, normalizedSearch: string): bo
     return true;
   }
   const haystack = [
+    row.networkName,
     row.systemName,
-    row.environmentType ?? "Unassigned",
+    row.hasIctSystem ? row.environmentType ?? "Unassigned" : "",
+    row.assetName,
+    row.assetHostname,
+    row.assetType,
     row.serverName,
     row.serverHostname,
-    row.severity,
+    row.severity ?? "",
     row.spiLabel,
     row.securityDomain
   ]
@@ -185,20 +235,27 @@ function rowMatchesSearch(row: ImpactAnalyser2Row, normalizedSearch: string): bo
   return haystack.includes(normalizedSearch);
 }
 
+function matchesMultiFilter(values: string[], rowValue: string | null | undefined): boolean {
+  return !values.length || values.includes(rowValue ?? "");
+}
+
 function filterRows(rows: ImpactAnalyser2Row[], filters: ImpactAnalyser2Filters): ImpactAnalyser2Row[] {
   const normalizedSearch = filters.search.trim().toLowerCase();
   const systemIdFilter = filters.systemIds ? new Set(filters.systemIds) : null;
   return rows.filter((row) => {
-    if (systemIdFilter && !systemIdFilter.has(row.systemId)) {
+    if (systemIdFilter && (!row.systemId || !systemIdFilter.has(row.systemId))) {
       return false;
     }
-    if (filters.environment !== "all" && (row.environmentType ?? "Unassigned") !== filters.environment) {
+    if (!matchesMultiFilter(filters.assetType, row.assetType)) {
       return false;
     }
-    if (filters.securityDomain !== "all" && row.securityDomain !== filters.securityDomain) {
+    if (!matchesMultiFilter(filters.environment, row.environmentType ?? "Unassigned")) {
       return false;
     }
-    if (filters.findingCriticality !== "all" && row.severity !== filters.findingCriticality) {
+    if (!matchesMultiFilter(filters.securityDomain, row.securityDomain)) {
+      return false;
+    }
+    if (!matchesMultiFilter(filters.findingCriticality, row.severity)) {
       return false;
     }
     if (filters.selectedSearchOption) {
@@ -211,24 +268,56 @@ function filterRows(rows: ImpactAnalyser2Row[], filters: ImpactAnalyser2Filters)
   });
 }
 
-function buildAxes(filteredRows: ImpactAnalyser2Row[]): ImpactAnalyser2Axis[] {
+function buildAxes(filteredRows: ImpactAnalyser2Row[], includeNetworkAxis: boolean): ImpactAnalyser2Axis[] {
+  const assetNameById = new Map(filteredRows.map((row) => [row.assetId, row.assetName || row.assetHostname || row.assetId]));
+  const findingRows = filteredRows.filter(rowHasFindingPath);
   return [
-    { key: "system", label: "ICT System", values: uniqueSorted(filteredRows.map((row) => row.systemName)) },
+    ...(includeNetworkAxis
+      ? [
+          {
+            key: "network",
+            label: "Network",
+            values: uniqueSorted(filteredRows.map((row) => row.networkName).filter(Boolean))
+          }
+        ]
+      : []),
+    {
+      key: "system",
+      label: "ICT System",
+      values: uniqueSorted(
+        filteredRows
+          .filter((row) => !includeNetworkAxis || row.hasIctSystem)
+          .map((row) => row.systemName)
+          .filter(Boolean)
+      )
+    },
     {
       key: "environment",
       label: "Environment",
-      values: Array.from(new Set(filteredRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel)
+      values: Array.from(
+        new Set(
+          filteredRows
+            .filter((row) => !includeNetworkAxis || row.hasIctSystem)
+            .map((row) => row.environmentType ?? "Unassigned")
+        )
+      ).sort(sortEnvironmentLabel)
     },
-    { key: "server", label: "Server", values: uniqueSorted(filteredRows.map((row) => row.serverName)) },
+    {
+      key: "asset",
+      label: "Assets",
+      values: uniqueSorted(filteredRows.map((row) => row.assetId)).sort((left, right) =>
+        (assetNameById.get(left) ?? left).localeCompare(assetNameById.get(right) ?? right)
+      )
+    },
     {
       key: "severity",
       label: "Finding Severity",
-      values: severityOrder.filter((severity) => filteredRows.some((row) => row.severity === severity))
+      values: severityOrder.filter((severity) => findingRows.some((row) => row.severity === severity))
     },
     {
       key: "spi",
       label: "SPI",
-      values: Array.from(new Set(filteredRows.map((row) => row.spiLabel))).sort(
+      values: Array.from(new Set(findingRows.map((row) => row.spiLabel).filter(Boolean))).sort(
         (left, right) => Number(left.replace("SPI ", "")) - Number(right.replace("SPI ", ""))
       )
     }
@@ -255,10 +344,26 @@ function virtualYForValue(
   return top + (valueIndex * innerHeight) / (axis.values.length - 1);
 }
 
+function rowPathAxisKeys(row: ImpactAnalyser2Row, includeNetworkAxis: boolean): string[] {
+  const keys: string[] = [];
+  if (includeNetworkAxis) {
+    keys.push("network");
+  }
+  if (!includeNetworkAxis || row.hasIctSystem) {
+    keys.push("system", "environment");
+  }
+  keys.push("asset");
+  if (rowHasFindingPath(row)) {
+    keys.push("severity", "spi");
+  }
+  return keys;
+}
+
 function buildLineBuffers(params: {
   rows: ImpactAnalyser2Row[];
   axes: ImpactAnalyser2Axis[];
   axisMaps: Array<Map<string, number>>;
+  includeNetworkAxis: boolean;
   width: number;
   left: number;
   right: number;
@@ -266,27 +371,49 @@ function buildLineBuffers(params: {
   top: number;
   bottom: number;
 }) {
-  const segmentCount = params.rows.length * Math.max(0, params.axes.length - 1);
+  const axisIndexByKey = new Map(params.axes.map((axis, index) => [axis.key, index]));
+  const drawableRows = params.rows
+    .map((row) => ({ row, pathKeys: rowPathAxisKeys(row, params.includeNetworkAxis) }))
+    .filter(({ pathKeys }) => pathKeys.length > 1);
+  const segmentCount = drawableRows.reduce((total, { pathKeys }) => total + Math.max(0, pathKeys.length - 1), 0);
   const positions = new Float32Array(segmentCount * 2 * 3);
   const colors = new Float32Array(segmentCount * 2 * 3);
   let offset = 0;
   let colorOffset = 0;
 
-  for (const row of params.rows) {
-    const rowPoints = params.axes.map((axis, axisIndex) => {
+  for (const { row, pathKeys } of drawableRows) {
+    const rowPoints: Array<{ x: number; y: number }> = [];
+    let rowCanDraw = true;
+    for (const axisKey of pathKeys) {
+      const axisIndex = axisIndexByKey.get(axisKey);
+      if (axisIndex === undefined) {
+        rowCanDraw = false;
+        break;
+      }
+      const axis = params.axes[axisIndex];
+      const value = rowAxisValue(row, axis.key);
+      if (!value || !params.axisMaps[axisIndex].has(value)) {
+        rowCanDraw = false;
+        break;
+      }
       const innerWidth = Math.max(1, params.width - params.left - params.right);
       const x = params.left + (axisIndex * innerWidth) / Math.max(1, params.axes.length - 1);
       const y = virtualYForValue(
         axis,
         params.axisMaps[axisIndex],
-        rowAxisValue(row, axis.key),
+        value,
         params.virtualHeight,
         params.top,
         params.bottom
       );
-      return { x, y };
-    });
-    const [red, green, blue] = severityRgb(row.severity);
+      rowPoints.push({ x, y });
+    }
+    if (!rowCanDraw || rowPoints.length < 2) {
+      continue;
+    }
+    const [red, green, blue] = rowHasFindingPath(row)
+      ? severityRgb(row.severity ?? "Data Gap")
+      : [56 / 255, 189 / 255, 248 / 255];
 
     for (let index = 0; index < rowPoints.length - 1; index += 1) {
       const from = rowPoints[index];
@@ -306,22 +433,34 @@ function buildLineBuffers(params: {
     }
   }
 
-  return { positions, colors };
+  return { positions: positions.slice(0, offset), colors: colors.slice(0, colorOffset) };
 }
 
 function buildSearchOptions(
   rows: ImpactAnalyser2Row[],
   normalizedSearch: string,
-  limit: number
+  limit: number,
+  assetSearchCategory: string,
+  includeNetworkAxis: boolean
 ): ImpactAnalyser2SearchOption[] {
   const options = new Map<string, ImpactAnalyser2SearchOption>();
   for (const row of rows) {
-    addSearchOption(options, "ICT System", row.systemName, normalizedSearch, limit);
-    addSearchOption(options, "Environment", row.environmentType ?? "Unassigned", normalizedSearch, limit);
-    addSearchOption(options, "Server", row.serverName, normalizedSearch, limit);
-    addSearchOption(options, "Finding Severity", row.severity, normalizedSearch, limit);
-    addSearchOption(options, "SPI", row.spiLabel, normalizedSearch, limit);
-    addSearchOption(options, "Security Domain", row.securityDomain, normalizedSearch, limit);
+    if (includeNetworkAxis) {
+      addSearchOption(options, "Network", row.networkName, row.networkName, normalizedSearch, limit);
+    }
+    if (!includeNetworkAxis || row.hasIctSystem) {
+      addSearchOption(options, "ICT System", row.systemName, row.systemName, normalizedSearch, limit);
+      addSearchOption(options, "Environment", row.environmentType ?? "Unassigned", row.environmentType ?? "Unassigned", normalizedSearch, limit);
+    }
+    addSearchOption(options, assetSearchCategory, row.assetName || row.assetHostname || row.assetId, row.assetId, normalizedSearch, limit);
+    addSearchOption(options, "Asset Type", row.assetType, row.assetType, normalizedSearch, limit);
+    if (row.severity) {
+      addSearchOption(options, "Finding Severity", row.severity, row.severity, normalizedSearch, limit);
+    }
+    if (row.spiLabel) {
+      addSearchOption(options, "SPI", row.spiLabel, row.spiLabel, normalizedSearch, limit);
+    }
+    addSearchOption(options, "Security Domain", row.securityDomain, row.securityDomain, normalizedSearch, limit);
     if (options.size >= limit) {
       break;
     }
@@ -335,7 +474,11 @@ function buildSearchOptions(
 function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>) {
   const filteredRows = filterRows(sourceRows, request.filters);
   const normalizedSearch = request.filters.search.trim().toLowerCase();
-  const axes = buildAxes(filteredRows);
+  const axes = buildAxes(filteredRows, request.layout.includeNetworkAxis);
+  const assetAxis = axes.find((axis) => axis.key === "asset");
+  if (assetAxis) {
+    assetAxis.label = request.layout.assetAxisLabel;
+  }
   const axisMaps = buildAxisMaps(axes);
   const maxAxisCount = Math.max(1, ...axes.map((axis) => axis.values.length));
   const virtualHeight = Math.max(request.layout.minHeight, maxAxisCount * request.layout.rowGap + request.layout.top + request.layout.bottom);
@@ -346,6 +489,7 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
     rows: filteredRows,
     axes,
     axisMaps,
+    includeNetworkAxis: request.layout.includeNetworkAxis,
     width: request.layout.width,
     left: request.layout.left,
     right: request.layout.right,
@@ -357,6 +501,7 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
     rows: selectedRows,
     axes,
     axisMaps,
+    includeNetworkAxis: request.layout.includeNetworkAxis,
     width: request.layout.width,
     left: request.layout.left,
     right: request.layout.right,
@@ -366,6 +511,9 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
   });
   const spiCounts = Array.from(
     filteredRows.reduce<Map<number, number>>((counts, row) => {
+      if (!row.spiId) {
+        return counts;
+      }
       counts.set(row.spiId, (counts.get(row.spiId) ?? 0) + 1);
       return counts;
     }, new Map())
@@ -373,8 +521,12 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
   const searchOptions = buildSearchOptions(
     filteredRows,
     normalizedSearch,
-    request.searchOptionLimit
+    request.searchOptionLimit,
+    request.layout.assetSearchCategory,
+    request.layout.includeNetworkAxis
   );
+  const filteredFindingRowCount = filteredRows.filter(rowHasFindingPath).length;
+  const filteredAssetCount = new Set(filteredRows.map((row) => row.assetId)).size;
 
   workerScope.postMessage(
     {
@@ -383,6 +535,8 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
       axes,
       filteredRowCount: filteredRows.length,
       totalRowCount: sourceRows.length,
+      filteredFindingRowCount,
+      filteredAssetCount,
       highlightedRowCount: selectedRows.length,
       virtualHeight,
       basePositions: baseBuffers.positions,
@@ -409,6 +563,7 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
       type: "initialized",
       totalRowCount: sourceRows.length,
       environmentOptions: Array.from(new Set(sourceRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
+      assetTypeOptions: assetTypeOrder.filter((assetType) => sourceRows.some((row) => row.assetType === assetType)),
       securityDomainOptions: Array.from(new Set(sourceRows.map((row) => row.securityDomain))).sort(
         (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
       )

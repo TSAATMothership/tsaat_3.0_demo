@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildCyberCopImpactAnalyserFindingRows,
   buildCyberCopImpactAnalyserRows,
+  buildNetworkImpactAnalyserModelAssetIds,
+  buildNetworkImpactAnalyserRows,
   filterCyberCopImpactAnalyserRows,
   type CyberCopImpactAnalyserRow
 } from "@/lib/cyber-cop-impact-analyser";
@@ -146,6 +148,8 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
       findingId: "finding-1",
       systemId: "system-1",
       systemName: "Payments",
+      networkName: "network-1",
+      hasIctSystem: true,
       environmentType: "Production",
       serverId: "server-1",
       serverName: "PAY-SRV-01",
@@ -161,6 +165,8 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
     const rows = buildCyberCopImpactAnalyserRows([serverAsset, workstationAsset], findings, systems);
 
     expect(filterCyberCopImpactAnalyserRows(rows, { environment: "Production", spiId: 3 })).toHaveLength(1);
+    expect(filterCyberCopImpactAnalyserRows(rows, { environment: ["Production"], securityDomain: ["Secret"] })).toHaveLength(1);
+    expect(filterCyberCopImpactAnalyserRows(rows, { environment: "Production,UAT" })).toHaveLength(1);
     expect(filterCyberCopImpactAnalyserRows(rows, { findingCriticality: "High Risk" })).toHaveLength(0);
     expect(filterCyberCopImpactAnalyserRows(rows, { securityDomain: "Protected" })).toHaveLength(0);
     expect(filterCyberCopImpactAnalyserRows(rows, { search: "pay-srv" })).toHaveLength(1);
@@ -173,6 +179,8 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         findingId: "finding-spi-1",
         systemId: "system-1",
         systemName: "Payments",
+        networkName: "Core Network",
+        hasIctSystem: true,
         environmentType: "Production",
         serverId: "server-1",
         serverName: "PAY-SRV-01",
@@ -186,6 +194,8 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         findingId: "finding-spi-10",
         systemId: "system-1",
         systemName: "Payments",
+        networkName: "Core Network",
+        hasIctSystem: true,
         environmentType: "Production",
         serverId: "server-2",
         serverName: "PAY-SRV-10",
@@ -213,6 +223,8 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         findingId: "finding-system-1",
         systemId: "system-1",
         systemName: "Payments",
+        networkName: "Core Network",
+        hasIctSystem: true,
         environmentType: "Production",
         serverId: "server-1",
         serverName: "PAY-SRV-01",
@@ -226,6 +238,8 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         findingId: "finding-system-2",
         systemId: "system-2",
         systemName: "Logistics",
+        networkName: "Core Network",
+        hasIctSystem: true,
         environmentType: "Production",
         serverId: "server-2",
         serverName: "LOG-SRV-01",
@@ -248,6 +262,132 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         selectedSearchValue: "SPI 4"
       }).map((row) => row.findingId)
     ).toEqual(["finding-system-2"]);
+  });
+
+  it("builds network-scoped asset rows with standalone modelled assets", () => {
+    const storageAsset = {
+      ...workstationAsset,
+      id: "storage-1",
+      name: "PAY-STO-01",
+      hostname: "pay-sto-01.example.test",
+      type: "storage-device"
+    } as Asset;
+    const unassignedAsset = {
+      ...workstationAsset,
+      id: "unassigned-asset-1",
+      name: "UNASSIGNED-ASSET-01",
+      hostname: "unassigned-asset-01.example.test",
+      type: "network-device",
+      systemContext: undefined
+    } as Asset;
+    const unassignedAssetFinding: Finding = {
+      id: "finding-4",
+      spiId: 7,
+      priorityRank: 4,
+      severity: "High Risk",
+      status: "open",
+      complianceStatus: "Non-compliant",
+      timestamp: "2026-01-05T00:00:00.000Z",
+      scope: {
+        networkId: "network-1",
+        systemId: null,
+        environmentType: null,
+        assetId: "unassigned-asset-1"
+      },
+      title: "Unassigned network device finding",
+      evidence: {},
+      recommendedAction: "Review network device"
+    };
+    const networkFindings = [...findings, unassignedAssetFinding];
+    const rows = buildNetworkImpactAnalyserRows({
+      assets: [serverAsset, workstationAsset, storageAsset, unassignedAsset],
+      findings: networkFindings,
+      systems,
+      modelAssetIds: ["server-1", "workstation-1", "storage-1", "unassigned-asset-1"],
+      networkName: "Core Network"
+    });
+
+    expect(rows).toHaveLength(7);
+    expect(rows.every((row) => row.networkName === "Core Network")).toBe(true);
+    expect(rows.filter((row) => row.assetId === "storage-1")).toMatchObject([
+      {
+        findingId: null,
+        assetType: "storage-device",
+        hasOpenFinding: false,
+        hasIctSystem: true,
+        assetName: "PAY-STO-01"
+      }
+    ]);
+    expect(rows.filter((row) => row.assetId === "workstation-1").map((row) => row.hasOpenFinding)).toEqual([false, true]);
+    expect(rows.find((row) => row.assetId === "workstation-1" && row.findingId === "finding-2")).toMatchObject({
+      assetType: "workstation",
+      hasOpenFinding: true,
+      hasIctSystem: true,
+      environmentType: "Production",
+      severity: "Major",
+      spiId: 5,
+      spiLabel: "SPI 5"
+    });
+    expect(rows.filter((row) => row.assetId === "unassigned-asset-1").map((row) => row.hasOpenFinding)).toEqual([false, true]);
+    expect(rows.find((row) => row.assetId === "unassigned-asset-1" && row.findingId === null)).toMatchObject({
+      findingId: null,
+      assetType: "network-device",
+      hasOpenFinding: false,
+      hasIctSystem: false,
+      systemId: null,
+      assetName: "UNASSIGNED-ASSET-01"
+    });
+    expect(rows.find((row) => row.assetId === "unassigned-asset-1" && row.findingId === "finding-4")).toMatchObject({
+      assetType: "network-device",
+      hasOpenFinding: true,
+      hasIctSystem: false,
+      systemId: null,
+      environmentType: null,
+      severity: "High Risk",
+      spiId: 7,
+      spiLabel: "SPI 7"
+    });
+    expect(rows.filter((row) => row.assetId === "server-1").map((row) => row.hasOpenFinding)).toEqual([false, true]);
+    expect(filterCyberCopImpactAnalyserRows(rows, { assetType: "storage-device" }).map((row) => row.assetId)).toEqual([
+      "storage-1"
+    ]);
+    expect(
+      filterCyberCopImpactAnalyserRows(rows, { assetType: "workstation", findingCriticality: "Major" }).map(
+        (row) => row.findingId
+      )
+    ).toEqual(["finding-2"]);
+    expect(
+      filterCyberCopImpactAnalyserRows(rows, { assetType: "network-device", findingCriticality: "High Risk" }).map(
+        (row) => row.findingId
+      )
+    ).toEqual(["finding-4"]);
+    expect(
+      filterCyberCopImpactAnalyserRows(rows, {
+        selectedSearchAxis: "asset",
+        selectedSearchValue: "server-1"
+      }).map((row) => row.assetId)
+    ).toEqual(["server-1", "server-1"]);
+  });
+
+  it("uses the full selected network asset scope for network impact analyser rows", () => {
+    const directNetworkAsset = {
+      ...workstationAsset,
+      id: "printer-1",
+      name: "PAY-PRN-01",
+      hostname: "pay-prn-01.example.test",
+      type: "printer-device",
+      systemContext: undefined
+    } as Asset;
+    const modelAssetIds = buildNetworkImpactAnalyserModelAssetIds({
+      network: {
+        ...networks[0],
+        assetIds: ["storage-1"]
+      },
+      assets: [serverAsset, workstationAsset, directNetworkAsset],
+      topologyModelAssetIds: ["server-1"]
+    });
+
+    expect(modelAssetIds).toEqual(["printer-1", "server-1", "storage-1", "workstation-1"]);
   });
 
   it("builds drill-through finding rows with source finding ids and affected CI fields", () => {
@@ -336,8 +476,34 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSearchValue")');
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSystemIds")');
     expect(findingsRoute).toContain("systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)");
-    expect(component).toContain('fetch(buildApiUrl("/api/cyber-cop/impact-analyser-2")');
-    expect(component).toContain('buildApiUrl("/api/cyber-cop/impact-analyser-2/findings"');
+    expect(component).toContain('dataPath = "/api/cyber-cop/impact-analyser-2"');
+    expect(component).toContain('findingsPath = "/api/cyber-cop/impact-analyser-2/findings"');
+    expect(component).toContain("fetch(buildApiUrl(dataPath)");
+    expect(component).toContain("buildApiUrl(findingsPath");
+  });
+
+  it("wires the network detailed topology view to a network-scoped analyser", () => {
+    const detailedTopology = readRepoFile("components/detailed-topology-view.tsx");
+    const dataRoute = readRepoFile("app/api/networks/[networkId]/impact-analyser/route.ts");
+    const findingsRoute = readRepoFile("app/api/networks/[networkId]/impact-analyser/findings/route.ts");
+
+    expect(dataRoute).toContain('export const dynamic = "force-dynamic"');
+    expect(dataRoute).toContain("buildNetworkTopologyData");
+    expect(dataRoute).toContain("buildNetworkImpactAnalyserModelAssetIds");
+    expect(dataRoute).toContain("topologyModelAssetIds: topologyData.modelAssetIds");
+    expect(dataRoute).toContain("networkName: network.name");
+    expect(dataRoute).toContain("buildNetworkImpactAnalyserRows");
+    expect(findingsRoute).toContain('export const dynamic = "force-dynamic"');
+    expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramAssetType")');
+    expect(findingsRoute).toContain("modelAssetIds");
+    expect(detailedTopology).toContain("IctSystemImpactAnalyser2Chart");
+    expect(detailedTopology).toContain('title="Network Impact Analyser"');
+    expect(detailedTopology).toContain("includeNetworkAxis");
+    expect(detailedTopology).toContain("assetAxisLabel=\"Assets\"");
+    expect(detailedTopology).toContain("assetSearchCategory=\"Assets\"");
+    expect(detailedTopology).toContain("showAssetTypeFilter");
+    expect(detailedTopology).toContain("showSelectedTileText");
+    expect(detailedTopology).toContain("onAssetFocus={openCiFlowFocusForAssetId}");
   });
 
   it("keeps V2 worker-side filtering and Canvas/WebGL rendering markers", () => {
@@ -346,7 +512,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
 
     expect(component).toContain("new Worker(new URL");
     expect(component).toContain("new THREE.WebGLRenderer");
-    expect(component).toContain("new THREE.OrthographicCamera(0, width, scrollTop, scrollTop + height, -1, 1)");
+    expect(component).toContain("const cameraScrollTop = Math.min(scrollTop, maxRenderScrollTop)");
+    expect(component).toContain("new THREE.OrthographicCamera(0, width, cameraScrollTop, cameraScrollTop + height, -1, 1)");
     expect(component).toContain("overlayCanvasRef");
     expect(component).toContain("RiskFindingsDrillThrough");
     expect(component).toContain("function ImpactAnalyserLoadingOverlay");
@@ -364,17 +531,43 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("tooltipLeft");
     expect(component).toContain("tooltipTop");
     expect(component).toContain('placement?: "left" | "default"');
-    expect(component).toContain('placement: hit.plusAction ? "left" : "default"');
+    expect(component).toContain('placement: hit.action !== "none" ? "left" : "default"');
+    expect(component).toContain("showAssetTypeFilter");
+    expect(component).toContain("showSelectedTileText");
+    expect(component).toContain("function MultiSelectFilter");
+    expect(component).toContain("selectedEnvironments");
+    expect(component).toContain("selectedSecurityDomains");
+    expect(component).toContain("selectedAssetTypes");
+    expect(component).toContain("selectedFindingCriticalities");
+    expect(component).toContain("includeNetworkAxis?: boolean");
+    expect(component).toContain("includeNetworkAxis = false");
+    expect(component).toContain("Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}");
+    expect(component).toContain("onAssetFocus?: (assetId: string) => void");
+    expect(component).toContain('axis.key === "asset"');
+    expect(component).toContain('context.fillText("F"');
+    expect(component).toContain("Selected Tile Text");
     expect(component).toContain("hasActiveHighlight");
+    expect(component).toContain("if (!axis.values.length)");
     expect(component).toContain("selectedSearchOption");
     expect(component).toContain("setSelectedSearchOption(null)");
     expect(component).toContain("setSelectedSearchOption(exactSearchOption)");
+    expect(component).toContain('const reconcileDiagramViewport = useCallback((mode: "reset" | "clamp", virtualHeight?: number)');
+    expect(component).toContain("resetDiagramViewportForFilterChange");
+    expect(component).toContain('reconcileDiagramViewport("clamp", workerResult.virtualHeight)');
+    expect(component).toContain("scrollExactSearchNodeIntoView(selectedNode, workerResult)");
+    expect(component).toContain("const clearDiagramSearch = () =>");
+    expect(component).toContain('reconcileDiagramViewport("reset")');
+    expect(component).not.toContain("viewport.scrollTo({ top: 0 })");
     expect(component).toContain("systemScopeIds?: string[]");
     expect(component).toContain("const systemScopeKey = hasSystemScope");
     expect(component).toContain("systemIds: normalizedSystemScopeIds");
     expect(component).toContain("diagramSystemIds: systemScopeKey");
     expect(component).toContain("diagramSearchAxis: selectedSearchOption?.axisKey");
     expect(component).toContain("diagramSearchValue: selectedSearchOption?.value");
+    expect(component).toContain("diagramEnvironment: selectedEnvironmentKey");
+    expect(component).toContain("diagramSecurityDomain: selectedSecurityDomainKey");
+    expect(component).toContain("diagramFindingCriticality: selectedFindingCriticalityKey");
+    expect(component).toContain("diagramAssetType: selectedAssetTypeKey");
     expect(component).toContain("exportSlug: `ict-system-impact-analyser-spi-${drillThroughData.selectedSpiId}`");
     expect(component).toContain("viewport.scrollTo");
     expect(worker).toContain("Float32Array");
@@ -384,7 +577,23 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("buildAxes");
     expect(worker).toContain("const normalizedSearch = filters.search.trim().toLowerCase()");
     expect(worker).toContain("const systemIdFilter = filters.systemIds ? new Set(filters.systemIds) : null");
-    expect(worker).toContain("if (systemIdFilter && !systemIdFilter.has(row.systemId))");
+    expect(worker).toContain("if (systemIdFilter && (!row.systemId || !systemIdFilter.has(row.systemId)))");
+    expect(worker).toContain("assetType: string");
+    expect(worker).toContain("function matchesMultiFilter");
+    expect(worker).toContain("environment: string[]");
+    expect(worker).toContain("if (!matchesMultiFilter(filters.assetType, row.assetType))");
+    expect(worker).toContain('key: "asset"');
+    expect(worker).toContain('key: "network"');
+    expect(worker).toContain("includeNetworkAxis");
+    expect(worker).toContain("rowPathAxisKeys");
+    expect(worker).toContain('keys.push("network")');
+    expect(worker).toContain('keys.push("system", "environment")');
+    expect(worker).toContain('keys.push("severity", "spi")');
+    expect(worker).toContain('assetAxis.label = request.layout.assetAxisLabel');
+    expect(worker).toContain("rowHasFindingPath");
+    expect(worker).toContain("const findingRows = filteredRows.filter(rowHasFindingPath)");
+    expect(worker).toContain("let rowCanDraw = true");
+    expect(worker).toContain("return { positions: positions.slice(0, offset), colors: colors.slice(0, colorOffset) }");
     expect(worker).toContain("filters.selectedSearchOption");
     expect(worker).toContain("rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value");
     expect(worker).toContain("if (!rowMatchesSearch(row, normalizedSearch))");

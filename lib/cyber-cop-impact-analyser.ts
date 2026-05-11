@@ -1,6 +1,7 @@
-import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { ASSET_TYPES, formatAssetTypeLabel, type CanonicalAssetType } from "@/lib/asset-taxonomy";
 import {
   Asset,
+  AssetType,
   EnvironmentType,
   Finding,
   FindingSeverity,
@@ -11,17 +12,26 @@ import {
 } from "@/lib/types";
 
 export interface CyberCopImpactAnalyserRow {
-  findingId: string;
-  systemId: string;
+  findingId: string | null;
+  systemId: string | null;
   systemName: string;
   environmentType: EnvironmentType | null;
+  assetId: string;
+  assetName: string;
+  assetHostname: string;
+  assetType: AssetType;
+  assetIpAddress: string;
+  networkId: string;
+  networkName: string;
+  hasIctSystem: boolean;
   serverId: string;
   serverName: string;
   serverHostname: string;
   securityDomain: SecurityDomain;
-  severity: FindingSeverity;
-  spiId: number;
+  severity: FindingSeverity | null;
+  spiId: number | null;
   spiLabel: string;
+  hasOpenFinding: boolean;
 }
 
 export interface CyberCopImpactAnalyserFindingRow {
@@ -51,14 +61,15 @@ export interface CyberCopImpactAnalyserFindingRow {
 }
 
 export interface CyberCopImpactAnalyserLocalFilters {
-  environment?: string | null;
-  securityDomain?: string | null;
-  findingCriticality?: string | null;
+  environment?: string | string[] | null;
+  securityDomain?: string | string[] | null;
+  findingCriticality?: string | string[] | null;
   search?: string | null;
   selectedSearchAxis?: string | null;
   selectedSearchValue?: string | null;
   spiId?: number | null;
   systemIds?: string[] | null;
+  assetType?: string | string[] | null;
 }
 
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
@@ -121,17 +132,23 @@ function resolveAssetIpAddress(asset: Asset): string {
 }
 
 function impactAnalyserRowAxisValue(row: CyberCopImpactAnalyserRow, axisKey: string): string {
+  if (axisKey === "network") {
+    return row.networkName;
+  }
   if (axisKey === "system") {
-    return row.systemName;
+    return row.hasIctSystem ? row.systemName : "";
   }
   if (axisKey === "environment") {
-    return row.environmentType ?? "Unassigned";
+    return row.hasIctSystem ? row.environmentType ?? "Unassigned" : "";
+  }
+  if (axisKey === "asset") {
+    return row.assetId;
   }
   if (axisKey === "server") {
     return row.serverName;
   }
   if (axisKey === "severity") {
-    return row.severity;
+    return row.severity ?? "";
   }
   if (axisKey === "spi") {
     return row.spiLabel;
@@ -139,7 +156,50 @@ function impactAnalyserRowAxisValue(row: CyberCopImpactAnalyserRow, axisKey: str
   if (axisKey === "securityDomain") {
     return row.securityDomain;
   }
+  if (axisKey === "assetType") {
+    return row.assetType;
+  }
   return "";
+}
+
+function assetDisplayName(asset: Asset): string {
+  return asset.name || asset.hostname || asset.id;
+}
+
+function rowForAssetFinding(
+  asset: Asset,
+  finding: Finding | null,
+  systemNameById: Map<string, string>,
+  options: { networkNameById?: Map<string, string>; fallbackNetworkName?: string } = {}
+): CyberCopImpactAnalyserRow {
+  const candidateSystemId = finding?.scope.systemId ?? asset.systemContext?.systemId ?? null;
+  const hasIctSystem = Boolean(candidateSystemId && systemNameById.has(candidateSystemId));
+  const systemId = hasIctSystem ? candidateSystemId : null;
+  const assetName = assetDisplayName(asset);
+  const assetHostname = asset.hostname || asset.name || asset.id;
+  const networkId = finding?.scope.networkId ?? asset.networkId;
+  return {
+    findingId: finding?.id ?? null,
+    systemId,
+    systemName: systemId ? systemNameById.get(systemId) ?? "Unassigned ICT System" : "Unassigned ICT System",
+    environmentType: hasIctSystem ? finding?.scope.environmentType ?? asset.systemContext?.environmentType ?? null : null,
+    assetId: asset.id,
+    assetName,
+    assetHostname,
+    assetType: asset.type,
+    assetIpAddress: resolveAssetIpAddress(asset),
+    networkId,
+    networkName: options.networkNameById?.get(networkId) ?? options.fallbackNetworkName ?? networkId,
+    hasIctSystem,
+    serverId: asset.id,
+    serverName: assetName,
+    serverHostname: assetHostname,
+    securityDomain: asset.securityDomain,
+    severity: finding?.severity ?? null,
+    spiId: finding?.spiId ?? null,
+    spiLabel: finding ? `SPI ${finding.spiId}` : "",
+    hasOpenFinding: Boolean(finding)
+  };
 }
 
 export function buildCyberCopImpactAnalyserRows(
@@ -162,23 +222,11 @@ export function buildCyberCopImpactAnalyserRows(
     }
 
     const systemId = finding.scope.systemId ?? asset.systemContext?.systemId ?? null;
-    if (!systemId) {
+    if (!systemId || !systemNameById.has(systemId)) {
       continue;
     }
 
-    rows.push({
-      findingId: finding.id,
-      systemId,
-      systemName: systemNameById.get(systemId) ?? "Unassigned ICT System",
-      environmentType: finding.scope.environmentType ?? asset.systemContext?.environmentType ?? null,
-      serverId: asset.id,
-      serverName: asset.name || asset.hostname || asset.id,
-      serverHostname: asset.hostname || asset.name || asset.id,
-      securityDomain: asset.securityDomain,
-      severity: finding.severity,
-      spiId: finding.spiId,
-      spiLabel: `SPI ${finding.spiId}`
-    });
+    rows.push(rowForAssetFinding(asset, finding, systemNameById));
   }
 
   return rows.sort((left, right) => {
@@ -194,12 +242,102 @@ export function buildCyberCopImpactAnalyserRows(
     if (serverDiff !== 0) {
       return serverDiff;
     }
-    const severityDiff = severityOrder.indexOf(left.severity) - severityOrder.indexOf(right.severity);
+    const severityDiff = severityOrder.indexOf(left.severity ?? "Data Gap") - severityOrder.indexOf(right.severity ?? "Data Gap");
     if (severityDiff !== 0) {
       return severityDiff;
     }
-    return left.spiId - right.spiId;
+    return (left.spiId ?? 0) - (right.spiId ?? 0);
   });
+}
+
+export function buildNetworkImpactAnalyserRows({
+  assets,
+  findings,
+  systems,
+  modelAssetIds,
+  networkName
+}: {
+  assets: Asset[];
+  findings: Finding[];
+  systems: Array<Pick<ICTSystem, "id" | "name">>;
+  modelAssetIds: Iterable<string>;
+  networkName?: string;
+}): CyberCopImpactAnalyserRow[] {
+  const modelAssetIdSet = new Set(modelAssetIds);
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const systemNameById = new Map(systems.map((system) => [system.id, system.name]));
+  const scopedAssets = Array.from(modelAssetIdSet)
+    .map((assetId) => assetsById.get(assetId))
+    .filter((asset): asset is Asset => Boolean(asset))
+    .sort((left, right) => assetDisplayName(left).localeCompare(assetDisplayName(right)));
+  const rowOptions = { fallbackNetworkName: networkName };
+  const rows: CyberCopImpactAnalyserRow[] = scopedAssets.map((asset) =>
+    rowForAssetFinding(asset, null, systemNameById, rowOptions)
+  );
+
+  for (const finding of findings) {
+    if (finding.status !== "open" || !modelAssetIdSet.has(finding.scope.assetId)) {
+      continue;
+    }
+    const asset = assetsById.get(finding.scope.assetId);
+    if (!asset) {
+      continue;
+    }
+    rows.push(rowForAssetFinding(asset, finding, systemNameById, rowOptions));
+  }
+
+  return rows.sort((left, right) => {
+    const systemDiff = left.systemName.localeCompare(right.systemName);
+    if (systemDiff !== 0) {
+      return systemDiff;
+    }
+    const environmentDiff = (left.environmentType ?? "Unassigned").localeCompare(right.environmentType ?? "Unassigned");
+    if (environmentDiff !== 0) {
+      return environmentDiff;
+    }
+    const assetDiff = left.assetName.localeCompare(right.assetName);
+    if (assetDiff !== 0) {
+      return assetDiff;
+    }
+    if (left.hasOpenFinding !== right.hasOpenFinding) {
+      return left.hasOpenFinding ? 1 : -1;
+    }
+    const severityDiff = severityOrder.indexOf(left.severity ?? "Data Gap") - severityOrder.indexOf(right.severity ?? "Data Gap");
+    if (severityDiff !== 0) {
+      return severityDiff;
+    }
+    return (left.spiId ?? 0) - (right.spiId ?? 0);
+  });
+}
+
+export function buildNetworkImpactAnalyserModelAssetIds({
+  network,
+  assets,
+  topologyModelAssetIds
+}: {
+  network: Pick<ManagedNetwork, "id" | "assetIds">;
+  assets: Array<Pick<Asset, "id" | "networkId">>;
+  topologyModelAssetIds: Iterable<string>;
+}): string[] {
+  const modelAssetIds = new Set<string>();
+  for (const assetId of topologyModelAssetIds) {
+    modelAssetIds.add(assetId);
+  }
+  for (const assetId of network.assetIds) {
+    modelAssetIds.add(assetId);
+  }
+  for (const asset of assets) {
+    if (asset.networkId === network.id) {
+      modelAssetIds.add(asset.id);
+    }
+  }
+  return Array.from(modelAssetIds).sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeLocalFilterValues(value: string | string[] | null | undefined): Set<string> | null {
+  const rawValues = Array.isArray(value) ? value : (value ?? "").split(",");
+  const values = rawValues.map((entry) => entry.trim()).filter((entry) => entry && entry !== "all");
+  return values.length ? new Set(values) : null;
 }
 
 export function filterCyberCopImpactAnalyserRows(
@@ -207,28 +345,31 @@ export function filterCyberCopImpactAnalyserRows(
   filters: CyberCopImpactAnalyserLocalFilters
 ): CyberCopImpactAnalyserRow[] {
   const normalizedSearch = filters.search?.trim().toLowerCase() ?? "";
-  const environmentFilter = filters.environment && filters.environment !== "all" ? filters.environment : null;
-  const domainFilter = filters.securityDomain && filters.securityDomain !== "all" ? filters.securityDomain : null;
-  const severityFilter =
-    filters.findingCriticality && filters.findingCriticality !== "all" ? filters.findingCriticality : null;
+  const environmentFilter = normalizeLocalFilterValues(filters.environment);
+  const domainFilter = normalizeLocalFilterValues(filters.securityDomain);
+  const severityFilter = normalizeLocalFilterValues(filters.findingCriticality);
   const spiFilter = filters.spiId && Number.isInteger(filters.spiId) ? filters.spiId : null;
   const selectedSearchAxis = filters.selectedSearchAxis?.trim() || null;
   const selectedSearchValue = filters.selectedSearchValue?.trim() || null;
   const systemIdFilter = filters.systemIds
     ? new Set(filters.systemIds.map((id) => id.trim()).filter(Boolean))
     : null;
+  const assetTypeFilter = normalizeLocalFilterValues(filters.assetType);
 
   return rows.filter((row) => {
-    if (systemIdFilter && !systemIdFilter.has(row.systemId)) {
+    if (systemIdFilter && (!row.systemId || !systemIdFilter.has(row.systemId))) {
       return false;
     }
-    if (environmentFilter && (row.environmentType ?? "Unassigned") !== environmentFilter) {
+    if (assetTypeFilter && !assetTypeFilter.has(row.assetType)) {
       return false;
     }
-    if (domainFilter && row.securityDomain !== domainFilter) {
+    if (environmentFilter && !environmentFilter.has(row.environmentType ?? "Unassigned")) {
       return false;
     }
-    if (severityFilter && row.severity !== severityFilter) {
+    if (domainFilter && !domainFilter.has(row.securityDomain)) {
+      return false;
+    }
+    if (severityFilter && (!row.severity || !severityFilter.has(row.severity))) {
       return false;
     }
     if (spiFilter && row.spiId !== spiFilter) {
@@ -239,11 +380,15 @@ export function filterCyberCopImpactAnalyserRows(
     }
     if (normalizedSearch) {
       const haystack = [
+        row.networkName,
         row.systemName,
         row.environmentType ?? "Unassigned",
+        row.assetName,
+        row.assetHostname,
+        formatAssetTypeLabel(row.assetType),
         row.serverName,
         row.serverHostname,
-        row.severity,
+        row.severity ?? "",
         row.spiLabel,
         row.securityDomain
       ]
@@ -255,6 +400,13 @@ export function filterCyberCopImpactAnalyserRows(
     }
     return true;
   });
+}
+
+export function readAssetTypeParam(value: string | null): CanonicalAssetType | null {
+  if (!value || value === "all") {
+    return null;
+  }
+  return ASSET_TYPES.includes(value as CanonicalAssetType) ? (value as CanonicalAssetType) : null;
 }
 
 export function buildCyberCopImpactAnalyserFindingRows({
