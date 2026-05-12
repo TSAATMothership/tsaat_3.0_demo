@@ -63,6 +63,7 @@ interface ImpactAnalyser2SelectedNode {
 }
 
 interface ImpactAnalyser2WorkerResult {
+  requestId: number;
   axes: ImpactAnalyser2Axis[];
   filteredRowCount: number;
   totalRowCount: number;
@@ -104,6 +105,10 @@ const chartLayout = {
 };
 
 type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-focus";
+type ImpactAnalyser2PendingViewportAction =
+  | { type: "reset" }
+  | { type: "clamp" }
+  | { type: "scroll-to-selected-node"; node: ImpactAnalyser2SelectedNode };
 
 function chartSurfaceClass(embedded?: boolean): string {
   return embedded
@@ -382,6 +387,8 @@ export function IctSystemImpactAnalyser2Chart({
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const latestRequestIdRef = useRef(0);
+  const acceptedWorkerResultRequestIdRef = useRef(0);
+  const pendingViewportActionRef = useRef<ImpactAnalyser2PendingViewportAction | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const baseLineRef = useRef<THREE.LineSegments | null>(null);
@@ -426,7 +433,6 @@ export function IctSystemImpactAnalyser2Chart({
   const selectedFindingCriticalityKey = joinMultiFilterParam(selectedFindingCriticalities);
 
   const spiCounts = useMemo(() => new Map(workerResult?.spiCounts ?? []), [workerResult?.spiCounts]);
-  const hasActiveHighlight = Boolean(selectedNode);
   const isDiagramInitialLoading = loadState === "idle" || loadState === "loading" || !workerReady || !workerResult;
   const displayedSeverities = useMemo(
     () =>
@@ -514,13 +520,33 @@ export function IctSystemImpactAnalyser2Chart({
     },
     [reconcileDiagramViewport]
   );
+  const queueDiagramFilterRefresh = useCallback((action: ImpactAnalyser2PendingViewportAction) => {
+    pendingViewportActionRef.current = action;
+    setDrillThroughData(null);
+    setDrillThroughError(null);
+  }, []);
   const resetDiagramViewportForFilterChange = useCallback(() => {
     setSelectedSearchOption(null);
     setSelectedNode(null);
-    setDrillThroughData(null);
-    setDrillThroughError(null);
-    reconcileDiagramViewport("reset");
-  }, [reconcileDiagramViewport]);
+    setHoverInfo(null);
+    queueDiagramFilterRefresh({ type: "reset" });
+  }, [queueDiagramFilterRefresh]);
+  const applyQueuedDiagramViewportAction = useCallback(
+    (result: ImpactAnalyser2WorkerResult) => {
+      const action: ImpactAnalyser2PendingViewportAction = pendingViewportActionRef.current ?? { type: "clamp" };
+      pendingViewportActionRef.current = null;
+      if (action.type === "reset") {
+        reconcileDiagramViewport("reset", result.virtualHeight);
+        return;
+      }
+      if (action.type === "scroll-to-selected-node") {
+        scrollExactSearchNodeIntoView(action.node, result);
+        return;
+      }
+      reconcileDiagramViewport("clamp", result.virtualHeight);
+    },
+    [reconcileDiagramViewport, scrollExactSearchNodeIntoView]
+  );
   const copySelectedAssetTileText = useCallback(async () => {
     if (!selectedAssetTileText) {
       return;
@@ -583,7 +609,9 @@ export function IctSystemImpactAnalyser2Chart({
       if (event.data.requestId !== latestRequestIdRef.current) {
         return;
       }
+      acceptedWorkerResultRequestIdRef.current = event.data.requestId;
       setWorkerResult({
+        requestId: event.data.requestId,
         axes: event.data.axes,
         filteredRowCount: event.data.filteredRowCount,
         totalRowCount: event.data.totalRowCount,
@@ -710,14 +738,6 @@ export function IctSystemImpactAnalyser2Chart({
   ]);
 
   useEffect(() => {
-    setSelectedNode(
-      selectedSearchOption ? { axisKey: selectedSearchOption.axisKey, value: selectedSearchOption.value } : null
-    );
-    setDrillThroughData(null);
-    setDrillThroughError(null);
-  }, [selectedSearchOption]);
-
-  useEffect(() => {
     resetDiagramViewportForFilterChange();
   }, [
     selectedEnvironmentKey,
@@ -729,28 +749,11 @@ export function IctSystemImpactAnalyser2Chart({
   ]);
 
   useEffect(() => {
-    if (selectedSearchOption) {
-      return;
-    }
-    resetDiagramViewportForFilterChange();
-  }, [diagramSearch, selectedSearchOption, resetDiagramViewportForFilterChange]);
-
-  useEffect(() => {
     if (!workerResult) {
       return;
     }
-    reconcileDiagramViewport("clamp", workerResult.virtualHeight);
-  }, [workerResult, reconcileDiagramViewport]);
-
-  useEffect(() => {
-    if (!selectedSearchOption || !selectedNode || !workerResult) {
-      return;
-    }
-    if (selectedNode.axisKey !== selectedSearchOption.axisKey || selectedNode.value !== selectedSearchOption.value) {
-      return;
-    }
-    scrollExactSearchNodeIntoView(selectedNode, workerResult);
-  }, [selectedNode, selectedSearchOption, scrollExactSearchNodeIntoView, workerResult]);
+    applyQueuedDiagramViewportAction(workerResult);
+  }, [workerResult, applyQueuedDiagramViewportAction]);
 
   useEffect(() => {
     setSelectedEnvironments((current) => current.filter((environment) => environmentOptions.includes(environment)));
@@ -770,6 +773,9 @@ export function IctSystemImpactAnalyser2Chart({
     const canvas = webglCanvasRef.current;
     const result = workerResult;
     if (!canvas || !result || width <= 0 || height <= 0) {
+      return;
+    }
+    if (acceptedWorkerResultRequestIdRef.current !== result.requestId) {
       return;
     }
 
@@ -803,7 +809,7 @@ export function IctSystemImpactAnalyser2Chart({
       const material = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: hasActiveHighlight ? 0.14 : 0.42,
+        opacity: selectedNodeRef.current ? 0.14 : 0.42,
         depthTest: false
       });
       const line = new THREE.LineSegments(geometry, material);
@@ -821,7 +827,7 @@ export function IctSystemImpactAnalyser2Chart({
     const camera = new THREE.OrthographicCamera(0, width, cameraScrollTop, cameraScrollTop + height, -1, 1);
     renderer.clear();
     renderer.render(scene, camera);
-  }, [hasActiveHighlight, scrollTop, viewportSize.height, viewportSize.width, workerResult]);
+  }, [scrollTop, viewportSize.height, viewportSize.width, workerResult]);
 
   useEffect(() => {
     return () => {
@@ -1172,11 +1178,38 @@ export function IctSystemImpactAnalyser2Chart({
     });
   }, []);
 
-  const clearDiagramSearch = () => {
+  const handleDiagramSearchChange = useCallback(
+    (value: string) => {
+      setDiagramSearch(value);
+      resetDiagramViewportForFilterChange();
+      setIsDiagramSearchFocused(true);
+    },
+    [resetDiagramViewportForFilterChange]
+  );
+
+  const selectDiagramSearchOption = useCallback(
+    (option: ImpactAnalyser2SearchOption) => {
+      const exactSearchOption = {
+        axisKey: option.axisKey,
+        value: option.value,
+        label: option.label,
+        category: option.category
+      };
+      const exactSelectedNode = { axisKey: exactSearchOption.axisKey, value: option.value };
+      setDiagramSearch(option.label);
+      setSelectedSearchOption(exactSearchOption);
+      setSelectedNode(exactSelectedNode);
+      setIsDiagramSearchFocused(false);
+      queueDiagramFilterRefresh({ type: "scroll-to-selected-node", node: exactSelectedNode });
+    },
+    [queueDiagramFilterRefresh]
+  );
+
+  const clearDiagramSearch = useCallback(() => {
     setDiagramSearch("");
     setIsDiagramSearchFocused(false);
     resetDiagramViewportForFilterChange();
-  };
+  }, [resetDiagramViewportForFilterChange]);
   const isLeftPlacedTooltip = hoverInfo?.placement === "left";
   const tooltipMaxWidth = isLeftPlacedTooltip ? 180 : Math.min(320, Math.max(180, viewportSize.width - 16));
   const tooltipEstimatedHeight = hoverInfo?.text.includes("\n") ? 220 : 84;
@@ -1222,11 +1255,7 @@ export function IctSystemImpactAnalyser2Chart({
                   id="impact-analyser-2-search"
                   type="search"
                   value={diagramSearch}
-                  onChange={(event) => {
-                    setDiagramSearch(event.target.value);
-                    resetDiagramViewportForFilterChange();
-                    setIsDiagramSearchFocused(true);
-                  }}
+                  onChange={(event) => handleDiagramSearchChange(event.target.value)}
                   onFocus={() => setIsDiagramSearchFocused(true)}
                   onBlur={() => window.setTimeout(() => setIsDiagramSearchFocused(false), 120)}
                   placeholder="Search diagram"
@@ -1252,16 +1281,7 @@ export function IctSystemImpactAnalyser2Chart({
                               type="button"
                               onMouseDown={(event) => {
                                 event.preventDefault();
-                                const exactSearchOption = {
-                                  axisKey: option.axisKey,
-                                  value: option.value,
-                                  label: option.label,
-                                  category: option.category
-                                };
-                                setDiagramSearch(option.label);
-                                setSelectedSearchOption(exactSearchOption);
-                                setSelectedNode({ axisKey: exactSearchOption.axisKey, value: option.value });
-                                setIsDiagramSearchFocused(false);
+                                selectDiagramSearchOption(option);
                               }}
                               className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
                             >
@@ -1307,7 +1327,7 @@ export function IctSystemImpactAnalyser2Chart({
               />
             ) : null}
             <MultiSelectFilter
-              label="Findings Criticality"
+              label="Findings Severity"
               options={findingCriticalityFilterOptions}
               selectedValues={selectedFindingCriticalities}
               onChange={(values) => {
