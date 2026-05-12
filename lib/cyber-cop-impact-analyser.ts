@@ -170,19 +170,26 @@ function rowForAssetFinding(
   asset: Asset,
   finding: Finding | null,
   systemNameById: Map<string, string>,
-  options: { networkNameById?: Map<string, string>; fallbackNetworkName?: string } = {}
+  options: {
+    networkNameById?: Map<string, string>;
+    fallbackNetworkName?: string;
+    forcedSystem?: Pick<ICTSystem, "id" | "name">;
+    environmentTypeByAssetId?: Map<string, EnvironmentType>;
+  } = {}
 ): CyberCopImpactAnalyserRow {
-  const candidateSystemId = finding?.scope.systemId ?? asset.systemContext?.systemId ?? null;
-  const hasIctSystem = Boolean(candidateSystemId && systemNameById.has(candidateSystemId));
+  const candidateSystemId = options.forcedSystem?.id ?? finding?.scope.systemId ?? asset.systemContext?.systemId ?? null;
+  const forcedSystemName = candidateSystemId === options.forcedSystem?.id ? options.forcedSystem.name : undefined;
+  const hasIctSystem = Boolean(candidateSystemId && (forcedSystemName || systemNameById.has(candidateSystemId)));
   const systemId = hasIctSystem ? candidateSystemId : null;
   const assetName = assetDisplayName(asset);
   const assetHostname = asset.hostname || asset.name || asset.id;
   const networkId = finding?.scope.networkId ?? asset.networkId;
+  const modelEnvironmentType = options.environmentTypeByAssetId?.get(asset.id) ?? null;
   return {
     findingId: finding?.id ?? null,
     systemId,
-    systemName: systemId ? systemNameById.get(systemId) ?? "Unassigned ICT System" : "Unassigned ICT System",
-    environmentType: hasIctSystem ? finding?.scope.environmentType ?? asset.systemContext?.environmentType ?? null : null,
+    systemName: systemId ? forcedSystemName ?? systemNameById.get(systemId) ?? "Unassigned ICT System" : "Unassigned ICT System",
+    environmentType: hasIctSystem ? finding?.scope.environmentType ?? modelEnvironmentType ?? asset.systemContext?.environmentType ?? null : null,
     assetId: asset.id,
     assetName,
     assetHostname,
@@ -332,6 +339,107 @@ export function buildNetworkImpactAnalyserModelAssetIds({
     }
   }
   return Array.from(modelAssetIds).sort((left, right) => left.localeCompare(right));
+}
+
+function buildSystemModelEnvironmentMap(system: Pick<ICTSystem, "environments">): Map<string, EnvironmentType> {
+  const environmentTypeByAssetId = new Map<string, EnvironmentType>();
+  for (const environment of system.environments) {
+    for (const assetId of environment.assetIds) {
+      if (!environmentTypeByAssetId.has(assetId)) {
+        environmentTypeByAssetId.set(assetId, environment.type);
+      }
+    }
+  }
+  return environmentTypeByAssetId;
+}
+
+export function buildSystemImpactAnalyserModelAssetIds({
+  system,
+  assets,
+  topologyModelAssetIds
+}: {
+  system: Pick<ICTSystem, "id" | "environments">;
+  assets: Array<Pick<Asset, "id" | "systemContext">>;
+  topologyModelAssetIds: Iterable<string>;
+}): string[] {
+  const modelAssetIds = new Set<string>();
+  for (const assetId of topologyModelAssetIds) {
+    modelAssetIds.add(assetId);
+  }
+  for (const environment of system.environments) {
+    for (const assetId of environment.assetIds) {
+      modelAssetIds.add(assetId);
+    }
+  }
+  for (const asset of assets) {
+    if (asset.systemContext?.systemId === system.id) {
+      modelAssetIds.add(asset.id);
+    }
+  }
+  return Array.from(modelAssetIds).sort((left, right) => left.localeCompare(right));
+}
+
+export function buildSystemImpactAnalyserRows({
+  assets,
+  findings,
+  systems,
+  system,
+  modelAssetIds,
+  networkNameById
+}: {
+  assets: Asset[];
+  findings: Finding[];
+  systems: Array<Pick<ICTSystem, "id" | "name">>;
+  system: Pick<ICTSystem, "id" | "name" | "environments">;
+  modelAssetIds: Iterable<string>;
+  networkNameById?: Map<string, string>;
+}): CyberCopImpactAnalyserRow[] {
+  const modelAssetIdSet = new Set(modelAssetIds);
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const systemNameById = new Map(systems.map((item) => [item.id, item.name]));
+  const environmentTypeByAssetId = buildSystemModelEnvironmentMap(system);
+  const scopedAssets = Array.from(modelAssetIdSet)
+    .map((assetId) => assetsById.get(assetId))
+    .filter((asset): asset is Asset => Boolean(asset))
+    .sort((left, right) => assetDisplayName(left).localeCompare(assetDisplayName(right)));
+  const rowOptions = {
+    networkNameById,
+    forcedSystem: { id: system.id, name: system.name },
+    environmentTypeByAssetId
+  };
+  const rows: CyberCopImpactAnalyserRow[] = scopedAssets.map((asset) =>
+    rowForAssetFinding(asset, null, systemNameById, rowOptions)
+  );
+
+  for (const finding of findings) {
+    if (finding.status !== "open" || !modelAssetIdSet.has(finding.scope.assetId)) {
+      continue;
+    }
+    const asset = assetsById.get(finding.scope.assetId);
+    if (!asset) {
+      continue;
+    }
+    rows.push(rowForAssetFinding(asset, finding, systemNameById, rowOptions));
+  }
+
+  return rows.sort((left, right) => {
+    const environmentDiff = (left.environmentType ?? "Unassigned").localeCompare(right.environmentType ?? "Unassigned");
+    if (environmentDiff !== 0) {
+      return environmentDiff;
+    }
+    const assetDiff = left.assetName.localeCompare(right.assetName);
+    if (assetDiff !== 0) {
+      return assetDiff;
+    }
+    if (left.hasOpenFinding !== right.hasOpenFinding) {
+      return left.hasOpenFinding ? 1 : -1;
+    }
+    const severityDiff = severityOrder.indexOf(left.severity ?? "Data Gap") - severityOrder.indexOf(right.severity ?? "Data Gap");
+    if (severityDiff !== 0) {
+      return severityDiff;
+    }
+    return (left.spiId ?? 0) - (right.spiId ?? 0);
+  });
 }
 
 function normalizeLocalFilterValues(value: string | string[] | null | undefined): Set<string> | null {

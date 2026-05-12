@@ -142,7 +142,7 @@ export function SystemDetailTabs({
               onClick={() => setIsDetailedTopologyOpen(true)}
               className="ml-auto rounded-md border border-cyan-300/45 bg-cyan-500/12 px-3 py-2 text-xs font-semibold uppercase tracking-[0.13em] text-cyan-100 transition hover:bg-cyan-500/22"
             >
-              Detailed Topology View
+              ICT System Impact Analyser
             </button>
           </div>
         </div>

@@ -6,6 +6,8 @@ import {
   buildCyberCopImpactAnalyserRows,
   buildNetworkImpactAnalyserModelAssetIds,
   buildNetworkImpactAnalyserRows,
+  buildSystemImpactAnalyserModelAssetIds,
+  buildSystemImpactAnalyserRows,
   filterCyberCopImpactAnalyserRows,
   type CyberCopImpactAnalyserRow
 } from "@/lib/cyber-cop-impact-analyser";
@@ -390,6 +392,122 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
     expect(modelAssetIds).toEqual(["printer-1", "server-1", "storage-1", "workstation-1"]);
   });
 
+  it("builds ICT system-scoped asset rows with the selected system as the root", () => {
+    const systemWithModel = {
+      ...systems[0],
+      environments: [
+        {
+          id: "env-production",
+          name: "Production",
+          type: "Production" as const,
+          assetIds: ["storage-1", "printer-1"]
+        }
+      ]
+    };
+    const storageAsset = {
+      ...workstationAsset,
+      id: "storage-1",
+      name: "PAY-STO-01",
+      hostname: "pay-sto-01.example.test",
+      type: "storage-device"
+    } as Asset;
+    const networkDeviceAsset = {
+      ...workstationAsset,
+      id: "network-device-1",
+      name: "PAY-NET-01",
+      hostname: "pay-net-01.example.test",
+      type: "network-device"
+    } as Asset;
+    const otherAsset = {
+      ...workstationAsset,
+      id: "other-1",
+      name: "PAY-OTH-01",
+      hostname: "pay-oth-01.example.test",
+      type: "other"
+    } as Asset;
+    const printerAssetWithoutContext = {
+      ...workstationAsset,
+      id: "printer-1",
+      name: "PAY-PRN-01",
+      hostname: "pay-prn-01.example.test",
+      type: "printer-device",
+      systemContext: undefined
+    } as Asset;
+    const printerFinding: Finding = {
+      id: "finding-printer",
+      spiId: 8,
+      priorityRank: 4,
+      severity: "High Risk",
+      status: "open",
+      complianceStatus: "Non-compliant",
+      timestamp: "2026-01-06T00:00:00.000Z",
+      scope: {
+        networkId: "network-1",
+        systemId: null,
+        environmentType: null,
+        assetId: "printer-1"
+      },
+      title: "Printer finding",
+      evidence: {},
+      recommendedAction: "Review printer"
+    };
+    const scopedAssets = [
+      serverAsset,
+      workstationAsset,
+      storageAsset,
+      networkDeviceAsset,
+      printerAssetWithoutContext,
+      otherAsset
+    ];
+    const modelAssetIds = buildSystemImpactAnalyserModelAssetIds({
+      system: systemWithModel,
+      assets: scopedAssets,
+      topologyModelAssetIds: ["network-device-1", "other-1"]
+    });
+    const rows = buildSystemImpactAnalyserRows({
+      assets: scopedAssets,
+      findings: [...findings, printerFinding],
+      systems: [systemWithModel],
+      system: systemWithModel,
+      modelAssetIds,
+      networkNameById: new Map([["network-1", "Core Network"]])
+    });
+
+    expect(modelAssetIds).toEqual([
+      "network-device-1",
+      "other-1",
+      "printer-1",
+      "server-1",
+      "storage-1",
+      "workstation-1"
+    ]);
+    expect(new Set(rows.map((row) => row.assetType))).toEqual(
+      new Set(["server", "workstation", "storage-device", "network-device", "printer-device", "other"])
+    );
+    expect(rows.every((row) => row.systemId === "system-1" && row.systemName === "Payments" && row.hasIctSystem)).toBe(true);
+    expect(rows.find((row) => row.assetId === "storage-1" && row.findingId === null)).toMatchObject({
+      assetType: "storage-device",
+      hasOpenFinding: false,
+      environmentType: "Production"
+    });
+    expect(rows.find((row) => row.assetId === "printer-1" && row.findingId === "finding-printer")).toMatchObject({
+      assetType: "printer-device",
+      hasOpenFinding: true,
+      hasIctSystem: true,
+      systemId: "system-1",
+      environmentType: "Production",
+      networkName: "Core Network",
+      severity: "High Risk",
+      spiId: 8,
+      spiLabel: "SPI 8"
+    });
+    expect(
+      filterCyberCopImpactAnalyserRows(rows, { assetType: "printer-device", findingCriticality: "High Risk" }).map(
+        (row) => row.findingId
+      )
+    ).toEqual(["finding-printer"]);
+  });
+
   it("builds drill-through finding rows with source finding ids and affected CI fields", () => {
     const rows = buildCyberCopImpactAnalyserFindingRows({
       findings,
@@ -482,10 +600,14 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("buildApiUrl(findingsPath");
   });
 
-  it("wires the network detailed topology view to a network-scoped analyser", () => {
+  it("wires detailed topology views to network and ICT system scoped analysers", () => {
     const detailedTopology = readRepoFile("components/detailed-topology-view.tsx");
+    const systemTabs = readRepoFile("components/system-detail-tabs.tsx");
+    const topologyModel = readRepoFile("lib/network-topology.ts");
     const dataRoute = readRepoFile("app/api/networks/[networkId]/impact-analyser/route.ts");
     const findingsRoute = readRepoFile("app/api/networks/[networkId]/impact-analyser/findings/route.ts");
+    const systemDataRoute = readRepoFile("app/api/systems/[systemId]/impact-analyser/route.ts");
+    const systemFindingsRoute = readRepoFile("app/api/systems/[systemId]/impact-analyser/findings/route.ts");
 
     expect(dataRoute).toContain('export const dynamic = "force-dynamic"');
     expect(dataRoute).toContain("buildNetworkTopologyData");
@@ -496,9 +618,23 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(findingsRoute).toContain('export const dynamic = "force-dynamic"');
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramAssetType")');
     expect(findingsRoute).toContain("modelAssetIds");
+    expect(systemDataRoute).toContain('export const dynamic = "force-dynamic"');
+    expect(systemDataRoute).toContain("buildSystemTopologyData");
+    expect(systemDataRoute).toContain("buildSystemImpactAnalyserModelAssetIds");
+    expect(systemDataRoute).toContain("buildSystemImpactAnalyserRows");
+    expect(systemFindingsRoute).toContain('export const dynamic = "force-dynamic"');
+    expect(systemFindingsRoute).toContain('request.nextUrl.searchParams.get("diagramAssetType")');
+    expect(systemFindingsRoute).toContain("buildSystemImpactAnalyserRows");
+    expect(systemFindingsRoute).toContain("systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)");
+    expect(topologyModel).toContain('rootScope: { type: "network", id: networkId, name: networkName }');
+    expect(topologyModel).toContain('rootScope: { type: "ict-system", id: system.id, name: system.name }');
+    expect(systemTabs).toContain("ICT System Impact Analyser");
     expect(detailedTopology).toContain("IctSystemImpactAnalyser2Chart");
-    expect(detailedTopology).toContain('title="Network Impact Analyser"');
-    expect(detailedTopology).toContain("includeNetworkAxis");
+    expect(detailedTopology).toContain('const isSystemImpactAnalyser = topologyRootScope.type === "ict-system"');
+    expect(detailedTopology).toContain('/api/systems/${impactAnalyserRootId}/impact-analyser');
+    expect(detailedTopology).toContain('/api/networks/${impactAnalyserRootId}/impact-analyser');
+    expect(detailedTopology).toContain('const impactAnalyserTitle = isSystemImpactAnalyser ? "ICT System Impact Analyser" : "Network Impact Analyser"');
+    expect(detailedTopology).toContain("{...(!isSystemImpactAnalyser ? { includeNetworkAxis: true } : {})}");
     expect(detailedTopology).toContain("assetAxisLabel=\"Assets\"");
     expect(detailedTopology).toContain("assetSearchCategory=\"Assets\"");
     expect(detailedTopology).toContain("showAssetTypeFilter");

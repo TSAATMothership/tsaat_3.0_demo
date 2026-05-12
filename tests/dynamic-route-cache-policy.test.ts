@@ -32,6 +32,8 @@ describe("dynamic route cache policy", () => {
       "app/api/cyber-cop/impact-analyser-2/findings/route.ts",
       "app/api/networks/[networkId]/impact-analyser/route.ts",
       "app/api/networks/[networkId]/impact-analyser/findings/route.ts",
+      "app/api/systems/[systemId]/impact-analyser/route.ts",
+      "app/api/systems/[systemId]/impact-analyser/findings/route.ts",
       "app/api/networks/performance-report/route.ts",
       "app/api/systems/performance-report/route.ts",
       "app/api/systems/remediation-report/route.ts",

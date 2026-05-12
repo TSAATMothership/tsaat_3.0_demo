@@ -75,6 +75,11 @@ export interface TopologyCiDependency {
 export interface NetworkTopologyData {
   networkId: string;
   networkName: string;
+  rootScope: {
+    type: "network" | "ict-system";
+    id: string;
+    name: string;
+  };
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   cmdbTopologies: CmdbSystemTopology[];
@@ -937,6 +942,7 @@ function buildDependencyNetworkTopologyData(
   return {
     networkId,
     networkName,
+    rootScope: { type: "network", id: networkId, name: networkName },
     nodes: filteredNodes,
     edges: filteredEdges,
     cmdbTopologies,
@@ -1164,6 +1170,7 @@ function buildMissionServiceNetworkTopologyData(
   return {
     networkId,
     networkName,
+    rootScope: { type: "network", id: networkId, name: networkName },
     nodes: filteredNodes,
     edges: filteredEdges,
     cmdbTopologies,
@@ -1197,6 +1204,7 @@ function buildDependencySystemTopologyData(
     return {
       networkId: "unknown-network",
       networkName: "Unknown ICT System",
+      rootScope: { type: "ict-system", id: systemId, name: "Unknown ICT System" },
       nodes: [],
       edges: [],
       cmdbTopologies: [],
@@ -1389,6 +1397,7 @@ function buildDependencySystemTopologyData(
   return {
     networkId: system.networkId,
     networkName: system.name,
+    rootScope: { type: "ict-system", id: system.id, name: system.name },
     nodes: filteredNodes,
     edges: filteredEdges,
     cmdbTopologies,

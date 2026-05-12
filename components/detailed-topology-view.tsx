@@ -1228,6 +1228,19 @@ export function DetailedTopologyView({
   const detailedTileSearchInputRef = useRef<HTMLInputElement | null>(null);
   const detailedScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const ciFlowScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const topologyRootScope = data.rootScope ?? { type: "network" as const, id: data.networkId, name: data.networkName };
+  const isSystemImpactAnalyser = topologyRootScope.type === "ict-system";
+  const impactAnalyserRootId = encodeURIComponent(topologyRootScope.id);
+  const impactAnalyserDataPath = isSystemImpactAnalyser
+    ? `/api/systems/${impactAnalyserRootId}/impact-analyser`
+    : `/api/networks/${impactAnalyserRootId}/impact-analyser`;
+  const impactAnalyserFindingsPath = isSystemImpactAnalyser
+    ? `/api/systems/${impactAnalyserRootId}/impact-analyser/findings`
+    : `/api/networks/${impactAnalyserRootId}/impact-analyser/findings`;
+  const impactAnalyserTitle = isSystemImpactAnalyser ? "ICT System Impact Analyser" : "Network Impact Analyser";
+  const impactAnalyserHeadingTooltip = isSystemImpactAnalyser
+    ? "ICT system-scoped analyser for modelled assets across ICT system, environment, assets, severity, and SPI."
+    : "Network-scoped analyser for modelled assets across network, ICT system, environment, assets, severity, and SPI.";
   const detailedViewportRef = useRef<HTMLDivElement | null>(null);
   const detailedCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const detailedCanvasFrameRef = useRef<number | null>(null);
@@ -7343,13 +7356,13 @@ export function DetailedTopologyView({
               <div className="min-h-0 flex-1 p-2">
                 <IctSystemImpactAnalyser2Chart
                   embedded
-                  dataPath={`/api/networks/${encodeURIComponent(data.networkId)}/impact-analyser`}
-                  findingsPath={`/api/networks/${encodeURIComponent(data.networkId)}/impact-analyser/findings`}
-                  title="Network Impact Analyser"
-                  headingTooltip="Network-scoped analyser for modelled assets across network, ICT system, environment, assets, severity, and SPI."
+                  dataPath={impactAnalyserDataPath}
+                  findingsPath={impactAnalyserFindingsPath}
+                  title={impactAnalyserTitle}
+                  headingTooltip={impactAnalyserHeadingTooltip}
                   assetAxisLabel="Assets"
                   assetSearchCategory="Assets"
-                  includeNetworkAxis
+                  {...(!isSystemImpactAnalyser ? { includeNetworkAxis: true } : {})}
                   showAssetTypeFilter
                   showSelectedTileText
                   onAssetFocus={openCiFlowFocusForAssetId}
