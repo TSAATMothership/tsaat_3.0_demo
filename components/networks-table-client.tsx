@@ -3,26 +3,30 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PostureBadge } from "@/components/posture-badge";
-import { ComplianceStatus } from "@/lib/types";
+import {
+  RiskFindingsDrillThrough,
+  type NetworkDetailRiskFindingRow,
+  type RiskFindingsDrillThroughSelection
+} from "@/components/network-detail-risk-charts";
 import { DATA_DATE_PARAM, normalizeDataDate, withDataDate } from "@/lib/data-date";
 import {
   dispatchNetworksBlastRadiusSelection,
   NETWORKS_BLAST_RADIUS_SELECTION_EVENT,
   NetworksBlastRadiusSelectionDetail
 } from "@/lib/networks-blast-radius-selection";
+import type { HighRiskCveDetail } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
+type FindingBucket = "critical" | "high" | "other";
 
 export interface NetworkTableRow {
   id: string;
   name: string;
   classification: string;
   assetCount: number;
-  posture: ComplianceStatus;
-  p12Findings: number;
-  p12HighRiskFindings: number;
-  p12CriticalExposureFindings: number;
+  criticalFindings: number;
+  highFindings: number;
+  otherFindings: number;
   complianceScore: number;
   discoveryComplianceScore: number;
   description: string;
@@ -45,34 +49,83 @@ function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, value));
 }
 
-function ScoreBullet({
-  value,
-  tone
-}: {
-  value: number;
-  tone: "compliance" | "discovery";
-}) {
+function ScoreBullet({ value }: { value: number }) {
   const percent = clampPercent(value);
-  const fillClass = tone === "compliance" ? "bg-emerald-400/90" : "bg-cyan-300/90";
 
   return (
     <div className="min-w-[7.5rem]">
       <p className="text-right text-slate-100">{percent.toFixed(1)}%</p>
       <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full border border-sky-300/20 bg-slate-900/90">
         <div className="flex h-full w-full">
-          <div className={`h-full ${fillClass}`} style={{ width: `${percent}%` }} />
-          <div className="h-full bg-slate-700/75" style={{ width: `${100 - percent}%` }} />
+          <div className="h-full bg-emerald-400/90" style={{ width: `${percent}%` }} />
+          <div className="h-full bg-rose-500/85" style={{ width: `${100 - percent}%` }} />
         </div>
       </div>
     </div>
   );
 }
 
+function findingMatchesBucket(finding: NetworkDetailRiskFindingRow, bucket: FindingBucket): boolean {
+  if (bucket === "critical") {
+    return finding.severity === "Critical Exposure";
+  }
+  if (bucket === "high") {
+    return finding.severity === "High Risk";
+  }
+  return finding.severity !== "Critical Exposure" && finding.severity !== "High Risk";
+}
+
+function findingBucketLabel(bucket: FindingBucket): string {
+  if (bucket === "critical") {
+    return "Findings (Critical)";
+  }
+  if (bucket === "high") {
+    return "Findings (High)";
+  }
+  return "Findings (Other)";
+}
+
+function FindingCountCell({
+  count,
+  bucket,
+  row,
+  onOpen
+}: {
+  count: number;
+  bucket: FindingBucket;
+  row: NetworkTableRow;
+  onOpen: (row: NetworkTableRow, bucket: FindingBucket) => void;
+}) {
+  const textClass =
+    bucket === "critical" ? "text-rose-100" : bucket === "high" ? "text-amber-100" : "text-slate-200";
+
+  if (count <= 0) {
+    return <span className="text-slate-500">0</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(row, bucket)}
+      className={`${textClass} underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-200`}
+      aria-label={`Open Risk Detail for ${row.name} ${findingBucketLabel(bucket)}`}
+    >
+      {count}
+    </button>
+  );
+}
+
 export function NetworksTableClient({
   rows,
+  riskFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
   scrollable = false
 }: {
   rows: NetworkTableRow[];
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
   scrollable?: boolean;
 }) {
   const searchParams = useSearchParams();
@@ -82,6 +135,10 @@ export function NetworksTableClient({
   const [isTableSearchFocused, setIsTableSearchFocused] = useState(false);
   const [selectedSearchRowId, setSelectedSearchRowId] = useState<string>("__all__");
   const [chartSelectedRowId, setChartSelectedRowId] = useState<string | null>(null);
+  const [riskDrillThrough, setRiskDrillThrough] = useState<{
+    selection: RiskFindingsDrillThroughSelection;
+    allFindings: NetworkDetailRiskFindingRow[];
+  } | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableSearchBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tableSearchInputRef = useRef<HTMLInputElement | null>(null);
@@ -112,6 +169,18 @@ export function NetworksTableClient({
     () => (chartSelectedRowId ? rows.find((row) => row.id === chartSelectedRowId) ?? null : null),
     [rows, chartSelectedRowId]
   );
+  const openRiskFindingsByNetworkId = useMemo(() => {
+    const findingsByNetworkId = new Map<string, NetworkDetailRiskFindingRow[]>();
+    for (const finding of riskFindings) {
+      if (finding.workflowStatus !== "open" || !finding.networkId) {
+        continue;
+      }
+      const current = findingsByNetworkId.get(finding.networkId) ?? [];
+      current.push(finding);
+      findingsByNetworkId.set(finding.networkId, current);
+    }
+    return findingsByNetworkId;
+  }, [riskFindings]);
 
   useEffect(() => {
     return () => {
@@ -225,6 +294,28 @@ export function NetworksTableClient({
     dispatchNetworksBlastRadiusSelection({ networkId: null });
   };
 
+  const openRiskDetail = (row: NetworkTableRow, bucket: FindingBucket) => {
+    const networkFindings = openRiskFindingsByNetworkId.get(row.id) ?? [];
+    const selectedFindings = networkFindings.filter((finding) => findingMatchesBucket(finding, bucket));
+
+    if (!selectedFindings.length) {
+      return;
+    }
+
+    const bucketLabel = findingBucketLabel(bucket);
+    setRiskDrillThrough({
+      selection: {
+        id: `networks-rollup-${row.id}-${bucket}`,
+        label: `${row.name} - ${bucketLabel}`,
+        findings: selectedFindings,
+        totalCount: selectedFindings.length,
+        emptyMessage: `No open ${bucketLabel.toLowerCase()} findings were found for ${row.name}.`,
+        exportSlug: `networks-rollup-${row.id}-${bucket}`
+      },
+      allFindings: networkFindings
+    });
+  };
+
   return (
     <>
       <div className="panel h-full min-h-0 overflow-hidden">
@@ -326,12 +417,11 @@ export function NetworksTableClient({
                 <th className="px-2.5 py-1.5">Network</th>
                 <th className="px-2.5 py-1.5">Classification</th>
                 <th className="px-2.5 py-1.5">Assets</th>
-                <th className="px-2.5 py-1.5">Posture</th>
-                <th className="px-2.5 py-1.5">P1-P2 Findings</th>
-                <th className="px-2.5 py-1.5">P1-P2 Findings (High Risk)</th>
-                <th className="px-2.5 py-1.5">P1-P2 Findings (Critical Exposure)</th>
-                <th className="px-2.5 py-1.5">Compliance Score</th>
-                <th className="px-2.5 py-1.5">Discovery Compliance Score</th>
+                <th className="px-2.5 py-1.5">Findings (Critical)</th>
+                <th className="px-2.5 py-1.5">Findings (High)</th>
+                <th className="px-2.5 py-1.5">Findings (Other)</th>
+                <th className="whitespace-nowrap px-2.5 py-1.5">Compliance Score</th>
+                <th className="whitespace-nowrap px-2.5 py-1.5">Discovery Compliance Score</th>
                 <th className="px-2.5 py-1.5">Action</th>
               </tr>
             </thead>
@@ -349,17 +439,20 @@ export function NetworksTableClient({
                   </td>
                   <td className="px-2.5 py-2 text-slate-300">{row.classification}</td>
                   <td className="px-2.5 py-2 text-slate-300">{row.assetCount}</td>
+                  <td className="px-2.5 py-2 font-semibold">
+                    <FindingCountCell count={row.criticalFindings} bucket="critical" row={row} onOpen={openRiskDetail} />
+                  </td>
+                  <td className="px-2.5 py-2 font-semibold">
+                    <FindingCountCell count={row.highFindings} bucket="high" row={row} onOpen={openRiskDetail} />
+                  </td>
                   <td className="px-2.5 py-2">
-                    <PostureBadge status={row.posture} />
-                  </td>
-                  <td className="px-2.5 py-2 text-slate-200">{row.p12Findings}</td>
-                  <td className="px-2.5 py-2 text-slate-200">{row.p12HighRiskFindings}</td>
-                  <td className="px-2.5 py-2 text-slate-200">{row.p12CriticalExposureFindings}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2">
-                    <ScoreBullet value={row.complianceScore} tone="compliance" />
+                    <FindingCountCell count={row.otherFindings} bucket="other" row={row} onOpen={openRiskDetail} />
                   </td>
                   <td className="whitespace-nowrap px-2.5 py-2">
-                    <ScoreBullet value={row.discoveryComplianceScore} tone="discovery" />
+                    <ScoreBullet value={row.complianceScore} />
+                  </td>
+                  <td className="whitespace-nowrap px-2.5 py-2">
+                    <ScoreBullet value={row.discoveryComplianceScore} />
                   </td>
                   <td className="px-2.5 py-2">
                     <Link
@@ -375,7 +468,7 @@ export function NetworksTableClient({
               ))}
               {visibleRows.length === 0 ? (
                 <tr className="border-t border-sky-400/10">
-                  <td colSpan={10} className="px-2.5 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={9} className="px-2.5 py-6 text-center text-sm text-slate-400">
                     No networks match this search.
                   </td>
                 </tr>
@@ -487,6 +580,16 @@ export function NetworksTableClient({
             </dl>
           </aside>
         </div>
+      ) : null}
+
+      {riskDrillThrough ? (
+        <RiskFindingsDrillThrough
+          selection={riskDrillThrough.selection}
+          allFindings={riskDrillThrough.allFindings}
+          assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+          asOfDate={asOfDate}
+          onClose={() => setRiskDrillThrough(null)}
+        />
       ) : null}
     </>
   );

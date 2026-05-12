@@ -287,21 +287,25 @@ export default async function SystemsPage({
   const systemScopedFindings = analytics.findings.filter(
     (finding) => Boolean(finding.scope.systemId) && scopedSystemIds.has(finding.scope.systemId as string)
   );
+  const openFindings = systemScopedFindings.filter((finding) => finding.status === "open");
 
-  const findingsBySystem = new Map<string, number>();
-  const highRiskP12FindingsBySystem = new Map<string, number>();
+  const criticalFindingsBySystem = new Map<string, number>();
+  const highFindingsBySystem = new Map<string, number>();
+  const otherFindingsBySystem = new Map<string, number>();
 
-  let highRiskP12FindingsCount = 0;
+  let criticalHighRiskFindingsCount = 0;
 
-  for (const finding of systemScopedFindings) {
+  for (const finding of openFindings) {
     const systemId = finding.scope.systemId as string;
-    findingsBySystem.set(systemId, (findingsBySystem.get(systemId) ?? 0) + 1);
-    if (finding.priorityRank > 2 || finding.severity !== "High Risk") {
-      continue;
+    if (finding.severity === "Critical Exposure") {
+      criticalHighRiskFindingsCount += 1;
+      criticalFindingsBySystem.set(systemId, (criticalFindingsBySystem.get(systemId) ?? 0) + 1);
+    } else if (finding.severity === "High Risk") {
+      criticalHighRiskFindingsCount += 1;
+      highFindingsBySystem.set(systemId, (highFindingsBySystem.get(systemId) ?? 0) + 1);
+    } else {
+      otherFindingsBySystem.set(systemId, (otherFindingsBySystem.get(systemId) ?? 0) + 1);
     }
-
-    highRiskP12FindingsCount += 1;
-    highRiskP12FindingsBySystem.set(systemId, (highRiskP12FindingsBySystem.get(systemId) ?? 0) + 1);
   }
 
   const complianceScoreBySystem = systems.reduce((map, system) => {
@@ -334,7 +338,7 @@ export default async function SystemsPage({
     const relevantEvaluations = analytics.evaluations.filter((evaluation) => evaluation.systemId === system.id);
     return relevantEvaluations.length > 0 && relevantEvaluations.every((evaluation) => evaluation.discoveryCoverageCompliant);
   }).length;
-  const totalFindingsCount = systemScopedFindings.length;
+  const totalFindingsCount = openFindings.length;
 
   const endpointCountBySystem = filteredAssets.reduce((map, asset) => {
     const systemId = asset.systemContext?.systemId;
@@ -349,14 +353,15 @@ export default async function SystemsPage({
       systemId: system.id,
       systemName: system.name,
       endpointCount: endpointCountBySystem.get(system.id) ?? 0,
-      highRiskP12FindingsCount: highRiskP12FindingsBySystem.get(system.id) ?? 0
+      criticalHighRiskFindingsCount:
+        (criticalFindingsBySystem.get(system.id) ?? 0) + (highFindingsBySystem.get(system.id) ?? 0)
     }))
     .sort((a, b) => {
       if (b.endpointCount !== a.endpointCount) {
         return b.endpointCount - a.endpointCount;
       }
-      if (b.highRiskP12FindingsCount !== a.highRiskP12FindingsCount) {
-        return b.highRiskP12FindingsCount - a.highRiskP12FindingsCount;
+      if (b.criticalHighRiskFindingsCount !== a.criticalHighRiskFindingsCount) {
+        return b.criticalHighRiskFindingsCount - a.criticalHighRiskFindingsCount;
       }
       return a.systemName.localeCompare(b.systemName);
     });
@@ -394,7 +399,6 @@ export default async function SystemsPage({
     overviewDiscoveryComplianceCounts.other;
   const overviewDiscoveryComplianceScore = scoreFromCounts(overviewDiscoveryComplianceCounts);
 
-  const openFindings = systemScopedFindings.filter((finding) => finding.status === "open");
   const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const severityCounts = openFindings.reduce<Map<FindingSeverity, number>>((accumulator, finding) => {
     accumulator.set(finding.severity, (accumulator.get(finding.severity) ?? 0) + 1);
@@ -436,6 +440,7 @@ export default async function SystemsPage({
           .map(([key, value]) => `${key}: ${toEvidenceString(value)}`)
           .join(" | ") || "No evidence captured";
       const systemId = finding.scope.systemId ?? asset?.systemContext?.systemId ?? null;
+      const networkId = finding.scope.networkId ?? asset?.networkId ?? null;
       const environmentType = finding.scope.environmentType ?? asset?.systemContext?.environmentType ?? null;
       const scopeLabel = [
         `Asset ${finding.scope.assetId}`,
@@ -495,6 +500,9 @@ export default async function SystemsPage({
         priorityRank: finding.priorityRank,
         severity: finding.severity,
         workflowStatus: finding.status,
+        networkId,
+        systemId,
+        environmentType,
         scopeLabel,
         evidencePreview,
         recommendedAction: finding.recommendedAction
@@ -639,7 +647,7 @@ export default async function SystemsPage({
               compliantSystemsCount={compliantSystemsCount}
               systemsMeetingDiscoveryRequirementsCount={systemsMeetingDiscoveryRequirementsCount}
               totalSystemsCount={totalSystemsCount}
-              highRiskP12FindingsCount={highRiskP12FindingsCount}
+              criticalHighRiskFindingsCount={criticalHighRiskFindingsCount}
               totalFindingsCount={totalFindingsCount}
               blastRadiusPoints={blastRadiusPoints}
             />
@@ -647,11 +655,15 @@ export default async function SystemsPage({
             <div className="min-h-0">
               <SystemsTable
                 systems={systems}
-                systemRollups={analytics.systemRollups}
-                environmentRollups={analytics.environmentRollups}
-                findingsBySystem={findingsBySystem}
+                assetCountBySystem={endpointCountBySystem}
+                criticalFindingsBySystem={criticalFindingsBySystem}
+                highFindingsBySystem={highFindingsBySystem}
+                otherFindingsBySystem={otherFindingsBySystem}
                 complianceScoreBySystem={complianceScoreBySystem}
                 discoveryComplianceScoreBySystem={discoveryComplianceScoreBySystem}
+                riskFindings={riskProfileFindings}
+                assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+                asOfDate={chartAnchorDateKey}
                 scrollable
               />
             </div>

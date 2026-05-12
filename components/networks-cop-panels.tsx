@@ -44,7 +44,7 @@ export interface NetworkBlastRadiusPoint {
   networkId: string;
   networkName: string;
   endpointCount: number;
-  highRiskP12FindingsCount: number;
+  criticalHighRiskFindingsCount: number;
 }
 
 function KpiBulletRow({
@@ -89,7 +89,7 @@ function KpiBulletRow({
   );
 }
 
-function heatMapColorByHighRiskCount(value: number, maxValue: number): string {
+function heatMapColorByRiskCount(value: number, maxValue: number): string {
   if (maxValue <= 0) {
     return "rgb(255, 255, 255)";
   }
@@ -103,6 +103,19 @@ function heatMapColorByHighRiskCount(value: number, maxValue: number): string {
   const b = Math.round(start.b + (end.b - start.b) * ratio);
 
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function buildPaddedScatterDomain(values: number[]): [number, number] {
+  const maxValue = values.reduce((max, value) => Math.max(max, Number.isFinite(value) ? value : 0), 0);
+  const padding = Math.max(1, Math.ceil(maxValue * 0.12));
+  return [-padding, maxValue + padding];
+}
+
+function formatNonNegativeAxisTick(value: number): string {
+  if (!Number.isFinite(value) || value < 0) {
+    return "";
+  }
+  return String(Math.round(value));
 }
 
 function BlastRadiusTooltip({
@@ -125,7 +138,7 @@ function BlastRadiusTooltip({
     <div className="rounded border border-slate-400/50 bg-slate-900 px-3 py-2 text-xs text-white shadow-lg">
       <p className="font-semibold text-white">{point.networkName}</p>
       <p className="mt-1 text-white">Endpoints: {point.endpointCount}</p>
-      <p className="text-white">High Risk (P1-P2): {point.highRiskP12FindingsCount}</p>
+      <p className="text-white">Critical & High Risk Findings: {point.criticalHighRiskFindingsCount}</p>
     </div>
   );
 }
@@ -134,24 +147,28 @@ export function NetworksPostureKpiSummary({
   compliantNetworksCount,
   networksMeetingDiscoveryRequirementsCount,
   totalNetworksCount,
-  highRiskP12FindingsCount,
+  criticalHighRiskFindingsCount,
   totalFindingsCount,
   blastRadiusPoints
 }: {
   compliantNetworksCount: number;
   networksMeetingDiscoveryRequirementsCount: number;
   totalNetworksCount: number;
-  highRiskP12FindingsCount: number;
+  criticalHighRiskFindingsCount: number;
   totalFindingsCount: number;
   blastRadiusPoints: NetworkBlastRadiusPoint[];
 }) {
   const [selectedBlastRadiusNetworkId, setSelectedBlastRadiusNetworkId] = useState<string | null>(null);
   const scopedNetworksWithRisk = blastRadiusPoints.filter(
-    (point) => point.endpointCount > 0 || point.highRiskP12FindingsCount > 0
+    (point) => point.endpointCount > 0 || point.criticalHighRiskFindingsCount > 0
   );
-  const maxHighRiskCount = scopedNetworksWithRisk.reduce(
-    (maxValue, point) => Math.max(maxValue, point.highRiskP12FindingsCount),
+  const maxCriticalHighRiskCount = scopedNetworksWithRisk.reduce(
+    (maxValue, point) => Math.max(maxValue, point.criticalHighRiskFindingsCount),
     0
+  );
+  const endpointAxisDomain = buildPaddedScatterDomain(scopedNetworksWithRisk.map((point) => point.endpointCount));
+  const criticalHighRiskAxisDomain = buildPaddedScatterDomain(
+    scopedNetworksWithRisk.map((point) => point.criticalHighRiskFindingsCount)
   );
 
   useEffect(() => {
@@ -220,9 +237,9 @@ export function NetworksPostureKpiSummary({
                 tone="watch"
               />
               <KpiBulletRow
-                title="Total high risk findings (P1-P2)"
-                primaryLabel="High Risk (P1-P2)"
-                primaryValue={highRiskP12FindingsCount}
+                title="Total Critical & High risk Findings"
+                primaryLabel="Critical & High Risk"
+                primaryValue={criticalHighRiskFindingsCount}
                 totalValue={totalFindingsCount}
                 tone="critical"
               />
@@ -232,31 +249,35 @@ export function NetworksPostureKpiSummary({
       </article>
 
       <article className="panel flex min-h-[17.5rem] flex-col p-3">
-        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">High Risk Networks</h2>
+        <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Critical & High Risk Networks</h2>
         <p className="mt-1 text-xs text-slate-300/75">
-          Networks by total endpoints versus total high risk findings (P1-P2).
+          Networks by total endpoints versus total critical and high risk findings.
         </p>
         <div className="mt-2 min-h-0 flex-1">
           {scopedNetworksWithRisk.length ? (
             <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 6, right: 10, bottom: 8, left: 0 }}>
+              <ScatterChart margin={{ top: 24, right: 28, bottom: 20, left: 16 }}>
                 <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                 <XAxis
                   type="number"
                   dataKey="endpointCount"
                   name="Endpoints"
+                  domain={endpointAxisDomain}
                   allowDecimals={false}
+                  tickFormatter={formatNonNegativeAxisTick}
                   tick={{ fill: "#a8c6d8", fontSize: 11 }}
                   label={{ value: "Endpoints", position: "insideBottom", offset: -4, fill: "#a8c6d8", fontSize: 11 }}
                 />
                 <YAxis
                   type="number"
-                  dataKey="highRiskP12FindingsCount"
-                  name="High Risk (P1-P2)"
+                  dataKey="criticalHighRiskFindingsCount"
+                  name="Critical & High Risk Findings"
+                  domain={criticalHighRiskAxisDomain}
                   allowDecimals={false}
+                  tickFormatter={formatNonNegativeAxisTick}
                   tick={{ fill: "#a8c6d8", fontSize: 11 }}
                   label={{
-                    value: "High Risk (P1-P2)",
+                    value: "Critical & High Risk Findings",
                     angle: -90,
                     position: "insideLeft",
                     fill: "#a8c6d8",
@@ -264,7 +285,7 @@ export function NetworksPostureKpiSummary({
                   }}
                   width={40}
                 />
-                <ZAxis type="number" dataKey="highRiskP12FindingsCount" range={[80, 520]} />
+                <ZAxis type="number" dataKey="criticalHighRiskFindingsCount" range={[80, 520]} />
                 <Tooltip
                   cursor={{ stroke: "rgba(56,189,248,0.5)", strokeWidth: 1 }}
                   content={<BlastRadiusTooltip />}
@@ -278,7 +299,10 @@ export function NetworksPostureKpiSummary({
                   {scopedNetworksWithRisk.map((point) => (
                     <Cell
                       key={point.networkId}
-                      fill={heatMapColorByHighRiskCount(point.highRiskP12FindingsCount, maxHighRiskCount)}
+                      fill={heatMapColorByRiskCount(
+                        point.criticalHighRiskFindingsCount,
+                        maxCriticalHighRiskCount
+                      )}
                       fillOpacity={
                         selectedBlastRadiusNetworkId && selectedBlastRadiusNetworkId !== point.networkId ? 0.3 : 1
                       }
@@ -292,7 +316,7 @@ export function NetworksPostureKpiSummary({
             </ResponsiveContainer>
           ) : (
             <div className="flex h-full items-center justify-center rounded-lg border border-sky-300/15 bg-slate-950/45 px-4 text-center text-sm text-slate-300/75">
-              No endpoint or P1-P2 high-risk data available in the current filter scope.
+              No endpoint or critical/high risk finding data available in the current filter scope.
             </div>
           )}
         </div>

@@ -290,36 +290,35 @@ export default async function NetworksPage({
   const networkScopedFindings = filterRealNetworkFindings(analytics.findings).filter((finding) =>
     scopedNetworkIds.has(finding.scope.networkId)
   );
+  const openFindings = networkScopedFindings.filter((finding) => finding.status === "open");
   const filteredAssets: Asset[] = applyAssetFilters(dataset.assets, systems, filters).filter((asset) =>
     scopedNetworkIds.has(asset.networkId)
   );
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
-  const p12FindingsByNetwork = new Map<string, number>();
-  const highRiskP12FindingsByNetwork = new Map<string, number>();
-  const p12CriticalExposureFindingsByNetwork = new Map<string, number>();
+  const criticalFindingsByNetwork = new Map<string, number>();
+  const highFindingsByNetwork = new Map<string, number>();
+  const otherFindingsByNetwork = new Map<string, number>();
   const discoveryComplianceScoreByNetwork = new Map<string, number>();
 
-  let highRiskP12FindingsCount = 0;
+  let criticalHighRiskFindingsCount = 0;
 
-  for (const finding of networkScopedFindings) {
-    if (finding.priorityRank > 2) {
-      continue;
-    }
-
-    p12FindingsByNetwork.set(finding.scope.networkId, (p12FindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1);
-
-    if (finding.severity === "High Risk") {
-      highRiskP12FindingsCount += 1;
-      highRiskP12FindingsByNetwork.set(
-        finding.scope.networkId,
-        (highRiskP12FindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
-      );
-    }
-
+  for (const finding of openFindings) {
     if (finding.severity === "Critical Exposure") {
-      p12CriticalExposureFindingsByNetwork.set(
+      criticalHighRiskFindingsCount += 1;
+      criticalFindingsByNetwork.set(
         finding.scope.networkId,
-        (p12CriticalExposureFindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
+        (criticalFindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
+      );
+    } else if (finding.severity === "High Risk") {
+      criticalHighRiskFindingsCount += 1;
+      highFindingsByNetwork.set(
+        finding.scope.networkId,
+        (highFindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
+      );
+    } else {
+      otherFindingsByNetwork.set(
+        finding.scope.networkId,
+        (otherFindingsByNetwork.get(finding.scope.networkId) ?? 0) + 1
       );
     }
   }
@@ -348,7 +347,7 @@ export default async function NetworksPage({
     const counts = discoveryCoverageTotalsByNetwork.get(network.id);
     return Boolean(counts && counts.total > 0 && counts.compliant === counts.total);
   }).length;
-  const totalFindingsCount = networkScopedFindings.length;
+  const totalFindingsCount = openFindings.length;
   const endpointCountByNetwork = filteredAssets.reduce((map, asset) => {
     const networkId = asset.networkId;
     if (!scopedNetworkIds.has(networkId)) {
@@ -362,14 +361,15 @@ export default async function NetworksPage({
       networkId: network.id,
       networkName: network.name,
       endpointCount: endpointCountByNetwork.get(network.id) ?? 0,
-      highRiskP12FindingsCount: highRiskP12FindingsByNetwork.get(network.id) ?? 0
+      criticalHighRiskFindingsCount:
+        (criticalFindingsByNetwork.get(network.id) ?? 0) + (highFindingsByNetwork.get(network.id) ?? 0)
     }))
     .sort((a, b) => {
       if (b.endpointCount !== a.endpointCount) {
         return b.endpointCount - a.endpointCount;
       }
-      if (b.highRiskP12FindingsCount !== a.highRiskP12FindingsCount) {
-        return b.highRiskP12FindingsCount - a.highRiskP12FindingsCount;
+      if (b.criticalHighRiskFindingsCount !== a.criticalHighRiskFindingsCount) {
+        return b.criticalHighRiskFindingsCount - a.criticalHighRiskFindingsCount;
       }
       return a.networkName.localeCompare(b.networkName);
     });
@@ -407,7 +407,6 @@ export default async function NetworksPage({
     overviewDiscoveryComplianceCounts.other;
   const overviewDiscoveryComplianceScore = scoreFromCounts(overviewDiscoveryComplianceCounts);
 
-  const openFindings = networkScopedFindings.filter((finding) => finding.status === "open");
   const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const severityCounts = openFindings.reduce<Map<FindingSeverity, number>>((accumulator, finding) => {
     accumulator.set(finding.severity, (accumulator.get(finding.severity) ?? 0) + 1);
@@ -512,6 +511,9 @@ export default async function NetworksPage({
         priorityRank: finding.priorityRank,
         severity: finding.severity,
         workflowStatus: finding.status,
+        networkId,
+        systemId,
+        environmentType,
         scopeLabel,
         evidencePreview,
         recommendedAction: finding.recommendedAction
@@ -649,7 +651,7 @@ export default async function NetworksPage({
               compliantNetworksCount={compliantNetworksCount}
               networksMeetingDiscoveryRequirementsCount={networksMeetingDiscoveryRequirementsCount}
               totalNetworksCount={totalNetworksCount}
-              highRiskP12FindingsCount={highRiskP12FindingsCount}
+              criticalHighRiskFindingsCount={criticalHighRiskFindingsCount}
               totalFindingsCount={totalFindingsCount}
               blastRadiusPoints={blastRadiusPoints}
             />
@@ -658,10 +660,13 @@ export default async function NetworksPage({
               <NetworksTable
                 networks={networks}
                 networkRollups={analytics.networkRollups}
-                p12FindingsByNetwork={p12FindingsByNetwork}
-                p12HighRiskFindingsByNetwork={highRiskP12FindingsByNetwork}
-                p12CriticalExposureFindingsByNetwork={p12CriticalExposureFindingsByNetwork}
+                criticalFindingsByNetwork={criticalFindingsByNetwork}
+                highFindingsByNetwork={highFindingsByNetwork}
+                otherFindingsByNetwork={otherFindingsByNetwork}
                 discoveryComplianceScoreByNetwork={discoveryComplianceScoreByNetwork}
+                riskFindings={riskProfileFindings}
+                assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+                asOfDate={chartAnchorDateKey}
                 scrollable
               />
             </div>

@@ -1,5 +1,6 @@
-import { ICTSystem, RollupResult } from "@/lib/types";
-import { deriveOverallStatus } from "@/lib/posture";
+import { ICTSystem } from "@/lib/types";
+import type { HighRiskCveDetail } from "@/lib/types";
+import type { NetworkDetailRiskFindingRow } from "@/components/network-detail-risk-charts";
 import { SystemsTableClient, type SystemTableRow } from "@/components/systems-table-client";
 
 function fallbackDescription(system: ICTSystem): string {
@@ -89,29 +90,30 @@ function fallbackApmUrl(system: ICTSystem, apmNumber: string): string {
 
 export function SystemsTable({
   systems,
-  systemRollups,
-  environmentRollups,
-  findingsBySystem,
+  assetCountBySystem,
+  criticalFindingsBySystem,
+  highFindingsBySystem,
+  otherFindingsBySystem,
   complianceScoreBySystem,
   discoveryComplianceScoreBySystem,
+  riskFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
   scrollable = false
 }: {
   systems: ICTSystem[];
-  systemRollups: RollupResult[];
-  environmentRollups: RollupResult[];
-  findingsBySystem: Map<string, number>;
+  assetCountBySystem: Map<string, number>;
+  criticalFindingsBySystem: Map<string, number>;
+  highFindingsBySystem: Map<string, number>;
+  otherFindingsBySystem: Map<string, number>;
   complianceScoreBySystem: Map<string, number>;
   discoveryComplianceScoreBySystem: Map<string, number>;
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
   scrollable?: boolean;
 }) {
   const rows: SystemTableRow[] = systems.map((system) => {
-    const rollups = systemRollups.filter(
-      (rollup) => rollup.scopeType === "system" && rollup.scopeId === system.id
-    );
-    const productionRollups = environmentRollups.filter(
-      (rollup) => rollup.scopeType === "environment" && rollup.scopeId === `${system.id}::Production`
-    );
-
     const atoNumber = fallbackAtoNumber(system);
     const diisId = fallbackDiisId(system);
     const apmNumber = fallbackApmNumber(system);
@@ -121,11 +123,12 @@ export function SystemsTable({
       name: system.name,
       missionCapabilities: system.missionCapabilities.map((capability) => capability.name).join(", ") || "-",
       businessServices: system.businessServices.map((service) => service.name).join(", ") || "-",
-      overallPosture: deriveOverallStatus(rollups),
-      productionPosture: deriveOverallStatus(productionRollups),
+      assetCount: assetCountBySystem.get(system.id) ?? 0,
+      criticalFindings: criticalFindingsBySystem.get(system.id) ?? 0,
+      highFindings: highFindingsBySystem.get(system.id) ?? 0,
+      otherFindings: otherFindingsBySystem.get(system.id) ?? 0,
       complianceScore: complianceScoreBySystem.get(system.id) ?? 0,
       discoveryComplianceScore: discoveryComplianceScoreBySystem.get(system.id) ?? 0,
-      openFindings: findingsBySystem.get(system.id) ?? 0,
       description: fallbackDescription(system),
       owner: fallbackOwner(system),
       supportEmail: fallbackSupportEmail(system),
@@ -139,5 +142,13 @@ export function SystemsTable({
     };
   });
 
-  return <SystemsTableClient rows={rows} scrollable={scrollable} />;
+  return (
+    <SystemsTableClient
+      rows={rows}
+      riskFindings={riskFindings}
+      assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+      asOfDate={asOfDate}
+      scrollable={scrollable}
+    />
+  );
 }
