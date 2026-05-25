@@ -14,7 +14,11 @@ import {
   loadSeverityDefinitions,
   loadSpiDefinitions
 } from "@/lib/data-loader";
-import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import {
+  discoveryCoverageByAssetId,
+  discoveryCoverageForAssetId,
+  DiscoveryCoverageValue
+} from "@/lib/discovery-coverage";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
 import { buildCveVulnerabilityIndexByAssetId, buildHighRiskCveIndexByAssetId } from "@/lib/cve";
@@ -406,8 +410,8 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
-  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+function discoveryCoverageForAsset(asset: Asset, coverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>) {
+  const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
 
   return {
     coverageCompliance: coverage.coverageCompliance
@@ -486,8 +490,9 @@ function buildNetworkKpiSnapshotMetrics(
 
   const highRiskP12Findings = p12Findings.filter((finding) => finding.severity === "High Risk").length;
   const outOfWarrantyAssets = assets.filter((asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty").length;
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(snapshot.discoveryCoverageEvaluations);
   const nonCompliantDiscoveryCoverage = assets.filter(
-    (asset) => !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance
+    (asset) => !discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset).coverageCompliance
   ).length;
 
   return {
@@ -518,6 +523,7 @@ export default async function NetworkDetailPage({
     loadSpiDefinitions(),
     loadSeverityDefinitions()
   ]);
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   if (isUnassignedNetworkId(params.networkId)) {
     notFound();
@@ -628,13 +634,17 @@ export default async function NetworkDetailPage({
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance;
+      return !discoveryCoverageForAsset(asset, storedDiscoveryCoverageByAsset).coverageCompliance;
     }
     return true;
   };
 
   const filteredAssets = selectedKpiFilter ? assets.filter((asset) => matchesSelectedKpiFilter(asset)) : assets;
-  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(filteredAssets, discoveryToolsSettings);
+  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(
+    filteredAssets,
+    discoveryToolsSettings,
+    dataset.discoveryCoverageEvaluations
+  );
   const discoveryToolCoverageCharts = discoveryToolCoverageModel.toolCards;
   const applicableDiscoveryToolIds = new Set(discoveryToolCoverageModel.toolColumns.map((tool) => tool.id));
   const selectedDiscoveryToolFilter =

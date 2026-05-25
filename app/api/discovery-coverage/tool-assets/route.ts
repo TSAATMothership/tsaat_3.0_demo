@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
-import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import {
+  discoveryCoverageByAssetId,
+  discoveryCoverageForAssetId,
+  DiscoveryCoverageValue
+} from "@/lib/discovery-coverage";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { Asset } from "@/lib/types";
 
@@ -101,12 +105,13 @@ export async function GET(request: NextRequest) {
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const scopedAssets = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)));
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
   const toolRows: ToolAssetRow[] = [];
   for (const asset of scopedAssets) {
-    const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+    const coverage = discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset);
     const toolValue = coverage.toolValues[toolId];
     if (toolValue !== 0) {
       continue;

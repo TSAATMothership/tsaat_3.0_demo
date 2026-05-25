@@ -1,5 +1,5 @@
 import { deduplicateFindings } from "@/lib/findings-normalization";
-import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { SpiDefinition, spiEvaluationMatchesFeature } from "@/lib/spi-definitions";
@@ -20,11 +20,13 @@ function toAssetEvaluation(
   asset: Asset,
   systemsById: Map<string, ICTSystem>,
   discoveryToolsSettings: DiscoveryToolsSettings,
+  discoveryCoverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>,
   evaluationsByAssetId: Map<string, AssetSpiEvaluation["evaluations"]>
 ): AssetSpiEvaluation {
+  void discoveryToolsSettings;
   const systemId = asset.systemContext?.systemId;
   const system = systemId ? systemsById.get(systemId) : undefined;
-  const discoveryCoverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+  const discoveryCoverage = discoveryCoverageForAssetId(asset.id, discoveryCoverageByAsset);
 
   return {
     assetId: asset.id,
@@ -91,8 +93,9 @@ export function buildAnalytics(
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
   const systemsById = new Map(systems.map((system) => [system.id, system]));
   const storedEvaluationsByAssetId = spiEvaluationsByAssetId(dataset);
+  const storedDiscoveryCoverageByAssetId = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const evaluations = filteredAssets.map((asset) =>
-    toAssetEvaluation(asset, systemsById, discoveryToolsSettings, storedEvaluationsByAssetId)
+    toAssetEvaluation(asset, systemsById, discoveryToolsSettings, storedDiscoveryCoverageByAssetId, storedEvaluationsByAssetId)
   );
 
   const allStatuses = evaluations.flatMap((assetEval) =>

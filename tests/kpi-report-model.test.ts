@@ -7,6 +7,7 @@ import {
   isKpiReportAvailable
 } from "@/lib/kpi-report-model";
 import { normalizeKpiDefinitions } from "@/lib/kpi-definitions";
+import { buildKpiRows, type KpiRow } from "@/lib/measures";
 import { AnalyticsResult, AssetSpiEvaluation, ICTSystem, ManagedNetwork } from "@/lib/types";
 import rawKpiDefinitions from "../Database Schema/data/kpi-definitions.json";
 
@@ -78,9 +79,34 @@ const networks: ManagedNetwork[] = [
 
 const kpiDefinitions = normalizeKpiDefinitions(rawKpiDefinitions);
 
+function kpiRows(discoveryCompliantCount: number, definitions = kpiDefinitions, discoveryApplicableCount = 2): KpiRow[] {
+  return buildKpiRows(
+    definitions,
+    definitions.map((definition) => {
+      const isDiscoveryCoverage = definition.id === "KPI-6";
+      const compliantCount = isDiscoveryCoverage ? discoveryCompliantCount : 1;
+      const applicableCount = isDiscoveryCoverage ? discoveryApplicableCount : 2;
+      const scorePercent = Number(((compliantCount / applicableCount) * 100).toFixed(1));
+      return {
+        snapshotId: 1,
+        kpiId: definition.id,
+        displayOrder: definition.displayOrder,
+        calculationKey: definition.calculationKey,
+        score: `${scorePercent}%`,
+        scorePercent,
+        compliantCount,
+        applicableCount,
+        nonCompliantCount: applicableCount - compliantCount,
+        unknownCount: 0,
+        highPriorityCount: 0
+      };
+    })
+  );
+}
+
 describe("KPI report model", () => {
   it("marks KPI-1 through KPI-4 unavailable and KPI-5 through KPI-10 available", () => {
-    const reports = buildKpiReportModels(analyticsFixture(1), systems, networks, kpiDefinitions);
+    const reports = buildKpiReportModels(kpiRows(1));
 
     expect(reports.filter((report) => !report.reportAvailable).map((report) => report.id)).toEqual([
       "KPI-1",
@@ -124,7 +150,7 @@ describe("KPI report model", () => {
       ]
     });
 
-    const reports = buildKpiReportModels(analyticsFixture(1), systems, networks, customDefinitions);
+    const reports = buildKpiReportModels(kpiRows(1, customDefinitions));
 
     expect(reports.map((report) => report.id)).toEqual(["KPI-6", "KPI-1"]);
     expect(reports[0]).toMatchObject({
@@ -136,9 +162,7 @@ describe("KPI report model", () => {
 
   it("builds KPI trend points from per-snapshot scoped analytics", () => {
     const currentReport = buildKpiReportModel({
-      analytics: analyticsFixture(2),
-      systems,
-      networks,
+      kpiRows: kpiRows(2),
       kpiId: "KPI-6",
       kpiDefinitions
     });
@@ -146,8 +170,8 @@ describe("KPI report model", () => {
       kpiId: "KPI-6",
       kpiDefinitions,
       snapshots: [
-        { snapshotDate: "2026-04-16", analytics: analyticsFixture(1), systems, networks },
-        { snapshotDate: "2026-04-23", analytics: analyticsFixture(2), systems, networks }
+        { snapshotDate: "2026-04-16", kpiRows: kpiRows(1) },
+        { snapshotDate: "2026-04-23", kpiRows: kpiRows(2) }
       ]
     });
 
@@ -190,12 +214,7 @@ describe("KPI report model", () => {
       snapshots: [
         {
           snapshotDate: "2026-04-23",
-          analytics: {
-            ...analyticsFixture(2),
-            evaluations: [evaluation("asset-1", false)]
-          },
-          systems,
-          networks
+          kpiRows: kpiRows(0, kpiDefinitions, 1)
         }
       ]
     });
@@ -213,7 +232,7 @@ describe("KPI report model", () => {
     const trend = buildKpiTrendReportModel({
       kpiId: "KPI-4",
       kpiDefinitions,
-      snapshots: [{ snapshotDate: "2026-04-23", analytics: analyticsFixture(2), systems, networks }]
+      snapshots: [{ snapshotDate: "2026-04-23", kpiRows: kpiRows(2) }]
     });
 
     expect(trend).toBeNull();

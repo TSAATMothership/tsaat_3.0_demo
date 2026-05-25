@@ -942,6 +942,98 @@ CROSS APPLY OPENJSON(spi.[tasking_conditions]) WITH (
   [template_text] NVARCHAR(MAX) '$.templateText'
 ) AS condition;
 
+SET @FilePath = @PackageDataRoot + N'\kpi-calculations.json';
+SET @Json = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+MERGE [tsaat].[kpi_calculation_source] AS target
+USING (
+  SELECT
+    source.[source_key],
+    source.[source_object_name],
+    source.[description],
+    source.[enabled]
+  FROM OPENJSON(@Json, '$.sources') WITH (
+    [source_key] NVARCHAR(100) '$.sourceKey',
+    [source_object_name] NVARCHAR(255) '$.sourceObjectName',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS source
+) AS source
+ON target.[source_key] = source.[source_key]
+WHEN MATCHED THEN UPDATE SET
+  [source_object_name] = source.[source_object_name],
+  [description] = source.[description],
+  [enabled] = source.[enabled]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([source_key], [source_object_name], [description], [enabled])
+  VALUES (source.[source_key], source.[source_object_name], source.[description], source.[enabled]);
+
+MERGE [tsaat].[kpi_calculation_definition] AS target
+USING (
+  SELECT
+    calculation.[calculation_key],
+    calculation.[source_key],
+    calculation.[display_order],
+    calculation.[name],
+    calculation.[description],
+    calculation.[enabled]
+  FROM OPENJSON(@Json, '$.calculations') WITH (
+    [calculation_key] NVARCHAR(100) '$.calculationKey',
+    [source_key] NVARCHAR(100) '$.sourceKey',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS calculation
+) AS source
+ON target.[calculation_key] = source.[calculation_key]
+WHEN MATCHED THEN UPDATE SET
+  [source_key] = source.[source_key],
+  [display_order] = source.[display_order],
+  [name] = source.[name],
+  [description] = source.[description],
+  [enabled] = source.[enabled]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([calculation_key], [source_key], [display_order], [name], [description], [enabled])
+  VALUES (source.[calculation_key], source.[source_key], source.[display_order], source.[name], source.[description], source.[enabled]);
+
+MERGE [tsaat].[kpi_calculation_parameter] AS target
+USING (
+  SELECT
+    parameter.[calculation_key],
+    parameter.[parameter_key],
+    parameter.[parameter_type],
+    parameter.[parameter_value]
+  FROM OPENJSON(@Json, '$.parameters') WITH (
+    [calculation_key] NVARCHAR(100) '$.calculationKey',
+    [parameter_key] NVARCHAR(100) '$.parameterKey',
+    [parameter_type] NVARCHAR(20) '$.parameterType',
+    [parameter_value] NVARCHAR(4000) '$.parameterValue'
+  ) AS parameter
+) AS source
+ON target.[calculation_key] = source.[calculation_key]
+  AND target.[parameter_key] = source.[parameter_key]
+WHEN MATCHED THEN UPDATE SET
+  [parameter_type] = source.[parameter_type],
+  [parameter_value] = source.[parameter_value]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([calculation_key], [parameter_key], [parameter_type], [parameter_value])
+  VALUES (source.[calculation_key], source.[parameter_key], source.[parameter_type], source.[parameter_value]);
+
 SET @FilePath = @PackageDataRoot + N'\kpi-definitions.json';
 SET @Json = NULL;
 IF @DataLoadMode = N'ClientPayload'
@@ -968,7 +1060,8 @@ USING (
     kpi.[description],
     kpi.[success_measure],
     kpi.[calculation_key],
-    kpi.[report_available]
+    kpi.[report_available],
+    COALESCE(kpi.[enabled], CAST(1 AS BIT)) AS [enabled]
   FROM OPENJSON(@Json, '$.kpis') WITH (
     [kpi_id] NVARCHAR(40) '$.id',
     [display_order] INT '$.displayOrder',
@@ -976,7 +1069,8 @@ USING (
     [description] NVARCHAR(1000) '$.description',
     [success_measure] NVARCHAR(1000) '$.successMeasure',
     [calculation_key] NVARCHAR(100) '$.calculationKey',
-    [report_available] BIT '$.reportAvailable'
+    [report_available] BIT '$.reportAvailable',
+    [enabled] BIT '$.enabled'
   ) AS kpi
 ) AS source
 ON target.[kpi_id] = source.[kpi_id]
@@ -987,7 +1081,8 @@ WHEN MATCHED THEN
     [description] = source.[description],
     [success_measure] = source.[success_measure],
     [calculation_key] = source.[calculation_key],
-    [report_available] = source.[report_available]
+    [report_available] = source.[report_available],
+    [enabled] = source.[enabled]
 WHEN NOT MATCHED BY TARGET THEN
   INSERT (
     [kpi_id],
@@ -996,7 +1091,8 @@ WHEN NOT MATCHED BY TARGET THEN
     [description],
     [success_measure],
     [calculation_key],
-    [report_available]
+    [report_available],
+    [enabled]
   )
   VALUES (
     source.[kpi_id],
@@ -1005,8 +1101,164 @@ WHEN NOT MATCHED BY TARGET THEN
     source.[description],
     source.[success_measure],
     source.[calculation_key],
-    source.[report_available]
+    source.[report_available],
+    source.[enabled]
   );
+
+SET @FilePath = @PackageDataRoot + N'\kpi-report-detail-definitions.json';
+SET @Json = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+MERGE [tsaat].[kpi_report_detail_definition] AS target
+USING (
+  SELECT
+    detail.[report_detail_key],
+    detail.[handler_key],
+    detail.[display_order],
+    detail.[name],
+    detail.[description],
+    detail.[enabled]
+  FROM OPENJSON(@Json, '$.reportDetails') WITH (
+    [report_detail_key] NVARCHAR(100) '$.reportDetailKey',
+    [handler_key] NVARCHAR(100) '$.handlerKey',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS detail
+) AS source
+ON target.[report_detail_key] = source.[report_detail_key]
+WHEN MATCHED THEN UPDATE SET
+  [handler_key] = source.[handler_key],
+  [display_order] = source.[display_order],
+  [name] = source.[name],
+  [description] = source.[description],
+  [enabled] = source.[enabled]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([report_detail_key], [handler_key], [display_order], [name], [description], [enabled])
+  VALUES (source.[report_detail_key], source.[handler_key], source.[display_order], source.[name], source.[description], source.[enabled]);
+
+DELETE FROM [tsaat].[kpi_report_detail_binding];
+
+INSERT INTO [tsaat].[kpi_report_detail_binding] (
+  [kpi_id],
+  [report_detail_key]
+)
+SELECT
+  binding.[kpi_id],
+  binding.[report_detail_key]
+FROM OPENJSON(@Json, '$.bindings') WITH (
+  [kpi_id] NVARCHAR(40) '$.kpiId',
+  [report_detail_key] NVARCHAR(100) '$.reportDetailKey'
+) AS binding;
+
+SET @FilePath = @PackageDataRoot + N'\kpi-tasking.json';
+SET @Json = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+DELETE FROM [tsaat].[kpi_tasking_condition_template];
+DELETE FROM [tsaat].[kpi_tasking_action_template];
+DELETE FROM [tsaat].[kpi_tasking_team];
+
+INSERT INTO [tsaat].[kpi_tasking_team] (
+  [kpi_id],
+  [display_order],
+  [team],
+  [support_queue],
+  [contact_email]
+)
+SELECT
+  kpi.[kpi_id],
+  team.[display_order],
+  team.[team],
+  team.[support_queue],
+  team.[contact_email]
+FROM OPENJSON(@Json, '$.kpis') WITH (
+  [kpi_id] NVARCHAR(40) '$.id',
+  [teams] NVARCHAR(MAX) '$.teams' AS JSON
+) AS kpi
+CROSS APPLY OPENJSON(kpi.[teams]) WITH (
+  [display_order] INT '$.displayOrder',
+  [team] NVARCHAR(255) '$.team',
+  [support_queue] NVARCHAR(100) '$.supportQueue',
+  [contact_email] NVARCHAR(255) '$.contactEmail'
+) AS team
+UNION ALL
+SELECT
+  kpi_definition.[kpi_id],
+  base_team.[display_order],
+  base_team.[team],
+  base_team.[support_queue],
+  base_team.[contact_email]
+FROM [tsaat].[kpi_definition] AS kpi_definition
+CROSS APPLY OPENJSON(@Json, '$.baseTeams') WITH (
+  [display_order] INT '$.displayOrder',
+  [team] NVARCHAR(255) '$.team',
+  [support_queue] NVARCHAR(100) '$.supportQueue',
+  [contact_email] NVARCHAR(255) '$.contactEmail'
+) AS base_team;
+
+INSERT INTO [tsaat].[kpi_tasking_action_template] (
+  [kpi_id],
+  [display_order],
+  [condition_key],
+  [action_text]
+)
+SELECT
+  kpi.[kpi_id],
+  action.[display_order],
+  action.[condition_key],
+  action.[action_text]
+FROM OPENJSON(@Json, '$.kpis') WITH (
+  [kpi_id] NVARCHAR(40) '$.id',
+  [actions] NVARCHAR(MAX) '$.actions' AS JSON
+) AS kpi
+CROSS APPLY OPENJSON(kpi.[actions]) WITH (
+  [display_order] INT '$.displayOrder',
+  [condition_key] NVARCHAR(40) '$.conditionKey',
+  [action_text] NVARCHAR(MAX) '$.actionText'
+) AS action;
+
+INSERT INTO [tsaat].[kpi_tasking_condition_template] (
+  [kpi_id],
+  [condition_key],
+  [template_text]
+)
+SELECT
+  kpi_definition.[kpi_id],
+  condition.[condition_key],
+  condition.[template_text]
+FROM [tsaat].[kpi_definition] AS kpi_definition
+CROSS APPLY OPENJSON(@Json, '$.conditionTemplates') WITH (
+  [condition_key] NVARCHAR(40) '$.conditionKey',
+  [template_text] NVARCHAR(MAX) '$.templateText'
+) AS condition;
 
 SET @FilePath = @PackageDataRoot + N'\discovery-tools-settings.json';
 SET @Json = NULL;
@@ -1075,6 +1327,144 @@ FROM OPENJSON(@Json, '$.tools') WITH (
   [asset_type_scope] NVARCHAR(MAX) '$.assetTypeScope' AS JSON
 ) AS tool
 CROSS APPLY OPENJSON(tool.[asset_type_scope]) AS scope_map;
+
+SET @FilePath = @PackageDataRoot + N'\discovery-coverage-rules.json';
+SET @Json = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+MERGE [tsaat].[discovery_coverage_source] AS target
+USING (
+  SELECT
+    source.[source_key],
+    source.[source_object_name],
+    source.[description],
+    source.[enabled]
+  FROM OPENJSON(@Json, '$.sources') WITH (
+    [source_key] NVARCHAR(100) '$.sourceKey',
+    [source_object_name] NVARCHAR(255) '$.sourceObjectName',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS source
+) AS source
+ON target.[source_key] = source.[source_key]
+WHEN MATCHED THEN UPDATE SET
+  [source_object_name] = source.[source_object_name],
+  [description] = source.[description],
+  [enabled] = source.[enabled]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([source_key], [source_object_name], [description], [enabled])
+  VALUES (source.[source_key], source.[source_object_name], source.[description], source.[enabled]);
+
+MERGE [tsaat].[discovery_tool_detection_definition] AS target
+USING (
+  SELECT
+    tool.[tool_id],
+    tool.[display_order],
+    tool.[name],
+    tool.[description],
+    tool.[enabled]
+  FROM OPENJSON(@Json, '$.toolDetectionDefinitions') WITH (
+    [tool_id] NVARCHAR(255) '$.toolId',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS tool
+) AS source
+ON target.[tool_id] = source.[tool_id]
+WHEN MATCHED THEN UPDATE SET
+  [display_order] = source.[display_order],
+  [name] = source.[name],
+  [description] = source.[description],
+  [enabled] = source.[enabled]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([tool_id], [display_order], [name], [description], [enabled])
+  VALUES (source.[tool_id], source.[display_order], source.[name], source.[description], source.[enabled]);
+
+DECLARE @DiscoveryRuleMap TABLE (
+  [rule_row_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+  [detection_rule_id] BIGINT NULL,
+  [tool_id] NVARCHAR(255) NOT NULL,
+  [display_order] INT NOT NULL,
+  [condition_key] NVARCHAR(80) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL,
+  [values_json] NVARCHAR(MAX) NULL
+);
+
+INSERT INTO @DiscoveryRuleMap (
+  [tool_id],
+  [display_order],
+  [condition_key],
+  [description],
+  [enabled],
+  [values_json]
+)
+SELECT
+  rule_row.[tool_id],
+  rule_row.[display_order],
+  rule_row.[condition_key],
+  rule_row.[description],
+  rule_row.[enabled],
+  rule_row.[values_json]
+FROM OPENJSON(@Json, '$.detectionRules') WITH (
+  [tool_id] NVARCHAR(255) '$.toolId',
+  [display_order] INT '$.displayOrder',
+  [condition_key] NVARCHAR(80) '$.conditionKey',
+  [description] NVARCHAR(1000) '$.description',
+  [enabled] BIT '$.enabled',
+  [values_json] NVARCHAR(MAX) '$.values' AS JSON
+) AS rule_row;
+
+MERGE [tsaat].[discovery_tool_detection_rule] AS target
+USING @DiscoveryRuleMap AS source
+ON target.[tool_id] = source.[tool_id] AND target.[display_order] = source.[display_order]
+WHEN MATCHED THEN
+  UPDATE SET
+    [condition_key] = source.[condition_key],
+    [description] = source.[description],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT ([tool_id], [display_order], [condition_key], [description], [enabled])
+  VALUES (source.[tool_id], source.[display_order], source.[condition_key], source.[description], source.[enabled]);
+
+UPDATE rule_map
+SET [detection_rule_id] = rule_table.[detection_rule_id]
+FROM @DiscoveryRuleMap AS rule_map
+INNER JOIN [tsaat].[discovery_tool_detection_rule] AS rule_table
+  ON rule_table.[tool_id] = rule_map.[tool_id]
+  AND rule_table.[display_order] = rule_map.[display_order];
+
+DELETE rule_value
+FROM [tsaat].[discovery_tool_detection_rule_value] AS rule_value
+INNER JOIN @DiscoveryRuleMap AS rule_map
+  ON rule_map.[detection_rule_id] = rule_value.[detection_rule_id];
+
+INSERT INTO [tsaat].[discovery_tool_detection_rule_value] (
+  [detection_rule_id],
+  [value_order],
+  [value_text]
+)
+SELECT
+  rule_map.[detection_rule_id],
+  value_row.[key] + 1,
+  value_row.[value]
+FROM @DiscoveryRuleMap AS rule_map
+CROSS APPLY OPENJSON(COALESCE(rule_map.[values_json], N'[]')) AS value_row
+WHERE rule_map.[detection_rule_id] IS NOT NULL;
 
 SET @FilePath = @PackageDataRoot + N'\measures-settings.json';
 SET @Json = NULL;

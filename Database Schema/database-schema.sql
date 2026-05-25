@@ -557,22 +557,116 @@ CREATE TABLE [tsaat].[kpi_definition] (
   [success_measure] NVARCHAR(1000) NOT NULL,
   [calculation_key] NVARCHAR(100) NOT NULL,
   [report_available] BIT NOT NULL CONSTRAINT [DF_kpi_definition_report_available] DEFAULT (0),
+  [enabled] BIT NOT NULL CONSTRAINT [DF_kpi_definition_enabled] DEFAULT (1),
   CONSTRAINT [PK_kpi_definition] PRIMARY KEY CLUSTERED ([kpi_id]),
   CONSTRAINT [UQ_kpi_definition_display_order] UNIQUE ([display_order]),
   CONSTRAINT [CK_kpi_definition_kpi_id] CHECK (LEN(LTRIM(RTRIM([kpi_id]))) > 0),
-  CONSTRAINT [CK_kpi_definition_display_order] CHECK ([display_order] > 0),
-  CONSTRAINT [CK_kpi_definition_calculation_key] CHECK ([calculation_key] IN (
-    N'overall-spi-compliance',
-    N'protected-domain-compliance',
-    N'secret-domain-compliance',
-    N'critical-ict-system-compliance',
-    N'critical-exposure-in-production',
-    N'discovery-coverage-compliance',
-    N'active-ato-coverage',
-    N'diis-registration-coverage',
-    N'diis-modelled-coverage',
-    N'network-discovery-enablement'
-  ))
+  CONSTRAINT [CK_kpi_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_calculation_source] (
+  [source_key] NVARCHAR(100) NOT NULL,
+  [source_object_name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_kpi_calculation_source_enabled] DEFAULT (1),
+  CONSTRAINT [PK_kpi_calculation_source] PRIMARY KEY CLUSTERED ([source_key]),
+  CONSTRAINT [CK_kpi_calculation_source_key] CHECK (LEN(LTRIM(RTRIM([source_key]))) > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_calculation_definition] (
+  [calculation_key] NVARCHAR(100) NOT NULL,
+  [source_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_kpi_calculation_definition_enabled] DEFAULT (1),
+  CONSTRAINT [PK_kpi_calculation_definition] PRIMARY KEY CLUSTERED ([calculation_key]),
+  CONSTRAINT [FK_kpi_calculation_definition_source]
+    FOREIGN KEY ([source_key]) REFERENCES [tsaat].[kpi_calculation_source]([source_key]),
+  CONSTRAINT [UQ_kpi_calculation_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_kpi_calculation_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+ALTER TABLE [tsaat].[kpi_definition]
+  ADD CONSTRAINT [FK_kpi_definition_calculation_definition]
+    FOREIGN KEY ([calculation_key]) REFERENCES [tsaat].[kpi_calculation_definition]([calculation_key]);
+GO
+
+CREATE TABLE [tsaat].[kpi_calculation_parameter] (
+  [calculation_key] NVARCHAR(100) NOT NULL,
+  [parameter_key] NVARCHAR(100) NOT NULL,
+  [parameter_type] NVARCHAR(20) NOT NULL,
+  [parameter_value] NVARCHAR(4000) NOT NULL,
+  CONSTRAINT [PK_kpi_calculation_parameter] PRIMARY KEY CLUSTERED ([calculation_key], [parameter_key]),
+  CONSTRAINT [FK_kpi_calculation_parameter_definition]
+    FOREIGN KEY ([calculation_key]) REFERENCES [tsaat].[kpi_calculation_definition]([calculation_key]),
+  CONSTRAINT [CK_kpi_calculation_parameter_type] CHECK ([parameter_type] IN (N'string', N'number', N'boolean'))
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_report_detail_definition] (
+  [report_detail_key] NVARCHAR(100) NOT NULL,
+  [handler_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_kpi_report_detail_definition_enabled] DEFAULT (1),
+  CONSTRAINT [PK_kpi_report_detail_definition] PRIMARY KEY CLUSTERED ([report_detail_key]),
+  CONSTRAINT [UQ_kpi_report_detail_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_kpi_report_detail_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_report_detail_binding] (
+  [kpi_id] NVARCHAR(40) NOT NULL,
+  [report_detail_key] NVARCHAR(100) NOT NULL,
+  CONSTRAINT [PK_kpi_report_detail_binding] PRIMARY KEY CLUSTERED ([kpi_id]),
+  CONSTRAINT [FK_kpi_report_detail_binding_kpi]
+    FOREIGN KEY ([kpi_id]) REFERENCES [tsaat].[kpi_definition]([kpi_id]),
+  CONSTRAINT [FK_kpi_report_detail_binding_detail]
+    FOREIGN KEY ([report_detail_key]) REFERENCES [tsaat].[kpi_report_detail_definition]([report_detail_key])
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_tasking_team] (
+  [kpi_id] NVARCHAR(40) NOT NULL,
+  [display_order] INT NOT NULL,
+  [team] NVARCHAR(255) NOT NULL,
+  [support_queue] NVARCHAR(100) NOT NULL,
+  [contact_email] NVARCHAR(255) NOT NULL,
+  CONSTRAINT [PK_kpi_tasking_team] PRIMARY KEY CLUSTERED ([kpi_id], [display_order]),
+  CONSTRAINT [FK_kpi_tasking_team_kpi]
+    FOREIGN KEY ([kpi_id]) REFERENCES [tsaat].[kpi_definition]([kpi_id]),
+  CONSTRAINT [CK_kpi_tasking_team_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_tasking_action_template] (
+  [kpi_id] NVARCHAR(40) NOT NULL,
+  [display_order] INT NOT NULL,
+  [condition_key] NVARCHAR(40) NOT NULL,
+  [action_text] NVARCHAR(MAX) NOT NULL,
+  CONSTRAINT [PK_kpi_tasking_action_template] PRIMARY KEY CLUSTERED ([kpi_id], [display_order]),
+  CONSTRAINT [FK_kpi_tasking_action_template_kpi]
+    FOREIGN KEY ([kpi_id]) REFERENCES [tsaat].[kpi_definition]([kpi_id]),
+  CONSTRAINT [CK_kpi_tasking_action_template_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_kpi_tasking_action_template_condition]
+    CHECK ([condition_key] IN (N'always', N'when_unknown', N'when_fully_compliant'))
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_tasking_condition_template] (
+  [kpi_id] NVARCHAR(40) NOT NULL,
+  [condition_key] NVARCHAR(40) NOT NULL,
+  [template_text] NVARCHAR(MAX) NOT NULL,
+  CONSTRAINT [PK_kpi_tasking_condition_template] PRIMARY KEY CLUSTERED ([kpi_id], [condition_key]),
+  CONSTRAINT [FK_kpi_tasking_condition_template_kpi]
+    FOREIGN KEY ([kpi_id]) REFERENCES [tsaat].[kpi_definition]([kpi_id]),
+  CONSTRAINT [CK_kpi_tasking_condition_template_condition]
+    CHECK ([condition_key] IN (N'non_compliant', N'unknown', N'compliant'))
 );
 GO
 
@@ -1101,6 +1195,63 @@ CREATE TABLE [tsaat].[discovery_tool_asset_scope] (
 );
 GO
 
+CREATE TABLE [tsaat].[discovery_coverage_source] (
+  [source_key] NVARCHAR(100) NOT NULL,
+  [source_object_name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_discovery_coverage_source_enabled] DEFAULT (1),
+  CONSTRAINT [PK_discovery_coverage_source] PRIMARY KEY CLUSTERED ([source_key]),
+  CONSTRAINT [CK_discovery_coverage_source_key] CHECK (LEN(LTRIM(RTRIM([source_key]))) > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[discovery_tool_detection_definition] (
+  [tool_id] NVARCHAR(255) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_discovery_tool_detection_definition_enabled] DEFAULT (1),
+  CONSTRAINT [PK_discovery_tool_detection_definition] PRIMARY KEY CLUSTERED ([tool_id]),
+  CONSTRAINT [UQ_discovery_tool_detection_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_discovery_tool_detection_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[discovery_tool_detection_rule] (
+  [detection_rule_id] BIGINT IDENTITY(1,1) NOT NULL,
+  [tool_id] NVARCHAR(255) NOT NULL,
+  [display_order] INT NOT NULL,
+  [condition_key] NVARCHAR(80) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_discovery_tool_detection_rule_enabled] DEFAULT (1),
+  CONSTRAINT [PK_discovery_tool_detection_rule] PRIMARY KEY CLUSTERED ([detection_rule_id]),
+  CONSTRAINT [FK_discovery_tool_detection_rule_tool]
+    FOREIGN KEY ([tool_id]) REFERENCES [tsaat].[discovery_tool_detection_definition]([tool_id]),
+  CONSTRAINT [UQ_discovery_tool_detection_rule_order] UNIQUE ([tool_id], [display_order]),
+  CONSTRAINT [CK_discovery_tool_detection_rule_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_discovery_tool_detection_rule_condition]
+    CHECK ([condition_key] IN (
+      N'has-system-context',
+      N'asset-type-in',
+      N'vulnerability-source-in',
+      N'warranty-status-known',
+      N'eol-status-known',
+      N'has-vulnerability'
+    ))
+);
+GO
+
+CREATE TABLE [tsaat].[discovery_tool_detection_rule_value] (
+  [detection_rule_id] BIGINT NOT NULL,
+  [value_order] INT NOT NULL,
+  [value_text] NVARCHAR(255) NOT NULL,
+  CONSTRAINT [PK_discovery_tool_detection_rule_value] PRIMARY KEY CLUSTERED ([detection_rule_id], [value_order]),
+  CONSTRAINT [FK_discovery_tool_detection_rule_value_rule]
+    FOREIGN KEY ([detection_rule_id]) REFERENCES [tsaat].[discovery_tool_detection_rule]([detection_rule_id]),
+  CONSTRAINT [CK_discovery_tool_detection_rule_value_order] CHECK ([value_order] > 0)
+);
+GO
+
 CREATE TABLE [tsaat].[measures_settings_version] (
   [settings_version_id] BIGINT IDENTITY(1,1) NOT NULL,
   [updated_at] DATETIMEOFFSET(7) NOT NULL,
@@ -1391,6 +1542,270 @@ BEGIN
     CAST(NULL AS NVARCHAR(100)) AS [outcome_key],
     CAST(NULL AS NVARCHAR(MAX)) AS [evidence_json]
   WHERE 1 = 0;
+END;
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_kpi_stable_hash](@value NVARCHAR(4000))
+RETURNS BIGINT
+AS
+BEGIN
+  DECLARE @hash BIGINT = 0;
+  DECLARE @index INT = 1;
+  DECLARE @length INT = LEN(COALESCE(@value, N''));
+  WHILE @index <= @length
+  BEGIN
+    SET @hash = ((@hash * 31) + UNICODE(SUBSTRING(@value, @index, 1))) % 4294967296;
+    SET @index += 1;
+  END;
+  RETURN @hash;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [tsaat].[usp_evaluate_discovery_coverage_snapshot]
+  @snapshot_id BIGINT,
+  @asset_ids_json NVARCHAR(MAX) = NULL,
+  @emit_json BIT = 0
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  DECLARE @hasAssetScope BIT = CASE WHEN ISJSON(@asset_ids_json) = 1 THEN 1 ELSE 0 END;
+  DECLARE @AssetScope TABLE ([asset_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
+  IF @hasAssetScope = 1
+  BEGIN
+    INSERT INTO @AssetScope ([asset_id])
+    SELECT DISTINCT CONVERT(NVARCHAR(255), [value])
+    FROM OPENJSON(@asset_ids_json)
+    WHERE [type] IN (1, 2) AND LEN(LTRIM(RTRIM(CONVERT(NVARCHAR(255), [value])))) > 0;
+  END;
+
+  DECLARE @settingsVersionId BIGINT = (
+    SELECT TOP (1) [settings_version_id]
+    FROM [tsaat].[discovery_tools_settings_version]
+    ORDER BY [updated_at] DESC, [settings_version_id] DESC
+  );
+
+  DECLARE @Coverage TABLE (
+    [asset_id] NVARCHAR(255) NOT NULL,
+    [tool_id] NVARCHAR(255) NOT NULL,
+    [tool_name] NVARCHAR(255) NOT NULL,
+    [display_order] INT NOT NULL,
+    [coverage_value] INT NULL
+  );
+
+  INSERT INTO @Coverage ([asset_id], [tool_id], [tool_name], [display_order], [coverage_value])
+  SELECT
+    a.[asset_id],
+    dt.[tool_id],
+    dt.[name],
+    COALESCE(dtd.[display_order], 100000),
+    CASE
+      WHEN dts.[scope_setting] = N'na' THEN NULL
+      WHEN EXISTS (
+        SELECT 1
+        FROM [tsaat].[discovery_tool_detection_rule] AS dtr
+        WHERE dtr.[tool_id] = dt.[tool_id]
+          AND dtr.[enabled] = 1
+          AND (
+            (dtr.[condition_key] = N'has-system-context' AND a.[system_id] IS NOT NULL)
+            OR (dtr.[condition_key] = N'asset-type-in' AND EXISTS (
+              SELECT 1 FROM [tsaat].[discovery_tool_detection_rule_value] AS rv
+              WHERE rv.[detection_rule_id] = dtr.[detection_rule_id] AND rv.[value_text] = a.[asset_type]
+            ))
+            OR (dtr.[condition_key] = N'vulnerability-source-in' AND EXISTS (
+              SELECT 1
+              FROM [tsaat].[asset_vulnerability] AS av
+              INNER JOIN [tsaat].[discovery_tool_detection_rule_value] AS rv
+                ON rv.[detection_rule_id] = dtr.[detection_rule_id] AND rv.[value_text] = av.[source]
+              WHERE av.[snapshot_id] = a.[snapshot_id] AND av.[asset_id] = a.[asset_id]
+            ))
+            OR (dtr.[condition_key] = N'warranty-status-known' AND a.[lifecycle_warranty_status] <> N'Unknown')
+            OR (dtr.[condition_key] = N'eol-status-known' AND a.[lifecycle_eol_status] <> N'Unknown')
+            OR (dtr.[condition_key] = N'has-vulnerability' AND EXISTS (
+              SELECT 1 FROM [tsaat].[asset_vulnerability] AS av
+              WHERE av.[snapshot_id] = a.[snapshot_id] AND av.[asset_id] = a.[asset_id]
+            ))
+          )
+      ) THEN 1
+      ELSE 0
+    END
+  FROM [tsaat].[asset] AS a
+  INNER JOIN [tsaat].[discovery_tool] AS dt
+    ON dt.[settings_version_id] = @settingsVersionId
+  INNER JOIN [tsaat].[discovery_tool_asset_scope] AS dts
+    ON dts.[settings_version_id] = dt.[settings_version_id]
+    AND dts.[tool_id] = dt.[tool_id]
+    AND dts.[asset_type] = a.[asset_type]
+  LEFT JOIN [tsaat].[discovery_tool_detection_definition] AS dtd
+    ON dtd.[tool_id] = dt.[tool_id] AND dtd.[enabled] = 1
+  WHERE a.[snapshot_id] = @snapshot_id
+    AND (@hasAssetScope = 0 OR EXISTS (SELECT 1 FROM @AssetScope AS scope WHERE scope.[asset_id] = a.[asset_id]));
+
+  IF @emit_json = 1
+  BEGIN
+    SELECT
+      @snapshot_id AS [snapshotId],
+      asset_rows.[asset_id] AS [assetId],
+      JSON_QUERY((
+        SELECT c.[tool_id] AS [toolId], c.[coverage_value] AS [value]
+        FROM @Coverage AS c
+        WHERE c.[asset_id] = asset_rows.[asset_id]
+        ORDER BY c.[display_order], c.[tool_id]
+        FOR JSON PATH, INCLUDE_NULL_VALUES
+      )) AS [toolValues],
+      JSON_QUERY((
+        SELECT c.[tool_id] AS [value]
+        FROM @Coverage AS c
+        WHERE c.[asset_id] = asset_rows.[asset_id] AND c.[coverage_value] = 0
+        ORDER BY c.[display_order], c.[tool_id]
+        FOR JSON PATH
+      )) AS [missingToolIds],
+      JSON_QUERY((
+        SELECT c.[tool_name] AS [value]
+        FROM @Coverage AS c
+        WHERE c.[asset_id] = asset_rows.[asset_id] AND c.[coverage_value] = 0
+        ORDER BY c.[display_order], c.[tool_id]
+        FOR JSON PATH
+      )) AS [missingToolNames],
+      CAST(CASE WHEN EXISTS (
+        SELECT 1 FROM @Coverage AS c WHERE c.[asset_id] = asset_rows.[asset_id] AND c.[coverage_value] = 0
+      ) THEN 0 ELSE 1 END AS BIT) AS [coverageCompliance]
+    FROM (SELECT DISTINCT [asset_id] FROM @Coverage) AS asset_rows
+    ORDER BY asset_rows.[asset_id]
+    FOR JSON PATH;
+    RETURN;
+  END;
+
+  SELECT
+    @snapshot_id AS [snapshot_id],
+    asset_rows.[asset_id],
+    CAST(CASE WHEN EXISTS (
+      SELECT 1 FROM @Coverage AS c WHERE c.[asset_id] = asset_rows.[asset_id] AND c.[coverage_value] = 0
+    ) THEN 0 ELSE 1 END AS BIT) AS [coverage_compliance],
+    COALESCE((SELECT c.[tool_id], c.[coverage_value] FROM @Coverage AS c WHERE c.[asset_id] = asset_rows.[asset_id] FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]') AS [tool_values_json],
+    COALESCE((SELECT c.[tool_id] AS [value] FROM @Coverage AS c WHERE c.[asset_id] = asset_rows.[asset_id] AND c.[coverage_value] = 0 FOR JSON PATH), N'[]') AS [missing_tool_ids_json],
+    COALESCE((SELECT c.[tool_name] AS [value] FROM @Coverage AS c WHERE c.[asset_id] = asset_rows.[asset_id] AND c.[coverage_value] = 0 FOR JSON PATH), N'[]') AS [missing_tool_names_json]
+  FROM (SELECT DISTINCT [asset_id] FROM @Coverage) AS asset_rows
+  ORDER BY asset_rows.[asset_id];
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [tsaat].[usp_evaluate_kpi_snapshot]
+  @snapshot_id BIGINT,
+  @asset_ids_json NVARCHAR(MAX) = NULL,
+  @system_ids_json NVARCHAR(MAX) = NULL,
+  @network_ids_json NVARCHAR(MAX) = NULL,
+  @effective_findings_json NVARCHAR(MAX) = N'[]',
+  @emit_json BIT = 0
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  DECLARE @hasAssetScope BIT = CASE WHEN ISJSON(@asset_ids_json) = 1 THEN 1 ELSE 0 END;
+  DECLARE @hasSystemScope BIT = CASE WHEN ISJSON(@system_ids_json) = 1 THEN 1 ELSE 0 END;
+  DECLARE @hasNetworkScope BIT = CASE WHEN ISJSON(@network_ids_json) = 1 THEN 1 ELSE 0 END;
+  DECLARE @AssetScope TABLE ([asset_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
+  DECLARE @SystemScope TABLE ([system_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
+  DECLARE @NetworkScope TABLE ([network_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
+
+  IF @hasAssetScope = 1 INSERT INTO @AssetScope SELECT DISTINCT CONVERT(NVARCHAR(255), [value]) FROM OPENJSON(@asset_ids_json) WHERE [type] IN (1, 2);
+  IF @hasSystemScope = 1 INSERT INTO @SystemScope SELECT DISTINCT CONVERT(NVARCHAR(255), [value]) FROM OPENJSON(@system_ids_json) WHERE [type] IN (1, 2);
+  IF @hasNetworkScope = 1 INSERT INTO @NetworkScope SELECT DISTINCT CONVERT(NVARCHAR(255), [value]) FROM OPENJSON(@network_ids_json) WHERE [type] IN (1, 2);
+
+  DECLARE @Assets TABLE ([asset_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [network_id] NVARCHAR(255) NOT NULL, [system_id] NVARCHAR(255) NULL, [security_domain] NVARCHAR(20) NOT NULL, [system_criticality] NVARCHAR(20) NULL);
+  INSERT INTO @Assets
+  SELECT a.[asset_id], a.[network_id], a.[system_id], a.[security_domain], s.[criticality]
+  FROM [tsaat].[asset] AS a
+  LEFT JOIN [tsaat].[ict_system] AS s ON s.[snapshot_id] = a.[snapshot_id] AND s.[system_id] = a.[system_id]
+  WHERE a.[snapshot_id] = @snapshot_id AND (@hasAssetScope = 0 OR EXISTS (SELECT 1 FROM @AssetScope AS scope WHERE scope.[asset_id] = a.[asset_id]));
+
+  DECLARE @Systems TABLE ([system_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [network_id] NVARCHAR(255) NOT NULL, [diis_defined] BIT NOT NULL, [modelling_status] BIT NOT NULL);
+  INSERT INTO @Systems
+  SELECT s.[system_id], s.[network_id], s.[diis_defined], s.[modelling_status]
+  FROM [tsaat].[ict_system] AS s
+  WHERE s.[snapshot_id] = @snapshot_id AND (@hasSystemScope = 0 OR EXISTS (SELECT 1 FROM @SystemScope AS scope WHERE scope.[system_id] = s.[system_id]));
+
+  DECLARE @Networks TABLE ([network_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [discovery_status] NVARCHAR(40) NOT NULL);
+  INSERT INTO @Networks
+  SELECT n.[network_id], n.[discovery_status]
+  FROM [tsaat].[managed_network] AS n
+  WHERE n.[snapshot_id] = @snapshot_id AND (@hasNetworkScope = 0 OR EXISTS (SELECT 1 FROM @NetworkScope AS scope WHERE scope.[network_id] = n.[network_id]));
+
+  DECLARE @SpiEvaluations TABLE ([snapshot_id] BIGINT NOT NULL, [asset_id] NVARCHAR(255) NOT NULL, [spi_id] INT NOT NULL, [display_order] INT NOT NULL, [compliance_status] NVARCHAR(20) NOT NULL, [outcome_key] NVARCHAR(100) NOT NULL, [evidence_json] NVARCHAR(MAX) NOT NULL);
+  INSERT INTO @SpiEvaluations EXEC [tsaat].[usp_evaluate_spi_snapshot] @snapshot_id = @snapshot_id;
+  DELETE se FROM @SpiEvaluations AS se WHERE NOT EXISTS (SELECT 1 FROM @Assets AS a WHERE a.[asset_id] = se.[asset_id]);
+
+  DECLARE @Discovery TABLE ([snapshot_id] BIGINT NOT NULL, [asset_id] NVARCHAR(255) NOT NULL, [coverage_compliance] BIT NOT NULL, [tool_values_json] NVARCHAR(MAX) NOT NULL, [missing_tool_ids_json] NVARCHAR(MAX) NOT NULL, [missing_tool_names_json] NVARCHAR(MAX) NOT NULL);
+  INSERT INTO @Discovery EXEC [tsaat].[usp_evaluate_discovery_coverage_snapshot] @snapshot_id = @snapshot_id, @asset_ids_json = @asset_ids_json, @emit_json = 0;
+
+  DECLARE @Findings TABLE ([asset_id] NVARCHAR(255) NOT NULL, [severity] NVARCHAR(30) NOT NULL, [priority_rank] INT NOT NULL);
+  IF ISJSON(@effective_findings_json) = 1
+  BEGIN
+    INSERT INTO @Findings ([asset_id], [severity], [priority_rank])
+    SELECT [asset_id], [severity], [priority_rank]
+    FROM OPENJSON(@effective_findings_json) WITH ([asset_id] NVARCHAR(255) '$.assetId', [severity] NVARCHAR(30) '$.severity', [priority_rank] INT '$.priorityRank')
+    WHERE [asset_id] IS NOT NULL AND EXISTS (SELECT 1 FROM @Assets AS a WHERE a.[asset_id] = [asset_id]);
+  END;
+
+  DECLARE @overallUnknown INT = (SELECT COUNT(*) FROM @SpiEvaluations WHERE [compliance_status] = N'Unknown');
+  DECLARE @Metric TABLE ([calculation_key] NVARCHAR(100) NOT NULL PRIMARY KEY, [score] NVARCHAR(100) NOT NULL, [score_percent] DECIMAL(9,1) NOT NULL, [compliant_count] INT NOT NULL, [applicable_count] INT NOT NULL, [non_compliant_count] INT NOT NULL, [unknown_count] INT NOT NULL, [high_priority_count] INT NOT NULL);
+
+  ;WITH base AS (
+    SELECT se.[compliance_status], a.[security_domain], a.[system_criticality], a.[asset_id], a.[system_id]
+    FROM @SpiEvaluations AS se INNER JOIN @Assets AS a ON a.[asset_id] = se.[asset_id]
+  ),
+  grouped AS (
+    SELECT N'overall-spi-compliance' AS [calculation_key], COUNT(*) AS [total], SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END) AS [compliant], SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END) AS [non_compliant], SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END) AS [unknown], (SELECT COUNT(*) FROM @Findings WHERE [priority_rank] <= 2) AS [high_priority] FROM base
+    UNION ALL SELECT N'protected-domain-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS fa ON fa.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND fa.[security_domain] = N'Protected') FROM base WHERE [security_domain] = N'Protected'
+    UNION ALL SELECT N'secret-domain-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS fa ON fa.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND fa.[security_domain] = N'Secret') FROM base WHERE [security_domain] = N'Secret'
+    UNION ALL SELECT N'critical-ict-system-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS fa ON fa.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND fa.[system_criticality] = N'Critical') FROM base WHERE [system_criticality] = N'Critical'
+  )
+  INSERT INTO @Metric
+  SELECT [calculation_key], CONVERT(NVARCHAR(40), CAST(CASE WHEN [total] = 0 THEN 0 ELSE ROUND(([compliant] * 100.0) / [total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE([compliant], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE([total], 0)) + N')', CAST(CASE WHEN [total] = 0 THEN 0 ELSE ROUND(([compliant] * 100.0) / [total], 1) END AS DECIMAL(9,1)), COALESCE([compliant], 0), COALESCE([total], 0), COALESCE([non_compliant], 0), COALESCE([unknown], 0), COALESCE([high_priority], 0)
+  FROM grouped;
+
+  DECLARE @findingTotal INT = (SELECT COUNT(*) FROM @Findings);
+  DECLARE @criticalExposure INT = (SELECT COUNT(*) FROM @Findings WHERE [severity] = N'Critical Exposure');
+  INSERT INTO @Metric VALUES (N'critical-exposure-in-production', CONVERT(NVARCHAR(20), @criticalExposure), CAST(CASE WHEN @findingTotal = 0 THEN 0 ELSE ROUND(((CAST(@findingTotal - @criticalExposure AS DECIMAL(18,4))) * 100.0) / @findingTotal, 1) END AS DECIMAL(9,1)), CASE WHEN @findingTotal - @criticalExposure < 0 THEN 0 ELSE @findingTotal - @criticalExposure END, @findingTotal, @criticalExposure, @overallUnknown, @criticalExposure);
+
+  DECLARE @discoveryTotal INT = (SELECT COUNT(*) FROM @Discovery);
+  DECLARE @discoveryCompliant INT = (SELECT COUNT(*) FROM @Discovery WHERE [coverage_compliance] = 1);
+  INSERT INTO @Metric VALUES (N'discovery-coverage-compliance', CONVERT(NVARCHAR(40), CAST(CASE WHEN @discoveryTotal = 0 THEN 0 ELSE ROUND((@discoveryCompliant * 100.0) / @discoveryTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @discoveryCompliant) + N'/' + CONVERT(NVARCHAR(20), @discoveryTotal) + N')', CAST(CASE WHEN @discoveryTotal = 0 THEN 0 ELSE ROUND((@discoveryCompliant * 100.0) / @discoveryTotal, 1) END AS DECIMAL(9,1)), @discoveryCompliant, @discoveryTotal, @discoveryTotal - @discoveryCompliant, 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Discovery AS d ON d.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND d.[coverage_compliance] = 0));
+
+  ;WITH scoped_systems AS (SELECT DISTINCT [system_id] FROM @Assets WHERE [system_id] IS NOT NULL),
+  ato AS (SELECT [system_id], CASE WHEN [tsaat].[fn_kpi_stable_hash]([system_id] + N':ato') % 5 <> 0 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
+  diis AS (SELECT [system_id], CASE WHEN [tsaat].[fn_kpi_stable_hash]([system_id] + N':diis') % 4 <> 1 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems)
+  INSERT INTO @Metric
+  SELECT N'active-ato-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(SUM([compliant]), 0)) + N'/' + CONVERT(NVARCHAR(20), COUNT(*)) + N')', CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1)), COALESCE(SUM([compliant]), 0), COUNT(*), COUNT(*) - COALESCE(SUM([compliant]), 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS a ON a.[asset_id] = f.[asset_id] INNER JOIN ato AS ato_rows ON ato_rows.[system_id] = a.[system_id] WHERE f.[priority_rank] <= 2 AND ato_rows.[compliant] = 0) FROM ato
+  UNION ALL
+  SELECT N'diis-registration-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(SUM([compliant]), 0)) + N'/' + CONVERT(NVARCHAR(20), COUNT(*)) + N')', CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1)), COALESCE(SUM([compliant]), 0), COUNT(*), COUNT(*) - COALESCE(SUM([compliant]), 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS a ON a.[asset_id] = f.[asset_id] INNER JOIN diis AS diis_rows ON diis_rows.[system_id] = a.[system_id] WHERE f.[priority_rank] <= 2 AND diis_rows.[compliant] = 0) FROM diis;
+
+  DECLARE @diisSystemTotal INT = (SELECT COUNT(*) FROM @Systems WHERE [diis_defined] = 1);
+  DECLARE @diisSystemModelled INT = (SELECT COUNT(*) FROM @Systems WHERE [diis_defined] = 1 AND [modelling_status] = 1);
+  INSERT INTO @Metric VALUES (N'diis-modelled-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN @diisSystemTotal = 0 THEN 0 ELSE ROUND((@diisSystemModelled * 100.0) / @diisSystemTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @diisSystemModelled) + N'/' + CONVERT(NVARCHAR(20), @diisSystemTotal) + N')', CAST(CASE WHEN @diisSystemTotal = 0 THEN 0 ELSE ROUND((@diisSystemModelled * 100.0) / @diisSystemTotal, 1) END AS DECIMAL(9,1)), @diisSystemModelled, @diisSystemTotal, @diisSystemTotal - @diisSystemModelled, 0, @diisSystemTotal - @diisSystemModelled);
+
+  DECLARE @networkTotal INT = (SELECT COUNT(*) FROM @Networks);
+  DECLARE @networkEnabled INT = (SELECT COUNT(*) FROM @Networks WHERE [discovery_status] = N'Discovery Enabled');
+  INSERT INTO @Metric VALUES (N'network-discovery-enablement', CONVERT(NVARCHAR(40), CAST(CASE WHEN @networkTotal = 0 THEN 0 ELSE ROUND((@networkEnabled * 100.0) / @networkTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @networkEnabled) + N'/' + CONVERT(NVARCHAR(20), @networkTotal) + N')', CAST(CASE WHEN @networkTotal = 0 THEN 0 ELSE ROUND((@networkEnabled * 100.0) / @networkTotal, 1) END AS DECIMAL(9,1)), @networkEnabled, @networkTotal, @networkTotal - @networkEnabled, 0, @networkTotal - @networkEnabled);
+
+  IF @emit_json = 1
+  BEGIN
+    SELECT kd.[kpi_id] AS [kpiId], kd.[display_order] AS [displayOrder], kd.[calculation_key] AS [calculationKey], metric.[score] AS [score], metric.[score_percent] AS [scorePercent], metric.[compliant_count] AS [compliantCount], metric.[applicable_count] AS [applicableCount], metric.[non_compliant_count] AS [nonCompliantCount], metric.[unknown_count] AS [unknownCount], metric.[high_priority_count] AS [highPriorityCount]
+    FROM [tsaat].[kpi_definition] AS kd
+    INNER JOIN [tsaat].[kpi_calculation_definition] AS kcd ON kcd.[calculation_key] = kd.[calculation_key] AND kcd.[enabled] = 1
+    INNER JOIN @Metric AS metric ON metric.[calculation_key] = kd.[calculation_key]
+    WHERE kd.[enabled] = 1
+    ORDER BY kd.[display_order], kd.[kpi_id]
+    FOR JSON PATH;
+    RETURN;
+  END;
+
+  SELECT @snapshot_id AS [snapshot_id], kd.[kpi_id], kd.[display_order], kd.[calculation_key], metric.[score], metric.[score_percent], metric.[compliant_count], metric.[applicable_count], metric.[non_compliant_count], metric.[unknown_count], metric.[high_priority_count]
+  FROM [tsaat].[kpi_definition] AS kd
+  INNER JOIN [tsaat].[kpi_calculation_definition] AS kcd ON kcd.[calculation_key] = kd.[calculation_key] AND kcd.[enabled] = 1
+  INNER JOIN @Metric AS metric ON metric.[calculation_key] = kd.[calculation_key]
+  WHERE kd.[enabled] = 1
+  ORDER BY kd.[display_order], kd.[kpi_id];
 END;
 GO
 

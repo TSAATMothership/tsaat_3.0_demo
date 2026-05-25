@@ -1,17 +1,41 @@
-export const KPI_CALCULATION_KEYS = [
-  "overall-spi-compliance",
-  "protected-domain-compliance",
-  "secret-domain-compliance",
-  "critical-ict-system-compliance",
-  "critical-exposure-in-production",
-  "discovery-coverage-compliance",
-  "active-ato-coverage",
-  "diis-registration-coverage",
-  "diis-modelled-coverage",
-  "network-discovery-enablement"
-] as const;
+export type KpiCalculationKey = string;
 
-export type KpiCalculationKey = (typeof KPI_CALCULATION_KEYS)[number];
+export interface KpiTaskingTeam {
+  displayOrder: number;
+  team: string;
+  supportQueue: string;
+  contactEmail: string;
+}
+
+export interface KpiTaskingActionTemplate {
+  displayOrder: number;
+  conditionKey: "always" | "when_unknown" | "when_fully_compliant";
+  actionText: string;
+}
+
+export interface KpiTaskingConditionTemplates {
+  non_compliant?: string;
+  unknown?: string;
+  compliant?: string;
+}
+
+export interface KpiReportDetailDefinition {
+  reportDetailKey: string;
+  handlerKey: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+export interface KpiCalculationDefinition {
+  calculationKey: string;
+  sourceKey: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
 
 export interface KpiDefinition {
   id: string;
@@ -21,10 +45,16 @@ export interface KpiDefinition {
   successMeasure: string;
   calculationKey: KpiCalculationKey;
   reportAvailable: boolean;
+  enabled: boolean;
+  calculationDefinition?: KpiCalculationDefinition;
+  reportDetailDefinition?: KpiReportDetailDefinition;
+  taskingTeams: KpiTaskingTeam[];
+  taskingActions: KpiTaskingActionTemplate[];
+  taskingConditions: KpiTaskingConditionTemplates;
 }
 
 function isKpiCalculationKey(value: unknown): value is KpiCalculationKey {
-  return typeof value === "string" && KPI_CALCULATION_KEYS.includes(value as KpiCalculationKey);
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function nonEmptyText(value: unknown): string | null {
@@ -95,6 +125,73 @@ export function normalizeKpiDefinitions(input: unknown): KpiDefinition[] {
 
     seenIds.add(normalizedId);
     seenDisplayOrders.add(displayOrder);
+    const taskingConditions: KpiTaskingConditionTemplates = {};
+    const rawConditions = Array.isArray(row.taskingConditions) ? row.taskingConditions : [];
+    for (const condition of rawConditions) {
+      if (!condition || typeof condition !== "object") {
+        continue;
+      }
+      const conditionRow = condition as Record<string, unknown>;
+      const conditionKey = nonEmptyText(conditionRow.conditionKey);
+      const templateText = nonEmptyText(conditionRow.templateText);
+      if (
+        templateText &&
+        (conditionKey === "non_compliant" || conditionKey === "unknown" || conditionKey === "compliant")
+      ) {
+        taskingConditions[conditionKey] = templateText;
+      }
+    }
+
+    const taskingTeams = (Array.isArray(row.taskingTeams) ? row.taskingTeams : [])
+      .map((team): KpiTaskingTeam | null => {
+        if (!team || typeof team !== "object") {
+          return null;
+        }
+        const teamRow = team as Record<string, unknown>;
+        const teamName = nonEmptyText(teamRow.team);
+        const supportQueue = nonEmptyText(teamRow.supportQueue);
+        const contactEmail = nonEmptyText(teamRow.contactEmail);
+        const teamDisplayOrder = Number(teamRow.displayOrder);
+        if (!teamName || !supportQueue || !contactEmail || !Number.isInteger(teamDisplayOrder) || teamDisplayOrder < 1) {
+          return null;
+        }
+        return { displayOrder: teamDisplayOrder, team: teamName, supportQueue, contactEmail };
+      })
+      .filter((team): team is KpiTaskingTeam => Boolean(team))
+      .sort((left, right) => left.displayOrder - right.displayOrder || left.team.localeCompare(right.team));
+
+    const taskingActions = (Array.isArray(row.taskingActions) ? row.taskingActions : [])
+      .map((action): KpiTaskingActionTemplate | null => {
+        if (!action || typeof action !== "object") {
+          return null;
+        }
+        const actionRow = action as Record<string, unknown>;
+        const conditionKey = nonEmptyText(actionRow.conditionKey);
+        const actionText = nonEmptyText(actionRow.actionText);
+        const actionDisplayOrder = Number(actionRow.displayOrder);
+        if (
+          !actionText ||
+          !Number.isInteger(actionDisplayOrder) ||
+          actionDisplayOrder < 1 ||
+          (conditionKey !== "always" && conditionKey !== "when_unknown" && conditionKey !== "when_fully_compliant")
+        ) {
+          return null;
+        }
+        return { displayOrder: actionDisplayOrder, conditionKey, actionText };
+      })
+      .filter((action): action is KpiTaskingActionTemplate => Boolean(action))
+      .sort((left, right) => left.displayOrder - right.displayOrder || left.actionText.localeCompare(right.actionText));
+
+    const calculationDefinition = row.calculationDefinition as KpiCalculationDefinition | undefined;
+    const reportDetailDefinition = row.reportDetailDefinition as KpiReportDetailDefinition | undefined;
+
+    if (calculationDefinition && calculationDefinition.enabled === false) {
+      continue;
+    }
+    if (row.reportDetailDefinition && !reportDetailDefinition?.enabled) {
+      continue;
+    }
+
     definitions.push({
       id: normalizedId,
       displayOrder,
@@ -102,11 +199,17 @@ export function normalizeKpiDefinitions(input: unknown): KpiDefinition[] {
       description,
       successMeasure,
       calculationKey,
-      reportAvailable: coerceBoolean(row.reportAvailable)
+      reportAvailable: coerceBoolean(row.reportAvailable),
+      enabled: coerceBoolean(row.enabled ?? true),
+      calculationDefinition,
+      reportDetailDefinition,
+      taskingTeams,
+      taskingActions,
+      taskingConditions
     });
   }
 
-  return definitions.sort((left, right) => {
+  return definitions.filter((definition) => definition.enabled).sort((left, right) => {
     if (left.displayOrder !== right.displayOrder) {
       return left.displayOrder - right.displayOrder;
     }
@@ -123,7 +226,15 @@ export function kpiDefinitionsCacheSignature(kpiDefinitions: KpiDefinition[]): s
       definition.description,
       definition.successMeasure,
       definition.calculationKey,
-      definition.reportAvailable
+      definition.reportAvailable,
+      definition.enabled,
+      definition.reportDetailDefinition?.reportDetailKey ?? "",
+      definition.reportDetailDefinition?.handlerKey ?? "",
+      (definition.taskingTeams ?? []).map((team) => [team.displayOrder, team.team, team.supportQueue, team.contactEmail]),
+      (definition.taskingActions ?? []).map((action) => [action.displayOrder, action.conditionKey, action.actionText]),
+      definition.taskingConditions?.non_compliant ?? "",
+      definition.taskingConditions?.unknown ?? "",
+      definition.taskingConditions?.compliant ?? ""
     ])
   );
 }

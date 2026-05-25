@@ -58,12 +58,103 @@ erDiagram
   spi_definition ||--o{ spi_tasking_action_template : "spi_id"
   spi_definition ||--o{ spi_tasking_condition_template : "spi_id"
   spi_definition ||--o{ spi_feature_binding : "spi_id"
+  kpi_calculation_source ||--o{ kpi_calculation_definition : "source_key"
+  kpi_calculation_definition ||--o{ kpi_calculation_parameter : "calculation_key"
+  kpi_calculation_definition ||--o{ kpi_definition : "calculation_key"
+  kpi_definition ||--o{ kpi_report_detail_binding : "kpi_id"
+  kpi_report_detail_definition ||--o{ kpi_report_detail_binding : "report_detail_key"
+  kpi_definition ||--o{ kpi_tasking_team : "kpi_id"
+  kpi_definition ||--o{ kpi_tasking_action_template : "kpi_id"
+  kpi_definition ||--o{ kpi_tasking_condition_template : "kpi_id"
+  discovery_coverage_source ||--o{ discovery_tool_detection_rule : "source_key"
+  discovery_tool ||--o{ discovery_tool_detection_definition : "tool_id"
+  discovery_tool_detection_definition ||--o{ discovery_tool_detection_rule : "detection_key"
+  discovery_tool_detection_rule ||--o{ discovery_tool_detection_rule_value : "detection_key"
 
   kpi_definition {
     string kpi_id
     int display_order
     string calculation_key
+    boolean enabled
     boolean report_available
+  }
+
+  kpi_calculation_source {
+    string source_key
+    string source_object_name
+    int display_order
+    boolean enabled
+  }
+
+  kpi_calculation_definition {
+    string calculation_key
+    string source_key
+    string handler_key
+    int display_order
+    boolean enabled
+  }
+
+  kpi_calculation_parameter {
+    string calculation_key
+    string parameter_key
+    string parameter_type
+    boolean required
+  }
+
+  kpi_report_detail_definition {
+    string report_detail_key
+    string handler_key
+    int display_order
+    boolean enabled
+  }
+
+  kpi_report_detail_binding {
+    string kpi_id
+    string report_detail_key
+  }
+
+  kpi_tasking_team {
+    string kpi_id
+    int display_order
+    string team
+  }
+
+  kpi_tasking_action_template {
+    string kpi_id
+    int display_order
+    string condition_key
+  }
+
+  kpi_tasking_condition_template {
+    string kpi_id
+    string condition_key
+  }
+
+  discovery_coverage_source {
+    string source_key
+    string source_object_name
+    int display_order
+    boolean enabled
+  }
+
+  discovery_tool_detection_definition {
+    string detection_key
+    string tool_id
+    string handler_key
+    boolean enabled
+  }
+
+  discovery_tool_detection_rule {
+    string detection_key
+    string source_key
+    string condition_key
+    boolean enabled
+  }
+
+  discovery_tool_detection_rule_value {
+    string detection_key
+    string value_key
+    string value_text
   }
 
   spi_definition {
@@ -243,7 +334,12 @@ erDiagram
   - `spi_rule_parameter` stores typed parameters consumed by SQL helper functions during SPI evaluation.
   - `spi_tasking_team`, `spi_tasking_action_template`, and `spi_tasking_condition_template` store tasking contacts and report text templates.
 - SPI calculations are SQL-driven at runtime through approved read-only expressions over approved context objects; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
-- `kpi_definition` stores database-driven KPI catalogue metadata, calculation keys, display order, and report availability.
+- KPI and discovery coverage metadata is database-driven:
+  - `kpi_definition` stores KPI catalogue text, display order, enabled flag, calculation key, and report availability.
+  - `kpi_calculation_source`, `kpi_calculation_definition`, and `kpi_calculation_parameter` store SQL-backed KPI calculation metadata evaluated by `usp_evaluate_kpi_snapshot`.
+  - `kpi_report_detail_definition`, `kpi_report_detail_binding`, `kpi_tasking_team`, `kpi_tasking_action_template`, and `kpi_tasking_condition_template` store KPI report/tasking metadata.
+  - `discovery_coverage_source`, `discovery_tool_detection_definition`, `discovery_tool_detection_rule`, and `discovery_tool_detection_rule_value` store SQL-backed discovery coverage detection rules evaluated by `usp_evaluate_discovery_coverage_snapshot`.
+- KPI and discovery coverage calculations are SQL-driven at runtime through approved stored procedures and seeded rule rows; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
 - Finding features are database-driven:
   - `finding_source_policy` and `finding_generation_policy` control persisted-first effective finding selection and generated fallback policy.
   - `finding_workflow_status_definition`, `finding_bucket_definition`, `finding_evidence_field_definition`, and `finding_register_column_definition` store workflow, grouping, evidence display, and register/export semantics.

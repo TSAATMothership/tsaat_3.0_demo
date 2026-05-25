@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
-import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
@@ -9,7 +9,6 @@ import {
   loadSeverityDefinitions,
   loadSpiDefinitions
 } from "@/lib/data-loader";
-import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import {
   buildScopedDiscoveryToolCoverage,
   discoveryCoverageValueLabel
@@ -58,8 +57,8 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function isDiscoveryCoverageCompliant(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings): boolean {
-  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+function isDiscoveryCoverageCompliant(asset: Asset, coverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>): boolean {
+  const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
   return coverage.coverageCompliance;
 }
 
@@ -72,6 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: { systemId
     loadSeverityDefinitions()
   ]);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
 
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
   if (!system) {
@@ -163,14 +163,18 @@ export async function GET(request: NextRequest, { params }: { params: { systemId
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !isDiscoveryCoverageCompliant(asset, discoveryToolsSettings);
+      return !isDiscoveryCoverageCompliant(asset, storedDiscoveryCoverageByAsset);
     }
     return true;
   };
 
   const scopedAssets = (selectedKpiFilter ? searchMatchedAssets.filter((asset) => matchesSelectedKpiFilter(asset)) : searchMatchedAssets)
     .filter((asset) => !selectedEnvironment || asset.systemContext?.environmentType === selectedEnvironment);
-  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(scopedAssets, discoveryToolsSettings);
+  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(
+    scopedAssets,
+    discoveryToolsSettings,
+    dataset.discoveryCoverageEvaluations
+  );
   const rows = scopedAssets
     .map((asset) => {
       const coverage = discoveryToolCoverageModel.assetCoverageById.get(asset.id);

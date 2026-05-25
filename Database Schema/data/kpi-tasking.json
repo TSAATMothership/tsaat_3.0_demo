@@ -1,0 +1,106 @@
+{
+  "baseTeams": [
+    {
+      "displayOrder": 90,
+      "team": "Cyber Governance and Assurance Team",
+      "supportQueue": "CGA-ASSURANCE",
+      "contactEmail": "cga.assurance@defence.local"
+    }
+  ],
+  "kpis": [
+    {
+      "id": "KPI-1",
+      "teams": [{ "displayOrder": 1, "team": "Cyber Governance and Assurance Team", "supportQueue": "CGA-POSTURE", "contactEmail": "cga.posture@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Prioritize recovery of non-compliant SPI domains with strongest operational impact." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Set two-week checkpoint for compliance uplift verification." }
+      ]
+    },
+    {
+      "id": "KPI-2",
+      "teams": [{ "displayOrder": 1, "team": "Vulnerability Operations Team", "supportQueue": "CYBER-VULN-OPS", "contactEmail": "vuln.ops@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Open remediation tasks for all failing SPI checks and assign accountable owner." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Track closure rate weekly until backlog reaches target." }
+      ]
+    },
+    {
+      "id": "KPI-3",
+      "teams": [{ "displayOrder": 1, "team": "Data Quality and Asset Intelligence Team", "supportQueue": "CYBER-DATA-QUALITY", "contactEmail": "asset.data@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Resolve unknown data fields in asset, lifecycle, and patch records." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Implement data completeness guardrails in ingestion workflow." }
+      ]
+    },
+    {
+      "id": "KPI-4",
+      "teams": [{ "displayOrder": 1, "team": "Production Security Response Team", "supportQueue": "CYBER-PROD-RESP", "contactEmail": "prod.response@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Trigger immediate high-risk production mitigation workflow." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Require executive escalation for unresolved high-risk items older than 48 hours." }
+      ]
+    },
+    {
+      "id": "KPI-5",
+      "teams": [{ "displayOrder": 1, "team": "Critical Exposure Response Cell", "supportQueue": "CYBER-CRIT-EXPOSURE", "contactEmail": "crit.exposure@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Contain and remediate all production critical-exposure assets." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Validate compensating controls where immediate patching is not feasible." }
+      ]
+    },
+    {
+      "id": "KPI-6",
+      "teams": [{ "displayOrder": 1, "team": "Joint Cyber Operations Tasking Team", "supportQueue": "CYBER-TASKING", "contactEmail": "tasking.ops@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Re-balance operations workload to close priority 1-2 items first." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Run daily command stand-up until immediate backlog returns to target." }
+      ]
+    },
+    {
+      "id": "KPI-7",
+      "teams": [{ "displayOrder": 1, "team": "ICT Governance and Accreditation Team", "supportQueue": "ICT-ATO-GOV", "contactEmail": "ato.governance@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Validate ATO currency for non-compliant ICT systems and initiate renewal workflows." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Escalate expired or missing ATO records to ICT governance authority." }
+      ]
+    },
+    {
+      "id": "KPI-8",
+      "teams": [{ "displayOrder": 1, "team": "ICT Registry and Integration Team", "supportQueue": "ICT-DIIS-REG", "contactEmail": "diis.registry@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Register all non-compliant ICT systems within DIIS and verify metadata completeness." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Set weekly reconciliation between ICT system inventory and DIIS register." }
+      ]
+    },
+    {
+      "id": "KPI-9",
+      "teams": [{ "displayOrder": 1, "team": "ICT Modelling and Architecture Team", "supportQueue": "ICT-MODELLING", "contactEmail": "ict.modelling@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Prioritize DIIS systems with no model and assign modelling owners." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Track modelling completion weekly until DIIS model coverage reaches target." }
+      ]
+    },
+    {
+      "id": "KPI-10",
+      "teams": [{ "displayOrder": 1, "team": "Network Discovery Operations Team", "supportQueue": "NETWORK-DISCOVERY", "contactEmail": "network.discovery@defence.local" }],
+      "actions": [
+        { "displayOrder": 1, "conditionKey": "always", "actionText": "Enable discovery on all defined networks currently marked Discovery Non Enabled." },
+        { "displayOrder": 2, "conditionKey": "always", "actionText": "Apply weekly validation against network inventory to keep discovery status current." }
+      ]
+    }
+  ],
+  "conditionTemplates": [
+    {
+      "conditionKey": "non_compliant",
+      "templateText": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation."
+    },
+    {
+      "conditionKey": "unknown",
+      "templateText": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+    },
+    {
+      "conditionKey": "compliant",
+      "templateText": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition."
+    }
+  ]
+}

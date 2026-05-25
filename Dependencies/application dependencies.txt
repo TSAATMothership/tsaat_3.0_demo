@@ -72,8 +72,14 @@ CreateDB.cmd and Database Schema\loaders\build-and-load-database.ps1 consume can
 - Database Schema\data\spi-rule-definitions.json
 - Database Schema\data\spi-report-detail-definitions.json
 - Database Schema\data\spi-finding-classification-rules.json
+- Database Schema\data\spi-sql-calculations.json
+- Database Schema\data\finding-definitions.json
 - Database Schema\data\severity-definitions.json
 - Database Schema\data\kpi-definitions.json
+- Database Schema\data\kpi-calculations.json
+- Database Schema\data\kpi-report-detail-definitions.json
+- Database Schema\data\kpi-tasking.json
+- Database Schema\data\discovery-coverage-rules.json
 - Database Schema\data\discovery-tools-settings.json
 - Database Schema\data\measures-settings.json
 - Database Schema\data\reference-versions.json

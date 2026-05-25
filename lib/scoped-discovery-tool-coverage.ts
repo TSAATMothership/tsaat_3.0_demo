@@ -1,6 +1,6 @@
-import { evaluateDiscoveryCoverage, type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId, type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import type { Asset } from "@/lib/types";
+import type { Asset, StoredDiscoveryCoverageEvaluation } from "@/lib/types";
 
 export interface ScopedDiscoveryToolColumn {
   id: string;
@@ -52,15 +52,17 @@ export function discoveryCoverageValueLabel(value: DiscoveryCoverageValue | unde
 
 export function buildScopedDiscoveryToolCoverage(
   assets: Asset[],
-  settings: DiscoveryToolsSettings
+  settings: DiscoveryToolsSettings,
+  discoveryCoverageEvaluations: StoredDiscoveryCoverageEvaluation[] = []
 ): ScopedDiscoveryToolCoverageModel {
   const assetTypes = new Set(assets.map((asset) => asset.type));
+  const coverageByAsset = discoveryCoverageByAssetId(discoveryCoverageEvaluations);
   const toolColumns = settings.tools
     .filter((tool) => Array.from(assetTypes).some((assetType) => tool.assetTypeScope[assetType] !== "na"))
     .map((tool) => ({ id: tool.id, label: tool.name }));
 
   const assetCoverages = assets.map((asset) => {
-    const coverage = evaluateDiscoveryCoverage(asset, settings);
+    const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
     return {
       assetId: asset.id,
       toolValues: coverage.toolValues,

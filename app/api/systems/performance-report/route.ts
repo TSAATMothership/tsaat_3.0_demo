@@ -10,7 +10,10 @@ import {
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
 import { createPerformanceReportPdf } from "@/lib/performance-report-pdf";
-import { buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
+import {
+  buildPerformanceKpiRowsByMatrixRowId,
+  buildSystemPerformanceReportModel
+} from "@/lib/performance-report-model";
 import { filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +40,14 @@ export async function GET(request: NextRequest) {
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   const networks = filterNetworks(dataset.managedNetworks, filters);
   const systems = filterSystems(dataset.ictSystems, filters);
+  const kpiRowsByMatrixRowId = await buildPerformanceKpiRowsByMatrixRowId({
+    scopeType: "system",
+    dataset,
+    analytics,
+    networks,
+    systems,
+    kpiDefinitions
+  });
   const model = buildSystemPerformanceReportModel({
     dataset,
     analytics,
@@ -44,6 +55,7 @@ export async function GET(request: NextRequest) {
     networks,
     systems,
     kpiDefinitions,
+    kpiRowsByMatrixRowId,
     spiDefinitions,
     severityDefinitions,
     asOfDate: selectedDataDate ?? dataset.snapshotDate

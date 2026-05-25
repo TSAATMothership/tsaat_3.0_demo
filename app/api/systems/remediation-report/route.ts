@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
-import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import {
   loadCurrentDataset,
   loadDiscoveryToolsSettings,
@@ -9,7 +9,6 @@ import {
   loadSeverityDefinitions,
   loadSpiDefinitions
 } from "@/lib/data-loader";
-import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { applyAssetFilters, filterSystems, parseFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus } from "@/lib/types";
@@ -38,8 +37,8 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
-  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+function discoveryCoverageForAsset(asset: Asset, coverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>) {
+  const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
   return {
     missingTools: coverage.missingToolNames,
     coverageCompliance: coverage.coverageCompliance
@@ -156,6 +155,7 @@ export async function GET(request: NextRequest) {
     loadSpiDefinitions(),
     loadSeverityDefinitions()
   ]);
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
   const discoveryCoverageServerGaps = filteredAssets
     .filter((asset) => asset.type === "server")
     .map((asset) => {
-      const coverage = discoveryCoverageForAsset(asset, discoveryToolsSettings);
+      const coverage = discoveryCoverageForAsset(asset, storedDiscoveryCoverageByAsset);
       return {
         assetId: asset.id,
         hostname: asset.hostname,

@@ -8,7 +8,8 @@
       "description": "Share of compliant checks across all applicable SPI evaluations in current filter scope.",
       "successMeasure": "Target >= 95% compliant checks.",
       "calculationKey": "overall-spi-compliance",
-      "reportAvailable": false
+      "reportAvailable": false,
+      "enabled": true
     },
     {
       "id": "KPI-2",
@@ -17,7 +18,8 @@
       "description": "Share of compliant SPI checks for Defence Protected Environment (Protected security domain) assets in scope.",
       "successMeasure": "Target >= 95% compliant checks for DPE assets.",
       "calculationKey": "protected-domain-compliance",
-      "reportAvailable": false
+      "reportAvailable": false,
+      "enabled": true
     },
     {
       "id": "KPI-3",
@@ -26,7 +28,8 @@
       "description": "Share of compliant SPI checks for Defence Secret Environment (Secret security domain) assets in scope.",
       "successMeasure": "Target >= 95% compliant checks for DSE assets.",
       "calculationKey": "secret-domain-compliance",
-      "reportAvailable": false
+      "reportAvailable": false,
+      "enabled": true
     },
     {
       "id": "KPI-4",
@@ -35,7 +38,8 @@
       "description": "Share of compliant SPI checks for assets assigned to ICT systems marked as Critical.",
       "successMeasure": "Target >= 95% compliant checks on Critical ICT Systems.",
       "calculationKey": "critical-ict-system-compliance",
-      "reportAvailable": false
+      "reportAvailable": false,
+      "enabled": true
     },
     {
       "id": "KPI-5",
@@ -44,7 +48,8 @@
       "description": "Production assets with critical-vulnerability exposure requiring urgent treatment.",
       "successMeasure": "Target = 0 critical exposure findings.",
       "calculationKey": "critical-exposure-in-production",
-      "reportAvailable": true
+      "reportAvailable": true,
+      "enabled": true
     },
     {
       "id": "KPI-6",
@@ -53,7 +58,8 @@
       "description": "Share of in-scope assets meeting discovery coverage across required tooling checkpoints.",
       "successMeasure": "Target = 100% discovery coverage compliance.",
       "calculationKey": "discovery-coverage-compliance",
-      "reportAvailable": true
+      "reportAvailable": true,
+      "enabled": true
     },
     {
       "id": "KPI-7",
@@ -62,7 +68,8 @@
       "description": "Share of in-scope ICT systems with an active Authority to Operate (ATO) record.",
       "successMeasure": "Target = 100% of ICT systems with active ATO.",
       "calculationKey": "active-ato-coverage",
-      "reportAvailable": true
+      "reportAvailable": true,
+      "enabled": true
     },
     {
       "id": "KPI-8",
@@ -71,7 +78,8 @@
       "description": "Share of in-scope ICT systems registered in the DIIS register.",
       "successMeasure": "Target = 100% of ICT systems registered within DIIS.",
       "calculationKey": "diis-registration-coverage",
-      "reportAvailable": true
+      "reportAvailable": true,
+      "enabled": true
     },
     {
       "id": "KPI-9",
@@ -80,7 +88,8 @@
       "description": "Share of ICT systems defined in DIIS that have been modelled in TSAAT.",
       "successMeasure": "Target = 100% of DIIS-defined ICT systems are modelled.",
       "calculationKey": "diis-modelled-coverage",
-      "reportAvailable": true
+      "reportAvailable": true,
+      "enabled": true
     },
     {
       "id": "KPI-10",
@@ -89,7 +98,8 @@
       "description": "Share of defined managed networks with discovery status set to Discovery Enabled.",
       "successMeasure": "Target = 100% of defined networks are Discovery Enabled.",
       "calculationKey": "network-discovery-enablement",
-      "reportAvailable": true
+      "reportAvailable": true,
+      "enabled": true
     }
   ]
 }

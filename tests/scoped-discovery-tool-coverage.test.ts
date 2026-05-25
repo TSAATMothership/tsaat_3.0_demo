@@ -5,7 +5,7 @@ import {
   discoveryCoverageValueLabel
 } from "@/lib/scoped-discovery-tool-coverage";
 import { defaultDiscoveryToolsSettings, type DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import type { Asset, AssetType, Vulnerability } from "@/lib/types";
+import type { Asset, AssetType, StoredDiscoveryCoverageEvaluation, Vulnerability } from "@/lib/types";
 
 function vulnerability(overrides: Partial<Vulnerability> = {}): Vulnerability {
   return {
@@ -83,6 +83,23 @@ function settingsWithScope(
   };
 }
 
+function coverage(
+  assetId: string,
+  toolValues: StoredDiscoveryCoverageEvaluation["toolValues"],
+  coverageCompliance = Object.values(toolValues).every((value) => value !== 0)
+): StoredDiscoveryCoverageEvaluation {
+  return {
+    snapshotId: 1,
+    assetId,
+    coverageCompliance,
+    toolValues,
+    missingToolIds: Object.entries(toolValues)
+      .filter(([, value]) => value === 0)
+      .map(([toolId]) => toolId),
+    missingToolNames: []
+  };
+}
+
 describe("scoped discovery tool coverage", () => {
   it("excludes tools that are not required for any asset type in scope", () => {
     const settings = settingsWithScope("elastic", (assetType) => (assetType === "workstation" ? "required" : "na"));
@@ -98,7 +115,11 @@ describe("scoped discovery tool coverage", () => {
         asset("server", { vulnerabilities: [vulnerability()] }),
         asset("network-device", { vulnerabilities: [vulnerability({ assetId: "asset-network-device" })] })
       ],
-      settings
+      settings,
+      [
+        coverage("asset-server", { tenable: 1 }),
+        coverage("asset-network-device", { tenable: null })
+      ]
     );
     const tenable = model.toolCards.find((tool) => tool.id === "tenable");
 
@@ -119,7 +140,14 @@ describe("scoped discovery tool coverage", () => {
 
   it("preserves non-applicable cells as N/A instead of treating them as covered", () => {
     const settings = settingsWithScope("tenable", (assetType) => (assetType === "server" ? "required" : "na"));
-    const model = buildScopedDiscoveryToolCoverage([asset("server"), asset("printer-device")], settings);
+    const model = buildScopedDiscoveryToolCoverage(
+      [asset("server"), asset("printer-device")],
+      settings,
+      [
+        coverage("asset-server", { tenable: 0 }, false),
+        coverage("asset-printer-device", { tenable: null })
+      ]
+    );
     const tenable = model.toolCards.find((tool) => tool.id === "tenable");
     const printerCoverage = model.assetCoverageById.get("asset-printer-device");
 

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
-import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import {
   loadCurrentDataset,
@@ -142,6 +142,7 @@ export async function GET(request: NextRequest) {
     loadSeverityDefinitions()
   ]);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const queryObject = sanitizeDiscoverySearchParams(Object.fromEntries(request.nextUrl.searchParams.entries()));
   const filters = parseFilters(queryObject);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
@@ -155,7 +156,7 @@ export async function GET(request: NextRequest) {
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const scopedRows = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)))
     .map((asset) => {
-      const discoveryCoverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+      const discoveryCoverage = discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset);
       const networkName = networkNameById.get(asset.networkId) ?? asset.networkId;
       const systemId = asset.systemContext?.systemId ?? null;
       const systemName = systemId ? (systemNameById.get(systemId) ?? systemId) : "-";

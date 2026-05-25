@@ -12,7 +12,8 @@ describe("drill-through discovery coverage wiring", () => {
     const systemPage = readRepoFile("app/systems/[systemId]/page.tsx");
 
     for (const source of [networkPage, systemPage]) {
-      expect(source).toContain("buildScopedDiscoveryToolCoverage(filteredAssets, discoveryToolsSettings)");
+      expect(source).toContain("buildScopedDiscoveryToolCoverage(");
+      expect(source).toContain("dataset.discoveryCoverageEvaluations");
       expect(source).toContain("discoveryToolCoverageModel.toolColumns.map");
       expect(source).toContain("discoveryCoverageValueLabel(value)");
     }
@@ -32,7 +33,8 @@ describe("drill-through discovery coverage wiring", () => {
   it("keeps network discovery coverage export aligned with dynamic configured tool columns", () => {
     const exportRoute = readRepoFile("app/api/networks/[networkId]/discovery-coverage-export/route.ts");
 
-    expect(exportRoute).toContain("buildScopedDiscoveryToolCoverage(scopedAssets, discoveryToolsSettings)");
+    expect(exportRoute).toContain("buildScopedDiscoveryToolCoverage(");
+    expect(exportRoute).toContain("dataset.discoveryCoverageEvaluations");
     expect(exportRoute).toContain("discoveryToolCoverageModel.toolColumns.map");
     expect(exportRoute).toContain("discoveryCoverageValueLabel(coverage?.toolValues[tool.id])");
     expect(exportRoute).not.toContain("type DiscoveryToolFilterKey");
@@ -41,7 +43,8 @@ describe("drill-through discovery coverage wiring", () => {
   it("keeps ICT system discovery coverage export aligned with dynamic configured tool columns", () => {
     const exportRoute = readRepoFile("app/api/systems/[systemId]/discovery-coverage-export/route.ts");
 
-    expect(exportRoute).toContain("buildScopedDiscoveryToolCoverage(scopedAssets, discoveryToolsSettings)");
+    expect(exportRoute).toContain("buildScopedDiscoveryToolCoverage(");
+    expect(exportRoute).toContain("dataset.discoveryCoverageEvaluations");
     expect(exportRoute).toContain("discoveryToolCoverageModel.toolColumns.map");
     expect(exportRoute).toContain("discoveryCoverageValueLabel(coverage?.toolValues[tool.id])");
     expect(exportRoute).toContain('export const dynamic = "force-dynamic"');

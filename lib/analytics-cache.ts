@@ -34,6 +34,8 @@ export function filtersCacheKey(filters: Filters): string {
 }
 
 export function datasetCacheSignature(dataset: Dataset): string {
+  const discoveryCoverageEvaluations = dataset.discoveryCoverageEvaluations ?? [];
+
   return [
     dataset.snapshotDate,
     dataset.generatedAt,
@@ -41,6 +43,10 @@ export function datasetCacheSignature(dataset: Dataset): string {
     dataset.ictSystems.length,
     dataset.assets.length,
     dataset.spiEvaluations.length,
+    discoveryCoverageEvaluations.length,
+    discoveryCoverageEvaluations
+      .map((evaluation) => `${evaluation.assetId}:${evaluation.coverageCompliance ? 1 : 0}`)
+      .join(","),
     dataset.findings?.length ?? 0,
     dataset.findings?.map((finding) => `${finding.id}:${finding.priorityRank}:${finding.severity}:${finding.status}`).join(",") ?? ""
   ].join("|");

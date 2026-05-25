@@ -1,6 +1,5 @@
-import { KpiRow, buildKpiRows } from "@/lib/measures";
+import { KpiRow } from "@/lib/measures";
 import { KpiDefinition } from "@/lib/kpi-definitions";
-import { AnalyticsResult, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 export interface KpiReportModel {
   id: string;
@@ -21,9 +20,7 @@ export interface KpiReportModel {
 
 export interface KpiReportSnapshotInput {
   snapshotDate: string;
-  analytics: AnalyticsResult;
-  systems: ICTSystem[];
-  networks: ManagedNetwork[];
+  kpiRows: KpiRow[];
 }
 
 export interface KpiTrendReportPoint {
@@ -66,29 +63,21 @@ function toKpiReportModel(row: KpiRow): KpiReportModel {
   };
 }
 
-export function buildKpiReportModels(
-  analytics: AnalyticsResult,
-  systems: ICTSystem[],
-  networks: ManagedNetwork[],
-  kpiDefinitions: KpiDefinition[]
-): KpiReportModel[] {
-  return buildKpiRows(analytics, systems, networks, kpiDefinitions).map(toKpiReportModel);
+export function buildKpiReportModels(kpiRows: KpiRow[]): KpiReportModel[] {
+  return kpiRows.map(toKpiReportModel);
 }
 
 export function buildKpiReportModel({
-  analytics,
-  systems,
-  networks,
+  kpiRows,
   kpiId,
   kpiDefinitions
 }: {
-  analytics: AnalyticsResult;
-  systems: ICTSystem[];
-  networks: ManagedNetwork[];
+  kpiRows: KpiRow[];
   kpiId: string;
   kpiDefinitions: KpiDefinition[];
 }): KpiReportModel | null {
-  return buildKpiReportModels(analytics, systems, networks, kpiDefinitions).find((model) => model.id === kpiId) ?? null;
+  void kpiDefinitions;
+  return buildKpiReportModels(kpiRows).find((model) => model.id === kpiId) ?? null;
 }
 
 export function buildKpiTrendReportModel({
@@ -103,9 +92,7 @@ export function buildKpiTrendReportModel({
   const snapshotModels = snapshots
     .map((snapshot) => {
       const model = buildKpiReportModel({
-        analytics: snapshot.analytics,
-        systems: snapshot.systems,
-        networks: snapshot.networks,
+        kpiRows: snapshot.kpiRows,
         kpiId,
         kpiDefinitions
       });

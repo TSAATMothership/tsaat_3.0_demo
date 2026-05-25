@@ -22,9 +22,9 @@ TSAAT is a Next.js web application that presents snapshot-based cyber posture, d
 The application follows a shared runtime pattern:
 
 1. Resolve the requested snapshot date from the `dataDate` query parameter when the route is date-scoped.
-2. Load the selected dataset snapshot plus measures settings and discovery tool settings.
+2. Load the selected dataset snapshot plus measures settings, discovery tool settings, KPI metadata, SPI metadata, and SQL-produced evaluation rows.
 3. Parse filter query parameters into a common filter object.
-4. Build analytics at runtime, including SPI evaluations, discovery coverage results, findings, and rollups.
+4. Build analytics at runtime from SQL-produced SPI evaluations, SQL-produced discovery coverage results, SQL-produced effective findings, SQL-produced KPI rows, and application presentation rollups.
 5. Render page-specific summaries, drillthroughs, exports, and configuration actions.
 
 ## Coverage Method
@@ -104,6 +104,11 @@ The most frequently referenced tables across the pages are:
 - `tsaat.finding`
 - `tsaat.spi_definition`
 - `tsaat.spi_applicable_asset_type`
+- `tsaat.kpi_definition`
+- `tsaat.kpi_calculation_definition`
+- `tsaat.kpi_report_detail_definition`
+- `tsaat.discovery_tool_detection_definition`
+- `tsaat.discovery_tool_detection_rule`
 - `tsaat.measures_settings_version`
 - `tsaat.measures_severity_matrix`
 - `tsaat.measures_priority_matrix`
@@ -205,7 +210,7 @@ Major dependencies:
 - `FilterBar`
 - runtime analytics in `lib/analytics.ts`
 - measures settings severity and priority remap
-- discovery coverage evaluation from discovery tool settings
+- SQL-produced discovery coverage rows from discovery tool settings and database detection rules
 
 ## 3. Feature Breakdown
 ### Feature: Shared Filter Scope and Snapshot Date
@@ -229,7 +234,7 @@ Major dependencies:
 ### Feature: Action Tab
 - **What it does:** shows immediate action, remediation backlog, discovery gaps, modelling gaps, throughput, aging, oldest findings, and quick wins.
 - **User perspective:** the user can move from posture awareness to remediation planning.
-- **System behaviour:** the page derives action counts from open findings, lifecycle data, discovery coverage results, and DIIS modelling flags.
+- **System behaviour:** the page derives action counts from open findings, lifecycle data, SQL-produced discovery coverage results, and DIIS modelling flags.
 - **Outcome:** the page produces a tactical remediation view.
 
 ### Feature: Client-Side Tab State
@@ -269,7 +274,7 @@ If `tsaat.finding` has no rows for the selected snapshot, SQL Server still retur
 | Cyber COP | Scope context | `tsaat` | `managed_network`, `ict_system` | IDs, names, `criticality`, `security_domain`, ownership columns | string, enum-like | Filter options and scope labels | Read | assets link to network and system IDs | fallback values possible in downstream views | used directly and in rollups | |
 | Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, SPI calculation metadata | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | SQL SPI evaluation through `usp_evaluate_spi_snapshot` | not stored as a precomputed fact table |
 | Cyber COP | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, workflow status, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority are applied by SQL effective findings | |
-| Cyber COP | Settings-driven logic | `tsaat` | measures and discovery settings tables | version, severity, tool metadata, scope settings | mixed | Severity remap and discovery compliance | Read | latest settings version applied | defaults if no saved settings exist | settings alter runtime analytics | |
+| Cyber COP | Settings-driven logic | `tsaat` | measures settings, discovery settings, and discovery coverage rule tables | version, severity, tool metadata, scope settings, detection rules | mixed | Severity remap and discovery compliance | Read | latest settings version applied; discovery rows are returned by `usp_evaluate_discovery_coverage_snapshot` | defaults if no saved settings exist | SQL discovery coverage alters runtime analytics | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -387,13 +392,13 @@ Primary data dependencies:
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity and non-compliant priority remapped before use | |
 | Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
-| Networks | Discovery settings | `tsaat` | discovery settings tables | version and tool scope columns | mixed | discovery compliance score by network | Read | latest settings version applied to all evaluations | defaults if no saved settings exist | runtime evaluation only | |
+| Networks | Discovery settings | `tsaat` | discovery settings and discovery coverage rule tables | version, tool scope columns, detection keys, rule values | mixed | discovery compliance score by network, drill-through tool values, exports, reports | Read | latest settings version and DB detection rules applied to all evaluations | defaults if no saved settings exist | SQL evaluation through `usp_evaluate_discovery_coverage_snapshot` | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Networks compliance | overview posture tile | compliant network rollup counts divided by all network rollup counts | runtime network rollups | Runtime | backend | returns `0` with no rollups |
-| Discovery compliance by network | posture table and KPI summary | `discovery-compliant asset evaluations / total asset evaluations in network * 100` | runtime evaluations | Runtime | backend | only assets with evaluations contribute |
+| Discovery compliance by network | posture table and KPI summary | compliant SQL discovery coverage rows divided by total asset coverage rows in network | `usp_evaluate_discovery_coverage_snapshot`, discovery settings, discovery detection metadata | Runtime SQL result | SQL Server/backend | only assets with SQL coverage rows contribute |
 | Modelled network coverage | overview modelling card | networks where `discoveryStatus != "Discovery Non Enabled"` divided by total networks | `managed_network.discovery_status` | Runtime | backend | implemented as discovery enablement proxy |
 | Blast radius points | posture chart input | endpoint count per network plus high-risk P1/P2 finding count | assets, findings | Runtime | backend | sorted by endpoint count, then severe findings |
 | Immediate action | action tab | open High Risk + open Critical Exposure findings | findings | Runtime | backend | severity remap already applied |
@@ -507,7 +512,7 @@ Key dependencies:
 - `tsaat.asset` and all posture-related child tables
 - `tsaat.finding`
 - `tsaat.ci_dependency`
-- measures and discovery settings tables
+- measures settings, discovery settings, and discovery coverage rule tables
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
@@ -516,7 +521,7 @@ Key dependencies:
 | Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal and relationship context | Read | combined into topology graph | no persisted graph view | runtime graph build | topology includes synthetic relation edges |
 | Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
 | Network Detail | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority remap applied by SQL effective findings | |
-| Network Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings versions applied | defaults if settings tables are empty | runtime only | |
+| Network Detail | Settings-driven logic | `tsaat` | measures settings, discovery settings, and discovery coverage rule tables | version, detail columns, detection rules | mixed | compliance severity and discovery rules | Read | latest settings versions applied | defaults if settings tables are empty | SQL discovery evaluation plus runtime presentation | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -623,7 +628,7 @@ Primary data dependencies:
 - `tsaat.system_environment` and `tsaat.system_environment_asset`
 - `tsaat.asset` and child posture tables
 - `tsaat.finding`
-- measures and discovery settings tables
+- measures settings, discovery settings, and discovery coverage rule tables
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
@@ -755,7 +760,7 @@ Key dependencies:
 - `tsaat.asset` and all posture-related child tables
 - `tsaat.finding`
 - `tsaat.ci_dependency`
-- measures and discovery settings tables
+- measures settings, discovery settings, and discovery coverage rule tables
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
@@ -765,7 +770,7 @@ Key dependencies:
 | ICT System Detail | Asset posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, lifecycle, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance rows, discovery rows, risk charts | Read | scoped to assets where `asset.system_id = system_id` | hidden query parameters may narrow further | runtime SPI, discovery evaluation, and CVE criticality filtering | |
 | ICT System Detail | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity and non-compliant priority remap is applied by SQL effective findings | SQL-produced workflow status is used by reused components | |
 | ICT System Detail | Topology relationships | `tsaat` | `ict_system_hierarchy`, `ci_dependency`, `network_declared_asset`, `network_declared_system` | parent-child keys, dependency endpoints, declared relationship keys | mixed | topology modal and relationship context | Read | combined into a runtime graph | no persisted graph view | runtime topology layout only | |
-| ICT System Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings version applied | defaults if settings tables are empty | runtime only | |
+| ICT System Detail | Settings-driven logic | `tsaat` | measures settings, discovery settings, and discovery coverage rule tables | version, detail columns, detection rules | mixed | compliance severity and discovery rules | Read | latest settings version applied | defaults if settings tables are empty | SQL discovery evaluation plus runtime presentation | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -863,7 +868,7 @@ Important hidden behaviour:
 ### Feature: Coverage-by-Network Tab
 - **What it does:** shows row-per-network tool coverage with network metadata, a per-network coverage-by-tool radar chart, a per-tool coverage table, a network drill-down link, and a per-network PDF report action.
 - **User perspective:** the user can review discovery coverage posture across networks without opening a slideout, including owner, accreditation details, security domain, and a scoped discovery gaps report.
-- **System behaviour:** rows are aggregated from scoped assets and tool coverage results per network; managed networks still render when no aggregate exists, excluding only the synthetic `net-unassigned` row. Discovery-enabled networks use network-detail resolver fallbacks where source values are blank, while discovery-disabled networks show only stored/available fields and leave unavailable owner, GRC, radar, and coverage-table sections blank. ATO and DIIS tiles show stored `ato_number` and `diis_id` values, which are populated during load/migration. Each row provides a drill-down link to `/networks/[networkId]` and a `Generate Network Discovery Report` link to `/api/discovery-coverage/network-report` while preserving `dataDate` and active filters. The filter container shows a right-aligned `Total Network` count based on the currently filtered row set.
+- **System behaviour:** rows are aggregated from scoped assets and SQL-produced tool coverage results per network; managed networks still render when no aggregate exists, excluding only the synthetic `net-unassigned` row. Discovery-enabled networks use network-detail resolver fallbacks where source values are blank, while discovery-disabled networks show only stored/available fields and leave unavailable owner, GRC, radar, and coverage-table sections blank. ATO and DIIS tiles show stored `ato_number` and `diis_id` values, which are populated during load/migration. Each row provides a drill-down link to `/networks/[networkId]` and a `Generate Network Discovery Report` link to `/api/discovery-coverage/network-report` while preserving `dataDate` and active filters. The filter container shows a right-aligned `Total Network` count based on the currently filtered row set.
 - **Outcome:** network-level operational coverage review is available as a first-class tab.
 
 ### Feature: Network Discovery Tab
@@ -876,7 +881,7 @@ Important hidden behaviour:
 - **What it does:** allows editing of per-tool asset-type scope (`required` or `na`) across all six canonical asset types.
 - **User perspective:** the user sees tools in a compact table, horizontally scans asset-type scope status, then opens a tool slideout to edit scope settings.
 - **System behaviour:** the UI no longer supports add/remove/edit for tool metadata. A text-searchable dropdown filter allows filtering by tool name. Tool rows show scope status (`required` as green tick, `na` as red cross). Tool-name links open a right slideout for per-tool scope editing, save, reset, and close actions. Save submits the existing full payload contract and then refreshes settings from DB via GET.
-- **Outcome:** discovery tool catalog is DB-driven and immutable from this page, while scope remains configurable for runtime coverage evaluation.
+- **Outcome:** discovery tool catalog and detection rules are DB-driven and immutable from this page, while scope remains configurable for SQL coverage evaluation.
 
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
@@ -890,7 +895,7 @@ Important hidden behaviour:
 | Discovery | Tool settings | Maintain per-tool asset-type scope only | Filter tools by name, open slideout from tool link, update scope, save/reset | Filters table rows by selected tool-name dropdown (with text search), displays scope status columns, opens per-tool slideout editor, validates tool IDs against current DB catalog, persists full payload, then refreshes settings from DB GET | `{ id, assetTypeScope }[]` payload | Updated discovery tool settings version and refreshed table state | `N/A` excludes an asset type from coverage checks; each tool carries all six canonical asset-type keys | unknown/missing/duplicate IDs rejected | `/api/discovery-tools/settings` | Updated scope rules for future coverage evaluation | add/remove and metadata edit removed from UI; table keeps scope section horizontally scannable |
 
 ## 5. Database Mapping
-The page reads the shared snapshot dataset, the discovery tool settings tables, and related reference context. Most summary values are assembled at runtime from asset-level evidence and the configured tool model.
+The page reads the shared snapshot dataset, the discovery tool settings tables, discovery coverage detection metadata, and SQL-produced discovery coverage rows. Most summary values are assembled from SQL coverage results and page-level presentation grouping.
 
 Primary data dependencies:
 
@@ -912,7 +917,7 @@ Primary data dependencies:
 | Discovery | Network context | `tsaat` | `managed_network` | `network_id`, `name`, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status`, ownership and link columns | mixed | target-state rows, summary table, network slideout | Read | assets join to network via `network_id` | discovery status drives enabled vs not-enabled labels; ATO, DIIS, and APM references are loaded/backfilled | direct display and grouping | network modelling status is shown as its own Network Discovery Summary column |
 | Discovery | Network target state | `tsaat` | `network_target_state_asset` | `network_id`, `asset_type`, `asset_name` | mixed | per-network/asset-type target-state totals and match keys | Read | matched against scoped asset names by network + asset type | name normalization uses trim+lowercase | runtime matching determines discovered totals and coverage | list is name-only target-state records |
 | Discovery | System context | `tsaat` | `ict_system` | `system_id`, `name`, `security_domain`, `criticality` | mixed | summary scope and system labels | Read | assets join to system through `asset.system_id` | ignored on target-state tab | direct display | |
-| Discovery | Asset evidence | `tsaat` | `asset`, `asset_vulnerability`, lifecycle and OS-related child tables | asset identity, type, hostname, IP, lifecycle, vulnerability indicators | mixed | tool coverage evaluation and tool-assets API rows | Read | one asset to many evidence rows | evaluated within one snapshot only | runtime tool heuristics | |
+| Discovery | Asset evidence | `tsaat` | `asset`, `asset_vulnerability`, lifecycle and OS-related child tables | asset identity, type, hostname, IP, lifecycle, vulnerability indicators | mixed | SQL tool coverage evaluation and tool-assets API rows | Read | one asset to many evidence rows | evaluated within one snapshot only | consumed by SQL coverage procedure | |
 | Discovery | Discovery tool settings | `tsaat` | `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope` | version, tool metadata, `tool_id`, asset-type scope flags | mixed | defines required tools and tool labels | Read and Update | latest settings version plus child tool rows | `na` marks tool not applicable for an asset type | used directly in runtime coverage rules | scope covers `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Discovery | Snapshot selection | `tsaat` | `dataset_snapshot` | `snapshot_id`, `snapshot_date` | mixed | selects the active data snapshot | Read | root snapshot join | latest snapshot unless `dataDate` supplied | display only | |
 
@@ -920,8 +925,8 @@ Primary data dependencies:
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Asset discovery coverage | decide whether an asset is discovery compliant | evaluate required tools for the asset type; asset is compliant when no required tool is missing | assets plus discovery tool settings | Runtime | backend | tools with asset-type scope `na` return null and do not count against compliance; applies consistently across all six asset types |
-| Tool coverage percentage | tool summary cards and radar chart | covered applicable assets divided by applicable assets for a tool | runtime coverage rows | Runtime | backend | zero-safe |
-| Overall tool coverage percent | summary snapshot card | covered tool slots divided by total applicable tool slots | runtime tool coverage rows | Runtime | backend | excludes N/A slots |
+| Tool coverage percentage | tool summary cards and radar chart | covered applicable assets divided by applicable assets for a tool | SQL coverage rows | Runtime | backend | zero-safe |
+| Overall tool coverage percent | summary snapshot card | covered tool slots divided by total applicable tool slots | SQL tool coverage rows | Runtime | backend | excludes N/A slots |
 | Target-state matched discovered count | determine discovered totals against target-state list | multiset name matching by normalized `(network_id, asset_type, asset_name)` where names are trim+lowercase | scoped assets + `network_target_state_asset` | Runtime | backend | matched count is `min(target name count, discovered name count)` per normalized name |
 | Target-state presence flag (internal) | derive whether any target-state exists per network | `true` when any target-state rows exist for the network, otherwise `false` | `network_target_state_asset` grouped by network | Runtime | backend | retained as an internal summary flag; not currently displayed as a dedicated column |
 | Target-state coverage percent | compare matched discovered versus target | `matched_discovered / target_total * 100`, rounded to one decimal | matched discovered count + target totals | Runtime | backend | zero-safe; chart only renders when both totals are non-zero |
@@ -929,7 +934,7 @@ Primary data dependencies:
 | Tool-assets API pagination | limit slideout payload size | page and pageSize slice filtered rows; export loops through pages up to 5000 rows per request | query params plus runtime filtered rows | Runtime | API layer | pageSize defaults to 200 and maxes at 5000 |
 
 ## 8. Non-Database Calculations
-- Tool coverage heuristics are application rules rather than stored facts. Examples include using vulnerability presence for SIEM coverage and asset type for Tanium or Elastic applicability.
+- Tool coverage calculation is SQL-produced from DB-backed detection rules; the app still owns slideout rendering, filtering, pagination, and CSV/PDF serialization.
 - Slideout loading progress, open/close state, search debounce, and CSV assembly are client-side only.
 - Network summary slideouts reuse resolved detail fields and may include fallback metadata where descriptive source columns are blank. ATO, DIIS, and APM reference values are populated by loader/migration; legacy missing values render as `Missing` where directly displayed.
 
@@ -980,7 +985,7 @@ Major dependencies:
 
 Important hidden behaviour:
 
-- KPI-7 and KPI-8 are calculated from deterministic hash functions, not from persisted ATO or DIIS status data.
+- KPI-7 and KPI-8 are calculated by SQL Server using deterministic hash-equivalent logic, not from persisted ATO or DIIS status data.
 - KPI definitions, display order, success measures, calculation keys, and report availability are loaded from `tsaat.kpi_definition`.
 - SPI definitions, display order, applicability, rule catalogues, SQL calculation expressions, evidence expressions, feature bindings, rule parameter schemas/defaults, outcome reason templates, generated finding classification rules, report detail catalogues, tasking metadata, default severity, and recommended actions are loaded from database SPI metadata tables.
 - application-side SPI rule execution has been removed; runtime SPI status, outcome, and evidence rows are produced by SQL Server and consumed by the app.
@@ -1003,13 +1008,13 @@ Important hidden behaviour:
 ### Feature: Summary Tab
 - **What it does:** shows KPI compliance and SPI compliance charts for the current scope.
 - **User perspective:** the user sees the overall measure picture before opening the detailed matrix.
-- **System behaviour:** the page builds KPI rows from database KPI definitions plus runtime analytics and derives SPI compliance points by scanning evaluation statuses for active database SPI definitions.
+- **System behaviour:** the page builds KPI rows from database KPI definitions plus SQL-produced KPI evaluations and derives SPI compliance points by scanning SQL-produced evaluation statuses for active database SPI definitions.
 - **Outcome:** the page provides a compact performance summary.
 
 ### Feature: Measures-KPI Tab
 - **What it does:** shows the KPI report index, including descriptions, success measures, scores, status counts, and report links.
 - **User perspective:** the user can inspect KPI score details and launch current and trend reports for database-defined KPIs where reporting is enabled.
-- **System behaviour:** KPI rows come from the shared KPI report model, which combines `tsaat.kpi_definition` metadata with supported runtime calculation keys; report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
+- **System behaviour:** KPI rows come from SQL-produced KPI evaluations joined to database KPI metadata; report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
 - **Outcome:** KPI performance details and per-KPI PDF report actions are shown in a dedicated tab.
 
 ### Feature: Measures-SPI Tab
@@ -1029,13 +1034,13 @@ Important hidden behaviour:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Measures | Tab routing | Switches among summary, KPI report index, SPI report index, and SPI settings | Click tab | Updates `measuresTab` query parameter | `measuresTab` | Different layout | summary is default; legacy `measures` maps to summary; legacy `settings` maps to SPI settings; legacy `kpi-settings` falls back to summary | unsupported values fall back to summary | `MeasuresTabs` | Bookmarkable tab state | |
 | Measures | Shared scope | Common measure filter scope plus severity selector | Apply filters | Re-runs analytics and KPI/SPI rows | shared filters plus `severity` | Filtered charts and matrix | one scope for all visible scores | supported values come from filter options or severity list | `FilterBar`, `getCoreAppData()` | Consistent measures scope | |
-| Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives KPI and SPI compliance points from database definitions plus runtime rows | KPI definitions, SPI definitions, analytics, systems, networks | Charts | charts show recalculated runtime scores for configured KPI and SPI rows | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | removed definitions disappear from the chart |
-| Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows from database definitions and carries filter scope plus `dataDate` into report URLs | KPI definitions, analytics, filters, dataset snapshots | KPI tiles and PDF report links | report buttons follow `kpi_definition.report_available`; current seed enables KPI-5 through KPI-10 and leaves KPI-1 through KPI-4 unavailable | unsupported calculation keys are not rendered by the application normalization layer | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view with current and trend reports | |
+| Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives KPI and SPI compliance points from database definitions plus SQL-produced runtime rows | KPI definitions, SQL KPI evaluations, SPI definitions, analytics | Charts | charts show recalculated runtime scores for configured KPI and SPI rows | zero-safe percentages | chart components, `buildKpiRows()`, `usp_evaluate_kpi_snapshot` | Compact summary view | removed definitions disappear from the chart |
+| Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows from database definitions and SQL KPI evaluations, then carries filter scope plus `dataDate` into report URLs | KPI definitions, SQL KPI evaluations, filters, dataset snapshots | KPI tiles and PDF report links | report buttons follow `kpi_definition.report_available`; current seed enables KPI-5 through KPI-10 and leaves KPI-1 through KPI-4 unavailable | invalid or incomplete KPI calculation metadata fails validation/load normalization | `KpiSpiMatrix`, `/api/tasking-report`, `usp_evaluate_kpi_snapshot` | Detailed KPI view with current and trend reports | |
 | Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows from active database definitions and SQL evaluation output, then carries filter scope plus `dataDate` into report URLs | SPI definitions, SQL SPI evaluations, analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect database enabled/report flags and applicability rules; all-SPI report summarizes every active reportable SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | invalid or incomplete calculation metadata fails validation/load normalization | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
 | Measures | SPI settings | Maintain nested severity and priority mappings | Edit rows, switch nested settings tab, save, reset | Validates and persists latest settings version with both matrices | active SPI definitions, severity definitions, priority definitions, measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
 
 ## 5. Database Mapping
-The page reads snapshot analytics, KPI definitions, SPI definitions, severity/priority definitions, SQL SPI evaluation rows, and measures settings tables. KPI definitions are stored in the database while KPI scores remain application runtime aggregations. SPI definitions and SPI calculation expressions are stored in the database; SQL Server evaluates SPI status/outcome/evidence on demand for the selected snapshot.
+The page reads snapshot analytics, KPI definitions, SPI definitions, severity/priority definitions, SQL KPI evaluation rows, SQL SPI evaluation rows, SQL discovery coverage rows, and measures settings tables. KPI definitions and KPI calculation metadata are stored in the database; SQL Server evaluates KPI score rows on demand for the selected scope. SPI definitions and SPI calculation expressions are stored in the database; SQL Server evaluates SPI status/outcome/evidence on demand for the selected snapshot.
 
 Primary data dependencies:
 
@@ -1048,6 +1053,18 @@ Primary data dependencies:
 - `tsaat.measures_severity_matrix`
 - `tsaat.measures_priority_matrix`
 - `tsaat.kpi_definition`
+- `tsaat.kpi_calculation_source`
+- `tsaat.kpi_calculation_definition`
+- `tsaat.kpi_calculation_parameter`
+- `tsaat.kpi_report_detail_definition`
+- `tsaat.kpi_report_detail_binding`
+- `tsaat.kpi_tasking_team`
+- `tsaat.kpi_tasking_action_template`
+- `tsaat.kpi_tasking_condition_template`
+- `tsaat.discovery_coverage_source`
+- `tsaat.discovery_tool_detection_definition`
+- `tsaat.discovery_tool_detection_rule`
+- `tsaat.discovery_tool_detection_rule_value`
 - `tsaat.finding_severity_definition`
 - `tsaat.finding_priority_definition`
 - `tsaat.spi_rule_definition`
@@ -1069,10 +1086,10 @@ Primary data dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Measures | Runtime evaluations | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, `spi_calculation_source`, `spi_calculation_definition`, `spi_calculation_evidence_expression` | asset identity, evidence fields, status/outcome SQL, evidence SQL | mixed | drives SPI compliance and several KPI calculations | Read | `usp_evaluate_spi_snapshot` evaluates active SPI rows against `vw_spi_asset_evaluation_context` within one snapshot | applicable SPI rules depend on DB asset-type applicability | SQL Server SPI evaluation | `storage-device`, `printer-device`, and `other` evaluate rows that are DB-applicable |
+| Measures | Runtime evaluations | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, SPI calculation tables, KPI calculation tables, discovery coverage rule tables | asset identity, evidence fields, SPI status/outcome SQL, KPI calculation metadata, discovery detection rules | mixed | drives SPI compliance, KPI rows, and discovery coverage measures | Read | SQL procedures evaluate active database definitions within one snapshot/scope | applicable rules depend on DB metadata and tool scope | SQL Server SPI, KPI, and discovery evaluation | `storage-device`, `printer-device`, and `other` evaluate rows that are DB-applicable |
 | Measures | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | KPI counts tied to urgent work and exposure | Read | finding scope joins back to asset and system | severity and non-compliant priority may be remapped at runtime | runtime aggregation only | |
-| Measures | System and network context | `tsaat` | `ict_system`, `managed_network` | IDs, `criticality`, `security_domain`, `diis_defined`, system/network `modelling_status`, `discovery_status` | mixed | KPI denominators and scope grouping | Read | assets and findings roll up through these relationships | some KPIs use system and network counts directly | direct grouping and filtering | KPI-10 remains discovery-status based |
-| Measures | KPI metadata | `tsaat` | `kpi_definition` | KPI IDs, display order, names, descriptions, success measures, calculation keys, report availability | mixed | KPI catalogue rows, charts, report availability, performance report columns | Read | calculation keys select supported runtime scoring logic | database rows are source of truth for KPI visibility and order | normalized and sorted by display order | added KPI rows require a supported calculation key |
+| Measures | System and network context | `tsaat` | `ict_system`, `managed_network` | IDs, `criticality`, `security_domain`, `diis_defined`, system/network `modelling_status`, `discovery_status` | mixed | KPI denominators and scope grouping | Read | assets and findings roll up through these relationships | some KPIs use system and network counts directly | SQL KPI procedure grouping and filtering | KPI-10 remains discovery-status based |
+| Measures | KPI metadata | `tsaat` | `kpi_definition`, `kpi_calculation_source`, `kpi_calculation_definition`, `kpi_calculation_parameter`, `kpi_report_detail_definition`, `kpi_report_detail_binding`, `kpi_tasking_team`, `kpi_tasking_action_template`, `kpi_tasking_condition_template` | KPI IDs, display order, names, descriptions, success measures, calculation keys, enabled/report flags, calculation parameters, report/tasking metadata | mixed | KPI catalogue rows, SQL score rows, charts, report availability, tasking text, performance report columns | Read | calculation keys join to enabled SQL calculation metadata; report and tasking metadata join by KPI ID | database rows are source of truth for KPI visibility, order, and report/tasking metadata | SQL Server evaluation via `usp_evaluate_kpi_snapshot` | added KPI rows require valid DB calculation metadata |
 | Measures | SPI metadata | `tsaat` | `spi_rule_definition`, `spi_rule_parameter_definition`, `spi_rule_outcome_template`, `spi_report_detail_definition`, `spi_calculation_source`, `spi_calculation_definition`, `spi_calculation_evidence_expression`, `spi_feature_binding`, `spi_finding_classification_rule`, `spi_definition`, `spi_applicable_asset_type`, `spi_rule_parameter`, `spi_tasking_team`, `spi_tasking_action_template`, `spi_tasking_condition_template` | rule keys, parameter schemas/defaults, outcome templates, calculation SQL, evidence SQL, feature keys, classification rules, SPI IDs, descriptions, display order, enabled flags, parameters, report flags, tasking templates, applicable asset types | mixed | explanatory context, applicability rules, report availability, outcome text, generated finding classification, tasking report text, SQL evaluation | Read | joins by rule key, report detail key, SPI ID, source key, feature key, and asset type | metadata shapes SQL evaluation applicability and rendering | DB-selected constrained SQL engine plus controlled condition-key evaluator | invalid calculation metadata fails validation; new configured SPI IDs can render dynamically |
 | Measures | SPI trend report snapshots | `tsaat` | `dataset_snapshot` | `snapshot_date` | date | selects historical snapshots for SPI trend PDFs | Read | trend report loads snapshots within the 12 calendar months ending at selected `dataDate` | latest selected snapshot when no date is supplied | date-window filtering | no monthly points are fabricated when snapshots are unavailable |
 | Measures | Severity settings | `tsaat` | `finding_severity_definition`, `measures_settings_version`, `measures_severity_matrix` | severity taxonomy, selectable flag, versioning, SPI ID, asset type, severity | mixed | finding severity remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults come from active SPI `default_severity` and severity definitions | runtime severity rewrite | matrix keys include active SPI IDs x all six canonical asset types |
@@ -1081,25 +1098,20 @@ Primary data dependencies:
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| KPI definition catalogue | KPI visibility and wording | database rows define id, order, name, description, success measure, calculation key, and report availability | `kpi_definition` | Stored | database/backend | unsupported calculation keys are not rendered |
-| KPI-1 Overall SPI Compliance | overall control performance | compliant statuses divided by all applicable statuses | runtime evaluations plus `kpi_definition.calculation_key = overall-spi-compliance` | Runtime score, stored definition | backend | zero-safe |
-| KPI-2 Overall DPE Compliance | Protected domain performance | compliant statuses where `securityDomain = Protected` divided by total Protected statuses | runtime evaluations plus `kpi_definition.calculation_key = protected-domain-compliance` | Runtime score, stored definition | backend | differs from Cyber COP DPE label implementation |
-| KPI-3 Overall DSE Compliance | Secret domain performance | compliant statuses where `securityDomain = Secret` divided by total Secret statuses | runtime evaluations plus `kpi_definition.calculation_key = secret-domain-compliance` | Runtime score, stored definition | backend | differs from Cyber COP DSE label implementation |
-| KPI-4 Critical ICT System Compliance | critical-system performance | compliant statuses for assets whose `systemCriticality = Critical` divided by total such statuses | runtime evaluations plus `kpi_definition.calculation_key = critical-ict-system-compliance` | Runtime score, stored definition | backend | zero-safe |
-| KPI-5 Critical Exposure in Production | urgent exposure volume | count findings whose remapped severity is `Critical Exposure`; score percent is derived as non-critical-exposure findings over all findings | findings plus `kpi_definition.calculation_key = critical-exposure-in-production` | Runtime score, stored definition | backend | denominator is total findings, not only production findings |
-| KPI-6 Discovery Coverage Compliance | discovery control performance | discovery-compliant assets divided by total evaluated assets | runtime evaluations plus `kpi_definition.calculation_key = discovery-coverage-compliance` | Runtime score, stored definition | backend | zero-safe |
-| KPI-7 ICT Systems have an active ATO | ATO coverage | stable hash of `systemId:ato`; compliant when hash mod 5 is not 0 | system IDs plus `kpi_definition.calculation_key = active-ato-coverage` | Runtime score, stored definition | backend | synthetic score logic, definition is DB-backed |
-| KPI-8 ICT Systems are registered within DIIS | DIIS registration coverage | stable hash of `systemId:diis`; compliant when hash mod 4 is not 1 | system IDs plus `kpi_definition.calculation_key = diis-registration-coverage` | Runtime score, stored definition | backend | synthetic score logic, definition is DB-backed |
-| KPI-9 DIIS Systems Modelled Coverage | DIIS modelling coverage | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems` | `ict_system.diis_defined`, `ict_system.modelling_status`, `kpi_definition.calculation_key = diis-modelled-coverage` | Runtime score, stored definition | backend | zero-safe |
-| KPI-10 Networks Discovery Enablement | network discovery readiness | `networks with discoveryStatus = Discovery Enabled / total networks` | `managed_network.discovery_status`, `kpi_definition.calculation_key = network-discovery-enablement` | Runtime score, stored definition | backend | zero-safe |
+| KPI definition catalogue | KPI visibility, wording, calculation metadata, tasking metadata, and report metadata | database rows define id, order, name, description, success measure, enabled flag, calculation key, SQL calculation metadata, report detail binding, tasking teams/actions/conditions, and report availability | KPI metadata tables | Stored | database/backend | invalid calculation metadata fails validation/load normalization |
+| KPI-1 through KPI-10 SQL evaluation | KPI score rows | `tsaat.usp_evaluate_kpi_snapshot` evaluates enabled KPI definitions against the selected scope using DB calculation metadata, SQL SPI evaluations, SQL discovery coverage rows, effective findings JSON, systems, and networks | KPI metadata tables plus snapshot tables and effective findings | Runtime SQL result, stored definition | SQL Server | zero-safe counts; KPI-7/8 use SQL deterministic hash-equivalent proxy logic |
+| KPI-6 Discovery Coverage Compliance | discovery control performance | compliant SQL discovery coverage rows divided by total evaluated assets in scope | `usp_evaluate_discovery_coverage_snapshot`, discovery detection metadata, `kpi_definition.calculation_key = discovery-coverage-compliance` | Runtime SQL result, stored definition | SQL Server | zero-safe; changes to discovery tool scope or detection rules affect KPI-6 without app calculation changes |
+| KPI-7 ICT Systems have an active ATO | ATO coverage | SQL deterministic hash-equivalent of `systemId:ato`; compliant when hash mod 5 is not 0 | system IDs plus `kpi_definition.calculation_key = active-ato-coverage` | Runtime SQL result, stored definition | SQL Server | synthetic score logic, definition and execution are DB-backed |
+| KPI-8 ICT Systems are registered within DIIS | DIIS registration coverage | SQL deterministic hash-equivalent of `systemId:diis`; compliant when hash mod 4 is not 1 | system IDs plus `kpi_definition.calculation_key = diis-registration-coverage` | Runtime SQL result, stored definition | SQL Server | synthetic score logic, definition and execution are DB-backed |
 | SPI definition catalogue | SPI visibility, wording, order, applicability, SQL calculation, outcome text, generated finding classification, tasking text, feature bindings, and report availability | database rows define SPI ID, order, enabled flag, rule key, rule parameter schema/defaults, rule parameters, status/outcome/evidence SQL, outcome templates, report flags, detail key, default severity, applicability, classification rules, feature bindings, and tasking templates | SPI metadata and calculation tables | Stored definition and SQL calculation config | database/backend | invalid or disabled rows are not rendered |
 | SPI SQL evaluation | per-asset SPI status, outcome key, and evidence | active DB SPI definitions are evaluated by `tsaat.usp_evaluate_spi_snapshot` using constrained SQL expressions over `tsaat.vw_spi_asset_evaluation_context` plus parameter helper functions | SPI metadata/calculation tables and asset posture tables | Runtime SQL result | SQL Server | no unrestricted formula engine; expressions are read-only fragments constrained by schema/load validation |
 | SPI compliance rows | per-SPI scorecards | compliant count divided by total applicable count for each active SPI | SQL-produced SPI evaluations plus active SPI definitions | Runtime score, stored definition | backend | zero-safe; applicability follows database SPI metadata per asset type |
 
 ## 8. Non-Database Calculations
-- KPI-7 and KPI-8 are entirely runtime calculations using deterministic hash functions.
 - Tasking, all-SPI, and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
 - SPI score execution is performed by SQL Server through `usp_evaluate_spi_snapshot`; the application consumes returned status, outcome key, evidence, and DB-rendered metadata.
+- KPI score execution is performed by SQL Server through `usp_evaluate_kpi_snapshot`; the application consumes returned score rows and DB-rendered metadata.
+- Discovery coverage execution is performed by SQL Server through `usp_evaluate_discovery_coverage_snapshot`; the application consumes returned per-asset tool values.
 - SPI reason wording uses DB-backed templates during application rendering; generated finding severity/priority classification is SQL-produced as part of the effective findings result.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
@@ -1109,10 +1121,10 @@ Primary data dependencies:
 
 ## 9. Rules, Assumptions, and Constraints
 - The page is not date-scoped through a local control, but it respects shared route date state where supplied.
-- KPI and SPI values are recalculated at runtime for the current scope.
-- KPI definitions are database-driven through `tsaat.kpi_definition`; removed rows disappear from KPI charts, tables, and reports.
-- KPI tasking and trend report availability follows `kpi_definition.report_available`; current seed data disables `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
-- New KPI definitions require an application-supported `calculation_key`; the database does not store executable formulas.
+- KPI and SPI values are recalculated at runtime for the current scope by SQL Server procedures.
+- KPI definitions are database-driven through `tsaat.kpi_definition` and related KPI metadata tables; removed or disabled rows disappear from KPI charts, tables, and reports.
+- KPI tasking and trend report availability follows database KPI report/tasking metadata; current seed data disables `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
+- New KPI definitions require valid DB calculation metadata evaluated by the constrained SQL procedure; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
 - SPI definitions are database-driven through `tsaat.spi_definition` and related SPI metadata tables; removed or disabled rows disappear from SPI charts, settings, findings generation, tables, and reports.
 - New SPI definitions require DB catalogue, applicability, parameter, outcome template, and constrained SQL calculation rows. The SQL engine does not support unrestricted batches, JavaScript, or arbitrary formula execution.
 - The saved severity matrix affects downstream findings analytics and page displays.

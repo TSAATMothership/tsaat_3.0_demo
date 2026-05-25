@@ -35,13 +35,13 @@ Major dependencies:
 ### Feature: Action Tab
 - **What it does:** shows remediation pressure, backlog aging, oldest open findings, quick wins, and a scoped remediation report link.
 - **User perspective:** the user can move from network posture to action planning.
-- **System behaviour:** the page builds action metrics from open findings, lifecycle data, discovery coverage, and discovery enablement status.
+- **System behaviour:** the page builds action metrics from open findings, lifecycle data, SQL-produced discovery coverage, and discovery enablement status.
 - **Outcome:** the user gets a tactical work queue and export path.
 
 ### Feature: Posture Tab
 - **What it does:** shows KPI summary cards, blast-radius data, searchable network roll-up table, detail slideout, and drill-down links.
 - **User perspective:** the user can compare networks and open either a summary slideout or the full network detail page.
-- **System behaviour:** each row combines real network metadata, rollup posture, P1/P2 counts, discovery compliance, and drill-down links.
+- **System behaviour:** each row combines real network metadata, rollup posture, P1/P2 counts, SQL-produced discovery compliance, and drill-down links.
 - **Outcome:** the page acts as the routing surface for `/networks/[networkId]`.
 
 ### Feature: Blast Radius Selection
@@ -69,7 +69,7 @@ Primary data dependencies:
 - `tsaat.asset` and related posture tables
 - `tsaat.finding`
 - `tsaat.asset_vulnerability`
-- discovery and measures settings tables
+- discovery settings, discovery coverage rule metadata, and measures settings tables
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
@@ -78,13 +78,13 @@ Primary data dependencies:
 | Networks | Asset scope | `tsaat` | `asset` | `asset_id`, `asset_type`, `network_id`, lifecycle columns | mixed | network asset counts, discovery coverage, OS and warranty metrics | Read | asset belongs to one network | filtered through shared filter model | runtime counts and percentages | canonical `asset_type` values are `server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other` |
 | Networks | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | overview risk profile and action metrics | Read | grouped by `network_id` | findings may be generated when table empty | severity and non-compliant priority remapped before use | |
 | Networks | Relationships | `tsaat` | `network_declared_system`, `network_declared_asset`, `network_target_state_asset` | `network_id`, `system_id`, `asset_id`, `asset_type`, `asset_name` | string | declared/discovered scope and target-state planning context | Read | same snapshot joins | target-state rows are name-only by asset type | informational scope support | target-state records are consumed directly by discovery network summary matching |
-| Networks | Discovery settings | `tsaat` | discovery settings tables | version and tool scope columns | mixed | discovery compliance score by network | Read | latest settings version applied to all evaluations | defaults if no saved settings exist | runtime evaluation only | |
+| Networks | Discovery settings | `tsaat` | discovery settings and discovery coverage rule tables | version, tool scope columns, detection keys, rule values | mixed | discovery compliance score by network, drill-through tool values, exports, reports | Read | latest settings version and DB detection rules applied to all evaluations | defaults if no saved settings exist | SQL evaluation through `usp_evaluate_discovery_coverage_snapshot` | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Networks compliance | overview posture tile | compliant network rollup counts divided by all network rollup counts | runtime network rollups | Runtime | backend | returns `0` with no rollups |
-| Discovery compliance by network | posture table and KPI summary | `discovery-compliant asset evaluations / total asset evaluations in network * 100` | runtime evaluations | Runtime | backend | only assets with evaluations contribute |
+| Discovery compliance by network | posture table and KPI summary | compliant SQL discovery coverage rows divided by total asset coverage rows in network | `usp_evaluate_discovery_coverage_snapshot`, discovery settings, discovery detection metadata | Runtime SQL result | SQL Server/backend | only assets with SQL coverage rows contribute |
 | Modelled network coverage | overview modelling card | networks where `discoveryStatus != "Discovery Non Enabled"` divided by total networks | `managed_network.discovery_status` | Runtime | backend | implemented as discovery enablement proxy |
 | Blast radius points | posture chart input | endpoint count per network plus high-risk P1/P2 finding count | assets, findings | Runtime | backend | sorted by endpoint count, then severe findings |
 | Immediate action | action tab | open High Risk + open Critical Exposure findings | findings | Runtime | backend | severity remap already applied |

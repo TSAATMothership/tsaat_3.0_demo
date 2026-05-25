@@ -3,6 +3,9 @@
   "schemaName": "tsaat",
   "packageDataFiles": {
     "kpiDefinitions": "data/kpi-definitions.json",
+    "kpiCalculations": "data/kpi-calculations.json",
+    "kpiTasking": "data/kpi-tasking.json",
+    "kpiReportDetailDefinitions": "data/kpi-report-detail-definitions.json",
     "spiDefinitions": "data/spi-definitions.json",
     "spiRuleDefinitions": "data/spi-rule-definitions.json",
     "spiReportDetailDefinitions": "data/spi-report-detail-definitions.json",
@@ -10,6 +13,7 @@
     "spiSqlCalculations": "data/spi-sql-calculations.json",
     "findingDefinitions": "data/finding-definitions.json",
     "severityDefinitions": "data/severity-definitions.json",
+    "discoveryCoverageRules": "data/discovery-coverage-rules.json",
     "discoveryToolsSettings": "data/discovery-tools-settings.json",
     "measuresSettings": "data/measures-settings.json",
     "referenceVersions": "data/reference-versions.json"

@@ -4,6 +4,7 @@ import {
   buildSystemPerformanceReportModel
 } from "@/lib/performance-report-model";
 import { normalizeKpiDefinitions } from "@/lib/kpi-definitions";
+import type { KpiRow } from "@/lib/measures";
 import { testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
 import {
   AnalyticsResult,
@@ -18,6 +19,25 @@ import rawKpiDefinitions from "../Database Schema/data/kpi-definitions.json";
 
 const snapshotDate = "2026-04-23";
 const kpiDefinitions = normalizeKpiDefinitions(rawKpiDefinitions);
+
+function kpiRows(scorePercent = 50): KpiRow[] {
+  return kpiDefinitions.map((definition) => ({
+    id: definition.id,
+    displayOrder: definition.displayOrder,
+    name: definition.name,
+    description: definition.description,
+    successMeasure: definition.successMeasure,
+    calculationKey: definition.calculationKey,
+    reportAvailable: definition.reportAvailable,
+    score: `${scorePercent}%`,
+    scorePercent,
+    compliantCount: 1,
+    applicableCount: 2,
+    nonCompliantCount: 1,
+    unknownCount: 0,
+    highPriorityCount: 0
+  }));
+}
 
 function network(id: string, name: string, modellingStatus: boolean): ManagedNetwork {
   return {
@@ -215,6 +235,7 @@ describe("performance report model", () => {
       networks,
       systems,
       kpiDefinitions,
+      kpiRowsByMatrixRowId: new Map([["Secret::net-a", kpiRows(50)]]),
       spiDefinitions: testSpiDefinitions,
       severityDefinitions: testSeverityDefinitions,
       asOfDate: snapshotDate

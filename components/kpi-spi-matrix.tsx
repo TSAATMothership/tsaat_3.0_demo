@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { buildKpiReportModels } from "@/lib/kpi-report-model";
-import { KpiDefinition } from "@/lib/kpi-definitions";
+import type { KpiRow } from "@/lib/measures";
 import { buildSpiReportModels } from "@/lib/spi-report-model";
 import { SpiDefinition } from "@/lib/spi-definitions";
 import { buildTaskingReportHref } from "@/lib/tasking-report-links";
-import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork, type SpiId } from "@/lib/types";
+import { AnalyticsResult, Dataset, Filters, type SpiId } from "@/lib/types";
 
 interface Option {
   id: string;
@@ -128,9 +128,7 @@ function SpiAssetTypeCell({
 export function KpiSpiMatrix({
   dataset,
   analytics,
-  systems,
-  networks,
-  kpiDefinitions,
+  kpiRows,
   spiDefinitions,
   filters,
   filterOptions,
@@ -140,9 +138,7 @@ export function KpiSpiMatrix({
 }: {
   dataset: Dataset;
   analytics: AnalyticsResult;
-  systems: ICTSystem[];
-  networks: ManagedNetwork[];
-  kpiDefinitions?: KpiDefinition[];
+  kpiRows?: KpiRow[];
   spiDefinitions?: SpiDefinition[];
   filters: Filters;
   filterOptions: FilterOptions;
@@ -150,7 +146,7 @@ export function KpiSpiMatrix({
   selectedSpiId?: SpiId;
   searchValue?: string;
 }) {
-  const kpiReports = mode === "kpi" ? buildKpiReportModels(analytics, systems, networks, kpiDefinitions ?? []) : [];
+  const kpiReports = mode === "kpi" ? buildKpiReportModels(kpiRows ?? []) : [];
   const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics, spiDefinitions ?? []) : [];
   const normalizedSearch = searchValue.trim().toLowerCase();
   const filteredSpiReports = spiReports.filter((report) => {

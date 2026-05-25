@@ -227,6 +227,7 @@ export interface Dataset {
   ictSystems: ICTSystem[];
   assets: Asset[];
   spiEvaluations: StoredSpiEvaluation[];
+  discoveryCoverageEvaluations?: StoredDiscoveryCoverageEvaluation[];
   ciDependencies?: CiDependency[];
   findings?: Finding[];
 }
@@ -243,6 +244,29 @@ export interface SpiEvaluation {
 
 export interface StoredSpiEvaluation extends SpiEvaluation {
   assetId: string;
+}
+
+export type DiscoveryCoverageValue = 1 | 0 | null;
+
+export interface StoredDiscoveryCoverageEvaluation {
+  assetId: string;
+  toolValues: Record<string, DiscoveryCoverageValue>;
+  missingToolIds: string[];
+  missingToolNames: string[];
+  coverageCompliance: boolean;
+}
+
+export interface StoredKpiEvaluation {
+  kpiId: string;
+  displayOrder: number;
+  calculationKey: string;
+  score: string;
+  scorePercent: number;
+  compliantCount: number;
+  applicableCount: number;
+  nonCompliantCount: number;
+  unknownCount: number;
+  highPriorityCount: number;
 }
 
 export interface AssetSpiEvaluation {

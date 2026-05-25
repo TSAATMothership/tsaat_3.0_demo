@@ -19,7 +19,7 @@ import {
   findingDisplayConfigurationCacheSignature,
   normalizeFindingDisplayConfiguration
 } from "@/lib/findings-config";
-import { KpiDefinition, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
+import { KpiDefinition, kpiDefinitionsCacheSignature, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import {
   defaultMeasuresSettings,
   FindingPriorityDefinition,
@@ -49,7 +49,22 @@ import {
 import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
 import { ServerMemoryCache } from "@/lib/server-cache";
-import { Asset, AssetType, ComplianceStatus, Dataset, EnvironmentType, Finding, ReferenceVersions, SpiId, StoredSpiEvaluation } from "@/lib/types";
+import {
+  Asset,
+  AssetType,
+  ComplianceStatus,
+  Dataset,
+  DiscoveryCoverageValue,
+  EnvironmentType,
+  Finding,
+  ICTSystem,
+  ManagedNetwork,
+  ReferenceVersions,
+  SpiId,
+  StoredDiscoveryCoverageEvaluation,
+  StoredKpiEvaluation,
+  StoredSpiEvaluation
+} from "@/lib/types";
 import { executeSqlJson, executeSqlText, toSqlUnicodeLiteral } from "@/lib/sql-server";
 
 type SnapshotRow = {
@@ -284,7 +299,51 @@ type KpiDefinitionRow = {
   successMeasure: string;
   calculationKey: string;
   reportAvailable: boolean | number;
+  enabled?: boolean | number;
+  calculationDefinition?: KpiCalculationDefinitionRow | null;
+  reportDetailDefinition?: KpiReportDetailDefinitionRow | null;
+  taskingTeams?: KpiTaskingTeamRow[];
+  taskingActions?: KpiTaskingActionTemplateRow[];
+  taskingConditions?: KpiTaskingConditionTemplateRow[];
 };
+
+type KpiCalculationDefinitionRow = {
+  calculationKey: string;
+  sourceKey: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean | number;
+};
+
+type KpiReportDetailDefinitionRow = {
+  reportDetailKey: string;
+  handlerKey: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean | number;
+};
+
+type KpiTaskingTeamRow = {
+  displayOrder: number;
+  team: string;
+  supportQueue: string;
+  contactEmail: string;
+};
+
+type KpiTaskingActionTemplateRow = {
+  displayOrder: number;
+  conditionKey: string;
+  actionText: string;
+};
+
+type KpiTaskingConditionTemplateRow = {
+  conditionKey: string;
+  templateText: string;
+};
+
+type StoredKpiEvaluationRow = StoredKpiEvaluation;
 
 type SpiDefinitionRow = {
   spiId: number;
@@ -340,6 +399,23 @@ type StoredSpiEvaluationRow = {
   outcomeKey: string;
   status: ComplianceStatus;
   evidence: Record<string, string | number | boolean | null> | null;
+};
+
+type DiscoveryCoverageToolValueRow = {
+  toolId: string;
+  value: DiscoveryCoverageValue;
+};
+
+type DiscoveryCoverageArrayValueRow = {
+  value: string;
+};
+
+type StoredDiscoveryCoverageEvaluationRow = {
+  assetId: string;
+  toolValues: DiscoveryCoverageToolValueRow[] | null;
+  missingToolIds: DiscoveryCoverageArrayValueRow[] | null;
+  missingToolNames: DiscoveryCoverageArrayValueRow[] | null;
+  coverageCompliance: boolean | number;
 };
 
 type SpiTaskingTeamRow = {
@@ -572,6 +648,64 @@ function normalizeStoredSpiEvaluations(
   }
 
   return evaluations;
+}
+
+function normalizeDiscoveryCoverageValue(value: unknown): DiscoveryCoverageValue {
+  if (value === 1 || value === "1" || value === true) {
+    return 1;
+  }
+  if (value === 0 || value === "0" || value === false) {
+    return 0;
+  }
+  return null;
+}
+
+function normalizeStringArrayRows(rows: DiscoveryCoverageArrayValueRow[] | null | undefined): string[] {
+  return (rows ?? [])
+    .map((row) => (typeof row.value === "string" ? row.value.trim() : ""))
+    .filter((value) => value.length > 0);
+}
+
+function normalizeStoredDiscoveryCoverageEvaluations(
+  rows: StoredDiscoveryCoverageEvaluationRow[]
+): StoredDiscoveryCoverageEvaluation[] {
+  return rows
+    .filter((row) => typeof row.assetId === "string" && row.assetId.trim().length > 0)
+    .map((row) => {
+      const toolValues: Record<string, DiscoveryCoverageValue> = {};
+      for (const toolValue of row.toolValues ?? []) {
+        if (typeof toolValue.toolId === "string" && toolValue.toolId.trim()) {
+          toolValues[toolValue.toolId] = normalizeDiscoveryCoverageValue(toolValue.value);
+        }
+      }
+
+      return {
+        assetId: row.assetId,
+        toolValues,
+        missingToolIds: normalizeStringArrayRows(row.missingToolIds),
+        missingToolNames: normalizeStringArrayRows(row.missingToolNames),
+        coverageCompliance: Boolean(row.coverageCompliance)
+      };
+    });
+}
+
+function normalizeStoredKpiEvaluations(rows: StoredKpiEvaluationRow[], kpiDefinitions: KpiDefinition[]): StoredKpiEvaluation[] {
+  const definitionIds = new Set(kpiDefinitions.map((definition) => definition.id));
+  return rows
+    .filter((row) => definitionIds.has(row.kpiId))
+    .map((row) => ({
+      kpiId: row.kpiId,
+      displayOrder: row.displayOrder,
+      calculationKey: row.calculationKey,
+      score: row.score,
+      scorePercent: Number(row.scorePercent) || 0,
+      compliantCount: Number(row.compliantCount) || 0,
+      applicableCount: Number(row.applicableCount) || 0,
+      nonCompliantCount: Number(row.nonCompliantCount) || 0,
+      unknownCount: Number(row.unknownCount) || 0,
+      highPriorityCount: Number(row.highPriorityCount) || 0
+    }))
+    .sort((left, right) => left.displayOrder - right.displayOrder || left.kpiId.localeCompare(right.kpiId));
 }
 
 function normalizeFindingRows(rows: FindingRow[]): Finding[] {
@@ -1021,6 +1155,20 @@ FOR JSON PATH;
   return normalizeStoredSpiEvaluations(rows, spiDefinitions);
 }
 
+async function loadSnapshotDiscoveryCoverageEvaluations(
+  snapshotId: number
+): Promise<StoredDiscoveryCoverageEvaluation[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const rows = await executeSqlJson<StoredDiscoveryCoverageEvaluationRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_evaluate_discovery_coverage_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @asset_ids_json = NULL,
+  @emit_json = 1;
+`);
+
+  return normalizeStoredDiscoveryCoverageEvaluations(rows);
+}
+
 export async function loadSnapshotEffectiveFindings(
   snapshotId: number,
   asOfDate?: string | null
@@ -1042,6 +1190,7 @@ function buildDatasetFromSnapshotRow(
   snapshot: SnapshotRow,
   payload: SnapshotPayload,
   spiEvaluations: StoredSpiEvaluation[],
+  discoveryCoverageEvaluations: StoredDiscoveryCoverageEvaluation[],
   effectiveFindings: Finding[]
 ): Dataset {
   const networkChildrenRows = toArrayMap(payload.managedNetworkHierarchy, (row) => row.parentNetworkId);
@@ -1321,6 +1470,7 @@ function buildDatasetFromSnapshotRow(
     ictSystems,
     assets,
     spiEvaluations,
+    discoveryCoverageEvaluations,
     ciDependencies,
     findings
   };
@@ -1334,26 +1484,31 @@ async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotR
     throw new Error(`Unable to find snapshot ${safeSnapshotId}.`);
   }
 
-  const [spiDefinitions, measuresVersion, findingDisplayConfiguration] = await Promise.all([
+  const [spiDefinitions, measuresVersion, discoveryToolsVersion, findingDisplayConfiguration] = await Promise.all([
     loadSpiDefinitions(),
     loadLatestMeasuresSettingsVersion(),
+    loadLatestDiscoveryToolsSettingsVersion(),
     loadFindingDisplayConfiguration()
   ]);
   const spiSignature = spiDefinitionsCacheSignature(spiDefinitions);
   const measuresVersionSignature = measuresVersion
     ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}`
     : "measures:default";
+  const discoveryVersionSignature = discoveryToolsVersion
+    ? `discovery:${discoveryToolsVersion.settingsVersionId}:${discoveryToolsVersion.updatedAt}`
+    : "discovery:default";
   const findingConfigurationSignature = findingDisplayConfigurationCacheSignature(findingDisplayConfiguration);
 
   return datasetBySnapshotIdCache.getOrSet(
-    `snapshot:${safeSnapshotId}:${snapshot.generatedAt}:${spiSignature}:${measuresVersionSignature}:${findingConfigurationSignature}`,
+    `snapshot:${safeSnapshotId}:${snapshot.generatedAt}:${spiSignature}:${measuresVersionSignature}:${discoveryVersionSignature}:${findingConfigurationSignature}`,
     async () => {
-    const [payload, spiEvaluations, effectiveFindings] = await Promise.all([
+    const [payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings] = await Promise.all([
       loadSnapshotPayload(safeSnapshotId),
       loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions),
+      loadSnapshotDiscoveryCoverageEvaluations(safeSnapshotId),
       loadSnapshotEffectiveFindings(safeSnapshotId)
     ]);
-    return buildDatasetFromSnapshotRow(snapshot, payload, spiEvaluations, effectiveFindings);
+    return buildDatasetFromSnapshotRow(snapshot, payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings);
     }
   );
 }
@@ -1911,7 +2066,16 @@ FOR JSON PATH;
 
 export async function loadKpiDefinitions(): Promise<KpiDefinition[]> {
   return kpiDefinitionsCache.getOrSet("latest", async () => {
-    const rows = await executeSqlJson<KpiDefinitionRow[]>(`
+    const [
+      rows,
+      calculationRows,
+      reportDetailRows,
+      reportBindingRows,
+      teamRows,
+      actionRows,
+      conditionRows
+    ] = await Promise.all([
+      executeSqlJson<KpiDefinitionRow[]>(`
 SELECT
   kpi.[kpi_id] AS [id],
   kpi.[display_order] AS [displayOrder],
@@ -1919,13 +2083,170 @@ SELECT
   kpi.[description] AS [description],
   kpi.[success_measure] AS [successMeasure],
   kpi.[calculation_key] AS [calculationKey],
-  kpi.[report_available] AS [reportAvailable]
+  kpi.[report_available] AS [reportAvailable],
+  kpi.[enabled] AS [enabled]
 FROM [${DATA_SCHEMA}].[kpi_definition] kpi
 ORDER BY kpi.[display_order], kpi.[kpi_id]
 FOR JSON PATH;
+`),
+      executeSqlJson<KpiCalculationDefinitionRow[]>(`
+SELECT
+  kcd.[calculation_key] AS [calculationKey],
+  kcd.[source_key] AS [sourceKey],
+  kcd.[display_order] AS [displayOrder],
+  kcd.[name] AS [name],
+  kcd.[description] AS [description],
+  kcd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[kpi_calculation_definition] kcd
+ORDER BY kcd.[display_order], kcd.[calculation_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<KpiReportDetailDefinitionRow[]>(`
+SELECT
+  krdd.[report_detail_key] AS [reportDetailKey],
+  krdd.[handler_key] AS [handlerKey],
+  krdd.[display_order] AS [displayOrder],
+  krdd.[name] AS [name],
+  krdd.[description] AS [description],
+  krdd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[kpi_report_detail_definition] krdd
+ORDER BY krdd.[display_order], krdd.[report_detail_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<{ kpiId: string; reportDetailKey: string }>>(`
+SELECT
+  krdb.[kpi_id] AS [kpiId],
+  krdb.[report_detail_key] AS [reportDetailKey]
+FROM [${DATA_SCHEMA}].[kpi_report_detail_binding] krdb
+ORDER BY krdb.[kpi_id]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<KpiTaskingTeamRow & { kpiId: string }>>(`
+SELECT
+  ktt.[kpi_id] AS [kpiId],
+  ktt.[display_order] AS [displayOrder],
+  ktt.[team] AS [team],
+  ktt.[support_queue] AS [supportQueue],
+  ktt.[contact_email] AS [contactEmail]
+FROM [${DATA_SCHEMA}].[kpi_tasking_team] ktt
+ORDER BY ktt.[kpi_id], ktt.[display_order]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<KpiTaskingActionTemplateRow & { kpiId: string }>>(`
+SELECT
+  ktat.[kpi_id] AS [kpiId],
+  ktat.[display_order] AS [displayOrder],
+  ktat.[condition_key] AS [conditionKey],
+  ktat.[action_text] AS [actionText]
+FROM [${DATA_SCHEMA}].[kpi_tasking_action_template] ktat
+ORDER BY ktat.[kpi_id], ktat.[display_order]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<KpiTaskingConditionTemplateRow & { kpiId: string }>>(`
+SELECT
+  ktct.[kpi_id] AS [kpiId],
+  ktct.[condition_key] AS [conditionKey],
+  ktct.[template_text] AS [templateText]
+FROM [${DATA_SCHEMA}].[kpi_tasking_condition_template] ktct
+ORDER BY ktct.[kpi_id], ktct.[condition_key]
+FOR JSON PATH;
+`)
+    ]);
+
+    const calculationByKey = new Map(
+      calculationRows.map((row) => [row.calculationKey, { ...row, enabled: Boolean(row.enabled) }])
+    );
+    const reportDetailByKey = new Map(
+      reportDetailRows.map((row) => [row.reportDetailKey, { ...row, enabled: Boolean(row.enabled) }])
+    );
+    const reportDetailKeyByKpi = new Map(reportBindingRows.map((row) => [row.kpiId, row.reportDetailKey]));
+    const teamsByKpi = toArrayMap(teamRows, (row) => row.kpiId);
+    const actionsByKpi = toArrayMap(actionRows, (row) => row.kpiId);
+    const conditionsByKpi = toArrayMap(conditionRows, (row) => row.kpiId);
+
+    return normalizeKpiDefinitions(
+      rows.map((row) => ({
+        ...row,
+        calculationDefinition: calculationByKey.get(row.calculationKey),
+        reportDetailDefinition: reportDetailByKey.get(reportDetailKeyByKpi.get(row.id) ?? "generic-kpi-summary"),
+        taskingTeams: teamsByKpi.get(row.id) ?? [],
+        taskingActions: actionsByKpi.get(row.id) ?? [],
+        taskingConditions: conditionsByKpi.get(row.id) ?? []
+      }))
+    );
+  });
+}
+
+function toSqlJsonArrayLiteral(values: Iterable<string>): string {
+  return toSqlUnicodeLiteral(JSON.stringify(Array.from(new Set(values)).sort((left, right) => left.localeCompare(right))));
+}
+
+function findingsForKpiSql(findings: Finding[]): Array<{ assetId: string; severity: string; priorityRank: number }> {
+  return findings.map((finding) => ({
+    assetId: finding.scope.assetId,
+    severity: finding.severity,
+    priorityRank: finding.priorityRank
+  }));
+}
+
+export async function loadSnapshotKpiEvaluationsForScope({
+  snapshotId,
+  assetIds,
+  systemIds,
+  networkIds,
+  findings,
+  kpiDefinitions
+}: {
+  snapshotId: number;
+  assetIds: Iterable<string>;
+  systemIds: Iterable<string>;
+  networkIds: Iterable<string>;
+  findings: Finding[];
+  kpiDefinitions?: KpiDefinition[];
+}): Promise<StoredKpiEvaluation[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
+  const assetIdsSql = toSqlJsonArrayLiteral(assetIds);
+  const systemIdsSql = toSqlJsonArrayLiteral(systemIds);
+  const networkIdsSql = toSqlJsonArrayLiteral(networkIds);
+  const findingsSql = toSqlUnicodeLiteral(JSON.stringify(findingsForKpiSql(findings)));
+  const rows = await executeSqlJson<StoredKpiEvaluationRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @asset_ids_json = ${assetIdsSql},
+  @system_ids_json = ${systemIdsSql},
+  @network_ids_json = ${networkIdsSql},
+  @effective_findings_json = ${findingsSql},
+  @emit_json = 1;
 `);
 
-    return normalizeKpiDefinitions(rows);
+  return normalizeStoredKpiEvaluations(rows, definitions);
+}
+
+export async function loadSnapshotKpiEvaluationsForAnalyticsScope({
+  dataset,
+  analytics,
+  systems,
+  networks,
+  kpiDefinitions
+}: {
+  dataset: Dataset;
+  analytics: { evaluations: Array<{ assetId: string }>; findings: Finding[] };
+  systems: ICTSystem[];
+  networks: ManagedNetwork[];
+  kpiDefinitions?: KpiDefinition[];
+}): Promise<StoredKpiEvaluation[]> {
+  if (!dataset.snapshotId) {
+    throw new Error("SQL-backed KPI evaluation requires a dataset snapshot id.");
+  }
+
+  return loadSnapshotKpiEvaluationsForScope({
+    snapshotId: dataset.snapshotId,
+    assetIds: analytics.evaluations.map((evaluation) => evaluation.assetId),
+    systemIds: systems.map((system) => system.id),
+    networkIds: networks.map((network) => network.id),
+    findings: analytics.findings,
+    kpiDefinitions
   });
 }
 

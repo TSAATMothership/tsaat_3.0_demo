@@ -425,6 +425,9 @@ if ($manifest.snapshotSourceDirectory) {
 $requiredPackageData = @(
   (Join-Path $packageDataRoot 'reference-versions.json'),
   (Join-Path $packageDataRoot 'kpi-definitions.json'),
+  (Join-Path $packageDataRoot 'kpi-calculations.json'),
+  (Join-Path $packageDataRoot 'kpi-tasking.json'),
+  (Join-Path $packageDataRoot 'kpi-report-detail-definitions.json'),
   (Join-Path $packageDataRoot 'spi-definitions.json'),
   (Join-Path $packageDataRoot 'spi-rule-definitions.json'),
   (Join-Path $packageDataRoot 'spi-report-detail-definitions.json'),
@@ -432,6 +435,7 @@ $requiredPackageData = @(
   (Join-Path $packageDataRoot 'spi-sql-calculations.json'),
   (Join-Path $packageDataRoot 'finding-definitions.json'),
   (Join-Path $packageDataRoot 'severity-definitions.json'),
+  (Join-Path $packageDataRoot 'discovery-coverage-rules.json'),
   (Join-Path $packageDataRoot 'discovery-tools-settings.json'),
   (Join-Path $packageDataRoot 'measures-settings.json')
 )

@@ -1,6 +1,7 @@
-import { buildKpiRows } from "@/lib/measures";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { KpiDefinition } from "@/lib/kpi-definitions";
+import { buildKpiRows, KpiRow } from "@/lib/measures";
+import { loadSnapshotKpiEvaluationsForScope } from "@/lib/data-loader";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { filterRealNetworks } from "@/lib/network-scope";
 import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
@@ -239,10 +240,16 @@ interface BuildPerformanceReportModelParams {
   networks: ManagedNetwork[];
   systems: ICTSystem[];
   kpiDefinitions: KpiDefinition[];
+  kpiRowsByMatrixRowId?: Map<string, KpiRow[]>;
   spiDefinitions: SpiDefinition[];
   severityDefinitions: SeverityDefinition[];
   asOfDate?: string;
 }
+
+type BuildPerformanceKpiRowsParams = Pick<
+  BuildPerformanceReportModelParams,
+  "scopeType" | "dataset" | "analytics" | "networks" | "systems" | "kpiDefinitions"
+>;
 
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
 const ageThresholds = [30, 60, 90];
@@ -644,6 +651,98 @@ function systemEntityDetails(system: ICTSystem): PerformanceEntityDetails {
   };
 }
 
+export async function buildPerformanceKpiRowsByMatrixRowId({
+  scopeType,
+  dataset,
+  analytics,
+  networks,
+  systems,
+  kpiDefinitions
+}: BuildPerformanceKpiRowsParams): Promise<Map<string, KpiRow[]>> {
+  if (!dataset.snapshotId) {
+    return new Map();
+  }
+
+  const scopedNetworks = filterRealNetworks(networks);
+  const scopedSystems = systems;
+  const entityRows =
+    scopeType === "network"
+      ? scopedNetworks.map((network) => ({
+          id: network.id,
+          name: network.name,
+          securityDomain: undefined as SecurityDomain | undefined
+        }))
+      : scopedSystems.map((system) => ({
+          id: system.id,
+          name: system.name,
+          securityDomain: system.securityDomain
+        }));
+  const entityById = new Map(entityRows.map((entity) => [entity.id, entity]));
+  const entityIds = new Set(entityRows.map((entity) => entity.id));
+
+  const scopedEvaluations = analytics.evaluations.filter((evaluation) => {
+    const entityId = scopeEntityId(scopeType, evaluation);
+    return Boolean(entityId) && entityIds.has(entityId as string);
+  });
+  const scopedAssetIds = new Set(scopedEvaluations.map((evaluation) => evaluation.assetId));
+  const scopedFindings = analytics.findings.filter((finding) => {
+    const entityId = findingEntityId(scopeType, finding);
+    return Boolean(entityId) && entityIds.has(entityId as string) && scopedAssetIds.has(finding.scope.assetId);
+  });
+
+  const groupedEvaluations = new Map<string, AssetSpiEvaluation[]>();
+  for (const evaluation of scopedEvaluations) {
+    const entityId = scopeEntityId(scopeType, evaluation);
+    if (!entityId) {
+      continue;
+    }
+    const key = groupKey(evaluation.securityDomain, entityId);
+    groupedEvaluations.set(key, [...(groupedEvaluations.get(key) ?? []), evaluation]);
+  }
+
+  const rows = sortByDomainAndEntity(
+    Array.from(groupedEvaluations.entries()).map(([key, evaluations]) => {
+      const [securityDomain, entityId] = key.split("::") as [SecurityDomain, string];
+      const entity = entityById.get(entityId);
+      return {
+        id: key,
+        securityDomain,
+        entityId,
+        entityName: entity?.name ?? entityId,
+        evaluations
+      };
+    })
+  );
+
+  const result = new Map<string, KpiRow[]>();
+  await Promise.all(
+    rows.map(async (row) => {
+      const rowAssetIds = new Set(row.evaluations.map((evaluation) => evaluation.assetId));
+      const findings = scopedFindings.filter((finding) => rowAssetIds.has(finding.scope.assetId));
+      const rowSystems =
+        scopeType === "system"
+          ? scopedSystems.filter((system) => system.id === row.entityId)
+          : scopedSystems.filter((system) => system.networkId === row.entityId);
+      const rowNetworks =
+        scopeType === "network"
+          ? scopedNetworks.filter((network) => network.id === row.entityId)
+          : scopedNetworks.filter((network) => rowSystems.some((system) => system.networkId === network.id));
+
+      const kpiEvaluations = await loadSnapshotKpiEvaluationsForScope({
+        snapshotId: dataset.snapshotId!,
+        assetIds: row.evaluations.map((evaluation) => evaluation.assetId),
+        systemIds: rowSystems.map((system) => system.id),
+        networkIds: rowNetworks.map((network) => network.id),
+        findings,
+        kpiDefinitions
+      });
+      result.set(row.id, buildKpiRows(kpiDefinitions, kpiEvaluations));
+    })
+  );
+
+  return result;
+}
+
 export function buildPerformanceReportModel({
   scopeType,
   dataset,
@@ -654,6 +753,7 @@ export function buildPerformanceReportModel({
   kpiDefinitions,
   spiDefinitions,
   severityDefinitions,
+  kpiRowsByMatrixRowId = new Map(),
   asOfDate = dataset.snapshotDate
 }: BuildPerformanceReportModelParams): PerformanceReportModel {
   const entityLabelSingular = scopeType === "network" ? "Network" : "ICT System";
@@ -741,7 +841,7 @@ export function buildPerformanceReportModel({
       securityDomain: row.securityDomain,
       entityId: row.entityId,
       entityName: row.entityName,
-      kpis: buildKpiRows(rowAnalytics, rowSystems, rowNetworks, kpiDefinitions).map((kpi) => ({
+      kpis: (kpiRowsByMatrixRowId.get(row.id) ?? []).map((kpi) => ({
         id: kpi.id,
         name: kpi.name,
         score: kpi.score,

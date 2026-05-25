@@ -16,7 +16,11 @@ import {
   loadSeverityDefinitions,
   loadSpiDefinitions
 } from "@/lib/data-loader";
-import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import {
+  discoveryCoverageByAssetId,
+  discoveryCoverageForAssetId,
+  DiscoveryCoverageValue
+} from "@/lib/discovery-coverage";
 import { extractDataDateParam, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
@@ -412,8 +416,8 @@ function n2PlusStatusLabel(nMinus: number | null): string {
   return nMinus <= 2 ? "Within N-2+" : "Outside N-2+";
 }
 
-function discoveryCoverageForAsset(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings) {
-  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+function discoveryCoverageForAsset(asset: Asset, coverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>) {
+  const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
 
   return {
     coverageCompliance: coverage.coverageCompliance
@@ -547,8 +551,9 @@ function buildSystemKpiSnapshotMetrics(
   const outOfWarrantyAssets = assetsInCountScope.filter(
     (asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty"
   ).length;
+  const snapshotDiscoveryCoverageByAsset = discoveryCoverageByAssetId(snapshot.discoveryCoverageEvaluations);
   const nonCompliantDiscoveryCoverage = assetsInCountScope.filter(
-    (asset) => !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance
+    (asset) => !discoveryCoverageForAsset(asset, snapshotDiscoveryCoverageByAsset).coverageCompliance
   ).length;
 
   return {
@@ -644,6 +649,7 @@ export default async function SystemDetailPage({
     loadSpiDefinitions(),
     loadSeverityDefinitions()
   ]);
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
 
@@ -784,7 +790,7 @@ export default async function SystemDetailPage({
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance;
+      return !discoveryCoverageForAsset(asset, storedDiscoveryCoverageByAsset).coverageCompliance;
     }
     return true;
   };
@@ -855,7 +861,7 @@ export default async function SystemDetailPage({
     (asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty"
   ).length;
   const nonCompliantDiscoveryCoverageCount = assetsInCountScope.filter(
-    (asset) => !discoveryCoverageForAsset(asset, discoveryToolsSettings).coverageCompliance
+    (asset) => !discoveryCoverageForAsset(asset, storedDiscoveryCoverageByAsset).coverageCompliance
   ).length;
 
   const filteredAssets = selectedEnvironment
@@ -942,7 +948,11 @@ export default async function SystemDetailPage({
     return query ? `/systems/${system.id}?${query}#p12-findings` : `/systems/${system.id}#p12-findings`;
   })();
 
-  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(filteredAssets, discoveryToolsSettings);
+  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(
+    filteredAssets,
+    discoveryToolsSettings,
+    dataset.discoveryCoverageEvaluations
+  );
   const discoveryToolCoverageCharts = discoveryToolCoverageModel.toolCards;
   const discoveryCoverageRows = filteredAssets
     .map((asset) => {

@@ -9,7 +9,11 @@ import {
 import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
 import { buildDiscoveryCoverageByNetworkRows } from "@/lib/discovery-coverage-by-network-rows";
-import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import {
+  discoveryCoverageByAssetId,
+  discoveryCoverageForAssetId,
+  DiscoveryCoverageValue
+} from "@/lib/discovery-coverage";
 import {
   filterDiscoveryAssets,
   filterDiscoveryNetworks,
@@ -101,9 +105,10 @@ export default async function DiscoveryCoveragePage({
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const scopedAssets = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)));
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const rows: CoverageRow[] = scopedAssets
     .map((asset) => {
-      const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+      const coverage = discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset);
       return {
         assetId: asset.id,
         hostname: asset.hostname,

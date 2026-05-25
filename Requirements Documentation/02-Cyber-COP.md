@@ -18,7 +18,7 @@ Major dependencies:
 - `FilterBar`
 - runtime analytics in `lib/analytics.ts`
 - measures settings severity and priority remap
-- discovery coverage evaluation from discovery tool settings
+- SQL-produced discovery coverage rows from discovery tool settings and database detection rules
 
 ## 3. Feature Breakdown
 ### Feature: Shared Filter Scope and Snapshot Date
@@ -42,7 +42,7 @@ Major dependencies:
 ### Feature: Action Tab
 - **What it does:** shows immediate action, remediation backlog, discovery gaps, modelling gaps, throughput, aging, oldest findings, and quick wins.
 - **User perspective:** the user can move from posture awareness to remediation planning.
-- **System behaviour:** the page derives action counts from open findings, lifecycle data, discovery coverage results, and DIIS modelling flags.
+- **System behaviour:** the page derives action counts from open findings, lifecycle data, SQL-produced discovery coverage results, and DIIS modelling flags.
 - **Outcome:** the page produces a tactical remediation view.
 
 ### Feature: Client-Side Tab State
@@ -71,7 +71,7 @@ The page depends on the shared dataset snapshot loader and analytics builder. Mo
 - `tsaat.system_mission_capability`
 - `tsaat.system_business_service`
 - `tsaat.measures_settings_version`, `tsaat.measures_severity_matrix`, and `tsaat.measures_priority_matrix`
-- `tsaat.discovery_tools_settings_version`, `tsaat.discovery_tool`, and `tsaat.discovery_tool_asset_scope`
+- `tsaat.discovery_tools_settings_version`, `tsaat.discovery_tool`, `tsaat.discovery_tool_asset_scope`, and discovery coverage detection metadata tables
 
 If `tsaat.finding` has no rows for the selected snapshot, SQL Server still returns effective findings by generating deterministic fallback rows from non-compliant or unknown SQL SPI evaluations.
 
@@ -82,7 +82,7 @@ If `tsaat.finding` has no rows for the selected snapshot, SQL Server still retur
 | Cyber COP | Scope context | `tsaat` | `managed_network`, `ict_system` | IDs, names, `criticality`, `security_domain`, ownership columns | string, enum-like | Filter options and scope labels | Read | assets link to network and system IDs | fallback values possible in downstream views | used directly and in rollups | |
 | Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, SPI calculation metadata | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | SQL SPI evaluation through `usp_evaluate_spi_snapshot` | not stored as a precomputed fact table |
 | Cyber COP | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, workflow status, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority are applied by SQL effective findings | |
-| Cyber COP | Settings-driven logic | `tsaat` | measures and discovery settings tables | version, severity, tool metadata, scope settings | mixed | Severity remap and discovery compliance | Read | latest settings version applied | defaults if no saved settings exist | settings alter runtime analytics | |
+| Cyber COP | Settings-driven logic | `tsaat` | measures settings, discovery settings, and discovery coverage rule tables | version, severity, tool metadata, scope settings, detection rules | mixed | Severity remap and discovery compliance | Read | latest settings version applied; discovery rows are returned by `usp_evaluate_discovery_coverage_snapshot` | defaults if no saved settings exist | SQL discovery coverage alters runtime analytics | |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -96,6 +96,7 @@ If `tsaat.finding` has no rows for the selected snapshot, SQL Server still retur
 | Weekly risk trend | trend cards | sample every 7 days from a 365-day open-finding series | finding timestamps | Runtime | backend | future dates beyond snapshot show `null` |
 | ICT systems modelled coverage | modelling summary | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems * 100` | `ict_system.diis_defined`, `ict_system.modelling_status` | Runtime | backend | `0` if no DIIS-defined systems |
 | Findings generation fallback | keep dashboard populated | SQL Server derives findings from non-compliant or unknown SPI evaluations and assigns deterministic severity, priority, status, and timestamps | SQL SPI evaluations, SPI classification rules, finding generation policy | Runtime SQL result | SQL Server | only used when dataset has no persisted findings |
+| Discovery coverage | discovery gap and action inputs | SQL Server evaluates enabled discovery tool rules for each in-scope asset and returns per-tool values, missing tools, and compliance | discovery settings, discovery coverage rule tables, asset/system/network facts | Runtime SQL result | SQL Server | unrestricted formula/script execution is not supported |
 
 ## 8. Non-Database Calculations
 - Client tab selection is held in component state and not persisted.

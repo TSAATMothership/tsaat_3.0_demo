@@ -1,6 +1,10 @@
 import { buildAnalytics } from "@/lib/analytics";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
-import { evaluateDiscoveryCoverage, type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
+import {
+  discoveryCoverageByAssetId,
+  discoveryCoverageForAssetId,
+  type DiscoveryCoverageValue
+} from "@/lib/discovery-coverage";
 import { type DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { isUnassignedNetworkId } from "@/lib/discovery-filter-scope";
 import { type MeasuresSettings } from "@/lib/measures-settings";
@@ -150,12 +154,13 @@ export function buildNetworkDiscoveryReportModel({
   );
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const scopedAssets = dataset.assets.filter((asset) => scopedAssetIds.has(asset.id));
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
   const toolColumns = discoveryToolsSettings.tools.map((tool) => ({ key: tool.id, label: tool.name }));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
   const discoveredAssets = scopedAssets
     .map((asset) => {
-      const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+      const coverage = discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset);
       const systemId = asset.systemContext?.systemId;
       const missingTools = [...coverage.missingToolNames].sort((a, b) => a.localeCompare(b));
       return {
@@ -179,7 +184,7 @@ export function buildNetworkDiscoveryReportModel({
     if (!sourceAsset) {
       return total;
     }
-    const coverage = evaluateDiscoveryCoverage(sourceAsset, discoveryToolsSettings);
+    const coverage = discoveryCoverageForAssetId(sourceAsset.id, storedDiscoveryCoverageByAsset);
     return total + Object.values(coverage.toolValues).filter((value): value is Exclude<DiscoveryCoverageValue, null> => value !== null).length;
   }, 0);
   const overallCoveredToolSlots = discoveredAssets.reduce((total, asset) => {
@@ -187,12 +192,14 @@ export function buildNetworkDiscoveryReportModel({
     if (!sourceAsset) {
       return total;
     }
-    const coverage = evaluateDiscoveryCoverage(sourceAsset, discoveryToolsSettings);
+    const coverage = discoveryCoverageForAssetId(sourceAsset.id, storedDiscoveryCoverageByAsset);
     return total + Object.values(coverage.toolValues).filter((value) => value === 1).length;
   }, 0);
 
   const toolCoverageRows = toolColumns.map((tool) => {
-    const values = scopedAssets.map((asset) => evaluateDiscoveryCoverage(asset, discoveryToolsSettings).toolValues[tool.key]);
+    const values = scopedAssets.map(
+      (asset) => discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset).toolValues[tool.key]
+    );
     const applicable = values.filter((value) => value !== null).length;
     const covered = values.filter((value) => value === 1).length;
     const missing = values.filter((value) => value === 0).length;

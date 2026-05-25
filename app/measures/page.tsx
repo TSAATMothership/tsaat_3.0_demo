@@ -9,6 +9,7 @@ import {
 } from "@/components/security-performance-indicator-compliance-chart";
 import { buildKpiRows } from "@/lib/measures";
 import { getCoreAppData } from "@/lib/app-data";
+import { loadSnapshotKpiEvaluationsForAnalyticsScope } from "@/lib/data-loader";
 import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
 import { FindingSeverity, type SpiId } from "@/lib/types";
 import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
@@ -59,7 +60,14 @@ export default async function MeasuresPage({
   } =
     await getCoreAppData(searchParams);
   const selectedSpiId = readSpiFilter(searchParams, spiDefinitions);
-  const kpiRows = buildKpiRows(analytics, systems, networks, kpiDefinitions);
+  const kpiEvaluations = await loadSnapshotKpiEvaluationsForAnalyticsScope({
+    dataset,
+    analytics,
+    systems,
+    networks,
+    kpiDefinitions
+  });
+  const kpiRows = buildKpiRows(kpiDefinitions, kpiEvaluations);
   const severityOptions: FindingSeverity[] = severityDefinitions.map((definition: SeverityDefinition) => definition.severityKey);
   const measuresExtraSelects = [
     {
@@ -149,9 +157,7 @@ export default async function MeasuresPage({
               <KpiSpiMatrix
                 dataset={dataset}
                 analytics={analytics}
-                systems={systems}
-                networks={networks}
-                kpiDefinitions={kpiDefinitions}
+                kpiRows={kpiRows}
                 spiDefinitions={spiDefinitions}
                 filters={filters}
                 filterOptions={filterOptions}
@@ -180,8 +186,6 @@ export default async function MeasuresPage({
               <KpiSpiMatrix
                 dataset={dataset}
                 analytics={analytics}
-                systems={systems}
-                networks={networks}
                 spiDefinitions={spiDefinitions}
                 filters={filters}
                 filterOptions={filterOptions}

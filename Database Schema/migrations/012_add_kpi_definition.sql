@@ -31,6 +31,48 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'tsaat.kpi_calculation_source', N'U') IS NOT NULL
+  AND OBJECT_ID(N'tsaat.kpi_calculation_definition', N'U') IS NOT NULL
+BEGIN
+  MERGE [tsaat].[kpi_calculation_source] AS target
+  USING (VALUES
+    (N'kpi-snapshot-scope-context', N'[tsaat].[usp_evaluate_kpi_snapshot] scoped SQL context', N'Approved SQL context combining selected assets, systems, networks, SPI evaluations, effective findings, and discovery coverage rows.', CAST(1 AS BIT))
+  ) AS source ([source_key], [source_object_name], [description], [enabled])
+  ON target.[source_key] = source.[source_key]
+  WHEN MATCHED THEN UPDATE SET
+    [source_object_name] = source.[source_object_name],
+    [description] = source.[description],
+    [enabled] = source.[enabled]
+  WHEN NOT MATCHED BY TARGET THEN
+    INSERT ([source_key], [source_object_name], [description], [enabled])
+    VALUES (source.[source_key], source.[source_object_name], source.[description], source.[enabled]);
+
+  MERGE [tsaat].[kpi_calculation_definition] AS target
+  USING (VALUES
+    (N'overall-spi-compliance', N'kpi-snapshot-scope-context', 1, N'Overall SPI Compliance', N'Compliant SPI evaluations divided by all applicable SPI evaluations.', CAST(1 AS BIT)),
+    (N'protected-domain-compliance', N'kpi-snapshot-scope-context', 2, N'Protected Domain Compliance', N'Compliant SPI evaluations for Protected-domain assets divided by all applicable Protected-domain SPI evaluations.', CAST(1 AS BIT)),
+    (N'secret-domain-compliance', N'kpi-snapshot-scope-context', 3, N'Secret Domain Compliance', N'Compliant SPI evaluations for Secret-domain assets divided by all applicable Secret-domain SPI evaluations.', CAST(1 AS BIT)),
+    (N'critical-ict-system-compliance', N'kpi-snapshot-scope-context', 4, N'Critical ICT System Compliance', N'Compliant SPI evaluations for assets belonging to Critical ICT systems divided by all applicable Critical-system SPI evaluations.', CAST(1 AS BIT)),
+    (N'critical-exposure-in-production', N'kpi-snapshot-scope-context', 5, N'Critical Exposure in Production', N'Count of Critical Exposure findings with score percent derived from non-critical-exposure findings over all findings.', CAST(1 AS BIT)),
+    (N'discovery-coverage-compliance', N'kpi-snapshot-scope-context', 6, N'Discovery Coverage Compliance', N'Discovery-compliant assets divided by all scoped assets with discovery coverage rows.', CAST(1 AS BIT)),
+    (N'active-ato-coverage', N'kpi-snapshot-scope-context', 7, N'Active ATO Coverage', N'Scoped ICT systems passing the seeded deterministic ATO proxy divided by scoped ICT systems.', CAST(1 AS BIT)),
+    (N'diis-registration-coverage', N'kpi-snapshot-scope-context', 8, N'DIIS Registration Coverage', N'Scoped ICT systems passing the seeded deterministic DIIS registration proxy divided by scoped ICT systems.', CAST(1 AS BIT)),
+    (N'diis-modelled-coverage', N'kpi-snapshot-scope-context', 9, N'DIIS Modelled Coverage', N'DIIS-defined scoped ICT systems with modelling enabled divided by DIIS-defined scoped ICT systems.', CAST(1 AS BIT)),
+    (N'network-discovery-enablement', N'kpi-snapshot-scope-context', 10, N'Network Discovery Enablement', N'Scoped networks marked Discovery Enabled divided by scoped networks.', CAST(1 AS BIT))
+  ) AS source ([calculation_key], [source_key], [display_order], [name], [description], [enabled])
+  ON target.[calculation_key] = source.[calculation_key]
+  WHEN MATCHED THEN UPDATE SET
+    [source_key] = source.[source_key],
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [enabled] = source.[enabled]
+  WHEN NOT MATCHED BY TARGET THEN
+    INSERT ([calculation_key], [source_key], [display_order], [name], [description], [enabled])
+    VALUES (source.[calculation_key], source.[source_key], source.[display_order], source.[name], source.[description], source.[enabled]);
+END;
+GO
+
 MERGE [tsaat].[kpi_definition] AS target
 USING (VALUES
   (N'KPI-1', 1, N'Overall SPI Compliance', N'Share of compliant checks across all applicable SPI evaluations in current filter scope.', N'Target >= 95% compliant checks.', N'overall-spi-compliance', CAST(0 AS BIT)),

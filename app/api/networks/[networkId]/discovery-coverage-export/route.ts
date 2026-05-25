@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
-import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
@@ -9,7 +9,6 @@ import {
   loadSeverityDefinitions,
   loadSpiDefinitions
 } from "@/lib/data-loader";
-import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { isUnassignedNetworkId } from "@/lib/network-scope";
 import {
   buildScopedDiscoveryToolCoverage,
@@ -61,8 +60,8 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   return "Compliant";
 }
 
-function isDiscoveryCoverageCompliant(asset: Asset, discoveryToolsSettings: DiscoveryToolsSettings): boolean {
-  const coverage = evaluateDiscoveryCoverage(asset, discoveryToolsSettings);
+function isDiscoveryCoverageCompliant(asset: Asset, coverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>): boolean {
+  const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
   return coverage.coverageCompliance;
 }
 
@@ -94,6 +93,7 @@ export async function GET(
     loadSeverityDefinitions()
   ]);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
+  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
 
   if (isUnassignedNetworkId(params.networkId)) {
     return NextResponse.json(
@@ -184,7 +184,7 @@ export async function GET(
       return asset.lifecycle.warrantyStatus === "OutOfWarranty";
     }
     if (selectedKpiFilter === "nonCompliantDiscoveryCoverage") {
-      return !isDiscoveryCoverageCompliant(asset, discoveryToolsSettings);
+      return !isDiscoveryCoverageCompliant(asset, storedDiscoveryCoverageByAsset);
     }
     return true;
   };
@@ -193,7 +193,11 @@ export async function GET(
   const selectedDiscoveryAssetType = request.nextUrl.searchParams.get("discoveryAssetType")?.trim() ?? "";
   const requestedDiscoveryToolFilter = request.nextUrl.searchParams.get("discoveryToolFilter")?.trim().toLowerCase();
   const scopedAssets = selectedKpiFilter ? assets.filter((asset) => matchesSelectedKpiFilter(asset)) : assets;
-  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(scopedAssets, discoveryToolsSettings);
+  const discoveryToolCoverageModel = buildScopedDiscoveryToolCoverage(
+    scopedAssets,
+    discoveryToolsSettings,
+    dataset.discoveryCoverageEvaluations
+  );
   const applicableDiscoveryToolIds = new Set(discoveryToolCoverageModel.toolColumns.map((tool) => tool.id));
   const selectedDiscoveryToolFilter =
     requestedDiscoveryToolFilter && applicableDiscoveryToolIds.has(requestedDiscoveryToolFilter)

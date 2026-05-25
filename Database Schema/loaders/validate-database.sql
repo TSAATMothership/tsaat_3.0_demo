@@ -25,10 +25,20 @@ DECLARE @SpiTaskingTeamCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_tasking_te
 DECLARE @SpiTaskingActionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_tasking_action_template]);
 DECLARE @SpiTaskingConditionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_tasking_condition_template]);
 DECLARE @KpiCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_definition]);
+DECLARE @KpiCalculationSourceCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_calculation_source]);
+DECLARE @KpiCalculationDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_calculation_definition]);
+DECLARE @KpiTaskingTeamCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_tasking_team]);
+DECLARE @KpiTaskingActionCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_tasking_action_template]);
+DECLARE @KpiTaskingConditionCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_tasking_condition_template]);
+DECLARE @KpiReportDetailDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_report_detail_definition]);
+DECLARE @KpiReportDetailBindingCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_report_detail_binding]);
 DECLARE @AssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[asset]);
 DECLARE @FindingCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[finding]);
 DECLARE @CiDependencyCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[ci_dependency]);
 DECLARE @DiscoveryToolCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_tool]);
+DECLARE @DiscoveryCoverageSourceCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_coverage_source]);
+DECLARE @DiscoveryDetectionDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_tool_detection_definition]);
+DECLARE @DiscoveryDetectionRuleCount INT = (SELECT COUNT(*) FROM [tsaat].[discovery_tool_detection_rule]);
 DECLARE @MeasureSeverityCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_severity_matrix]);
 DECLARE @MeasurePriorityCount INT = (SELECT COUNT(*) FROM [tsaat].[measures_priority_matrix]);
 DECLARE @NetworkTargetStateAssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[network_target_state_asset]);
@@ -105,6 +115,27 @@ IF @SpiTaskingConditionCount <= 0
 IF @KpiCount <= 0
   THROW 52000, 'Validation failed: kpi_definition table is empty.', 1;
 
+IF @KpiCalculationSourceCount <= 0
+  THROW 52000, 'Validation failed: kpi_calculation_source table is empty.', 1;
+
+IF @KpiCalculationDefinitionCount < 10
+  THROW 52000, 'Validation failed: kpi_calculation_definition count must be at least 10.', 1;
+
+IF @KpiTaskingTeamCount <= 0
+  THROW 52000, 'Validation failed: kpi_tasking_team table is empty.', 1;
+
+IF @KpiTaskingActionCount <= 0
+  THROW 52000, 'Validation failed: kpi_tasking_action_template table is empty.', 1;
+
+IF @KpiTaskingConditionCount <= 0
+  THROW 52000, 'Validation failed: kpi_tasking_condition_template table is empty.', 1;
+
+IF @KpiReportDetailDefinitionCount <= 0
+  THROW 52000, 'Validation failed: kpi_report_detail_definition table is empty.', 1;
+
+IF @KpiReportDetailBindingCount < 3
+  THROW 52000, 'Validation failed: kpi_report_detail_binding must include the seeded KPI detail bindings.', 1;
+
 IF @AssetCount <= 0
   THROW 52000, 'Validation failed: asset table is empty.', 1;
 
@@ -116,6 +147,15 @@ IF @CiDependencyCount <= 0
 
 IF @DiscoveryToolCount <= 0
   THROW 52000, 'Validation failed: discovery_tool table is empty.', 1;
+
+IF @DiscoveryCoverageSourceCount <= 0
+  THROW 52000, 'Validation failed: discovery_coverage_source table is empty.', 1;
+
+IF @DiscoveryDetectionDefinitionCount < 7
+  THROW 52000, 'Validation failed: discovery_tool_detection_definition count must include seeded discovery tools.', 1;
+
+IF @DiscoveryDetectionRuleCount < 7
+  THROW 52000, 'Validation failed: discovery_tool_detection_rule count must include seeded discovery coverage rules.', 1;
 
 IF @MeasureSeverityCount <= 0
   THROW 52000, 'Validation failed: measures_severity_matrix table is empty.', 1;
@@ -149,6 +189,39 @@ IF OBJECT_ID(N'tsaat.usp_get_finding_history_snapshot', N'P') IS NULL
 
 IF OBJECT_ID(N'tsaat.usp_get_finding_spi_history_snapshot', N'P') IS NULL
   THROW 52000, 'Validation failed: usp_get_finding_spi_history_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.fn_kpi_stable_hash', N'FN') IS NULL
+  THROW 52000, 'Validation failed: fn_kpi_stable_hash is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_evaluate_discovery_coverage_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_evaluate_discovery_coverage_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_evaluate_kpi_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_evaluate_kpi_snapshot is missing.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM [tsaat].[kpi_definition] AS kd
+  LEFT JOIN [tsaat].[kpi_calculation_definition] AS kcd
+    ON kcd.[calculation_key] = kd.[calculation_key] AND kcd.[enabled] = 1
+  WHERE kd.[enabled] = 1 AND kcd.[calculation_key] IS NULL
+)
+  THROW 52000, 'Validation failed: every enabled KPI definition must have an enabled SQL calculation definition.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM [tsaat].[kpi_definition] AS kd
+  WHERE kd.[enabled] = 1
+    AND kd.[report_available] = 1
+    AND NOT EXISTS (
+      SELECT 1
+      FROM [tsaat].[kpi_report_detail_binding] AS krdb
+      INNER JOIN [tsaat].[kpi_report_detail_definition] AS krdd
+        ON krdd.[report_detail_key] = krdb.[report_detail_key] AND krdd.[enabled] = 1
+      WHERE krdb.[kpi_id] = kd.[kpi_id]
+    )
+)
+  THROW 52000, 'Validation failed: every report-enabled KPI definition must have an enabled report detail binding.', 1;
 
 IF EXISTS (
   SELECT 1
@@ -260,6 +333,47 @@ IF EXISTS (
 )
   THROW 52000, 'Validation failed: effective findings procedure returned invalid finding rows.', 1;
 
+DECLARE @SqlDiscoveryCoverage TABLE (
+  [snapshot_id] BIGINT NOT NULL,
+  [asset_id] NVARCHAR(255) NOT NULL,
+  [coverage_compliance] BIT NOT NULL,
+  [tool_values_json] NVARCHAR(MAX) NOT NULL,
+  [missing_tool_ids_json] NVARCHAR(MAX) NOT NULL,
+  [missing_tool_names_json] NVARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @SqlDiscoveryCoverage
+EXEC [tsaat].[usp_evaluate_discovery_coverage_snapshot] @snapshot_id = @LatestSnapshotId, @asset_ids_json = NULL, @emit_json = 0;
+
+IF NOT EXISTS (SELECT 1 FROM @SqlDiscoveryCoverage)
+  THROW 52000, 'Validation failed: SQL discovery coverage procedure returned no rows for the latest snapshot.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM @SqlDiscoveryCoverage
+  WHERE ISJSON([tool_values_json]) <> 1
+    OR ISJSON([missing_tool_ids_json]) <> 1
+    OR ISJSON([missing_tool_names_json]) <> 1
+)
+  THROW 52000, 'Validation failed: SQL discovery coverage procedure returned invalid JSON fields.', 1;
+
+DECLARE @EffectiveFindingsJson NVARCHAR(MAX) = (
+  SELECT
+    [asset_id] AS [assetId],
+    [display_severity] AS [severity],
+    [display_priority_rank] AS [priorityRank]
+  FROM @EffectiveFindings
+  FOR JSON PATH
+);
+
+EXEC [tsaat].[usp_evaluate_kpi_snapshot]
+  @snapshot_id = @LatestSnapshotId,
+  @asset_ids_json = NULL,
+  @system_ids_json = NULL,
+  @network_ids_json = NULL,
+  @effective_findings_json = @EffectiveFindingsJson,
+  @emit_json = 0;
+
 ;WITH row_counts AS (
   SELECT
     t.[name] AS [table_name],
@@ -299,10 +413,20 @@ SELECT
   @SpiTaskingActionCount AS [spi_tasking_action_template_count],
   @SpiTaskingConditionCount AS [spi_tasking_condition_template_count],
   @KpiCount AS [kpi_definition_count],
+  @KpiCalculationSourceCount AS [kpi_calculation_source_count],
+  @KpiCalculationDefinitionCount AS [kpi_calculation_definition_count],
+  @KpiTaskingTeamCount AS [kpi_tasking_team_count],
+  @KpiTaskingActionCount AS [kpi_tasking_action_template_count],
+  @KpiTaskingConditionCount AS [kpi_tasking_condition_template_count],
+  @KpiReportDetailDefinitionCount AS [kpi_report_detail_definition_count],
+  @KpiReportDetailBindingCount AS [kpi_report_detail_binding_count],
   @AssetCount AS [asset_count],
   @FindingCount AS [finding_count],
   @CiDependencyCount AS [ci_dependency_count],
   @DiscoveryToolCount AS [discovery_tool_count],
+  @DiscoveryCoverageSourceCount AS [discovery_coverage_source_count],
+  @DiscoveryDetectionDefinitionCount AS [discovery_tool_detection_definition_count],
+  @DiscoveryDetectionRuleCount AS [discovery_tool_detection_rule_count],
   @MeasureSeverityCount AS [measures_severity_matrix_count],
   @MeasurePriorityCount AS [measures_priority_matrix_count],
   @NetworkTargetStateAssetCount AS [network_target_state_asset_count],

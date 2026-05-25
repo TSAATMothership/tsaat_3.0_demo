@@ -112,6 +112,32 @@ function createDataset(): Dataset {
     generatedAt: timestamp,
     snapshotDate: "2026-04-23",
     spiEvaluations: [],
+    discoveryCoverageEvaluations: [
+      {
+        snapshotId: 1,
+        assetId: "asset-alpha-server",
+        toolValues: { ucmdb: 1, tenable: 1 },
+        missingToolIds: [],
+        missingToolNames: [],
+        coverageCompliance: true
+      },
+      {
+        snapshotId: 1,
+        assetId: "asset-alpha-printer",
+        toolValues: { ucmdb: 0, tenable: 0 },
+        missingToolIds: ["ucmdb", "tenable"],
+        missingToolNames: ["UCMDB", "Tenable"],
+        coverageCompliance: false
+      },
+      {
+        snapshotId: 1,
+        assetId: "asset-beta-server",
+        toolValues: { ucmdb: 1, tenable: 1 },
+        missingToolIds: [],
+        missingToolNames: [],
+        coverageCompliance: true
+      }
+    ],
     managedNetworks: networks,
     ictSystems: [
       {

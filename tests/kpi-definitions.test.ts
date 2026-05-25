@@ -47,7 +47,15 @@ describe("KPI definitions", () => {
           description: "Custom description",
           successMeasure: "Custom success measure",
           calculationKey: "discovery-coverage-compliance",
-          reportAvailable: 1
+          reportAvailable: 1,
+          calculationDefinition: {
+            calculationKey: "discovery-coverage-compliance",
+            sourceKey: "kpi-scope-context",
+            displayOrder: 1,
+            name: "Discovery",
+            description: "Discovery",
+            enabled: true
+          }
         },
         {
           id: "KPI-DUPLICATE-ORDER",
@@ -65,22 +73,30 @@ describe("KPI definitions", () => {
           description: "Unsupported description",
           successMeasure: "Unsupported success measure",
           calculationKey: "unsupported-calculation",
-          reportAvailable: true
+          reportAvailable: true,
+          calculationDefinition: {
+            calculationKey: "unsupported-calculation",
+            sourceKey: "kpi-scope-context",
+            displayOrder: 99,
+            name: "Unsupported",
+            description: "Unsupported",
+            enabled: false
+          }
         }
       ]
     });
 
-    expect(definitions).toEqual([
-      {
-        id: "KPI-CUSTOM",
-        displayOrder: 2,
-        name: "Custom",
-        description: "Custom description",
-        successMeasure: "Custom success measure",
-        calculationKey: "discovery-coverage-compliance",
-        reportAvailable: true
-      }
-    ]);
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0]).toMatchObject({
+      id: "KPI-CUSTOM",
+      displayOrder: 2,
+      name: "Custom",
+      description: "Custom description",
+      successMeasure: "Custom success measure",
+      calculationKey: "discovery-coverage-compliance",
+      reportAvailable: true,
+      enabled: true
+    });
   });
 
   it("persists KPI definitions in schema, migration, loader, validation, manifest, and docs", () => {

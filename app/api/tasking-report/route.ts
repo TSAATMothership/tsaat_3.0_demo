@@ -6,6 +6,7 @@ import {
   loadDiscoveryToolsSettings,
   loadKpiDefinitions,
   loadMeasuresSettings,
+  loadSnapshotKpiEvaluationsForAnalyticsScope,
   loadSeverityDefinitions,
   loadSpiDefinitions,
   loadSnapshotsForDateWindow
@@ -16,6 +17,7 @@ import {
   isKpiReportAvailable,
   KpiTrendReportModel
 } from "@/lib/kpi-report-model";
+import { buildKpiRows } from "@/lib/measures";
 import {
   buildSpiReportModel,
   buildSpiReportModels,
@@ -947,6 +949,16 @@ export async function GET(request: NextRequest) {
   const scopedSystems = filterSystems(dataset.ictSystems, filters);
   const scopedNetworks = filterNetworks(dataset.managedNetworks, filters);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
+  const kpiRows = buildKpiRows(
+    kpiDefinitions,
+    await loadSnapshotKpiEvaluationsForAnalyticsScope({
+      dataset,
+      analytics,
+      systems: scopedSystems,
+      networks: scopedNetworks,
+      kpiDefinitions
+    })
+  );
 
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -1048,22 +1060,38 @@ export async function GET(request: NextRequest) {
 
   if (kind === "kpi-trend") {
     const trendDatasets = await loadSnapshotsForDateWindow(dataset.snapshotDate, 12);
-    const trendModel = buildKpiTrendReportModel({
-      kpiId: id,
-      kpiDefinitions,
-      snapshots: trendDatasets.map((trendDataset) => ({
-        snapshotDate: trendDataset.snapshotDate,
-        analytics: buildAnalytics(
+    const trendSnapshots = await Promise.all(
+      trendDatasets.map(async (trendDataset) => {
+        const trendAnalytics = buildAnalytics(
           trendDataset,
           trendDataset.ictSystems,
           filters,
           spiDefinitions,
           measuresSettings,
           discoveryToolsSettings
-        ),
-        systems: filterSystems(trendDataset.ictSystems, filters),
-        networks: filterNetworks(trendDataset.managedNetworks, filters)
-      }))
+        );
+        const trendSystems = filterSystems(trendDataset.ictSystems, filters);
+        const trendNetworks = filterNetworks(trendDataset.managedNetworks, filters);
+        const trendKpiRows = buildKpiRows(
+          kpiDefinitions,
+          await loadSnapshotKpiEvaluationsForAnalyticsScope({
+            dataset: trendDataset,
+            analytics: trendAnalytics,
+            systems: trendSystems,
+            networks: trendNetworks,
+            kpiDefinitions
+          })
+        );
+        return {
+          snapshotDate: trendDataset.snapshotDate,
+          kpiRows: trendKpiRows
+        };
+      })
+    );
+    const trendModel = buildKpiTrendReportModel({
+      kpiId: id,
+      kpiDefinitions,
+      snapshots: trendSnapshots
     });
 
     if (!trendModel) {
@@ -1129,9 +1157,7 @@ export async function GET(request: NextRequest) {
 
   if (kind === "kpi") {
     const kpiModel = buildKpiReportModel({
-      analytics,
-      systems: scopedSystems,
-      networks: scopedNetworks,
+      kpiRows,
       kpiId: id,
       kpiDefinitions
     });
@@ -1193,7 +1219,7 @@ export async function GET(request: NextRequest) {
     });
     y = drawWrappedBlock({
       page,
-      text: taskingConditionForKpi(row),
+      text: taskingConditionForKpi(row, kpiDefinitions),
       x: 32,
       y: y - 14,
       maxWidth: 535,
@@ -1203,7 +1229,7 @@ export async function GET(request: NextRequest) {
       color: { r: 0.14, g: 0.17, b: 0.22 }
     });
 
-    if (row.id === "KPI-4") {
+    if (row.reportDetailHandlerKey === "critical-system-threshold") {
       const criticalSystemsBelowThreshold = criticalSystemComplianceRowsAtOrBelowThreshold(dataset, analytics, 95);
 
       y -= 8;
@@ -1244,7 +1270,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (row.id === "KPI-5") {
+    if (row.reportDetailHandlerKey === "critical-exposure-assets") {
       const exposureAssetRows = criticalExposureAssetRows(dataset, analytics);
       const maxRows = 24;
       const shownRows = exposureAssetRows.slice(0, maxRows);
@@ -1301,7 +1327,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (row.id === "KPI-9") {
+    if (row.reportDetailHandlerKey === "unmodelled-diis-systems") {
       const unmodelledRows = unmodelledSystemRows(scopedSystems);
       const maxRows = 35;
       const shownRows = unmodelledRows.slice(0, maxRows);
@@ -1360,7 +1386,7 @@ export async function GET(request: NextRequest) {
 
     y -= 8;
     page.drawText("Remediation Actions", { x: 32, y, size: 11, font: fontBold, color: rgb(0.07, 0.2, 0.31) });
-    for (const action of remediationActionsForKpi(row)) {
+    for (const action of remediationActionsForKpi(row, kpiDefinitions)) {
       y = drawWrappedBlock({
         page,
         text: `- ${action}`,
@@ -1382,7 +1408,7 @@ export async function GET(request: NextRequest) {
       font: fontBold,
       color: rgb(0.07, 0.2, 0.31)
     });
-    for (const team of teamsForKpi(row.id)) {
+    for (const team of teamsForKpi(row.id, kpiDefinitions)) {
       y = drawWrappedBlock({
         page,
         text: `- ${team.team} | Queue: ${team.supportQueue} | Email: ${team.contactEmail}`,
