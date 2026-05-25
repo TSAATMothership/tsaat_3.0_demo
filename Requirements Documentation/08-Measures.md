@@ -28,6 +28,7 @@ Important hidden behaviour:
 - KPI-7 and KPI-8 are calculated from deterministic hash functions, not from persisted ATO or DIIS status data.
 - KPI definitions, display order, success measures, calculation keys, and report availability are loaded from `tsaat.kpi_definition`.
 - SPI definitions, display order, applicability, rule catalogues, SQL calculation expressions, evidence expressions, feature bindings, rule parameter schemas/defaults, outcome reason templates, generated finding classification rules, report detail catalogues, tasking metadata, default severity, and recommended actions are loaded from database SPI metadata tables.
+- application-side SPI rule execution has been removed; runtime SPI status, outcome, and evidence rows are produced by SQL Server and consumed by the app.
 - The seed KPI catalogue disables tasking and trend reports for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - the KPI definitions for DPE and DSE use `securityDomain = Protected` and `securityDomain = Secret`, which differs from the Cyber COP dashboard labels that are implemented using environment type.
 - legacy query compatibility is normalized at route load:
@@ -144,7 +145,7 @@ Primary data dependencies:
 - KPI-7 and KPI-8 are entirely runtime calculations using deterministic hash functions.
 - Tasking, all-SPI, and trend report URLs are assembled from the current filter query string and selected `dataDate`; URLs are not stored.
 - SPI score execution is performed by SQL Server through `usp_evaluate_spi_snapshot`; the application consumes returned status, outcome key, evidence, and DB-rendered metadata.
-- SPI reason wording and generated finding severity/priority classification are DB-backed templates/rules evaluated by controlled application code after SQL Server returns the calculation result.
+- SPI reason wording uses DB-backed templates during application rendering; generated finding severity/priority classification is SQL-produced as part of the effective findings result.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - KPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.

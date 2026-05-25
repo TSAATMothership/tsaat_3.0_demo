@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { ComplianceStatus, CveVulnerabilityDetail, FindingSeverity, VulnerabilitySeverity } from "@/lib/types";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -329,23 +328,9 @@ export function NetworkComplianceOverview({
     }
     setSelectedMeasure(measure);
     setSearchTerm("");
-    let hasOpenFindingsAtAsOf = false;
-    for (const finding of findings) {
-      if (finding.spiId !== measure.spiId) {
-        continue;
-      }
-      const asOfStatus = workflowStatusAtAsOf(
-        {
-          timestamp: finding.timestamp,
-          closedTimestamp: finding.closedTimestamp
-        },
-        timelineMaxDate
-      );
-      if (asOfStatus === "open") {
-        hasOpenFindingsAtAsOf = true;
-        break;
-      }
-    }
+    const hasOpenFindingsAtAsOf = findings.some(
+      (finding) => finding.spiId === measure.spiId && finding.workflowStatus === "open"
+    );
     setWorkflowFilter(hasOpenFindingsAtAsOf ? "open" : "all");
     setSeverityFilter("all");
     setSelectedFindingForAssets(null);
@@ -483,22 +468,11 @@ export function NetworkComplianceOverview({
     if (!selectedMeasure) {
       return [];
     }
-    const asOf = timelineMaxDate;
-    return selectedMeasureFindings
-      .map((finding) => ({
-        finding,
-        asOfStatus: workflowStatusAtAsOf(
-          {
-            timestamp: finding.timestamp,
-            closedTimestamp: finding.closedTimestamp
-          },
-          asOf
-        )
-      }))
-      .filter(
-        (entry): entry is TimelineFindingEntry => entry.asOfStatus !== null
-      );
-  }, [selectedMeasure, selectedMeasureFindings, timelineMaxDate]);
+    return selectedMeasureFindings.map((finding) => ({
+      finding,
+      asOfStatus: finding.workflowStatus
+    }));
+  }, [selectedMeasure, selectedMeasureFindings]);
 
   const timelineScopedStatusCounts = useMemo(() => {
     let open = 0;

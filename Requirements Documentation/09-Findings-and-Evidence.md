@@ -32,6 +32,7 @@ Important hidden behaviour:
 - workflow status for as-of effective rows is reconstructed by SQL Server from open and close timestamps rather than taken directly from the stored status field.
 - the history drillthrough is a non-route overlay triggered by `historyDrillthrough=1`.
 - if persisted findings are unavailable, SQL Server generates deterministic SPI findings through the database-backed findings fallback procedure.
+- legacy TypeScript synthetic finding generation has been removed; runtime pages consume SQL-produced effective finding rows.
 - severity/priority/status buckets, evidence display mappings, and register/export display definitions are loaded from database finding metadata tables.
 
 ## 3. Feature Breakdown
@@ -105,8 +106,8 @@ Primary data dependencies:
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workflow status at as-of date | decide whether a finding is open or closed on a selected date | SQL excludes findings opened after `asOf`; SQL marks findings closed when closed on or before `asOf`, otherwise open | finding timestamps | Runtime SQL result | SQL Server | derived from timestamps, not stored workflow field |
-| Findings history series | trend chart on overview | database procedure can aggregate opening balance plus opened/closed daily deltas over the configured window | finding timestamps and workflow status definitions | Runtime SQL result | SQL Server | open and closed modes use different accumulation logic |
-| SPI history series | drillthrough line chart | database procedure can build a separate running count per SPI across each day in the history window | finding timestamps, SPI ID, SPI definitions | Runtime SQL result | SQL Server | one line per active SPI present in catalogue |
+| Findings history series | trend chart on overview | page aggregates filtered SQL-produced effective finding rows into opening balance plus opened/closed daily deltas over the configured window | finding timestamps and SQL-produced workflow status | Runtime display over SQL result | backend | open and closed modes use different accumulation logic; SQL history procedure remains available for database-side validation/output |
+| SPI history series | drillthrough line chart | page aggregates filtered SQL-produced effective finding rows into a separate running count per SPI across each day in the history window | finding timestamps, SQL-produced workflow status, SPI ID, SPI definitions | Runtime display over SQL result | backend | one line per active SPI present in catalogue; SQL SPI history procedure remains available for database-side validation/output |
 | Summary cards | top-level status counts | count filtered findings by database-backed severity/priority buckets | filtered findings, `finding_bucket_definition` | Runtime display over DB metadata | backend | zero-safe |
 | Asset-type summary | compare findings by asset type | group findings by configured evidence field mapping and database-backed buckets | findings evidence, `finding_evidence_field_definition`, `finding_bucket_definition` | Runtime display over DB metadata | backend | dynamic grouping supports canonical asset taxonomy |
 | Register worklist rendering | operational table display | render all filtered rows inside the scrollable register panel | filtered findings, query params | Runtime | backend/client | no register pagination |
@@ -116,6 +117,7 @@ Primary data dependencies:
 
 ## 8. Non-Database Calculations
 - Overview cards, SPI summaries, and chart labels are runtime display aggregations over DB-produced effective findings and DB-backed bucket labels.
+- Filtered findings history and SPI history chart series are runtime display aggregations over SQL-produced effective findings; they do not generate findings or reconstruct workflow state outside SQL.
 - The history drillthrough open and close states are client-side overlay state controlled by a query parameter.
 - Affected-CI and CVE CSV generation is performed in the browser from the selected finding row and snapshot vulnerability index.
 - Open/Closed Findings tab changes dispatch a client-side dismissal event so register overlays close before the new view loads.

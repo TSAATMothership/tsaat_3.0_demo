@@ -260,15 +260,15 @@ The page depends on the shared dataset snapshot loader and analytics builder. Mo
 - `tsaat.measures_settings_version`, `tsaat.measures_severity_matrix`, and `tsaat.measures_priority_matrix`
 - `tsaat.discovery_tools_settings_version`, `tsaat.discovery_tool`, and `tsaat.discovery_tool_asset_scope`
 
-If `tsaat.finding` has no rows for the selected snapshot, the page still shows findings by generating them at runtime from non-compliant SPI evaluations.
+If `tsaat.finding` has no rows for the selected snapshot, SQL Server still returns effective findings by generating deterministic fallback rows from non-compliant or unknown SQL SPI evaluations.
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Cyber COP | Snapshot selection | `tsaat` | `dataset_snapshot` | `snapshot_id`, `snapshot_date`, `generated_at` | integer, date, datetime | Selects the dataset version | Read | root join for snapshot-aware tables | latest snapshot unless `dataDate` supplied | date-only conversion for display | Shared by all date-scoped pages |
 | Cyber COP | Scope context | `tsaat` | `managed_network`, `ict_system` | IDs, names, `criticality`, `security_domain`, ownership columns | string, enum-like | Filter options and scope labels | Read | assets link to network and system IDs | fallback values possible in downstream views | used directly and in rollups | |
-| Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | runtime SPI evaluation | not stored as a precomputed fact table |
-| Cyber COP | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, `workflow_status`, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | synthetic fallback if no rows exist | severity and non-compliant priority may be remapped | |
+| Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, SPI calculation metadata | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | SQL SPI evaluation through `usp_evaluate_spi_snapshot` | not stored as a precomputed fact table |
+| Cyber COP | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, workflow status, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority are applied by SQL effective findings | |
 | Cyber COP | Settings-driven logic | `tsaat` | measures and discovery settings tables | version, severity, tool metadata, scope settings | mixed | Severity remap and discovery compliance | Read | latest settings version applied | defaults if no saved settings exist | settings alter runtime analytics | |
 
 ## 7. Calculations and Derived Logic
@@ -282,7 +282,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 | Planned remediation | backlog count | count of open findings where `priorityRank` is between `3` and `89` | findings | Runtime | backend | priority remap applies before counting; `90` is treated as data-gap / non-priority |
 | Weekly risk trend | trend cards | sample every 7 days from a 365-day open-finding series | finding timestamps | Runtime | backend | future dates beyond snapshot show `null` |
 | ICT systems modelled coverage | modelling summary | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems * 100` | `ict_system.diis_defined`, `ict_system.modelling_status` | Runtime | backend | `0` if no DIIS-defined systems |
-| Findings generation fallback | keep dashboard populated | derive findings from non-compliant or unknown SPI evaluations and assign deterministic severity, priority, and timestamps | asset evaluations and vulnerabilities | Runtime | backend | only used when dataset has no persisted findings |
+| Findings generation fallback | keep dashboard populated | SQL Server derives findings from non-compliant or unknown SPI evaluations and assigns deterministic severity, priority, status, and timestamps | SQL SPI evaluations, SPI classification rules, finding generation policy | Runtime SQL result | SQL Server | only used when dataset has no persisted findings |
 
 ## 8. Non-Database Calculations
 - Client tab selection is held in component state and not persisted.
@@ -293,13 +293,13 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 ## 9. Rules, Assumptions, and Constraints
 - The page is date-scoped through global navigation rather than an in-page date control.
 - Severity shown on the page may differ from persisted `finding.severity` because measures settings remap severity by SPI and asset type across the shared six-type taxonomy.
-- If the selected scope contains no persisted findings, the page still renders synthetic findings generated from SPI evaluations.
+- If the selected snapshot contains no persisted findings, the page still renders SQL-generated fallback findings returned by the effective findings procedure.
 - Tab state is not addressable by URL.
 
 ## 10. Open Questions / Gaps
 - **Open question:** are `DPE` and `DSE` intended to represent Production and non-Production or Protected and Secret? The dashboard implements the former, while KPI pages implement the latter.
 - **Open question:** should the active Cyber COP tab be deep-linkable for reporting and bookmarking?
-- **Open question:** are synthetic findings acceptable for production use when `tsaat.finding` is empty, or should the page signal that the findings register is simulated?
+- **Open question:** should generated fallback findings be visibly labelled when `tsaat.finding` is empty for the selected snapshot?
 
 
 ---
@@ -515,7 +515,7 @@ Key dependencies:
 | Network Detail | Network metadata | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, ownership and link columns, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status` | mixed | header, details tab, discovery summary | Read | root network record for page | deterministic ATO, DIIS, and APM values are loaded/backfilled; legacy blank references display as `Missing`; descriptive blanks may use fallback display values | direct display | network modelling status is persisted for future use |
 | Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal and relationship context | Read | combined into topology graph | no persisted graph view | runtime graph build | topology includes synthetic relation edges |
 | Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
-| Network Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | synthetic fallback if no rows loaded | severity and non-compliant priority remap applied at runtime | |
+| Network Detail | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority remap applied by SQL effective findings | |
 | Network Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings versions applied | defaults if settings tables are empty | runtime only | |
 
 ## 7. Calculations and Derived Logic
@@ -528,7 +528,7 @@ Key dependencies:
 | Discovery tool scorecards | discovery tab tool summary | covered assets divided by applicable assets per tool; only tools required for at least one scoped asset type are shown | discovery coverage rows and discovery settings | Runtime | backend | asset type scope can mark a tool as N/A, which is excluded from tool denominators |
 | Asset coverage compliance | discovery table | `coverageCompliance = missing required tools count == 0` | discovery settings plus asset evidence | Runtime | backend | N/A tools do not count against compliance |
 | Asset inventory critical vulnerability count | hidden cyber-posture inventory | count vulnerabilities where `severity = Critical` per asset | `asset_vulnerability` | Runtime | backend | hidden route state only |
-| Findings drillthrough history | compliance overview panel | reconstruct open count over two years from finding open and close timestamps | findings | Runtime | backend and client | uses `workflowStatusAtAsOf` |
+| Findings drillthrough history | compliance overview panel | aggregate monthly open counts from SQL-produced workflow status and finding timestamps | SQL-produced effective findings | Runtime display over SQL result | backend and client | no application-side workflow reconstruction helper |
 
 ## 8. Non-Database Calculations
 - `DetailedTopologyView` creates runtime graph layouts and client-only interactions from already-loaded topology data.
@@ -763,7 +763,7 @@ Key dependencies:
 | ICT System Detail | System metadata | `tsaat` | `ict_system` | `system_id`, `network_id`, `name`, `criticality`, `security_domain`, description, ownership and link columns, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `diis_defined` | mixed | header, details tab, accreditation tables | Read | root record for the page | ATO, APM, and DIIS reference values are loaded/backfilled; legacy blank Details Overview references display as `Missing`; descriptive blank fields may use fallback values | direct display | synthetic support and service catalogue URLs may appear |
 | ICT System Detail | Mission, service, and environment context | `tsaat` | `system_mission_capability`, `system_business_service`, `system_environment`, `system_environment_asset` | IDs, names, `criticality`, `environment_type`, `asset_id` | mixed | mission/service lists, scope badges, environment-aware counts | Read | one system to many related rows | environment filter must match a defined environment type | joined into lists and scoped counts | |
 | ICT System Detail | Asset posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, lifecycle, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance rows, discovery rows, risk charts | Read | scoped to assets where `asset.system_id = system_id` | hidden query parameters may narrow further | runtime SPI, discovery evaluation, and CVE criticality filtering | |
-| ICT System Detail | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity and non-compliant priority remap applies at runtime | workflow reconstructed for as-of logic in reused components | |
+| ICT System Detail | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, risk charts, P1/P2 filters | Read | findings linked to assets and system via scope columns | severity and non-compliant priority remap is applied by SQL effective findings | SQL-produced workflow status is used by reused components | |
 | ICT System Detail | Topology relationships | `tsaat` | `ict_system_hierarchy`, `ci_dependency`, `network_declared_asset`, `network_declared_system` | parent-child keys, dependency endpoints, declared relationship keys | mixed | topology modal and relationship context | Read | combined into a runtime graph | no persisted graph view | runtime topology layout only | |
 | ICT System Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings version applied | defaults if settings tables are empty | runtime only | |
 
@@ -983,6 +983,7 @@ Important hidden behaviour:
 - KPI-7 and KPI-8 are calculated from deterministic hash functions, not from persisted ATO or DIIS status data.
 - KPI definitions, display order, success measures, calculation keys, and report availability are loaded from `tsaat.kpi_definition`.
 - SPI definitions, display order, applicability, rule catalogues, SQL calculation expressions, evidence expressions, feature bindings, rule parameter schemas/defaults, outcome reason templates, generated finding classification rules, report detail catalogues, tasking metadata, default severity, and recommended actions are loaded from database SPI metadata tables.
+- application-side SPI rule execution has been removed; runtime SPI status, outcome, and evidence rows are produced by SQL Server and consumed by the app.
 - The seed KPI catalogue disables tasking and trend reports for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - the KPI definitions for DPE and DSE use `securityDomain = Protected` and `securityDomain = Secret`, which differs from the Cyber COP dashboard labels that are implemented using environment type.
 - legacy query compatibility is normalized at route load:
@@ -1099,7 +1100,7 @@ Primary data dependencies:
 - KPI-7 and KPI-8 are entirely runtime calculations using deterministic hash functions.
 - Tasking, all-SPI, and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
 - SPI score execution is performed by SQL Server through `usp_evaluate_spi_snapshot`; the application consumes returned status, outcome key, evidence, and DB-rendered metadata.
-- SPI reason wording and generated finding severity/priority classification are DB-backed templates/rules evaluated by controlled application code after SQL Server returns the calculation result.
+- SPI reason wording uses DB-backed templates during application rendering; generated finding severity/priority classification is SQL-produced as part of the effective findings result.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - KPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
@@ -1168,6 +1169,7 @@ Important hidden behaviour:
 - workflow status for as-of effective rows is reconstructed by SQL Server from open and close timestamps rather than taken directly from the stored status field.
 - the history drillthrough is a non-route overlay triggered by `historyDrillthrough=1`.
 - if persisted findings are unavailable, SQL Server generates deterministic SPI findings through the database-backed findings fallback procedure.
+- legacy TypeScript synthetic finding generation has been removed; runtime pages consume SQL-produced effective finding rows.
 - severity/priority/status buckets, evidence display mappings, and register/export display definitions are loaded from database finding metadata tables.
 
 ## 3. Feature Breakdown
@@ -1241,8 +1243,8 @@ Primary data dependencies:
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | Workflow status at as-of date | decide whether a finding is open or closed on a selected date | SQL excludes findings opened after `asOf`; SQL marks findings closed when closed on or before `asOf`, otherwise open | finding timestamps | Runtime SQL result | SQL Server | derived from timestamps, not stored workflow field |
-| Findings history series | trend chart on overview | database procedure can aggregate opening balance plus opened/closed daily deltas over the configured window | finding timestamps and workflow status definitions | Runtime SQL result | SQL Server | open and closed modes use different accumulation logic |
-| SPI history series | drillthrough line chart | database procedure can build a separate running count per SPI across each day in the history window | finding timestamps, SPI ID, SPI definitions | Runtime SQL result | SQL Server | one line per active SPI present in catalogue |
+| Findings history series | trend chart on overview | page aggregates filtered SQL-produced effective finding rows into opening balance plus opened/closed daily deltas over the configured window | finding timestamps and SQL-produced workflow status | Runtime display over SQL result | backend | open and closed modes use different accumulation logic; SQL history procedure remains available for database-side validation/output |
+| SPI history series | drillthrough line chart | page aggregates filtered SQL-produced effective finding rows into a separate running count per SPI across each day in the history window | finding timestamps, SQL-produced workflow status, SPI ID, SPI definitions | Runtime display over SQL result | backend | one line per active SPI present in catalogue; SQL SPI history procedure remains available for database-side validation/output |
 | Summary cards | top-level status counts | count filtered findings by database-backed severity/priority buckets | filtered findings, `finding_bucket_definition` | Runtime display over DB metadata | backend | zero-safe |
 | Asset-type summary | compare findings by asset type | group findings by configured evidence field mapping and database-backed buckets | findings evidence, `finding_evidence_field_definition`, `finding_bucket_definition` | Runtime display over DB metadata | backend | dynamic grouping supports canonical asset taxonomy |
 | Register worklist rendering | operational table display | render all filtered rows inside the scrollable register panel | filtered findings, query params | Runtime | backend/client | no register pagination |
@@ -1252,6 +1254,7 @@ Primary data dependencies:
 
 ## 8. Non-Database Calculations
 - Overview cards, SPI summaries, and chart labels are runtime display aggregations over DB-produced effective findings and DB-backed bucket labels.
+- Filtered findings history and SPI history chart series are runtime display aggregations over SQL-produced effective findings; they do not generate findings or reconstruct workflow state outside SQL.
 - The history drillthrough open and close states are client-side overlay state controlled by a query parameter.
 - Affected-CI and CVE CSV generation is performed in the browser from the selected finding row and snapshot vulnerability index.
 - Open/Closed Findings tab changes dispatch a client-side dismissal event so register overlays close before the new view loads.

@@ -73,15 +73,15 @@ The page depends on the shared dataset snapshot loader and analytics builder. Mo
 - `tsaat.measures_settings_version`, `tsaat.measures_severity_matrix`, and `tsaat.measures_priority_matrix`
 - `tsaat.discovery_tools_settings_version`, `tsaat.discovery_tool`, and `tsaat.discovery_tool_asset_scope`
 
-If `tsaat.finding` has no rows for the selected snapshot, the page still shows findings by generating them at runtime from non-compliant SPI evaluations.
+If `tsaat.finding` has no rows for the selected snapshot, SQL Server still returns effective findings by generating deterministic fallback rows from non-compliant or unknown SQL SPI evaluations.
 
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Cyber COP | Snapshot selection | `tsaat` | `dataset_snapshot` | `snapshot_id`, `snapshot_date`, `generated_at` | integer, date, datetime | Selects the dataset version | Read | root join for snapshot-aware tables | latest snapshot unless `dataDate` supplied | date-only conversion for display | Shared by all date-scoped pages |
 | Cyber COP | Scope context | `tsaat` | `managed_network`, `ict_system` | IDs, names, `criticality`, `security_domain`, ownership columns | string, enum-like | Filter options and scope labels | Read | assets link to network and system IDs | fallback values possible in downstream views | used directly and in rollups | |
-| Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | runtime SPI evaluation | not stored as a precomputed fact table |
-| Cyber COP | Findings | `tsaat` | `finding` | IDs, scope columns, `priority_rank`, `severity`, `workflow_status`, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | synthetic fallback if no rows exist | severity and non-compliant priority may be remapped | |
+| Cyber COP | SPI posture | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, SPI calculation metadata | asset identity, OS, patch, software, vulnerability fields | mixed | Drives SPI evaluation and exposure logic | Read | joined by `asset_id` within one snapshot | empty related rows produce partial evidence or `Unknown` outcomes | SQL SPI evaluation through `usp_evaluate_spi_snapshot` | not stored as a precomputed fact table |
+| Cyber COP | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, workflow status, timestamps, `evidence` | mixed | Risk charts, counts, action plan | Read | finding scope joins back to asset, system, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority are applied by SQL effective findings | |
 | Cyber COP | Settings-driven logic | `tsaat` | measures and discovery settings tables | version, severity, tool metadata, scope settings | mixed | Severity remap and discovery compliance | Read | latest settings version applied | defaults if no saved settings exist | settings alter runtime analytics | |
 
 ## 7. Calculations and Derived Logic
@@ -95,7 +95,7 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 | Planned remediation | backlog count | count of open findings where `priorityRank` is between `3` and `89` | findings | Runtime | backend | priority remap applies before counting; `90` is treated as data-gap / non-priority |
 | Weekly risk trend | trend cards | sample every 7 days from a 365-day open-finding series | finding timestamps | Runtime | backend | future dates beyond snapshot show `null` |
 | ICT systems modelled coverage | modelling summary | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems * 100` | `ict_system.diis_defined`, `ict_system.modelling_status` | Runtime | backend | `0` if no DIIS-defined systems |
-| Findings generation fallback | keep dashboard populated | derive findings from non-compliant or unknown SPI evaluations and assign deterministic severity, priority, and timestamps | asset evaluations and vulnerabilities | Runtime | backend | only used when dataset has no persisted findings |
+| Findings generation fallback | keep dashboard populated | SQL Server derives findings from non-compliant or unknown SPI evaluations and assigns deterministic severity, priority, status, and timestamps | SQL SPI evaluations, SPI classification rules, finding generation policy | Runtime SQL result | SQL Server | only used when dataset has no persisted findings |
 
 ## 8. Non-Database Calculations
 - Client tab selection is held in component state and not persisted.
@@ -106,10 +106,10 @@ If `tsaat.finding` has no rows for the selected snapshot, the page still shows f
 ## 9. Rules, Assumptions, and Constraints
 - The page is date-scoped through global navigation rather than an in-page date control.
 - Severity shown on the page may differ from persisted `finding.severity` because measures settings remap severity by SPI and asset type across the shared six-type taxonomy.
-- If the selected scope contains no persisted findings, the page still renders synthetic findings generated from SPI evaluations.
+- If the selected snapshot contains no persisted findings, the page still renders SQL-generated fallback findings returned by the effective findings procedure.
 - Tab state is not addressable by URL.
 
 ## 10. Open Questions / Gaps
 - **Open question:** are `DPE` and `DSE` intended to represent Production and non-Production or Protected and Secret? The dashboard implements the former, while KPI pages implement the latter.
 - **Open question:** should the active Cyber COP tab be deep-linkable for reporting and bookmarking?
-- **Open question:** are synthetic findings acceptable for production use when `tsaat.finding` is empty, or should the page signal that the findings register is simulated?
+- **Open question:** should generated fallback findings be visibly labelled when `tsaat.finding` is empty for the selected snapshot?

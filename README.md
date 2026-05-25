@@ -278,6 +278,7 @@ npm test
 - Current seed data preserves SPIs 1-10 and evaluates them per applicable asset.
 - SPI score execution is SQL-driven through database calculation rows evaluated by `tsaat.usp_evaluate_spi_snapshot`.
 - Finding source selection, generated fallback, as-of status, severity/priority display remap, bucket semantics, and evidence/register display mappings are SQL Server-backed through the finding metadata tables and effective finding procedures.
+- Legacy TypeScript SPI rule execution and synthetic finding generation have been removed; the app consumes SQL-produced SPI evaluations and effective findings, then renders UI, PDF, JSON, and CSV outputs.
 - Each SPI returns `Compliant`, `Non-compliant`, or `Unknown`
 - High Risk and Critical Exposure tagging is seeded in database classification and finding bucket metadata.
 - Roll-up precedence for network/system/environment:
