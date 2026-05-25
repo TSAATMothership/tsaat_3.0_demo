@@ -1,5 +1,6 @@
 import { buildKpiRows } from "@/lib/measures";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { KpiDefinition } from "@/lib/kpi-definitions";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { filterRealNetworks } from "@/lib/network-scope";
 import { SPI_DESCRIPTIONS, SPI_IDS, SPI_NAMES, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
@@ -63,6 +64,11 @@ export interface PerformanceKpiMatrixRow {
   entityId: string;
   entityName: string;
   kpis: PerformanceKpiScore[];
+}
+
+export interface PerformanceKpiColumn {
+  id: string;
+  name: string;
 }
 
 export interface PerformanceAffectedCiRow {
@@ -214,6 +220,7 @@ export interface PerformanceReportModel {
   summary: PerformanceReportSummary;
   complianceStatusMix: PerformanceStatusCounts;
   discoveryStatusMix: PerformanceDiscoveryCounts;
+  kpiColumns: PerformanceKpiColumn[];
   domainEntityRows: PerformanceDomainEntityRow[];
   kpiMatrixRows: PerformanceKpiMatrixRow[];
   spiMatrixRows: PerformanceSpiMatrixRow[];
@@ -231,6 +238,7 @@ interface BuildPerformanceReportModelParams {
   filters: Filters;
   networks: ManagedNetwork[];
   systems: ICTSystem[];
+  kpiDefinitions: KpiDefinition[];
   asOfDate?: string;
 }
 
@@ -641,6 +649,7 @@ export function buildPerformanceReportModel({
   filters,
   networks,
   systems,
+  kpiDefinitions,
   asOfDate = dataset.snapshotDate
 }: BuildPerformanceReportModelParams): PerformanceReportModel {
   const entityLabelSingular = scopeType === "network" ? "Network" : "ICT System";
@@ -727,7 +736,7 @@ export function buildPerformanceReportModel({
       securityDomain: row.securityDomain,
       entityId: row.entityId,
       entityName: row.entityName,
-      kpis: buildKpiRows(rowAnalytics, rowSystems, rowNetworks).map((kpi) => ({
+      kpis: buildKpiRows(rowAnalytics, rowSystems, rowNetworks, kpiDefinitions).map((kpi) => ({
         id: kpi.id,
         name: kpi.name,
         score: kpi.score,
@@ -957,6 +966,10 @@ export function buildPerformanceReportModel({
     },
     complianceStatusMix,
     discoveryStatusMix,
+    kpiColumns: kpiDefinitions.map((definition) => ({
+      id: definition.id,
+      name: definition.name
+    })),
     domainEntityRows,
     kpiMatrixRows,
     spiMatrixRows,

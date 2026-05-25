@@ -2,6 +2,7 @@
   "applicationDatabaseName": "TSAAT",
   "schemaName": "tsaat",
   "packageDataFiles": {
+    "kpiDefinitions": "data/kpi-definitions.json",
     "spiDefinitions": "data/spi-definitions.json",
     "discoveryToolsSettings": "data/discovery-tools-settings.json",
     "measuresSettings": "data/measures-settings.json",

@@ -154,6 +154,72 @@ FROM OPENJSON(@Json, '$.spis') WITH (
 ) AS spi
 CROSS APPLY OPENJSON(spi.[applicable_asset_types]) AS aat;
 
+SET @FilePath = @PackageDataRoot + N'\kpi-definitions.json';
+SET @Json = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+MERGE [tsaat].[kpi_definition] AS target
+USING (
+  SELECT
+    kpi.[kpi_id],
+    kpi.[display_order],
+    kpi.[name],
+    kpi.[description],
+    kpi.[success_measure],
+    kpi.[calculation_key],
+    kpi.[report_available]
+  FROM OPENJSON(@Json, '$.kpis') WITH (
+    [kpi_id] NVARCHAR(40) '$.id',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [success_measure] NVARCHAR(1000) '$.successMeasure',
+    [calculation_key] NVARCHAR(100) '$.calculationKey',
+    [report_available] BIT '$.reportAvailable'
+  ) AS kpi
+) AS source
+ON target.[kpi_id] = source.[kpi_id]
+WHEN MATCHED THEN
+  UPDATE SET
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [success_measure] = source.[success_measure],
+    [calculation_key] = source.[calculation_key],
+    [report_available] = source.[report_available]
+WHEN NOT MATCHED BY TARGET THEN
+  INSERT (
+    [kpi_id],
+    [display_order],
+    [name],
+    [description],
+    [success_measure],
+    [calculation_key],
+    [report_available]
+  )
+  VALUES (
+    source.[kpi_id],
+    source.[display_order],
+    source.[name],
+    source.[description],
+    source.[success_measure],
+    source.[calculation_key],
+    source.[report_available]
+  );
+
 SET @FilePath = @PackageDataRoot + N'\discovery-tools-settings.json';
 SET @Json = NULL;
 IF @DataLoadMode = N'ClientPayload'

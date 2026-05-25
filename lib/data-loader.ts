@@ -8,6 +8,7 @@ import {
   normalizeDiscoveryToolsScopeUpdate,
   normalizeDiscoveryToolsSettings
 } from "@/lib/discovery-tools-settings";
+import { KpiDefinition, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } from "@/lib/measures-settings";
 import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
@@ -236,6 +237,16 @@ type MeasuresPriorityMatrixRow = {
   priorityRank: number;
 };
 
+type KpiDefinitionRow = {
+  id: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  successMeasure: string;
+  calculationKey: string;
+  reportAvailable: boolean | number;
+};
+
 type DiscoveryToolRow = {
   id: string;
   name: string;
@@ -258,6 +269,7 @@ const DATASET_CACHE_TTL_MS = 30 * 60 * 1000;
 const REFERENCE_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SETTINGS_VERSION_CACHE_TTL_MS = 60 * 1000;
 const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
   namespace: "data:snapshot-rows",
@@ -275,6 +287,12 @@ const datasetBySnapshotIdCache = new ServerMemoryCache<Dataset>({
 const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
   namespace: "data:reference-versions",
   ttlMs: REFERENCE_VERSIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const kpiDefinitionsCache = new ServerMemoryCache<KpiDefinition[]>({
+  namespace: "data:kpi-definitions",
+  ttlMs: KPI_DEFINITIONS_CACHE_TTL_MS,
   maxEntries: 1
 });
 
@@ -1128,6 +1146,26 @@ FOR JSON PATH;
   });
 }
 
+export async function loadKpiDefinitions(): Promise<KpiDefinition[]> {
+  return kpiDefinitionsCache.getOrSet("latest", async () => {
+    const rows = await executeSqlJson<KpiDefinitionRow[]>(`
+SELECT
+  kpi.[kpi_id] AS [id],
+  kpi.[display_order] AS [displayOrder],
+  kpi.[name] AS [name],
+  kpi.[description] AS [description],
+  kpi.[success_measure] AS [successMeasure],
+  kpi.[calculation_key] AS [calculationKey],
+  kpi.[report_available] AS [reportAvailable]
+FROM [${DATA_SCHEMA}].[kpi_definition] kpi
+ORDER BY kpi.[display_order], kpi.[kpi_id]
+FOR JSON PATH;
+`);
+
+    return normalizeKpiDefinitions(rows);
+  });
+}
+
 function clearSettingsDependentCaches(): void {
   clearAnalyticsCache();
   clearAppDataCaches();
@@ -1423,6 +1461,7 @@ export function clearDataLoaderCaches(): void {
   snapshotRowsCache.clear();
   datasetBySnapshotIdCache.clear();
   referenceVersionsCache.clear();
+  kpiDefinitionsCache.clear();
   measuresSettingsVersionCache.clear();
   measuresSettingsByVersionCache.clear();
   discoveryToolsSettingsVersionCache.clear();
@@ -1435,6 +1474,7 @@ export function __resetDataLoaderCachesForTest(): void {
   snapshotRowsCache.resetStats();
   datasetBySnapshotIdCache.resetStats();
   referenceVersionsCache.resetStats();
+  kpiDefinitionsCache.resetStats();
   measuresSettingsVersionCache.resetStats();
   measuresSettingsByVersionCache.resetStats();
   discoveryToolsSettingsVersionCache.resetStats();

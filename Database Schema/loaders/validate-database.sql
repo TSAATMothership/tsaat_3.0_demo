@@ -3,6 +3,7 @@ SET XACT_ABORT ON;
 
 DECLARE @SnapshotCount INT = (SELECT COUNT(*) FROM [tsaat].[dataset_snapshot]);
 DECLARE @SpiCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_definition]);
+DECLARE @KpiCount INT = (SELECT COUNT(*) FROM [tsaat].[kpi_definition]);
 DECLARE @AssetCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[asset]);
 DECLARE @FindingCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[finding]);
 DECLARE @CiDependencyCount BIGINT = (SELECT COUNT(*) FROM [tsaat].[ci_dependency]);
@@ -16,6 +17,9 @@ IF @SnapshotCount <> 8
 
 IF @SpiCount <> 10
   THROW 52000, 'Validation failed: spi_definition count must be 10.', 1;
+
+IF @KpiCount <= 0
+  THROW 52000, 'Validation failed: kpi_definition table is empty.', 1;
 
 IF @AssetCount <= 0
   THROW 52000, 'Validation failed: asset table is empty.', 1;
@@ -55,6 +59,7 @@ ORDER BY [table_name];
 SELECT
   @SnapshotCount AS [dataset_snapshot_count],
   @SpiCount AS [spi_definition_count],
+  @KpiCount AS [kpi_definition_count],
   @AssetCount AS [asset_count],
   @FindingCount AS [finding_count],
   @CiDependencyCount AS [ci_dependency_count],

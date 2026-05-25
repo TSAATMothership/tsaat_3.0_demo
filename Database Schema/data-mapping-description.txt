@@ -44,6 +44,7 @@ Source Data Artefacts
 ---------------------
 Package-local files:
 - Database Schema/data/spi-definitions.json
+- Database Schema/data/kpi-definitions.json
 - Database Schema/data/discovery-tools-settings.json
 - Database Schema/data/measures-settings.json
 - Database Schema/data/reference-versions.json
@@ -59,32 +60,33 @@ Load Order (Deterministic)
 3. reference_software_supported_version
 4. spi_definition
 5. spi_applicable_asset_type
-6. discovery_tools_settings_version
-7. discovery_tool
-8. discovery_tool_asset_scope
-9. measures_settings_version
-10. measures_severity_matrix
-11. measures_priority_matrix
-12. dataset_snapshot
-13. managed_network
-14. managed_network_hierarchy
-15. ict_system
-16. ict_system_hierarchy
-17. network_declared_system
-18. system_mission_capability
-19. system_business_service
-20. system_environment
-21. asset
-22. network_declared_asset
-23. network_target_state_asset
-24. system_environment_asset
-25. asset_operating_system
-26. asset_network_os
-27. asset_patch_state
-28. asset_installed_software
-29. asset_vulnerability
-30. ci_dependency
-31. finding
+6. kpi_definition
+7. discovery_tools_settings_version
+8. discovery_tool
+9. discovery_tool_asset_scope
+10. measures_settings_version
+11. measures_severity_matrix
+12. measures_priority_matrix
+13. dataset_snapshot
+14. managed_network
+15. managed_network_hierarchy
+16. ict_system
+17. ict_system_hierarchy
+18. network_declared_system
+19. system_mission_capability
+20. system_business_service
+21. system_environment
+22. asset
+23. network_declared_asset
+24. network_target_state_asset
+25. system_environment_asset
+26. asset_operating_system
+27. asset_network_os
+28. asset_patch_state
+29. asset_installed_software
+30. asset_vulnerability
+31. ci_dependency
+32. finding
 
 Field-Level Mapping Summary
 ---------------------------
@@ -93,6 +95,7 @@ Reference and settings:
 - Database Schema/data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
 - Database Schema/data/spi-definitions.json.spis[] -> tsaat.spi_definition
 - Database Schema/data/spi-definitions.json.spis[].applicableAssetTypes[] -> tsaat.spi_applicable_asset_type
+- Database Schema/data/kpi-definitions.json.kpis[] -> tsaat.kpi_definition
 - Database Schema/data/discovery-tools-settings.json.updatedAt -> tsaat.discovery_tools_settings_version.updated_at
 - Database Schema/data/discovery-tools-settings.json.tools[] -> tsaat.discovery_tool
 - Database Schema/data/discovery-tools-settings.json.tools[].assetTypeScope object -> tsaat.discovery_tool_asset_scope
@@ -170,7 +173,7 @@ Validation Rules Applied by loader/validator
 --------------------------------------------
 - Exactly 8 dataset snapshots required
 - Exactly 10 SPI definitions required
-- Non-empty asset, finding, discovery_tool, measures_severity_matrix, measures_priority_matrix tables required
+- Non-empty asset, finding, discovery_tool, kpi_definition, measures_severity_matrix, measures_priority_matrix tables required
 - Non-empty network_target_state_asset table required
 - Full row-count summary emitted after load
 - Seed profile constraints validated in `scripts/validate-seed.ts`:

@@ -12,25 +12,43 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-function kpiIds(start: number, end: number): string[] {
-  return Array.from({ length: end - start + 1 }, (_, index) => `KPI-${start + index}`);
-}
-
 function kpiScore(row: PerformanceKpiMatrixRow, kpiId: string): string {
   const kpi = row.kpis.find((item) => item.id === kpiId);
   return kpi ? formatPercent(kpi.scorePercent) : "-";
 }
 
-function drawKpiTable(model: PerformanceReportModel, start: number, end: number) {
-  const ids = kpiIds(start, end);
+function kpiColumnGroups(model: PerformanceReportModel): Array<Array<{ id: string; name: string }>> {
+  const columns = (() => {
+    if (model.kpiColumns.length) {
+      return model.kpiColumns;
+    }
+    const fallback = new Map<string, { id: string; name: string }>();
+    for (const row of model.kpiMatrixRows) {
+      for (const kpi of row.kpis) {
+        if (!fallback.has(kpi.id)) {
+          fallback.set(kpi.id, { id: kpi.id, name: kpi.name });
+        }
+      }
+    }
+    return Array.from(fallback.values());
+  })();
+  const groups: Array<Array<{ id: string; name: string }>> = [];
+  for (let index = 0; index < columns.length; index += 5) {
+    groups.push(columns.slice(index, index + 5));
+  }
+  return groups;
+}
+
+function drawKpiTable(model: PerformanceReportModel, columns: Array<{ id: string; name: string }>) {
+  const kpiWidth = Math.floor((531 - 190) / Math.max(columns.length, 1));
   return {
-    headers: ["Domain", model.entityLabelSingular, ...ids],
+    headers: ["Domain", model.entityLabelSingular, ...columns.map((column) => column.id)],
     rows: model.kpiMatrixRows.map((row) => [
       row.securityDomain,
       row.entityName,
-      ...ids.map((id) => kpiScore(row, id))
+      ...columns.map((column) => kpiScore(row, column.id))
     ]),
-    widths: [70, 120, 68, 68, 68, 68, 68]
+    widths: [70, 120, ...columns.map(() => kpiWidth)]
   };
 }
 
@@ -120,13 +138,20 @@ export async function createPerformanceReportPdf(model: PerformanceReportModel):
     [70, 180, 55, 45, 45, 45, 55]
   );
 
-  drawReportHeading(context, "KPI Results by Security Domain x Entity (KPI 1-5)");
-  const kpiOne = drawKpiTable(model, 1, 5);
-  drawReportTable(context, kpiOne.headers, kpiOne.rows, kpiOne.widths);
-
-  drawReportHeading(context, "KPI Results by Security Domain x Entity (KPI 6-10)");
-  const kpiTwo = drawKpiTable(model, 6, 10);
-  drawReportTable(context, kpiTwo.headers, kpiTwo.rows, kpiTwo.widths);
+  const kpiGroups = kpiColumnGroups(model);
+  if (kpiGroups.length) {
+    for (const columns of kpiGroups) {
+      const label = columns.length === 1
+        ? columns[0].id
+        : `${columns[0].id}-${columns[columns.length - 1].id}`;
+      drawReportHeading(context, `KPI Results by Security Domain x Entity (${label})`);
+      const kpiTable = drawKpiTable(model, columns);
+      drawReportTable(context, kpiTable.headers, kpiTable.rows, kpiTable.widths);
+    }
+  } else {
+    drawReportHeading(context, "KPI Results by Security Domain x Entity");
+    drawReportParagraph(context, "No KPI definitions are available in the current database.");
+  }
 
   drawReportHeading(context, "Open Findings by Age and Severity");
   drawReportParagraph(context, "Age thresholds are cumulative: findings older than 90 days are also counted in >30d and >60d.");

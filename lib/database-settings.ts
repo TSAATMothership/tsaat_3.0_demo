@@ -70,6 +70,7 @@ const REQUIRED_TABLES: string[] = [
   "reference_version_set",
   "reference_os_current_major",
   "reference_software_supported_version",
+  "kpi_definition",
   "spi_definition",
   "spi_applicable_asset_type",
   "discovery_tools_settings_version",
@@ -101,6 +102,9 @@ const REQUIRED_COLUMNS: Array<{ tableName: string; columnName: string }> = [
   { tableName: "finding", columnName: "spi_id" },
   { tableName: "finding", columnName: "workflow_status" },
   { tableName: "ci_dependency", columnName: "dependency_id" },
+  { tableName: "kpi_definition", columnName: "kpi_id" },
+  { tableName: "kpi_definition", columnName: "calculation_key" },
+  { tableName: "kpi_definition", columnName: "report_available" },
   { tableName: "discovery_tool", columnName: "tool_id" },
   { tableName: "measures_severity_matrix", columnName: "severity" },
   { tableName: "measures_priority_matrix", columnName: "priority_rank" }

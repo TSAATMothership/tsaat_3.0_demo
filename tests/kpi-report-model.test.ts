@@ -6,7 +6,9 @@ import {
   buildKpiTrendReportModel,
   isKpiReportAvailable
 } from "@/lib/kpi-report-model";
+import { normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import { AnalyticsResult, AssetSpiEvaluation, ICTSystem, ManagedNetwork } from "@/lib/types";
+import rawKpiDefinitions from "../Database Schema/data/kpi-definitions.json";
 
 function evaluation(assetId: string, discoveryCoverageCompliant: boolean): AssetSpiEvaluation {
   return {
@@ -74,9 +76,11 @@ const networks: ManagedNetwork[] = [
   }
 ];
 
+const kpiDefinitions = normalizeKpiDefinitions(rawKpiDefinitions);
+
 describe("KPI report model", () => {
   it("marks KPI-1 through KPI-4 unavailable and KPI-5 through KPI-10 available", () => {
-    const reports = buildKpiReportModels(analyticsFixture(1), systems, networks);
+    const reports = buildKpiReportModels(analyticsFixture(1), systems, networks, kpiDefinitions);
 
     expect(reports.filter((report) => !report.reportAvailable).map((report) => report.id)).toEqual([
       "KPI-1",
@@ -92,8 +96,42 @@ describe("KPI report model", () => {
       "KPI-9",
       "KPI-10"
     ]);
-    expect(isKpiReportAvailable("KPI-4")).toBe(false);
-    expect(isKpiReportAvailable("KPI-5")).toBe(true);
+    expect(isKpiReportAvailable("KPI-4", kpiDefinitions)).toBe(false);
+    expect(isKpiReportAvailable("KPI-5", kpiDefinitions)).toBe(true);
+  });
+
+  it("uses database definition order and omits removed KPI definitions", () => {
+    const customDefinitions = normalizeKpiDefinitions({
+      kpis: [
+        {
+          id: "KPI-6",
+          displayOrder: 1,
+          name: "Discovery Coverage Compliance",
+          description: "Discovery definition.",
+          successMeasure: "Target = 100%.",
+          calculationKey: "discovery-coverage-compliance",
+          reportAvailable: true
+        },
+        {
+          id: "KPI-1",
+          displayOrder: 2,
+          name: "Overall SPI Compliance",
+          description: "Overall definition.",
+          successMeasure: "Target >= 95%.",
+          calculationKey: "overall-spi-compliance",
+          reportAvailable: false
+        }
+      ]
+    });
+
+    const reports = buildKpiReportModels(analyticsFixture(1), systems, networks, customDefinitions);
+
+    expect(reports.map((report) => report.id)).toEqual(["KPI-6", "KPI-1"]);
+    expect(reports[0]).toMatchObject({
+      id: "KPI-6",
+      name: "Discovery Coverage Compliance",
+      scorePercent: 50
+    });
   });
 
   it("builds KPI trend points from per-snapshot scoped analytics", () => {
@@ -101,10 +139,12 @@ describe("KPI report model", () => {
       analytics: analyticsFixture(2),
       systems,
       networks,
-      kpiId: "KPI-6"
+      kpiId: "KPI-6",
+      kpiDefinitions
     });
     const trend = buildKpiTrendReportModel({
       kpiId: "KPI-6",
+      kpiDefinitions,
       snapshots: [
         { snapshotDate: "2026-04-16", analytics: analyticsFixture(1), systems, networks },
         { snapshotDate: "2026-04-23", analytics: analyticsFixture(2), systems, networks }
@@ -146,6 +186,7 @@ describe("KPI report model", () => {
   it("uses the supplied scoped analytics for each KPI trend snapshot", () => {
     const trend = buildKpiTrendReportModel({
       kpiId: "KPI-6",
+      kpiDefinitions,
       snapshots: [
         {
           snapshotDate: "2026-04-23",
@@ -171,6 +212,7 @@ describe("KPI report model", () => {
   it("does not build trend reports for unavailable KPIs", () => {
     const trend = buildKpiTrendReportModel({
       kpiId: "KPI-4",
+      kpiDefinitions,
       snapshots: [{ snapshotDate: "2026-04-23", analytics: analyticsFixture(2), systems, networks }]
     });
 

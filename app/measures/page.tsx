@@ -42,8 +42,9 @@ export default async function MeasuresPage({
   const activeTab = resolveMeasuresTab(requestedTab);
   const selectedSpiId = readSpiFilter(searchParams);
   const measureSearch = readMeasureSearch(searchParams);
-  const { analytics, filterOptions, filters, dataset, systems, networks, measuresSettings } = await getCoreAppData(searchParams);
-  const kpiRows = buildKpiRows(analytics, systems, networks);
+  const { analytics, filterOptions, filters, dataset, systems, networks, kpiDefinitions, measuresSettings } =
+    await getCoreAppData(searchParams);
+  const kpiRows = buildKpiRows(analytics, systems, networks, kpiDefinitions);
   const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
   const measuresExtraSelects = [
     {
@@ -134,6 +135,7 @@ export default async function MeasuresPage({
                 analytics={analytics}
                 systems={systems}
                 networks={networks}
+                kpiDefinitions={kpiDefinitions}
                 filters={filters}
                 filterOptions={filterOptions}
                 mode="kpi"

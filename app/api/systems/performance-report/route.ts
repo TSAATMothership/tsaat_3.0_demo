@@ -3,6 +3,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
+  loadKpiDefinitions,
   loadMeasuresSettings
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
@@ -22,10 +23,11 @@ export async function GET(request: NextRequest) {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const { network: _ignoredNetwork, ...systemsOnlyQueryObject } = queryObject;
   const selectedDataDate = extractDataDateParam(systemsOnlyQueryObject);
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, measuresSettings, discoveryToolsSettings, kpiDefinitions] = await Promise.all([
     loadDatasetForDate(selectedDataDate),
     loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadKpiDefinitions()
   ]);
   const filters = parseFilters(systemsOnlyQueryObject);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
     filters,
     networks,
     systems,
+    kpiDefinitions,
     asOfDate: selectedDataDate ?? dataset.snapshotDate
   });
   const pdfArrayBuffer = await createPerformanceReportPdf(model);

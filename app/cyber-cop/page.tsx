@@ -1133,6 +1133,7 @@ export default async function CyberCopPage({
     filters: networkHeatmapData.filters,
     networks: networkHeatmapData.networks,
     systems: networkHeatmapData.systems,
+    kpiDefinitions: networkHeatmapData.kpiDefinitions,
     asOfDate: networkHeatmapData.dataset.snapshotDate
   });
   const systemSpiHeatmapModel = buildSystemPerformanceReportModel({
@@ -1141,6 +1142,7 @@ export default async function CyberCopPage({
     filters: systemHeatmapData.filters,
     networks: systemHeatmapData.networks,
     systems: systemHeatmapData.systems,
+    kpiDefinitions: systemHeatmapData.kpiDefinitions,
     asOfDate: systemHeatmapData.dataset.snapshotDate
   });
 

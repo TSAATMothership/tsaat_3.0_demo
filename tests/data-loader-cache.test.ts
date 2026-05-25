@@ -3,6 +3,7 @@ import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import {
   __resetDataLoaderCachesForTest,
   loadDatasetForDate,
+  loadKpiDefinitions,
   loadMeasuresSettings,
   loadReferenceVersions,
   saveMeasuresSettings
@@ -64,6 +65,20 @@ function installSqlMock(): void {
 
     if (sql.includes("FROM [tsaat].[measures_priority_matrix]")) {
       return [{ spiId: 1, priorityRank: 3 }];
+    }
+
+    if (sql.includes("FROM [tsaat].[kpi_definition]")) {
+      return [
+        {
+          id: "KPI-6",
+          displayOrder: 6,
+          name: "Discovery Coverage Compliance",
+          description: "Share of in-scope assets meeting discovery coverage.",
+          successMeasure: "Target = 100% discovery coverage compliance.",
+          calculationKey: "discovery-coverage-compliance",
+          reportAvailable: true
+        }
+      ];
     }
 
     if (sql.includes("version_ref.[version_set_id] AS [versionSetId]")) {
@@ -130,5 +145,12 @@ describe("data loader caches", () => {
     expect(sqlCallsContaining("version_ref.[version_set_id] AS [versionSetId]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[reference_os_current_major]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[reference_software_supported_version]")).toBe(1);
+  });
+
+  it("caches KPI definitions for repeated reads", async () => {
+    await loadKpiDefinitions();
+    await loadKpiDefinitions();
+
+    expect(sqlCallsContaining("FROM [tsaat].[kpi_definition]")).toBe(1);
   });
 });

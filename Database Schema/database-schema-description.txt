@@ -28,6 +28,7 @@ Connection/bootstrap notes
 Canonical loader data sources
 -----------------------------
 - `Database Schema/data/spi-definitions.json`
+- `Database Schema/data/kpi-definitions.json`
 - `Database Schema/data/discovery-tools-settings.json`
 - `Database Schema/data/measures-settings.json`
 - `Database Schema/data/reference-versions.json`
@@ -46,6 +47,7 @@ Key domain groups
 - `reference_software_supported_version`
 - `spi_definition`
 - `spi_applicable_asset_type`
+- `kpi_definition`
 - `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope`
 - `measures_settings_version`, `measures_severity_matrix`, `measures_priority_matrix`
 

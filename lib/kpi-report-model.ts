@@ -1,4 +1,5 @@
 import { KpiRow, buildKpiRows } from "@/lib/measures";
+import { KpiDefinition } from "@/lib/kpi-definitions";
 import { AnalyticsResult, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 export interface KpiReportModel {
@@ -42,10 +43,8 @@ export interface KpiTrendReportModel {
   trendPoints: KpiTrendReportPoint[];
 }
 
-const KPI_REPORT_AVAILABLE_IDS = new Set(["KPI-5", "KPI-6", "KPI-7", "KPI-8", "KPI-9", "KPI-10"]);
-
-export function isKpiReportAvailable(kpiId: string): boolean {
-  return KPI_REPORT_AVAILABLE_IDS.has(kpiId);
+export function isKpiReportAvailable(kpiId: string, kpiDefinitions: KpiDefinition[]): boolean {
+  return kpiDefinitions.some((definition) => definition.id === kpiId && definition.reportAvailable);
 }
 
 function toKpiReportModel(row: KpiRow): KpiReportModel {
@@ -62,7 +61,7 @@ function toKpiReportModel(row: KpiRow): KpiReportModel {
     nonCompliant: row.nonCompliantCount,
     unknown: row.unknownCount,
     total: row.applicableCount,
-    reportAvailable: isKpiReportAvailable(row.id),
+    reportAvailable: row.reportAvailable,
     sourceRow: row
   };
 }
@@ -70,31 +69,36 @@ function toKpiReportModel(row: KpiRow): KpiReportModel {
 export function buildKpiReportModels(
   analytics: AnalyticsResult,
   systems: ICTSystem[],
-  networks: ManagedNetwork[]
+  networks: ManagedNetwork[],
+  kpiDefinitions: KpiDefinition[]
 ): KpiReportModel[] {
-  return buildKpiRows(analytics, systems, networks).map(toKpiReportModel);
+  return buildKpiRows(analytics, systems, networks, kpiDefinitions).map(toKpiReportModel);
 }
 
 export function buildKpiReportModel({
   analytics,
   systems,
   networks,
-  kpiId
+  kpiId,
+  kpiDefinitions
 }: {
   analytics: AnalyticsResult;
   systems: ICTSystem[];
   networks: ManagedNetwork[];
   kpiId: string;
+  kpiDefinitions: KpiDefinition[];
 }): KpiReportModel | null {
-  return buildKpiReportModels(analytics, systems, networks).find((model) => model.id === kpiId) ?? null;
+  return buildKpiReportModels(analytics, systems, networks, kpiDefinitions).find((model) => model.id === kpiId) ?? null;
 }
 
 export function buildKpiTrendReportModel({
   snapshots,
-  kpiId
+  kpiId,
+  kpiDefinitions
 }: {
   snapshots: KpiReportSnapshotInput[];
   kpiId: string;
+  kpiDefinitions: KpiDefinition[];
 }): KpiTrendReportModel | null {
   const snapshotModels = snapshots
     .map((snapshot) => {
@@ -102,7 +106,8 @@ export function buildKpiTrendReportModel({
         analytics: snapshot.analytics,
         systems: snapshot.systems,
         networks: snapshot.networks,
-        kpiId
+        kpiId,
+        kpiDefinitions
       });
       return model ? { snapshotDate: snapshot.snapshotDate, model } : null;
     })

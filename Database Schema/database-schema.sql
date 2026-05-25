@@ -6,8 +6,10 @@
   - lib/findings.ts
   - lib/discovery-tools-settings.ts
   - lib/measures-settings.ts
+  - lib/kpi-definitions.ts
   - data/current.json
   - Database Schema/data/reference-versions.json
+  - Database Schema/data/kpi-definitions.json
   - Database Schema/data/spi-definitions.json
   - Database Schema/data/discovery-tools-settings.json
   - Database Schema/data/measures-settings.json
@@ -116,6 +118,33 @@ CREATE TABLE [tsaat].[spi_applicable_asset_type] (
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [CK_spi_applicable_asset_type_asset_type]
     CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
+);
+GO
+
+CREATE TABLE [tsaat].[kpi_definition] (
+  [kpi_id] NVARCHAR(40) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [success_measure] NVARCHAR(1000) NOT NULL,
+  [calculation_key] NVARCHAR(100) NOT NULL,
+  [report_available] BIT NOT NULL CONSTRAINT [DF_kpi_definition_report_available] DEFAULT (0),
+  CONSTRAINT [PK_kpi_definition] PRIMARY KEY CLUSTERED ([kpi_id]),
+  CONSTRAINT [UQ_kpi_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_kpi_definition_kpi_id] CHECK (LEN(LTRIM(RTRIM([kpi_id]))) > 0),
+  CONSTRAINT [CK_kpi_definition_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_kpi_definition_calculation_key] CHECK ([calculation_key] IN (
+    N'overall-spi-compliance',
+    N'protected-domain-compliance',
+    N'secret-domain-compliance',
+    N'critical-ict-system-compliance',
+    N'critical-exposure-in-production',
+    N'discovery-coverage-compliance',
+    N'active-ato-coverage',
+    N'diis-registration-coverage',
+    N'diis-modelled-coverage',
+    N'network-discovery-enablement'
+  ))
 );
 GO
 

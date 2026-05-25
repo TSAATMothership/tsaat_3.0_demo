@@ -4,6 +4,7 @@ import { buildAnalytics } from "@/lib/analytics";
 import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
+  loadKpiDefinitions,
   loadMeasuresSettings,
   loadSnapshotsForDateWindow
 } from "@/lib/data-loader";
@@ -931,10 +932,11 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedDataDate = taskingReportDataDateFromSearchParams(request.nextUrl.searchParams);
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, measuresSettings, discoveryToolsSettings, kpiDefinitions] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
     loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadKpiDefinitions()
   ]);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
@@ -1042,6 +1044,7 @@ export async function GET(request: NextRequest) {
     const trendDatasets = await loadSnapshotsForDateWindow(dataset.snapshotDate, 12);
     const trendModel = buildKpiTrendReportModel({
       kpiId: id,
+      kpiDefinitions,
       snapshots: trendDatasets.map((trendDataset) => ({
         snapshotDate: trendDataset.snapshotDate,
         analytics: buildAnalytics(
@@ -1122,9 +1125,10 @@ export async function GET(request: NextRequest) {
       analytics,
       systems: scopedSystems,
       networks: scopedNetworks,
-      kpiId: id
+      kpiId: id,
+      kpiDefinitions
     });
-    if (!kpiModel || !isKpiReportAvailable(id)) {
+    if (!kpiModel || !isKpiReportAvailable(id, kpiDefinitions)) {
       return notFoundResponse("KPI tasking report unavailable for supplied id.");
     }
     const row = kpiModel.sourceRow;

@@ -1,13 +1,17 @@
 import { SPI_DESCRIPTIONS, SPI_IDS, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
+import { KpiCalculationKey, KpiDefinition } from "@/lib/kpi-definitions";
 import { AnalyticsResult, ComplianceStatus, ICTSystem, ManagedNetwork, SpiId } from "@/lib/types";
 
 export { SPI_IDS } from "@/lib/spi-metadata";
 
 export interface KpiRow {
   id: string;
+  displayOrder: number;
   name: string;
   description: string;
   successMeasure: string;
+  calculationKey: KpiCalculationKey;
+  reportAvailable: boolean;
   score: string;
   scorePercent: number;
   compliantCount: number;
@@ -59,6 +63,11 @@ interface StatusSummary {
   scorePercent: number;
 }
 
+type KpiCalculationResult = Omit<
+  KpiRow,
+  "id" | "displayOrder" | "name" | "description" | "successMeasure" | "calculationKey" | "reportAvailable"
+>;
+
 function summarizeStatuses(statuses: ComplianceStatus[]): StatusSummary {
   const compliant = statuses.filter((status) => status === "Compliant").length;
   const nonCompliant = statuses.filter((status) => status === "Non-compliant").length;
@@ -80,8 +89,9 @@ function statusesForEvaluations(evaluations: AnalyticsResult["evaluations"]): Co
 
 export function buildKpiRows(
   analytics: AnalyticsResult,
-  scopedSystems: ICTSystem[] = [],
-  scopedNetworks: ManagedNetwork[] = []
+  scopedSystems: ICTSystem[],
+  scopedNetworks: ManagedNetwork[],
+  kpiDefinitions: KpiDefinition[]
 ): KpiRow[] {
   const overallSummary = summarizeStatuses(statusesForEvaluations(analytics.evaluations));
   const dpeSummary = summarizeStatuses(
@@ -97,7 +107,6 @@ export function buildKpiRows(
   );
 
   const totalFindings = analytics.findings.length;
-  const highRiskFindings = analytics.findings.filter((finding) => finding.severity === "High Risk").length;
   const criticalExposureFindings = analytics.findings.filter(
     (finding) => finding.severity === "Critical Exposure"
   ).length;
@@ -197,12 +206,8 @@ export function buildKpiRows(
   );
   const networkDiscoveryEnabledScore = toPercent(discoveryEnabledNetworksCount, networksDefinedCount);
 
-  return [
-    {
-      id: "KPI-1",
-      name: "Overall SPI Compliance",
-      description: "Share of compliant checks across all applicable SPI evaluations in current filter scope.",
-      successMeasure: "Target >= 95% compliant checks.",
+  const calculations: Record<KpiCalculationKey, KpiCalculationResult> = {
+    "overall-spi-compliance": {
       score: `${overallSummary.scorePercent}% (${overallSummary.compliant}/${overallSummary.total})`,
       scorePercent: overallSummary.scorePercent,
       compliantCount: overallSummary.compliant,
@@ -211,12 +216,7 @@ export function buildKpiRows(
       unknownCount: overallSummary.unknown,
       highPriorityCount: immediateAction
     },
-    {
-      id: "KPI-2",
-      name: "Overall DPE Compliance",
-      description:
-        "Share of compliant SPI checks for Defence Protected Environment (Protected security domain) assets in scope.",
-      successMeasure: "Target >= 95% compliant checks for DPE assets.",
+    "protected-domain-compliance": {
       score: `${dpeSummary.scorePercent}% (${dpeSummary.compliant}/${dpeSummary.total})`,
       scorePercent: dpeSummary.scorePercent,
       compliantCount: dpeSummary.compliant,
@@ -225,12 +225,7 @@ export function buildKpiRows(
       unknownCount: dpeSummary.unknown,
       highPriorityCount: dpeImmediateAction
     },
-    {
-      id: "KPI-3",
-      name: "Overall DSE Compliance",
-      description:
-        "Share of compliant SPI checks for Defence Secret Environment (Secret security domain) assets in scope.",
-      successMeasure: "Target >= 95% compliant checks for DSE assets.",
+    "secret-domain-compliance": {
       score: `${dseSummary.scorePercent}% (${dseSummary.compliant}/${dseSummary.total})`,
       scorePercent: dseSummary.scorePercent,
       compliantCount: dseSummary.compliant,
@@ -239,11 +234,7 @@ export function buildKpiRows(
       unknownCount: dseSummary.unknown,
       highPriorityCount: dseImmediateAction
     },
-    {
-      id: "KPI-4",
-      name: "Critical ICT System Compliance",
-      description: "Share of compliant SPI checks for assets assigned to ICT systems marked as Critical.",
-      successMeasure: "Target >= 95% compliant checks on Critical ICT Systems.",
+    "critical-ict-system-compliance": {
       score: `${criticalIctSystemSummary.scorePercent}% (${criticalIctSystemSummary.compliant}/${criticalIctSystemSummary.total})`,
       scorePercent: criticalIctSystemSummary.scorePercent,
       compliantCount: criticalIctSystemSummary.compliant,
@@ -252,11 +243,7 @@ export function buildKpiRows(
       unknownCount: criticalIctSystemSummary.unknown,
       highPriorityCount: criticalIctSystemImmediateAction
     },
-    {
-      id: "KPI-5",
-      name: "Critical Exposure in Production",
-      description: "Production assets with critical-vulnerability exposure requiring urgent treatment.",
-      successMeasure: "Target = 0 critical exposure findings.",
+    "critical-exposure-in-production": {
       score: String(criticalExposureFindings),
       scorePercent: criticalExposureScore,
       compliantCount: criticalExposureCompliant,
@@ -265,12 +252,7 @@ export function buildKpiRows(
       unknownCount: overallSummary.unknown,
       highPriorityCount: criticalExposureFindings
     },
-    {
-      id: "KPI-6",
-      name: "Discovery Coverage Compliance",
-      description:
-        "Share of in-scope assets meeting discovery coverage across required tooling checkpoints.",
-      successMeasure: "Target = 100% discovery coverage compliance.",
+    "discovery-coverage-compliance": {
       score: `${discoveryComplianceScore}% (${discoveryCompliantAssets}/${discoveryTotalAssets})`,
       scorePercent: discoveryComplianceScore,
       compliantCount: discoveryCompliantAssets,
@@ -279,11 +261,7 @@ export function buildKpiRows(
       unknownCount: 0,
       highPriorityCount: discoveryCoverageImmediateAction
     },
-    {
-      id: "KPI-7",
-      name: "ICT Systems have an active ATO",
-      description: "Share of in-scope ICT systems with an active Authority to Operate (ATO) record.",
-      successMeasure: "Target = 100% of ICT systems with active ATO.",
+    "active-ato-coverage": {
       score: `${atoComplianceScore}% (${atoCompliantSystems}/${atoApplicableSystems})`,
       scorePercent: atoComplianceScore,
       compliantCount: atoCompliantSystems,
@@ -292,11 +270,7 @@ export function buildKpiRows(
       unknownCount: 0,
       highPriorityCount: atoImmediateAction
     },
-    {
-      id: "KPI-8",
-      name: "ICT Systems are registered within DIIS",
-      description: "Share of in-scope ICT systems registered in the DIIS register.",
-      successMeasure: "Target = 100% of ICT systems registered within DIIS.",
+    "diis-registration-coverage": {
       score: `${diisComplianceScore}% (${diisCompliantSystems}/${diisApplicableSystems})`,
       scorePercent: diisComplianceScore,
       compliantCount: diisCompliantSystems,
@@ -305,11 +279,7 @@ export function buildKpiRows(
       unknownCount: 0,
       highPriorityCount: diisImmediateAction
     },
-    {
-      id: "KPI-9",
-      name: "DIIS Systems Modelled Coverage",
-      description: "Share of ICT systems defined in DIIS that have been modelled in TSAAT.",
-      successMeasure: "Target = 100% of DIIS-defined ICT systems are modelled.",
+    "diis-modelled-coverage": {
       score: `${modelledCoverageScore}% (${modelledSystemsCount}/${diisDefinedCount})`,
       scorePercent: modelledCoverageScore,
       compliantCount: modelledSystemsCount,
@@ -318,11 +288,7 @@ export function buildKpiRows(
       unknownCount: 0,
       highPriorityCount: unmodelledSystemsCount
     },
-    {
-      id: "KPI-10",
-      name: "Networks Discovery Enablement",
-      description: "Share of defined managed networks with discovery status set to Discovery Enabled.",
-      successMeasure: "Target = 100% of defined networks are Discovery Enabled.",
+    "network-discovery-enablement": {
       score: `${networkDiscoveryEnabledScore}% (${discoveryEnabledNetworksCount}/${networksDefinedCount})`,
       scorePercent: networkDiscoveryEnabledScore,
       compliantCount: discoveryEnabledNetworksCount,
@@ -331,7 +297,18 @@ export function buildKpiRows(
       unknownCount: 0,
       highPriorityCount: discoveryNonEnabledNetworksCount
     }
-  ];
+  };
+
+  return kpiDefinitions.map((definition) => ({
+    id: definition.id,
+    displayOrder: definition.displayOrder,
+    name: definition.name,
+    description: definition.description,
+    successMeasure: definition.successMeasure,
+    calculationKey: definition.calculationKey,
+    reportAvailable: definition.reportAvailable,
+    ...calculations[definition.calculationKey]
+  }));
 }
 
 export function buildSpiRows(analytics: AnalyticsResult): SpiRow[] {

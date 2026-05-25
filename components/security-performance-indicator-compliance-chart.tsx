@@ -149,7 +149,7 @@ export function KpiComplianceChart({ data }: { data: CompliancePoint[] }) {
   return (
     <ComplianceRadarChart
       title="KPI Compliance"
-      subtitle="Each point is KPI 1-10, comparing target performance against actual score in current filter scope."
+      subtitle="Each point is a database-defined KPI, comparing target performance against actual score in current filter scope."
       data={data}
     />
   );

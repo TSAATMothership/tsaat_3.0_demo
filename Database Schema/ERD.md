@@ -36,6 +36,13 @@ erDiagram
   measures_settings_version ||--o{ measures_priority_matrix : "settings_version_id"
   spi_definition ||--o{ measures_severity_matrix : "spi_id"
   spi_definition ||--o{ measures_priority_matrix : "spi_id"
+
+  kpi_definition {
+    string kpi_id
+    int display_order
+    string calculation_key
+    boolean report_available
+  }
 ```
 
 ## CI Dependency Domain
@@ -66,3 +73,4 @@ erDiagram
 - Measures settings are versioned:
   - `measures_severity_matrix` maps SPI and asset type to finding severity.
   - `measures_priority_matrix` maps SPI to P1-P7 priority rank for non-compliant findings.
+- `kpi_definition` stores database-driven KPI catalogue metadata, calculation keys, display order, and report availability.

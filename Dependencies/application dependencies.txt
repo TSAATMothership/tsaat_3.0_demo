@@ -69,6 +69,7 @@ Database loader source data locations
 -------------------------------------
 CreateDB.cmd and Database Schema\loaders\build-and-load-database.ps1 consume canonical package data from:
 - Database Schema\data\spi-definitions.json
+- Database Schema\data\kpi-definitions.json
 - Database Schema\data\discovery-tools-settings.json
 - Database Schema\data\measures-settings.json
 - Database Schema\data\reference-versions.json

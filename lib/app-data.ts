@@ -8,20 +8,23 @@ import { getCachedCoreAppData, getCachedTrendAppData } from "@/lib/app-data-cach
 import {
   loadDiscoveryToolsSettings,
   loadDatasetForDate,
+  loadKpiDefinitions,
   loadLatestSnapshotsForDate,
   loadMeasuresSettings
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
+import { kpiDefinitionsCacheSignature } from "@/lib/kpi-definitions";
 import { buildFilterOptions, filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
 import { stableCacheKey } from "@/lib/server-cache";
 import { buildTrendPoints } from "@/lib/trends";
 
 export async function getCoreAppData(searchParams: Record<string, string | string[] | undefined> = {}) {
   const dataDate = extractDataDateParam(searchParams);
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, measuresSettings, discoveryToolsSettings, kpiDefinitions] = await Promise.all([
     loadDatasetForDate(dataDate),
     loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadKpiDefinitions()
   ]);
   const filters = parseFilters(searchParams);
 
@@ -29,6 +32,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
     "core",
     dataDate ?? "",
     datasetCacheSignature(dataset),
+    kpiDefinitionsCacheSignature(kpiDefinitions),
     filtersCacheKey(filters),
     settingsCacheSignature(measuresSettings, discoveryToolsSettings)
   ]);
@@ -46,6 +50,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
       networks,
       systems,
       filterOptions,
+      kpiDefinitions,
       measuresSettings,
       discoveryToolsSettings
     };
@@ -69,6 +74,7 @@ export async function getTrendAppData(
     Boolean(options.includeTrendPoints),
     datasetCacheSignature(core.dataset),
     snapshots.map((snapshot) => datasetCacheSignature(snapshot)),
+    kpiDefinitionsCacheSignature(core.kpiDefinitions),
     filtersCacheKey(core.filters),
     settingsCacheSignature(core.measuresSettings, core.discoveryToolsSettings)
   ]);

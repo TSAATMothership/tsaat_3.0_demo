@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { buildKpiReportModels } from "@/lib/kpi-report-model";
+import { KpiDefinition } from "@/lib/kpi-definitions";
 import { buildSpiReportModels } from "@/lib/spi-report-model";
 import { buildTaskingReportHref } from "@/lib/tasking-report-links";
 import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork, type SpiId } from "@/lib/types";
@@ -128,6 +129,7 @@ export function KpiSpiMatrix({
   analytics,
   systems,
   networks,
+  kpiDefinitions,
   filters,
   filterOptions,
   mode,
@@ -138,13 +140,14 @@ export function KpiSpiMatrix({
   analytics: AnalyticsResult;
   systems: ICTSystem[];
   networks: ManagedNetwork[];
+  kpiDefinitions?: KpiDefinition[];
   filters: Filters;
   filterOptions: FilterOptions;
   mode: "kpi" | "spi";
   selectedSpiId?: SpiId;
   searchValue?: string;
 }) {
-  const kpiReports = mode === "kpi" ? buildKpiReportModels(analytics, systems, networks) : [];
+  const kpiReports = mode === "kpi" ? buildKpiReportModels(analytics, systems, networks, kpiDefinitions ?? []) : [];
   const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics) : [];
   const normalizedSearch = searchValue.trim().toLowerCase();
   const filteredSpiReports = spiReports.filter((report) => {
@@ -259,6 +262,11 @@ export function KpiSpiMatrix({
                   </div>
                 </article>
               ))}
+              {!kpiReports.length ? (
+                <div className="rounded-lg border border-sky-400/20 bg-slate-950/45 px-4 py-6 text-sm text-slate-300/80">
+                  No KPI definitions are available in the current database.
+                </div>
+              ) : null}
             </div>
           </>
         ) : (

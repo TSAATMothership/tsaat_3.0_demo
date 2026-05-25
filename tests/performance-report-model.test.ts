@@ -3,6 +3,7 @@ import {
   buildNetworkPerformanceReportModel,
   buildSystemPerformanceReportModel
 } from "@/lib/performance-report-model";
+import { normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import {
   AnalyticsResult,
   Asset,
@@ -12,8 +13,10 @@ import {
   ICTSystem,
   ManagedNetwork
 } from "@/lib/types";
+import rawKpiDefinitions from "../Database Schema/data/kpi-definitions.json";
 
 const snapshotDate = "2026-04-23";
+const kpiDefinitions = normalizeKpiDefinitions(rawKpiDefinitions);
 
 function network(id: string, name: string, modellingStatus: boolean): ManagedNetwork {
   return {
@@ -209,6 +212,7 @@ describe("performance report model", () => {
       filters: {},
       networks,
       systems,
+      kpiDefinitions,
       asOfDate: snapshotDate
     });
 
@@ -291,6 +295,7 @@ describe("performance report model", () => {
       filters: {},
       networks,
       systems,
+      kpiDefinitions,
       asOfDate: snapshotDate
     });
 
@@ -323,6 +328,7 @@ describe("performance report model", () => {
       filters: {},
       networks,
       systems,
+      kpiDefinitions,
       asOfDate: snapshotDate
     });
 

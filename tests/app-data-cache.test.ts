@@ -7,6 +7,7 @@ const loadDatasetForDateMock = vi.hoisted(() => vi.fn());
 const loadLatestSnapshotsForDateMock = vi.hoisted(() => vi.fn());
 const loadMeasuresSettingsMock = vi.hoisted(() => vi.fn());
 const loadDiscoveryToolsSettingsMock = vi.hoisted(() => vi.fn());
+const loadKpiDefinitionsMock = vi.hoisted(() => vi.fn());
 const getCachedAnalyticsMock = vi.hoisted(() => vi.fn());
 const buildTrendPointsMock = vi.hoisted(() => vi.fn());
 
@@ -14,7 +15,8 @@ vi.mock("@/lib/data-loader", () => ({
   loadDatasetForDate: loadDatasetForDateMock,
   loadLatestSnapshotsForDate: loadLatestSnapshotsForDateMock,
   loadMeasuresSettings: loadMeasuresSettingsMock,
-  loadDiscoveryToolsSettings: loadDiscoveryToolsSettingsMock
+  loadDiscoveryToolsSettings: loadDiscoveryToolsSettingsMock,
+  loadKpiDefinitions: loadKpiDefinitionsMock
 }));
 
 vi.mock("@/lib/analytics-cache", () => ({
@@ -92,6 +94,17 @@ describe("app data model caches", () => {
       priorityMatrix: {}
     });
     loadDiscoveryToolsSettingsMock.mockResolvedValue({ updatedAt: "2026-04-30T02:00:00.000Z", tools: [] });
+    loadKpiDefinitionsMock.mockResolvedValue([
+      {
+        id: "KPI-1",
+        displayOrder: 1,
+        name: "Overall SPI Compliance",
+        description: "Overall compliance",
+        successMeasure: "Target >= 95%",
+        calculationKey: "overall-spi-compliance",
+        reportAvailable: false
+      }
+    ]);
     getCachedAnalyticsMock.mockReturnValue({ marker: "analytics" });
     buildTrendPointsMock.mockReturnValue([{ weekLabel: "W01", snapshotDate: "2026-04-30" }]);
   });
