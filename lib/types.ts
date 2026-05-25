@@ -220,6 +220,7 @@ export interface CiDependency {
 }
 
 export interface Dataset {
+  snapshotId?: number;
   generatedAt: string;
   snapshotDate: string;
   managedNetworks: ManagedNetwork[];
@@ -280,6 +281,9 @@ export interface Finding {
   spiId: SpiId;
   priorityRank: number;
   severity: FindingSeverity;
+  rawPriorityRank?: number;
+  rawSeverity?: FindingSeverity;
+  sourceKind?: "persisted" | "generated";
   status: FindingWorkflowStatus;
   complianceStatus: ComplianceStatus;
   timestamp: string;

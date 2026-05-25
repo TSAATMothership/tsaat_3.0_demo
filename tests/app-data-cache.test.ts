@@ -11,6 +11,7 @@ const loadKpiDefinitionsMock = vi.hoisted(() => vi.fn());
 const loadSpiDefinitionsMock = vi.hoisted(() => vi.fn());
 const loadSeverityDefinitionsMock = vi.hoisted(() => vi.fn());
 const loadFindingPriorityDefinitionsMock = vi.hoisted(() => vi.fn());
+const loadFindingDisplayConfigurationMock = vi.hoisted(() => vi.fn());
 const getCachedAnalyticsMock = vi.hoisted(() => vi.fn());
 const buildTrendPointsMock = vi.hoisted(() => vi.fn());
 
@@ -22,7 +23,8 @@ vi.mock("@/lib/data-loader", () => ({
   loadKpiDefinitions: loadKpiDefinitionsMock,
   loadSpiDefinitions: loadSpiDefinitionsMock,
   loadSeverityDefinitions: loadSeverityDefinitionsMock,
-  loadFindingPriorityDefinitions: loadFindingPriorityDefinitionsMock
+  loadFindingPriorityDefinitions: loadFindingPriorityDefinitionsMock,
+  loadFindingDisplayConfiguration: loadFindingDisplayConfigurationMock
 }));
 
 vi.mock("@/lib/analytics-cache", () => ({
@@ -159,6 +161,14 @@ describe("app data model caches", () => {
         description: "Priority 1"
       }
     ]);
+    loadFindingDisplayConfigurationMock.mockResolvedValue({
+      sourcePolicies: [],
+      generationPolicies: [],
+      workflowStatuses: [],
+      buckets: [],
+      evidenceFields: [],
+      registerColumns: []
+    });
     getCachedAnalyticsMock.mockReturnValue({ marker: "analytics" });
     buildTrendPointsMock.mockReturnValue([{ weekLabel: "W01", snapshotDate: "2026-04-30" }]);
   });

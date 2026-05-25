@@ -40,7 +40,9 @@ export function datasetCacheSignature(dataset: Dataset): string {
     dataset.managedNetworks.length,
     dataset.ictSystems.length,
     dataset.assets.length,
-    dataset.spiEvaluations.length
+    dataset.spiEvaluations.length,
+    dataset.findings?.length ?? 0,
+    dataset.findings?.map((finding) => `${finding.id}:${finding.priorityRank}:${finding.severity}:${finding.status}`).join(",") ?? ""
   ].join("|");
 }
 

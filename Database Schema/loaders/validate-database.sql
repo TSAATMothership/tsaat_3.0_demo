@@ -5,6 +5,12 @@ DECLARE @SnapshotCount INT = (SELECT COUNT(*) FROM [tsaat].[dataset_snapshot]);
 DECLARE @SpiCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_definition]);
 DECLARE @SeverityCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_severity_definition]);
 DECLARE @PriorityDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_priority_definition]);
+DECLARE @FindingSourcePolicyCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_source_policy]);
+DECLARE @FindingGenerationPolicyCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_generation_policy]);
+DECLARE @FindingWorkflowStatusDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_workflow_status_definition]);
+DECLARE @FindingBucketDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_bucket_definition]);
+DECLARE @FindingEvidenceFieldDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_evidence_field_definition]);
+DECLARE @FindingRegisterColumnDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_register_column_definition]);
 DECLARE @SpiRuleDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_definition]);
 DECLARE @SpiRuleParameterDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_parameter_definition]);
 DECLARE @SpiRuleOutcomeTemplateCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_outcome_template]);
@@ -38,6 +44,24 @@ IF @SeverityCount < 5
 
 IF @PriorityDefinitionCount < 8
   THROW 52000, 'Validation failed: finding_priority_definition count must include selectable priorities and data-gap priority.', 1;
+
+IF @FindingSourcePolicyCount <= 0
+  THROW 52000, 'Validation failed: finding_source_policy table is empty.', 1;
+
+IF @FindingGenerationPolicyCount <= 0
+  THROW 52000, 'Validation failed: finding_generation_policy table is empty.', 1;
+
+IF @FindingWorkflowStatusDefinitionCount < 2
+  THROW 52000, 'Validation failed: finding_workflow_status_definition must include open and closed statuses.', 1;
+
+IF @FindingBucketDefinitionCount < 5
+  THROW 52000, 'Validation failed: finding_bucket_definition count must include severity, priority, and workflow buckets.', 1;
+
+IF @FindingEvidenceFieldDefinitionCount < 6
+  THROW 52000, 'Validation failed: finding_evidence_field_definition count must include register evidence mappings.', 1;
+
+IF @FindingRegisterColumnDefinitionCount < 7
+  THROW 52000, 'Validation failed: finding_register_column_definition count must include register display columns.', 1;
 
 IF @SpiRuleDefinitionCount < 10
   THROW 52000, 'Validation failed: spi_rule_definition count must be at least 10.', 1;
@@ -107,6 +131,24 @@ IF OBJECT_ID(N'tsaat.vw_spi_asset_evaluation_context', N'V') IS NULL
 
 IF OBJECT_ID(N'tsaat.usp_evaluate_spi_snapshot', N'P') IS NULL
   THROW 52000, 'Validation failed: usp_evaluate_spi_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.vw_persisted_finding_normalized', N'V') IS NULL
+  THROW 52000, 'Validation failed: vw_persisted_finding_normalized is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.fn_finding_hash_int', N'FN') IS NULL
+  THROW 52000, 'Validation failed: fn_finding_hash_int is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_generate_spi_findings_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_generate_spi_findings_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_get_effective_findings_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_get_effective_findings_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_get_finding_history_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_get_finding_history_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_get_finding_spi_history_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_get_finding_spi_history_snapshot is missing.', 1;
 
 IF EXISTS (
   SELECT 1
@@ -179,6 +221,45 @@ IF EXISTS (
 )
   THROW 52000, 'Validation failed: SQL SPI evaluation returned invalid status or evidence JSON.', 1;
 
+DECLARE @EffectiveFindings TABLE (
+  [snapshot_id] BIGINT NULL,
+  [finding_id] NVARCHAR(255) NULL,
+  [spi_id] INT NULL,
+  [raw_priority_rank] INT NULL,
+  [raw_severity] NVARCHAR(30) NULL,
+  [display_priority_rank] INT NULL,
+  [display_severity] NVARCHAR(30) NULL,
+  [compliance_status] NVARCHAR(20) NULL,
+  [network_id] NVARCHAR(255) NULL,
+  [system_id] NVARCHAR(255) NULL,
+  [environment_type] NVARCHAR(20) NULL,
+  [asset_id] NVARCHAR(255) NULL,
+  [title] NVARCHAR(1000) NULL,
+  [evidence] NVARCHAR(MAX) NULL,
+  [recommended_action] NVARCHAR(MAX) NULL,
+  [workflow_status] NVARCHAR(10) NULL,
+  [observed_at] DATETIMEOFFSET(7) NULL,
+  [closed_at] DATETIMEOFFSET(7) NULL,
+  [source_kind] NVARCHAR(20) NULL
+);
+
+INSERT INTO @EffectiveFindings
+EXEC [tsaat].[usp_get_effective_findings_snapshot] @snapshot_id = @LatestSnapshotId, @as_of_date = NULL, @emit_json = 0;
+
+IF NOT EXISTS (SELECT 1 FROM @EffectiveFindings)
+  THROW 52000, 'Validation failed: effective findings procedure returned no rows for the latest snapshot.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM @EffectiveFindings
+  WHERE [workflow_status] NOT IN (N'open', N'closed')
+    OR [source_kind] NOT IN (N'persisted', N'generated')
+    OR [display_priority_rank] IS NULL
+    OR [display_severity] IS NULL
+    OR ISJSON([evidence]) <> 1
+)
+  THROW 52000, 'Validation failed: effective findings procedure returned invalid finding rows.', 1;
+
 ;WITH row_counts AS (
   SELECT
     t.[name] AS [table_name],
@@ -198,6 +279,12 @@ SELECT
   @SpiCount AS [spi_definition_count],
   @SeverityCount AS [finding_severity_definition_count],
   @PriorityDefinitionCount AS [finding_priority_definition_count],
+  @FindingSourcePolicyCount AS [finding_source_policy_count],
+  @FindingGenerationPolicyCount AS [finding_generation_policy_count],
+  @FindingWorkflowStatusDefinitionCount AS [finding_workflow_status_definition_count],
+  @FindingBucketDefinitionCount AS [finding_bucket_definition_count],
+  @FindingEvidenceFieldDefinitionCount AS [finding_evidence_field_definition_count],
+  @FindingRegisterColumnDefinitionCount AS [finding_register_column_definition_count],
   @SpiRuleDefinitionCount AS [spi_rule_definition_count],
   @SpiRuleParameterDefinitionCount AS [spi_rule_parameter_definition_count],
   @SpiRuleOutcomeTemplateCount AS [spi_rule_outcome_template_count],

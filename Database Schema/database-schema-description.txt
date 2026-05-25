@@ -32,6 +32,7 @@ Canonical loader data sources
 - `Database Schema/data/spi-report-detail-definitions.json`
 - `Database Schema/data/spi-finding-classification-rules.json`
 - `Database Schema/data/spi-sql-calculations.json`
+- `Database Schema/data/finding-definitions.json`
 - `Database Schema/data/severity-definitions.json`
 - `Database Schema/data/kpi-definitions.json`
 - `Database Schema/data/discovery-tools-settings.json`
@@ -52,6 +53,12 @@ Key domain groups
 - `reference_software_supported_version`
 - `finding_severity_definition`
 - `finding_priority_definition`
+- `finding_source_policy`
+- `finding_generation_policy`
+- `finding_workflow_status_definition`
+- `finding_bucket_definition`
+- `finding_evidence_field_definition`
+- `finding_register_column_definition`
 - `spi_rule_definition`
 - `spi_rule_parameter_definition`
 - `spi_rule_outcome_template`
@@ -107,6 +114,16 @@ Key domain groups
 - `finding`
   - `severity` references `finding_severity_definition` so the severity taxonomy and settings options are seeded through database data.
   - `priority_rank` references `finding_priority_definition` so priority settings/options are seeded through database data.
+- `finding_source_policy` and `finding_generation_policy`
+  - control persisted-first effective finding selection and deterministic generated fallback policy.
+- `finding_workflow_status_definition`
+  - stores workflow labels, order, tone keys, and terminal status semantics.
+- `finding_bucket_definition`
+  - stores severity, priority, and workflow grouping semantics used by finding analytics and UI summaries.
+- `finding_evidence_field_definition`
+  - stores supported evidence display mappings and fallback labels.
+- `finding_register_column_definition`
+  - stores supported register/export column labels, order, and value keys.
 
 6) CI dependency graph:
 - `ci_dependency`
@@ -128,6 +145,7 @@ Data integrity highlights
 - SPI definitions are database-driven. `spi_definition` stores display order, default severity, enabled/report flags, catalogue `rule_key`, and report detail key; related SPI tables store applicability, typed rule parameters, tasking contacts, tasking action templates, tasking condition templates, feature bindings, and report configuration.
 - SPI rule catalogues are database-driven. `spi_rule_definition` stores supported rule keys, `spi_rule_parameter_definition` stores parameter schemas/defaults, `spi_rule_outcome_template` stores reason/evidence templates, `spi_report_detail_definition` stores report detail keys, and `spi_finding_classification_rule` controls generated finding severity/priority using approved condition keys.
 - SPI calculations are SQL-driven. `spi_calculation_source`, `spi_calculation_definition`, and `spi_calculation_evidence_expression` store constrained read-only SQL expressions evaluated by `usp_evaluate_spi_snapshot` against `vw_spi_asset_evaluation_context`; arbitrary batches, JavaScript, and unrestricted formula execution are not supported.
+- Finding features are database-driven. `vw_persisted_finding_normalized`, `usp_generate_spi_findings_snapshot`, `usp_get_effective_findings_snapshot`, `usp_get_finding_history_snapshot`, and `usp_get_finding_spi_history_snapshot` move persisted/generated effective finding selection, deterministic generated fallback, as-of status reconstruction, and history aggregation into SQL Server while the app remains the renderer/export serializer.
 - `ci_dependency` enforces:
   - valid snapshot + asset references
   - no self-referential edge (`source_asset_id <> target_asset_id`)

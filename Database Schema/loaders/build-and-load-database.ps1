@@ -430,6 +430,7 @@ $requiredPackageData = @(
   (Join-Path $packageDataRoot 'spi-report-detail-definitions.json'),
   (Join-Path $packageDataRoot 'spi-finding-classification-rules.json'),
   (Join-Path $packageDataRoot 'spi-sql-calculations.json'),
+  (Join-Path $packageDataRoot 'finding-definitions.json'),
   (Join-Path $packageDataRoot 'severity-definitions.json'),
   (Join-Path $packageDataRoot 'discovery-tools-settings.json'),
   (Join-Path $packageDataRoot 'measures-settings.json')

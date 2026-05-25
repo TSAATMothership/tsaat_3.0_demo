@@ -207,6 +207,24 @@ BEGIN
   THROW 51000, @LoadError, 1;
 END;
 
+DECLARE @FindingDefinitionJson NVARCHAR(MAX);
+SET @FilePath = @PackageDataRoot + N'\finding-definitions.json';
+SET @FindingDefinitionJson = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @FindingDefinitionJson OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @FindingDefinitionJson OUTPUT;
+END;
+IF @FindingDefinitionJson IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
 MERGE [tsaat].[finding_severity_definition] AS target
 USING (
   SELECT
@@ -260,6 +278,228 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT ([priority_rank], [label], [display_order], [selectable_in_settings], [description])
   VALUES (source.[priority_rank], source.[label], source.[display_order], source.[selectable_in_settings], source.[description]);
+
+MERGE [tsaat].[finding_source_policy] AS target
+USING (
+  SELECT
+    source_policy.[policy_key],
+    source_policy.[display_order],
+    source_policy.[name],
+    source_policy.[description],
+    source_policy.[use_persisted_findings],
+    source_policy.[generate_when_empty],
+    source_policy.[enabled]
+  FROM OPENJSON(@FindingDefinitionJson, '$.sourcePolicies') WITH (
+    [policy_key] NVARCHAR(100) '$.policyKey',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [use_persisted_findings] BIT '$.usePersistedFindings',
+    [generate_when_empty] BIT '$.generateWhenEmpty',
+    [enabled] BIT '$.enabled'
+  ) AS source_policy
+) AS source
+ON target.[policy_key] = source.[policy_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [use_persisted_findings] = source.[use_persisted_findings],
+    [generate_when_empty] = source.[generate_when_empty],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([policy_key], [display_order], [name], [description], [use_persisted_findings], [generate_when_empty], [enabled])
+  VALUES (source.[policy_key], source.[display_order], source.[name], source.[description], source.[use_persisted_findings], source.[generate_when_empty], source.[enabled]);
+
+MERGE [tsaat].[finding_generation_policy] AS target
+USING (
+  SELECT
+    generation_policy.[policy_key],
+    generation_policy.[history_start_date],
+    generation_policy.[history_window_years],
+    generation_policy.[baseline_backlog_count],
+    generation_policy.[min_open_count],
+    generation_policy.[max_open_count],
+    generation_policy.[add_probability_percent],
+    generation_policy.[add_rate_min_percent],
+    generation_policy.[add_rate_max_percent],
+    generation_policy.[close_rate_min_percent],
+    generation_policy.[close_rate_max_percent],
+    generation_policy.[close_backfill_min_count],
+    generation_policy.[close_backfill_max_count],
+    generation_policy.[timezone_offset_minutes]
+  FROM OPENJSON(@FindingDefinitionJson, '$.generationPolicies') WITH (
+    [policy_key] NVARCHAR(100) '$.policyKey',
+    [history_start_date] DATE '$.historyStartDate',
+    [history_window_years] INT '$.historyWindowYears',
+    [baseline_backlog_count] INT '$.baselineBacklogCount',
+    [min_open_count] INT '$.minOpenCount',
+    [max_open_count] INT '$.maxOpenCount',
+    [add_probability_percent] INT '$.addProbabilityPercent',
+    [add_rate_min_percent] INT '$.addRateMinPercent',
+    [add_rate_max_percent] INT '$.addRateMaxPercent',
+    [close_rate_min_percent] INT '$.closeRateMinPercent',
+    [close_rate_max_percent] INT '$.closeRateMaxPercent',
+    [close_backfill_min_count] INT '$.closeBackfillMinCount',
+    [close_backfill_max_count] INT '$.closeBackfillMaxCount',
+    [timezone_offset_minutes] INT '$.timezoneOffsetMinutes'
+  ) AS generation_policy
+) AS source
+ON target.[policy_key] = source.[policy_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [history_start_date] = source.[history_start_date],
+    [history_window_years] = source.[history_window_years],
+    [baseline_backlog_count] = source.[baseline_backlog_count],
+    [min_open_count] = source.[min_open_count],
+    [max_open_count] = source.[max_open_count],
+    [add_probability_percent] = source.[add_probability_percent],
+    [add_rate_min_percent] = source.[add_rate_min_percent],
+    [add_rate_max_percent] = source.[add_rate_max_percent],
+    [close_rate_min_percent] = source.[close_rate_min_percent],
+    [close_rate_max_percent] = source.[close_rate_max_percent],
+    [close_backfill_min_count] = source.[close_backfill_min_count],
+    [close_backfill_max_count] = source.[close_backfill_max_count],
+    [timezone_offset_minutes] = source.[timezone_offset_minutes]
+WHEN NOT MATCHED THEN
+  INSERT ([policy_key], [history_start_date], [history_window_years], [baseline_backlog_count], [min_open_count], [max_open_count], [add_probability_percent], [add_rate_min_percent], [add_rate_max_percent], [close_rate_min_percent], [close_rate_max_percent], [close_backfill_min_count], [close_backfill_max_count], [timezone_offset_minutes])
+  VALUES (source.[policy_key], source.[history_start_date], source.[history_window_years], source.[baseline_backlog_count], source.[min_open_count], source.[max_open_count], source.[add_probability_percent], source.[add_rate_min_percent], source.[add_rate_max_percent], source.[close_rate_min_percent], source.[close_rate_max_percent], source.[close_backfill_min_count], source.[close_backfill_max_count], source.[timezone_offset_minutes]);
+
+MERGE [tsaat].[finding_workflow_status_definition] AS target
+USING (
+  SELECT
+    workflow.[status_key],
+    workflow.[label],
+    workflow.[display_order],
+    workflow.[tone_key],
+    workflow.[terminal_status]
+  FROM OPENJSON(@FindingDefinitionJson, '$.workflowStatuses') WITH (
+    [status_key] NVARCHAR(10) '$.statusKey',
+    [label] NVARCHAR(80) '$.label',
+    [display_order] INT '$.displayOrder',
+    [tone_key] NVARCHAR(40) '$.toneKey',
+    [terminal_status] BIT '$.terminalStatus'
+  ) AS workflow
+) AS source
+ON target.[status_key] = source.[status_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [label] = source.[label],
+    [display_order] = source.[display_order],
+    [tone_key] = source.[tone_key],
+    [terminal_status] = source.[terminal_status]
+WHEN NOT MATCHED THEN
+  INSERT ([status_key], [label], [display_order], [tone_key], [terminal_status])
+  VALUES (source.[status_key], source.[label], source.[display_order], source.[tone_key], source.[terminal_status]);
+
+MERGE [tsaat].[finding_bucket_definition] AS target
+USING (
+  SELECT
+    bucket.[bucket_key],
+    bucket.[bucket_type],
+    bucket.[label],
+    bucket.[display_order],
+    bucket.[tone_key],
+    bucket.[condition_key],
+    bucket.[severity_key],
+    bucket.[priority_min],
+    bucket.[priority_max],
+    bucket.[workflow_status],
+    bucket.[enabled],
+    bucket.[description]
+  FROM OPENJSON(@FindingDefinitionJson, '$.buckets') WITH (
+    [bucket_key] NVARCHAR(100) '$.bucketKey',
+    [bucket_type] NVARCHAR(40) '$.bucketType',
+    [label] NVARCHAR(100) '$.label',
+    [display_order] INT '$.displayOrder',
+    [tone_key] NVARCHAR(40) '$.toneKey',
+    [condition_key] NVARCHAR(40) '$.conditionKey',
+    [severity_key] NVARCHAR(255) '$.severityKey',
+    [priority_min] INT '$.priorityMin',
+    [priority_max] INT '$.priorityMax',
+    [workflow_status] NVARCHAR(10) '$.workflowStatus',
+    [enabled] BIT '$.enabled',
+    [description] NVARCHAR(1000) '$.description'
+  ) AS bucket
+) AS source
+ON target.[bucket_key] = source.[bucket_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [bucket_type] = source.[bucket_type],
+    [label] = source.[label],
+    [display_order] = source.[display_order],
+    [tone_key] = source.[tone_key],
+    [condition_key] = source.[condition_key],
+    [severity_key] = source.[severity_key],
+    [priority_min] = source.[priority_min],
+    [priority_max] = source.[priority_max],
+    [workflow_status] = source.[workflow_status],
+    [enabled] = source.[enabled],
+    [description] = source.[description]
+WHEN NOT MATCHED THEN
+  INSERT ([bucket_key], [bucket_type], [label], [display_order], [tone_key], [condition_key], [severity_key], [priority_min], [priority_max], [workflow_status], [enabled], [description])
+  VALUES (source.[bucket_key], source.[bucket_type], source.[label], source.[display_order], source.[tone_key], source.[condition_key], source.[severity_key], source.[priority_min], source.[priority_max], source.[workflow_status], source.[enabled], source.[description]);
+
+MERGE [tsaat].[finding_evidence_field_definition] AS target
+USING (
+  SELECT
+    evidence_field.[field_key],
+    evidence_field.[display_order],
+    evidence_field.[label],
+    evidence_field.[purpose_key],
+    JSON_QUERY(evidence_field.[candidate_keys_json]) AS [candidate_keys_json],
+    evidence_field.[fallback_value],
+    evidence_field.[enabled]
+  FROM OPENJSON(@FindingDefinitionJson, '$.evidenceFields') WITH (
+    [field_key] NVARCHAR(100) '$.fieldKey',
+    [display_order] INT '$.displayOrder',
+    [label] NVARCHAR(120) '$.label',
+    [purpose_key] NVARCHAR(100) '$.purposeKey',
+    [candidate_keys_json] NVARCHAR(MAX) '$.candidateKeys' AS JSON,
+    [fallback_value] NVARCHAR(255) '$.fallbackValue',
+    [enabled] BIT '$.enabled'
+  ) AS evidence_field
+) AS source
+ON target.[field_key] = source.[field_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [display_order] = source.[display_order],
+    [label] = source.[label],
+    [purpose_key] = source.[purpose_key],
+    [candidate_keys_json] = COALESCE(source.[candidate_keys_json], N'[]'),
+    [fallback_value] = source.[fallback_value],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([field_key], [display_order], [label], [purpose_key], [candidate_keys_json], [fallback_value], [enabled])
+  VALUES (source.[field_key], source.[display_order], source.[label], source.[purpose_key], COALESCE(source.[candidate_keys_json], N'[]'), source.[fallback_value], source.[enabled]);
+
+MERGE [tsaat].[finding_register_column_definition] AS target
+USING (
+  SELECT
+    register_column.[column_key],
+    register_column.[label],
+    register_column.[display_order],
+    register_column.[value_key],
+    register_column.[enabled]
+  FROM OPENJSON(@FindingDefinitionJson, '$.registerColumns') WITH (
+    [column_key] NVARCHAR(100) '$.columnKey',
+    [label] NVARCHAR(120) '$.label',
+    [display_order] INT '$.displayOrder',
+    [value_key] NVARCHAR(100) '$.valueKey',
+    [enabled] BIT '$.enabled'
+  ) AS register_column
+) AS source
+ON target.[column_key] = source.[column_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [label] = source.[label],
+    [display_order] = source.[display_order],
+    [value_key] = source.[value_key],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([column_key], [label], [display_order], [value_key], [enabled])
+  VALUES (source.[column_key], source.[label], source.[display_order], source.[value_key], source.[enabled]);
 
 DECLARE @SeedRuleKeys TABLE ([rule_key] NVARCHAR(100) NOT NULL PRIMARY KEY);
 INSERT INTO @SeedRuleKeys ([rule_key])

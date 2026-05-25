@@ -44,13 +44,12 @@ describe("Findings register layout", () => {
     expect(pageSource).toContain('className="panel no-print flex max-h-[8.5rem] flex-wrap gap-2 overflow-y-auto p-3"');
     expect(pageSource).toContain('variant="compact"');
     expect(pageSource).toContain("sticky top-0 z-10 bg-slate-900");
-    expect(pageSource).toContain("Critical Risk");
-    expect(pageSource).toContain("High Risk");
-    expect(pageSource).toContain("Medium Risk and Lower");
-    expect(pageSource).toContain("const mediumAndLowerRiskFindings = Math.max(totalFindings - criticalExposure - highRisk, 0)");
-    expect(pageSource).toContain('label: "Medium and Lower Risk"');
-    expect(pageSource).toContain("otherRisk: Math.max(typeFindings.length - criticalExposureCount - highRiskCount, 0)");
-    expect(pageSource).toContain('<th className="px-2 py-1.5 text-right">Other</th>');
+    expect(pageSource).toContain("findingBucketsOfType(findingDisplayConfiguration, \"severity\")");
+    expect(pageSource).toContain("findingMatchesBucket(finding, bucket)");
+    expect(pageSource).toContain("primarySeverityBucket?.label");
+    expect(pageSource).toContain("secondarySeverityBucket?.label");
+    expect(pageSource).toContain("otherSeverityBucket?.label");
+    expect(pageSource).toContain("otherSeverityBucket");
     expect(pageSource).toContain("{summary.otherRisk}");
     expect(filterBarSource).toContain('className = "panel no-print mt-4 flex flex-wrap gap-3 p-4"');
     expect(filterBarSource).toContain("interface DropdownPosition");
@@ -103,7 +102,7 @@ describe("Findings register layout", () => {
 
   it("uses the updated affected CIs and filtered CVE drillthrough in the register", () => {
     expect(registerSource).toContain("Affected CIs");
-    expect(registerSource).toContain("return [buildAssetDetailsRow(selectedFindingForAssets, assetCvesByAssetId)]");
+    expect(registerSource).toContain("buildAssetDetailsRow(selectedFindingForAssets, assetCvesByAssetId, findingDisplayConfiguration)");
     expect(registerSource).toContain("CVE Vulnerabilities");
     expect(registerSource).toContain("CVE Criticality");
     expect(registerSource).toContain("const rows = filteredAssetCves.map((entry) => [");

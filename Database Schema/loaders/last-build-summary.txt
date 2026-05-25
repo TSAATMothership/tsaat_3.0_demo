@@ -10,8 +10,14 @@ tsaat.discovery_tool|7
 tsaat.discovery_tool_asset_scope|42
 tsaat.discovery_tools_settings_version|1
 tsaat.finding|12134
+tsaat.finding_bucket_definition|10
+tsaat.finding_evidence_field_definition|7
+tsaat.finding_generation_policy|1
 tsaat.finding_priority_definition|8
+tsaat.finding_register_column_definition|7
 tsaat.finding_severity_definition|5
+tsaat.finding_source_policy|1
+tsaat.finding_workflow_status_definition|2
 tsaat.ict_system|480
 tsaat.ict_system_hierarchy|0
 tsaat.kpi_definition|10

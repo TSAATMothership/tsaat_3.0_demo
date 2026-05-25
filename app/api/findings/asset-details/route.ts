@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
-import { workflowStatusAtAsOf } from "@/lib/finding-status";
+import { loadSnapshotEffectiveFindings } from "@/lib/data-loader";
+import {
+  FindingDisplayConfiguration,
+  findingBucketsOfType,
+  findingMatchesBucket,
+  readConfiguredEvidenceValue
+} from "@/lib/findings-config";
 import { Finding } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -99,33 +105,6 @@ function findingMatchesSearch(finding: Finding, normalizedSearchTerm: string): b
   return text.includes(normalizedSearchTerm);
 }
 
-function readEvidenceStringValue(
-  evidence: Record<string, string | number | boolean | null>,
-  candidateKeys: string[]
-): string | null {
-  if (!candidateKeys.length) {
-    return null;
-  }
-
-  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
-  for (const candidateKey of candidateKeys) {
-    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
-    if (!matched) {
-      continue;
-    }
-    const value = matched[1];
-    if (value === null) {
-      continue;
-    }
-    const text = String(value).trim();
-    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
-      continue;
-    }
-    return text;
-  }
-  return null;
-}
-
 function formatAssetTypeLabel(value?: string | null): string {
   if (!value) {
     return "Unknown";
@@ -146,42 +125,28 @@ function formatAssetTypeLabel(value?: string | null): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function buildAssetRows(findings: Finding[]): AssetDetailsRow[] {
+function buildAssetRows(findings: Finding[], findingDisplayConfiguration: FindingDisplayConfiguration): AssetDetailsRow[] {
   const byAsset = new Map<string, AssetDetailsRow>();
+  const severityBuckets = findingBucketsOfType(findingDisplayConfiguration, "severity");
+  const primarySeverityBucket = severityBuckets.find((bucket) => bucket.conditionKey === "severity_equals");
+  const secondarySeverityBucket = severityBuckets.filter((bucket) => bucket.conditionKey === "severity_equals")[1];
 
   for (const finding of findings) {
     const assetId = finding.scope.assetId;
     const existing = byAsset.get(assetId);
     if (!existing) {
-      const assetName =
-        readEvidenceStringValue(finding.evidence, ["assetName", "asset_name", "hostname", "assetHostname"]) ?? assetId;
+      const assetName = readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_name", assetId) ?? assetId;
       const assetIpAddress =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIpAddress",
-          "assetIp",
-          "ipAddress",
-          "ip",
-          "ipv4Address",
-          "ipv4",
-          "ip_address"
-        ]) ?? "Not available";
-      const assetType = formatAssetTypeLabel(readEvidenceStringValue(finding.evidence, ["assetType", "asset_type", "type"]));
+        readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_ip_address", "Not available") ??
+        "Not available";
+      const assetType = formatAssetTypeLabel(readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_type"));
       const assetChangeAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned";
+        readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "change_assignment_group", "Not assigned") ??
+        "Not assigned";
       const assetIncidentAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned";
-      const owner =
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ?? "Not assigned";
+        readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "incident_assignment_group", "Not assigned") ??
+        "Not assigned";
+      const owner = readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "owner", "Not assigned") ?? "Not assigned";
 
       byAsset.set(assetId, {
         assetId,
@@ -203,10 +168,10 @@ function buildAssetRows(findings: Finding[]): AssetDetailsRow[] {
     }
 
     row.totalFindings += 1;
-    if (finding.severity === "Critical Exposure") {
+    if (primarySeverityBucket && findingMatchesBucket(finding, primarySeverityBucket)) {
       row.criticalExposureFindings += 1;
     }
-    if (finding.severity === "High Risk") {
+    if (secondarySeverityBucket && findingMatchesBucket(finding, secondarySeverityBucket)) {
       row.highRiskFindings += 1;
     }
   }
@@ -235,7 +200,7 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams,
     new Set(["drillthroughSpiId", "drillthroughTitle", "drillthroughFindingId"])
   );
-  const { analytics, dataset, spiDefinitions } = await getCoreAppData(requestParams);
+  const { analytics, dataset, spiDefinitions, findingDisplayConfiguration } = await getCoreAppData(requestParams);
 
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
@@ -260,15 +225,11 @@ export async function GET(request: NextRequest) {
   const selectedSearchTerm = firstParam(requestParams.search)?.trim() ?? "";
   const normalizedSearchTerm = selectedSearchTerm.toLowerCase();
 
-  const timelineStatusByFindingId = new Map<string, "open" | "closed">();
-  const timelineFindings = analytics.findings.filter((finding) => {
-    const timelineStatus = workflowStatusAtAsOf(finding, selectedAsOf);
-    if (!timelineStatus) {
-      return false;
-    }
-    timelineStatusByFindingId.set(finding.id, timelineStatus);
-    return true;
-  });
+  const filteredAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
+  const timelineFindings = (dataset.snapshotId
+    ? await loadSnapshotEffectiveFindings(dataset.snapshotId, selectedAsOf)
+    : analytics.findings
+  ).filter((finding) => filteredAssetIds.has(finding.scope.assetId));
 
   const filteredFindings = timelineFindings.filter((finding) => {
     if (selectedSpi && finding.spiId !== selectedSpi) {
@@ -283,8 +244,7 @@ export async function GET(request: NextRequest) {
     if (!findingMatchesSearch(finding, normalizedSearchTerm)) {
       return false;
     }
-    const timelineStatus = timelineStatusByFindingId.get(finding.id);
-    if (!timelineStatus || timelineStatus !== selectedStatus) {
+    if (finding.status !== selectedStatus) {
       return false;
     }
     return true;
@@ -300,7 +260,7 @@ export async function GET(request: NextRequest) {
         timelineFindings.find((finding) => finding.id === drillthroughFindingId)
       : undefined;
   const scopedFindings = relatedFindings.length ? relatedFindings : fallbackFinding ? [fallbackFinding] : [];
-  const rows = buildAssetRows(scopedFindings);
+  const rows = buildAssetRows(scopedFindings, findingDisplayConfiguration);
 
   return NextResponse.json({
     rows,

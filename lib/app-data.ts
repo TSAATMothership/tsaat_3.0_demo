@@ -9,6 +9,7 @@ import {
   loadDiscoveryToolsSettings,
   loadDatasetForDate,
   loadFindingPriorityDefinitions,
+  loadFindingDisplayConfiguration,
   loadKpiDefinitions,
   loadLatestSnapshotsForDate,
   loadMeasuresSettings,
@@ -16,6 +17,7 @@ import {
   loadSpiDefinitions
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
+import { findingDisplayConfigurationCacheSignature } from "@/lib/findings-config";
 import { kpiDefinitionsCacheSignature } from "@/lib/kpi-definitions";
 import { severityDefinitionsCacheSignature, spiDefinitionsCacheSignature } from "@/lib/spi-definitions";
 import { buildFilterOptions, filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
@@ -24,13 +26,22 @@ import { buildTrendPoints } from "@/lib/trends";
 
 export async function getCoreAppData(searchParams: Record<string, string | string[] | undefined> = {}) {
   const dataDate = extractDataDateParam(searchParams);
-  const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
+  const [
+    dataset,
+    discoveryToolsSettings,
+    kpiDefinitions,
+    spiDefinitions,
+    severityDefinitions,
+    priorityDefinitions,
+    findingDisplayConfiguration
+  ] = await Promise.all([
     loadDatasetForDate(dataDate),
     loadDiscoveryToolsSettings(),
     loadKpiDefinitions(),
     loadSpiDefinitions(),
     loadSeverityDefinitions(),
-    loadFindingPriorityDefinitions()
+    loadFindingPriorityDefinitions(),
+    loadFindingDisplayConfiguration()
   ]);
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions, priorityDefinitions);
   const filters = parseFilters(searchParams);
@@ -43,6 +54,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
     spiDefinitionsCacheSignature(spiDefinitions),
     severityDefinitionsCacheSignature(severityDefinitions),
     JSON.stringify(priorityDefinitions),
+    findingDisplayConfigurationCacheSignature(findingDisplayConfiguration),
     filtersCacheKey(filters),
     settingsCacheSignature(measuresSettings, discoveryToolsSettings)
   ]);
@@ -71,6 +83,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
       spiDefinitions,
       severityDefinitions,
       priorityDefinitions,
+      findingDisplayConfiguration,
       measuresSettings,
       discoveryToolsSettings
     };
@@ -98,6 +111,7 @@ export async function getTrendAppData(
     spiDefinitionsCacheSignature(core.spiDefinitions),
     severityDefinitionsCacheSignature(core.severityDefinitions),
     JSON.stringify(core.priorityDefinitions),
+    findingDisplayConfigurationCacheSignature(core.findingDisplayConfiguration),
     filtersCacheKey(core.filters),
     settingsCacheSignature(core.measuresSettings, core.discoveryToolsSettings)
   ]);

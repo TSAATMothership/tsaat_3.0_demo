@@ -2,9 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { workflowStatusAtAsOf } from "@/lib/finding-status";
+import {
+  buildConfiguredEvidencePreview,
+  FindingDisplayConfiguration,
+  findingBucketsOfType,
+  findingMatchesBucket,
+  readConfiguredEvidenceValue,
+  toneBadgeClass
+} from "@/lib/findings-config";
 import { SpiDefinition } from "@/lib/spi-definitions";
-import { CveVulnerabilityDetail, Finding, FindingSeverity, VulnerabilitySeverity } from "@/lib/types";
+import { CveVulnerabilityDetail, Finding, VulnerabilitySeverity } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
 const CVE_CRITICALITY_FILTERS: VulnerabilitySeverity[] = ["Critical", "High", "Medium", "Low"];
@@ -43,36 +50,6 @@ function formatCapturedTimestamp(timestamp: string): string {
   return `${day}/${month}/${year} ${hour}:${minute} UTC`;
 }
 
-function toEvidenceString(value: string | number | boolean | null): string {
-  if (value === null) {
-    return "null";
-  }
-  return String(value);
-}
-
-function readEvidenceStringValue(
-  evidence: Record<string, string | number | boolean | null>,
-  candidateKeys: string[]
-): string | null {
-  const evidenceEntries = Object.entries(evidence).map(([key, value]) => [key.toLowerCase(), value] as const);
-  for (const candidateKey of candidateKeys) {
-    const matched = evidenceEntries.find(([key]) => key === candidateKey.toLowerCase());
-    if (!matched) {
-      continue;
-    }
-    const value = matched[1];
-    if (value === null) {
-      continue;
-    }
-    const text = String(value).trim();
-    if (!text || text.toLowerCase() === "null" || text.toLowerCase() === "undefined") {
-      continue;
-    }
-    return text;
-  }
-  return null;
-}
-
 function formatAssetTypeLabel(value?: string | null): string {
   if (!value) {
     return "Unknown";
@@ -91,22 +68,6 @@ function formatAssetTypeLabel(value?: string | null): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function workflowBadgeClass(status: "open" | "closed"): string {
-  return status === "open"
-    ? "border-amber-400/45 bg-amber-500/15 text-amber-100"
-    : "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
-}
-
-function severityBadgeClass(severity: FindingSeverity): string {
-  if (severity === "Critical Exposure") {
-    return "border-red-400/35 bg-red-500/10 text-red-100";
-  }
-  if (severity === "High Risk") {
-    return "border-orange-400/35 bg-orange-500/10 text-orange-100";
-  }
-  return "border-sky-300/25 bg-sky-500/10 text-sky-100";
 }
 
 function cveCriticalityClass(criticality: VulnerabilitySeverity): string {
@@ -130,52 +91,28 @@ function csvCell(value: string | number): string {
   return `"${text.replace(/"/g, "\"\"")}"`;
 }
 
-function buildEvidencePreview(finding: Finding): string {
-  return (
-    Object.entries(finding.evidence)
-      .slice(0, 2)
-      .map(([key, value]) => `${key}: ${toEvidenceString(value)}`)
-      .join(" | ") || "No evidence captured"
-  );
-}
-
 function buildAssetDetailsRow(
   finding: Finding,
-  assetCvesByAssetId: Record<string, AssetCveEntry[]>
+  assetCvesByAssetId: Record<string, AssetCveEntry[]>,
+  findingDisplayConfiguration: FindingDisplayConfiguration
 ): AssetDetailsRow {
   const assetId = finding.scope.assetId;
   const cveVulnerabilities = assetCvesByAssetId[assetId] ?? [];
 
   return {
     assetId,
-    assetName:
-      readEvidenceStringValue(finding.evidence, ["assetName", "asset_name", "hostname", "assetHostname"]) ?? assetId,
+    assetName: readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_name", assetId) ?? assetId,
     assetIpAddress:
-      readEvidenceStringValue(finding.evidence, [
-        "assetIpAddress",
-        "assetIp",
-        "ipAddress",
-        "ip",
-        "ipv4Address",
-        "ipv4",
-        "ip_address"
-      ]) ?? "Not available",
-    assetType: formatAssetTypeLabel(readEvidenceStringValue(finding.evidence, ["assetType", "asset_type", "type"])),
+      readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_ip_address", "Not available") ??
+      "Not available",
+    assetType: formatAssetTypeLabel(readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_type")),
     assetChangeAssignmentGroup:
-      readEvidenceStringValue(finding.evidence, [
-        "assetChangeAssignmentGroup",
-        "changeAssignmentGroup",
-        "changeGroup",
-        "change_assignment_group"
-      ]) ?? "Not assigned",
+      readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "change_assignment_group", "Not assigned") ??
+      "Not assigned",
     assetIncidentAssignmentGroup:
-      readEvidenceStringValue(finding.evidence, [
-        "assetIncidentAssignmentGroup",
-        "incidentAssignmentGroup",
-        "incidentGroup",
-        "incident_assignment_group"
-      ]) ?? "Not assigned",
-    owner: readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ?? "Not assigned",
+      readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "incident_assignment_group", "Not assigned") ??
+      "Not assigned",
+    owner: readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "owner", "Not assigned") ?? "Not assigned",
     totalCveVulnerabilities: cveVulnerabilities.length,
     cveVulnerabilities
   };
@@ -204,6 +141,7 @@ export function FindingsTable({
   priorityOptions,
   severityOptions,
   spiDefinitions,
+  findingDisplayConfiguration,
   assetCvesByAssetId = {}
 }: {
   findings: Finding[];
@@ -218,8 +156,10 @@ export function FindingsTable({
   priorityOptions: number[];
   severityOptions: string[];
   spiDefinitions: SpiDefinition[];
+  findingDisplayConfiguration: FindingDisplayConfiguration;
   assetCvesByAssetId?: Record<string, AssetCveEntry[]>;
 }) {
+  void selectedAsOf;
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
   const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
   const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
@@ -234,6 +174,14 @@ export function FindingsTable({
   const spiDefinitionById = useMemo(
     () => new Map(spiDefinitions.map((definition) => [definition.spiId, definition])),
     [spiDefinitions]
+  );
+  const severityBuckets = useMemo(
+    () => findingBucketsOfType(findingDisplayConfiguration, "severity"),
+    [findingDisplayConfiguration]
+  );
+  const workflowToneByStatus = useMemo(
+    () => new Map(findingDisplayConfiguration.workflowStatuses.map((status) => [status.statusKey, status.toneKey] as const)),
+    [findingDisplayConfiguration]
   );
 
   const dismissOverlaysImmediately = useCallback(() => {
@@ -328,8 +276,8 @@ export function FindingsTable({
     if (!selectedFindingForAssets) {
       return [];
     }
-    return [buildAssetDetailsRow(selectedFindingForAssets, assetCvesByAssetId)];
-  }, [assetCvesByAssetId, selectedFindingForAssets]);
+    return [buildAssetDetailsRow(selectedFindingForAssets, assetCvesByAssetId, findingDisplayConfiguration)];
+  }, [assetCvesByAssetId, findingDisplayConfiguration, selectedFindingForAssets]);
 
   const selectedAssetCves = useMemo(() => {
     if (!selectedAssetForCveDetails) {
@@ -777,7 +725,9 @@ export function FindingsTable({
             </thead>
             <tbody>
               {findings.map((finding) => {
-                const asOfStatus = workflowStatusAtAsOf(finding, selectedAsOf) ?? finding.status;
+                const asOfStatus = finding.status;
+                const severityBucket = severityBuckets.find((bucket) => findingMatchesBucket(finding, bucket));
+                const workflowTone = workflowToneByStatus.get(asOfStatus) ?? (asOfStatus === "open" ? "warning" : "success");
                 return (
                   <tr key={finding.id} className="border-t border-sky-400/10 align-top">
                     <td className="w-[12rem] min-w-[12rem] px-3 py-2">
@@ -789,8 +739,8 @@ export function FindingsTable({
                     <td className="w-[11rem] min-w-[11rem] px-3 py-2">
                       <div className="flex flex-col gap-1">
                         <span
-                          className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${severityBadgeClass(
-                            finding.severity
+                          className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${toneBadgeClass(
+                            severityBucket?.toneKey ?? "info"
                           )}`}
                         >
                           {finding.severity}
@@ -811,14 +761,16 @@ export function FindingsTable({
                     </td>
                     <td className="px-3 py-2">
                       <span
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${workflowBadgeClass(
-                          asOfStatus
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.12em] ${toneBadgeClass(
+                          workflowTone
                         )}`}
                       >
                         {asOfStatus === "open" ? "Open" : "Closed"}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-300/85">{buildEvidencePreview(finding)}</td>
+                    <td className="px-3 py-2 text-xs text-slate-300/85">
+                      {buildConfiguredEvidencePreview(finding, findingDisplayConfiguration)}
+                    </td>
                     <td className="px-3 py-2 text-xs text-slate-300/85">{finding.recommendedAction}</td>
                   </tr>
                 );

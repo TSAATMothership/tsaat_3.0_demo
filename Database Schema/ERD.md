@@ -40,6 +40,8 @@ erDiagram
   finding_priority_definition ||--o{ measures_priority_matrix : "priority_rank"
   finding_priority_definition ||--o{ finding : "priority_rank"
   finding_priority_definition ||--o{ spi_finding_classification_rule : "priority_rank"
+  finding_source_policy ||--|| finding_generation_policy : "policy_key"
+  finding_workflow_status_definition ||--o{ finding_bucket_definition : "workflow_status"
   spi_rule_definition ||--o{ spi_definition : "rule_key"
   spi_rule_definition ||--o{ spi_rule_parameter_definition : "rule_key"
   spi_rule_definition ||--o{ spi_rule_outcome_template : "rule_key"
@@ -155,6 +157,51 @@ erDiagram
     int display_order
     boolean selectable_in_settings
   }
+
+  finding_source_policy {
+    string policy_key
+    int display_order
+    boolean use_persisted_findings
+    boolean generate_when_empty
+    boolean enabled
+  }
+
+  finding_generation_policy {
+    string policy_key
+    date history_start_date
+    int history_window_years
+    int baseline_backlog_count
+  }
+
+  finding_workflow_status_definition {
+    string status_key
+    string label
+    int display_order
+    string tone_key
+  }
+
+  finding_bucket_definition {
+    string bucket_key
+    string bucket_type
+    string condition_key
+    string tone_key
+    boolean enabled
+  }
+
+  finding_evidence_field_definition {
+    string field_key
+    string purpose_key
+    string candidate_keys_json
+    boolean enabled
+  }
+
+  finding_register_column_definition {
+    string column_key
+    string label
+    int display_order
+    string value_key
+    boolean enabled
+  }
 ```
 
 ## CI Dependency Domain
@@ -197,3 +244,7 @@ erDiagram
   - `spi_tasking_team`, `spi_tasking_action_template`, and `spi_tasking_condition_template` store tasking contacts and report text templates.
 - SPI calculations are SQL-driven at runtime through approved read-only expressions over approved context objects; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
 - `kpi_definition` stores database-driven KPI catalogue metadata, calculation keys, display order, and report availability.
+- Finding features are database-driven:
+  - `finding_source_policy` and `finding_generation_policy` control persisted-first effective finding selection and generated fallback policy.
+  - `finding_workflow_status_definition`, `finding_bucket_definition`, `finding_evidence_field_definition`, and `finding_register_column_definition` store workflow, grouping, evidence display, and register/export semantics.
+  - `vw_persisted_finding_normalized`, `usp_generate_spi_findings_snapshot`, `usp_get_effective_findings_snapshot`, `usp_get_finding_history_snapshot`, and `usp_get_finding_spi_history_snapshot` provide SQL-backed effective findings and history datasets.

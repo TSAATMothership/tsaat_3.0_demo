@@ -4,11 +4,11 @@ import { buildAnalytics } from "@/lib/analytics";
 import {
   loadCurrentDataset,
   loadDiscoveryToolsSettings,
+  loadSnapshotEffectiveFindings,
   loadMeasuresSettings,
   loadSeverityDefinitions,
   loadSpiDefinitions
 } from "@/lib/data-loader";
-import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { parseFilters } from "@/lib/selectors";
 
 export const dynamic = "force-dynamic";
@@ -104,20 +104,18 @@ export async function GET(request: NextRequest) {
   const selectedSeverity = request.nextUrl.searchParams.get("severity")?.trim() || undefined;
   const selectedSearchTerm = request.nextUrl.searchParams.get("search")?.trim() ?? "";
   const normalizedSearchTerm = selectedSearchTerm.toLowerCase();
-  const findings = analytics.findings
-    .map((finding) => ({
-      finding,
-      asOfStatus: workflowStatusAtAsOf(finding, selectedAsOf)
-    }))
-    .filter((item) => {
-      if (!item.asOfStatus) {
-        return false;
-      }
-      const { finding, asOfStatus } = item;
+  const filteredAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
+  const findings = (dataset.snapshotId
+    ? await loadSnapshotEffectiveFindings(dataset.snapshotId, selectedAsOf)
+    : analytics.findings
+  ).filter((finding) => {
+    if (!filteredAssetIds.has(finding.scope.assetId)) {
+      return false;
+    }
     if (selectedSpi && finding.spiId !== selectedSpi) {
       return false;
     }
-    if (selectedStatus && asOfStatus !== selectedStatus) {
+    if (selectedStatus && finding.status !== selectedStatus) {
       return false;
     }
     if (selectedPriority && finding.priorityRank !== selectedPriority) {
@@ -130,11 +128,7 @@ export async function GET(request: NextRequest) {
       return false;
     }
     return true;
-  })
-    .map(({ finding, asOfStatus }) => ({
-      ...finding,
-      status: asOfStatus
-    }));
+  });
 
   if (format === "csv") {
     const rows = findings.map((finding) => ({

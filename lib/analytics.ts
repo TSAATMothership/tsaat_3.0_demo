@@ -1,12 +1,7 @@
-import { buildFindings } from "@/lib/findings";
 import { deduplicateFindings } from "@/lib/findings-normalization";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import {
-  applyMeasuresPrioritySettings,
-  applyMeasuresSeveritySettings,
-  MeasuresSettings
-} from "@/lib/measures-settings";
+import { MeasuresSettings } from "@/lib/measures-settings";
 import { SpiDefinition, spiEvaluationMatchesFeature } from "@/lib/spi-definitions";
 import { buildRollups, mergeStatusCounts } from "@/lib/rollup";
 import { applyAssetFilters } from "@/lib/selectors";
@@ -92,6 +87,7 @@ export function buildAnalytics(
   measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): AnalyticsResult {
+  void measuresSettings;
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
   const systemsById = new Map(systems.map((system) => [system.id, system]));
   const storedEvaluationsByAssetId = spiEvaluationsByAssetId(dataset);
@@ -106,24 +102,9 @@ export function buildAnalytics(
   const productionCriticalAssetIds = productionCriticalExposureAssetIds(evaluations, spiDefinitions);
 
   const filteredAssetIds = new Set(filteredAssets.map((asset) => asset.id));
-  const sourceFindings: Finding[] = (() => {
-    if (dataset.findings && dataset.findings.length > 0) {
-      return dataset.findings;
-    }
-
-    const allEvaluations = dataset.assets.map((asset) =>
-      toAssetEvaluation(asset, systemsById, discoveryToolsSettings, storedEvaluationsByAssetId)
-    );
-    const allProductionCriticalSet = new Set(productionCriticalExposureAssetIds(allEvaluations, spiDefinitions));
-    return buildFindings(dataset.assets, allEvaluations, allProductionCriticalSet, {
-      anchorDate: dataset.snapshotDate,
-      spiDefinitions
-    });
-  })();
-  const findingsWithConfiguredSeverity = applyMeasuresSeveritySettings(sourceFindings, dataset.assets, measuresSettings);
-  const findingsWithConfiguredSettings = applyMeasuresPrioritySettings(findingsWithConfiguredSeverity, measuresSettings);
+  const sourceFindings: Finding[] = dataset.findings ?? [];
   const scopedFindings = deduplicateFindings(
-    findingsWithConfiguredSettings.filter((finding) => filteredAssetIds.has(finding.scope.assetId))
+    sourceFindings.filter((finding) => filteredAssetIds.has(finding.scope.assetId))
   );
   const findings = filters.severity
     ? scopedFindings.filter((finding) => finding.severity === filters.severity)

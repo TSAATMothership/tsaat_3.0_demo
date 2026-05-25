@@ -213,7 +213,7 @@ describe("analytics findings filtering", () => {
     expect(findingIds).not.toEqual(expect.arrayContaining(["srv-ce-old", "srv-hr-old", "srv-maj-old", "srv-mod-old", "srv-dg-old"]));
   });
 
-  it("applies SPI and asset-type severity overrides from measures settings", () => {
+  it("consumes SQL-produced display severity from effective findings", () => {
     const dataset: Dataset = {
       generatedAt: "2026-02-28T00:00:00.000Z",
       snapshotDate: "2026-02-28",
@@ -262,7 +262,15 @@ describe("analytics findings filtering", () => {
           systemContext: { systemId: "sys-1", environmentType: "Production" }
         }
       ],
-      findings: [{ ...baseFinding("finding-override", "srv-1"), spiId: 1, severity: "Major" }]
+      findings: [
+        {
+          ...baseFinding("finding-override", "srv-1"),
+          spiId: 1,
+          severity: "High Risk",
+          rawSeverity: "Major",
+          sourceKind: "persisted"
+        }
+      ]
     };
 
     const settings: MeasuresSettings = {
@@ -282,7 +290,7 @@ describe("analytics findings filtering", () => {
     expect(analytics.findings[0]?.severity).toBe("High Risk");
   });
 
-  it("applies SPI priority overrides to non-compliant findings while leaving Unknown findings at P90", () => {
+  it("consumes SQL-produced display priority while leaving Unknown findings at P90", () => {
     const dataset: Dataset = {
       generatedAt: "2026-02-28T00:00:00.000Z",
       snapshotDate: "2026-02-28",
@@ -345,13 +353,21 @@ describe("analytics findings filtering", () => {
         }
       ],
       findings: [
-        { ...baseFinding("finding-non-compliant", "srv-1"), spiId: 1, priorityRank: 3 },
+        {
+          ...baseFinding("finding-non-compliant", "srv-1"),
+          spiId: 1,
+          priorityRank: 7,
+          rawPriorityRank: 3,
+          sourceKind: "persisted"
+        },
         {
           ...baseFinding("finding-unknown", "wks-1"),
           spiId: 1,
           priorityRank: 90,
+          rawPriorityRank: 90,
           severity: "Data Gap",
-          complianceStatus: "Unknown"
+          complianceStatus: "Unknown",
+          sourceKind: "persisted"
         }
       ]
     };

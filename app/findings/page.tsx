@@ -7,7 +7,12 @@ import { FindingsViewTabId, FindingsViewTabs } from "@/components/findings-view-
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { buildCveVulnerabilityIndexByAssetId } from "@/lib/cve";
-import { workflowStatusAtAsOf } from "@/lib/finding-status";
+import { loadSnapshotEffectiveFindings } from "@/lib/data-loader";
+import {
+  findingBucketsOfType,
+  findingMatchesBucket,
+  toneTextClass
+} from "@/lib/findings-config";
 import { Finding } from "@/lib/types";
 
 interface SpiHistoryPoint {
@@ -94,7 +99,7 @@ export default async function FindingsPage({
           criticality: undefined
         }
       : searchParams;
-  const { analytics, dataset, filterOptions, filters, spiDefinitions, severityDefinitions } =
+  const { analytics, dataset, filterOptions, filters, spiDefinitions, severityDefinitions, findingDisplayConfiguration } =
     await getCoreAppData(effectiveSearchParams);
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
@@ -133,17 +138,11 @@ export default async function FindingsPage({
     return true;
   };
 
-  const timelineStatusByFindingId = new Map<string, "open" | "closed">();
-
   const matchesActiveFindingFilters = (finding: Finding) => {
     if (!matchesBaseFindingFilters(finding)) {
       return false;
     }
-    const timelineStatus = timelineStatusByFindingId.get(finding.id);
-    if (!timelineStatus) {
-      return false;
-    }
-    if (selectedStatus && timelineStatus !== selectedStatus) {
+    if (selectedStatus && finding.status !== selectedStatus) {
       return false;
     }
     return true;
@@ -266,14 +265,11 @@ export default async function FindingsPage({
     spiCursor = addUtcDays(spiCursor, 1);
   }
 
-  const timelineFindings = analytics.findings.filter((finding) => {
-    const timelineStatus = workflowStatusAtAsOf(finding, selectedAsOf);
-    if (!timelineStatus) {
-      return false;
-    }
-    timelineStatusByFindingId.set(finding.id, timelineStatus);
-    return true;
-  });
+  const filteredAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
+  const timelineFindings = (dataset.snapshotId
+    ? await loadSnapshotEffectiveFindings(dataset.snapshotId, selectedAsOf)
+    : analytics.findings
+  ).filter((finding) => filteredAssetIds.has(finding.scope.assetId));
   const severityOptions = severityDefinitions.map((definition) => definition.severityKey);
 
   const findings = timelineFindings.filter(matchesActiveFindingFilters);
@@ -310,31 +306,41 @@ export default async function FindingsPage({
         ]
       : [priorityFilterSelect];
 
-  const highRisk = findings.filter((finding) => finding.severity === "High Risk").length;
   const totalFindings = findings.length;
-  const criticalExposure = findings.filter((finding) => finding.severity === "Critical Exposure").length;
-  const mediumAndLowerRiskFindings = Math.max(totalFindings - criticalExposure - highRisk, 0);
+  const featuredSeverityBuckets = findingBucketsOfType(findingDisplayConfiguration, "severity").filter(
+    (bucket) => bucket.conditionKey === "severity_not_in" || bucket.displayOrder <= 2
+  );
+  const primarySeverityBucket = featuredSeverityBuckets.find((bucket) => bucket.conditionKey === "severity_equals");
+  const secondarySeverityBucket = featuredSeverityBuckets.filter((bucket) => bucket.conditionKey === "severity_equals")[1];
+  const otherSeverityBucket = featuredSeverityBuckets.find((bucket) => bucket.conditionKey === "severity_not_in");
+  const bucketCount = (rows: Finding[], bucket = otherSeverityBucket) =>
+    bucket ? rows.filter((finding) => findingMatchesBucket(finding, bucket)).length : 0;
   const assetTypeSummaries = ASSET_TYPES.map((assetType) => {
     const typeFindings = findings.filter((finding) => String(finding.evidence.assetType ?? "") === assetType);
-    const criticalExposureCount = typeFindings.filter((finding) => finding.severity === "Critical Exposure").length;
-    const highRiskCount = typeFindings.filter((finding) => finding.severity === "High Risk").length;
+    const criticalExposureCount = primarySeverityBucket ? bucketCount(typeFindings, primarySeverityBucket) : 0;
+    const highRiskCount = secondarySeverityBucket ? bucketCount(typeFindings, secondarySeverityBucket) : 0;
+    const otherRiskCount = otherSeverityBucket
+      ? bucketCount(typeFindings, otherSeverityBucket)
+      : Math.max(typeFindings.length - criticalExposureCount - highRiskCount, 0);
     return {
       id: assetType,
       label: assetTypeLabel(assetType),
       totalFindings: typeFindings.length,
       highRisk: highRiskCount,
       criticalExposure: criticalExposureCount,
-      otherRisk: Math.max(typeFindings.length - criticalExposureCount - highRiskCount, 0)
+      otherRisk: otherRiskCount
     };
   });
   const openFindingsForSpiSummary = timelineFindings.filter(
-    (finding) => matchesBaseFindingFilters(finding) && timelineStatusByFindingId.get(finding.id) === "open"
+    (finding) => matchesBaseFindingFilters(finding) && finding.status === "open"
   );
   const openFindingsBySpiSummary = spiCatalog.map((spiId) => {
     const spiFindings = openFindingsForSpiSummary.filter((finding) => finding.spiId === spiId);
-    const criticalExposureCount = spiFindings.filter((finding) => finding.severity === "Critical Exposure").length;
-    const highRiskCount = spiFindings.filter((finding) => finding.severity === "High Risk").length;
-    const otherCount = Math.max(spiFindings.length - criticalExposureCount - highRiskCount, 0);
+    const criticalExposureCount = primarySeverityBucket ? bucketCount(spiFindings, primarySeverityBucket) : 0;
+    const highRiskCount = secondarySeverityBucket ? bucketCount(spiFindings, secondarySeverityBucket) : 0;
+    const otherCount = otherSeverityBucket
+      ? bucketCount(spiFindings, otherSeverityBucket)
+      : Math.max(spiFindings.length - criticalExposureCount - highRiskCount, 0);
 
     return {
       spiId,
@@ -351,14 +357,12 @@ export default async function FindingsPage({
   );
   const overviewMetricCards = [
     { label: "Total Findings", value: totalFindings, labelClass: "text-slate-200", valueClass: "text-slate-100" },
-    { label: "Critical Exposure", value: criticalExposure, labelClass: "text-red-300", valueClass: "text-red-100" },
-    { label: "High Risk", value: highRisk, labelClass: "text-orange-200", valueClass: "text-orange-100" },
-    {
-      label: "Medium and Lower Risk",
-      value: mediumAndLowerRiskFindings,
-      labelClass: "text-sky-200",
-      valueClass: "text-sky-100"
-    }
+    ...featuredSeverityBuckets.map((bucket) => ({
+      label: bucket.label,
+      value: bucketCount(findings, bucket),
+      labelClass: toneTextClass(bucket.toneKey),
+      valueClass: toneTextClass(bucket.toneKey)
+    }))
   ];
   const cvesByAssetId = buildCveVulnerabilityIndexByAssetId(dataset.assets);
 
@@ -438,9 +442,9 @@ export default async function FindingsPage({
                           <tr>
                             <th className="px-2 py-1.5">Asset Type</th>
                             <th className="px-2 py-1.5 text-right">Total</th>
-                            <th className="px-2 py-1.5 text-right">Critical</th>
-                            <th className="px-2 py-1.5 text-right">High</th>
-                            <th className="px-2 py-1.5 text-right">Other</th>
+                            <th className="px-2 py-1.5 text-right">{primarySeverityBucket?.label ?? "Primary"}</th>
+                            <th className="px-2 py-1.5 text-right">{secondarySeverityBucket?.label ?? "Secondary"}</th>
+                            <th className="px-2 py-1.5 text-right">{otherSeverityBucket?.label ?? "Other"}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -471,15 +475,15 @@ export default async function FindingsPage({
                       <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.08em] text-slate-300/80">
                         <span className="inline-flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-sm bg-red-500/85" />
-                          Critical Risk
+                          {primarySeverityBucket?.label ?? "Primary"}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-sm bg-orange-500/85" />
-                          High Risk
+                          {secondarySeverityBucket?.label ?? "Secondary"}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <span className="h-2 w-2 rounded-sm bg-sky-500/85" />
-                          Medium Risk and Lower
+                          {otherSeverityBucket?.label ?? "Other"}
                         </span>
                       </div>
                     </div>
@@ -532,7 +536,9 @@ export default async function FindingsPage({
                                     </div>
                                   </div>
                                   <p className="mt-1 text-[10px] text-slate-300/80">
-                                    Total {row.totalOpenFindings} | CE {row.criticalExposureCount} | HR {row.highRiskCount}
+                                    Total {row.totalOpenFindings} | {primarySeverityBucket?.label ?? "Primary"}{" "}
+                                    {row.criticalExposureCount} | {secondarySeverityBucket?.label ?? "Secondary"}{" "}
+                                    {row.highRiskCount}
                                     {" | "}Other {row.otherCount}
                                   </p>
                                 </div>
@@ -561,6 +567,7 @@ export default async function FindingsPage({
                 priorityOptions={priorityOptions}
                 severityOptions={severityOptions}
                 spiDefinitions={spiDefinitions}
+                findingDisplayConfiguration={findingDisplayConfiguration}
                 assetCvesByAssetId={cvesByAssetId}
               />
             </div>

@@ -3,6 +3,7 @@ import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import {
   __resetDataLoaderCachesForTest,
   loadDatasetForDate,
+  loadFindingDisplayConfiguration,
   loadFindingPriorityDefinitions,
   loadKpiDefinitions,
   loadMeasuresSettings,
@@ -91,6 +92,101 @@ function installSqlMock(): void {
         selectableInSettings: definition.selectableInSettings,
         description: definition.description
       }));
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_source_policy]")) {
+      return [
+        {
+          policyKey: "persisted-first",
+          displayOrder: 1,
+          name: "Persisted Findings First",
+          description: "Use persisted findings first.",
+          usePersistedFindings: true,
+          generateWhenEmpty: true,
+          enabled: true
+        }
+      ];
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_generation_policy]")) {
+      return [
+        {
+          policyKey: "persisted-first",
+          historyStartDate: "2024-02-10",
+          historyWindowYears: 2,
+          baselineBacklogCount: 200,
+          minOpenCount: 180,
+          maxOpenCount: 320,
+          addProbabilityPercent: 38,
+          addRateMinPercent: 0,
+          addRateMaxPercent: 40,
+          closeRateMinPercent: 10,
+          closeRateMaxPercent: 20,
+          closeBackfillMinCount: 1,
+          closeBackfillMaxCount: 3,
+          timezoneOffsetMinutes: -300
+        }
+      ];
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_workflow_status_definition]")) {
+      return [
+        { statusKey: "open", label: "Open", displayOrder: 1, toneKey: "warning", terminalStatus: false },
+        { statusKey: "closed", label: "Closed", displayOrder: 2, toneKey: "success", terminalStatus: true }
+      ];
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_bucket_definition]")) {
+      return [
+        {
+          bucketKey: "high-risk",
+          bucketType: "severity",
+          label: "High Risk",
+          displayOrder: 1,
+          toneKey: "warning",
+          conditionKey: "severity_equals",
+          severityKey: "High Risk",
+          priorityMin: null,
+          priorityMax: null,
+          workflowStatus: null,
+          enabled: true,
+          description: "High risk findings."
+        },
+        {
+          bucketKey: "priority-1-2",
+          bucketType: "priority",
+          label: "P1-P2",
+          displayOrder: 10,
+          toneKey: "critical",
+          conditionKey: "priority_between",
+          severityKey: null,
+          priorityMin: 1,
+          priorityMax: 2,
+          workflowStatus: null,
+          enabled: true,
+          description: "Immediate action priorities."
+        }
+      ];
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_evidence_field_definition]")) {
+      return [
+        {
+          fieldKey: "asset-name",
+          displayOrder: 1,
+          label: "Asset Name",
+          purposeKey: "asset_name",
+          candidateKeysJson: JSON.stringify(["assetName"]),
+          fallbackValue: null,
+          enabled: true
+        }
+      ];
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_register_column_definition]")) {
+      return [
+        { columnKey: "measure", label: "Measure", displayOrder: 1, valueKey: "measure", enabled: true }
+      ];
     }
 
     if (sql.includes("FROM [tsaat].[spi_definition] sd")) {
@@ -233,6 +329,10 @@ function installSqlMock(): void {
       return [];
     }
 
+    if (sql.includes("usp_get_effective_findings_snapshot")) {
+      return [];
+    }
+
     if (sql.includes("version_ref.[version_set_id] AS [versionSetId]")) {
       return { versionSetId: 3 };
     }
@@ -268,6 +368,7 @@ describe("data loader caches", () => {
     expect(sqlCallsContaining("ds.[snapshot_id] AS [snapshotId]")).toBe(1);
     expect(sqlCallsContaining("DECLARE @snapshotId BIGINT")).toBe(1);
     expect(sqlCallsContaining("usp_evaluate_spi_snapshot")).toBe(1);
+    expect(sqlCallsContaining("usp_get_effective_findings_snapshot")).toBe(1);
   });
 
   it("reuses measures settings by latest version", async () => {
@@ -313,5 +414,14 @@ describe("data loader caches", () => {
     await loadFindingPriorityDefinitions();
 
     expect(sqlCallsContaining("FROM [tsaat].[finding_priority_definition]")).toBe(1);
+  });
+
+  it("caches finding display configuration for repeated reads", async () => {
+    await loadFindingDisplayConfiguration();
+    await loadFindingDisplayConfiguration();
+
+    expect(sqlCallsContaining("FROM [tsaat].[finding_source_policy]")).toBe(1);
+    expect(sqlCallsContaining("FROM [tsaat].[finding_bucket_definition]")).toBe(1);
+    expect(sqlCallsContaining("FROM [tsaat].[finding_evidence_field_definition]")).toBe(1);
   });
 });

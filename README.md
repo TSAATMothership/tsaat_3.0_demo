@@ -277,9 +277,9 @@ npm test
 - SPI catalogue metadata, applicability, enabled/report flags, rule parameters, tasking metadata, and severity options are loaded from SQL Server seed tables.
 - Current seed data preserves SPIs 1-10 and evaluates them per applicable asset.
 - SPI score execution is SQL-driven through database calculation rows evaluated by `tsaat.usp_evaluate_spi_snapshot`.
+- Finding source selection, generated fallback, as-of status, severity/priority display remap, bucket semantics, and evidence/register display mappings are SQL Server-backed through the finding metadata tables and effective finding procedures.
 - Each SPI returns `Compliant`, `Non-compliant`, or `Unknown`
-- High Risk tagging is applied to SPI 4/5/6 trigger conditions
-- Critical Exposure tagging is applied where production assets have critical vulnerabilities
+- High Risk and Critical Exposure tagging is seeded in database classification and finding bucket metadata.
 - Roll-up precedence for network/system/environment:
   1. If any child `Non-compliant` -> roll-up `Non-compliant`
   2. Else if any child `Unknown` -> roll-up `Unknown`

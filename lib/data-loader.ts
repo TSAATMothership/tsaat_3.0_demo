@@ -8,6 +8,17 @@ import {
   normalizeDiscoveryToolsScopeUpdate,
   normalizeDiscoveryToolsSettings
 } from "@/lib/discovery-tools-settings";
+import {
+  FindingBucketDefinition,
+  FindingDisplayConfiguration,
+  FindingEvidenceFieldDefinition,
+  FindingGenerationPolicy,
+  FindingRegisterColumnDefinition,
+  FindingSourcePolicy,
+  FindingWorkflowStatusDefinition,
+  findingDisplayConfigurationCacheSignature,
+  normalizeFindingDisplayConfiguration
+} from "@/lib/findings-config";
 import { KpiDefinition, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import {
   defaultMeasuresSettings,
@@ -215,7 +226,10 @@ type FindingRow = {
   id: string;
   spiId: number;
   priorityRank: number;
-  severity: "High Risk" | "Critical Exposure" | "Major" | "Moderate" | "Data Gap";
+  severity: string;
+  rawPriorityRank?: number | null;
+  rawSeverity?: string | null;
+  sourceKind?: "persisted" | "generated" | string | null;
   complianceStatus: "Compliant" | "Non-compliant" | "Unknown";
   networkId: string;
   systemId: string | null;
@@ -365,6 +379,31 @@ type FindingPriorityDefinitionRow = {
   description: string;
 };
 
+type FindingSourcePolicyRow = FindingSourcePolicy & {
+  usePersistedFindings: boolean | number;
+  generateWhenEmpty: boolean | number;
+  enabled: boolean | number;
+};
+
+type FindingGenerationPolicyRow = FindingGenerationPolicy;
+
+type FindingWorkflowStatusDefinitionRow = FindingWorkflowStatusDefinition & {
+  terminalStatus: boolean | number;
+};
+
+type FindingBucketDefinitionRow = FindingBucketDefinition & {
+  enabled: boolean | number;
+};
+
+type FindingEvidenceFieldDefinitionRow = Omit<FindingEvidenceFieldDefinition, "candidateKeys" | "enabled"> & {
+  candidateKeysJson: string | null;
+  enabled: boolean | number;
+};
+
+type FindingRegisterColumnDefinitionRow = FindingRegisterColumnDefinition & {
+  enabled: boolean | number;
+};
+
 type DiscoveryToolRow = {
   id: string;
   name: string;
@@ -390,6 +429,7 @@ const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SEVERITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const PRIORITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const FINDING_DISPLAY_CONFIGURATION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
   namespace: "data:snapshot-rows",
@@ -431,6 +471,12 @@ const severityDefinitionsCache = new ServerMemoryCache<SeverityDefinition[]>({
 const priorityDefinitionsCache = new ServerMemoryCache<FindingPriorityDefinition[]>({
   namespace: "data:priority-definitions",
   ttlMs: PRIORITY_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const findingDisplayConfigurationCache = new ServerMemoryCache<FindingDisplayConfiguration>({
+  namespace: "data:finding-display-configuration",
+  ttlMs: FINDING_DISPLAY_CONFIGURATION_CACHE_TTL_MS,
   maxEntries: 1
 });
 
@@ -526,6 +572,41 @@ function normalizeStoredSpiEvaluations(
   }
 
   return evaluations;
+}
+
+function normalizeFindingRows(rows: FindingRow[]): Finding[] {
+  return rows
+    .filter(
+      (row) =>
+        Number.isInteger(row.spiId) &&
+        row.spiId > 0 &&
+        (row.complianceStatus === "Compliant" ||
+          row.complianceStatus === "Non-compliant" ||
+          row.complianceStatus === "Unknown") &&
+        (row.status === "open" || row.status === "closed")
+    )
+    .map((row) => ({
+      id: row.id,
+      spiId: row.spiId as SpiId,
+      priorityRank: row.priorityRank,
+      severity: row.severity,
+      ...(typeof row.rawPriorityRank === "number" ? { rawPriorityRank: row.rawPriorityRank } : {}),
+      ...(row.rawSeverity ? { rawSeverity: row.rawSeverity } : {}),
+      ...(row.sourceKind === "persisted" || row.sourceKind === "generated" ? { sourceKind: row.sourceKind } : {}),
+      status: row.status,
+      complianceStatus: row.complianceStatus,
+      timestamp: coerceIsoTimestamp(row.timestamp),
+      ...(row.closedTimestamp ? { closedTimestamp: coerceIsoTimestamp(row.closedTimestamp) } : {}),
+      scope: {
+        networkId: row.networkId,
+        systemId: row.systemId ?? null,
+        environmentType: row.environmentType ?? null,
+        assetId: row.assetId
+      },
+      title: row.title,
+      evidence: normalizeSqlEvidence(row.evidence),
+      recommendedAction: row.recommendedAction
+    }));
 }
 
 function coerceDateKey(value: string): string {
@@ -940,10 +1021,28 @@ FOR JSON PATH;
   return normalizeStoredSpiEvaluations(rows, spiDefinitions);
 }
 
+export async function loadSnapshotEffectiveFindings(
+  snapshotId: number,
+  asOfDate?: string | null
+): Promise<Finding[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const normalizedAsOfDate = asOfDate ? normalizeDataDate(asOfDate) : null;
+  const asOfSql = normalizedAsOfDate ? toSqlUnicodeLiteral(normalizedAsOfDate) : "NULL";
+  const rows = await executeSqlJson<FindingRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_get_effective_findings_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @as_of_date = ${asOfSql},
+  @emit_json = 1;
+`);
+
+  return normalizeFindingRows(rows);
+}
+
 function buildDatasetFromSnapshotRow(
   snapshot: SnapshotRow,
   payload: SnapshotPayload,
-  spiEvaluations: StoredSpiEvaluation[]
+  spiEvaluations: StoredSpiEvaluation[],
+  effectiveFindings: Finding[]
 ): Dataset {
   const networkChildrenRows = toArrayMap(payload.managedNetworkHierarchy, (row) => row.parentNetworkId);
   const networkParentByChild = toFirstValueMap(
@@ -1200,27 +1299,7 @@ function buildDatasetFromSnapshotRow(
     } as Asset;
   });
 
-  const findings: Finding[] = payload.findings
-    .filter((row) => Number.isInteger(row.spiId) && row.spiId > 0)
-    .map((row) => ({
-      id: row.id,
-      spiId: row.spiId as SpiId,
-      priorityRank: row.priorityRank,
-      severity: row.severity,
-      status: row.status,
-      complianceStatus: row.complianceStatus,
-      timestamp: coerceIsoTimestamp(row.timestamp),
-      ...(row.closedTimestamp ? { closedTimestamp: coerceIsoTimestamp(row.closedTimestamp) } : {}),
-      scope: {
-        networkId: row.networkId,
-        systemId: row.systemId ?? null,
-        environmentType: row.environmentType ?? null,
-        assetId: row.assetId
-      },
-      title: row.title,
-      evidence: row.evidence ?? {},
-      recommendedAction: row.recommendedAction
-    }));
+  const findings = effectiveFindings.length ? effectiveFindings : normalizeFindingRows(payload.findings);
 
   const ciDependencies = payload.ciDependencies.map((row) => ({
     id: row.id,
@@ -1235,6 +1314,7 @@ function buildDatasetFromSnapshotRow(
   }));
 
   return {
+    snapshotId: snapshot.snapshotId,
     generatedAt: coerceIsoTimestamp(snapshot.generatedAt),
     snapshotDate: coerceDateKey(snapshot.snapshotDate),
     managedNetworks,
@@ -1254,16 +1334,28 @@ async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotR
     throw new Error(`Unable to find snapshot ${safeSnapshotId}.`);
   }
 
-  const spiDefinitions = await loadSpiDefinitions();
+  const [spiDefinitions, measuresVersion, findingDisplayConfiguration] = await Promise.all([
+    loadSpiDefinitions(),
+    loadLatestMeasuresSettingsVersion(),
+    loadFindingDisplayConfiguration()
+  ]);
   const spiSignature = spiDefinitionsCacheSignature(spiDefinitions);
+  const measuresVersionSignature = measuresVersion
+    ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}`
+    : "measures:default";
+  const findingConfigurationSignature = findingDisplayConfigurationCacheSignature(findingDisplayConfiguration);
 
-  return datasetBySnapshotIdCache.getOrSet(`snapshot:${safeSnapshotId}:${snapshot.generatedAt}:${spiSignature}`, async () => {
-    const [payload, spiEvaluations] = await Promise.all([
+  return datasetBySnapshotIdCache.getOrSet(
+    `snapshot:${safeSnapshotId}:${snapshot.generatedAt}:${spiSignature}:${measuresVersionSignature}:${findingConfigurationSignature}`,
+    async () => {
+    const [payload, spiEvaluations, effectiveFindings] = await Promise.all([
       loadSnapshotPayload(safeSnapshotId),
-      loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions)
+      loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions),
+      loadSnapshotEffectiveFindings(safeSnapshotId)
     ]);
-    return buildDatasetFromSnapshotRow(snapshot, payload, spiEvaluations);
-  });
+    return buildDatasetFromSnapshotRow(snapshot, payload, spiEvaluations, effectiveFindings);
+    }
+  );
 }
 
 export async function loadCurrentDataset(): Promise<Dataset> {
@@ -1459,6 +1551,115 @@ FOR JSON PATH;
 `);
 
     return normalizePriorityDefinitions(rows);
+  });
+}
+
+export async function loadFindingDisplayConfiguration(): Promise<FindingDisplayConfiguration> {
+  return findingDisplayConfigurationCache.getOrSet("latest", async () => {
+    const [
+      sourcePolicies,
+      generationPolicies,
+      workflowStatuses,
+      buckets,
+      evidenceFields,
+      registerColumns
+    ] = await Promise.all([
+      executeSqlJson<FindingSourcePolicyRow[]>(`
+SELECT
+  fsp.[policy_key] AS [policyKey],
+  fsp.[display_order] AS [displayOrder],
+  fsp.[name] AS [name],
+  fsp.[description] AS [description],
+  fsp.[use_persisted_findings] AS [usePersistedFindings],
+  fsp.[generate_when_empty] AS [generateWhenEmpty],
+  fsp.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[finding_source_policy] fsp
+ORDER BY fsp.[display_order], fsp.[policy_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingGenerationPolicyRow[]>(`
+SELECT
+  fgp.[policy_key] AS [policyKey],
+  CONVERT(CHAR(10), fgp.[history_start_date], 23) AS [historyStartDate],
+  fgp.[history_window_years] AS [historyWindowYears],
+  fgp.[baseline_backlog_count] AS [baselineBacklogCount],
+  fgp.[min_open_count] AS [minOpenCount],
+  fgp.[max_open_count] AS [maxOpenCount],
+  fgp.[add_probability_percent] AS [addProbabilityPercent],
+  fgp.[add_rate_min_percent] AS [addRateMinPercent],
+  fgp.[add_rate_max_percent] AS [addRateMaxPercent],
+  fgp.[close_rate_min_percent] AS [closeRateMinPercent],
+  fgp.[close_rate_max_percent] AS [closeRateMaxPercent],
+  fgp.[close_backfill_min_count] AS [closeBackfillMinCount],
+  fgp.[close_backfill_max_count] AS [closeBackfillMaxCount],
+  fgp.[timezone_offset_minutes] AS [timezoneOffsetMinutes]
+FROM [${DATA_SCHEMA}].[finding_generation_policy] fgp
+ORDER BY fgp.[policy_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingWorkflowStatusDefinitionRow[]>(`
+SELECT
+  fwsd.[status_key] AS [statusKey],
+  fwsd.[label] AS [label],
+  fwsd.[display_order] AS [displayOrder],
+  fwsd.[tone_key] AS [toneKey],
+  fwsd.[terminal_status] AS [terminalStatus]
+FROM [${DATA_SCHEMA}].[finding_workflow_status_definition] fwsd
+ORDER BY fwsd.[display_order], fwsd.[status_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingBucketDefinitionRow[]>(`
+SELECT
+  fbd.[bucket_key] AS [bucketKey],
+  fbd.[bucket_type] AS [bucketType],
+  fbd.[label] AS [label],
+  fbd.[display_order] AS [displayOrder],
+  fbd.[tone_key] AS [toneKey],
+  fbd.[condition_key] AS [conditionKey],
+  fbd.[severity_key] AS [severityKey],
+  fbd.[priority_min] AS [priorityMin],
+  fbd.[priority_max] AS [priorityMax],
+  fbd.[workflow_status] AS [workflowStatus],
+  fbd.[enabled] AS [enabled],
+  fbd.[description] AS [description]
+FROM [${DATA_SCHEMA}].[finding_bucket_definition] fbd
+ORDER BY fbd.[display_order], fbd.[bucket_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingEvidenceFieldDefinitionRow[]>(`
+SELECT
+  fefd.[field_key] AS [fieldKey],
+  fefd.[display_order] AS [displayOrder],
+  fefd.[label] AS [label],
+  fefd.[purpose_key] AS [purposeKey],
+  JSON_QUERY(fefd.[candidate_keys_json]) AS [candidateKeysJson],
+  fefd.[fallback_value] AS [fallbackValue],
+  fefd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[finding_evidence_field_definition] fefd
+ORDER BY fefd.[display_order], fefd.[field_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingRegisterColumnDefinitionRow[]>(`
+SELECT
+  frcd.[column_key] AS [columnKey],
+  frcd.[label] AS [label],
+  frcd.[display_order] AS [displayOrder],
+  frcd.[value_key] AS [valueKey],
+  frcd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[finding_register_column_definition] frcd
+ORDER BY frcd.[display_order], frcd.[column_key]
+FOR JSON PATH;
+`)
+    ]);
+
+    return normalizeFindingDisplayConfiguration({
+      sourcePolicies,
+      generationPolicies,
+      workflowStatuses,
+      buckets,
+      evidenceFields,
+      registerColumns
+    });
   });
 }
 
@@ -1736,6 +1937,7 @@ function clearSettingsDependentCaches(): void {
 function clearMeasuresSettingsCaches(): void {
   measuresSettingsVersionCache.clear();
   measuresSettingsByVersionCache.clear();
+  datasetBySnapshotIdCache.clear();
   clearSettingsDependentCaches();
 }
 
@@ -2051,6 +2253,7 @@ export function clearDataLoaderCaches(): void {
   spiDefinitionsCache.clear();
   severityDefinitionsCache.clear();
   priorityDefinitionsCache.clear();
+  findingDisplayConfigurationCache.clear();
   measuresSettingsVersionCache.clear();
   measuresSettingsByVersionCache.clear();
   discoveryToolsSettingsVersionCache.clear();
@@ -2067,6 +2270,7 @@ export function __resetDataLoaderCachesForTest(): void {
   spiDefinitionsCache.resetStats();
   severityDefinitionsCache.resetStats();
   priorityDefinitionsCache.resetStats();
+  findingDisplayConfigurationCache.resetStats();
   measuresSettingsVersionCache.resetStats();
   measuresSettingsByVersionCache.resetStats();
   discoveryToolsSettingsVersionCache.resetStats();

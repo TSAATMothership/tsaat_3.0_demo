@@ -48,6 +48,7 @@ Package-local files:
 - Database Schema/data/spi-report-detail-definitions.json
 - Database Schema/data/spi-finding-classification-rules.json
 - Database Schema/data/spi-sql-calculations.json
+- Database Schema/data/finding-definitions.json
 - Database Schema/data/severity-definitions.json
 - Database Schema/data/kpi-definitions.json
 - Database Schema/data/discovery-tools-settings.json
@@ -65,48 +66,54 @@ Load Order (Deterministic)
 3. reference_software_supported_version
 4. finding_severity_definition
 5. finding_priority_definition
-6. spi_rule_definition
-7. spi_rule_parameter_definition
-8. spi_rule_outcome_template
-9. spi_report_detail_definition
-10. spi_calculation_source
-11. spi_calculation_definition
-12. spi_calculation_evidence_expression
-13. spi_definition
-14. spi_finding_classification_rule
-15. spi_feature_binding
-16. spi_applicable_asset_type
-17. spi_rule_parameter
-18. spi_tasking_team
-19. spi_tasking_action_template
-20. spi_tasking_condition_template
-21. kpi_definition
-22. discovery_tools_settings_version
-23. discovery_tool
-24. discovery_tool_asset_scope
-25. measures_settings_version
-26. measures_severity_matrix
-27. measures_priority_matrix
-28. dataset_snapshot
-29. managed_network
-30. managed_network_hierarchy
-31. ict_system
-32. ict_system_hierarchy
-33. network_declared_system
-34. system_mission_capability
-35. system_business_service
-36. system_environment
-37. asset
-38. network_declared_asset
-39. network_target_state_asset
-40. system_environment_asset
-41. asset_operating_system
-42. asset_network_os
-43. asset_patch_state
-44. asset_installed_software
-45. asset_vulnerability
-46. ci_dependency
-47. finding
+6. finding_source_policy
+7. finding_generation_policy
+8. finding_workflow_status_definition
+9. finding_bucket_definition
+10. finding_evidence_field_definition
+11. finding_register_column_definition
+12. spi_rule_definition
+13. spi_rule_parameter_definition
+14. spi_rule_outcome_template
+15. spi_report_detail_definition
+16. spi_calculation_source
+17. spi_calculation_definition
+18. spi_calculation_evidence_expression
+19. spi_definition
+20. spi_finding_classification_rule
+21. spi_feature_binding
+22. spi_applicable_asset_type
+23. spi_rule_parameter
+24. spi_tasking_team
+25. spi_tasking_action_template
+26. spi_tasking_condition_template
+27. kpi_definition
+28. discovery_tools_settings_version
+29. discovery_tool
+30. discovery_tool_asset_scope
+31. measures_settings_version
+32. measures_severity_matrix
+33. measures_priority_matrix
+34. dataset_snapshot
+35. managed_network
+36. managed_network_hierarchy
+37. ict_system
+38. ict_system_hierarchy
+39. network_declared_system
+40. system_mission_capability
+41. system_business_service
+42. system_environment
+43. asset
+44. network_declared_asset
+45. network_target_state_asset
+46. system_environment_asset
+47. asset_operating_system
+48. asset_network_os
+49. asset_patch_state
+50. asset_installed_software
+51. asset_vulnerability
+52. ci_dependency
+53. finding
 
 Field-Level Mapping Summary
 ---------------------------
@@ -115,6 +122,12 @@ Reference and settings:
 - Database Schema/data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
 - Database Schema/data/severity-definitions.json.severities[] -> tsaat.finding_severity_definition
 - Database Schema/data/spi-sql-calculations.json.findingPriorities[] -> tsaat.finding_priority_definition
+- Database Schema/data/finding-definitions.json.sourcePolicies[] -> tsaat.finding_source_policy
+- Database Schema/data/finding-definitions.json.generationPolicies[] -> tsaat.finding_generation_policy
+- Database Schema/data/finding-definitions.json.workflowStatuses[] -> tsaat.finding_workflow_status_definition
+- Database Schema/data/finding-definitions.json.buckets[] -> tsaat.finding_bucket_definition
+- Database Schema/data/finding-definitions.json.evidenceFields[] -> tsaat.finding_evidence_field_definition
+- Database Schema/data/finding-definitions.json.registerColumns[] -> tsaat.finding_register_column_definition
 - Database Schema/data/spi-rule-definitions.json.rules[] -> tsaat.spi_rule_definition
 - Database Schema/data/spi-rule-definitions.json.rules[].parameters[] -> tsaat.spi_rule_parameter_definition
 - Database Schema/data/spi-rule-definitions.json.rules[].outcomes[] -> tsaat.spi_rule_outcome_template
