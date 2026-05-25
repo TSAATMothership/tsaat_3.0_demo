@@ -96,7 +96,8 @@ export async function GET(request: NextRequest) {
     new Set(["toolId", "toolSearch", "toolAssetType", "page", "pageSize"])
   );
   const { dataset, analytics, discoveryToolsSettings } = await getCoreAppData(
-    sanitizeDiscoverySearchParams(requestParams)
+    sanitizeDiscoverySearchParams(requestParams),
+    { profile: "summary" }
   );
   const allowedToolIds = new Set(discoveryToolsSettings.tools.map((tool) => tool.id));
   if (!allowedToolIds.has(toolId)) {

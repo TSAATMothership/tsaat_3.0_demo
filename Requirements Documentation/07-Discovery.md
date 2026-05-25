@@ -84,7 +84,7 @@ Important hidden behaviour:
 | Discovery | Tool settings | Maintain per-tool asset-type scope only | Filter tools by name, open slideout from tool link, update scope, save/reset | Filters table rows by selected tool-name dropdown (with text search), displays scope status columns, opens per-tool slideout editor, validates tool IDs against current DB catalog, persists full payload, then refreshes settings from DB GET | `{ id, assetTypeScope }[]` payload | Updated discovery tool settings version and refreshed table state | `N/A` excludes an asset type from coverage checks; each tool carries all six canonical asset-type keys | unknown/missing/duplicate IDs rejected | `/api/discovery-tools/settings` | Updated scope rules for future coverage evaluation | add/remove and metadata edit removed from UI; table keeps scope section horizontally scannable |
 
 ## 5. Database Mapping
-The page reads the shared snapshot dataset, the discovery tool settings tables, discovery coverage detection metadata, and SQL-produced discovery coverage rows. Most summary values are assembled from SQL coverage results and page-level presentation grouping.
+The page reads the shared snapshot dataset, the discovery tool settings tables, discovery coverage detection metadata, and SQL-produced discovery coverage rows. Most summary values are assembled from SQL coverage results and page-level presentation grouping. The summary view uses the summary data profile so it avoids loading software, vulnerability, and CI dependency payloads that are not needed for discovery coverage rendering.
 
 Primary data dependencies:
 

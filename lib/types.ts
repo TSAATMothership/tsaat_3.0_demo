@@ -223,6 +223,7 @@ export interface Dataset {
   snapshotId?: number;
   generatedAt: string;
   snapshotDate: string;
+  cacheSignature?: string;
   managedNetworks: ManagedNetwork[];
   ictSystems: ICTSystem[];
   assets: Asset[];
@@ -267,6 +268,10 @@ export interface StoredKpiEvaluation {
   nonCompliantCount: number;
   unknownCount: number;
   highPriorityCount: number;
+}
+
+export interface StoredScopedKpiEvaluation extends StoredKpiEvaluation {
+  scopeKey: string;
 }
 
 export interface AssetSpiEvaluation {

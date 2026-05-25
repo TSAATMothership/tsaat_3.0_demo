@@ -1,7 +1,7 @@
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { KpiDefinition } from "@/lib/kpi-definitions";
 import { buildKpiRows, KpiRow } from "@/lib/measures";
-import { loadSnapshotKpiEvaluationsForScope } from "@/lib/data-loader";
+import { loadSnapshotKpiEvaluationsForScopes } from "@/lib/data-loader";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { filterRealNetworks } from "@/lib/network-scope";
 import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
@@ -714,31 +714,37 @@ export async function buildPerformanceKpiRowsByMatrixRowId({
     })
   );
 
-  const result = new Map<string, KpiRow[]>();
-  await Promise.all(
-    rows.map(async (row) => {
-      const rowAssetIds = new Set(row.evaluations.map((evaluation) => evaluation.assetId));
-      const findings = scopedFindings.filter((finding) => rowAssetIds.has(finding.scope.assetId));
-      const rowSystems =
-        scopeType === "system"
-          ? scopedSystems.filter((system) => system.id === row.entityId)
-          : scopedSystems.filter((system) => system.networkId === row.entityId);
-      const rowNetworks =
-        scopeType === "network"
-          ? scopedNetworks.filter((network) => network.id === row.entityId)
-          : scopedNetworks.filter((network) => rowSystems.some((system) => system.networkId === network.id));
+  const scopes = rows.map((row) => {
+    const rowAssetIds = new Set(row.evaluations.map((evaluation) => evaluation.assetId));
+    const findings = scopedFindings.filter((finding) => rowAssetIds.has(finding.scope.assetId));
+    const rowSystems =
+      scopeType === "system"
+        ? scopedSystems.filter((system) => system.id === row.entityId)
+        : scopedSystems.filter((system) => system.networkId === row.entityId);
+    const rowNetworks =
+      scopeType === "network"
+        ? scopedNetworks.filter((network) => network.id === row.entityId)
+        : scopedNetworks.filter((network) => rowSystems.some((system) => system.networkId === network.id));
 
-      const kpiEvaluations = await loadSnapshotKpiEvaluationsForScope({
-        snapshotId: dataset.snapshotId!,
-        assetIds: row.evaluations.map((evaluation) => evaluation.assetId),
-        systemIds: rowSystems.map((system) => system.id),
-        networkIds: rowNetworks.map((network) => network.id),
-        findings,
-        kpiDefinitions
-      });
-      result.set(row.id, buildKpiRows(kpiDefinitions, kpiEvaluations));
-    })
-  );
+    return {
+      scopeKey: row.id,
+      assetIds: row.evaluations.map((evaluation) => evaluation.assetId),
+      systemIds: rowSystems.map((system) => system.id),
+      networkIds: rowNetworks.map((network) => network.id),
+      findings
+    };
+  });
+
+  const evaluationsByScope = await loadSnapshotKpiEvaluationsForScopes({
+    snapshotId: dataset.snapshotId,
+    scopes,
+    kpiDefinitions
+  });
+
+  const result = new Map<string, KpiRow[]>();
+  for (const row of rows) {
+    result.set(row.id, buildKpiRows(kpiDefinitions, evaluationsByScope.get(row.id) ?? []));
+  }
 
   return result;
 }

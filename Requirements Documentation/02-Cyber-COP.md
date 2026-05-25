@@ -43,6 +43,7 @@ Major dependencies:
 - **What it does:** shows immediate action, remediation backlog, discovery gaps, modelling gaps, throughput, aging, oldest findings, and quick wins.
 - **User perspective:** the user can move from posture awareness to remediation planning.
 - **System behaviour:** the page derives action counts from open findings, lifecycle data, SQL-produced discovery coverage results, and DIIS modelling flags.
+- **Performance behaviour:** Cyber COP continues to use the full data profile because its topology and impact-analysis surfaces require dependency and detailed asset payloads.
 - **Outcome:** the page produces a tactical remediation view.
 
 ### Feature: Client-Side Tab State

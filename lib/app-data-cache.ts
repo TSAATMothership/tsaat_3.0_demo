@@ -2,7 +2,7 @@ import "server-only";
 
 import { ServerMemoryCache } from "@/lib/server-cache";
 
-const APP_DATA_CACHE_TTL_MS = 60 * 1000;
+const APP_DATA_CACHE_TTL_MS = 5 * 60 * 1000;
 const APP_DATA_CACHE_MAX_ENTRIES = 200;
 
 const coreAppDataCache = new ServerMemoryCache<unknown>({

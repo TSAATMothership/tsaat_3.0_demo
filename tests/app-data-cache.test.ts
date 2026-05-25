@@ -188,6 +188,17 @@ describe("app data model caches", () => {
     expect(getCachedAnalyticsMock).toHaveBeenCalledTimes(2);
   });
 
+  it("passes and caches page data profiles independently", async () => {
+    const summary = await getCoreAppData({ dataDate: "2026-04-30" }, { profile: "summary" });
+    const summaryAgain = await getCoreAppData({ dataDate: "2026-04-30" }, { profile: "summary" });
+    const full = await getCoreAppData({ dataDate: "2026-04-30" }, { profile: "full" });
+
+    expect(summaryAgain).toBe(summary);
+    expect(full).not.toBe(summary);
+    expect(loadDatasetForDateMock).toHaveBeenCalledWith("2026-04-30", { profile: "summary" });
+    expect(loadDatasetForDateMock).toHaveBeenCalledWith("2026-04-30", { profile: "full" });
+  });
+
   it("reuses trend app models and separates them by lookback", async () => {
     const first = await getTrendAppData({ dataDate: "2026-04-30", managedNetwork: "net-1" }, 12, {
       includeTrendPoints: true

@@ -10,6 +10,7 @@ import {
   loadDatabaseConnectionSettingsFromFile,
   ParsedDatabaseConnectionSettings
 } from "@/lib/db-config";
+import { timeAsync } from "@/lib/perf";
 
 const execFileAsync = promisify(execFile);
 
@@ -458,15 +459,19 @@ async function executeSqlFileAgainstConnection(
 export async function executeSqlText(sqlText: string, databaseName?: string): Promise<string> {
   const connection = await resolveEffectiveConnection(databaseName);
 
-  return withTempSqlFile(sqlText, async (sqlPath) =>
-    executeSqlFileAgainstConnection(sqlPath, connection, { allowTrustedFallback: true })
+  return timeAsync(`sqlcmd ${connection.database}`, () =>
+    withTempSqlFile(sqlText, async (sqlPath) =>
+      executeSqlFileAgainstConnection(sqlPath, connection, { allowTrustedFallback: true })
+    )
   );
 }
 
 export async function executeSqlTextWithConnection(sqlText: string, connection: SqlConnectionInput): Promise<string> {
   const resolved = normalizeExplicitConnection(connection);
-  return withTempSqlFile(sqlText, async (sqlPath) =>
-    executeSqlFileAgainstConnection(sqlPath, resolved, { allowTrustedFallback: false })
+  return timeAsync(`sqlcmd ${resolved.database}`, () =>
+    withTempSqlFile(sqlText, async (sqlPath) =>
+      executeSqlFileAgainstConnection(sqlPath, resolved, { allowTrustedFallback: false })
+    )
   );
 }
 

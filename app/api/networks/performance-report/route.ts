@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const selectedDataDate = extractDataDateParam(queryObject);
   const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadDatasetForDate(selectedDataDate),
+    loadDatasetForDate(selectedDataDate, { profile: "risk-summary" }),
     loadDiscoveryToolsSettings(),
     loadKpiDefinitions(),
     loadSpiDefinitions(),

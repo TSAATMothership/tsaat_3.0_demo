@@ -6,6 +6,7 @@ import {
 } from "@/lib/analytics-cache";
 import { getCachedCoreAppData, getCachedTrendAppData } from "@/lib/app-data-cache";
 import {
+  type DatasetLoadProfile,
   loadDiscoveryToolsSettings,
   loadDatasetForDate,
   loadFindingPriorityDefinitions,
@@ -23,9 +24,18 @@ import { severityDefinitionsCacheSignature, spiDefinitionsCacheSignature } from 
 import { buildFilterOptions, filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
 import { stableCacheKey } from "@/lib/server-cache";
 import { buildTrendPoints } from "@/lib/trends";
+import { timeAsync, timeSync } from "@/lib/perf";
 
-export async function getCoreAppData(searchParams: Record<string, string | string[] | undefined> = {}) {
+export interface AppDataOptions {
+  profile?: DatasetLoadProfile;
+}
+
+export async function getCoreAppData(
+  searchParams: Record<string, string | string[] | undefined> = {},
+  options: AppDataOptions = {}
+) {
   const dataDate = extractDataDateParam(searchParams);
+  const profile = options.profile ?? "full";
   const [
     dataset,
     discoveryToolsSettings,
@@ -35,7 +45,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
     priorityDefinitions,
     findingDisplayConfiguration
   ] = await Promise.all([
-    loadDatasetForDate(dataDate),
+    loadDatasetForDate(dataDate, { profile }),
     loadDiscoveryToolsSettings(),
     loadKpiDefinitions(),
     loadSpiDefinitions(),
@@ -48,6 +58,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
 
   const cacheKey = stableCacheKey([
     "core",
+    profile,
     dataDate ?? "",
     datasetCacheSignature(dataset),
     kpiDefinitionsCacheSignature(kpiDefinitions),
@@ -59,15 +70,15 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
     settingsCacheSignature(measuresSettings, discoveryToolsSettings)
   ]);
 
-  return getCachedCoreAppData(cacheKey, async () => {
-    const analytics = getCachedAnalytics(
+  return getCachedCoreAppData(cacheKey, async () => timeAsync(`getCoreAppData:${profile}`, async () => {
+    const analytics = timeSync("getCachedAnalytics", () => getCachedAnalytics(
       dataset,
       filters,
       spiDefinitions,
       severityDefinitions,
       measuresSettings,
       discoveryToolsSettings
-    );
+    ));
     const networks = filterNetworks(dataset.managedNetworks, filters);
     const systems = filterSystems(dataset.ictSystems, filters);
     const filterOptions = buildFilterOptions(dataset.managedNetworks, dataset.ictSystems);
@@ -87,21 +98,23 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
       measuresSettings,
       discoveryToolsSettings
     };
-  });
+  }));
 }
 
 export async function getTrendAppData(
   searchParams: Record<string, string | string[] | undefined> = {},
   lookback = 12,
-  options: { includeTrendPoints?: boolean } = {}
+  options: { includeTrendPoints?: boolean; profile?: DatasetLoadProfile } = {}
 ) {
   const dataDate = extractDataDateParam(searchParams);
+  const profile = options.profile ?? "full";
   const [core, snapshots] = await Promise.all([
-    getCoreAppData(searchParams),
-    loadLatestSnapshotsForDate(dataDate, lookback)
+    getCoreAppData(searchParams, { profile }),
+    loadLatestSnapshotsForDate(dataDate, lookback, { profile })
   ]);
   const cacheKey = stableCacheKey([
     "trend",
+    profile,
     dataDate ?? "",
     lookback,
     Boolean(options.includeTrendPoints),
@@ -116,7 +129,7 @@ export async function getTrendAppData(
     settingsCacheSignature(core.measuresSettings, core.discoveryToolsSettings)
   ]);
 
-  return getCachedTrendAppData(cacheKey, async () => {
+  return getCachedTrendAppData(cacheKey, async () => timeAsync(`getTrendAppData:${profile}:${lookback}`, async () => {
     const trendPoints = options.includeTrendPoints
       ? buildTrendPoints(snapshots, core.filters, core.spiDefinitions, core.measuresSettings, core.discoveryToolsSettings)
       : undefined;
@@ -126,5 +139,5 @@ export async function getTrendAppData(
       snapshots,
       trendPoints
     };
-  });
+  }));
 }

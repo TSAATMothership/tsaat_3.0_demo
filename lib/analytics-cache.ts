@@ -34,6 +34,10 @@ export function filtersCacheKey(filters: Filters): string {
 }
 
 export function datasetCacheSignature(dataset: Dataset): string {
+  if (dataset.cacheSignature) {
+    return dataset.cacheSignature;
+  }
+
   const discoveryCoverageEvaluations = dataset.discoveryCoverageEvaluations ?? [];
 
   return [

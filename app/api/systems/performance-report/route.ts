@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   const { network: _ignoredNetwork, ...systemsOnlyQueryObject } = queryObject;
   const selectedDataDate = extractDataDateParam(systemsOnlyQueryObject);
   const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadDatasetForDate(selectedDataDate),
+    loadDatasetForDate(selectedDataDate, { profile: "risk-summary" }),
     loadDiscoveryToolsSettings(),
     loadKpiDefinitions(),
     loadSpiDefinitions(),

@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
 
   const requestedDataDate = networkDiscoveryReportDataDateFromSearchParams(request.nextUrl.searchParams);
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadDatasetForDate(requestedDataDate),
+    loadDatasetForDate(requestedDataDate, { profile: "summary" }),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()

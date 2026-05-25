@@ -6,6 +6,8 @@ import {
   loadFindingDisplayConfiguration,
   loadFindingPriorityDefinitions,
   loadKpiDefinitions,
+  loadSnapshotKpiEvaluationsForScope,
+  loadSnapshotKpiEvaluationsForScopes,
   loadMeasuresSettings,
   loadReferenceVersions,
   saveMeasuresSettings
@@ -60,6 +62,10 @@ function installSqlMock(): void {
 
     if (sql.includes("FROM [tsaat].[measures_settings_version]")) {
       return { settingsVersionId: 7, updatedAt: "2026-04-30T01:00:00.000Z" };
+    }
+
+    if (sql.includes("FROM [tsaat].[discovery_tools_settings_version]")) {
+      return { settingsVersionId: 11, updatedAt: "2026-04-30T02:00:00.000Z" };
     }
 
     if (sql.includes("FROM [tsaat].[measures_severity_matrix]")) {
@@ -325,6 +331,41 @@ function installSqlMock(): void {
       ];
     }
 
+    if (sql.includes("usp_evaluate_kpi_snapshot_bulk")) {
+      return [
+        {
+          scopeKey: "Secret::net-1",
+          kpiId: "KPI-6",
+          displayOrder: 6,
+          calculationKey: "discovery-coverage-compliance",
+          score: "100.0% (1/1)",
+          scorePercent: 100,
+          compliantCount: 1,
+          applicableCount: 1,
+          nonCompliantCount: 0,
+          unknownCount: 0,
+          highPriorityCount: 0
+        }
+      ];
+    }
+
+    if (sql.includes("usp_evaluate_kpi_snapshot")) {
+      return [
+        {
+          kpiId: "KPI-6",
+          displayOrder: 6,
+          calculationKey: "discovery-coverage-compliance",
+          score: "100.0% (1/1)",
+          scorePercent: 100,
+          compliantCount: 1,
+          applicableCount: 1,
+          nonCompliantCount: 0,
+          unknownCount: 0,
+          highPriorityCount: 0
+        }
+      ];
+    }
+
     if (sql.includes("usp_evaluate_spi_snapshot")) {
       return [];
     }
@@ -371,6 +412,22 @@ describe("data loader caches", () => {
     expect(sqlCallsContaining("usp_get_effective_findings_snapshot")).toBe(1);
   });
 
+  it("separates snapshot dataset cache entries by load profile", async () => {
+    await loadDatasetForDate("2026-04-30", { profile: "summary" });
+    await loadDatasetForDate("2026-04-30", { profile: "summary" });
+    await loadDatasetForDate("2026-04-30", { profile: "full" });
+
+    const payloadSql = executeSqlJsonMock.mock.calls
+      .map(([sql]) => String(sql))
+      .filter((sql) => sql.includes("DECLARE @snapshotId BIGINT"));
+
+    expect(payloadSql).toHaveLength(2);
+    expect(payloadSql[0]).toContain("DECLARE @includeRiskPayload BIT = 0;");
+    expect(payloadSql[0]).toContain("DECLARE @includeFullPayload BIT = 0;");
+    expect(payloadSql[1]).toContain("DECLARE @includeRiskPayload BIT = 1;");
+    expect(payloadSql[1]).toContain("DECLARE @includeFullPayload BIT = 1;");
+  });
+
   it("reuses measures settings by latest version", async () => {
     await loadMeasuresSettings();
     await loadMeasuresSettings();
@@ -407,6 +464,49 @@ describe("data loader caches", () => {
     await loadKpiDefinitions();
 
     expect(sqlCallsContaining("FROM [tsaat].[kpi_definition]")).toBe(1);
+  });
+
+  it("caches scoped KPI evaluations for repeated reads", async () => {
+    const kpiDefinitions = await loadKpiDefinitions();
+
+    await loadSnapshotKpiEvaluationsForScope({
+      snapshotId: 1,
+      assetIds: ["asset-1"],
+      systemIds: ["sys-1"],
+      networkIds: ["net-1"],
+      findings: [],
+      kpiDefinitions
+    });
+    await loadSnapshotKpiEvaluationsForScope({
+      snapshotId: 1,
+      assetIds: ["asset-1"],
+      systemIds: ["sys-1"],
+      networkIds: ["net-1"],
+      findings: [],
+      kpiDefinitions
+    });
+
+    expect(sqlCallsContaining("usp_evaluate_kpi_snapshot")).toBe(1);
+  });
+
+  it("caches bulk scoped KPI evaluations for performance report rows", async () => {
+    const kpiDefinitions = await loadKpiDefinitions();
+    const scopes = [
+      {
+        scopeKey: "Secret::net-1",
+        assetIds: ["asset-1"],
+        systemIds: ["sys-1"],
+        networkIds: ["net-1"],
+        findings: []
+      }
+    ];
+
+    const first = await loadSnapshotKpiEvaluationsForScopes({ snapshotId: 1, scopes, kpiDefinitions });
+    const second = await loadSnapshotKpiEvaluationsForScopes({ snapshotId: 1, scopes, kpiDefinitions });
+
+    expect(first.get("Secret::net-1")?.[0]?.scorePercent).toBe(100);
+    expect(second).toBe(first);
+    expect(sqlCallsContaining("usp_evaluate_kpi_snapshot_bulk")).toBe(1);
   });
 
   it("caches finding priority definitions for repeated reads", async () => {

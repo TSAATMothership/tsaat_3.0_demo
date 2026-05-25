@@ -327,7 +327,7 @@ erDiagram
   - `spi_definition` stores catalogue text, display order, enabled/report flags, supported `rule_key`, default severity, and supported report detail key.
   - `spi_rule_definition` and `spi_report_detail_definition` are catalogues for rule and report-detail keys.
   - `spi_rule_parameter_definition` stores rule parameter schema/defaults and `spi_rule_outcome_template` stores DB-backed reason/evidence templates.
-  - `spi_calculation_source`, `spi_calculation_definition`, and `spi_calculation_evidence_expression` store constrained SQL calculation expressions evaluated by `usp_evaluate_spi_snapshot` over `vw_spi_asset_evaluation_context`.
+  - `spi_calculation_source`, `spi_calculation_definition`, and `spi_calculation_evidence_expression` store constrained SQL calculation expressions evaluated by `usp_evaluate_spi_snapshot` over `vw_spi_asset_evaluation_context`; the runtime procedure supports optional JSON asset scoping.
   - `spi_feature_binding` maps named application features, such as OS posture filters and production critical exposure classification, to database SPI rows/statuses/outcomes rather than fixed SPI IDs.
   - `spi_finding_classification_rule` stores generated finding severity/priority rules using controlled condition keys.
   - `spi_applicable_asset_type` controls applicability by asset type.
@@ -336,7 +336,7 @@ erDiagram
 - SPI calculations are SQL-driven at runtime through approved read-only expressions over approved context objects; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
 - KPI and discovery coverage metadata is database-driven:
   - `kpi_definition` stores KPI catalogue text, display order, enabled flag, calculation key, and report availability.
-  - `kpi_calculation_source`, `kpi_calculation_definition`, and `kpi_calculation_parameter` store SQL-backed KPI calculation metadata evaluated by `usp_evaluate_kpi_snapshot`.
+  - `kpi_calculation_source`, `kpi_calculation_definition`, and `kpi_calculation_parameter` store SQL-backed KPI calculation metadata evaluated by `usp_evaluate_kpi_snapshot`; `usp_evaluate_kpi_snapshot_bulk` returns KPI rows for multiple scoped report matrix rows in one SQL call.
   - `kpi_report_detail_definition`, `kpi_report_detail_binding`, `kpi_tasking_team`, `kpi_tasking_action_template`, and `kpi_tasking_condition_template` store KPI report/tasking metadata.
   - `discovery_coverage_source`, `discovery_tool_detection_definition`, `discovery_tool_detection_rule`, and `discovery_tool_detection_rule_value` store SQL-backed discovery coverage detection rules evaluated by `usp_evaluate_discovery_coverage_snapshot`.
 - KPI and discovery coverage calculations are SQL-driven at runtime through approved stored procedures and seeded rule rows; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.

@@ -277,7 +277,8 @@ npm test
 - SPI catalogue metadata, applicability, enabled/report flags, rule parameters, tasking metadata, and severity options are loaded from SQL Server seed tables.
 - Current seed data preserves SPIs 1-10 and evaluates them per applicable asset.
 - SPI score execution is SQL-driven through database calculation rows evaluated by `tsaat.usp_evaluate_spi_snapshot`.
-- KPI catalogue metadata, SQL calculation metadata, report bindings, and tasking metadata are loaded from SQL Server seed tables; KPI score execution is SQL-driven through `tsaat.usp_evaluate_kpi_snapshot`.
+- KPI catalogue metadata, SQL calculation metadata, report bindings, and tasking metadata are loaded from SQL Server seed tables; KPI score execution is SQL-driven through `tsaat.usp_evaluate_kpi_snapshot`, with bulk scoped KPI evaluation available through `tsaat.usp_evaluate_kpi_snapshot_bulk` for performance report matrices.
+- Set `TSAAT_PERF_DEBUG=1` before starting the app to log lightweight server-side timings for SQL calls, dataset loading, analytics, KPI evaluation, trends, and report generation.
 - Discovery coverage detection metadata is loaded from SQL Server seed tables; per-asset tool values and coverage compliance are produced by `tsaat.usp_evaluate_discovery_coverage_snapshot`.
 - Finding source selection, generated fallback, as-of status, severity/priority display remap, bucket semantics, and evidence/register display mappings are SQL Server-backed through the finding metadata tables and effective finding procedures.
 - Legacy TypeScript SPI rule execution and synthetic finding generation have been removed; the app consumes SQL-produced SPI evaluations and effective findings, then renders UI, PDF, JSON, and CSV outputs.

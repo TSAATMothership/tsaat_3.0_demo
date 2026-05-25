@@ -268,7 +268,9 @@ export default async function SystemsPage({
     networks,
     dataset
   } = await getTrendAppData(
-    systemsOnlySearchParams
+    systemsOnlySearchParams,
+    12,
+    { profile: "risk-summary" }
   );
 
   const requestedTab = firstParam(searchParams.systemsTab)?.trim().toLowerCase();

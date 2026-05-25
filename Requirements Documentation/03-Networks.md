@@ -36,6 +36,7 @@ Major dependencies:
 - **What it does:** shows remediation pressure, backlog aging, oldest open findings, quick wins, and a scoped remediation report link.
 - **User perspective:** the user can move from network posture to action planning.
 - **System behaviour:** the page builds action metrics from open findings, lifecycle data, SQL-produced discovery coverage, and discovery enablement status.
+- **Performance behaviour:** list pages use the risk-summary data profile, retaining CVE/risk data for visible widgets while avoiding software inventory and CI dependency payloads that are only needed by detail/topology views.
 - **Outcome:** the user gets a tactical work queue and export path.
 
 ### Feature: Posture Tab

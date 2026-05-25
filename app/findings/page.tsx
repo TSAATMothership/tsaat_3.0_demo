@@ -100,7 +100,7 @@ export default async function FindingsPage({
         }
       : searchParams;
   const { analytics, dataset, filterOptions, filters, spiDefinitions, severityDefinitions, findingDisplayConfiguration } =
-    await getCoreAppData(effectiveSearchParams);
+    await getCoreAppData(effectiveSearchParams, { profile: "risk-summary" });
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
   historyStartDate.setUTCFullYear(historyStartDate.getUTCFullYear() - 2);

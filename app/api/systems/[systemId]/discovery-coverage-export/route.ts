@@ -65,7 +65,7 @@ function isDiscoveryCoverageCompliant(asset: Asset, coverageByAsset: ReturnType<
 export async function GET(request: NextRequest, { params }: { params: { systemId: string } }) {
   const requestedDataDate = request.nextUrl.searchParams.get("dataDate")?.trim() || undefined;
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadDatasetForDate(requestedDataDate),
+    loadDatasetForDate(requestedDataDate, { profile: "summary" }),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()

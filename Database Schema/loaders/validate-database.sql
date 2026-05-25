@@ -199,6 +199,9 @@ IF OBJECT_ID(N'tsaat.usp_evaluate_discovery_coverage_snapshot', N'P') IS NULL
 IF OBJECT_ID(N'tsaat.usp_evaluate_kpi_snapshot', N'P') IS NULL
   THROW 52000, 'Validation failed: usp_evaluate_kpi_snapshot is missing.', 1;
 
+IF OBJECT_ID(N'tsaat.usp_evaluate_kpi_snapshot_bulk', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_evaluate_kpi_snapshot_bulk is missing.', 1;
+
 IF EXISTS (
   SELECT 1
   FROM [tsaat].[kpi_definition] AS kd
@@ -294,6 +297,43 @@ IF EXISTS (
 )
   THROW 52000, 'Validation failed: SQL SPI evaluation returned invalid status or evidence JSON.', 1;
 
+DECLARE @ScopedAssetIdsJson NVARCHAR(MAX) = (
+  SELECT N'[' + STRING_AGG(CAST(N'"' + STRING_ESCAPE([asset_id], 'json') + N'"' AS NVARCHAR(MAX)), N',') + N']'
+  FROM (
+    SELECT TOP (5) [asset_id]
+    FROM [tsaat].[asset]
+    WHERE [snapshot_id] = @LatestSnapshotId
+    ORDER BY [asset_id]
+  ) AS scoped_assets
+);
+
+DECLARE @ScopedSqlSpiEvaluations TABLE (
+  [snapshot_id] BIGINT NOT NULL,
+  [asset_id] NVARCHAR(255) NOT NULL,
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [compliance_status] NVARCHAR(20) NOT NULL,
+  [outcome_key] NVARCHAR(100) NOT NULL,
+  [evidence_json] NVARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @ScopedSqlSpiEvaluations
+EXEC [tsaat].[usp_evaluate_spi_snapshot] @snapshot_id = @LatestSnapshotId, @asset_ids_json = @ScopedAssetIdsJson;
+
+IF NOT EXISTS (SELECT 1 FROM @ScopedSqlSpiEvaluations)
+  THROW 52000, 'Validation failed: scoped SQL SPI evaluation returned no rows.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM @ScopedSqlSpiEvaluations AS scoped_spi
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM OPENJSON(@ScopedAssetIdsJson) AS asset_scope
+    WHERE CONVERT(NVARCHAR(255), asset_scope.[value]) = scoped_spi.[asset_id]
+  )
+)
+  THROW 52000, 'Validation failed: scoped SQL SPI evaluation returned rows outside the requested asset scope.', 1;
+
 DECLARE @EffectiveFindings TABLE (
   [snapshot_id] BIGINT NULL,
   [finding_id] NVARCHAR(255) NULL,
@@ -372,6 +412,41 @@ EXEC [tsaat].[usp_evaluate_kpi_snapshot]
   @system_ids_json = NULL,
   @network_ids_json = NULL,
   @effective_findings_json = @EffectiveFindingsJson,
+  @emit_json = 0;
+
+DECLARE @ScopedSystemIdsJson NVARCHAR(MAX) = (
+  SELECT N'[' + COALESCE(STRING_AGG(CAST(N'"' + STRING_ESCAPE([system_id], 'json') + N'"' AS NVARCHAR(MAX)), N','), N'') + N']'
+  FROM (
+    SELECT DISTINCT TOP (5) [system_id]
+    FROM [tsaat].[asset]
+    WHERE [snapshot_id] = @LatestSnapshotId AND [system_id] IS NOT NULL
+    ORDER BY [system_id]
+  ) AS scoped_systems
+);
+
+DECLARE @ScopedNetworkIdsJson NVARCHAR(MAX) = (
+  SELECT N'[' + COALESCE(STRING_AGG(CAST(N'"' + STRING_ESCAPE([network_id], 'json') + N'"' AS NVARCHAR(MAX)), N','), N'') + N']'
+  FROM (
+    SELECT DISTINCT TOP (5) [network_id]
+    FROM [tsaat].[asset]
+    WHERE [snapshot_id] = @LatestSnapshotId
+    ORDER BY [network_id]
+  ) AS scoped_networks
+);
+
+DECLARE @BulkKpiScopeJson NVARCHAR(MAX) = (
+  SELECT
+    N'validation-scope' AS [scopeKey],
+    JSON_QUERY(@ScopedAssetIdsJson) AS [assetIds],
+    JSON_QUERY(@ScopedSystemIdsJson) AS [systemIds],
+    JSON_QUERY(@ScopedNetworkIdsJson) AS [networkIds],
+    JSON_QUERY(@EffectiveFindingsJson) AS [findings]
+  FOR JSON PATH
+);
+
+EXEC [tsaat].[usp_evaluate_kpi_snapshot_bulk]
+  @snapshot_id = @LatestSnapshotId,
+  @scope_rows_json = @BulkKpiScopeJson,
   @emit_json = 0;
 
 ;WITH row_counts AS (

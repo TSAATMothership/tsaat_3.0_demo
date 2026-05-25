@@ -58,7 +58,7 @@ export default async function MeasuresPage({
     priorityDefinitions,
     measuresSettings
   } =
-    await getCoreAppData(searchParams);
+    await getCoreAppData(searchParams, { profile: "summary" });
   const selectedSpiId = readSpiFilter(searchParams, spiDefinitions);
   const kpiEvaluations = await loadSnapshotKpiEvaluationsForAnalyticsScope({
     dataset,

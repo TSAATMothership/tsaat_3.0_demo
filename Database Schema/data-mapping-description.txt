@@ -251,9 +251,9 @@ Validation Rules Applied by loader/validator
 - At least 10 SPI definitions required; current seed preserves SPI 1..10 and future supported SPI IDs may be added
 - At least 5 severity definitions required; current seed preserves Critical Exposure, High Risk, Major, Moderate, and Data Gap
 - Non-empty asset, finding, discovery_tool, kpi_definition, kpi_calculation_source, kpi_calculation_definition, kpi tasking/report metadata, discovery coverage detection metadata, finding_severity_definition, finding_priority_definition, SPI rule catalogue, SPI parameter schema, SPI outcome template, SPI report detail catalogue, SPI SQL calculation source/definition/evidence, SPI feature binding, SPI finding classification, spi_rule_parameter, SPI tasking metadata, measures_severity_matrix, and measures_priority_matrix tables required
-- `tsaat.usp_evaluate_spi_snapshot` must return valid JSON evidence rows for the latest snapshot using the DB-backed SQL calculation definitions
+- `tsaat.usp_evaluate_spi_snapshot` must return valid JSON evidence rows for the latest snapshot using the DB-backed SQL calculation definitions and must respect optional asset-scope JSON
 - `tsaat.usp_evaluate_discovery_coverage_snapshot` must return per-asset SQL discovery coverage rows for the latest snapshot
-- `tsaat.usp_evaluate_kpi_snapshot` must execute for the latest snapshot using the DB-backed KPI calculation definitions
+- `tsaat.usp_evaluate_kpi_snapshot` must execute for the latest snapshot using the DB-backed KPI calculation definitions, and `tsaat.usp_evaluate_kpi_snapshot_bulk` must execute for scoped performance/report rows
 - Non-empty network_target_state_asset table required
 - Full row-count summary emitted after load
 - Seed profile constraints validated in `scripts/validate-seed.ts`:

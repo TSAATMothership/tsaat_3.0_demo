@@ -87,7 +87,7 @@ export async function GET(
 ) {
   const requestedDataDate = request.nextUrl.searchParams.get("dataDate")?.trim() || undefined;
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadDatasetForDate(requestedDataDate),
+    loadDatasetForDate(requestedDataDate, { profile: "summary" }),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()

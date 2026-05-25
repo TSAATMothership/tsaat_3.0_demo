@@ -91,7 +91,8 @@ export default async function DiscoveryCoveragePage({
   }
 
   const { dataset, analytics, filters, filterOptions, networks, discoveryToolsSettings } = await getCoreAppData(
-    discoveryDataSearchParams
+    discoveryDataSearchParams,
+    { profile: "summary" }
   );
   const discoveryNetworks = filterDiscoveryNetworks(networks);
   const modellingStatusFilter = normalizeDiscoveryNetworkModellingStatus(searchParams.modellingStatus);

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedDataDate = normalizeDataDate(request.nextUrl.searchParams.get("dataDate"));
-  const dataset = await loadDatasetForDate(requestedDataDate);
+  const dataset = await loadDatasetForDate(requestedDataDate, { profile: "summary" });
   const network = dataset.managedNetworks.find((candidate) => candidate.id === networkId);
   if (!network) {
     return errorResponse("Network row not found for supplied id.", 404);

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { normalizeDataDate, subtractCalendarMonthsDateKey, todayDateKey } from "@/lib/data-date";
 import {
@@ -48,6 +49,7 @@ import {
 } from "@/lib/spi-definitions";
 import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
+import { timeAsync } from "@/lib/perf";
 import { ServerMemoryCache } from "@/lib/server-cache";
 import {
   Asset,
@@ -63,6 +65,7 @@ import {
   SpiId,
   StoredDiscoveryCoverageEvaluation,
   StoredKpiEvaluation,
+  StoredScopedKpiEvaluation,
   StoredSpiEvaluation
 } from "@/lib/types";
 import { executeSqlJson, executeSqlText, toSqlUnicodeLiteral } from "@/lib/sql-server";
@@ -71,6 +74,12 @@ type SnapshotRow = {
   snapshotId: number;
   snapshotDate: string;
   generatedAt: string;
+};
+
+export type DatasetLoadProfile = "summary" | "risk-summary" | "full";
+
+type DatasetLoadOptions = {
+  profile?: DatasetLoadProfile;
 };
 
 type SettingsVersionRow = {
@@ -344,6 +353,7 @@ type KpiTaskingConditionTemplateRow = {
 };
 
 type StoredKpiEvaluationRow = StoredKpiEvaluation;
+type StoredScopedKpiEvaluationRow = StoredScopedKpiEvaluation;
 
 type SpiDefinitionRow = {
   spiId: number;
@@ -502,6 +512,7 @@ const REFERENCE_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SETTINGS_VERSION_CACHE_TTL_MS = 60 * 1000;
 const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const KPI_EVALUATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SEVERITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const PRIORITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -530,6 +541,18 @@ const kpiDefinitionsCache = new ServerMemoryCache<KpiDefinition[]>({
   namespace: "data:kpi-definitions",
   ttlMs: KPI_DEFINITIONS_CACHE_TTL_MS,
   maxEntries: 1
+});
+
+const kpiEvaluationsCache = new ServerMemoryCache<StoredKpiEvaluation[]>({
+  namespace: "data:kpi-evaluations",
+  ttlMs: KPI_EVALUATIONS_CACHE_TTL_MS,
+  maxEntries: 500
+});
+
+const scopedKpiEvaluationsCache = new ServerMemoryCache<Map<string, StoredKpiEvaluation[]>>({
+  namespace: "data:kpi-evaluations:bulk",
+  ttlMs: KPI_EVALUATIONS_CACHE_TTL_MS,
+  maxEntries: 100
 });
 
 const spiDefinitionsCache = new ServerMemoryCache<SpiDefinition[]>({
@@ -582,6 +605,18 @@ const discoveryToolsSettingsByVersionCache = new ServerMemoryCache<DiscoveryTool
 
 function targetDateKey(requestedDate: string | undefined): string {
   return normalizeDataDate(requestedDate) ?? todayDateKey();
+}
+
+function normalizeDatasetLoadProfile(profile: DatasetLoadProfile | undefined): DatasetLoadProfile {
+  return profile === "summary" || profile === "risk-summary" || profile === "full" ? profile : "full";
+}
+
+function hashCacheValue(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function cacheSignatureFromParts(parts: Array<string | number | boolean | null | undefined>): string {
+  return hashCacheValue(parts.map((part) => String(part ?? "")).join("|"));
 }
 
 function coerceIsoTimestamp(value: string | null | undefined): string {
@@ -818,11 +853,19 @@ function latestSnapshot(rows: SnapshotRow[]): SnapshotRow {
   return rows[rows.length - 1];
 }
 
-async function loadSnapshotPayload(snapshotId: number): Promise<SnapshotPayload> {
+async function loadSnapshotPayload(
+  snapshotId: number,
+  profile: DatasetLoadProfile = "full"
+): Promise<SnapshotPayload> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const normalizedProfile = normalizeDatasetLoadProfile(profile);
+  const includeRiskPayload = normalizedProfile === "risk-summary" || normalizedProfile === "full";
+  const includeFullPayload = normalizedProfile === "full";
 
-  const raw = await executeSqlJson<Partial<SnapshotPayload>>(`
+  const raw = await timeAsync(`loadSnapshotPayload:${safeSnapshotId}:${normalizedProfile}`, () => executeSqlJson<Partial<SnapshotPayload>>(`
 DECLARE @snapshotId BIGINT = ${safeSnapshotId};
+DECLARE @includeRiskPayload BIT = ${includeRiskPayload ? 1 : 0};
+DECLARE @includeFullPayload BIT = ${includeFullPayload ? 1 : 0};
 SELECT
   JSON_QUERY((
     SELECT
@@ -1020,7 +1063,7 @@ SELECT
     ORDER BY ps.[asset_id]
     FOR JSON PATH
   )) AS [assetPatchStates],
-  JSON_QUERY((
+  JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
     SELECT
       sw.[asset_id] AS [assetId],
       sw.[software_ordinal] AS [ordinal],
@@ -1031,8 +1074,8 @@ SELECT
     WHERE sw.[snapshot_id] = @snapshotId
     ORDER BY sw.[asset_id], sw.[software_ordinal]
     FOR JSON PATH
-  )) AS [assetInstalledSoftware],
-  JSON_QUERY((
+  ) ELSE N'[]' END) AS [assetInstalledSoftware],
+  JSON_QUERY(CASE WHEN @includeRiskPayload = 1 THEN (
     SELECT
       v.[asset_id] AS [assetId],
       v.[vulnerability_id] AS [id],
@@ -1049,8 +1092,8 @@ SELECT
     WHERE v.[snapshot_id] = @snapshotId
     ORDER BY v.[asset_id], v.[vulnerability_id]
     FOR JSON PATH
-  )) AS [assetVulnerabilities],
-  JSON_QUERY((
+  ) ELSE N'[]' END) AS [assetVulnerabilities],
+  JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
     SELECT
       d.[dependency_id] AS [id],
       d.[source_asset_id] AS [sourceAssetId],
@@ -1065,7 +1108,7 @@ SELECT
     WHERE d.[snapshot_id] = @snapshotId
     ORDER BY d.[dependency_id]
     FOR JSON PATH
-  )) AS [ciDependencies],
+  ) ELSE N'[]' END) AS [ciDependencies],
   JSON_QUERY((
     SELECT
       f.[finding_id] AS [id],
@@ -1089,7 +1132,7 @@ SELECT
     FOR JSON PATH
   )) AS [findings]
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`);
+`));
 
   return {
     managedNetworks: Array.isArray(raw.managedNetworks) ? raw.managedNetworks : [],
@@ -1116,10 +1159,12 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 
 async function loadSnapshotSpiEvaluations(
   snapshotId: number,
-  spiDefinitions: SpiDefinition[]
+  spiDefinitions: SpiDefinition[],
+  assetIds?: Iterable<string>
 ): Promise<StoredSpiEvaluation[]> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const rows = await executeSqlJson<StoredSpiEvaluationRow[]>(`
+  const assetIdsSql = assetIds ? toSqlJsonArrayLiteral(assetIds) : "NULL";
+  const rows = await timeAsync(`loadSnapshotSpiEvaluations:${safeSnapshotId}`, () => executeSqlJson<StoredSpiEvaluationRow[]>(`
 DECLARE @SpiEvaluations TABLE (
   [snapshot_id] BIGINT NOT NULL,
   [asset_id] NVARCHAR(255) NOT NULL,
@@ -1139,7 +1184,9 @@ INSERT INTO @SpiEvaluations (
   [outcome_key],
   [evidence_json]
 )
-EXEC [${DATA_SCHEMA}].[usp_evaluate_spi_snapshot] @snapshot_id = ${safeSnapshotId};
+EXEC [${DATA_SCHEMA}].[usp_evaluate_spi_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @asset_ids_json = ${assetIdsSql};
 
 SELECT
   evaluation.[asset_id] AS [assetId],
@@ -1150,7 +1197,7 @@ SELECT
 FROM @SpiEvaluations AS evaluation
 ORDER BY evaluation.[asset_id], evaluation.[display_order], evaluation.[spi_id]
 FOR JSON PATH;
-`);
+`));
 
   return normalizeStoredSpiEvaluations(rows, spiDefinitions);
 }
@@ -1159,12 +1206,12 @@ async function loadSnapshotDiscoveryCoverageEvaluations(
   snapshotId: number
 ): Promise<StoredDiscoveryCoverageEvaluation[]> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const rows = await executeSqlJson<StoredDiscoveryCoverageEvaluationRow[]>(`
+  const rows = await timeAsync(`loadSnapshotDiscoveryCoverage:${safeSnapshotId}`, () => executeSqlJson<StoredDiscoveryCoverageEvaluationRow[]>(`
 EXEC [${DATA_SCHEMA}].[usp_evaluate_discovery_coverage_snapshot]
   @snapshot_id = ${safeSnapshotId},
   @asset_ids_json = NULL,
   @emit_json = 1;
-`);
+`));
 
   return normalizeStoredDiscoveryCoverageEvaluations(rows);
 }
@@ -1176,12 +1223,12 @@ export async function loadSnapshotEffectiveFindings(
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
   const normalizedAsOfDate = asOfDate ? normalizeDataDate(asOfDate) : null;
   const asOfSql = normalizedAsOfDate ? toSqlUnicodeLiteral(normalizedAsOfDate) : "NULL";
-  const rows = await executeSqlJson<FindingRow[]>(`
+  const rows = await timeAsync(`loadSnapshotEffectiveFindings:${safeSnapshotId}`, () => executeSqlJson<FindingRow[]>(`
 EXEC [${DATA_SCHEMA}].[usp_get_effective_findings_snapshot]
   @snapshot_id = ${safeSnapshotId},
   @as_of_date = ${asOfSql},
   @emit_json = 1;
-`);
+`));
 
   return normalizeFindingRows(rows);
 }
@@ -1191,7 +1238,8 @@ function buildDatasetFromSnapshotRow(
   payload: SnapshotPayload,
   spiEvaluations: StoredSpiEvaluation[],
   discoveryCoverageEvaluations: StoredDiscoveryCoverageEvaluation[],
-  effectiveFindings: Finding[]
+  effectiveFindings: Finding[],
+  cacheSignature: string
 ): Dataset {
   const networkChildrenRows = toArrayMap(payload.managedNetworkHierarchy, (row) => row.parentNetworkId);
   const networkParentByChild = toFirstValueMap(
@@ -1466,6 +1514,7 @@ function buildDatasetFromSnapshotRow(
     snapshotId: snapshot.snapshotId,
     generatedAt: coerceIsoTimestamp(snapshot.generatedAt),
     snapshotDate: coerceDateKey(snapshot.snapshotDate),
+    cacheSignature,
     managedNetworks,
     ictSystems,
     assets,
@@ -1476,8 +1525,13 @@ function buildDatasetFromSnapshotRow(
   };
 }
 
-async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotRow[]): Promise<Dataset> {
+async function loadDatasetBySnapshotId(
+  snapshotId: number,
+  snapshots?: SnapshotRow[],
+  options: DatasetLoadOptions = {}
+): Promise<Dataset> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const profile = normalizeDatasetLoadProfile(options.profile);
   const snapshotRows = snapshots ?? (await loadSnapshotRows());
   const snapshot = snapshotRows.find((row) => row.snapshotId === safeSnapshotId);
   if (!snapshot) {
@@ -1499,57 +1553,94 @@ async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotR
     : "discovery:default";
   const findingConfigurationSignature = findingDisplayConfigurationCacheSignature(findingDisplayConfiguration);
 
+  const cacheSignature = [
+    `snapshot:${safeSnapshotId}`,
+    `profile:${profile}`,
+    `generated:${snapshot.generatedAt}`,
+    spiSignature,
+    measuresVersionSignature,
+    discoveryVersionSignature,
+    findingConfigurationSignature
+  ].join("|");
+
   return datasetBySnapshotIdCache.getOrSet(
-    `snapshot:${safeSnapshotId}:${snapshot.generatedAt}:${spiSignature}:${measuresVersionSignature}:${discoveryVersionSignature}:${findingConfigurationSignature}`,
-    async () => {
-    const [payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings] = await Promise.all([
-      loadSnapshotPayload(safeSnapshotId),
-      loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions),
-      loadSnapshotDiscoveryCoverageEvaluations(safeSnapshotId),
-      loadSnapshotEffectiveFindings(safeSnapshotId)
-    ]);
-    return buildDatasetFromSnapshotRow(snapshot, payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings);
-    }
+    cacheSignature,
+    async () => timeAsync(`loadDataset:${safeSnapshotId}:${profile}`, async () => {
+      const [payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings] = await Promise.all([
+        loadSnapshotPayload(safeSnapshotId, profile),
+        loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions),
+        loadSnapshotDiscoveryCoverageEvaluations(safeSnapshotId),
+        loadSnapshotEffectiveFindings(safeSnapshotId)
+      ]);
+      const payloadSignature = cacheSignatureFromParts([
+        cacheSignature,
+        payload.managedNetworks.length,
+        payload.ictSystems.length,
+        payload.assets.length,
+        payload.assetVulnerabilities.length,
+        payload.assetInstalledSoftware.length,
+        payload.ciDependencies.length,
+        spiEvaluations.length,
+        discoveryCoverageEvaluations.length,
+        effectiveFindings.length
+      ]);
+      return buildDatasetFromSnapshotRow(
+        snapshot,
+        payload,
+        spiEvaluations,
+        discoveryCoverageEvaluations,
+        effectiveFindings,
+        payloadSignature
+      );
+    })
   );
 }
 
-export async function loadCurrentDataset(): Promise<Dataset> {
+export async function loadCurrentDataset(options: DatasetLoadOptions = {}): Promise<Dataset> {
   const snapshots = await loadSnapshotRows();
   const latest = latestSnapshot(snapshots);
-  return loadDatasetBySnapshotId(latest.snapshotId, snapshots);
+  return loadDatasetBySnapshotId(latest.snapshotId, snapshots, options);
 }
 
-export async function loadSnapshots(): Promise<Dataset[]> {
+export async function loadSnapshots(options: DatasetLoadOptions = {}): Promise<Dataset[]> {
   const snapshots = await loadSnapshotRows();
-  return Promise.all(snapshots.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots)));
+  return Promise.all(snapshots.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
 }
 
-export async function loadLatestSnapshots(limit = 12): Promise<Dataset[]> {
+export async function loadLatestSnapshots(limit = 12, options: DatasetLoadOptions = {}): Promise<Dataset[]> {
   const snapshots = await loadSnapshotRows();
   const latest = snapshots.slice(-Math.max(0, limit));
-  return Promise.all(latest.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots)));
+  return Promise.all(latest.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
 }
 
-export async function loadDatasetTimeline(): Promise<Dataset[]> {
-  return loadSnapshots();
+export async function loadDatasetTimeline(options: DatasetLoadOptions = {}): Promise<Dataset[]> {
+  return loadSnapshots(options);
 }
 
-export async function loadDatasetForDate(requestedDate?: string): Promise<Dataset> {
+export async function loadDatasetForDate(
+  requestedDate?: string,
+  options: DatasetLoadOptions = {}
+): Promise<Dataset> {
   const snapshots = await loadSnapshotRows();
   const selected = selectSnapshotRowForDate(snapshots, requestedDate);
-  return loadDatasetBySnapshotId(selected.snapshotId, snapshots);
+  return loadDatasetBySnapshotId(selected.snapshotId, snapshots, options);
 }
 
-export async function loadLatestSnapshotsForDate(requestedDate: string | undefined, limit = 12): Promise<Dataset[]> {
+export async function loadLatestSnapshotsForDate(
+  requestedDate: string | undefined,
+  limit = 12,
+  options: DatasetLoadOptions = {}
+): Promise<Dataset[]> {
   const snapshots = await loadSnapshotRows();
   const target = targetDateKey(requestedDate);
   const selected = snapshots.filter((snapshot) => snapshot.snapshotDate <= target).slice(-Math.max(0, limit));
-  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots)));
+  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
 }
 
 export async function loadSnapshotsForDateWindow(
   requestedDate: string | undefined,
-  monthsBack = 12
+  monthsBack = 12,
+  options: DatasetLoadOptions = {}
 ): Promise<Dataset[]> {
   const snapshots = await loadSnapshotRows();
   const endSnapshot = selectSnapshotRowForDate(snapshots, requestedDate);
@@ -1557,7 +1648,7 @@ export async function loadSnapshotsForDateWindow(
   const selected = snapshots.filter(
     (snapshot) => snapshot.snapshotDate >= startDate && snapshot.snapshotDate <= endSnapshot.snapshotDate
   );
-  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots)));
+  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
 }
 
 export async function loadReferenceVersions(): Promise<ReferenceVersions> {
@@ -2178,7 +2269,13 @@ FOR JSON PATH;
 }
 
 function toSqlJsonArrayLiteral(values: Iterable<string>): string {
-  return toSqlUnicodeLiteral(JSON.stringify(Array.from(new Set(values)).sort((left, right) => left.localeCompare(right))));
+  return toSqlUnicodeLiteral(JSON.stringify(toSortedStringArray(values)));
+}
+
+function toSortedStringArray(values: Iterable<string>): string[] {
+  return Array.from(new Set(Array.from(values).filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))).sort((left, right) =>
+    left.localeCompare(right)
+  );
 }
 
 function findingsForKpiSql(findings: Finding[]): Array<{ assetId: string; severity: string; priorityRank: number }> {
@@ -2187,6 +2284,30 @@ function findingsForKpiSql(findings: Finding[]): Array<{ assetId: string; severi
     severity: finding.severity,
     priorityRank: finding.priorityRank
   }));
+}
+
+function findingsForKpiCacheSignature(findings: Finding[]): string {
+  return hashCacheValue(
+    JSON.stringify(
+      findingsForKpiSql(findings).sort((left, right) =>
+        left.assetId.localeCompare(right.assetId) ||
+        left.priorityRank - right.priorityRank ||
+        left.severity.localeCompare(right.severity)
+      )
+    )
+  );
+}
+
+async function kpiEvaluationSettingsSignature(kpiDefinitions: KpiDefinition[]): Promise<string> {
+  const [measuresVersion, discoveryVersion] = await Promise.all([
+    loadLatestMeasuresSettingsVersion(),
+    loadLatestDiscoveryToolsSettingsVersion()
+  ]);
+  return [
+    kpiDefinitionsCacheSignature(kpiDefinitions),
+    measuresVersion ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}` : "measures:default",
+    discoveryVersion ? `discovery:${discoveryVersion.settingsVersionId}:${discoveryVersion.updatedAt}` : "discovery:default"
+  ].join("|");
 }
 
 export async function loadSnapshotKpiEvaluationsForScope({
@@ -2206,11 +2327,26 @@ export async function loadSnapshotKpiEvaluationsForScope({
 }): Promise<StoredKpiEvaluation[]> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
   const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
-  const assetIdsSql = toSqlJsonArrayLiteral(assetIds);
-  const systemIdsSql = toSqlJsonArrayLiteral(systemIds);
-  const networkIdsSql = toSqlJsonArrayLiteral(networkIds);
-  const findingsSql = toSqlUnicodeLiteral(JSON.stringify(findingsForKpiSql(findings)));
-  const rows = await executeSqlJson<StoredKpiEvaluationRow[]>(`
+  const sortedAssetIds = toSortedStringArray(assetIds);
+  const sortedSystemIds = toSortedStringArray(systemIds);
+  const sortedNetworkIds = toSortedStringArray(networkIds);
+  const findingsPayload = findingsForKpiSql(findings);
+  const settingsSignature = await kpiEvaluationSettingsSignature(definitions);
+  const cacheKey = cacheSignatureFromParts([
+    safeSnapshotId,
+    settingsSignature,
+    hashCacheValue(JSON.stringify(sortedAssetIds)),
+    hashCacheValue(JSON.stringify(sortedSystemIds)),
+    hashCacheValue(JSON.stringify(sortedNetworkIds)),
+    findingsForKpiCacheSignature(findings)
+  ]);
+
+  return kpiEvaluationsCache.getOrSet(cacheKey, async () => {
+    const assetIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedAssetIds));
+    const systemIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedSystemIds));
+    const networkIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedNetworkIds));
+    const findingsSql = toSqlUnicodeLiteral(JSON.stringify(findingsPayload));
+    const rows = await timeAsync(`loadSnapshotKpiEvaluations:${safeSnapshotId}`, () => executeSqlJson<StoredKpiEvaluationRow[]>(`
 EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot]
   @snapshot_id = ${safeSnapshotId},
   @asset_ids_json = ${assetIdsSql},
@@ -2218,9 +2354,76 @@ EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot]
   @network_ids_json = ${networkIdsSql},
   @effective_findings_json = ${findingsSql},
   @emit_json = 1;
-`);
+`));
 
-  return normalizeStoredKpiEvaluations(rows, definitions);
+    return normalizeStoredKpiEvaluations(rows, definitions);
+  });
+}
+
+export type KpiEvaluationScopeInput = {
+  scopeKey: string;
+  assetIds: Iterable<string>;
+  systemIds: Iterable<string>;
+  networkIds: Iterable<string>;
+  findings: Finding[];
+};
+
+export async function loadSnapshotKpiEvaluationsForScopes({
+  snapshotId,
+  scopes,
+  kpiDefinitions
+}: {
+  snapshotId: number;
+  scopes: KpiEvaluationScopeInput[];
+  kpiDefinitions?: KpiDefinition[];
+}): Promise<Map<string, StoredKpiEvaluation[]>> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
+  const normalizedScopes = scopes
+    .map((scope) => ({
+      scopeKey: scope.scopeKey.trim(),
+      assetIds: toSortedStringArray(scope.assetIds),
+      systemIds: toSortedStringArray(scope.systemIds),
+      networkIds: toSortedStringArray(scope.networkIds),
+      findings: findingsForKpiSql(scope.findings)
+    }))
+    .filter((scope) => scope.scopeKey && scope.assetIds.length > 0);
+
+  if (!normalizedScopes.length) {
+    return new Map();
+  }
+
+  const settingsSignature = await kpiEvaluationSettingsSignature(definitions);
+  const cacheKey = cacheSignatureFromParts([
+    safeSnapshotId,
+    settingsSignature,
+    hashCacheValue(JSON.stringify(normalizedScopes))
+  ]);
+
+  return scopedKpiEvaluationsCache.getOrSet(cacheKey, async () => {
+    const rows = await timeAsync(`loadSnapshotKpiEvaluationsBulk:${safeSnapshotId}:${normalizedScopes.length}`, () =>
+      executeSqlJson<StoredScopedKpiEvaluationRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot_bulk]
+  @snapshot_id = ${safeSnapshotId},
+  @scope_rows_json = ${toSqlUnicodeLiteral(JSON.stringify(normalizedScopes))},
+  @emit_json = 1;
+`)
+    );
+
+    const rowsByScope = new Map<string, StoredKpiEvaluationRow[]>();
+    for (const row of rows) {
+      if (!row.scopeKey) {
+        continue;
+      }
+      rowsByScope.set(row.scopeKey, [...(rowsByScope.get(row.scopeKey) ?? []), row]);
+    }
+
+    const result = new Map<string, StoredKpiEvaluation[]>();
+    for (const scope of normalizedScopes) {
+      result.set(scope.scopeKey, normalizeStoredKpiEvaluations(rowsByScope.get(scope.scopeKey) ?? [], definitions));
+    }
+    return result;
+  });
 }
 
 export async function loadSnapshotKpiEvaluationsForAnalyticsScope({
@@ -2251,6 +2454,8 @@ export async function loadSnapshotKpiEvaluationsForAnalyticsScope({
 }
 
 function clearSettingsDependentCaches(): void {
+  kpiEvaluationsCache.clear();
+  scopedKpiEvaluationsCache.clear();
   clearAnalyticsCache();
   clearAppDataCaches();
 }
@@ -2265,6 +2470,7 @@ function clearMeasuresSettingsCaches(): void {
 function clearDiscoveryToolsSettingsCaches(): void {
   discoveryToolsSettingsVersionCache.clear();
   discoveryToolsSettingsByVersionCache.clear();
+  datasetBySnapshotIdCache.clear();
   clearSettingsDependentCaches();
 }
 
@@ -2571,6 +2777,8 @@ export function clearDataLoaderCaches(): void {
   datasetBySnapshotIdCache.clear();
   referenceVersionsCache.clear();
   kpiDefinitionsCache.clear();
+  kpiEvaluationsCache.clear();
+  scopedKpiEvaluationsCache.clear();
   spiDefinitionsCache.clear();
   severityDefinitionsCache.clear();
   priorityDefinitionsCache.clear();
@@ -2588,6 +2796,8 @@ export function __resetDataLoaderCachesForTest(): void {
   datasetBySnapshotIdCache.resetStats();
   referenceVersionsCache.resetStats();
   kpiDefinitionsCache.resetStats();
+  kpiEvaluationsCache.resetStats();
+  scopedKpiEvaluationsCache.resetStats();
   spiDefinitionsCache.resetStats();
   severityDefinitionsCache.resetStats();
   priorityDefinitionsCache.resetStats();
