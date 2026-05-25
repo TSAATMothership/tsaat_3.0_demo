@@ -233,6 +233,31 @@ IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_spi_finding_cl
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_spi_finding_classification_rule_severity' AND [parent_object_id] = OBJECT_ID(N'tsaat.spi_finding_classification_rule'))
   ALTER TABLE [tsaat].[spi_finding_classification_rule] WITH CHECK ADD CONSTRAINT [FK_spi_finding_classification_rule_severity] FOREIGN KEY ([severity_key]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]);
 
+IF OBJECT_ID(N'tsaat.finding_priority_definition', N'U') IS NOT NULL
+BEGIN
+  MERGE [tsaat].[finding_priority_definition] AS target
+  USING (VALUES
+    (1, N'P1', 1, CONVERT(BIT, 1), N'Immediate priority remediation.'),
+    (2, N'P2', 2, CONVERT(BIT, 1), N'High priority remediation.'),
+    (3, N'P3', 3, CONVERT(BIT, 1), N'Major priority remediation.'),
+    (4, N'P4', 4, CONVERT(BIT, 1), N'Elevated priority remediation.'),
+    (5, N'P5', 5, CONVERT(BIT, 1), N'Standard priority remediation.'),
+    (6, N'P6', 6, CONVERT(BIT, 1), N'Lower priority remediation.'),
+    (7, N'P7', 7, CONVERT(BIT, 1), N'Lowest selectable priority remediation.'),
+    (90, N'P90', 90, CONVERT(BIT, 0), N'Data gap priority used for unknown evidence.')
+  ) AS source ([priority_rank], [label], [display_order], [selectable_in_settings], [description])
+  ON target.[priority_rank] = source.[priority_rank]
+  WHEN MATCHED THEN
+    UPDATE SET
+      [label] = source.[label],
+      [display_order] = source.[display_order],
+      [selectable_in_settings] = source.[selectable_in_settings],
+      [description] = source.[description]
+  WHEN NOT MATCHED THEN
+    INSERT ([priority_rank], [label], [display_order], [selectable_in_settings], [description])
+    VALUES (source.[priority_rank], source.[label], source.[display_order], source.[selectable_in_settings], source.[description]);
+END;
+
 MERGE [tsaat].[spi_finding_classification_rule] AS target
 USING (VALUES
   (N'unknown-data-gap', 1, CONVERT(BIT, 1), NULL, N'Unknown', N'when_unknown', N'Data Gap', 90, N'Unknown SPI outcomes generate Data Gap findings.'),

@@ -14,6 +14,7 @@ import {
   buildScopedDiscoveryToolCoverage,
   discoveryCoverageValueLabel
 } from "@/lib/scoped-discovery-tool-coverage";
+import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import type { Asset, ComplianceStatus, EnvironmentType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -143,9 +144,8 @@ export async function GET(request: NextRequest, { params }: { params: { systemId
       }
       const evaluation = evaluationByAssetId.get(asset.id);
       return Boolean(
-        evaluation?.evaluations.some(
-          (evaluationItem) =>
-            (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+        evaluation?.evaluations.some((evaluationItem) =>
+          evaluationMatchesSpiFeature(evaluationItem, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
         )
       );
     }

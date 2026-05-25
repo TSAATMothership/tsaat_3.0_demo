@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import {
   MEASURES_ASSET_TYPES,
-  MEASURES_PRIORITY_OPTIONS,
+  FindingPriorityDefinition,
   MeasuresPriorityRank,
   MeasuresSettings,
   priorityMatrixKey,
+  selectablePriorityDefinitions,
   selectableSeverityDefinitions,
   severityMatrixKey
 } from "@/lib/measures-settings";
@@ -29,11 +30,13 @@ function matrixEqual<T extends string | number>(a: Record<string, T>, b: Record<
 export function MeasuresSettingsMatrix({
   initialSettings,
   spiDefinitions,
-  severityDefinitions
+  severityDefinitions,
+  priorityDefinitions
 }: {
   initialSettings: MeasuresSettings;
   spiDefinitions: SpiDefinition[];
   severityDefinitions: SeverityDefinition[];
+  priorityDefinitions: FindingPriorityDefinition[];
 }) {
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsMatrixTab>("severity");
   const [savedSettings, setSavedSettings] = useState<MeasuresSettings>(initialSettings);
@@ -55,6 +58,7 @@ export function MeasuresSettingsMatrix({
   );
   const isDirty = isSeverityDirty || isPriorityDirty;
   const selectableSeverities = selectableSeverityDefinitions(severityDefinitions);
+  const selectablePriorities = selectablePriorityDefinitions(priorityDefinitions);
 
   const setSeverity = (spiId: SpiId, assetType: AssetType, severity: FindingSeverity) => {
     const key = severityMatrixKey(spiId, assetType);
@@ -244,7 +248,7 @@ export function MeasuresSettingsMatrix({
             <tbody>
               {spiDefinitions.map((definition) => {
                 const key = priorityMatrixKey(definition.spiId);
-                const selectedValue = draftPriorityMatrix[key] ?? 7;
+                const selectedValue = draftPriorityMatrix[key] ?? selectablePriorities[0]?.priorityRank ?? 7;
 
                 return (
                   <tr key={definition.spiId} className="border-t border-sky-400/10">
@@ -258,9 +262,9 @@ export function MeasuresSettingsMatrix({
                         onChange={(event) => setPriority(definition.spiId, Number(event.target.value) as MeasuresPriorityRank)}
                         className="w-full min-w-[150px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
                       >
-                        {MEASURES_PRIORITY_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            P{option}
+                        {selectablePriorities.map((option) => (
+                          <option key={option.priorityRank} value={option.priorityRank}>
+                            {option.label}
                           </option>
                         ))}
                       </select>

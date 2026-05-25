@@ -276,7 +276,7 @@ npm test
 
 - SPI catalogue metadata, applicability, enabled/report flags, rule parameters, tasking metadata, and severity options are loaded from SQL Server seed tables.
 - Current seed data preserves SPIs 1-10 and evaluates them per applicable asset.
-- SPI score execution remains application code selected by supported database `rule_key` values.
+- SPI score execution is SQL-driven through database calculation rows evaluated by `tsaat.usp_evaluate_spi_snapshot`.
 - Each SPI returns `Compliant`, `Non-compliant`, or `Unknown`
 - High Risk tagging is applied to SPI 4/5/6 trigger conditions
 - Critical Exposure tagging is applied where production assets have critical vulnerabilities

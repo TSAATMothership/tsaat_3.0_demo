@@ -18,6 +18,7 @@ import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { buildNetworkPerformanceReportModel, buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { applyAssetFilters } from "@/lib/selectors";
+import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { SpiDefinition } from "@/lib/spi-definitions";
 import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
@@ -147,9 +148,10 @@ function countNonCompliantOs(
   evaluationByAssetId: Map<
     string,
     {
-      evaluations: Array<{ spiId: number; status: ComplianceStatus }>;
+      evaluations: Array<{ spiId: number; status: ComplianceStatus; outcomeKey?: string }>;
     }
-  >
+  >,
+  spiDefinitions: SpiDefinition[]
 ): number {
   return assets.filter((asset) => {
     if (asset.type !== "server" && asset.type !== "workstation") {
@@ -159,9 +161,8 @@ function countNonCompliantOs(
     if (!evaluation) {
       return false;
     }
-    return evaluation.evaluations.some(
-      (evaluationItem) =>
-        (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+    return evaluation.evaluations.some((evaluationItem) =>
+      evaluationMatchesSpiFeature(evaluationItem, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
     );
   }).length;
 }
@@ -1261,7 +1262,7 @@ export default async function CyberCopPage({
       return bTime - aTime;
     });
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
-  const nonCompliantOs = countNonCompliantOs(filteredAssets, evaluationByAssetId);
+  const nonCompliantOs = countNonCompliantOs(filteredAssets, evaluationByAssetId, spiDefinitions);
   const nonCompliantOsTotal = filteredAssets.filter((asset) => asset.type === "server" || asset.type === "workstation").length;
   const scopedAssetsTotal = filteredAssets.length;
   const scopedServersTotal = filteredAssets.filter((asset) => asset.type === "server").length;

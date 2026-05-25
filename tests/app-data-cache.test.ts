@@ -10,6 +10,7 @@ const loadDiscoveryToolsSettingsMock = vi.hoisted(() => vi.fn());
 const loadKpiDefinitionsMock = vi.hoisted(() => vi.fn());
 const loadSpiDefinitionsMock = vi.hoisted(() => vi.fn());
 const loadSeverityDefinitionsMock = vi.hoisted(() => vi.fn());
+const loadFindingPriorityDefinitionsMock = vi.hoisted(() => vi.fn());
 const getCachedAnalyticsMock = vi.hoisted(() => vi.fn());
 const buildTrendPointsMock = vi.hoisted(() => vi.fn());
 
@@ -20,12 +21,20 @@ vi.mock("@/lib/data-loader", () => ({
   loadDiscoveryToolsSettings: loadDiscoveryToolsSettingsMock,
   loadKpiDefinitions: loadKpiDefinitionsMock,
   loadSpiDefinitions: loadSpiDefinitionsMock,
-  loadSeverityDefinitions: loadSeverityDefinitionsMock
+  loadSeverityDefinitions: loadSeverityDefinitionsMock,
+  loadFindingPriorityDefinitions: loadFindingPriorityDefinitionsMock
 }));
 
 vi.mock("@/lib/analytics-cache", () => ({
   datasetCacheSignature: (dataset: Dataset) =>
-    [dataset.snapshotDate, dataset.generatedAt, dataset.managedNetworks.length, dataset.ictSystems.length, dataset.assets.length].join("|"),
+    [
+      dataset.snapshotDate,
+      dataset.generatedAt,
+      dataset.managedNetworks.length,
+      dataset.ictSystems.length,
+      dataset.assets.length,
+      dataset.spiEvaluations.length
+    ].join("|"),
   filtersCacheKey: (filters: Record<string, unknown>) => JSON.stringify(Object.entries(filters).sort()),
   getCachedAnalytics: getCachedAnalyticsMock,
   settingsCacheSignature: (measuresSettings: { updatedAt?: string }, discoveryToolsSettings: { updatedAt?: string }) =>
@@ -39,6 +48,7 @@ vi.mock("@/lib/trends", () => ({
 const dataset: Dataset = {
   generatedAt: "2026-04-30T00:00:00.000Z",
   snapshotDate: "2026-04-30",
+  spiEvaluations: [],
   managedNetworks: [
     {
       id: "net-1",
@@ -138,6 +148,15 @@ describe("app data model caches", () => {
         displayOrder: 3,
         selectableInSettings: true,
         toneKey: "major"
+      }
+    ]);
+    loadFindingPriorityDefinitionsMock.mockResolvedValue([
+      {
+        priorityRank: 1,
+        label: "P1",
+        displayOrder: 1,
+        selectableInSettings: true,
+        description: "Priority 1"
       }
     ]);
     getCachedAnalyticsMock.mockReturnValue({ marker: "analytics" });

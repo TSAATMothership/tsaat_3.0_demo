@@ -7,10 +7,9 @@ import {
   applyMeasuresSeveritySettings,
   MeasuresSettings
 } from "@/lib/measures-settings";
-import { SpiDefinition } from "@/lib/spi-definitions";
+import { SpiDefinition, spiEvaluationMatchesFeature } from "@/lib/spi-definitions";
 import { buildRollups, mergeStatusCounts } from "@/lib/rollup";
 import { applyAssetFilters } from "@/lib/selectors";
-import { evaluateAssetSpis, hasProductionCriticalVulnerability } from "@/lib/spi-rules";
 import {
   AnalyticsResult,
   Asset,
@@ -26,7 +25,7 @@ function toAssetEvaluation(
   asset: Asset,
   systemsById: Map<string, ICTSystem>,
   discoveryToolsSettings: DiscoveryToolsSettings,
-  spiDefinitions: SpiDefinition[]
+  evaluationsByAssetId: Map<string, AssetSpiEvaluation["evaluations"]>
 ): AssetSpiEvaluation {
   const systemId = asset.systemContext?.systemId;
   const system = systemId ? systemsById.get(systemId) : undefined;
@@ -41,7 +40,7 @@ function toAssetEvaluation(
     securityDomain: asset.securityDomain,
     systemCriticality: system?.criticality ?? null,
     discoveryCoverageCompliant: discoveryCoverage.coverageCompliance,
-    evaluations: evaluateAssetSpis(asset, spiDefinitions)
+    evaluations: evaluationsByAssetId.get(asset.id) ?? []
   };
 }
 
@@ -51,6 +50,38 @@ function statusPercent(statuses: ComplianceStatus[]): number {
   }
   const compliant = statuses.filter((status) => status === "Compliant").length;
   return Number(((compliant / statuses.length) * 100).toFixed(1));
+}
+
+function spiEvaluationsByAssetId(dataset: Dataset): Map<string, AssetSpiEvaluation["evaluations"]> {
+  const byAssetId = new Map<string, AssetSpiEvaluation["evaluations"]>();
+  for (const evaluation of dataset.spiEvaluations) {
+    const existing = byAssetId.get(evaluation.assetId) ?? [];
+    existing.push({
+      spiId: evaluation.spiId,
+      outcomeKey: evaluation.outcomeKey,
+      status: evaluation.status,
+      evidence: evaluation.evidence,
+      reasons: evaluation.reasons
+    });
+    byAssetId.set(evaluation.assetId, existing);
+  }
+
+  return byAssetId;
+}
+
+function productionCriticalExposureAssetIds(
+  evaluations: AssetSpiEvaluation[],
+  spiDefinitions: SpiDefinition[]
+): string[] {
+  return evaluations
+    .filter(
+      (assetEvaluation) =>
+        assetEvaluation.environmentType === "Production" &&
+        assetEvaluation.evaluations.some((evaluation) =>
+          spiEvaluationMatchesFeature(evaluation, "production-critical-exposure", spiDefinitions)
+        )
+    )
+    .map((assetEvaluation) => assetEvaluation.assetId);
 }
 
 export function buildAnalytics(
@@ -63,17 +94,16 @@ export function buildAnalytics(
 ): AnalyticsResult {
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
   const systemsById = new Map(systems.map((system) => [system.id, system]));
+  const storedEvaluationsByAssetId = spiEvaluationsByAssetId(dataset);
   const evaluations = filteredAssets.map((asset) =>
-    toAssetEvaluation(asset, systemsById, discoveryToolsSettings, spiDefinitions)
+    toAssetEvaluation(asset, systemsById, discoveryToolsSettings, storedEvaluationsByAssetId)
   );
 
   const allStatuses = evaluations.flatMap((assetEval) =>
     assetEval.evaluations.map((evaluation) => evaluation.status)
   );
 
-  const productionCriticalExposureAssetIds = filteredAssets
-    .filter((asset) => hasProductionCriticalVulnerability(asset))
-    .map((asset) => asset.id);
+  const productionCriticalAssetIds = productionCriticalExposureAssetIds(evaluations, spiDefinitions);
 
   const filteredAssetIds = new Set(filteredAssets.map((asset) => asset.id));
   const sourceFindings: Finding[] = (() => {
@@ -82,11 +112,9 @@ export function buildAnalytics(
     }
 
     const allEvaluations = dataset.assets.map((asset) =>
-      toAssetEvaluation(asset, systemsById, discoveryToolsSettings, spiDefinitions)
+      toAssetEvaluation(asset, systemsById, discoveryToolsSettings, storedEvaluationsByAssetId)
     );
-    const allProductionCriticalSet = new Set(
-      dataset.assets.filter((asset) => hasProductionCriticalVulnerability(asset)).map((asset) => asset.id)
-    );
+    const allProductionCriticalSet = new Set(productionCriticalExposureAssetIds(allEvaluations, spiDefinitions));
     return buildFindings(dataset.assets, allEvaluations, allProductionCriticalSet, {
       anchorDate: dataset.snapshotDate,
       spiDefinitions
@@ -110,7 +138,7 @@ export function buildAnalytics(
     environmentRollups,
     overallCompliancePercent: statusPercent(allStatuses),
     statusTotals: mergeStatusCounts(allStatuses),
-    productionCriticalExposureAssetIds
+    productionCriticalExposureAssetIds: productionCriticalAssetIds
   };
 }
 

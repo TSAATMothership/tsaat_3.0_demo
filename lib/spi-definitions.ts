@@ -1,20 +1,6 @@
 import { ASSET_TYPES } from "@/lib/asset-taxonomy";
-import { AssetType, ComplianceStatus, FindingSeverity, SpiId } from "@/lib/types";
+import { AssetType, ComplianceStatus, FindingSeverity, SpiEvaluation, SpiId } from "@/lib/types";
 
-export const SUPPORTED_SPI_RULE_HANDLER_KEYS = [
-  "os-support",
-  "os-n-minus",
-  "server-critical-vulnerability",
-  "production-server-critical-unsupported-os",
-  "production-server-critical-unsupported-software",
-  "production-workstation-critical-unsupported-software",
-  "network-device-critical-vulnerability",
-  "network-device-support",
-  "network-device-patch-currency",
-  "asset-lifecycle-currency"
-] as const;
-
-export const SUPPORTED_SPI_REPORT_DETAIL_HANDLER_KEYS = ["standard-asset-annex"] as const;
 export const SPI_RULE_PARAMETER_TYPES = ["string", "number", "boolean"] as const;
 export const SPI_TASKING_ACTION_CONDITION_KEYS = ["always", "when_unknown", "when_fully_compliant"] as const;
 export const SPI_TASKING_CONDITION_KEYS = ["non_compliant", "unknown", "compliant"] as const;
@@ -37,6 +23,45 @@ export type SpiFindingClassificationConditionKey = (typeof SPI_FINDING_CLASSIFIC
 
 export type SpiRuleParameterValue = string | number | boolean;
 export type SpiRuleParameters = Record<string, SpiRuleParameterValue>;
+
+export interface SpiCalculationSource {
+  sourceKey: string;
+  sourceObjectName: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+export interface SpiCalculationEvidenceExpression {
+  ruleKey: SpiRuleKey;
+  evidenceKey: string;
+  displayOrder: number;
+  valueType: "string" | "number" | "boolean";
+  valueExpressionSql: string;
+  omitWhenNull: boolean;
+}
+
+export interface SpiCalculationDefinition {
+  ruleKey: SpiRuleKey;
+  sourceKey: string;
+  displayOrder: number;
+  statusExpressionSql: string;
+  outcomeExpressionSql: string;
+  enabled: boolean;
+  source: SpiCalculationSource;
+  evidenceExpressions: SpiCalculationEvidenceExpression[];
+}
+
+export interface SpiFeatureBinding {
+  featureKey: string;
+  spiId: SpiId;
+  displayOrder: number;
+  complianceStatus: ComplianceStatus | null;
+  outcomeKey: string | null;
+  enabled: boolean;
+  description: string;
+}
 
 export interface SpiRuleDefinition {
   ruleKey: SpiRuleKey;
@@ -118,8 +143,10 @@ export interface SpiDefinition {
   ruleKey: SpiRuleKey;
   ruleParameters: SpiRuleParameters;
   ruleDefinition: SpiRuleDefinition;
+  calculationDefinition: SpiCalculationDefinition;
   parameterDefinitions: SpiRuleParameterDefinition[];
   outcomeTemplates: SpiRuleOutcomeTemplate[];
+  featureBindings: SpiFeatureBinding[];
   classificationRules: SpiFindingClassificationRule[];
   reportAvailable: boolean;
   trendReportAvailable: boolean;
@@ -140,14 +167,6 @@ export interface SeverityDefinition {
 }
 
 const ASSET_TYPE_VALUES: AssetType[] = [...ASSET_TYPES];
-
-export function isSupportedSpiRuleHandlerKey(value: unknown): boolean {
-  return typeof value === "string" && SUPPORTED_SPI_RULE_HANDLER_KEYS.includes(value as never);
-}
-
-export function isSupportedSpiReportDetailHandlerKey(value: unknown): boolean {
-  return typeof value === "string" && SUPPORTED_SPI_REPORT_DETAIL_HANDLER_KEYS.includes(value as never);
-}
 
 function isRuleParameterType(value: unknown): value is SpiRuleParameterType {
   return typeof value === "string" && SPI_RULE_PARAMETER_TYPES.includes(value as SpiRuleParameterType);
@@ -417,6 +436,155 @@ function normalizeReportDetailDefinition(value: unknown): SpiReportDetailDefinit
   };
 }
 
+function normalizeCalculationSource(value: unknown): SpiCalculationSource | null {
+  const row = coerceJsonObject(value);
+  const sourceKey = nonEmptyText(row.sourceKey);
+  const sourceObjectName = nonEmptyText(row.sourceObjectName);
+  const displayOrder = Number(row.displayOrder);
+  const name = nonEmptyText(row.name);
+  const description = nonEmptyText(row.description);
+  if (
+    !sourceKey ||
+    !sourceObjectName ||
+    !Number.isInteger(displayOrder) ||
+    displayOrder < 1 ||
+    !name ||
+    !description
+  ) {
+    return null;
+  }
+
+  return {
+    sourceKey,
+    sourceObjectName,
+    displayOrder,
+    name,
+    description,
+    enabled: coerceBoolean(row.enabled, true)
+  };
+}
+
+function normalizeCalculationEvidenceExpressions(
+  value: unknown,
+  ruleKey: string
+): SpiCalculationEvidenceExpression[] {
+  const seen = new Set<string>();
+  return coerceJsonArray(value)
+    .map((rawRow) => {
+      const row = coerceJsonObject(rawRow);
+      const expressionRuleKey = nonEmptyText(row.ruleKey) ?? ruleKey;
+      const evidenceKey = nonEmptyText(row.evidenceKey);
+      const displayOrder = Number(row.displayOrder);
+      const valueType = row.valueType;
+      const valueExpressionSql = nonEmptyText(row.valueExpressionSql);
+      if (
+        expressionRuleKey !== ruleKey ||
+        !evidenceKey ||
+        !/^[A-Za-z0-9_]+$/.test(evidenceKey) ||
+        !Number.isInteger(displayOrder) ||
+        displayOrder < 1 ||
+        !isRuleParameterType(valueType) ||
+        !valueExpressionSql ||
+        seen.has(evidenceKey)
+      ) {
+        return null;
+      }
+      seen.add(evidenceKey);
+      return {
+        ruleKey,
+        evidenceKey,
+        displayOrder,
+        valueType,
+        valueExpressionSql,
+        omitWhenNull: coerceBoolean(row.omitWhenNull, false)
+      };
+    })
+    .filter((row): row is SpiCalculationEvidenceExpression => Boolean(row))
+    .sort((left, right) => left.displayOrder - right.displayOrder || left.evidenceKey.localeCompare(right.evidenceKey));
+}
+
+function normalizeCalculationDefinition(value: unknown, ruleKey: string): SpiCalculationDefinition | null {
+  const row = coerceJsonObject(value);
+  const calculationRuleKey = nonEmptyText(row.ruleKey) ?? ruleKey;
+  const sourceKey = nonEmptyText(row.sourceKey);
+  const displayOrder = Number(row.displayOrder);
+  const statusExpressionSql = nonEmptyText(row.statusExpressionSql);
+  const outcomeExpressionSql = nonEmptyText(row.outcomeExpressionSql);
+  const source = normalizeCalculationSource(row.source);
+  const evidenceExpressions = normalizeCalculationEvidenceExpressions(row.evidenceExpressions, ruleKey);
+  if (
+    calculationRuleKey !== ruleKey ||
+    !sourceKey ||
+    !Number.isInteger(displayOrder) ||
+    displayOrder < 1 ||
+    !statusExpressionSql ||
+    !outcomeExpressionSql ||
+    !source ||
+    !source.enabled ||
+    source.sourceKey !== sourceKey ||
+    !evidenceExpressions.length ||
+    !coerceBoolean(row.enabled, true)
+  ) {
+    return null;
+  }
+
+  return {
+    ruleKey,
+    sourceKey,
+    displayOrder,
+    statusExpressionSql,
+    outcomeExpressionSql,
+    enabled: true,
+    source,
+    evidenceExpressions
+  };
+}
+
+function normalizeFeatureBindings(value: unknown, spiId: SpiId): SpiFeatureBinding[] {
+  const seen = new Set<string>();
+  return coerceJsonArray(value)
+    .map((rawRow) => {
+      const row = coerceJsonObject(rawRow);
+      const featureKey = nonEmptyText(row.featureKey);
+      const bindingSpiId = Number(row.spiId ?? spiId);
+      const displayOrder = Number(row.displayOrder);
+      const rawComplianceStatus = row.complianceStatus;
+      const complianceStatus =
+        rawComplianceStatus === null || rawComplianceStatus === undefined || rawComplianceStatus === ""
+          ? null
+          : rawComplianceStatus;
+      const outcomeKey = nonEmptyText(row.outcomeKey);
+      const description = nonEmptyText(row.description);
+      const key = `${featureKey}:${complianceStatus ?? ""}:${outcomeKey ?? ""}`;
+
+      if (
+        !featureKey ||
+        bindingSpiId !== spiId ||
+        !Number.isInteger(displayOrder) ||
+        displayOrder < 1 ||
+        (complianceStatus !== null && !isComplianceStatus(complianceStatus)) ||
+        !description ||
+        seen.has(key) ||
+        !coerceBoolean(row.enabled, true)
+      ) {
+        return null;
+      }
+
+      seen.add(key);
+      return {
+        featureKey,
+        spiId,
+        displayOrder,
+        complianceStatus,
+        outcomeKey,
+        enabled: true,
+        description
+      };
+    })
+    .filter((row): row is SpiFeatureBinding => Boolean(row))
+    .sort((left, right) => left.displayOrder - right.displayOrder || left.featureKey.localeCompare(right.featureKey));
+}
+
 function normalizeClassificationRules(value: unknown): SpiFindingClassificationRule[] {
   const seen = new Set<string>();
   return coerceJsonArray(value)
@@ -560,6 +728,7 @@ export function normalizeSpiDefinitions(input: unknown): SpiDefinition[] {
     const ruleKey = nonEmptyText(row.ruleKey);
     const reportDetailKey = nonEmptyText(row.reportDetailKey);
     const ruleDefinition = normalizeRuleDefinition(row.ruleDefinition);
+    const calculationDefinition = normalizeCalculationDefinition(row.calculationDefinition, ruleKey ?? "");
     const reportDetailDefinition = normalizeReportDetailDefinition(row.reportDetailDefinition);
     const applicableAssetTypes = coerceJsonArray(row.applicableAssetTypes).filter(isAssetType);
 
@@ -580,11 +749,11 @@ export function normalizeSpiDefinitions(input: unknown): SpiDefinition[] {
       !ruleDefinition ||
       !ruleDefinition.enabled ||
       ruleDefinition.ruleKey !== ruleKey ||
-      !isSupportedSpiRuleHandlerKey(ruleDefinition.handlerKey) ||
+      !calculationDefinition ||
+      calculationDefinition.ruleKey !== ruleKey ||
       !reportDetailDefinition ||
       !reportDetailDefinition.enabled ||
       reportDetailDefinition.reportDetailKey !== reportDetailKey ||
-      !isSupportedSpiReportDetailHandlerKey(reportDetailDefinition.handlerKey) ||
       !applicableAssetTypes.length ||
       seenIds.has(spiId) ||
       seenDisplayOrders.has(displayOrder) ||
@@ -615,8 +784,10 @@ export function normalizeSpiDefinitions(input: unknown): SpiDefinition[] {
       ruleKey,
       ruleParameters: normalizedParameters.parameters,
       ruleDefinition,
+      calculationDefinition,
       parameterDefinitions,
       outcomeTemplates,
+      featureBindings: normalizeFeatureBindings(row.featureBindings, spiId),
       classificationRules: normalizeClassificationRules(row.classificationRules).filter(
         (rule) => rule.spiId === null || rule.spiId === spiId
       ),
@@ -697,8 +868,10 @@ export function spiDefinitionsCacheSignature(spiDefinitions: SpiDefinition[]): s
       definition.ruleKey,
       definition.ruleParameters,
       definition.ruleDefinition,
+      definition.calculationDefinition,
       definition.parameterDefinitions,
       definition.outcomeTemplates,
+      definition.featureBindings,
       definition.classificationRules,
       definition.reportAvailable,
       definition.trendReportAvailable,
@@ -730,4 +903,56 @@ export function spiDefinitionById(spiDefinitions: SpiDefinition[]): Map<SpiId, S
 
 export function isSpiApplicableToAssetType(definition: SpiDefinition, assetType: AssetType): boolean {
   return definition.applicableAssetTypes.includes(assetType);
+}
+
+export function spiEvaluationMatchesFeature(
+  evaluation: Pick<SpiEvaluation, "spiId" | "status" | "outcomeKey">,
+  featureKey: string,
+  spiDefinitions: SpiDefinition[]
+): boolean {
+  const definition = spiDefinitions.find((item) => item.spiId === evaluation.spiId);
+  if (!definition) {
+    return false;
+  }
+
+  return definition.featureBindings.some((binding) => {
+    if (!binding.enabled || binding.featureKey !== featureKey) {
+      return false;
+    }
+    if (binding.complianceStatus !== null && binding.complianceStatus !== evaluation.status) {
+      return false;
+    }
+    if (binding.outcomeKey !== null && binding.outcomeKey !== (evaluation.outcomeKey ?? null)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export function renderSpiOutcomeReason(definition: SpiDefinition, evaluation: SpiEvaluation): string {
+  const outcomeKey = evaluation.outcomeKey;
+  if (!outcomeKey) {
+    throw new Error(`SPI ${definition.spiId} SQL evaluation did not return an outcome key.`);
+  }
+
+  const template = definition.outcomeTemplates.find(
+    (item) => item.outcomeKey === outcomeKey && item.complianceStatus === evaluation.status
+  );
+  if (!template) {
+    throw new Error(
+      `Missing SPI outcome template for SPI ${definition.spiId}, outcome '${outcomeKey}', status '${evaluation.status}'.`
+    );
+  }
+
+  const context: Record<string, string | number | boolean | null | undefined> = {
+    spiId: definition.spiId,
+    status: evaluation.status,
+    ...definition.ruleParameters,
+    ...evaluation.evidence
+  };
+
+  return template.reasonTemplate.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => {
+    const value = context[key];
+    return value === null || value === undefined ? "" : String(value);
+  });
 }

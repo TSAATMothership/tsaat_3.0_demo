@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams,
     new Set(["drillthroughSpiId", "drillthroughTitle", "drillthroughFindingId"])
   );
-  const { analytics, dataset } = await getCoreAppData(requestParams);
+  const { analytics, dataset, spiDefinitions } = await getCoreAppData(requestParams);
 
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
@@ -247,7 +247,10 @@ export async function GET(request: NextRequest) {
   const requestedTab = firstParam(requestParams.findingsTab)?.trim().toLowerCase();
   const selectedStatus: "open" | "closed" = requestedTab === "closed" ? "closed" : "open";
   const requestedSpi = Number(firstParam(requestParams.spi));
-  const selectedSpi = Number.isInteger(requestedSpi) && requestedSpi >= 1 && requestedSpi <= 10 ? requestedSpi : undefined;
+  const selectedSpi =
+    Number.isInteger(requestedSpi) && spiDefinitions.some((definition) => definition.spiId === requestedSpi)
+      ? requestedSpi
+      : undefined;
   const requestedPriority = Number(firstParam(requestParams.priority));
   const selectedPriority =
     Number.isInteger(requestedPriority) && requestedPriority >= 1 && requestedPriority !== 90

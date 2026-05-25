@@ -1787,6 +1787,7 @@ async function main() {
   const currentDataset: Dataset = {
     generatedAt: new Date().toISOString(),
     snapshotDate: offsetWeeks(0),
+    spiEvaluations: [],
     managedNetworks: networks,
     ictSystems: systems,
     assets,

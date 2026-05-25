@@ -189,6 +189,24 @@ BEGIN
   THROW 51000, @LoadError, 1;
 END;
 
+DECLARE @SpiSqlCalculationJson NVARCHAR(MAX);
+SET @FilePath = @PackageDataRoot + N'\spi-sql-calculations.json';
+SET @SpiSqlCalculationJson = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @SpiSqlCalculationJson OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @SpiSqlCalculationJson OUTPUT;
+END;
+IF @SpiSqlCalculationJson IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
 MERGE [tsaat].[finding_severity_definition] AS target
 USING (
   SELECT
@@ -215,6 +233,33 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT ([severity_key], [label], [display_order], [selectable_in_settings], [tone_key])
   VALUES (source.[severity_key], source.[label], source.[display_order], source.[selectable_in_settings], source.[tone_key]);
+
+MERGE [tsaat].[finding_priority_definition] AS target
+USING (
+  SELECT
+    priority_definition.[priority_rank],
+    priority_definition.[label],
+    priority_definition.[display_order],
+    priority_definition.[selectable_in_settings],
+    priority_definition.[description]
+  FROM OPENJSON(@SpiSqlCalculationJson, '$.findingPriorities') WITH (
+    [priority_rank] INT '$.priorityRank',
+    [label] NVARCHAR(40) '$.label',
+    [display_order] INT '$.displayOrder',
+    [selectable_in_settings] BIT '$.selectableInSettings',
+    [description] NVARCHAR(1000) '$.description'
+  ) AS priority_definition
+) AS source
+ON target.[priority_rank] = source.[priority_rank]
+WHEN MATCHED THEN
+  UPDATE SET
+    [label] = source.[label],
+    [display_order] = source.[display_order],
+    [selectable_in_settings] = source.[selectable_in_settings],
+    [description] = source.[description]
+WHEN NOT MATCHED THEN
+  INSERT ([priority_rank], [label], [display_order], [selectable_in_settings], [description])
+  VALUES (source.[priority_rank], source.[label], source.[display_order], source.[selectable_in_settings], source.[description]);
 
 DECLARE @SeedRuleKeys TABLE ([rule_key] NVARCHAR(100) NOT NULL PRIMARY KEY);
 INSERT INTO @SeedRuleKeys ([rule_key])
@@ -341,6 +386,95 @@ WHEN NOT MATCHED THEN
   INSERT ([report_detail_key], [handler_key], [display_order], [name], [description], [enabled])
   VALUES (source.[report_detail_key], source.[handler_key], source.[display_order], source.[name], source.[description], source.[enabled]);
 
+MERGE [tsaat].[spi_calculation_source] AS target
+USING (
+  SELECT
+    calculation_source.[source_key],
+    calculation_source.[source_object_name],
+    calculation_source.[display_order],
+    calculation_source.[name],
+    calculation_source.[description],
+    calculation_source.[enabled]
+  FROM OPENJSON(@SpiSqlCalculationJson, '$.calculationSources') WITH (
+    [source_key] NVARCHAR(100) '$.sourceKey',
+    [source_object_name] NVARCHAR(255) '$.sourceObjectName',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS calculation_source
+) AS source
+ON target.[source_key] = source.[source_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [source_object_name] = source.[source_object_name],
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([source_key], [source_object_name], [display_order], [name], [description], [enabled])
+  VALUES (source.[source_key], source.[source_object_name], source.[display_order], source.[name], source.[description], source.[enabled]);
+
+MERGE [tsaat].[spi_calculation_definition] AS target
+USING (
+  SELECT
+    calculation.[rule_key],
+    calculation.[source_key],
+    calculation.[display_order],
+    calculation.[status_expression_sql],
+    calculation.[outcome_expression_sql],
+    calculation.[enabled]
+  FROM OPENJSON(@SpiSqlCalculationJson, '$.calculations') WITH (
+    [rule_key] NVARCHAR(100) '$.ruleKey',
+    [source_key] NVARCHAR(100) '$.sourceKey',
+    [display_order] INT '$.displayOrder',
+    [status_expression_sql] NVARCHAR(MAX) '$.statusExpressionSql',
+    [outcome_expression_sql] NVARCHAR(MAX) '$.outcomeExpressionSql',
+    [enabled] BIT '$.enabled'
+  ) AS calculation
+) AS source
+ON target.[rule_key] = source.[rule_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [source_key] = source.[source_key],
+    [display_order] = source.[display_order],
+    [status_expression_sql] = source.[status_expression_sql],
+    [outcome_expression_sql] = source.[outcome_expression_sql],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([rule_key], [source_key], [display_order], [status_expression_sql], [outcome_expression_sql], [enabled])
+  VALUES (source.[rule_key], source.[source_key], source.[display_order], source.[status_expression_sql], source.[outcome_expression_sql], source.[enabled]);
+
+DELETE child FROM [tsaat].[spi_calculation_evidence_expression] AS child INNER JOIN @SeedRuleKeys AS seed ON seed.[rule_key] = child.[rule_key];
+
+INSERT INTO [tsaat].[spi_calculation_evidence_expression] (
+  [rule_key],
+  [evidence_key],
+  [display_order],
+  [value_type],
+  [value_expression_sql],
+  [omit_when_null]
+)
+SELECT
+  calculation.[rule_key],
+  evidence.[evidence_key],
+  evidence.[display_order],
+  evidence.[value_type],
+  evidence.[value_expression_sql],
+  evidence.[omit_when_null]
+FROM OPENJSON(@SpiSqlCalculationJson, '$.calculations') WITH (
+  [rule_key] NVARCHAR(100) '$.ruleKey',
+  [evidence_expressions] NVARCHAR(MAX) '$.evidenceExpressions' AS JSON
+) AS calculation
+CROSS APPLY OPENJSON(COALESCE(calculation.[evidence_expressions], N'[]')) WITH (
+  [evidence_key] NVARCHAR(100) '$.evidenceKey',
+  [display_order] INT '$.displayOrder',
+  [value_type] NVARCHAR(20) '$.valueType',
+  [value_expression_sql] NVARCHAR(MAX) '$.valueExpressionSql',
+  [omit_when_null] BIT '$.omitWhenNull'
+) AS evidence;
+
 DECLARE @SeedSpiIds TABLE ([spi_id] INT NOT NULL PRIMARY KEY);
 INSERT INTO @SeedSpiIds ([spi_id])
 SELECT spi.[spi_id]
@@ -435,6 +569,35 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT ([classification_rule_id], [display_order], [enabled], [spi_id], [compliance_status], [condition_key], [severity_key], [priority_rank], [description])
   VALUES (source.[classification_rule_id], source.[display_order], source.[enabled], source.[spi_id], source.[compliance_status], source.[condition_key], source.[severity_key], source.[priority_rank], source.[description]);
+
+DELETE child FROM [tsaat].[spi_feature_binding] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
+
+INSERT INTO [tsaat].[spi_feature_binding] (
+  [feature_key],
+  [spi_id],
+  [display_order],
+  [compliance_status],
+  [outcome_key],
+  [enabled],
+  [description]
+)
+SELECT
+  feature_binding.[feature_key],
+  feature_binding.[spi_id],
+  feature_binding.[display_order],
+  feature_binding.[compliance_status],
+  feature_binding.[outcome_key],
+  feature_binding.[enabled],
+  feature_binding.[description]
+FROM OPENJSON(@SpiSqlCalculationJson, '$.featureBindings') WITH (
+  [feature_key] NVARCHAR(100) '$.featureKey',
+  [spi_id] INT '$.spiId',
+  [display_order] INT '$.displayOrder',
+  [compliance_status] NVARCHAR(20) '$.complianceStatus',
+  [outcome_key] NVARCHAR(100) '$.outcomeKey',
+  [enabled] BIT '$.enabled',
+  [description] NVARCHAR(1000) '$.description'
+) AS feature_binding;
 
 DELETE child FROM [tsaat].[spi_tasking_condition_template] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
 DELETE child FROM [tsaat].[spi_tasking_action_template] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
@@ -728,7 +891,12 @@ FROM [tsaat].[spi_definition] AS sd
 OUTER APPLY (
   SELECT TRY_CONVERT(INT, JSON_VALUE(@Json, CONCAT('$.priorityMatrix."', sd.[spi_id], '"'))) AS [priority_rank]
 ) AS mp
-WHERE COALESCE(mp.[priority_rank], sd.[priority_order]) BETWEEN 1 AND 7;
+WHERE EXISTS (
+  SELECT 1
+  FROM [tsaat].[finding_priority_definition] AS fpd
+  WHERE fpd.[priority_rank] = COALESCE(mp.[priority_rank], sd.[priority_order])
+    AND fpd.[selectable_in_settings] = 1
+);
 
 PRINT 'Loading snapshot/application data...';
 

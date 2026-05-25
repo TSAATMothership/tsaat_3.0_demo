@@ -31,6 +31,7 @@ Canonical loader data sources
 - `Database Schema/data/spi-rule-definitions.json`
 - `Database Schema/data/spi-report-detail-definitions.json`
 - `Database Schema/data/spi-finding-classification-rules.json`
+- `Database Schema/data/spi-sql-calculations.json`
 - `Database Schema/data/severity-definitions.json`
 - `Database Schema/data/kpi-definitions.json`
 - `Database Schema/data/discovery-tools-settings.json`
@@ -50,10 +51,15 @@ Key domain groups
 - `reference_os_current_major`
 - `reference_software_supported_version`
 - `finding_severity_definition`
+- `finding_priority_definition`
 - `spi_rule_definition`
 - `spi_rule_parameter_definition`
 - `spi_rule_outcome_template`
 - `spi_report_detail_definition`
+- `spi_calculation_source`
+- `spi_calculation_definition`
+- `spi_calculation_evidence_expression`
+- `spi_feature_binding`
 - `spi_finding_classification_rule`
 - `spi_definition`
 - `spi_applicable_asset_type`
@@ -100,6 +106,7 @@ Key domain groups
 5) Findings:
 - `finding`
   - `severity` references `finding_severity_definition` so the severity taxonomy and settings options are seeded through database data.
+  - `priority_rank` references `finding_priority_definition` so priority settings/options are seeded through database data.
 
 6) CI dependency graph:
 - `ci_dependency`
@@ -118,9 +125,9 @@ Data integrity highlights
 -------------------------
 - Enum-like values are enforced via `CHECK` constraints or reference tables where the application needs data-driven runtime options.
 - Snapshot-aware foreign keys preserve cross-table referential integrity.
-- SPI definitions are database-driven. `spi_definition` stores display order, default severity, enabled/report flags, catalogue `rule_key`, and report detail key; related SPI tables store applicability, typed rule parameters, tasking contacts, tasking action templates, and tasking condition templates.
-- SPI rule catalogues are database-driven. `spi_rule_definition` maps DB rule keys to application handler keys, `spi_rule_parameter_definition` stores parameter schemas/defaults, `spi_rule_outcome_template` stores reason/evidence templates, `spi_report_detail_definition` maps report detail keys to application report handlers, and `spi_finding_classification_rule` controls generated finding severity/priority using approved condition keys.
-- SPI calculations remain application-dispatched by supported handler keys; arbitrary executable formulas are not stored in the database.
+- SPI definitions are database-driven. `spi_definition` stores display order, default severity, enabled/report flags, catalogue `rule_key`, and report detail key; related SPI tables store applicability, typed rule parameters, tasking contacts, tasking action templates, tasking condition templates, feature bindings, and report configuration.
+- SPI rule catalogues are database-driven. `spi_rule_definition` stores supported rule keys, `spi_rule_parameter_definition` stores parameter schemas/defaults, `spi_rule_outcome_template` stores reason/evidence templates, `spi_report_detail_definition` stores report detail keys, and `spi_finding_classification_rule` controls generated finding severity/priority using approved condition keys.
+- SPI calculations are SQL-driven. `spi_calculation_source`, `spi_calculation_definition`, and `spi_calculation_evidence_expression` store constrained read-only SQL expressions evaluated by `usp_evaluate_spi_snapshot` against `vw_spi_asset_evaluation_context`; arbitrary batches, JavaScript, and unrestricted formula execution are not supported.
 - `ci_dependency` enforces:
   - valid snapshot + asset references
   - no self-referential edge (`source_asset_id <> target_asset_id`)

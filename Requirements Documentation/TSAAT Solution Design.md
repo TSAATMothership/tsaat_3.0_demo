@@ -982,7 +982,7 @@ Important hidden behaviour:
 
 - KPI-7 and KPI-8 are calculated from deterministic hash functions, not from persisted ATO or DIIS status data.
 - KPI definitions, display order, success measures, calculation keys, and report availability are loaded from `tsaat.kpi_definition`.
-- SPI definitions, display order, applicability, supported rule keys, rule handler catalogues, rule parameter schemas/defaults, outcome reason templates, generated finding classification rules, report detail handler catalogues, tasking metadata, default severity, and recommended actions are loaded from database SPI metadata tables.
+- SPI definitions, display order, applicability, rule catalogues, SQL calculation expressions, evidence expressions, feature bindings, rule parameter schemas/defaults, outcome reason templates, generated finding classification rules, report detail catalogues, tasking metadata, default severity, and recommended actions are loaded from database SPI metadata tables.
 - The seed KPI catalogue disables tasking and trend reports for `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - the KPI definitions for DPE and DSE use `securityDomain = Protected` and `securityDomain = Secret`, which differs from the Cyber COP dashboard labels that are implemented using environment type.
 - legacy query compatibility is normalized at route load:
@@ -990,7 +990,7 @@ Important hidden behaviour:
   - `measuresTab=settings` maps to `spi-settings`
   - unknown or empty values map to `summary`
 - SPI severity settings are built from `tsaat.finding_severity_definition`; `Data Gap` remains non-selectable and legacy saved `Data Gap` matrix entries are normalized to `Moderate` during load/save normalization.
-- SPI priority settings map non-compliant SPI findings to P1-P7; Unknown/Data Gap findings remain P90.
+- SPI priority settings are built from `tsaat.finding_priority_definition`; current selectable options are P1-P7 and Unknown/Data Gap findings remain the non-selectable P90.
 
 ## 3. Feature Breakdown
 ### Feature: Shared Measures Filter Scope
@@ -1014,13 +1014,13 @@ Important hidden behaviour:
 ### Feature: Measures-SPI Tab
 - **What it does:** shows the SPI report index, including descriptions, success measures, scores, asset-type impact summaries, and report links.
 - **User perspective:** the user can inspect SPI score details and launch the all-SPI report, a current single-SPI report, or the 12-month single-SPI trend report.
-- **System behaviour:** SPI rows come from active database SPI definitions plus the shared SPI report model; report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
+- **System behaviour:** SPI rows come from active database SPI definitions and SQL-produced SPI evaluation rows plus the shared SPI report model; report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
 - **Outcome:** SPI performance details and per-SPI PDF report actions are shown in a dedicated tab.
 
 ### Feature: SPI-Settings Tab
 - **What it does:** lets users maintain nested SPI severity and priority matrix settings.
 - **User perspective:** the user can tune finding severity and non-compliant finding priority without changing code.
-- **System behaviour:** the settings panel loads active SPI definitions, severity definitions, and the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; severity matrix keys cover every active SPI and every canonical asset type, while priority matrix keys cover every active SPI mapped to P1-P7.
+- **System behaviour:** the settings panel loads active SPI definitions, severity definitions, priority definitions, and the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; severity matrix keys cover every active SPI and every canonical asset type, while priority matrix keys cover every active SPI mapped to selectable priority definitions.
 - **Outcome:** future analytics and findings displays use the updated severity and priority mappings.
 
 ## 4. Feature Detail Table
@@ -1030,11 +1030,11 @@ Important hidden behaviour:
 | Measures | Shared scope | Common measure filter scope plus severity selector | Apply filters | Re-runs analytics and KPI/SPI rows | shared filters plus `severity` | Filtered charts and matrix | one scope for all visible scores | supported values come from filter options or severity list | `FilterBar`, `getCoreAppData()` | Consistent measures scope | |
 | Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives KPI and SPI compliance points from database definitions plus runtime rows | KPI definitions, SPI definitions, analytics, systems, networks | Charts | charts show recalculated runtime scores for configured KPI and SPI rows | zero-safe percentages | chart components, `buildKpiRows()` | Compact summary view | removed definitions disappear from the chart |
 | Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows from database definitions and carries filter scope plus `dataDate` into report URLs | KPI definitions, analytics, filters, dataset snapshots | KPI tiles and PDF report links | report buttons follow `kpi_definition.report_available`; current seed enables KPI-5 through KPI-10 and leaves KPI-1 through KPI-4 unavailable | unsupported calculation keys are not rendered by the application normalization layer | `KpiSpiMatrix`, `/api/tasking-report` | Detailed KPI view with current and trend reports | |
-| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows and carries filter scope plus `dataDate` into report URLs | analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect SPI applicability rules; all-SPI report summarizes every SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | none beyond scope parsing | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
-| Measures | SPI settings | Maintain nested severity and priority mappings | Edit rows, switch nested settings tab, save, reset | Validates and persists latest settings version with both matrices | measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
+| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows from active database definitions and SQL evaluation output, then carries filter scope plus `dataDate` into report URLs | SPI definitions, SQL SPI evaluations, analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect database enabled/report flags and applicability rules; all-SPI report summarizes every active reportable SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | invalid or incomplete calculation metadata fails validation/load normalization | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
+| Measures | SPI settings | Maintain nested severity and priority mappings | Edit rows, switch nested settings tab, save, reset | Validates and persists latest settings version with both matrices | active SPI definitions, severity definitions, priority definitions, measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
 
 ## 5. Database Mapping
-The page reads snapshot analytics, KPI definitions, SPI definitions, severity definitions, and measures settings tables. KPI and SPI definitions are stored in the database; KPI and SPI scores are calculated at runtime from asset evaluations and findings rather than stored as facts.
+The page reads snapshot analytics, KPI definitions, SPI definitions, severity/priority definitions, SQL SPI evaluation rows, and measures settings tables. KPI definitions are stored in the database while KPI scores remain application runtime aggregations. SPI definitions and SPI calculation expressions are stored in the database; SQL Server evaluates SPI status/outcome/evidence on demand for the selected snapshot.
 
 Primary data dependencies:
 
@@ -1048,10 +1048,15 @@ Primary data dependencies:
 - `tsaat.measures_priority_matrix`
 - `tsaat.kpi_definition`
 - `tsaat.finding_severity_definition`
+- `tsaat.finding_priority_definition`
 - `tsaat.spi_rule_definition`
 - `tsaat.spi_rule_parameter_definition`
 - `tsaat.spi_rule_outcome_template`
 - `tsaat.spi_report_detail_definition`
+- `tsaat.spi_calculation_source`
+- `tsaat.spi_calculation_definition`
+- `tsaat.spi_calculation_evidence_expression`
+- `tsaat.spi_feature_binding`
 - `tsaat.spi_finding_classification_rule`
 - `tsaat.spi_definition`
 - `tsaat.spi_applicable_asset_type`
@@ -1063,14 +1068,14 @@ Primary data dependencies:
 ## 6. Database Mapping Table
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Measures | Runtime evaluations | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability` | asset identity and evidence fields | mixed | drives SPI compliance and several KPI calculations | Read | evaluation rows are built by asset within one snapshot | applicable SPI rules depend on asset type | runtime SPI evaluation | `storage-device`, `printer-device`, and `other` evaluate SPI 10 only |
+| Measures | Runtime evaluations | `tsaat` | `asset`, `asset_operating_system`, `asset_network_os`, `asset_patch_state`, `asset_installed_software`, `asset_vulnerability`, `spi_calculation_source`, `spi_calculation_definition`, `spi_calculation_evidence_expression` | asset identity, evidence fields, status/outcome SQL, evidence SQL | mixed | drives SPI compliance and several KPI calculations | Read | `usp_evaluate_spi_snapshot` evaluates active SPI rows against `vw_spi_asset_evaluation_context` within one snapshot | applicable SPI rules depend on DB asset-type applicability | SQL Server SPI evaluation | `storage-device`, `printer-device`, and `other` evaluate rows that are DB-applicable |
 | Measures | Findings | `tsaat` | `finding` | scope columns, `priority_rank`, `severity`, timestamps | mixed | KPI counts tied to urgent work and exposure | Read | finding scope joins back to asset and system | severity and non-compliant priority may be remapped at runtime | runtime aggregation only | |
 | Measures | System and network context | `tsaat` | `ict_system`, `managed_network` | IDs, `criticality`, `security_domain`, `diis_defined`, system/network `modelling_status`, `discovery_status` | mixed | KPI denominators and scope grouping | Read | assets and findings roll up through these relationships | some KPIs use system and network counts directly | direct grouping and filtering | KPI-10 remains discovery-status based |
 | Measures | KPI metadata | `tsaat` | `kpi_definition` | KPI IDs, display order, names, descriptions, success measures, calculation keys, report availability | mixed | KPI catalogue rows, charts, report availability, performance report columns | Read | calculation keys select supported runtime scoring logic | database rows are source of truth for KPI visibility and order | normalized and sorted by display order | added KPI rows require a supported calculation key |
-| Measures | SPI metadata | `tsaat` | `spi_rule_definition`, `spi_rule_parameter_definition`, `spi_rule_outcome_template`, `spi_report_detail_definition`, `spi_finding_classification_rule`, `spi_definition`, `spi_applicable_asset_type`, `spi_rule_parameter`, `spi_tasking_team`, `spi_tasking_action_template`, `spi_tasking_condition_template` | rule keys, handler keys, parameter schemas/defaults, outcome templates, classification rules, SPI IDs, descriptions, display order, enabled flags, parameters, report flags, tasking templates, applicable asset types | mixed | explanatory context, applicability rules, report availability, outcome text, generated finding classification, and tasking report text | Read | joins by rule key, report detail key, SPI ID, and asset type | metadata shapes evaluation applicability and rendering | DB-selected handler key dispatcher plus controlled condition-key evaluator | unsupported handler keys are hidden by normalization; new supported SPI IDs can render dynamically |
+| Measures | SPI metadata | `tsaat` | `spi_rule_definition`, `spi_rule_parameter_definition`, `spi_rule_outcome_template`, `spi_report_detail_definition`, `spi_calculation_source`, `spi_calculation_definition`, `spi_calculation_evidence_expression`, `spi_feature_binding`, `spi_finding_classification_rule`, `spi_definition`, `spi_applicable_asset_type`, `spi_rule_parameter`, `spi_tasking_team`, `spi_tasking_action_template`, `spi_tasking_condition_template` | rule keys, parameter schemas/defaults, outcome templates, calculation SQL, evidence SQL, feature keys, classification rules, SPI IDs, descriptions, display order, enabled flags, parameters, report flags, tasking templates, applicable asset types | mixed | explanatory context, applicability rules, report availability, outcome text, generated finding classification, tasking report text, SQL evaluation | Read | joins by rule key, report detail key, SPI ID, source key, feature key, and asset type | metadata shapes SQL evaluation applicability and rendering | DB-selected constrained SQL engine plus controlled condition-key evaluator | invalid calculation metadata fails validation; new configured SPI IDs can render dynamically |
 | Measures | SPI trend report snapshots | `tsaat` | `dataset_snapshot` | `snapshot_date` | date | selects historical snapshots for SPI trend PDFs | Read | trend report loads snapshots within the 12 calendar months ending at selected `dataDate` | latest selected snapshot when no date is supplied | date-window filtering | no monthly points are fabricated when snapshots are unavailable |
-| Measures | Severity settings | `tsaat` | `measures_settings_version`, `measures_severity_matrix` | versioning, SPI ID, asset type, severity | mixed | finding severity remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults apply if tables are empty | runtime severity rewrite | matrix keys include all SPI IDs x all six canonical asset types |
-| Measures | Priority settings | `tsaat` | `spi_definition`, `measures_settings_version`, `measures_priority_matrix` | default priority, versioning, SPI ID, priority rank | mixed | non-compliant finding priority remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults come from active `spi_definition.priority_order` | runtime priority rewrite | matrix keys include active SPI IDs with P1-P7 values |
+| Measures | Severity settings | `tsaat` | `finding_severity_definition`, `measures_settings_version`, `measures_severity_matrix` | severity taxonomy, selectable flag, versioning, SPI ID, asset type, severity | mixed | finding severity remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults come from active SPI `default_severity` and severity definitions | runtime severity rewrite | matrix keys include active SPI IDs x all six canonical asset types |
+| Measures | Priority settings | `tsaat` | `finding_priority_definition`, `spi_definition`, `measures_settings_version`, `measures_priority_matrix` | priority taxonomy, selectable flag, default priority, versioning, SPI ID, priority rank | mixed | non-compliant finding priority remap and settings maintenance | Read and Update | latest settings version plus detail rows | defaults come from active `spi_definition.priority_order` and selectable priority definitions | runtime priority rewrite | matrix keys include active SPI IDs with selectable priority values; P90 is non-selectable |
 
 ## 7. Calculations and Derived Logic
 | Calculation Name | Business Purpose | Formula / Logic | Source Fields / Tables | Stored or Runtime | Processing Layer | Edge Cases / Notes |
@@ -1086,14 +1091,15 @@ Primary data dependencies:
 | KPI-8 ICT Systems are registered within DIIS | DIIS registration coverage | stable hash of `systemId:diis`; compliant when hash mod 4 is not 1 | system IDs plus `kpi_definition.calculation_key = diis-registration-coverage` | Runtime score, stored definition | backend | synthetic score logic, definition is DB-backed |
 | KPI-9 DIIS Systems Modelled Coverage | DIIS modelling coverage | `DIIS-defined systems with modellingStatus = true / DIIS-defined systems` | `ict_system.diis_defined`, `ict_system.modelling_status`, `kpi_definition.calculation_key = diis-modelled-coverage` | Runtime score, stored definition | backend | zero-safe |
 | KPI-10 Networks Discovery Enablement | network discovery readiness | `networks with discoveryStatus = Discovery Enabled / total networks` | `managed_network.discovery_status`, `kpi_definition.calculation_key = network-discovery-enablement` | Runtime score, stored definition | backend | zero-safe |
-| SPI definition catalogue | SPI visibility, wording, order, applicability, outcome text, generated finding classification, tasking text, and report availability | database rows define SPI ID, order, enabled flag, rule key, handler key, rule parameter schema/defaults, rule parameters, outcome templates, report flags, detail handler key, default severity, applicability, classification rules, and tasking templates | SPI metadata tables | Stored definition, runtime score | database/backend | unsupported handler keys and disabled rows are not rendered |
-| SPI compliance rows | per-SPI scorecards | compliant count divided by total applicable count for each active SPI | runtime evaluations plus active SPI definitions | Runtime score, stored definition | backend | zero-safe; applicability follows database SPI metadata per asset type |
+| SPI definition catalogue | SPI visibility, wording, order, applicability, SQL calculation, outcome text, generated finding classification, tasking text, feature bindings, and report availability | database rows define SPI ID, order, enabled flag, rule key, rule parameter schema/defaults, rule parameters, status/outcome/evidence SQL, outcome templates, report flags, detail key, default severity, applicability, classification rules, feature bindings, and tasking templates | SPI metadata and calculation tables | Stored definition and SQL calculation config | database/backend | invalid or disabled rows are not rendered |
+| SPI SQL evaluation | per-asset SPI status, outcome key, and evidence | active DB SPI definitions are evaluated by `tsaat.usp_evaluate_spi_snapshot` using constrained SQL expressions over `tsaat.vw_spi_asset_evaluation_context` plus parameter helper functions | SPI metadata/calculation tables and asset posture tables | Runtime SQL result | SQL Server | no unrestricted formula engine; expressions are read-only fragments constrained by schema/load validation |
+| SPI compliance rows | per-SPI scorecards | compliant count divided by total applicable count for each active SPI | SQL-produced SPI evaluations plus active SPI definitions | Runtime score, stored definition | backend | zero-safe; applicability follows database SPI metadata per asset type |
 
 ## 8. Non-Database Calculations
 - KPI-7 and KPI-8 are entirely runtime calculations using deterministic hash functions.
 - Tasking, all-SPI, and trend report URLs are assembled from the current filter query string and selected `dataDate`; they are not stored.
-- SPI score execution remains runtime code selected by DB-backed supported handler keys; the database does not store executable SPI formulas.
-- SPI reason/evidence wording and generated finding severity/priority classification are DB-backed templates/rules evaluated by controlled application code, not formulas.
+- SPI score execution is performed by SQL Server through `usp_evaluate_spi_snapshot`; the application consumes returned status, outcome key, evidence, and DB-rendered metadata.
+- SPI reason wording and generated finding severity/priority classification are DB-backed templates/rules evaluated by controlled application code after SQL Server returns the calculation result.
 - Summary chart points and matrix row formatting are runtime-only display artefacts.
 - SPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
 - KPI trend PDF points are runtime-only aggregations from available historical snapshots in the selected 12-month window.
@@ -1107,13 +1113,13 @@ Primary data dependencies:
 - KPI tasking and trend report availability follows `kpi_definition.report_available`; current seed data disables `KPI-1`, `KPI-2`, `KPI-3`, and `KPI-4`.
 - New KPI definitions require an application-supported `calculation_key`; the database does not store executable formulas.
 - SPI definitions are database-driven through `tsaat.spi_definition` and related SPI metadata tables; removed or disabled rows disappear from SPI charts, settings, findings generation, tables, and reports.
-- New SPI definitions require a DB catalogue row with an application-supported handler key; the database does not store executable formulas.
+- New SPI definitions require DB catalogue, applicability, parameter, outcome template, and constrained SQL calculation rows. The SQL engine does not support unrestricted batches, JavaScript, or arbitrary formula execution.
 - The saved severity matrix affects downstream findings analytics and page displays.
 - The saved priority matrix affects downstream non-compliant finding analytics and page displays.
 - SPI settings dropdown options exclude `Data Gap`.
 - persisted SPI settings values of `Data Gap` are normalized to `Moderate` during settings normalization.
 - Severity matrix settings are stored for all six canonical asset types (`server`, `workstation`, `network-device`, `storage-device`, `printer-device`, `other`) across the active database SPI set.
-- Priority matrix settings are stored for the active database SPI set as P1-P7 values; Unknown/Data Gap findings remain P90.
+- Priority matrix settings are stored for the active database SPI set using selectable `finding_priority_definition` rows; Unknown/Data Gap findings remain P90.
 - New asset types (`storage-device`, `printer-device`, `other`) are currently evaluated against SPI 10 only.
 - KPI-7 and KPI-8 currently represent synthetic proxy logic rather than persisted accreditation or DIIS data.
 
@@ -1550,8 +1556,8 @@ Primary implementation anchors:
 
 - `lib/asset-taxonomy.ts`
 - `lib/types.ts`
-- `lib/spi-rules.ts`
 - `lib/spi-definitions.ts`
+- `lib/data-loader.ts`
 - `lib/discovery-tools-settings.ts`
 - `lib/measures-settings.ts`
 - `components/filter-bar.tsx`
@@ -1579,7 +1585,7 @@ Key cross-cutting rules:
 
 ### Feature: SPI Applicability by Asset Type
 - **What it does:** routes each asset type to applicable SPI evaluations.
-- **System behaviour:** SPI evaluation flow reads active database SPI definitions, checks database-backed applicability, resolves the DB-backed rule catalogue row, and dispatches by supported handler key. The current seed enforces:
+- **System behaviour:** SPI evaluation flow reads active database SPI definitions, checks database-backed applicability, and SQL Server evaluates active calculation rows through `tsaat.usp_evaluate_spi_snapshot`. The current seed enforces:
   - `server`: SPI 1, 2, 3, 4, 5, 10
   - `workstation`: SPI 1, 2, 6, 10
   - `network-device`: SPI 7, 8, 9, 10
@@ -1605,7 +1611,7 @@ Key cross-cutting rules:
 | Area | Feature | Description | Inputs | Outputs | Business Rules | Dependencies |
 | --- | --- | --- | --- | --- | --- | --- |
 | Shared taxonomy | Canonical IDs and labels | Defines six canonical asset types and display labels | `lib/asset-taxonomy.ts` | Filter options, labels, ordering | IDs are lowercase hyphenated and fixed | `lib/types.ts`, UI filter/summaries |
-| SPI runtime | Applicability routing | Chooses SPI set by asset type | active SPI definitions + asset type + asset evidence | Per-asset SPI evaluations | current seed keeps `storage-device`, `printer-device`, `other` on SPI 10 only | `lib/spi-definitions.ts`, `lib/spi-rules.ts` |
+| SPI runtime | Applicability routing | Chooses SPI set by asset type and evaluates configured SQL calculations | active SPI definitions + SQL calculation catalogue + asset type + asset evidence | Per-asset SPI evaluations with DB-backed outcome text | current seed keeps `storage-device`, `printer-device`, `other` on SPI 10 only | `lib/spi-definitions.ts`, `lib/data-loader.ts`, `tsaat.usp_evaluate_spi_snapshot` |
 | Discovery settings | Asset-type scope | Stores tool scope per asset type | discovery tools settings payload | normalized scope record per tool | default scope is `required` for all six keys | `lib/discovery-tools-settings.ts` |
 | Measures settings | Severity matrix keys | Stores severity by SPI and asset type | measures settings payload | normalized matrix | matrix includes all six asset types for each SPI | `lib/measures-settings.ts` |
 | SQL schema | `asset_type` domain | Expands allowed asset types in constraints and related tables | schema SQL + migration SQL | validated inserts/updates | fresh schema and upgraded schema must match | `database-schema.sql`, migration `004_...sql` |
@@ -1615,6 +1621,16 @@ Key cross-cutting rules:
 Primary persistence surfaces for this contract:
 
 - `tsaat.asset.asset_type`
+- `tsaat.spi_definition`
+- `tsaat.spi_rule_definition`
+- `tsaat.spi_rule_parameter_definition`
+- `tsaat.spi_rule_outcome_template`
+- `tsaat.spi_report_detail_definition`
+- `tsaat.spi_calculation_source`
+- `tsaat.spi_calculation_definition`
+- `tsaat.spi_calculation_evidence_expression`
+- `tsaat.spi_feature_binding`
+- `tsaat.spi_finding_classification_rule`
 - `tsaat.spi_applicable_asset_type.asset_type`
 - `tsaat.discovery_tool_asset_scope.asset_type`
 - `tsaat.measures_severity_matrix.asset_type`
@@ -1626,7 +1642,8 @@ Primary persistence surfaces for this contract:
 | Contract Element | Store | Keys / Columns | Rule |
 | --- | --- | --- | --- |
 | Asset identity type | `tsaat.asset` | `asset_type` | must be one of six canonical IDs |
-| SPI applicability metadata | `tsaat.spi_applicable_asset_type` | `spi_id`, `asset_type` | new types are listed for SPI 10 only |
+| SPI applicability metadata | `tsaat.spi_definition`, `tsaat.spi_rule_definition`, `tsaat.spi_applicable_asset_type` | `spi_id`, `enabled`, `rule_key`, `asset_type` | active rows drive SQL evaluation routing; current seed lists new types for SPI 10 only |
+| SPI rule and calculation catalogues | `tsaat.spi_rule_definition`, `tsaat.spi_rule_parameter_definition`, `tsaat.spi_rule_outcome_template`, `tsaat.spi_report_detail_definition`, `tsaat.spi_calculation_source`, `tsaat.spi_calculation_definition`, `tsaat.spi_calculation_evidence_expression`, `tsaat.spi_feature_binding`, `tsaat.spi_finding_classification_rule` | rule keys, parameter defaults, outcome templates, report detail keys, calculation SQL, evidence SQL, feature keys, classification condition keys | database controls supported metadata, SQL calculation expressions, feature bindings, and templates; SQL Server evaluates constrained read-only expressions only |
 | Discovery tool scope | `tsaat.discovery_tool_asset_scope` | `tool_id`, `asset_type`, `scope_setting` | each tool has all six asset-type keys |
 | Measures severity mapping | `tsaat.measures_severity_matrix` | `spi_id`, `asset_type`, `severity` | matrix persists six asset types for each SPI |
 | Runtime typing | TypeScript domain | `AssetType` union | shared across analytics, filters, and API normalization |
@@ -1635,7 +1652,7 @@ Primary persistence surfaces for this contract:
 | Calculation / Logic | Formula / Behavior | Layer |
 | --- | --- | --- |
 | Type label rendering | canonical ID -> display label (`assetTypeLabel`) | runtime UI |
-| SPI evaluation routing | branch by `asset.type`; append SPI 10 base evaluation | runtime backend |
+| SPI evaluation routing | SQL Server evaluates active DB SPI definitions against applicable asset types through `usp_evaluate_spi_snapshot`; the application consumes returned status/outcome/evidence rows | SQL Server + runtime backend |
 | Measures key normalization | `severityMatrixKey(spiId, assetType)` for all SPI IDs and types | runtime backend + settings API |
 | Discovery scope normalization | missing `assetTypeScope` keys backfilled as `required` | runtime backend + settings API |
 | Dynamic type summaries | iterate canonical list instead of fixed 3-type arrays | runtime UI |

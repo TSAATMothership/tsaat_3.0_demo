@@ -2,7 +2,8 @@
   TSAAT SQL Server schema package (Microsoft SQL / T-SQL).
   Primary source model:
   - lib/types.ts
-  - lib/spi-rules.ts
+  - lib/spi-definitions.ts
+  - lib/data-loader.ts
   - lib/findings.ts
   - lib/discovery-tools-settings.ts
   - lib/measures-settings.ts
@@ -29,6 +30,26 @@ GO
 
 IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = N'tsaat')
 BEGIN
+  DECLARE @dropRoutineSql NVARCHAR(MAX) = N'';
+  SELECT
+    @dropRoutineSql = @dropRoutineSql +
+    N'DROP ' +
+    CASE
+      WHEN o.[type] = N'V' THEN N'VIEW '
+      WHEN o.[type] = N'P' THEN N'PROCEDURE '
+      ELSE N'FUNCTION '
+    END +
+    QUOTENAME(s.name) + N'.' + QUOTENAME(o.name) + N';' + CHAR(13) + CHAR(10)
+  FROM sys.objects o
+  INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+  WHERE s.name = N'tsaat'
+    AND o.[type] IN (N'V', N'P', N'FN', N'IF', N'TF');
+
+  IF LEN(@dropRoutineSql) > 0
+  BEGIN
+    EXEC sp_executesql @dropRoutineSql;
+  END
+
   DECLARE @dropFkSql NVARCHAR(MAX) = N'';
   SELECT
     @dropFkSql = @dropFkSql +
@@ -111,6 +132,143 @@ CREATE TABLE [tsaat].[finding_severity_definition] (
 );
 GO
 
+CREATE TABLE [tsaat].[finding_priority_definition] (
+  [priority_rank] INT NOT NULL,
+  [label] NVARCHAR(40) NOT NULL,
+  [display_order] INT NOT NULL,
+  [selectable_in_settings] BIT NOT NULL CONSTRAINT [DF_finding_priority_definition_selectable] DEFAULT (1),
+  [description] NVARCHAR(1000) NOT NULL,
+  CONSTRAINT [PK_finding_priority_definition] PRIMARY KEY CLUSTERED ([priority_rank]),
+  CONSTRAINT [UQ_finding_priority_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_finding_priority_definition_rank] CHECK ([priority_rank] > 0),
+  CONSTRAINT [CK_finding_priority_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[finding_source_policy] (
+  [policy_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [use_persisted_findings] BIT NOT NULL CONSTRAINT [DF_finding_source_policy_use_persisted] DEFAULT (1),
+  [generate_when_empty] BIT NOT NULL CONSTRAINT [DF_finding_source_policy_generate_empty] DEFAULT (1),
+  [enabled] BIT NOT NULL CONSTRAINT [DF_finding_source_policy_enabled] DEFAULT (1),
+  CONSTRAINT [PK_finding_source_policy] PRIMARY KEY CLUSTERED ([policy_key]),
+  CONSTRAINT [UQ_finding_source_policy_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_finding_source_policy_key] CHECK (LEN(LTRIM(RTRIM([policy_key]))) > 0),
+  CONSTRAINT [CK_finding_source_policy_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[finding_generation_policy] (
+  [policy_key] NVARCHAR(100) NOT NULL,
+  [history_start_date] DATE NOT NULL,
+  [history_window_years] INT NOT NULL,
+  [baseline_backlog_count] INT NOT NULL,
+  [min_open_count] INT NOT NULL,
+  [max_open_count] INT NOT NULL,
+  [add_probability_percent] INT NOT NULL,
+  [add_rate_min_percent] INT NOT NULL,
+  [add_rate_max_percent] INT NOT NULL,
+  [close_rate_min_percent] INT NOT NULL,
+  [close_rate_max_percent] INT NOT NULL,
+  [close_backfill_min_count] INT NOT NULL,
+  [close_backfill_max_count] INT NOT NULL,
+  [timezone_offset_minutes] INT NOT NULL,
+  CONSTRAINT [PK_finding_generation_policy] PRIMARY KEY CLUSTERED ([policy_key]),
+  CONSTRAINT [FK_finding_generation_policy_source]
+    FOREIGN KEY ([policy_key]) REFERENCES [tsaat].[finding_source_policy]([policy_key]),
+  CONSTRAINT [CK_finding_generation_policy_window] CHECK ([history_window_years] > 0),
+  CONSTRAINT [CK_finding_generation_policy_counts] CHECK (
+    [baseline_backlog_count] >= 0
+    AND [min_open_count] >= 0
+    AND [max_open_count] >= [min_open_count]
+    AND [close_backfill_min_count] >= 0
+    AND [close_backfill_max_count] >= [close_backfill_min_count]
+  ),
+  CONSTRAINT [CK_finding_generation_policy_rates] CHECK (
+    [add_probability_percent] BETWEEN 0 AND 100
+    AND [add_rate_min_percent] BETWEEN 0 AND 100
+    AND [add_rate_max_percent] BETWEEN [add_rate_min_percent] AND 100
+    AND [close_rate_min_percent] BETWEEN 0 AND 100
+    AND [close_rate_max_percent] BETWEEN [close_rate_min_percent] AND 100
+  )
+);
+GO
+
+CREATE TABLE [tsaat].[finding_workflow_status_definition] (
+  [status_key] NVARCHAR(10) NOT NULL,
+  [label] NVARCHAR(80) NOT NULL,
+  [display_order] INT NOT NULL,
+  [tone_key] NVARCHAR(40) NOT NULL,
+  [terminal_status] BIT NOT NULL CONSTRAINT [DF_finding_workflow_status_terminal] DEFAULT (0),
+  CONSTRAINT [PK_finding_workflow_status_definition] PRIMARY KEY CLUSTERED ([status_key]),
+  CONSTRAINT [UQ_finding_workflow_status_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_finding_workflow_status_definition_key] CHECK ([status_key] IN (N'open', N'closed')),
+  CONSTRAINT [CK_finding_workflow_status_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[finding_bucket_definition] (
+  [bucket_key] NVARCHAR(100) NOT NULL,
+  [bucket_type] NVARCHAR(40) NOT NULL,
+  [label] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [tone_key] NVARCHAR(40) NOT NULL,
+  [condition_key] NVARCHAR(40) NOT NULL,
+  [severity_key] NVARCHAR(255) NULL,
+  [priority_min] INT NULL,
+  [priority_max] INT NULL,
+  [workflow_status] NVARCHAR(10) NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_finding_bucket_definition_enabled] DEFAULT (1),
+  [description] NVARCHAR(1000) NOT NULL,
+  CONSTRAINT [PK_finding_bucket_definition] PRIMARY KEY CLUSTERED ([bucket_key]),
+  CONSTRAINT [UQ_finding_bucket_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [FK_finding_bucket_definition_workflow]
+    FOREIGN KEY ([workflow_status]) REFERENCES [tsaat].[finding_workflow_status_definition]([status_key]),
+  CONSTRAINT [CK_finding_bucket_definition_key] CHECK (LEN(LTRIM(RTRIM([bucket_key]))) > 0),
+  CONSTRAINT [CK_finding_bucket_definition_type]
+    CHECK ([bucket_type] IN (N'severity', N'priority', N'workflow', N'custom')),
+  CONSTRAINT [CK_finding_bucket_definition_condition]
+    CHECK ([condition_key] IN (N'always', N'severity_equals', N'severity_not_in', N'priority_equals', N'priority_between', N'workflow_equals')),
+  CONSTRAINT [CK_finding_bucket_definition_priority]
+    CHECK (
+      ([priority_min] IS NULL AND [priority_max] IS NULL)
+      OR ([priority_min] IS NOT NULL AND [priority_max] IS NOT NULL AND [priority_min] > 0 AND [priority_max] >= [priority_min])
+    ),
+  CONSTRAINT [CK_finding_bucket_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[finding_evidence_field_definition] (
+  [field_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [label] NVARCHAR(120) NOT NULL,
+  [purpose_key] NVARCHAR(100) NOT NULL,
+  [candidate_keys_json] NVARCHAR(MAX) NOT NULL CONSTRAINT [DF_finding_evidence_field_candidates] DEFAULT (N'[]'),
+  [fallback_value] NVARCHAR(255) NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_finding_evidence_field_enabled] DEFAULT (1),
+  CONSTRAINT [PK_finding_evidence_field_definition] PRIMARY KEY CLUSTERED ([field_key]),
+  CONSTRAINT [UQ_finding_evidence_field_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_finding_evidence_field_definition_key] CHECK (LEN(LTRIM(RTRIM([field_key]))) > 0),
+  CONSTRAINT [CK_finding_evidence_field_definition_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_finding_evidence_field_definition_candidates] CHECK (ISJSON([candidate_keys_json]) = 1)
+);
+GO
+
+CREATE TABLE [tsaat].[finding_register_column_definition] (
+  [column_key] NVARCHAR(100) NOT NULL,
+  [label] NVARCHAR(120) NOT NULL,
+  [display_order] INT NOT NULL,
+  [value_key] NVARCHAR(100) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_finding_register_column_enabled] DEFAULT (1),
+  CONSTRAINT [PK_finding_register_column_definition] PRIMARY KEY CLUSTERED ([column_key]),
+  CONSTRAINT [UQ_finding_register_column_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_finding_register_column_definition_key] CHECK (LEN(LTRIM(RTRIM([column_key]))) > 0),
+  CONSTRAINT [CK_finding_register_column_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
 CREATE TABLE [tsaat].[spi_rule_definition] (
   [rule_key] NVARCHAR(100) NOT NULL,
   [handler_key] NVARCHAR(100) NOT NULL,
@@ -177,6 +335,74 @@ CREATE TABLE [tsaat].[spi_report_detail_definition] (
 );
 GO
 
+CREATE TABLE [tsaat].[spi_calculation_source] (
+  [source_key] NVARCHAR(100) NOT NULL,
+  [source_object_name] NVARCHAR(255) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_calculation_source_enabled] DEFAULT (1),
+  CONSTRAINT [PK_spi_calculation_source] PRIMARY KEY CLUSTERED ([source_key]),
+  CONSTRAINT [UQ_spi_calculation_source_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_spi_calculation_source_key] CHECK (LEN(LTRIM(RTRIM([source_key]))) > 0),
+  CONSTRAINT [CK_spi_calculation_source_object]
+    CHECK ([source_object_name] IN (N'[tsaat].[vw_spi_asset_evaluation_context]')),
+  CONSTRAINT [CK_spi_calculation_source_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_calculation_definition] (
+  [rule_key] NVARCHAR(100) NOT NULL,
+  [source_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [status_expression_sql] NVARCHAR(MAX) NOT NULL,
+  [outcome_expression_sql] NVARCHAR(MAX) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_calculation_definition_enabled] DEFAULT (1),
+  CONSTRAINT [PK_spi_calculation_definition] PRIMARY KEY CLUSTERED ([rule_key]),
+  CONSTRAINT [UQ_spi_calculation_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [FK_spi_calculation_definition_rule]
+    FOREIGN KEY ([rule_key]) REFERENCES [tsaat].[spi_rule_definition]([rule_key]),
+  CONSTRAINT [FK_spi_calculation_definition_source]
+    FOREIGN KEY ([source_key]) REFERENCES [tsaat].[spi_calculation_source]([source_key]),
+  CONSTRAINT [CK_spi_calculation_definition_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_calculation_definition_status_sql] CHECK (
+    LEN(LTRIM(RTRIM([status_expression_sql]))) > 0
+    AND [status_expression_sql] NOT LIKE N'%;%'
+    AND [status_expression_sql] NOT LIKE N'%--%'
+    AND [status_expression_sql] NOT LIKE N'%/*%'
+  ),
+  CONSTRAINT [CK_spi_calculation_definition_outcome_sql] CHECK (
+    LEN(LTRIM(RTRIM([outcome_expression_sql]))) > 0
+    AND [outcome_expression_sql] NOT LIKE N'%;%'
+    AND [outcome_expression_sql] NOT LIKE N'%--%'
+    AND [outcome_expression_sql] NOT LIKE N'%/*%'
+  )
+);
+GO
+
+CREATE TABLE [tsaat].[spi_calculation_evidence_expression] (
+  [rule_key] NVARCHAR(100) NOT NULL,
+  [evidence_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [value_type] NVARCHAR(20) NOT NULL,
+  [value_expression_sql] NVARCHAR(MAX) NOT NULL,
+  [omit_when_null] BIT NOT NULL CONSTRAINT [DF_spi_calculation_evidence_expression_omit] DEFAULT (0),
+  CONSTRAINT [PK_spi_calculation_evidence_expression] PRIMARY KEY CLUSTERED ([rule_key], [evidence_key]),
+  CONSTRAINT [FK_spi_calculation_evidence_expression_definition]
+    FOREIGN KEY ([rule_key]) REFERENCES [tsaat].[spi_calculation_definition]([rule_key]),
+  CONSTRAINT [CK_spi_calculation_evidence_expression_key]
+    CHECK (LEN(LTRIM(RTRIM([evidence_key]))) > 0 AND [evidence_key] NOT LIKE N'%[^A-Za-z0-9_]%' COLLATE Latin1_General_BIN2),
+  CONSTRAINT [CK_spi_calculation_evidence_expression_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_calculation_evidence_expression_type] CHECK ([value_type] IN (N'string', N'number', N'boolean')),
+  CONSTRAINT [CK_spi_calculation_evidence_expression_sql] CHECK (
+    LEN(LTRIM(RTRIM([value_expression_sql]))) > 0
+    AND [value_expression_sql] NOT LIKE N'%;%'
+    AND [value_expression_sql] NOT LIKE N'%--%'
+    AND [value_expression_sql] NOT LIKE N'%/*%'
+  )
+);
+GO
+
 CREATE TABLE [tsaat].[spi_definition] (
   [spi_id] INT NOT NULL,
   [display_order] INT NOT NULL,
@@ -205,6 +431,24 @@ CREATE TABLE [tsaat].[spi_definition] (
 );
 GO
 
+CREATE TABLE [tsaat].[spi_feature_binding] (
+  [feature_key] NVARCHAR(100) NOT NULL,
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [compliance_status] NVARCHAR(20) NULL,
+  [outcome_key] NVARCHAR(100) NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_feature_binding_enabled] DEFAULT (1),
+  [description] NVARCHAR(1000) NOT NULL,
+  CONSTRAINT [PK_spi_feature_binding] PRIMARY KEY CLUSTERED ([feature_key], [spi_id], [display_order]),
+  CONSTRAINT [FK_spi_feature_binding_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [CK_spi_feature_binding_key] CHECK (LEN(LTRIM(RTRIM([feature_key]))) > 0),
+  CONSTRAINT [CK_spi_feature_binding_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_feature_binding_status]
+    CHECK ([compliance_status] IS NULL OR [compliance_status] IN (N'Compliant', N'Non-compliant', N'Unknown'))
+);
+GO
+
 CREATE TABLE [tsaat].[spi_finding_classification_rule] (
   [classification_rule_id] NVARCHAR(100) NOT NULL,
   [display_order] INT NOT NULL,
@@ -221,6 +465,8 @@ CREATE TABLE [tsaat].[spi_finding_classification_rule] (
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [FK_spi_finding_classification_rule_severity]
     FOREIGN KEY ([severity_key]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
+  CONSTRAINT [FK_spi_finding_classification_rule_priority]
+    FOREIGN KEY ([priority_rank]) REFERENCES [tsaat].[finding_priority_definition]([priority_rank]),
   CONSTRAINT [CK_spi_finding_classification_rule_display_order] CHECK ([display_order] > 0),
   CONSTRAINT [CK_spi_finding_classification_rule_priority] CHECK ([priority_rank] IS NULL OR [priority_rank] > 0),
   CONSTRAINT [CK_spi_finding_classification_rule_status]
@@ -750,6 +996,8 @@ CREATE TABLE [tsaat].[finding] (
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [FK_finding_severity]
     FOREIGN KEY ([severity]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
+  CONSTRAINT [FK_finding_priority]
+    FOREIGN KEY ([priority_rank]) REFERENCES [tsaat].[finding_priority_definition]([priority_rank]),
   CONSTRAINT [CK_finding_priority_rank]
     CHECK ([priority_rank] > 0),
   CONSTRAINT [CK_finding_compliance_status]
@@ -891,8 +1139,10 @@ CREATE TABLE [tsaat].[measures_priority_matrix] (
     FOREIGN KEY ([settings_version_id]) REFERENCES [tsaat].[measures_settings_version]([settings_version_id]),
   CONSTRAINT [FK_measures_priority_matrix_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [FK_measures_priority_matrix_priority]
+    FOREIGN KEY ([priority_rank]) REFERENCES [tsaat].[finding_priority_definition]([priority_rank]),
   CONSTRAINT [CK_measures_priority_matrix_priority_rank]
-    CHECK ([priority_rank] BETWEEN 1 AND 7)
+    CHECK ([priority_rank] > 0)
 );
 GO
 
@@ -914,3 +1164,231 @@ CREATE INDEX [IX_finding_timeline] ON [tsaat].[finding] ([snapshot_id], [observe
 CREATE INDEX [IX_reference_software_supported_version_name] ON [tsaat].[reference_software_supported_version] ([version_set_id], [software_name]);
 GO
 
+CREATE OR ALTER VIEW [tsaat].[vw_spi_asset_evaluation_context]
+AS
+SELECT
+  a.[snapshot_id],
+  a.[asset_id],
+  a.[asset_type],
+  a.[network_id],
+  a.[system_id],
+  a.[environment_type],
+  a.[security_domain],
+  a.[lifecycle_eol_status],
+  a.[lifecycle_warranty_status],
+  CASE WHEN aos.[asset_id] IS NULL THEN NULL ELSE CONCAT(aos.[family], N' ', aos.[version]) END AS [os_display_name],
+  aos.[support_status] AS [os_support_status],
+  aos.[n_minus] AS [os_n_minus],
+  aos.[current_supported_major] AS [os_current_supported_major],
+  CASE WHEN nos.[asset_id] IS NULL THEN NULL ELSE CONCAT(nos.[family], N' ', nos.[version]) END AS [network_os_display_name],
+  nos.[support_status] AS [network_os_support_status],
+  ps.[is_latest] AS [patch_is_latest],
+  CONVERT(CHAR(10), ps.[last_patched_date], 23) AS [patch_last_patched_date]
+FROM [tsaat].[asset] AS a
+LEFT JOIN [tsaat].[asset_operating_system] AS aos
+  ON aos.[snapshot_id] = a.[snapshot_id] AND aos.[asset_id] = a.[asset_id]
+LEFT JOIN [tsaat].[asset_network_os] AS nos
+  ON nos.[snapshot_id] = a.[snapshot_id] AND nos.[asset_id] = a.[asset_id]
+LEFT JOIN [tsaat].[asset_patch_state] AS ps
+  ON ps.[snapshot_id] = a.[snapshot_id] AND ps.[asset_id] = a.[asset_id];
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_spi_string_parameter] (
+  @spi_id INT,
+  @parameter_key NVARCHAR(100),
+  @fallback NVARCHAR(4000)
+)
+RETURNS NVARCHAR(4000)
+AS
+BEGIN
+  DECLARE @value NVARCHAR(4000);
+  SELECT @value = [parameter_value]
+  FROM [tsaat].[spi_rule_parameter]
+  WHERE [spi_id] = @spi_id AND [parameter_key] = @parameter_key AND [parameter_type] = N'string';
+  RETURN COALESCE(NULLIF(LTRIM(RTRIM(@value)), N''), @fallback);
+END;
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_spi_number_parameter] (
+  @spi_id INT,
+  @parameter_key NVARCHAR(100),
+  @fallback DECIMAL(18,4)
+)
+RETURNS DECIMAL(18,4)
+AS
+BEGIN
+  DECLARE @value DECIMAL(18,4);
+  SELECT @value = TRY_CONVERT(DECIMAL(18,4), [parameter_value])
+  FROM [tsaat].[spi_rule_parameter]
+  WHERE [spi_id] = @spi_id AND [parameter_key] = @parameter_key AND [parameter_type] = N'number';
+  RETURN COALESCE(@value, @fallback);
+END;
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_spi_boolean_parameter] (
+  @spi_id INT,
+  @parameter_key NVARCHAR(100),
+  @fallback BIT
+)
+RETURNS BIT
+AS
+BEGIN
+  DECLARE @raw NVARCHAR(4000);
+  SELECT @raw = LOWER(LTRIM(RTRIM([parameter_value])))
+  FROM [tsaat].[spi_rule_parameter]
+  WHERE [spi_id] = @spi_id AND [parameter_key] = @parameter_key AND [parameter_type] = N'boolean';
+  RETURN CASE
+    WHEN @raw IN (N'1', N'true', N'yes') THEN CAST(1 AS BIT)
+    WHEN @raw IN (N'0', N'false', N'no') THEN CAST(0 AS BIT)
+    ELSE @fallback
+  END;
+END;
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_spi_vulnerability_count] (
+  @snapshot_id BIGINT,
+  @asset_id NVARCHAR(255),
+  @severity NVARCHAR(20)
+)
+RETURNS INT
+AS
+BEGIN
+  DECLARE @count INT;
+  SELECT @count = COUNT(*)
+  FROM [tsaat].[asset_vulnerability]
+  WHERE [snapshot_id] = @snapshot_id AND [asset_id] = @asset_id AND [severity] = @severity;
+  RETURN COALESCE(@count, 0);
+END;
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_spi_installed_software_count] (
+  @snapshot_id BIGINT,
+  @asset_id NVARCHAR(255)
+)
+RETURNS INT
+AS
+BEGIN
+  DECLARE @count INT;
+  SELECT @count = COUNT(*)
+  FROM [tsaat].[asset_installed_software]
+  WHERE [snapshot_id] = @snapshot_id AND [asset_id] = @asset_id;
+  RETURN COALESCE(@count, 0);
+END;
+GO
+
+CREATE OR ALTER FUNCTION [tsaat].[fn_spi_software_support_status_count] (
+  @snapshot_id BIGINT,
+  @asset_id NVARCHAR(255),
+  @support_status NVARCHAR(20)
+)
+RETURNS INT
+AS
+BEGIN
+  DECLARE @count INT;
+  SELECT @count = COUNT(*)
+  FROM [tsaat].[asset_installed_software]
+  WHERE [snapshot_id] = @snapshot_id AND [asset_id] = @asset_id AND [support_status] = @support_status;
+  RETURN COALESCE(@count, 0);
+END;
+GO
+
+CREATE OR ALTER PROCEDURE [tsaat].[usp_evaluate_spi_snapshot]
+  @snapshot_id BIGINT
+AS
+BEGIN
+  SET NOCOUNT ON;
+
+  DECLARE @sql NVARCHAR(MAX) = N'';
+  DECLARE @ruleKey NVARCHAR(100);
+  DECLARE @spiId INT;
+  DECLARE @displayOrder INT;
+  DECLARE @statusSql NVARCHAR(MAX);
+  DECLARE @outcomeSql NVARCHAR(MAX);
+  DECLARE @evidenceSelect NVARCHAR(MAX);
+  DECLARE @statement NVARCHAR(MAX);
+
+  DECLARE calculation_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT
+      sd.[rule_key],
+      sd.[spi_id],
+      sd.[display_order],
+      scd.[status_expression_sql],
+      scd.[outcome_expression_sql]
+    FROM [tsaat].[spi_definition] AS sd
+    INNER JOIN [tsaat].[spi_rule_definition] AS srd
+      ON srd.[rule_key] = sd.[rule_key] AND srd.[enabled] = 1
+    INNER JOIN [tsaat].[spi_calculation_definition] AS scd
+      ON scd.[rule_key] = sd.[rule_key] AND scd.[enabled] = 1
+    INNER JOIN [tsaat].[spi_calculation_source] AS scs
+      ON scs.[source_key] = scd.[source_key]
+      AND scs.[enabled] = 1
+      AND scs.[source_object_name] = N'[tsaat].[vw_spi_asset_evaluation_context]'
+    WHERE sd.[enabled] = 1
+    ORDER BY sd.[display_order], sd.[spi_id];
+
+  OPEN calculation_cursor;
+  FETCH NEXT FROM calculation_cursor INTO @ruleKey, @spiId, @displayOrder, @statusSql, @outcomeSql;
+
+  WHILE @@FETCH_STATUS = 0
+  BEGIN
+    SELECT @evidenceSelect = STRING_AGG(
+      CAST([value_expression_sql] + N' AS ' + QUOTENAME([evidence_key]) AS NVARCHAR(MAX)),
+      N', '
+    ) WITHIN GROUP (ORDER BY [display_order], [evidence_key])
+    FROM [tsaat].[spi_calculation_evidence_expression]
+    WHERE [rule_key] = @ruleKey;
+
+    IF @evidenceSelect IS NULL OR LEN(@evidenceSelect) = 0
+    BEGIN
+      THROW 53000, 'SPI calculation evidence configuration is missing.', 1;
+    END;
+
+    SET @statement =
+      N'SELECT ctx.[snapshot_id], ctx.[asset_id], ' +
+      CONVERT(NVARCHAR(20), @spiId) +
+      N' AS [spi_id], ' +
+      CONVERT(NVARCHAR(20), @displayOrder) +
+      N' AS [display_order], ' +
+      @statusSql +
+      N' AS [compliance_status], ' +
+      @outcomeSql +
+      N' AS [outcome_key], JSON_QUERY((SELECT ' +
+      @evidenceSelect +
+      N' FOR JSON PATH, WITHOUT_ARRAY_WRAPPER, INCLUDE_NULL_VALUES)) AS [evidence_json] ' +
+      N'FROM [tsaat].[vw_spi_asset_evaluation_context] AS ctx ' +
+      N'CROSS JOIN (SELECT CAST(' +
+      CONVERT(NVARCHAR(20), @spiId) +
+      N' AS INT) AS [spi_id]) AS sd ' +
+      N'WHERE ctx.[snapshot_id] = @snapshot_id ' +
+      N'AND EXISTS (SELECT 1 FROM [tsaat].[spi_applicable_asset_type] AS saat WHERE saat.[spi_id] = sd.[spi_id] AND saat.[asset_type] = ctx.[asset_type])';
+
+    SET @sql = CASE WHEN LEN(@sql) = 0 THEN @statement ELSE @sql + N' UNION ALL ' + @statement END;
+
+    FETCH NEXT FROM calculation_cursor INTO @ruleKey, @spiId, @displayOrder, @statusSql, @outcomeSql;
+  END;
+
+  CLOSE calculation_cursor;
+  DEALLOCATE calculation_cursor;
+
+  IF LEN(@sql) > 0
+  BEGIN
+    SET @sql =
+      N'SELECT [snapshot_id], [asset_id], [spi_id], [display_order], [compliance_status], [outcome_key], [evidence_json] ' +
+      N'FROM (' + @sql + N') AS evaluation_result ' +
+      N'ORDER BY [asset_id], [display_order], [spi_id]';
+
+    EXEC sp_executesql @sql, N'@snapshot_id BIGINT', @snapshot_id = @snapshot_id;
+    RETURN;
+  END;
+
+  SELECT
+    CAST(NULL AS BIGINT) AS [snapshot_id],
+    CAST(NULL AS NVARCHAR(255)) AS [asset_id],
+    CAST(NULL AS INT) AS [spi_id],
+    CAST(NULL AS INT) AS [display_order],
+    CAST(NULL AS NVARCHAR(20)) AS [compliance_status],
+    CAST(NULL AS NVARCHAR(100)) AS [outcome_key],
+    CAST(NULL AS NVARCHAR(MAX)) AS [evidence_json]
+  WHERE 1 = 0;
+END;
+GO

@@ -1,0 +1,252 @@
+{
+  "updatedAt": "2026-05-25T00:00:00.000Z",
+  "sourcePolicies": [
+    {
+      "policyKey": "persisted-first",
+      "displayOrder": 1,
+      "name": "Persisted Findings First",
+      "description": "Use persisted findings when available for a snapshot; generate deterministic SPI findings only when the snapshot has no persisted findings.",
+      "usePersistedFindings": true,
+      "generateWhenEmpty": true,
+      "enabled": true
+    }
+  ],
+  "generationPolicies": [
+    {
+      "policyKey": "persisted-first",
+      "historyStartDate": "2024-02-10",
+      "historyWindowYears": 2,
+      "baselineBacklogCount": 200,
+      "minOpenCount": 180,
+      "maxOpenCount": 320,
+      "addProbabilityPercent": 38,
+      "addRateMinPercent": 0,
+      "addRateMaxPercent": 40,
+      "closeRateMinPercent": 10,
+      "closeRateMaxPercent": 20,
+      "closeBackfillMinCount": 1,
+      "closeBackfillMaxCount": 3,
+      "timezoneOffsetMinutes": -300
+    }
+  ],
+  "workflowStatuses": [
+    { "statusKey": "open", "label": "Open", "displayOrder": 1, "toneKey": "warning", "terminalStatus": false },
+    { "statusKey": "closed", "label": "Closed", "displayOrder": 2, "toneKey": "success", "terminalStatus": true }
+  ],
+  "buckets": [
+    {
+      "bucketKey": "critical-exposure",
+      "bucketType": "severity",
+      "label": "Critical Exposure",
+      "displayOrder": 1,
+      "toneKey": "critical",
+      "conditionKey": "severity_equals",
+      "severityKey": "Critical Exposure",
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Findings whose display severity is Critical Exposure."
+    },
+    {
+      "bucketKey": "high-risk",
+      "bucketType": "severity",
+      "label": "High Risk",
+      "displayOrder": 2,
+      "toneKey": "warning",
+      "conditionKey": "severity_equals",
+      "severityKey": "High Risk",
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Findings whose display severity is High Risk."
+    },
+    {
+      "bucketKey": "major",
+      "bucketType": "severity",
+      "label": "Major",
+      "displayOrder": 3,
+      "toneKey": "major",
+      "conditionKey": "severity_equals",
+      "severityKey": "Major",
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Findings whose display severity is Major."
+    },
+    {
+      "bucketKey": "moderate",
+      "bucketType": "severity",
+      "label": "Moderate",
+      "displayOrder": 4,
+      "toneKey": "info",
+      "conditionKey": "severity_equals",
+      "severityKey": "Moderate",
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Findings whose display severity is Moderate."
+    },
+    {
+      "bucketKey": "data-gap",
+      "bucketType": "severity",
+      "label": "Data Gap",
+      "displayOrder": 5,
+      "toneKey": "neutral",
+      "conditionKey": "severity_equals",
+      "severityKey": "Data Gap",
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Findings whose display severity is Data Gap."
+    },
+    {
+      "bucketKey": "priority-1-2",
+      "bucketType": "priority",
+      "label": "P1-P2",
+      "displayOrder": 10,
+      "toneKey": "critical",
+      "conditionKey": "priority_between",
+      "severityKey": null,
+      "priorityMin": 1,
+      "priorityMax": 2,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Immediate action priority findings."
+    },
+    {
+      "bucketKey": "priority-data-gap",
+      "bucketType": "priority",
+      "label": "P90 Data Gap",
+      "displayOrder": 11,
+      "toneKey": "neutral",
+      "conditionKey": "priority_equals",
+      "severityKey": null,
+      "priorityMin": 90,
+      "priorityMax": 90,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Data-gap priority findings."
+    },
+    {
+      "bucketKey": "open",
+      "bucketType": "workflow",
+      "label": "Open",
+      "displayOrder": 20,
+      "toneKey": "warning",
+      "conditionKey": "workflow_equals",
+      "severityKey": null,
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": "open",
+      "enabled": true,
+      "description": "Findings open at the selected as-of date."
+    },
+    {
+      "bucketKey": "closed",
+      "bucketType": "workflow",
+      "label": "Closed",
+      "displayOrder": 21,
+      "toneKey": "success",
+      "conditionKey": "workflow_equals",
+      "severityKey": null,
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": "closed",
+      "enabled": true,
+      "description": "Findings closed at the selected as-of date."
+    },
+    {
+      "bucketKey": "other-risk",
+      "bucketType": "severity",
+      "label": "Other",
+      "displayOrder": 99,
+      "toneKey": "info",
+      "conditionKey": "severity_not_in",
+      "severityKey": "Critical Exposure|High Risk",
+      "priorityMin": null,
+      "priorityMax": null,
+      "workflowStatus": null,
+      "enabled": true,
+      "description": "Findings that are not Critical Exposure or High Risk."
+    }
+  ],
+  "evidenceFields": [
+    {
+      "fieldKey": "asset-name",
+      "displayOrder": 1,
+      "label": "Asset Name",
+      "purposeKey": "asset_name",
+      "candidateKeys": ["assetName", "asset_name", "hostname", "assetHostname"],
+      "fallbackValue": null,
+      "enabled": true
+    },
+    {
+      "fieldKey": "asset-ip-address",
+      "displayOrder": 2,
+      "label": "Asset IP address",
+      "purposeKey": "asset_ip_address",
+      "candidateKeys": ["assetIpAddress", "assetIp", "ipAddress", "ip", "ipv4Address", "ipv4", "ip_address"],
+      "fallbackValue": "Not available",
+      "enabled": true
+    },
+    {
+      "fieldKey": "asset-type",
+      "displayOrder": 3,
+      "label": "Asset Type",
+      "purposeKey": "asset_type",
+      "candidateKeys": ["assetType", "asset_type", "type"],
+      "fallbackValue": "Unknown",
+      "enabled": true
+    },
+    {
+      "fieldKey": "change-assignment-group",
+      "displayOrder": 4,
+      "label": "Asset Change Assignment Group",
+      "purposeKey": "change_assignment_group",
+      "candidateKeys": ["assetChangeAssignmentGroup", "changeAssignmentGroup", "changeGroup", "change_assignment_group"],
+      "fallbackValue": "Not assigned",
+      "enabled": true
+    },
+    {
+      "fieldKey": "incident-assignment-group",
+      "displayOrder": 5,
+      "label": "Asset Incident Assignment Group",
+      "purposeKey": "incident_assignment_group",
+      "candidateKeys": ["assetIncidentAssignmentGroup", "incidentAssignmentGroup", "incidentGroup", "incident_assignment_group"],
+      "fallbackValue": "Not assigned",
+      "enabled": true
+    },
+    {
+      "fieldKey": "owner",
+      "displayOrder": 6,
+      "label": "Owner",
+      "purposeKey": "owner",
+      "candidateKeys": ["assetOwner", "owner", "serviceOwner"],
+      "fallbackValue": "Not assigned",
+      "enabled": true
+    },
+    {
+      "fieldKey": "evidence-preview-1",
+      "displayOrder": 20,
+      "label": "Evidence Preview",
+      "purposeKey": "evidence_preview",
+      "candidateKeys": [],
+      "fallbackValue": "No evidence captured",
+      "enabled": true
+    }
+  ],
+  "registerColumns": [
+    { "columnKey": "measure", "label": "Measure", "displayOrder": 1, "valueKey": "measure", "enabled": true },
+    { "columnKey": "severity", "label": "Severity", "displayOrder": 2, "valueKey": "severity", "enabled": true },
+    { "columnKey": "timestamp", "label": "Timestamp", "displayOrder": 3, "valueKey": "timestamp", "enabled": true },
+    { "columnKey": "title", "label": "Title", "displayOrder": 4, "valueKey": "title", "enabled": true },
+    { "columnKey": "status", "label": "Status", "displayOrder": 5, "valueKey": "status", "enabled": true },
+    { "columnKey": "evidence", "label": "Evidence", "displayOrder": 6, "valueKey": "evidence_preview", "enabled": true },
+    { "columnKey": "recommended-action", "label": "Recommended Action", "displayOrder": 7, "valueKey": "recommended_action", "enabled": true }
+  ]
+}

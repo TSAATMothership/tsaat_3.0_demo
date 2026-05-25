@@ -9,13 +9,24 @@ import {
   normalizeDiscoveryToolsSettings
 } from "@/lib/discovery-tools-settings";
 import { KpiDefinition, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
-import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } from "@/lib/measures-settings";
+import {
+  defaultMeasuresSettings,
+  FindingPriorityDefinition,
+  MeasuresSettings,
+  normalizeMeasuresSettings,
+  normalizePriorityDefinitions
+} from "@/lib/measures-settings";
 import {
   normalizeSeverityDefinitions,
   normalizeSpiDefinitions,
+  renderSpiOutcomeReason,
   SeverityDefinition,
   severityDefinitionsCacheSignature,
+  SpiCalculationDefinition,
+  SpiCalculationEvidenceExpression,
+  SpiCalculationSource,
   SpiDefinition,
+  SpiFeatureBinding,
   SpiFindingClassificationRule,
   SpiReportDetailDefinition,
   SpiRuleDefinition,
@@ -27,7 +38,7 @@ import {
 import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
 import { ServerMemoryCache } from "@/lib/server-cache";
-import { Asset, AssetType, Dataset, EnvironmentType, Finding, ReferenceVersions, SpiId } from "@/lib/types";
+import { Asset, AssetType, ComplianceStatus, Dataset, EnvironmentType, Finding, ReferenceVersions, SpiId, StoredSpiEvaluation } from "@/lib/types";
 import { executeSqlJson, executeSqlText, toSqlUnicodeLiteral } from "@/lib/sql-server";
 
 type SnapshotRow = {
@@ -291,6 +302,12 @@ type SpiRuleParameterRow = {
 
 type SpiRuleDefinitionRow = SpiRuleDefinition;
 
+type SpiCalculationSourceRow = SpiCalculationSource;
+
+type SpiCalculationDefinitionRow = Omit<SpiCalculationDefinition, "source" | "evidenceExpressions">;
+
+type SpiCalculationEvidenceExpressionRow = SpiCalculationEvidenceExpression;
+
 type SpiRuleParameterDefinitionRow = Omit<SpiRuleParameterDefinition, "allowedValues"> & {
   allowedValuesJson: string | null;
 };
@@ -300,6 +317,16 @@ type SpiRuleOutcomeTemplateRow = SpiRuleOutcomeTemplate;
 type SpiReportDetailDefinitionRow = SpiReportDetailDefinition;
 
 type SpiFindingClassificationRuleRow = SpiFindingClassificationRule;
+
+type SpiFeatureBindingRow = SpiFeatureBinding;
+
+type StoredSpiEvaluationRow = {
+  assetId: string;
+  spiId: number;
+  outcomeKey: string;
+  status: ComplianceStatus;
+  evidence: Record<string, string | number | boolean | null> | null;
+};
 
 type SpiTaskingTeamRow = {
   spiId: number;
@@ -330,6 +357,14 @@ type SeverityDefinitionRow = {
   toneKey: string;
 };
 
+type FindingPriorityDefinitionRow = {
+  priorityRank: number;
+  label: string;
+  displayOrder: number;
+  selectableInSettings: boolean | number;
+  description: string;
+};
+
 type DiscoveryToolRow = {
   id: string;
   name: string;
@@ -354,6 +389,7 @@ const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SEVERITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRIORITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
   namespace: "data:snapshot-rows",
@@ -389,6 +425,12 @@ const spiDefinitionsCache = new ServerMemoryCache<SpiDefinition[]>({
 const severityDefinitionsCache = new ServerMemoryCache<SeverityDefinition[]>({
   namespace: "data:severity-definitions",
   ttlMs: SEVERITY_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const priorityDefinitionsCache = new ServerMemoryCache<FindingPriorityDefinition[]>({
+  namespace: "data:priority-definitions",
+  ttlMs: PRIORITY_DEFINITIONS_CACHE_TTL_MS,
   maxEntries: 1
 });
 
@@ -431,6 +473,59 @@ function coerceIsoTimestamp(value: string | null | undefined): string {
   }
 
   return value;
+}
+
+function normalizeSqlEvidence(value: unknown): Record<string, string | number | boolean | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const evidence: Record<string, string | number | boolean | null> = {};
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (!/^[A-Za-z0-9_]+$/.test(key)) {
+      continue;
+    }
+    if (
+      rawValue === null ||
+      typeof rawValue === "string" ||
+      typeof rawValue === "number" ||
+      typeof rawValue === "boolean"
+    ) {
+      evidence[key] = rawValue;
+    }
+  }
+  return evidence;
+}
+
+function normalizeStoredSpiEvaluations(
+  rows: StoredSpiEvaluationRow[],
+  spiDefinitions: SpiDefinition[]
+): StoredSpiEvaluation[] {
+  const definitionsById = new Map(spiDefinitions.map((definition) => [definition.spiId, definition]));
+  const evaluations: StoredSpiEvaluation[] = [];
+
+  for (const row of rows) {
+    const definition = definitionsById.get(row.spiId);
+    if (!definition || !["Compliant", "Non-compliant", "Unknown"].includes(row.status)) {
+      continue;
+    }
+
+    const evaluation = {
+      assetId: row.assetId,
+      spiId: row.spiId,
+      outcomeKey: row.outcomeKey,
+      status: row.status,
+      evidence: normalizeSqlEvidence(row.evidence),
+      reasons: []
+    } satisfies StoredSpiEvaluation;
+
+    evaluations.push({
+      ...evaluation,
+      reasons: [renderSpiOutcomeReason(definition, evaluation)]
+    });
+  }
+
+  return evaluations;
 }
 
 function coerceDateKey(value: string): string {
@@ -804,7 +899,52 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   };
 }
 
-function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPayload): Dataset {
+async function loadSnapshotSpiEvaluations(
+  snapshotId: number,
+  spiDefinitions: SpiDefinition[]
+): Promise<StoredSpiEvaluation[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const rows = await executeSqlJson<StoredSpiEvaluationRow[]>(`
+DECLARE @SpiEvaluations TABLE (
+  [snapshot_id] BIGINT NOT NULL,
+  [asset_id] NVARCHAR(255) NOT NULL,
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [compliance_status] NVARCHAR(20) NOT NULL,
+  [outcome_key] NVARCHAR(100) NOT NULL,
+  [evidence_json] NVARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @SpiEvaluations (
+  [snapshot_id],
+  [asset_id],
+  [spi_id],
+  [display_order],
+  [compliance_status],
+  [outcome_key],
+  [evidence_json]
+)
+EXEC [${DATA_SCHEMA}].[usp_evaluate_spi_snapshot] @snapshot_id = ${safeSnapshotId};
+
+SELECT
+  evaluation.[asset_id] AS [assetId],
+  evaluation.[spi_id] AS [spiId],
+  evaluation.[outcome_key] AS [outcomeKey],
+  evaluation.[compliance_status] AS [status],
+  JSON_QUERY(evaluation.[evidence_json]) AS [evidence]
+FROM @SpiEvaluations AS evaluation
+ORDER BY evaluation.[asset_id], evaluation.[display_order], evaluation.[spi_id]
+FOR JSON PATH;
+`);
+
+  return normalizeStoredSpiEvaluations(rows, spiDefinitions);
+}
+
+function buildDatasetFromSnapshotRow(
+  snapshot: SnapshotRow,
+  payload: SnapshotPayload,
+  spiEvaluations: StoredSpiEvaluation[]
+): Dataset {
   const networkChildrenRows = toArrayMap(payload.managedNetworkHierarchy, (row) => row.parentNetworkId);
   const networkParentByChild = toFirstValueMap(
     payload.managedNetworkHierarchy,
@@ -1100,6 +1240,7 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
     managedNetworks,
     ictSystems,
     assets,
+    spiEvaluations,
     ciDependencies,
     findings
   };
@@ -1113,9 +1254,15 @@ async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotR
     throw new Error(`Unable to find snapshot ${safeSnapshotId}.`);
   }
 
-  return datasetBySnapshotIdCache.getOrSet(`snapshot:${safeSnapshotId}:${snapshot.generatedAt}`, async () => {
-    const payload = await loadSnapshotPayload(safeSnapshotId);
-    return buildDatasetFromSnapshotRow(snapshot, payload);
+  const spiDefinitions = await loadSpiDefinitions();
+  const spiSignature = spiDefinitionsCacheSignature(spiDefinitions);
+
+  return datasetBySnapshotIdCache.getOrSet(`snapshot:${safeSnapshotId}:${snapshot.generatedAt}:${spiSignature}`, async () => {
+    const [payload, spiEvaluations] = await Promise.all([
+      loadSnapshotPayload(safeSnapshotId),
+      loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions)
+    ]);
+    return buildDatasetFromSnapshotRow(snapshot, payload, spiEvaluations);
   });
 }
 
@@ -1297,6 +1444,24 @@ FOR JSON PATH;
   });
 }
 
+export async function loadFindingPriorityDefinitions(): Promise<FindingPriorityDefinition[]> {
+  return priorityDefinitionsCache.getOrSet("latest", async () => {
+    const rows = await executeSqlJson<FindingPriorityDefinitionRow[]>(`
+SELECT
+  fpd.[priority_rank] AS [priorityRank],
+  fpd.[label] AS [label],
+  fpd.[display_order] AS [displayOrder],
+  fpd.[selectable_in_settings] AS [selectableInSettings],
+  fpd.[description] AS [description]
+FROM [${DATA_SCHEMA}].[finding_priority_definition] fpd
+ORDER BY fpd.[display_order], fpd.[priority_rank]
+FOR JSON PATH;
+`);
+
+    return normalizePriorityDefinitions(rows);
+  });
+}
+
 export async function loadSpiDefinitions(): Promise<SpiDefinition[]> {
   return spiDefinitionsCache.getOrSet("latest", async () => {
     const [
@@ -1307,10 +1472,14 @@ export async function loadSpiDefinitions(): Promise<SpiDefinition[]> {
       actionRows,
       conditionRows,
       ruleDefinitionRows,
+      calculationSourceRows,
+      calculationDefinitionRows,
+      calculationEvidenceRows,
       parameterDefinitionRows,
       outcomeTemplateRows,
       reportDetailRows,
-      classificationRuleRows
+      classificationRuleRows,
+      featureBindingRows
     ] = await Promise.all([
       executeSqlJson<SpiDefinitionRow[]>(`
 SELECT
@@ -1391,6 +1560,42 @@ FROM [${DATA_SCHEMA}].[spi_rule_definition] srd
 ORDER BY srd.[display_order], srd.[rule_key]
 FOR JSON PATH;
 `),
+      executeSqlJson<SpiCalculationSourceRow[]>(`
+SELECT
+  scs.[source_key] AS [sourceKey],
+  scs.[source_object_name] AS [sourceObjectName],
+  scs.[display_order] AS [displayOrder],
+  scs.[name] AS [name],
+  scs.[description] AS [description],
+  scs.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_calculation_source] scs
+ORDER BY scs.[display_order], scs.[source_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiCalculationDefinitionRow[]>(`
+SELECT
+  scd.[rule_key] AS [ruleKey],
+  scd.[source_key] AS [sourceKey],
+  scd.[display_order] AS [displayOrder],
+  scd.[status_expression_sql] AS [statusExpressionSql],
+  scd.[outcome_expression_sql] AS [outcomeExpressionSql],
+  scd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_calculation_definition] scd
+ORDER BY scd.[display_order], scd.[rule_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiCalculationEvidenceExpressionRow[]>(`
+SELECT
+  scee.[rule_key] AS [ruleKey],
+  scee.[evidence_key] AS [evidenceKey],
+  scee.[display_order] AS [displayOrder],
+  scee.[value_type] AS [valueType],
+  scee.[value_expression_sql] AS [valueExpressionSql],
+  scee.[omit_when_null] AS [omitWhenNull]
+FROM [${DATA_SCHEMA}].[spi_calculation_evidence_expression] scee
+ORDER BY scee.[rule_key], scee.[display_order], scee.[evidence_key]
+FOR JSON PATH;
+`),
       executeSqlJson<SpiRuleParameterDefinitionRow[]>(`
 SELECT
   srpd.[rule_key] AS [ruleKey],
@@ -1442,6 +1647,19 @@ SELECT
 FROM [${DATA_SCHEMA}].[spi_finding_classification_rule] sfcr
 ORDER BY sfcr.[display_order], sfcr.[classification_rule_id]
 FOR JSON PATH;
+`),
+      executeSqlJson<SpiFeatureBindingRow[]>(`
+SELECT
+  sfb.[feature_key] AS [featureKey],
+  sfb.[spi_id] AS [spiId],
+  sfb.[display_order] AS [displayOrder],
+  sfb.[compliance_status] AS [complianceStatus],
+  sfb.[outcome_key] AS [outcomeKey],
+  sfb.[enabled] AS [enabled],
+  sfb.[description] AS [description]
+FROM [${DATA_SCHEMA}].[spi_feature_binding] sfb
+ORDER BY sfb.[spi_id], sfb.[display_order], sfb.[feature_key]
+FOR JSON PATH;
 `)
     ]);
 
@@ -1450,7 +1668,20 @@ FOR JSON PATH;
     const teamsBySpi = groupBySpiId(teamRows);
     const actionsBySpi = groupBySpiId(actionRows);
     const conditionsBySpi = groupBySpiId(conditionRows);
+    const featureBindingsBySpi = groupBySpiId(featureBindingRows);
     const ruleDefinitionByKey = new Map(ruleDefinitionRows.map((row) => [row.ruleKey, row]));
+    const calculationSourceByKey = new Map(calculationSourceRows.map((row) => [row.sourceKey, row]));
+    const calculationEvidenceByRule = groupByRuleKey(calculationEvidenceRows);
+    const calculationDefinitionByRule = new Map(
+      calculationDefinitionRows.map((row) => [
+        row.ruleKey,
+        {
+          ...row,
+          source: calculationSourceByKey.get(row.sourceKey),
+          evidenceExpressions: calculationEvidenceByRule.get(row.ruleKey) ?? []
+        }
+      ])
+    );
     const parameterDefinitionsByRule = groupByRuleKey(parameterDefinitionRows);
     const outcomeTemplatesByRule = groupByRuleKey(outcomeTemplateRows);
     const reportDetailByKey = new Map(reportDetailRows.map((row) => [row.reportDetailKey, row]));
@@ -1459,9 +1690,11 @@ FOR JSON PATH;
       definitionRows.map((row) => ({
         ...row,
         ruleDefinition: ruleDefinitionByKey.get(row.ruleKey),
+        calculationDefinition: calculationDefinitionByRule.get(row.ruleKey),
         parameterDefinitions: parameterDefinitionsByRule.get(row.ruleKey) ?? [],
         outcomeTemplates: outcomeTemplatesByRule.get(row.ruleKey) ?? [],
         classificationRules: classificationRuleRows,
+        featureBindings: featureBindingsBySpi.get(row.spiId) ?? [],
         reportDetailDefinition: reportDetailByKey.get(row.reportDetailKey),
         applicableAssetTypes: (applicabilityBySpi.get(row.spiId) ?? []).map((item) => item.assetType),
         ruleParameters: Object.fromEntries(
@@ -1527,23 +1760,31 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 
 export async function loadMeasuresSettings(
   providedSpiDefinitions?: SpiDefinition[],
-  providedSeverityDefinitions?: SeverityDefinition[]
+  providedSeverityDefinitions?: SeverityDefinition[],
+  providedPriorityDefinitions?: FindingPriorityDefinition[]
 ): Promise<MeasuresSettings> {
-  const [version, spiDefinitions, severityDefinitions] = await Promise.all([
+  const [version, spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
     loadLatestMeasuresSettingsVersion(),
     providedSpiDefinitions ? Promise.resolve(providedSpiDefinitions) : loadSpiDefinitions(),
-    providedSeverityDefinitions ? Promise.resolve(providedSeverityDefinitions) : loadSeverityDefinitions()
+    providedSeverityDefinitions ? Promise.resolve(providedSeverityDefinitions) : loadSeverityDefinitions(),
+    providedPriorityDefinitions ? Promise.resolve(providedPriorityDefinitions) : loadFindingPriorityDefinitions()
   ]);
 
   if (!version) {
-    return defaultMeasuresSettings(spiDefinitions, severityDefinitions);
+    return defaultMeasuresSettings(spiDefinitions, severityDefinitions, priorityDefinitions);
   }
 
   return measuresSettingsByVersionCache.getOrSet(
     [
       `version:${version.settingsVersionId}:${version.updatedAt}`,
       spiDefinitionsCacheSignature(spiDefinitions),
-      severityDefinitionsCacheSignature(severityDefinitions)
+      severityDefinitionsCacheSignature(severityDefinitions),
+      JSON.stringify(priorityDefinitions.map((definition) => [
+        definition.priorityRank,
+        definition.label,
+        definition.displayOrder,
+        definition.selectableInSettings
+      ]))
     ].join("::"),
     async () => {
       const [severityRows, priorityRows] = await Promise.all([
@@ -1582,14 +1823,18 @@ FOR JSON PATH;
         updatedAt: coerceIsoTimestamp(version.updatedAt),
         severityMatrix,
         priorityMatrix
-      }, spiDefinitions, severityDefinitions);
+      }, spiDefinitions, severityDefinitions, priorityDefinitions);
     }
   );
 }
 
 export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSettings> {
-  const [spiDefinitions, severityDefinitions] = await Promise.all([loadSpiDefinitions(), loadSeverityDefinitions()]);
-  const normalized = normalizeMeasuresSettings(input, spiDefinitions, severityDefinitions);
+  const [spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
+    loadSpiDefinitions(),
+    loadSeverityDefinitions(),
+    loadFindingPriorityDefinitions()
+  ]);
+  const normalized = normalizeMeasuresSettings(input, spiDefinitions, severityDefinitions, priorityDefinitions);
   const persisted: MeasuresSettings = {
     ...normalized,
     updatedAt: new Date().toISOString()
@@ -1805,6 +2050,7 @@ export function clearDataLoaderCaches(): void {
   kpiDefinitionsCache.clear();
   spiDefinitionsCache.clear();
   severityDefinitionsCache.clear();
+  priorityDefinitionsCache.clear();
   measuresSettingsVersionCache.clear();
   measuresSettingsByVersionCache.clear();
   discoveryToolsSettingsVersionCache.clear();
@@ -1820,6 +2066,7 @@ export function __resetDataLoaderCachesForTest(): void {
   kpiDefinitionsCache.resetStats();
   spiDefinitionsCache.resetStats();
   severityDefinitionsCache.resetStats();
+  priorityDefinitionsCache.resetStats();
   measuresSettingsVersionCache.resetStats();
   measuresSettingsByVersionCache.resetStats();
   discoveryToolsSettingsVersionCache.resetStats();

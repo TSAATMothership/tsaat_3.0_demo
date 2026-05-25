@@ -111,6 +111,7 @@ function createDataset(): Dataset {
   return {
     generatedAt: timestamp,
     snapshotDate: "2026-04-23",
+    spiEvaluations: [],
     managedNetworks: networks,
     ictSystems: [
       {

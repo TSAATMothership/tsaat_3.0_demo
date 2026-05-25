@@ -27,6 +27,7 @@ import {
   buildScopedDiscoveryToolCoverage,
   discoveryCoverageValueLabel
 } from "@/lib/scoped-discovery-tool-coverage";
+import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding, FindingSeverity } from "@/lib/types";
 import { SpiDefinition } from "@/lib/spi-definitions";
 import { Suspense } from "react";
@@ -526,9 +527,8 @@ function buildSystemKpiSnapshotMetrics(
     if (!evaluation) {
       return false;
     }
-    return evaluation.evaluations.some(
-      (evaluationItem) =>
-        (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+    return evaluation.evaluations.some((evaluationItem) =>
+      evaluationMatchesSpiFeature(evaluationItem, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
     );
   }).length;
 
@@ -696,7 +696,9 @@ export default async function SystemDetailPage({
         : "system-details";
   const requestedP12Spi = Number(firstParam(requestParams.p12Spi));
   const selectedP12Spi =
-    Number.isInteger(requestedP12Spi) && requestedP12Spi >= 1 && requestedP12Spi <= 10 ? requestedP12Spi : undefined;
+    Number.isInteger(requestedP12Spi) && spiDefinitions.some((definition) => definition.spiId === requestedP12Spi)
+      ? requestedP12Spi
+      : undefined;
   const requestedP12Priority = Number(firstParam(requestParams.p12Priority));
   const selectedP12Priority =
     Number.isInteger(requestedP12Priority) && requestedP12Priority >= 1 ? requestedP12Priority : undefined;
@@ -764,9 +766,8 @@ export default async function SystemDetailPage({
       if (!evaluation) {
         return false;
       }
-      return evaluation.evaluations.some(
-        (evaluationItem) =>
-          (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+      return evaluation.evaluations.some((evaluationItem) =>
+        evaluationMatchesSpiFeature(evaluationItem, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
       );
     }
     if (selectedKpiFilter === "nonCompliantEnvironments") {
@@ -839,9 +840,8 @@ export default async function SystemDetailPage({
     if (!evaluation) {
       return false;
     }
-    return evaluation.evaluations.some(
-      (evaluationItem) =>
-        (evaluationItem.spiId === 1 || evaluationItem.spiId === 2) && evaluationItem.status === "Non-compliant"
+    return evaluation.evaluations.some((evaluationItem) =>
+      evaluationMatchesSpiFeature(evaluationItem, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
     );
   }).length;
 

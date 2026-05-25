@@ -83,6 +83,12 @@ BEGIN
     ALTER TABLE [tsaat].[spi_finding_classification_rule] DROP CONSTRAINT [FK_spi_finding_classification_rule_spi];
 END;
 
+IF OBJECT_ID(N'tsaat.spi_feature_binding', N'U') IS NOT NULL
+BEGIN
+  IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_spi_feature_binding_spi' AND [parent_object_id] = OBJECT_ID(N'tsaat.spi_feature_binding'))
+    ALTER TABLE [tsaat].[spi_feature_binding] DROP CONSTRAINT [FK_spi_feature_binding_spi];
+END;
+
 IF OBJECT_ID(N'tsaat.spi_tasking_team', N'U') IS NOT NULL
 BEGIN
   IF EXISTS (SELECT 1 FROM sys.foreign_keys WHERE [name] = N'FK_spi_tasking_team_spi' AND [parent_object_id] = OBJECT_ID(N'tsaat.spi_tasking_team'))

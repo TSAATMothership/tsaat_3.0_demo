@@ -39,7 +39,8 @@ export function datasetCacheSignature(dataset: Dataset): string {
     dataset.generatedAt,
     dataset.managedNetworks.length,
     dataset.ictSystems.length,
-    dataset.assets.length
+    dataset.assets.length,
+    dataset.spiEvaluations.length
   ].join("|");
 }
 

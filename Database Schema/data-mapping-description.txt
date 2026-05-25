@@ -47,6 +47,7 @@ Package-local files:
 - Database Schema/data/spi-rule-definitions.json
 - Database Schema/data/spi-report-detail-definitions.json
 - Database Schema/data/spi-finding-classification-rules.json
+- Database Schema/data/spi-sql-calculations.json
 - Database Schema/data/severity-definitions.json
 - Database Schema/data/kpi-definitions.json
 - Database Schema/data/discovery-tools-settings.json
@@ -63,44 +64,49 @@ Load Order (Deterministic)
 2. reference_os_current_major
 3. reference_software_supported_version
 4. finding_severity_definition
-5. spi_rule_definition
-6. spi_rule_parameter_definition
-7. spi_rule_outcome_template
-8. spi_report_detail_definition
-9. spi_definition
-10. spi_finding_classification_rule
-11. spi_applicable_asset_type
-12. spi_rule_parameter
-13. spi_tasking_team
-14. spi_tasking_action_template
-15. spi_tasking_condition_template
-16. kpi_definition
-17. discovery_tools_settings_version
-18. discovery_tool
-19. discovery_tool_asset_scope
-20. measures_settings_version
-21. measures_severity_matrix
-22. measures_priority_matrix
-23. dataset_snapshot
-24. managed_network
-25. managed_network_hierarchy
-26. ict_system
-27. ict_system_hierarchy
-28. network_declared_system
-29. system_mission_capability
-30. system_business_service
-31. system_environment
-32. asset
-33. network_declared_asset
-34. network_target_state_asset
-35. system_environment_asset
-36. asset_operating_system
-37. asset_network_os
-38. asset_patch_state
-39. asset_installed_software
-40. asset_vulnerability
-41. ci_dependency
-42. finding
+5. finding_priority_definition
+6. spi_rule_definition
+7. spi_rule_parameter_definition
+8. spi_rule_outcome_template
+9. spi_report_detail_definition
+10. spi_calculation_source
+11. spi_calculation_definition
+12. spi_calculation_evidence_expression
+13. spi_definition
+14. spi_finding_classification_rule
+15. spi_feature_binding
+16. spi_applicable_asset_type
+17. spi_rule_parameter
+18. spi_tasking_team
+19. spi_tasking_action_template
+20. spi_tasking_condition_template
+21. kpi_definition
+22. discovery_tools_settings_version
+23. discovery_tool
+24. discovery_tool_asset_scope
+25. measures_settings_version
+26. measures_severity_matrix
+27. measures_priority_matrix
+28. dataset_snapshot
+29. managed_network
+30. managed_network_hierarchy
+31. ict_system
+32. ict_system_hierarchy
+33. network_declared_system
+34. system_mission_capability
+35. system_business_service
+36. system_environment
+37. asset
+38. network_declared_asset
+39. network_target_state_asset
+40. system_environment_asset
+41. asset_operating_system
+42. asset_network_os
+43. asset_patch_state
+44. asset_installed_software
+45. asset_vulnerability
+46. ci_dependency
+47. finding
 
 Field-Level Mapping Summary
 ---------------------------
@@ -108,12 +114,17 @@ Reference and settings:
 - Database Schema/data/reference-versions.json.osCurrentMajor -> tsaat.reference_os_current_major
 - Database Schema/data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
 - Database Schema/data/severity-definitions.json.severities[] -> tsaat.finding_severity_definition
+- Database Schema/data/spi-sql-calculations.json.findingPriorities[] -> tsaat.finding_priority_definition
 - Database Schema/data/spi-rule-definitions.json.rules[] -> tsaat.spi_rule_definition
 - Database Schema/data/spi-rule-definitions.json.rules[].parameters[] -> tsaat.spi_rule_parameter_definition
 - Database Schema/data/spi-rule-definitions.json.rules[].outcomes[] -> tsaat.spi_rule_outcome_template
 - Database Schema/data/spi-report-detail-definitions.json.reportDetails[] -> tsaat.spi_report_detail_definition
+- Database Schema/data/spi-sql-calculations.json.calculationSources[] -> tsaat.spi_calculation_source
+- Database Schema/data/spi-sql-calculations.json.calculations[] -> tsaat.spi_calculation_definition
+- Database Schema/data/spi-sql-calculations.json.calculations[].evidenceExpressions[] -> tsaat.spi_calculation_evidence_expression
 - Database Schema/data/spi-definitions.json.spis[] -> tsaat.spi_definition, including displayOrder, enabled, ruleKey, reportAvailable, trendReportAvailable, reportDetailKey, defaultSeverity, and recommendedAction
 - Database Schema/data/spi-finding-classification-rules.json.classificationRules[] -> tsaat.spi_finding_classification_rule
+- Database Schema/data/spi-sql-calculations.json.featureBindings[] -> tsaat.spi_feature_binding
 - Database Schema/data/spi-definitions.json.spis[].applicableAssetTypes[] -> tsaat.spi_applicable_asset_type
 - Database Schema/data/spi-definitions.json.spis[].ruleParameters object -> tsaat.spi_rule_parameter
 - Database Schema/data/spi-definitions.json.spis[].taskingTeams[] -> tsaat.spi_tasking_team
@@ -126,7 +137,7 @@ Reference and settings:
 - Database Schema/data/measures-settings.json.updatedAt -> tsaat.measures_settings_version.updated_at
 - Database Schema/data/measures-settings.json.severityMatrix object key "spiId:assetType" -> tsaat.measures_severity_matrix
 - Database Schema/data/measures-settings.json.priorityMatrix object key "spiId" -> tsaat.measures_priority_matrix
-  - if priorityMatrix is omitted, the loader derives priorities from spi_definition.priority_order
+  - if priorityMatrix is omitted, the loader derives priorities from spi_definition.priority_order and validates the value against selectable tsaat.finding_priority_definition rows
 
 Snapshots and domain entities:
 - snapshot root:
@@ -198,7 +209,8 @@ Validation Rules Applied by loader/validator
 - Exactly 8 dataset snapshots required
 - At least 10 SPI definitions required; current seed preserves SPI 1..10 and future supported SPI IDs may be added
 - At least 5 severity definitions required; current seed preserves Critical Exposure, High Risk, Major, Moderate, and Data Gap
-- Non-empty asset, finding, discovery_tool, kpi_definition, finding_severity_definition, SPI rule catalogue, SPI parameter schema, SPI outcome template, SPI report detail catalogue, SPI finding classification, spi_rule_parameter, SPI tasking metadata, measures_severity_matrix, and measures_priority_matrix tables required
+- Non-empty asset, finding, discovery_tool, kpi_definition, finding_severity_definition, finding_priority_definition, SPI rule catalogue, SPI parameter schema, SPI outcome template, SPI report detail catalogue, SPI SQL calculation source/definition/evidence, SPI feature binding, SPI finding classification, spi_rule_parameter, SPI tasking metadata, measures_severity_matrix, and measures_priority_matrix tables required
+- `tsaat.usp_evaluate_spi_snapshot` must return valid JSON evidence rows for the latest snapshot using the DB-backed SQL calculation definitions
 - Non-empty network_target_state_asset table required
 - Full row-count summary emitted after load
 - Seed profile constraints validated in `scripts/validate-seed.ts`:

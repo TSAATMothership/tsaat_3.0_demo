@@ -10,6 +10,7 @@ tsaat.discovery_tool|7
 tsaat.discovery_tool_asset_scope|42
 tsaat.discovery_tools_settings_version|1
 tsaat.finding|12134
+tsaat.finding_priority_definition|8
 tsaat.finding_severity_definition|5
 tsaat.ict_system|480
 tsaat.ict_system_hierarchy|0
@@ -26,7 +27,11 @@ tsaat.reference_os_current_major|7
 tsaat.reference_software_supported_version|60
 tsaat.reference_version_set|1
 tsaat.spi_applicable_asset_type|17
+tsaat.spi_calculation_definition|10
+tsaat.spi_calculation_evidence_expression|22
+tsaat.spi_calculation_source|1
 tsaat.spi_definition|10
+tsaat.spi_feature_binding|5
 tsaat.spi_finding_classification_rule|13
 tsaat.spi_report_detail_definition|1
 tsaat.spi_rule_definition|10

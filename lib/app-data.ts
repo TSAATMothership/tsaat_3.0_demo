@@ -8,6 +8,7 @@ import { getCachedCoreAppData, getCachedTrendAppData } from "@/lib/app-data-cach
 import {
   loadDiscoveryToolsSettings,
   loadDatasetForDate,
+  loadFindingPriorityDefinitions,
   loadKpiDefinitions,
   loadLatestSnapshotsForDate,
   loadMeasuresSettings,
@@ -23,14 +24,15 @@ import { buildTrendPoints } from "@/lib/trends";
 
 export async function getCoreAppData(searchParams: Record<string, string | string[] | undefined> = {}) {
   const dataDate = extractDataDateParam(searchParams);
-  const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
+  const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
     loadDatasetForDate(dataDate),
     loadDiscoveryToolsSettings(),
     loadKpiDefinitions(),
     loadSpiDefinitions(),
-    loadSeverityDefinitions()
+    loadSeverityDefinitions(),
+    loadFindingPriorityDefinitions()
   ]);
-  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions, priorityDefinitions);
   const filters = parseFilters(searchParams);
 
   const cacheKey = stableCacheKey([
@@ -40,6 +42,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
     kpiDefinitionsCacheSignature(kpiDefinitions),
     spiDefinitionsCacheSignature(spiDefinitions),
     severityDefinitionsCacheSignature(severityDefinitions),
+    JSON.stringify(priorityDefinitions),
     filtersCacheKey(filters),
     settingsCacheSignature(measuresSettings, discoveryToolsSettings)
   ]);
@@ -67,6 +70,7 @@ export async function getCoreAppData(searchParams: Record<string, string | strin
       kpiDefinitions,
       spiDefinitions,
       severityDefinitions,
+      priorityDefinitions,
       measuresSettings,
       discoveryToolsSettings
     };
@@ -93,6 +97,7 @@ export async function getTrendAppData(
     kpiDefinitionsCacheSignature(core.kpiDefinitions),
     spiDefinitionsCacheSignature(core.spiDefinitions),
     severityDefinitionsCacheSignature(core.severityDefinitions),
+    JSON.stringify(core.priorityDefinitions),
     filtersCacheKey(core.filters),
     settingsCacheSignature(core.measuresSettings, core.discoveryToolsSettings)
   ]);

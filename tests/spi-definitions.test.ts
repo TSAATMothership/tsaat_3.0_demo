@@ -82,7 +82,7 @@ describe("database-driven SPI definitions", () => {
     expect(testSeverityDefinitions.find((definition) => definition.severityKey === "Data Gap")?.selectableInSettings).toBe(false);
   });
 
-  it("filters unsupported or disabled SPI rows while accepting supported SPI 11+ rows", () => {
+  it("filters invalid or disabled SPI rows while accepting configured SPI 11+ rows", () => {
     const spiOne = testSpiDefinitions[0];
     const normalized = normalizeSpiDefinitions({
       spis: [
@@ -93,7 +93,7 @@ describe("database-driven SPI definitions", () => {
           ...spiOne,
           spiId: 13,
           displayOrder: 13,
-          ruleDefinition: { ...spiOne.ruleDefinition, handlerKey: "unsupported-handler" }
+          calculationDefinition: { ...spiOne.calculationDefinition, enabled: false }
         },
         { ...spiOne, spiId: 14, displayOrder: 14, enabled: false }
       ]
@@ -127,6 +127,7 @@ describe("database-driven SPI definitions", () => {
     const schema = readRepoFile("Database Schema/database-schema.sql");
     const migration = readRepoFile("Database Schema/migrations/013_database_driven_spi_measures.sql");
     const catalogueMigration = readRepoFile("Database Schema/migrations/014_spi_rule_catalogues_and_classification.sql");
+    const sqlEngineMigration = readRepoFile("Database Schema/migrations/015_sql_driven_spi_measure_engine.sql");
     const loader = readRepoFile("Database Schema/loaders/load-data.sql");
     const validator = readRepoFile("Database Schema/loaders/validate-database.sql");
     const manifest = readRepoFile("Database Schema/data/database-build-manifest.json");
@@ -134,18 +135,23 @@ describe("database-driven SPI definitions", () => {
 
     for (const table of [
       "finding_severity_definition",
+      "finding_priority_definition",
       "spi_rule_parameter",
       "spi_rule_definition",
       "spi_rule_parameter_definition",
       "spi_rule_outcome_template",
       "spi_report_detail_definition",
+      "spi_calculation_source",
+      "spi_calculation_definition",
+      "spi_calculation_evidence_expression",
+      "spi_feature_binding",
       "spi_finding_classification_rule",
       "spi_tasking_team",
       "spi_tasking_action_template",
       "spi_tasking_condition_template"
     ]) {
       expect(schema).toContain(table);
-      expect(`${migration}\n${catalogueMigration}`).toContain(table);
+      expect(`${migration}\n${catalogueMigration}\n${sqlEngineMigration}`).toContain(table);
       expect(loader).toContain(table);
       expect(validator).toContain(table);
     }
@@ -153,6 +159,7 @@ describe("database-driven SPI definitions", () => {
     expect(manifest).toContain("spi-rule-definitions.json");
     expect(manifest).toContain("spi-report-detail-definitions.json");
     expect(manifest).toContain("spi-finding-classification-rules.json");
+    expect(manifest).toContain("spi-sql-calculations.json");
     expect(mapping).toContain("ruleKey");
     expect(normalizeSeverityDefinitions(JSON.parse(readRepoFile("Database Schema/data/severity-definitions.json")))).toHaveLength(5);
   });

@@ -139,7 +139,7 @@ export function SecurityPerformanceIndicatorComplianceChart({
   return (
     <ComplianceRadarChart
       title="Security Performance Indicator Compliance"
-      subtitle="Each point is SPI 1-10, comparing total possible compliance against actual compliant checks."
+      subtitle="Each point is a database-defined SPI, comparing total possible compliance against actual compliant checks."
       data={data}
     />
   );

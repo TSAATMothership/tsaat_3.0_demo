@@ -54,6 +54,7 @@ export default async function MeasuresPage({
     kpiDefinitions,
     spiDefinitions,
     severityDefinitions,
+    priorityDefinitions,
     measuresSettings
   } =
     await getCoreAppData(searchParams);
@@ -195,6 +196,7 @@ export default async function MeasuresPage({
             initialSettings={measuresSettings}
             spiDefinitions={spiDefinitions}
             severityDefinitions={severityDefinitions}
+            priorityDefinitions={priorityDefinitions}
           />
         )}
       </div>

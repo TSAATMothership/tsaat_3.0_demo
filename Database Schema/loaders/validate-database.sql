@@ -4,10 +4,15 @@ SET XACT_ABORT ON;
 DECLARE @SnapshotCount INT = (SELECT COUNT(*) FROM [tsaat].[dataset_snapshot]);
 DECLARE @SpiCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_definition]);
 DECLARE @SeverityCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_severity_definition]);
+DECLARE @PriorityDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_priority_definition]);
 DECLARE @SpiRuleDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_definition]);
 DECLARE @SpiRuleParameterDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_parameter_definition]);
 DECLARE @SpiRuleOutcomeTemplateCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_outcome_template]);
 DECLARE @SpiReportDetailDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_report_detail_definition]);
+DECLARE @SpiCalculationSourceCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_calculation_source]);
+DECLARE @SpiCalculationDefinitionCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_calculation_definition]);
+DECLARE @SpiCalculationEvidenceCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_calculation_evidence_expression]);
+DECLARE @SpiFeatureBindingCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_feature_binding]);
 DECLARE @SpiFindingClassificationRuleCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_finding_classification_rule]);
 DECLARE @SpiRuleParameterCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_rule_parameter]);
 DECLARE @SpiTaskingTeamCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_tasking_team]);
@@ -31,6 +36,9 @@ IF @SpiCount < 10
 IF @SeverityCount < 5
   THROW 52000, 'Validation failed: finding_severity_definition count must be at least 5.', 1;
 
+IF @PriorityDefinitionCount < 8
+  THROW 52000, 'Validation failed: finding_priority_definition count must include selectable priorities and data-gap priority.', 1;
+
 IF @SpiRuleDefinitionCount < 10
   THROW 52000, 'Validation failed: spi_rule_definition count must be at least 10.', 1;
 
@@ -42,6 +50,18 @@ IF @SpiRuleOutcomeTemplateCount <= 0
 
 IF @SpiReportDetailDefinitionCount <= 0
   THROW 52000, 'Validation failed: spi_report_detail_definition table is empty.', 1;
+
+IF @SpiCalculationSourceCount <= 0
+  THROW 52000, 'Validation failed: spi_calculation_source table is empty.', 1;
+
+IF @SpiCalculationDefinitionCount < 10
+  THROW 52000, 'Validation failed: spi_calculation_definition count must be at least 10.', 1;
+
+IF @SpiCalculationEvidenceCount < 10
+  THROW 52000, 'Validation failed: spi_calculation_evidence_expression count must be at least 10.', 1;
+
+IF @SpiFeatureBindingCount < 5
+  THROW 52000, 'Validation failed: spi_feature_binding count must be at least 5.', 1;
 
 IF @SpiFindingClassificationRuleCount <= 0
   THROW 52000, 'Validation failed: spi_finding_classification_rule table is empty.', 1;
@@ -82,6 +102,83 @@ IF @MeasurePriorityCount <= 0
 IF @NetworkTargetStateAssetCount <= 0
   THROW 52000, 'Validation failed: network_target_state_asset table is empty.', 1;
 
+IF OBJECT_ID(N'tsaat.vw_spi_asset_evaluation_context', N'V') IS NULL
+  THROW 52000, 'Validation failed: vw_spi_asset_evaluation_context is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.usp_evaluate_spi_snapshot', N'P') IS NULL
+  THROW 52000, 'Validation failed: usp_evaluate_spi_snapshot is missing.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM [tsaat].[spi_definition] AS sd
+  LEFT JOIN [tsaat].[spi_calculation_definition] AS scd
+    ON scd.[rule_key] = sd.[rule_key] AND scd.[enabled] = 1
+  WHERE sd.[enabled] = 1 AND scd.[rule_key] IS NULL
+)
+  THROW 52000, 'Validation failed: every enabled SPI definition must have an enabled SQL calculation definition.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM [tsaat].[spi_definition] AS sd
+  WHERE sd.[enabled] = 1
+    AND NOT EXISTS (
+      SELECT 1
+      FROM [tsaat].[spi_calculation_evidence_expression] AS scee
+      WHERE scee.[rule_key] = sd.[rule_key]
+    )
+)
+  THROW 52000, 'Validation failed: every enabled SPI definition must have SQL evidence expressions.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM [tsaat].[spi_definition] AS sd
+  WHERE sd.[enabled] = 1
+    AND NOT EXISTS (
+      SELECT 1
+      FROM [tsaat].[spi_rule_outcome_template] AS srot
+      WHERE srot.[rule_key] = sd.[rule_key]
+    )
+)
+  THROW 52000, 'Validation failed: every enabled SPI definition must have outcome templates.', 1;
+
+DECLARE @LatestSnapshotId BIGINT = (
+  SELECT TOP (1) [snapshot_id]
+  FROM [tsaat].[dataset_snapshot]
+  ORDER BY [snapshot_date] DESC, [snapshot_id] DESC
+);
+
+DECLARE @SqlSpiEvaluations TABLE (
+  [snapshot_id] BIGINT NOT NULL,
+  [asset_id] NVARCHAR(255) NOT NULL,
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [compliance_status] NVARCHAR(20) NOT NULL,
+  [outcome_key] NVARCHAR(100) NOT NULL,
+  [evidence_json] NVARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @SqlSpiEvaluations (
+  [snapshot_id],
+  [asset_id],
+  [spi_id],
+  [display_order],
+  [compliance_status],
+  [outcome_key],
+  [evidence_json]
+)
+EXEC [tsaat].[usp_evaluate_spi_snapshot] @snapshot_id = @LatestSnapshotId;
+
+IF NOT EXISTS (SELECT 1 FROM @SqlSpiEvaluations)
+  THROW 52000, 'Validation failed: SQL SPI evaluation procedure returned no rows for the latest snapshot.', 1;
+
+IF EXISTS (
+  SELECT 1
+  FROM @SqlSpiEvaluations
+  WHERE [compliance_status] NOT IN (N'Compliant', N'Non-compliant', N'Unknown')
+    OR ISJSON([evidence_json]) <> 1
+)
+  THROW 52000, 'Validation failed: SQL SPI evaluation returned invalid status or evidence JSON.', 1;
+
 ;WITH row_counts AS (
   SELECT
     t.[name] AS [table_name],
@@ -100,10 +197,15 @@ SELECT
   @SnapshotCount AS [dataset_snapshot_count],
   @SpiCount AS [spi_definition_count],
   @SeverityCount AS [finding_severity_definition_count],
+  @PriorityDefinitionCount AS [finding_priority_definition_count],
   @SpiRuleDefinitionCount AS [spi_rule_definition_count],
   @SpiRuleParameterDefinitionCount AS [spi_rule_parameter_definition_count],
   @SpiRuleOutcomeTemplateCount AS [spi_rule_outcome_template_count],
   @SpiReportDetailDefinitionCount AS [spi_report_detail_definition_count],
+  @SpiCalculationSourceCount AS [spi_calculation_source_count],
+  @SpiCalculationDefinitionCount AS [spi_calculation_definition_count],
+  @SpiCalculationEvidenceCount AS [spi_calculation_evidence_expression_count],
+  @SpiFeatureBindingCount AS [spi_feature_binding_count],
   @SpiFindingClassificationRuleCount AS [spi_finding_classification_rule_count],
   @SpiRuleParameterCount AS [spi_rule_parameter_count],
   @SpiTaskingTeamCount AS [spi_tasking_team_count],

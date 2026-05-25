@@ -225,6 +225,7 @@ export interface Dataset {
   managedNetworks: ManagedNetwork[];
   ictSystems: ICTSystem[];
   assets: Asset[];
+  spiEvaluations: StoredSpiEvaluation[];
   ciDependencies?: CiDependency[];
   findings?: Finding[];
 }
@@ -237,6 +238,10 @@ export interface SpiEvaluation {
   status: ComplianceStatus;
   evidence: Record<string, string | number | boolean | null>;
   reasons: string[];
+}
+
+export interface StoredSpiEvaluation extends SpiEvaluation {
+  assetId: string;
 }
 
 export interface AssetSpiEvaluation {

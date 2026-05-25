@@ -3,12 +3,18 @@ import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import {
   __resetDataLoaderCachesForTest,
   loadDatasetForDate,
+  loadFindingPriorityDefinitions,
   loadKpiDefinitions,
   loadMeasuresSettings,
   loadReferenceVersions,
   saveMeasuresSettings
 } from "@/lib/data-loader";
-import { testMeasuresSettings, testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
+import {
+  testMeasuresSettings,
+  testPriorityDefinitions,
+  testSeverityDefinitions,
+  testSpiDefinitions
+} from "./spi-definition-fixtures";
 
 const executeSqlJsonMock = vi.hoisted(() => vi.fn());
 const executeSqlTextMock = vi.hoisted(() => vi.fn());
@@ -77,6 +83,16 @@ function installSqlMock(): void {
       }));
     }
 
+    if (sql.includes("FROM [tsaat].[finding_priority_definition]")) {
+      return testPriorityDefinitions.map((definition) => ({
+        priorityRank: definition.priorityRank,
+        label: definition.label,
+        displayOrder: definition.displayOrder,
+        selectableInSettings: definition.selectableInSettings,
+        description: definition.description
+      }));
+    }
+
     if (sql.includes("FROM [tsaat].[spi_definition] sd")) {
       return testSpiDefinitions.map((definition) => ({
         spiId: definition.spiId,
@@ -103,6 +119,32 @@ function installSqlMock(): void {
 
     if (sql.includes("FROM [tsaat].[spi_rule_definition]")) {
       return Array.from(new Map(testSpiDefinitions.map((definition) => [definition.ruleKey, definition.ruleDefinition])).values());
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_calculation_source]")) {
+      return Array.from(
+        new Map(
+          testSpiDefinitions.map((definition) => [
+            definition.calculationDefinition.sourceKey,
+            definition.calculationDefinition.source
+          ])
+        ).values()
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_calculation_definition]")) {
+      return testSpiDefinitions.map((definition) => ({
+        ruleKey: definition.calculationDefinition.ruleKey,
+        sourceKey: definition.calculationDefinition.sourceKey,
+        displayOrder: definition.calculationDefinition.displayOrder,
+        statusExpressionSql: definition.calculationDefinition.statusExpressionSql,
+        outcomeExpressionSql: definition.calculationDefinition.outcomeExpressionSql,
+        enabled: definition.calculationDefinition.enabled
+      }));
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_calculation_evidence_expression]")) {
+      return testSpiDefinitions.flatMap((definition) => definition.calculationDefinition.evidenceExpressions);
     }
 
     if (sql.includes("FROM [tsaat].[spi_rule_parameter_definition]")) {
@@ -134,6 +176,10 @@ function installSqlMock(): void {
           )
         ).values()
       );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_feature_binding]")) {
+      return testSpiDefinitions.flatMap((definition) => definition.featureBindings);
     }
 
     if (sql.includes("FROM [tsaat].[spi_rule_parameter]")) {
@@ -183,6 +229,10 @@ function installSqlMock(): void {
       ];
     }
 
+    if (sql.includes("usp_evaluate_spi_snapshot")) {
+      return [];
+    }
+
     if (sql.includes("version_ref.[version_set_id] AS [versionSetId]")) {
       return { versionSetId: 3 };
     }
@@ -217,6 +267,7 @@ describe("data loader caches", () => {
 
     expect(sqlCallsContaining("ds.[snapshot_id] AS [snapshotId]")).toBe(1);
     expect(sqlCallsContaining("DECLARE @snapshotId BIGINT")).toBe(1);
+    expect(sqlCallsContaining("usp_evaluate_spi_snapshot")).toBe(1);
   });
 
   it("reuses measures settings by latest version", async () => {
@@ -226,6 +277,7 @@ describe("data loader caches", () => {
     expect(sqlCallsContaining("FROM [tsaat].[measures_settings_version]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[measures_severity_matrix]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[measures_priority_matrix]")).toBe(1);
+    expect(sqlCallsContaining("FROM [tsaat].[finding_priority_definition]")).toBe(1);
   });
 
   it("invalidates measures settings cache after a save", async () => {
@@ -254,5 +306,12 @@ describe("data loader caches", () => {
     await loadKpiDefinitions();
 
     expect(sqlCallsContaining("FROM [tsaat].[kpi_definition]")).toBe(1);
+  });
+
+  it("caches finding priority definitions for repeated reads", async () => {
+    await loadFindingPriorityDefinitions();
+    await loadFindingPriorityDefinitions();
+
+    expect(sqlCallsContaining("FROM [tsaat].[finding_priority_definition]")).toBe(1);
   });
 });

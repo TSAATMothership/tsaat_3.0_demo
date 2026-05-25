@@ -34,6 +34,7 @@ describe("analytics findings filtering", () => {
     const dataset: Dataset = {
       generatedAt: "2026-02-28T00:00:00.000Z",
       snapshotDate: "2026-02-28",
+      spiEvaluations: [],
       managedNetworks: [
         {
           id: "net-1",
@@ -114,6 +115,7 @@ describe("analytics findings filtering", () => {
     const dataset: Dataset = {
       generatedAt: "2026-02-28T00:00:00.000Z",
       snapshotDate: "2026-02-28",
+      spiEvaluations: [],
       managedNetworks: [
         {
           id: "net-1",
@@ -215,6 +217,7 @@ describe("analytics findings filtering", () => {
     const dataset: Dataset = {
       generatedAt: "2026-02-28T00:00:00.000Z",
       snapshotDate: "2026-02-28",
+      spiEvaluations: [],
       managedNetworks: [
         {
           id: "net-1",
@@ -283,6 +286,7 @@ describe("analytics findings filtering", () => {
     const dataset: Dataset = {
       generatedAt: "2026-02-28T00:00:00.000Z",
       snapshotDate: "2026-02-28",
+      spiEvaluations: [],
       managedNetworks: [
         {
           id: "net-1",

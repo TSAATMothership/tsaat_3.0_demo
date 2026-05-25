@@ -3,8 +3,16 @@ import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import { Asset, AssetType, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
 export const MEASURES_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
-export const MEASURES_PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
-export type MeasuresPriorityRank = (typeof MEASURES_PRIORITY_OPTIONS)[number];
+const FALLBACK_PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+export type MeasuresPriorityRank = number;
+
+export interface FindingPriorityDefinition {
+  priorityRank: MeasuresPriorityRank;
+  label: string;
+  displayOrder: number;
+  selectableInSettings: boolean;
+  description: string;
+}
 
 export interface MeasuresSettings {
   updatedAt: string;
@@ -34,12 +42,11 @@ function firstSelectableSeverity(severityDefinitions: SeverityDefinition[]): Fin
   );
 }
 
-function isMeasuresPriorityRank(value: unknown): value is MeasuresPriorityRank {
-  return (
-    typeof value === "number" &&
-    Number.isInteger(value) &&
-    MEASURES_PRIORITY_OPTIONS.includes(value as MeasuresPriorityRank)
-  );
+function isMeasuresPriorityRank(
+  value: unknown,
+  priorityDefinitions: FindingPriorityDefinition[]
+): value is MeasuresPriorityRank {
+  return typeof value === "number" && Number.isInteger(value) && selectablePriorityRanks(priorityDefinitions).includes(value);
 }
 
 function isAssetType(value: unknown): value is AssetType {
@@ -67,9 +74,84 @@ export function selectableSeverityDefinitions(severityDefinitions: SeverityDefin
   return severityDefinitions.filter((definition) => definition.selectableInSettings);
 }
 
+export function normalizePriorityDefinitions(input: unknown): FindingPriorityDefinition[] {
+  const rows = (() => {
+    if (Array.isArray(input)) {
+      return input;
+    }
+    if (input && typeof input === "object" && Array.isArray((input as { priorities?: unknown }).priorities)) {
+      return (input as { priorities: unknown[] }).priorities;
+    }
+    return [];
+  })();
+
+  const definitions: FindingPriorityDefinition[] = [];
+  const seenRanks = new Set<number>();
+  const seenDisplayOrders = new Set<number>();
+  for (const rawRow of rows) {
+    if (!rawRow || typeof rawRow !== "object" || Array.isArray(rawRow)) {
+      continue;
+    }
+    const row = rawRow as Record<string, unknown>;
+    const priorityRank = Number(row.priorityRank);
+    const label = typeof row.label === "string" && row.label.trim() ? row.label.trim() : `P${priorityRank}`;
+    const displayOrder = Number(row.displayOrder);
+    const description =
+      typeof row.description === "string" && row.description.trim() ? row.description.trim() : label;
+    if (
+      !Number.isInteger(priorityRank) ||
+      priorityRank < 1 ||
+      !Number.isInteger(displayOrder) ||
+      displayOrder < 1 ||
+      seenRanks.has(priorityRank) ||
+      seenDisplayOrders.has(displayOrder)
+    ) {
+      continue;
+    }
+    seenRanks.add(priorityRank);
+    seenDisplayOrders.add(displayOrder);
+    definitions.push({
+      priorityRank,
+      label,
+      displayOrder,
+      selectableInSettings:
+        typeof row.selectableInSettings === "boolean"
+          ? row.selectableInSettings
+          : typeof row.selectableInSettings === "number"
+            ? row.selectableInSettings !== 0
+            : true,
+      description
+    });
+  }
+
+  return definitions.sort((left, right) => left.displayOrder - right.displayOrder || left.priorityRank - right.priorityRank);
+}
+
+export function defaultPriorityDefinitions(): FindingPriorityDefinition[] {
+  return FALLBACK_PRIORITY_OPTIONS.map((priorityRank) => ({
+    priorityRank,
+    label: `P${priorityRank}`,
+    displayOrder: priorityRank,
+    selectableInSettings: true,
+    description: `Priority ${priorityRank}`
+  }));
+}
+
+export function selectablePriorityDefinitions(
+  priorityDefinitions: FindingPriorityDefinition[]
+): FindingPriorityDefinition[] {
+  const normalized = priorityDefinitions.length ? priorityDefinitions : defaultPriorityDefinitions();
+  return normalized.filter((definition) => definition.selectableInSettings);
+}
+
+export function selectablePriorityRanks(priorityDefinitions: FindingPriorityDefinition[]): MeasuresPriorityRank[] {
+  return selectablePriorityDefinitions(priorityDefinitions).map((definition) => definition.priorityRank);
+}
+
 export function defaultMeasuresSettings(
   spiDefinitions: SpiDefinition[],
-  severityDefinitions: SeverityDefinition[]
+  severityDefinitions: SeverityDefinition[],
+  priorityDefinitions: FindingPriorityDefinition[] = defaultPriorityDefinitions()
 ): MeasuresSettings {
   const severityMatrix: Record<string, FindingSeverity> = {};
   const priorityMatrix: Record<string, MeasuresPriorityRank> = {};
@@ -85,7 +167,9 @@ export function defaultMeasuresSettings(
       severityMatrix[severityMatrixKey(definition.spiId, assetType)] = defaultSeverity;
     }
 
-    const priorityRank = isMeasuresPriorityRank(definition.priorityOrder) ? definition.priorityOrder : 7;
+    const priorityRank = isMeasuresPriorityRank(definition.priorityOrder, priorityDefinitions)
+      ? definition.priorityOrder
+      : selectablePriorityRanks(priorityDefinitions)[0] ?? 7;
     priorityMatrix[priorityMatrixKey(definition.spiId)] = priorityRank;
   }
 
@@ -99,9 +183,10 @@ export function defaultMeasuresSettings(
 export function normalizeMeasuresSettings(
   input: unknown,
   spiDefinitions: SpiDefinition[],
-  severityDefinitions: SeverityDefinition[]
+  severityDefinitions: SeverityDefinition[],
+  priorityDefinitions: FindingPriorityDefinition[] = defaultPriorityDefinitions()
 ): MeasuresSettings {
-  const fallback = defaultMeasuresSettings(spiDefinitions, severityDefinitions);
+  const fallback = defaultMeasuresSettings(spiDefinitions, severityDefinitions, priorityDefinitions);
   if (!input || typeof input !== "object") {
     return fallback;
   }
@@ -136,7 +221,7 @@ export function normalizeMeasuresSettings(
     for (const [rawKey, rawPriority] of Object.entries(candidate.priorityMatrix as Record<string, unknown>)) {
       const spiId = Number(rawKey);
       const priority = typeof rawPriority === "string" ? Number(rawPriority) : rawPriority;
-      if (!isSpiId(spiId, spiDefinitions) || !isMeasuresPriorityRank(priority)) {
+      if (!isSpiId(spiId, spiDefinitions) || !isMeasuresPriorityRank(priority, priorityDefinitions)) {
         continue;
       }
       priorityMatrix[priorityMatrixKey(spiId)] = priority;
@@ -197,7 +282,7 @@ export function applyMeasuresPrioritySettings(findings: Finding[], settings: Mea
     }
 
     const mappedPriority = settings.priorityMatrix[priorityMatrixKey(finding.spiId)];
-    if (!isMeasuresPriorityRank(mappedPriority)) {
+    if (typeof mappedPriority !== "number" || !Number.isInteger(mappedPriority) || mappedPriority < 1) {
       return finding;
     }
 

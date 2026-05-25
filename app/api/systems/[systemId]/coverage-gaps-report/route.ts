@@ -10,6 +10,7 @@ import {
   loadSpiDefinitions
 } from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
+import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { Asset, ComplianceStatus, EnvironmentType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -274,8 +275,8 @@ export async function GET(
       }
       const evaluation = evaluationByAssetId.get(asset.id);
       return evaluation
-        ? evaluation.evaluations.some(
-            (item) => (item.spiId === 1 || item.spiId === 2) && item.status === "Non-compliant"
+        ? evaluation.evaluations.some((item) =>
+            evaluationMatchesSpiFeature(item, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
           )
         : false;
     }

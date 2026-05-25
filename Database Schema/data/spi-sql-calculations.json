@@ -1,0 +1,154 @@
+{
+  "updatedAt": "2026-05-25T00:00:00.000Z",
+  "calculationSources": [
+    {
+      "sourceKey": "asset-evaluation-context",
+      "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+      "displayOrder": 1,
+      "name": "SPI Asset Evaluation Context",
+      "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+      "enabled": true
+    }
+  ],
+  "findingPriorities": [
+    { "priorityRank": 1, "label": "P1", "displayOrder": 1, "selectableInSettings": true, "description": "Immediate priority remediation." },
+    { "priorityRank": 2, "label": "P2", "displayOrder": 2, "selectableInSettings": true, "description": "High priority remediation." },
+    { "priorityRank": 3, "label": "P3", "displayOrder": 3, "selectableInSettings": true, "description": "Major priority remediation." },
+    { "priorityRank": 4, "label": "P4", "displayOrder": 4, "selectableInSettings": true, "description": "Elevated priority remediation." },
+    { "priorityRank": 5, "label": "P5", "displayOrder": 5, "selectableInSettings": true, "description": "Standard priority remediation." },
+    { "priorityRank": 6, "label": "P6", "displayOrder": 6, "selectableInSettings": true, "description": "Lower priority remediation." },
+    { "priorityRank": 7, "label": "P7", "displayOrder": 7, "selectableInSettings": true, "description": "Lowest selectable priority remediation." },
+    { "priorityRank": 90, "label": "P90", "displayOrder": 90, "selectableInSettings": false, "description": "Data gap priority used for unknown evidence." }
+  ],
+  "featureBindings": [
+    { "featureKey": "out-of-support-os-report", "spiId": 1, "displayOrder": 1, "complianceStatus": "Non-compliant", "outcomeKey": "unsupported", "enabled": true, "description": "Source SPI row for the ICT System out of support OS report." },
+    { "featureKey": "os-non-compliant", "spiId": 1, "displayOrder": 1, "complianceStatus": "Non-compliant", "outcomeKey": null, "enabled": true, "description": "Operating-system posture non-compliance for server/workstation filters." },
+    { "featureKey": "os-non-compliant", "spiId": 2, "displayOrder": 2, "complianceStatus": "Non-compliant", "outcomeKey": null, "enabled": true, "description": "Operating-system N-minus posture non-compliance for server/workstation filters." },
+    { "featureKey": "production-critical-exposure", "spiId": 3, "displayOrder": 1, "complianceStatus": "Non-compliant", "outcomeKey": null, "enabled": true, "description": "Server critical vulnerability row used to classify production critical exposure." },
+    { "featureKey": "production-critical-exposure", "spiId": 7, "displayOrder": 2, "complianceStatus": "Non-compliant", "outcomeKey": null, "enabled": true, "description": "Network device critical vulnerability row used to classify production critical exposure." }
+  ],
+  "calculations": [
+    {
+      "ruleKey": "os-support",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 1,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.os_display_name IS NULL THEN N'Unknown' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'Unknown' WHEN ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.os_display_name IS NULL THEN N'missing_os_data' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'missing_os_data' WHEN ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'unsupported' ELSE N'supported' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "operatingSystem", "displayOrder": 1, "valueType": "string", "valueExpressionSql": "ctx.os_display_name", "omitWhenNull": false },
+        { "evidenceKey": "supportStatus", "displayOrder": 2, "valueType": "string", "valueExpressionSql": "ctx.os_support_status", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "os-n-minus",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 2,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.os_n_minus IS NULL THEN N'Unknown' WHEN ctx.os_n_minus <= [tsaat].[fn_spi_number_parameter](sd.spi_id,N'maxNMinus',2) THEN N'Compliant' ELSE N'Non-compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.os_n_minus IS NULL THEN N'missing_n_minus' WHEN ctx.os_n_minus <= [tsaat].[fn_spi_number_parameter](sd.spi_id,N'maxNMinus',2) THEN N'within_n_minus' ELSE N'older_than_n_minus' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "operatingSystem", "displayOrder": 1, "valueType": "string", "valueExpressionSql": "ctx.os_display_name", "omitWhenNull": false },
+        { "evidenceKey": "nMinus", "displayOrder": 2, "valueType": "number", "valueExpressionSql": "ctx.os_n_minus", "omitWhenNull": false },
+        { "evidenceKey": "currentMajor", "displayOrder": 3, "valueType": "number", "valueExpressionSql": "ctx.os_current_supported_major", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "server-critical-vulnerability",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 3,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'critical_vulnerability_present' ELSE N'no_critical_vulnerability' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "criticalVulnerabilities", "displayOrder": 1, "valueType": "number", "valueExpressionSql": "[tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical'))", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "production-server-critical-unsupported-os",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 4,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'Compliant' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'Unknown' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'not_production_context' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'missing_os_support' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'triggered' ELSE N'not_triggered' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "productionContext", "displayOrder": 1, "valueType": "boolean", "valueExpressionSql": "CAST(CASE WHEN ctx.environment_type = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') THEN 1 ELSE 0 END AS BIT)", "omitWhenNull": false },
+        { "evidenceKey": "criticalVulnerability", "displayOrder": 2, "valueType": "boolean", "valueExpressionSql": "CAST(CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN 1 ELSE 0 END AS BIT)", "omitWhenNull": false },
+        { "evidenceKey": "osSupportStatus", "displayOrder": 3, "valueType": "string", "valueExpressionSql": "ctx.os_support_status", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "production-server-critical-unsupported-software",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 5,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'Compliant' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'Unknown' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'not_production_context' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'missing_software' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'triggered' ELSE N'not_triggered' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "productionContext", "displayOrder": 1, "valueType": "boolean", "valueExpressionSql": "CAST(CASE WHEN ctx.environment_type = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') THEN 1 ELSE 0 END AS BIT)", "omitWhenNull": false },
+        { "evidenceKey": "criticalVulnerability", "displayOrder": 2, "valueType": "boolean", "valueExpressionSql": "CAST(CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN 1 ELSE 0 END AS BIT)", "omitWhenNull": false },
+        { "evidenceKey": "outOfSupportSoftwareCount", "displayOrder": 3, "valueType": "number", "valueExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN 0 WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN NULL ELSE [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) END", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "production-workstation-critical-unsupported-software",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 6,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'Compliant' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'Unknown' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'not_production_context' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'missing_software' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'triggered' ELSE N'not_triggered' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "productionContext", "displayOrder": 1, "valueType": "boolean", "valueExpressionSql": "CAST(CASE WHEN ctx.environment_type = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') THEN 1 ELSE 0 END AS BIT)", "omitWhenNull": false },
+        { "evidenceKey": "criticalVulnerability", "displayOrder": 2, "valueType": "boolean", "valueExpressionSql": "CAST(CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN 1 ELSE 0 END AS BIT)", "omitWhenNull": false },
+        { "evidenceKey": "outOfSupportSoftwareCount", "displayOrder": 3, "valueType": "number", "valueExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN 0 WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN NULL ELSE [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) END", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "network-device-critical-vulnerability",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 7,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'critical_vulnerability_present' ELSE N'no_critical_vulnerability' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "criticalVulnerabilities", "displayOrder": 1, "valueType": "number", "valueExpressionSql": "[tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical'))", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "network-device-support",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 8,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.network_os_display_name IS NULL THEN N'Unknown' WHEN ctx.network_os_support_status IS NULL OR ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'Unknown' WHEN ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'Non-compliant' ELSE N'Compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.network_os_display_name IS NULL THEN N'missing_network_os' WHEN ctx.network_os_support_status IS NULL OR ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'missing_network_os' WHEN ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'unsupported' ELSE N'supported' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "networkOs", "displayOrder": 1, "valueType": "string", "valueExpressionSql": "ctx.network_os_display_name", "omitWhenNull": false },
+        { "evidenceKey": "supportStatus", "displayOrder": 2, "valueType": "string", "valueExpressionSql": "ctx.network_os_support_status", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "network-device-patch-currency",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 9,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.patch_is_latest IS NULL THEN N'Unknown' WHEN ctx.patch_is_latest = [tsaat].[fn_spi_boolean_parameter](sd.spi_id,N'latestPatchRequired',1) THEN N'Compliant' ELSE N'Non-compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.patch_is_latest IS NULL THEN N'missing_patch_state' WHEN ctx.patch_is_latest = [tsaat].[fn_spi_boolean_parameter](sd.spi_id,N'latestPatchRequired',1) THEN N'current' ELSE N'not_current' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "isLatestPatch", "displayOrder": 1, "valueType": "boolean", "valueExpressionSql": "ctx.patch_is_latest", "omitWhenNull": false },
+        { "evidenceKey": "lastPatchedDate", "displayOrder": 2, "valueType": "string", "valueExpressionSql": "ctx.patch_last_patched_date", "omitWhenNull": false }
+      ]
+    },
+    {
+      "ruleKey": "asset-lifecycle-currency",
+      "sourceKey": "asset-evaluation-context",
+      "displayOrder": 10,
+      "enabled": true,
+      "statusExpressionSql": "CASE WHEN ctx.lifecycle_eol_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') OR ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') THEN N'Unknown' WHEN ctx.lifecycle_eol_status <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'endOfLifeStatus',N'EOL') AND ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'inWarrantyStatus',N'InWarranty') THEN N'Compliant' ELSE N'Non-compliant' END",
+      "outcomeExpressionSql": "CASE WHEN ctx.lifecycle_eol_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') OR ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') THEN N'missing_lifecycle' WHEN ctx.lifecycle_eol_status <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'endOfLifeStatus',N'EOL') AND ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'inWarrantyStatus',N'InWarranty') THEN N'current' ELSE N'expired' END",
+      "evidenceExpressions": [
+        { "evidenceKey": "eolStatus", "displayOrder": 1, "valueType": "string", "valueExpressionSql": "ctx.lifecycle_eol_status", "omitWhenNull": false },
+        { "evidenceKey": "warrantyStatus", "displayOrder": 2, "valueType": "string", "valueExpressionSql": "ctx.lifecycle_warranty_status", "omitWhenNull": false }
+      ]
+    }
+  ]
+}

@@ -79,6 +79,7 @@ function reportFixture({
   const dataset: Dataset = {
     generatedAt: `${snapshotDate}T00:00:00.000Z`,
     snapshotDate,
+    spiEvaluations: [],
     managedNetworks: [],
     ictSystems: [],
     assets

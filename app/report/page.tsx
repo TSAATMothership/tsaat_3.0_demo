@@ -1,5 +1,6 @@
 import { FilterBar } from "@/components/filter-bar";
 import { getCoreAppData } from "@/lib/app-data";
+import { SPI_FEATURE_OUT_OF_SUPPORT_OS_REPORT } from "@/lib/spi-features";
 import { Filters } from "@/lib/types";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -37,10 +38,17 @@ export default async function ReportPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const { dataset, filters, filterOptions } = await getCoreAppData(searchParams);
+  const { dataset, filters, filterOptions, spiDefinitions } = await getCoreAppData(searchParams);
   const queryEntries = toFilterQueryEntries(filters);
   const selectedReportSearch = firstParam(searchParams.reportSearch)?.trim() ?? "";
   const normalizedReportSearch = selectedReportSearch.toLowerCase();
+  const outOfSupportMeasureLabel =
+    spiDefinitions
+      .filter((definition) =>
+        definition.featureBindings.some((binding) => binding.featureKey === SPI_FEATURE_OUT_OF_SUPPORT_OS_REPORT)
+      )
+      .map((definition) => `SPI ${definition.spiId}`)
+      .join(", ") || "configured SPI";
 
   const reportRows = [
     {
@@ -70,7 +78,7 @@ export default async function ReportPage({
     {
       id: "systems-out-of-support-os",
       report: "ICT System out of support OS",
-      description: "Server-focused brief listing ICT system assets that are non-compliant with SPI 1 operating system support requirements.",
+      description: `Server-focused brief listing ICT system assets that are non-compliant with ${outOfSupportMeasureLabel} operating system support requirements.`,
       audience: "System owners, infrastructure operations, cyber assurance",
       href: hrefWithQuery("/api/systems/out-of-support-os-report", queryEntries)
     },

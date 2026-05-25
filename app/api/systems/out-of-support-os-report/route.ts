@@ -10,6 +10,7 @@ import {
 } from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
+import { findEvaluationForSpiFeature, SPI_FEATURE_OUT_OF_SUPPORT_OS_REPORT } from "@/lib/spi-features";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -130,12 +131,22 @@ export async function GET(request: NextRequest) {
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   const systemsById = new Map(dataset.ictSystems.map((system) => [system.id, system]));
   const assetsById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
+  const reportSpiDefinitions = spiDefinitions.filter((definition) =>
+    definition.featureBindings.some((binding) => binding.featureKey === SPI_FEATURE_OUT_OF_SUPPORT_OS_REPORT)
+  );
+  const reportMeasureLabel = reportSpiDefinitions.map((definition) => `SPI ${definition.spiId}`).join(", ") || "configured SPI";
+  const reportMeasureDescription =
+    reportSpiDefinitions[0]?.description ?? "the configured operating system support measure";
 
   const outOfSupportRows = analytics.evaluations
     .filter((evaluation) => evaluation.assetType === "server" && Boolean(evaluation.systemId))
     .map((evaluation) => {
-      const spi1 = evaluation.evaluations.find((item) => item.spiId === 1);
-      if (!spi1 || spi1.status !== "Non-compliant") {
+      const reportEvaluation = findEvaluationForSpiFeature(
+        evaluation.evaluations,
+        SPI_FEATURE_OUT_OF_SUPPORT_OS_REPORT,
+        spiDefinitions
+      );
+      if (!reportEvaluation) {
         return null;
       }
       const asset = assetsById.get(evaluation.assetId);
@@ -146,7 +157,7 @@ export async function GET(request: NextRequest) {
       const osName = asset.operatingSystem ? `${asset.operatingSystem.vendor} ${asset.operatingSystem.family}` : "Unknown";
       const osVersion = asset.operatingSystem?.version ?? "Unknown";
       const supportStatus = asset.operatingSystem?.supportStatus ?? "Unknown";
-      const reason = spi1.reasons.join(" | ") || "Operating system is non-compliant for SPI 1.";
+      const reason = reportEvaluation.reasons.join(" | ") || `${reportMeasureDescription} is non-compliant.`;
 
       return {
         systemId: evaluation.systemId as string,
@@ -202,7 +213,7 @@ export async function GET(request: NextRequest) {
   lines.push("");
   lines.push("## Introduction");
   lines.push(
-    "This executive brief identifies scoped ICT system server assets that are non-compliant with SPI 1, indicating operating system support posture gaps requiring remediation action."
+    `This executive brief identifies scoped ICT system server assets that are non-compliant with ${reportMeasureLabel}, indicating operating system support posture gaps requiring remediation action.`
   );
   lines.push("");
   lines.push("## Audience");
@@ -210,7 +221,7 @@ export async function GET(request: NextRequest) {
   lines.push("");
   lines.push("## Executive Summary");
   lines.push(
-    `The current scope contains ${outOfSupportRows.length} server asset(s) across ${affectedSystems.size} ICT system(s) that are non-compliant with SPI 1. These assets represent elevated security and service continuity risk if support and patch posture is not restored.`
+    `The current scope contains ${outOfSupportRows.length} server asset(s) across ${affectedSystems.size} ICT system(s) that are non-compliant with ${reportMeasureLabel}. These assets represent elevated security and service continuity risk if support and patch posture is not restored.`
   );
   lines.push("");
   lines.push("## Findings Summary Including Impacts");
@@ -220,12 +231,12 @@ export async function GET(request: NextRequest) {
   lines.push("");
   lines.push("## Recommendations to Remediate");
   lines.push(
-    "Prioritize OS uplift or platform replacement for affected servers, assign accountable owners and target dates, and enforce interim compensating controls until remediation is complete. Validate closure through repeat SPI 1 compliance checks."
+    `Prioritize OS uplift or platform replacement for affected servers, assign accountable owners and target dates, and enforce interim compensating controls until remediation is complete. Validate closure through repeat ${reportMeasureLabel} compliance checks.`
   );
   lines.push("");
-  lines.push("## Affected Servers (SPI 1 Non-compliant)");
+  lines.push(`## Affected Servers (${reportMeasureLabel} Non-compliant)`);
   if (!outOfSupportRows.length) {
-    lines.push("- No servers in the current filtered scope are non-compliant with SPI 1.");
+    lines.push(`- No servers in the current filtered scope are non-compliant with ${reportMeasureLabel}.`);
   } else {
     for (const row of outOfSupportRows) {
       lines.push(`- ${row.hostname} (${row.assetId})`);
@@ -251,7 +262,7 @@ export async function GET(request: NextRequest) {
   addVisualSummaryPage({
     pdfDoc,
     pageTitle: "ICT System out of support OS",
-    subtitle: "Server OS support posture visualisation for SPI 1 non-compliant assets in the active scope.",
+    subtitle: `Server OS support posture visualisation for ${reportMeasureLabel} non-compliant assets in the active scope.`,
     titleFont: fontBold,
     bodyFont: fontRegular,
     cards: [
@@ -272,7 +283,7 @@ export async function GET(request: NextRequest) {
       { label: "Supported", value: supportedCount, color: [0.2, 0.62, 0.42] }
     ],
     insights: [
-      `${outOfSupportRows.length} server asset(s) are SPI 1 non-compliant in the filtered scope.`,
+      `${outOfSupportRows.length} server asset(s) are ${reportMeasureLabel} non-compliant in the filtered scope.`,
       `${affectedSystems.size} ICT system(s) are impacted by OS support posture gaps.`,
       topImpactedSystems.length
         ? `Most impacted systems: ${topImpactedSystems.map((item) => `${item.name} (${item.count})`).join("; ")}.`
