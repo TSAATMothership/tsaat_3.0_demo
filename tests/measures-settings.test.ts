@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   defaultMeasuresSettings,
   MEASURES_PRIORITY_OPTIONS,
-  MEASURES_SELECTABLE_SEVERITY_OPTIONS,
   normalizeMeasuresSettings,
   priorityMatrixKey,
+  selectableSeverityDefinitions,
   severityMatrixKey
 } from "@/lib/measures-settings";
+import { testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
 
 const repoRoot = process.cwd();
 
@@ -18,7 +19,7 @@ function readRepoFile(relativePath: string): string {
 
 describe("measures settings normalization", () => {
   it("includes default SPI priority mappings for P1 through P7", () => {
-    const settings = defaultMeasuresSettings();
+    const settings = defaultMeasuresSettings(testSpiDefinitions, testSeverityDefinitions);
 
     for (const spiId of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const) {
       expect(settings.priorityMatrix[priorityMatrixKey(spiId)]).toBeGreaterThanOrEqual(1);
@@ -33,13 +34,13 @@ describe("measures settings normalization", () => {
       severityMatrix: {
         [severityMatrixKey(4, "server")]: "Data Gap"
       }
-    });
+    }, testSpiDefinitions, testSeverityDefinitions);
 
     expect(settings.severityMatrix[severityMatrixKey(4, "server")]).toBe("Moderate");
   });
 
   it("keeps valid priority mappings and falls invalid entries back to defaults", () => {
-    const defaults = defaultMeasuresSettings();
+    const defaults = defaultMeasuresSettings(testSpiDefinitions, testSeverityDefinitions);
     const settings = normalizeMeasuresSettings({
       updatedAt: "2026-04-20T00:00:00.000Z",
       priorityMatrix: {
@@ -48,7 +49,7 @@ describe("measures settings normalization", () => {
         "3": 9,
         "not-spi": 1
       }
-    });
+    }, testSpiDefinitions, testSeverityDefinitions);
 
     expect(settings.priorityMatrix[priorityMatrixKey(1)]).toBe(7);
     expect(settings.priorityMatrix[priorityMatrixKey(2)]).toBe(5);
@@ -57,8 +58,9 @@ describe("measures settings normalization", () => {
   });
 
   it("excludes Data Gap from selectable SPI settings options", () => {
-    expect(MEASURES_SELECTABLE_SEVERITY_OPTIONS).not.toContain("Data Gap");
-    expect(MEASURES_SELECTABLE_SEVERITY_OPTIONS).toEqual(
+    const selectable = selectableSeverityDefinitions(testSeverityDefinitions).map((definition) => definition.severityKey);
+    expect(selectable).not.toContain("Data Gap");
+    expect(selectable).toEqual(
       expect.arrayContaining(["Critical Exposure", "High Risk", "Major", "Moderate"])
     );
   });
@@ -81,6 +83,9 @@ describe("measures settings normalization", () => {
     expect(databaseSettings).toContain('"measures_priority_matrix"');
     expect(databaseSettings).toContain('{ tableName: "measures_priority_matrix", columnName: "priority_rank" }');
     expect(seedSettings).toContain('"priorityMatrix"');
+    expect(schema).toContain("CREATE TABLE [tsaat].[finding_severity_definition]");
+    expect(loader).toContain("severity-definitions.json");
+    expect(validator).toContain("finding_severity_definition_count");
   });
 
   it("renders nested SPI severity and priority settings tabs and preserves both matrices on save", () => {

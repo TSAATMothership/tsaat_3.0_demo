@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SPI_DESCRIPTIONS, SPI_IDS, SPI_NAMES } from "@/lib/spi-metadata";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { type SpiId } from "@/lib/types";
 
 function nextProgressValue(current: number): number {
@@ -34,6 +34,7 @@ function normalizeQuery(query: string): string {
 
 export function MeasuresSpiFilters({
   selectedSpiId,
+  spiDefinitions,
   searchValue,
   placeholder,
   dynamicSearch = false,
@@ -42,6 +43,7 @@ export function MeasuresSpiFilters({
   onSelectedSpiIdChange
 }: {
   selectedSpiId?: SpiId;
+  spiDefinitions: SpiDefinition[];
   searchValue: string;
   placeholder: string;
   dynamicSearch?: boolean;
@@ -60,10 +62,7 @@ export function MeasuresSpiFilters({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedSpiDetails = selectedSpiId
-    ? {
-        name: SPI_NAMES[selectedSpiId],
-        description: SPI_DESCRIPTIONS[selectedSpiId]
-      }
+    ? spiDefinitions.find((definition) => definition.spiId === selectedSpiId) ?? null
     : null;
 
   useEffect(() => {
@@ -126,7 +125,9 @@ export function MeasuresSpiFilters({
   const onSpiChange = (value: string) => {
     if (localSpiFilter) {
       const numericValue = Number(value);
-      onSelectedSpiIdChange?.(SPI_IDS.includes(numericValue as SpiId) ? (numericValue as SpiId) : undefined);
+      onSelectedSpiIdChange?.(
+        spiDefinitions.some((definition) => definition.spiId === numericValue) ? numericValue : undefined
+      );
       return;
     }
     const params = new URLSearchParams((searchParams?.toString() ?? ""));
@@ -183,9 +184,9 @@ export function MeasuresSpiFilters({
             className="mt-1 block h-9 w-full rounded-md border border-sky-400/25 bg-slate-950/80 px-2 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-sky-300/70 disabled:cursor-not-allowed disabled:opacity-70"
           >
             <option value="">All SPIs</option>
-            {SPI_IDS.map((spiId) => (
-              <option key={spiId} value={spiId}>
-                SPI {spiId} - {SPI_NAMES[spiId]}: {SPI_DESCRIPTIONS[spiId]}
+            {spiDefinitions.map((definition) => (
+              <option key={definition.spiId} value={definition.spiId}>
+                SPI {definition.spiId} - {definition.name}: {definition.description}
               </option>
             ))}
           </select>

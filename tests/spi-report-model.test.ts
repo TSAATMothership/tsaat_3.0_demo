@@ -7,6 +7,7 @@ import {
   spiReportAssetTypeGroup
 } from "@/lib/spi-report-model";
 import { Asset, AssetSpiEvaluation, AssetType, ComplianceStatus, Dataset } from "@/lib/types";
+import { testSpiDefinitions } from "./spi-definition-fixtures";
 
 function baseAsset(id: string, name: string, type: AssetType): Asset {
   const common = {
@@ -99,7 +100,7 @@ function reportFixture({
 describe("SPI report model", () => {
   it("matches SPI summary counts and splits annex rows by calculable score", () => {
     const { dataset, analytics } = reportFixture();
-    const report = buildSpiReportModel({ dataset, analytics, spiId: 10 });
+    const report = buildSpiReportModel({ dataset, analytics, spiId: 10, spiDefinitions: testSpiDefinitions });
 
     expect(report).not.toBeNull();
     expect(report?.scorePercent).toBe(33.3);
@@ -118,7 +119,7 @@ describe("SPI report model", () => {
 
   it("keeps storage-device separate from the Other Devices template bucket", () => {
     const { dataset, analytics } = reportFixture();
-    const report = buildSpiReportModel({ dataset, analytics, spiId: 10 });
+    const report = buildSpiReportModel({ dataset, analytics, spiId: 10, spiDefinitions: testSpiDefinitions });
     const storageBucket = report?.assetTypeBreakdown.find((bucket) => bucket.id === "storage-device");
     const otherBucket = report?.assetTypeBreakdown.find((bucket) => bucket.id === "other");
 
@@ -130,7 +131,7 @@ describe("SPI report model", () => {
 
   it("builds all available SPI report models from the current filtered analytics", () => {
     const { dataset, analytics } = reportFixture();
-    const reports = buildSpiReportModels(dataset, analytics);
+    const reports = buildSpiReportModels(dataset, analytics, testSpiDefinitions);
     const spi10Report = reports.find((report) => report.spiId === 10);
 
     expect(reports.map((report) => report.spiId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -149,10 +150,16 @@ describe("SPI report model", () => {
       statuses: ["Compliant", "Compliant", "Unknown", "Unknown", "Non-compliant", "Compliant"]
     });
     const current = reportFixture();
-    const currentReport = buildSpiReportModel({ dataset: current.dataset, analytics: current.analytics, spiId: 10 });
+    const currentReport = buildSpiReportModel({
+      dataset: current.dataset,
+      analytics: current.analytics,
+      spiId: 10,
+      spiDefinitions: testSpiDefinitions
+    });
     const trend = buildSpiTrendReportModel({
       spiId: 10,
-      snapshots: [older, current]
+      snapshots: [older, current],
+      spiDefinitions: testSpiDefinitions
     });
 
     expect(trend).not.toBeNull();
@@ -189,7 +196,8 @@ describe("SPI report model", () => {
             evaluations: scoped.analytics.evaluations.slice(0, 2)
           }
         }
-      ]
+      ],
+      spiDefinitions: testSpiDefinitions
     });
 
     expect(trend?.trendPoints[0]).toMatchObject({

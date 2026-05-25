@@ -1,5 +1,5 @@
 import { recommendedAction } from "@/lib/actions";
-import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
+import { SpiDefinition, SpiFindingClassificationRule, spiDefinitionById } from "@/lib/spi-definitions";
 import {
   Asset,
   AssetSpiEvaluation,
@@ -100,65 +100,62 @@ function rangedDeterministicInt(key: string, min: number, max: number): number {
   return min + (hashString(key) % (max - min + 1));
 }
 
-function buildPriorityRank(evaluation: SpiEvaluation, productionCritical: boolean): number {
-  if (evaluation.status === "Unknown") {
-    return 90;
+function classificationRuleMatches(
+  rule: SpiFindingClassificationRule,
+  evaluation: SpiEvaluation,
+  productionCritical: boolean
+): boolean {
+  if (!rule.enabled) {
+    return false;
+  }
+  if (rule.spiId !== null && rule.spiId !== evaluation.spiId) {
+    return false;
+  }
+  if (rule.complianceStatus !== null && rule.complianceStatus !== evaluation.status) {
+    return false;
   }
 
-  if ([4, 5, 6].includes(evaluation.spiId) && evaluation.status === "Non-compliant") {
-    return 1;
+  switch (rule.conditionKey) {
+    case "always":
+      return true;
+    case "when_unknown":
+      return evaluation.status === "Unknown";
+    case "when_non_compliant":
+      return evaluation.status === "Non-compliant";
+    case "when_production_critical_asset":
+      return productionCritical && evaluation.status === "Non-compliant";
+    case "when_not_production_critical_asset":
+      return !productionCritical && evaluation.status === "Non-compliant";
   }
 
-  if (productionCritical && [3, 7].includes(evaluation.spiId) && evaluation.status === "Non-compliant") {
-    return 2;
-  }
-
-  if ([1, 8].includes(evaluation.spiId) && evaluation.status === "Non-compliant") {
-    return 3;
-  }
-
-  if (evaluation.spiId === 2 && evaluation.status === "Non-compliant") {
-    return 4;
-  }
-
-  if (evaluation.spiId === 9 && evaluation.status === "Non-compliant") {
-    return 6;
-  }
-
-  if (evaluation.spiId === 10 && evaluation.status === "Non-compliant") {
-    return 7;
-  }
-
-  return PRIORITY_ORDER[evaluation.spiId] ?? 99;
+  return false;
 }
 
-function buildSeverity(evaluation: SpiEvaluation, productionCritical: boolean): FindingSeverity {
-  if (evaluation.status === "Unknown") {
-    return "Data Gap";
-  }
+function classifyFinding(
+  evaluation: SpiEvaluation,
+  productionCritical: boolean,
+  definition: SpiDefinition | undefined
+): { priorityRank: number; severity: FindingSeverity } {
+  const fallbackPriority = definition?.priorityOrder ?? 99;
+  const fallbackSeverity = definition?.defaultSeverity ?? "Moderate";
+  const matchedRule = definition?.classificationRules.find((rule) =>
+    classificationRuleMatches(rule, evaluation, productionCritical)
+  );
 
-  if ([4, 5, 6].includes(evaluation.spiId) && evaluation.status === "Non-compliant") {
-    return "High Risk";
-  }
-
-  if (productionCritical && [3, 7].includes(evaluation.spiId) && evaluation.status === "Non-compliant") {
-    return "Critical Exposure";
-  }
-
-  if ([1, 3, 7, 8].includes(evaluation.spiId) && evaluation.status === "Non-compliant") {
-    return "Major";
-  }
-
-  return "Moderate";
+  return {
+    priorityRank: matchedRule?.priorityRank ?? fallbackPriority,
+    severity: matchedRule?.severityKey ?? fallbackSeverity
+  };
 }
 
 export function buildFindings(
   assets: Asset[],
   evaluations: AssetSpiEvaluation[],
   productionCriticalAssetIds: Set<string>,
-  options: { anchorDate?: string } = {}
+  options: { anchorDate?: string; spiDefinitions: SpiDefinition[] }
 ): Finding[] {
   const byAsset = new Map(assets.map((asset) => [asset.id, asset]));
+  const definitionsById = spiDefinitionById(options.spiDefinitions);
   const anchorDate = toAnchorDate(options.anchorDate);
   const drafts: Omit<Finding, "status" | "timestamp">[] = [];
 
@@ -174,8 +171,8 @@ export function buildFindings(
       }
 
       const productionCritical = productionCriticalAssetIds.has(item.assetId);
-      const priorityRank = buildPriorityRank(evaluation, productionCritical);
-      const severity = buildSeverity(evaluation, productionCritical);
+      const definition = definitionsById.get(evaluation.spiId);
+      const { priorityRank, severity } = classifyFinding(evaluation, productionCritical, definition);
 
       drafts.push({
         id: `${item.assetId}-spi-${evaluation.spiId}`,
@@ -189,13 +186,13 @@ export function buildFindings(
           environmentType: item.environmentType,
           assetId: item.assetId
         },
-        title: SPI_DESCRIPTIONS[evaluation.spiId],
+        title: definition?.description ?? `SPI ${evaluation.spiId}`,
         evidence: {
           assetName: asset.name,
           assetType: asset.type,
           ...evaluation.evidence
         },
-        recommendedAction: recommendedAction(evaluation.spiId)
+        recommendedAction: recommendedAction(evaluation.spiId, options.spiDefinitions)
       });
     }
   }

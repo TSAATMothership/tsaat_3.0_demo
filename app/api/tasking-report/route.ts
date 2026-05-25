@@ -6,6 +6,8 @@ import {
   loadDiscoveryToolsSettings,
   loadKpiDefinitions,
   loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions,
   loadSnapshotsForDateWindow
 } from "@/lib/data-loader";
 import {
@@ -932,24 +934,26 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedDataDate = taskingReportDataDateFromSearchParams(request.nextUrl.searchParams);
-  const [dataset, measuresSettings, discoveryToolsSettings, kpiDefinitions] = await Promise.all([
+  const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
-    loadMeasuresSettings(),
     loadDiscoveryToolsSettings(),
-    loadKpiDefinitions()
+    loadKpiDefinitions(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
   const scopedSystems = filterSystems(dataset.ictSystems, filters);
   const scopedNetworks = filterNetworks(dataset.managedNetworks, filters);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
 
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   if (kind === "spi") {
-    const spiModel = buildSpiReportModel({ dataset, analytics, spiId: Number(id) });
+    const spiModel = buildSpiReportModel({ dataset, analytics, spiId: Number(id), spiDefinitions });
     if (!spiModel) {
       return notFoundResponse("SPI row not found for supplied id.");
     }
@@ -975,7 +979,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (kind === "spi-all") {
-    const spiModels = buildSpiReportModels(dataset, analytics);
+    const spiModels = buildSpiReportModels(dataset, analytics, spiDefinitions);
     if (!spiModels.length) {
       return notFoundResponse("No SPI rows found for the current filtered scope.");
     }
@@ -1010,10 +1014,12 @@ export async function GET(request: NextRequest) {
           trendDataset,
           trendDataset.ictSystems,
           filters,
+          spiDefinitions,
           measuresSettings,
           discoveryToolsSettings
         )
-      }))
+      })),
+      spiDefinitions
     });
 
     if (!trendModel) {
@@ -1051,6 +1057,7 @@ export async function GET(request: NextRequest) {
           trendDataset,
           trendDataset.ictSystems,
           filters,
+          spiDefinitions,
           measuresSettings,
           discoveryToolsSettings
         ),

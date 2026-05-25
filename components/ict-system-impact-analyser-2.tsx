@@ -7,7 +7,7 @@ import {
   RiskFindingsDrillThrough
 } from "@/components/network-detail-risk-charts";
 import { ASSET_TYPES, assetTypeLabel, formatAssetTypeLabel, type CanonicalAssetType } from "@/lib/asset-taxonomy";
-import { SPI_DESCRIPTIONS, SPI_NAMES, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
+import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
 
 type ImpactAnalyser2EnvironmentOption = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
@@ -299,7 +299,8 @@ function isSelectedNode(selectedNode: ImpactAnalyser2SelectedNode | null, axisKe
 function nodeHoverTitle(
   axisKey: string,
   value: string,
-  spiCounts: Map<number, number>
+  spiCounts: Map<number, number>,
+  spiDefinitionById: Map<number, SpiDefinition>
 ): string {
   if (axisKey !== "spi") {
     return value;
@@ -308,10 +309,10 @@ function nodeHoverTitle(
   if (!spiId) {
     return value;
   }
-  const name = SPI_NAMES[spiId as keyof typeof SPI_NAMES] ?? value;
-  const description = SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS] ?? "No SPI description available.";
-  const successMeasure =
-    SPI_SUCCESS_MEASURES[spiId as keyof typeof SPI_SUCCESS_MEASURES] ?? "No SPI success measure available.";
+  const definition = spiDefinitionById.get(spiId);
+  const name = definition?.name ?? value;
+  const description = definition?.description ?? "No SPI description available.";
+  const successMeasure = definition?.successMeasure ?? "No SPI success measure available.";
   return `${value}: ${name}\n${description}\nSuccess Measure: ${successMeasure}\nTotal Findings: ${spiCounts.get(spiId) ?? 0}`;
 }
 
@@ -366,6 +367,7 @@ export function IctSystemImpactAnalyser2Chart({
   includeNetworkAxis = false,
   showAssetTypeFilter = false,
   showSelectedTileText = false,
+  spiDefinitions = [],
   onAssetFocus
 }: {
   embedded?: boolean;
@@ -379,6 +381,7 @@ export function IctSystemImpactAnalyser2Chart({
   includeNetworkAxis?: boolean;
   showAssetTypeFilter?: boolean;
   showSelectedTileText?: boolean;
+  spiDefinitions?: SpiDefinition[];
   onAssetFocus?: (assetId: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -433,6 +436,10 @@ export function IctSystemImpactAnalyser2Chart({
   const selectedFindingCriticalityKey = joinMultiFilterParam(selectedFindingCriticalities);
 
   const spiCounts = useMemo(() => new Map(workerResult?.spiCounts ?? []), [workerResult?.spiCounts]);
+  const spiDefinitionById = useMemo(
+    () => new Map(spiDefinitions.map((definition) => [definition.spiId, definition])),
+    [spiDefinitions]
+  );
   const isDiagramInitialLoading = loadState === "idle" || loadState === "loading" || !workerReady || !workerResult;
   const displayedSeverities = useMemo(
     () =>
@@ -1159,11 +1166,16 @@ export function IctSystemImpactAnalyser2Chart({
             ? `Open findings for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
             : hit.action === "asset-focus"
               ? `Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
-              : nodeHoverTitle(hit.node.axisKey, displayNodeLabel(hit.node.axisKey, hit.node.value), spiCounts),
+              : nodeHoverTitle(
+                  hit.node.axisKey,
+                  displayNodeLabel(hit.node.axisKey, hit.node.value),
+                  spiCounts,
+                  spiDefinitionById
+                ),
         placement: hit.action !== "none" ? "left" : "default"
       });
     },
-    [displayNodeLabel, findNodeAtPoint, spiCounts]
+    [displayNodeLabel, findNodeAtPoint, spiCounts, spiDefinitionById]
   );
 
   const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {

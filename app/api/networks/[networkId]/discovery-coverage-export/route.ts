@@ -2,7 +2,13 @@ import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
-import { loadDatasetForDate, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadDatasetForDate,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { isUnassignedNetworkId } from "@/lib/network-scope";
 import {
@@ -80,11 +86,13 @@ export async function GET(
   { params }: { params: { networkId: string } }
 ) {
   const requestedDataDate = request.nextUrl.searchParams.get("dataDate")?.trim() || undefined;
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
 
   if (isUnassignedNetworkId(params.networkId)) {
     return NextResponse.json(
@@ -102,6 +110,7 @@ export async function GET(
     dataset,
     dataset.ictSystems,
     { managedNetwork: network.id },
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );

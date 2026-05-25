@@ -1,7 +1,7 @@
 import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { buildSpiRows, SpiRow } from "@/lib/measures";
-import { SPI_NAMES } from "@/lib/spi-metadata";
 import { remediationActionsForSpi } from "@/lib/tasking";
+import { SpiDefinition, spiDefinitionById } from "@/lib/spi-definitions";
 import { AnalyticsResult, Asset, AssetType, ComplianceStatus, Dataset, SpiId } from "@/lib/types";
 
 export type SpiReportAssetTypeGroupId =
@@ -41,6 +41,9 @@ export interface SpiReportModel {
   unknown: number;
   total: number;
   assetTypeBreakdown: SpiReportAssetTypeBreakdown[];
+  reportAvailable: boolean;
+  trendReportAvailable: boolean;
+  reportDetailKey: string;
   observedNonCompliantCondition: string;
   observedUnknownCondition: string;
   remediationActions: string[];
@@ -120,7 +123,12 @@ function sortAnnexRows(left: SpiReportAnnexRow, right: SpiReportAnnexRow): numbe
   return left.ciName.localeCompare(right.ciName);
 }
 
-function buildModelFromRow(dataset: Dataset, analytics: AnalyticsResult, row: SpiRow): SpiReportModel {
+function buildModelFromRow(
+  dataset: Dataset,
+  analytics: AnalyticsResult,
+  row: SpiRow,
+  spiDefinitions: SpiDefinition[]
+): SpiReportModel {
   const assetById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
   const breakdownByGroup = new Map<SpiReportAssetTypeGroupId, SpiReportAssetTypeBreakdown>(
     ASSET_TYPE_GROUPS.map((group) => [
@@ -168,12 +176,13 @@ function buildModelFromRow(dataset: Dataset, analytics: AnalyticsResult, row: Sp
     }
   }
 
+  const definition = spiDefinitionById(spiDefinitions).get(row.spiId);
   const unknownPercent = toPercent(row.unknown, row.total);
 
   return {
     spiId: row.spiId,
-    name: SPI_NAMES[row.spiId],
-    reportName: `SPI ${row.spiId} Report: ${SPI_NAMES[row.spiId]}`,
+    name: row.name,
+    reportName: `SPI ${row.spiId} Report: ${row.name}`,
     indicatorLabel: `SPI-${row.spiId}`,
     description: row.description,
     successMeasure: row.successMeasure,
@@ -185,6 +194,9 @@ function buildModelFromRow(dataset: Dataset, analytics: AnalyticsResult, row: Sp
     assetTypeBreakdown: ASSET_TYPE_GROUPS.map((group) => breakdownByGroup.get(group.id)).filter(
       (group): group is SpiReportAssetTypeBreakdown => Boolean(group)
     ),
+    reportAvailable: row.reportAvailable,
+    trendReportAvailable: row.trendReportAvailable,
+    reportDetailKey: row.reportDetailKey,
     observedNonCompliantCondition:
       row.nonCompliant > 0
         ? `Detected ${row.nonCompliant} non-compliant CI(s) for SPI-${row.spiId}. Current measured compliance is ${row.scorePercent}% across ${row.total} CI(s).`
@@ -193,7 +205,7 @@ function buildModelFromRow(dataset: Dataset, analytics: AnalyticsResult, row: Sp
       row.unknown > 0
         ? `Detected ${unknownPercent}% (${row.unknown}) across ${row.total} CI(s) where the score cannot be calculated.`
         : `No Unknown CI score(s) detected for SPI-${row.spiId} in the current filtered scope.`,
-    remediationActions: remediationActionsForSpi(row),
+    remediationActions: remediationActionsForSpi(row, spiDefinitions),
     annexA: annexA.sort(sortAnnexRows),
     annexB: annexB.sort(sortAnnexRows)
   };
@@ -202,30 +214,38 @@ function buildModelFromRow(dataset: Dataset, analytics: AnalyticsResult, row: Sp
 export function buildSpiReportModel({
   dataset,
   analytics,
-  spiId
+  spiId,
+  spiDefinitions
 }: {
   dataset: Dataset;
   analytics: AnalyticsResult;
   spiId: number;
+  spiDefinitions: SpiDefinition[];
 }): SpiReportModel | null {
-  const row = buildSpiRows(analytics).find((item) => item.spiId === spiId);
-  return row ? buildModelFromRow(dataset, analytics, row) : null;
+  const row = buildSpiRows(analytics, spiDefinitions).find((item) => item.spiId === spiId);
+  return row ? buildModelFromRow(dataset, analytics, row, spiDefinitions) : null;
 }
 
-export function buildSpiReportModels(dataset: Dataset, analytics: AnalyticsResult): SpiReportModel[] {
-  return buildSpiRows(analytics).map((row) => buildModelFromRow(dataset, analytics, row));
+export function buildSpiReportModels(
+  dataset: Dataset,
+  analytics: AnalyticsResult,
+  spiDefinitions: SpiDefinition[]
+): SpiReportModel[] {
+  return buildSpiRows(analytics, spiDefinitions).map((row) => buildModelFromRow(dataset, analytics, row, spiDefinitions));
 }
 
 export function buildSpiTrendReportModel({
   snapshots,
-  spiId
+  spiId,
+  spiDefinitions
 }: {
   snapshots: SpiReportSnapshotInput[];
   spiId: number;
+  spiDefinitions: SpiDefinition[];
 }): SpiTrendReportModel | null {
   const snapshotModels = snapshots
     .map(({ dataset, analytics }) => {
-      const model = buildSpiReportModel({ dataset, analytics, spiId });
+      const model = buildSpiReportModel({ dataset, analytics, spiId, spiDefinitions });
       return model ? { dataset, model } : null;
     })
     .filter((item): item is { dataset: Dataset; model: SpiReportModel } => Boolean(item));

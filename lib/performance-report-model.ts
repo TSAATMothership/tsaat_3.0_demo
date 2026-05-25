@@ -3,7 +3,7 @@ import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { KpiDefinition } from "@/lib/kpi-definitions";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { filterRealNetworks } from "@/lib/network-scope";
-import { SPI_DESCRIPTIONS, SPI_IDS, SPI_NAMES, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
+import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import {
   AnalyticsResult,
   Asset,
@@ -239,6 +239,8 @@ interface BuildPerformanceReportModelParams {
   networks: ManagedNetwork[];
   systems: ICTSystem[];
   kpiDefinitions: KpiDefinition[];
+  spiDefinitions: SpiDefinition[];
+  severityDefinitions: SeverityDefinition[];
   asOfDate?: string;
 }
 
@@ -650,6 +652,8 @@ export function buildPerformanceReportModel({
   networks,
   systems,
   kpiDefinitions,
+  spiDefinitions,
+  severityDefinitions,
   asOfDate = dataset.snapshotDate
 }: BuildPerformanceReportModelParams): PerformanceReportModel {
   const entityLabelSingular = scopeType === "network" ? "Network" : "ICT System";
@@ -657,6 +661,7 @@ export function buildPerformanceReportModel({
   const scopeLabel = scopeType === "network" ? "Network" : "ICT System";
   const scopedNetworks = filterRealNetworks(networks);
   const scopedSystems = systems;
+  const severityDisplayOrder = severityDefinitions.map((definition) => definition.severityKey);
   const entityRows =
     scopeType === "network"
       ? scopedNetworks.map((network) => ({
@@ -772,7 +777,8 @@ export function buildPerformanceReportModel({
           diisUrl: "#",
           grcUrl: "#"
         } satisfies PerformanceEntityDetails),
-      spis: SPI_IDS.map((spiId) => {
+      spis: spiDefinitions.map((definition) => {
+        const spiId = definition.spiId;
         const counts = statusCounts(
           evaluations.flatMap((evaluation) =>
             evaluation.evaluations
@@ -785,9 +791,9 @@ export function buildPerformanceReportModel({
           spiId,
           id: `SPI-${spiId}`,
           label: `SPI ${spiId}`,
-          name: SPI_NAMES[spiId],
-          description: SPI_DESCRIPTIONS[spiId],
-          successMeasure: SPI_SUCCESS_MEASURES[spiId],
+          name: definition.name,
+          description: definition.description,
+          successMeasure: definition.successMeasure,
           affectedCis: buildAffectedCiRows(
             evaluations,
             spiId,
@@ -896,7 +902,8 @@ export function buildPerformanceReportModel({
     };
   });
 
-  const findingSpiRows = SPI_IDS.map((spiId) => {
+  const findingSpiRows = spiDefinitions.map((definition) => {
+    const spiId = definition.spiId;
     const findings = findingDetails
       .filter((finding) => finding.spiId === spiId)
       .sort((a, b) => b.ageDays - a.ageDays || a.id.localeCompare(b.id));

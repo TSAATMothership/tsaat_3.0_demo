@@ -3,10 +3,11 @@ import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { evaluateDiscoveryCoverage, type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
 import { type DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { isUnassignedNetworkId } from "@/lib/discovery-filter-scope";
-import { defaultMeasuresSettings, type MeasuresSettings } from "@/lib/measures-settings";
+import { type MeasuresSettings } from "@/lib/measures-settings";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { resolveNetworkReferenceFields } from "@/lib/network-reference-fields";
 import { buildNetworkTargetStateSummary, type NetworkTargetStateCellState } from "@/lib/network-target-state";
+import type { SpiDefinition } from "@/lib/spi-definitions";
 import type { Asset, AssetType, Dataset, Filters, ManagedNetwork } from "@/lib/types";
 
 export interface NetworkDiscoveryToolCoverageRow {
@@ -119,13 +120,15 @@ export function buildNetworkDiscoveryReportModel({
   discoveryToolsSettings,
   networkId,
   filters = {},
-  measuresSettings = defaultMeasuresSettings()
+  measuresSettings,
+  spiDefinitions
 }: {
   dataset: Dataset;
   discoveryToolsSettings: DiscoveryToolsSettings;
   networkId: string;
   filters?: Filters;
-  measuresSettings?: MeasuresSettings;
+  measuresSettings: MeasuresSettings;
+  spiDefinitions: SpiDefinition[];
 }): NetworkDiscoveryReportModel | null {
   if (isUnassignedNetworkId(networkId)) {
     return null;
@@ -141,6 +144,7 @@ export function buildNetworkDiscoveryReportModel({
     dataset,
     dataset.ictSystems,
     reportFilters,
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );

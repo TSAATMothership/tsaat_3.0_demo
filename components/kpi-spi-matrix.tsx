@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { buildKpiReportModels } from "@/lib/kpi-report-model";
 import { KpiDefinition } from "@/lib/kpi-definitions";
 import { buildSpiReportModels } from "@/lib/spi-report-model";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { buildTaskingReportHref } from "@/lib/tasking-report-links";
 import { AnalyticsResult, Dataset, Filters, ICTSystem, ManagedNetwork, type SpiId } from "@/lib/types";
 
@@ -130,6 +131,7 @@ export function KpiSpiMatrix({
   systems,
   networks,
   kpiDefinitions,
+  spiDefinitions,
   filters,
   filterOptions,
   mode,
@@ -141,6 +143,7 @@ export function KpiSpiMatrix({
   systems: ICTSystem[];
   networks: ManagedNetwork[];
   kpiDefinitions?: KpiDefinition[];
+  spiDefinitions?: SpiDefinition[];
   filters: Filters;
   filterOptions: FilterOptions;
   mode: "kpi" | "spi";
@@ -148,7 +151,7 @@ export function KpiSpiMatrix({
   searchValue?: string;
 }) {
   const kpiReports = mode === "kpi" ? buildKpiReportModels(analytics, systems, networks, kpiDefinitions ?? []) : [];
-  const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics) : [];
+  const spiReports = mode === "spi" ? buildSpiReportModels(dataset, analytics, spiDefinitions ?? []) : [];
   const normalizedSearch = searchValue.trim().toLowerCase();
   const filteredSpiReports = spiReports.filter((report) => {
     if (selectedSpiId && report.spiId !== selectedSpiId) {
@@ -295,34 +298,44 @@ export function KpiSpiMatrix({
                       <SpiMetric label="Non-Compliant" value={report.nonCompliant} tone="danger" />
                       <SpiMetric label="Unknown" value={report.unknown} tone="warning" />
                       <div className="flex min-w-0 items-center justify-center px-3 py-3">
-                        <div className="flex w-full min-w-0 flex-col items-stretch gap-2">
-                          <a
-                            href={buildTaskingReportHref({
-                              kind: "spi",
-                              id: String(report.spiId),
-                              filters,
-                              dataDate: dataset.snapshotDate
-                            })}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-sky-300/40 bg-sky-500/15 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-100 transition hover:border-sky-200/70 hover:bg-sky-500/25"
-                          >
-                            Generate SPI Report
-                          </a>
-                          <a
-                            href={buildTaskingReportHref({
-                              kind: "spi-trend",
-                              id: String(report.spiId),
-                              filters,
-                              dataDate: dataset.snapshotDate
-                            })}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-500/20"
-                          >
-                            Generate Trend Report
-                          </a>
-                        </div>
+                        {report.reportAvailable || report.trendReportAvailable ? (
+                          <div className="flex w-full min-w-0 flex-col items-stretch gap-2">
+                            {report.reportAvailable ? (
+                              <a
+                                href={buildTaskingReportHref({
+                                  kind: "spi",
+                                  id: String(report.spiId),
+                                  filters,
+                                  dataDate: dataset.snapshotDate
+                                })}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-sky-300/40 bg-sky-500/15 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sky-100 transition hover:border-sky-200/70 hover:bg-sky-500/25"
+                              >
+                                Generate SPI Report
+                              </a>
+                            ) : null}
+                            {report.trendReportAvailable ? (
+                              <a
+                                href={buildTaskingReportHref({
+                                  kind: "spi-trend",
+                                  id: String(report.spiId),
+                                  filters,
+                                  dataDate: dataset.snapshotDate
+                                })}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex min-h-10 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-md border border-emerald-300/35 bg-emerald-500/10 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-100 transition hover:border-emerald-200/70 hover:bg-emerald-500/20"
+                              >
+                                Generate Trend Report
+                              </a>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="inline-flex min-h-10 w-full items-center justify-center rounded-md border border-slate-500/35 bg-slate-800/50 px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-300/85">
+                            Unavailable
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

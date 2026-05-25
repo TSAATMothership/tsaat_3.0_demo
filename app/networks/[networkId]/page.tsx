@@ -10,14 +10,14 @@ import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadLatestSnapshotsForDate,
-  loadMeasuresSettings
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
 } from "@/lib/data-loader";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildAnalytics } from "@/lib/analytics";
-import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
 import { buildCveVulnerabilityIndexByAssetId, buildHighRiskCveIndexByAssetId } from "@/lib/cve";
-import { SPI_IDS } from "@/lib/spi-metadata";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
@@ -30,6 +30,7 @@ import {
   discoveryCoverageValueLabel
 } from "@/lib/scoped-discovery-tool-coverage";
 import { Asset, ComplianceStatus, Dataset, Finding, FindingSeverity } from "@/lib/types";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { Suspense } from "react";
 
 type KpiFilterKey =
@@ -207,25 +208,18 @@ function resolveAssetIpAddress(asset: Asset): string {
   return String(value).trim();
 }
 
-function fallbackFindingSeverity(status: ComplianceStatus, spiId: number): FindingSeverity {
+function fallbackFindingSeverity(status: ComplianceStatus, spiId: number, spiDefinitions: SpiDefinition[]): FindingSeverity {
   if (status === "Unknown") {
     return "Data Gap";
   }
-  if (spiId === 4 || spiId === 5 || spiId === 6) {
-    return "High Risk";
-  }
-  if (spiId === 1 || spiId === 3 || spiId === 7 || spiId === 8) {
-    return "Major";
-  }
-  return "Moderate";
+  return spiDefinitions.find((definition) => definition.spiId === spiId)?.defaultSeverity ?? "Moderate";
 }
 
-function fallbackPriorityRank(status: ComplianceStatus, spiId: number): number {
+function fallbackPriorityRank(status: ComplianceStatus, spiId: number, spiDefinitions: SpiDefinition[]): number {
   if (status === "Unknown") {
     return 90;
   }
-  const mapped = PRIORITY_ORDER[spiId as keyof typeof PRIORITY_ORDER];
-  return mapped ?? 99;
+  return spiDefinitions.find((definition) => definition.spiId === spiId)?.priorityOrder ?? 99;
 }
 
 function toFindingDateKey(timestamp?: string | null): string | null {
@@ -432,6 +426,7 @@ function discoveryCoverageValueClass(value: DiscoveryCoverageValue | undefined):
 function buildNetworkKpiSnapshotMetrics(
   snapshot: Dataset,
   networkId: string,
+  spiDefinitions: SpiDefinition[],
   measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings
 ): NetworkKpiSnapshotMetrics {
@@ -439,6 +434,7 @@ function buildNetworkKpiSnapshotMetrics(
     snapshot,
     snapshot.ictSystems,
     { managedNetwork: networkId },
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
@@ -515,12 +511,14 @@ export default async function NetworkDetailPage({
 }) {
   const requestParams = searchParams ?? {};
   const requestedDataDate = extractDataDateParam(requestParams);
-  const [dataset, snapshots, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, snapshots, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
     loadLatestSnapshotsForDate(requestedDataDate, 12),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   if (isUnassignedNetworkId(params.networkId)) {
     notFound();
   }
@@ -535,6 +533,7 @@ export default async function NetworkDetailPage({
     dataset,
     dataset.ictSystems,
     { managedNetwork: network.id },
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
@@ -792,7 +791,8 @@ export default async function NetworkDetailPage({
   );
   const complianceOverviewScore = complianceScore(complianceOverviewStatuses);
 
-  const complianceMeasureRows = SPI_IDS.map((spiId) => {
+  const complianceMeasureRows = spiDefinitions.map((definition) => {
+    const spiId = definition.spiId;
     const scopedSpiEvaluations = scopedEvaluationRows.filter((row) => row.spiId === spiId);
     const compliant = scopedSpiEvaluations.filter((row) => row.status === "Compliant").length;
     const nonCompliant = scopedSpiEvaluations.filter((row) => row.status === "Non-compliant").length;
@@ -830,7 +830,7 @@ export default async function NetworkDetailPage({
 
     return {
       spiId,
-      label: `SPI ${spiId} - ${SPI_DESCRIPTIONS[spiId]}`,
+      label: `SPI ${spiId} - ${definition.description}`,
       total,
       compliant,
       nonCompliant,
@@ -1033,9 +1033,10 @@ export default async function NetworkDetailPage({
           : networkOwnerFallback);
 
       const timestamp = latestFinding?.timestamp ?? `${dataset.snapshotDate}T00:00:00.000Z`;
-      const severity = latestFinding?.severity ?? fallbackFindingSeverity(row.status, row.spiId);
-      const priorityRank = latestFinding?.priorityRank ?? fallbackPriorityRank(row.status, row.spiId);
-      const title = latestFinding?.title ?? SPI_DESCRIPTIONS[row.spiId];
+      const definition = spiDefinitions.find((item) => item.spiId === row.spiId);
+      const severity = latestFinding?.severity ?? fallbackFindingSeverity(row.status, row.spiId, spiDefinitions);
+      const priorityRank = latestFinding?.priorityRank ?? fallbackPriorityRank(row.status, row.spiId, spiDefinitions);
+      const title = latestFinding?.title ?? definition?.description ?? `SPI ${row.spiId}`;
       const recommendedAction =
         latestFinding?.recommendedAction ??
         (row.reasons.length
@@ -1057,7 +1058,7 @@ export default async function NetworkDetailPage({
         closedTimestampLabel: null,
         title,
         timestampLabel: formatTimestamp(timestamp),
-        measureLabel: `SPI ${row.spiId} - ${SPI_DESCRIPTIONS[row.spiId]}`,
+        measureLabel: `SPI ${row.spiId} - ${definition?.description ?? "Unmapped SPI"}`,
         priorityRank,
         severity,
         workflowStatus: "open" as const,
@@ -1084,7 +1085,13 @@ export default async function NetworkDetailPage({
     if (cached) {
       return cached;
     }
-    const computed = buildNetworkKpiSnapshotMetrics(snapshot, network.id, measuresSettings, discoveryToolsSettings);
+    const computed = buildNetworkKpiSnapshotMetrics(
+      snapshot,
+      network.id,
+      spiDefinitions,
+      measuresSettings,
+      discoveryToolsSettings
+    );
     metricsBySnapshotDate.set(snapshot.snapshotDate, computed);
     return computed;
   };
@@ -1362,7 +1369,7 @@ export default async function NetworkDetailPage({
         </div>
       </section>
 
-      <NetworkDetailTabs activeTab={activeDetailTab} topologyData={topologyData} />
+      <NetworkDetailTabs activeTab={activeDetailTab} topologyData={topologyData} spiDefinitions={spiDefinitions} />
 
       <div
         className={
@@ -1508,9 +1515,10 @@ export default async function NetworkDetailPage({
                 criticalExposureOpenCount: riskSeverityCounts.get("Critical Exposure") ?? 0,
                 severitySummary: riskSeveritySummary,
                 weeklyTrend: networkDetailWeeklyRiskTrend
-              }}
-              findings={riskProfileFindings}
-              assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
+            }}
+            findings={riskProfileFindings}
+            spiDefinitions={spiDefinitions}
+            assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
             />
           </div>
         </section>
@@ -2042,7 +2050,7 @@ export default async function NetworkDetailPage({
                 <option value="">All SPI</option>
                 {p12SpiOptions.map((option) => (
                   <option key={option} value={option}>
-                    SPI {option} - {SPI_DESCRIPTIONS[option as keyof typeof SPI_DESCRIPTIONS]}
+                    SPI {option} - {spiDefinitions.find((definition) => definition.spiId === option)?.description ?? "Unmapped SPI"}
                   </option>
                 ))}
               </select>

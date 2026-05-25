@@ -4,6 +4,10 @@
   "packageDataFiles": {
     "kpiDefinitions": "data/kpi-definitions.json",
     "spiDefinitions": "data/spi-definitions.json",
+    "spiRuleDefinitions": "data/spi-rule-definitions.json",
+    "spiReportDetailDefinitions": "data/spi-report-detail-definitions.json",
+    "spiFindingClassificationRules": "data/spi-finding-classification-rules.json",
+    "severityDefinitions": "data/severity-definitions.json",
     "discoveryToolsSettings": "data/discovery-tools-settings.json",
     "measuresSettings": "data/measures-settings.json",
     "referenceVersions": "data/reference-versions.json"

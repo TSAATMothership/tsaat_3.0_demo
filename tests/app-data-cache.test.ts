@@ -8,6 +8,8 @@ const loadLatestSnapshotsForDateMock = vi.hoisted(() => vi.fn());
 const loadMeasuresSettingsMock = vi.hoisted(() => vi.fn());
 const loadDiscoveryToolsSettingsMock = vi.hoisted(() => vi.fn());
 const loadKpiDefinitionsMock = vi.hoisted(() => vi.fn());
+const loadSpiDefinitionsMock = vi.hoisted(() => vi.fn());
+const loadSeverityDefinitionsMock = vi.hoisted(() => vi.fn());
 const getCachedAnalyticsMock = vi.hoisted(() => vi.fn());
 const buildTrendPointsMock = vi.hoisted(() => vi.fn());
 
@@ -16,7 +18,9 @@ vi.mock("@/lib/data-loader", () => ({
   loadLatestSnapshotsForDate: loadLatestSnapshotsForDateMock,
   loadMeasuresSettings: loadMeasuresSettingsMock,
   loadDiscoveryToolsSettings: loadDiscoveryToolsSettingsMock,
-  loadKpiDefinitions: loadKpiDefinitionsMock
+  loadKpiDefinitions: loadKpiDefinitionsMock,
+  loadSpiDefinitions: loadSpiDefinitionsMock,
+  loadSeverityDefinitions: loadSeverityDefinitionsMock
 }));
 
 vi.mock("@/lib/analytics-cache", () => ({
@@ -103,6 +107,37 @@ describe("app data model caches", () => {
         successMeasure: "Target >= 95%",
         calculationKey: "overall-spi-compliance",
         reportAvailable: false
+      }
+    ]);
+    loadSpiDefinitionsMock.mockResolvedValue([
+      {
+        spiId: 1,
+        displayOrder: 1,
+        name: "SPI-1",
+        description: "Operating system must be supported",
+        successMeasure: "Supported operating system",
+        priorityOrder: 1,
+        defaultSeverity: "Major",
+        recommendedAction: "Update unsupported operating systems.",
+        enabled: true,
+        ruleKey: "os-support",
+        ruleParameters: {},
+        reportAvailable: true,
+        trendReportAvailable: true,
+        reportDetailKey: "standard-asset-annex",
+        applicableAssetTypes: ["server"],
+        taskingTeams: [],
+        taskingActions: [],
+        taskingConditions: {}
+      }
+    ]);
+    loadSeverityDefinitionsMock.mockResolvedValue([
+      {
+        severityKey: "Major",
+        label: "Major",
+        displayOrder: 3,
+        selectableInSettings: true,
+        toneKey: "major"
       }
     ]);
     getCachedAnalyticsMock.mockReturnValue({ marker: "analytics" });

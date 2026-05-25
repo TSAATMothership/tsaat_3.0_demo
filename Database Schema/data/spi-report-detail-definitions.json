@@ -1,0 +1,13 @@
+{
+  "updatedAt": "2026-03-22T00:00:00.000Z",
+  "reportDetails": [
+    {
+      "reportDetailKey": "standard-asset-annex",
+      "handlerKey": "standard-asset-annex",
+      "displayOrder": 1,
+      "name": "Standard Asset Annex",
+      "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+      "enabled": true
+    }
+  ]
+}

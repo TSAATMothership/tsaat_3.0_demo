@@ -3,93 +3,654 @@
   "spis": [
     {
       "spiId": 1,
+      "displayOrder": 1,
+      "enabled": true,
+      "ruleKey": "os-support",
+      "ruleParameters": {
+        "unsupportedStatus": "OutOfSupport",
+        "unknownSupportStatus": "Unknown"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Operating System Support",
       "description": "Operating systems must not be out of vendor support.",
       "successMeasure": "100% of applicable servers/workstations run vendor-supported OS versions.",
       "priorityOrder": 3,
+      "defaultSeverity": "Major",
       "recommendedAction": "Upgrade or migrate affected operating systems to vendor-supported versions and add lifecycle governance checkpoints.",
-      "applicableAssetTypes": ["server", "workstation"]
+      "applicableAssetTypes": ["server", "workstation"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Endpoint Platform Team",
+          "supportQueue": "ENDPOINT-OS",
+          "contactEmail": "endpoint.os@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Upgrade or migrate affected operating systems to vendor-supported versions and add lifecycle governance checkpoints."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 2,
+      "displayOrder": 2,
+      "enabled": true,
+      "ruleKey": "os-n-minus",
+      "ruleParameters": {
+        "maxNMinus": 2
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Operating System N-2",
       "description": "Operating systems must be N-2 or better.",
       "successMeasure": "100% of applicable servers/workstations are N-2 or better.",
       "priorityOrder": 4,
+      "defaultSeverity": "Moderate",
       "recommendedAction": "Plan staged OS major-version uplift to reach N-2 or better across impacted hosts.",
-      "applicableAssetTypes": ["server", "workstation"]
+      "applicableAssetTypes": ["server", "workstation"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Endpoint Platform Team",
+          "supportQueue": "ENDPOINT-LIFECYCLE",
+          "contactEmail": "endpoint.lifecycle@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Plan staged OS major-version uplift to reach N-2 or better across impacted hosts."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 3,
+      "displayOrder": 3,
+      "enabled": true,
+      "ruleKey": "server-critical-vulnerability",
+      "ruleParameters": {
+        "vulnerabilitySeverity": "Critical"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Server Critical Vulnerability",
       "description": "Servers must not have Critical vulnerabilities.",
       "successMeasure": "0 servers with critical vulnerabilities.",
       "priorityOrder": 2,
+      "defaultSeverity": "Critical Exposure",
       "recommendedAction": "Patch or mitigate critical server vulnerabilities immediately and confirm exploitability posture.",
-      "applicableAssetTypes": ["server"]
+      "applicableAssetTypes": ["server"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Server Security Operations Team",
+          "supportQueue": "SERVER-SEC",
+          "contactEmail": "server.secops@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Patch or mitigate critical server vulnerabilities immediately and confirm exploitability posture."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 4,
+      "displayOrder": 4,
+      "enabled": true,
+      "ruleKey": "production-server-critical-unsupported-os",
+      "ruleParameters": {
+        "environmentType": "Production",
+        "vulnerabilitySeverity": "Critical",
+        "unsupportedStatus": "OutOfSupport",
+        "unknownSupportStatus": "Unknown"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Production Server High Risk (Critical + Unsupported OS)",
       "description": "High Risk: Production servers must not have Critical vulns with out-of-support OS.",
       "successMeasure": "0 production servers with critical vulnerabilities on unsupported OS.",
       "priorityOrder": 1,
+      "defaultSeverity": "High Risk",
       "recommendedAction": "Treat as immediate operational risk: isolate or patch production server, remove critical vuln, and uplift unsupported OS.",
-      "applicableAssetTypes": ["server"]
+      "applicableAssetTypes": ["server"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Production Security Response Team",
+          "supportQueue": "PROD-SERVER-RISK",
+          "contactEmail": "prod.server@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Treat as immediate operational risk: isolate or patch production server, remove critical vuln, and uplift unsupported OS."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 5,
+      "displayOrder": 5,
+      "enabled": true,
+      "ruleKey": "production-server-critical-unsupported-software",
+      "ruleParameters": {
+        "environmentType": "Production",
+        "vulnerabilitySeverity": "Critical",
+        "unsupportedStatus": "OutOfSupport"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Production Server High Risk (Critical + Unsupported Software)",
       "description": "High Risk: Production servers must not have Critical vulns with out-of-support installed software.",
       "successMeasure": "0 production servers with critical vulnerabilities plus unsupported installed software.",
       "priorityOrder": 1,
+      "defaultSeverity": "High Risk",
       "recommendedAction": "Prioritize production server software remediation: update unsupported software and clear linked critical vulnerabilities.",
-      "applicableAssetTypes": ["server"]
+      "applicableAssetTypes": ["server"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Application Sustainment and Security Team",
+          "supportQueue": "APP-SUSTAINMENT-SEC",
+          "contactEmail": "app.sec@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Prioritize production server software remediation: update unsupported software and clear linked critical vulnerabilities."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 6,
+      "displayOrder": 6,
+      "enabled": true,
+      "ruleKey": "production-workstation-critical-unsupported-software",
+      "ruleParameters": {
+        "environmentType": "Production",
+        "vulnerabilitySeverity": "Critical",
+        "unsupportedStatus": "OutOfSupport"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Production Workstation High Risk (Critical + Unsupported Software)",
       "description": "High Risk: Production-supporting workstations must not have Critical vulns with out-of-support installed software.",
       "successMeasure": "0 production-supporting workstations with critical vulnerabilities plus unsupported installed software.",
       "priorityOrder": 1,
+      "defaultSeverity": "High Risk",
       "recommendedAction": "Prioritize production-support workstation software remediation: update unsupported software and clear linked critical vulnerabilities.",
-      "applicableAssetTypes": ["workstation"]
+      "applicableAssetTypes": ["workstation"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Workstation Engineering Team",
+          "supportQueue": "WORKSTATION-PROD",
+          "contactEmail": "workstation.ops@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Prioritize production-support workstation software remediation: update unsupported software and clear linked critical vulnerabilities."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 7,
+      "displayOrder": 7,
+      "enabled": true,
+      "ruleKey": "network-device-critical-vulnerability",
+      "ruleParameters": {
+        "vulnerabilitySeverity": "Critical"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Network Device Critical Vulnerability",
       "description": "Network devices must not have Critical vulnerabilities.",
       "successMeasure": "0 network devices with critical vulnerabilities.",
       "priorityOrder": 2,
+      "defaultSeverity": "Critical Exposure",
       "recommendedAction": "Patch or mitigate critical network-device vulnerabilities and validate rule/ACL hardening.",
-      "applicableAssetTypes": ["network-device"]
+      "applicableAssetTypes": ["network-device"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Security Engineering Team",
+          "supportQueue": "NETWORK-CRITICAL-VULN",
+          "contactEmail": "network.sec@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Patch or mitigate critical network-device vulnerabilities and validate rule/ACL hardening."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 8,
+      "displayOrder": 8,
+      "enabled": true,
+      "ruleKey": "network-device-support",
+      "ruleParameters": {
+        "unsupportedStatus": "OutOfSupport",
+        "unknownSupportStatus": "Unknown"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Network Device Support",
       "description": "Network devices must not have unsupported OS/firmware.",
       "successMeasure": "100% of network-device OS/firmware versions are supported.",
       "priorityOrder": 3,
+      "defaultSeverity": "Major",
       "recommendedAction": "Upgrade device firmware/OS to supported releases and align with approved baseline catalog.",
-      "applicableAssetTypes": ["network-device"]
+      "applicableAssetTypes": ["network-device"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Firmware and Baseline Team",
+          "supportQueue": "NETWORK-FIRMWARE",
+          "contactEmail": "network.firmware@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Upgrade device firmware/OS to supported releases and align with approved baseline catalog."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 9,
+      "displayOrder": 9,
+      "enabled": true,
+      "ruleKey": "network-device-patch-currency",
+      "ruleParameters": {
+        "latestPatchRequired": true
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Network Device Patch Currency",
       "description": "Network devices must be on latest patches.",
       "successMeasure": "100% of network devices on latest patch level.",
       "priorityOrder": 6,
+      "defaultSeverity": "Moderate",
       "recommendedAction": "Bring network devices to latest patch level and enforce maintenance windows with SLA tracking.",
-      "applicableAssetTypes": ["network-device"]
+      "applicableAssetTypes": ["network-device"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Patch and Sustainment Team",
+          "supportQueue": "NETWORK-PATCH",
+          "contactEmail": "network.patch@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Bring network devices to latest patch level and enforce maintenance windows with SLA tracking."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     },
     {
       "spiId": 10,
+      "displayOrder": 10,
+      "enabled": true,
+      "ruleKey": "asset-lifecycle-currency",
+      "ruleParameters": {
+        "endOfLifeStatus": "EOL",
+        "inWarrantyStatus": "InWarranty",
+        "unknownLifecycleStatus": "Unknown"
+      },
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
       "name": "Asset Lifecycle Currency",
       "description": "No physical device should be EOL or out of warranty.",
       "successMeasure": "0 physical devices in EOL or out-of-warranty state.",
       "priorityOrder": 7,
+      "defaultSeverity": "Moderate",
       "recommendedAction": "Replace or renew lifecycle-expired assets (EOL / out-of-warranty) through prioritized capital plan.",
-      "applicableAssetTypes": ["server", "workstation", "network-device", "storage-device", "printer-device", "other"]
+      "applicableAssetTypes": ["server", "workstation", "network-device", "storage-device", "printer-device", "other"],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Asset Lifecycle and Sustainment Team",
+          "supportQueue": "ASSET-LIFECYCLE",
+          "contactEmail": "asset.lifecycle@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Replace or renew lifecycle-expired assets (EOL / out-of-warranty) through prioritized capital plan."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": [
+        {
+          "conditionKey": "non_compliant",
+          "templateText": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s)."
+        },
+        {
+          "conditionKey": "unknown",
+          "templateText": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation."
+        },
+        {
+          "conditionKey": "compliant",
+          "templateText": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+        }
+      ]
     }
   ]
 }

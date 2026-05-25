@@ -1,0 +1,40 @@
+{
+  "updatedAt": "2026-03-01T00:00:00.000Z",
+  "severities": [
+    {
+      "severityKey": "Critical Exposure",
+      "label": "Critical Exposure",
+      "displayOrder": 1,
+      "selectableInSettings": true,
+      "toneKey": "critical"
+    },
+    {
+      "severityKey": "High Risk",
+      "label": "High Risk",
+      "displayOrder": 2,
+      "selectableInSettings": true,
+      "toneKey": "high"
+    },
+    {
+      "severityKey": "Major",
+      "label": "Major",
+      "displayOrder": 3,
+      "selectableInSettings": true,
+      "toneKey": "major"
+    },
+    {
+      "severityKey": "Moderate",
+      "label": "Moderate",
+      "displayOrder": 4,
+      "selectableInSettings": true,
+      "toneKey": "moderate"
+    },
+    {
+      "severityKey": "Data Gap",
+      "label": "Data Gap",
+      "displayOrder": 5,
+      "selectableInSettings": false,
+      "toneKey": "data-gap"
+    }
+  ]
+}

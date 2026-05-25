@@ -27,6 +27,7 @@ import {
 } from "@/components/network-detail-risk-charts";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { type PerformanceReportModel } from "@/lib/performance-report-model";
+import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain, type SpiId } from "@/lib/types";
 
 export interface CyberCopImpactItem {
@@ -138,6 +139,7 @@ export interface CyberCopDashboardProps {
   systemSpiHeatmapFilterSlot?: ReactNode;
   networkSpiHeatmapModel: PerformanceReportModel;
   systemSpiHeatmapModel: PerformanceReportModel;
+  spiDefinitions: SpiDefinition[];
   selectedSpiId?: SpiId;
   initialMeasureSearch: string;
   complianceScoreCards: OverviewScoreCard[];
@@ -1347,6 +1349,7 @@ function ImpactChartTabs({
   spiRows,
   systemRows,
   systemScopeIds,
+  spiDefinitions,
   assetTypeHeatmapBySystemId,
   environmentRows,
   missionRows,
@@ -1358,6 +1361,7 @@ function ImpactChartTabs({
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
   systemScopeIds: string[];
+  spiDefinitions: SpiDefinition[];
   assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
   missionRows: CyberCopImpactItem[];
@@ -1428,7 +1432,11 @@ function ImpactChartTabs({
               />
             ) : null}
             {activeChartTab === "ict-system-impact-analyser-2" ? (
-              <IctSystemImpactAnalyser2Chart embedded systemScopeIds={systemScopeIds} />
+              <IctSystemImpactAnalyser2Chart
+                embedded
+                systemScopeIds={systemScopeIds}
+                spiDefinitions={spiDefinitions}
+              />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (
@@ -1574,6 +1582,7 @@ export function CyberCopDashboard({
   systemSpiHeatmapFilterSlot,
   networkSpiHeatmapModel,
   systemSpiHeatmapModel,
+  spiDefinitions,
   selectedSpiId,
   initialMeasureSearch,
   complianceScoreCards,
@@ -2189,12 +2198,13 @@ export function CyberCopDashboard({
               </div>
 
               <div className="cop-reveal cop-reveal-delay-3 min-h-[34rem] min-w-0 max-w-full overflow-hidden xl:min-h-0">
-                <ImpactChartTabs
-                  spiRows={filteredImpactSpiDrivers}
-                  systemRows={activeImpactSystemRows}
-                  systemScopeIds={activeImpactSystemIds}
-                  assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
-                  environmentRows={filteredImpactEnvironmentSplit}
+                  <ImpactChartTabs
+                    spiRows={filteredImpactSpiDrivers}
+                    systemRows={activeImpactSystemRows}
+                    systemScopeIds={activeImpactSystemIds}
+                    spiDefinitions={spiDefinitions}
+                    assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
+                    environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}
                   businessRows={filteredBusinessImpact}
                   riskFindings={riskFindings}
@@ -2249,6 +2259,7 @@ export function CyberCopDashboard({
             <div className="min-h-0">
               <MeasuresSpiHeatmapSection
                 model={networkSpiHeatmapModel}
+                spiDefinitions={spiDefinitions}
                 selectedSpiId={selectedSpiId}
                 initialSearchValue={initialMeasureSearch}
                 placeholder="Search security domain or network"
@@ -2272,6 +2283,7 @@ export function CyberCopDashboard({
             <div className="min-h-0">
               <MeasuresSpiHeatmapSection
                 model={systemSpiHeatmapModel}
+                spiDefinitions={spiDefinitions}
                 selectedSpiId={selectedSpiId}
                 initialSearchValue={initialMeasureSearch}
                 placeholder="Search security domain or ICT system"

@@ -10,6 +10,20 @@ import {
 } from "@/lib/discovery-tools-settings";
 import { KpiDefinition, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import { defaultMeasuresSettings, MeasuresSettings, normalizeMeasuresSettings } from "@/lib/measures-settings";
+import {
+  normalizeSeverityDefinitions,
+  normalizeSpiDefinitions,
+  SeverityDefinition,
+  severityDefinitionsCacheSignature,
+  SpiDefinition,
+  SpiFindingClassificationRule,
+  SpiReportDetailDefinition,
+  SpiRuleDefinition,
+  SpiRuleOutcomeTemplate,
+  SpiRuleParameterDefinition,
+  spiDefinitionsCacheSignature,
+  SpiRuleParameterValue
+} from "@/lib/spi-definitions";
 import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
 import { ServerMemoryCache } from "@/lib/server-cache";
@@ -229,7 +243,7 @@ type SnapshotPayload = {
 type MeasuresMatrixRow = {
   spiId: number;
   assetType: AssetType;
-  severity: "High Risk" | "Critical Exposure" | "Major" | "Moderate" | "Data Gap";
+  severity: string;
 };
 
 type MeasuresPriorityMatrixRow = {
@@ -247,6 +261,75 @@ type KpiDefinitionRow = {
   reportAvailable: boolean | number;
 };
 
+type SpiDefinitionRow = {
+  spiId: number;
+  displayOrder: number;
+  name: string;
+  description: string;
+  successMeasure: string;
+  priorityOrder: number;
+  defaultSeverity: string;
+  recommendedAction: string;
+  enabled: boolean | number;
+  ruleKey: string;
+  reportAvailable: boolean | number;
+  trendReportAvailable: boolean | number;
+  reportDetailKey: string;
+};
+
+type SpiApplicableAssetTypeRow = {
+  spiId: number;
+  assetType: AssetType;
+};
+
+type SpiRuleParameterRow = {
+  spiId: number;
+  parameterKey: string;
+  parameterType: "string" | "number" | "boolean";
+  parameterValue: string;
+};
+
+type SpiRuleDefinitionRow = SpiRuleDefinition;
+
+type SpiRuleParameterDefinitionRow = Omit<SpiRuleParameterDefinition, "allowedValues"> & {
+  allowedValuesJson: string | null;
+};
+
+type SpiRuleOutcomeTemplateRow = SpiRuleOutcomeTemplate;
+
+type SpiReportDetailDefinitionRow = SpiReportDetailDefinition;
+
+type SpiFindingClassificationRuleRow = SpiFindingClassificationRule;
+
+type SpiTaskingTeamRow = {
+  spiId: number;
+  displayOrder: number;
+  team: string;
+  supportQueue: string;
+  contactEmail: string;
+};
+
+type SpiTaskingActionTemplateRow = {
+  spiId: number;
+  displayOrder: number;
+  conditionKey: string;
+  actionText: string;
+};
+
+type SpiTaskingConditionTemplateRow = {
+  spiId: number;
+  conditionKey: string;
+  templateText: string;
+};
+
+type SeverityDefinitionRow = {
+  severityKey: string;
+  label: string;
+  displayOrder: number;
+  selectableInSettings: boolean | number;
+  toneKey: string;
+};
+
 type DiscoveryToolRow = {
   id: string;
   name: string;
@@ -262,7 +345,6 @@ type DiscoveryToolScopeRow = {
 };
 
 const DATA_SCHEMA = "tsaat";
-const SPI_ID_VALUES: SpiId[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const ASSET_TYPES: AssetType[] = [...CANONICAL_ASSET_TYPES];
 const SNAPSHOT_ROWS_CACHE_TTL_MS = 60 * 1000;
 const DATASET_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -270,6 +352,8 @@ const REFERENCE_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SETTINGS_VERSION_CACHE_TTL_MS = 60 * 1000;
 const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SEVERITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
   namespace: "data:snapshot-rows",
@@ -293,6 +377,18 @@ const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
 const kpiDefinitionsCache = new ServerMemoryCache<KpiDefinition[]>({
   namespace: "data:kpi-definitions",
   ttlMs: KPI_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const spiDefinitionsCache = new ServerMemoryCache<SpiDefinition[]>({
+  namespace: "data:spi-definitions",
+  ttlMs: SPI_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const severityDefinitionsCache = new ServerMemoryCache<SeverityDefinition[]>({
+  namespace: "data:severity-definitions",
+  ttlMs: SEVERITY_DEFINITIONS_CACHE_TTL_MS,
   maxEntries: 1
 });
 
@@ -965,7 +1061,7 @@ function buildDatasetFromSnapshotRow(snapshot: SnapshotRow, payload: SnapshotPay
   });
 
   const findings: Finding[] = payload.findings
-    .filter((row) => SPI_ID_VALUES.includes(row.spiId as SpiId))
+    .filter((row) => Number.isInteger(row.spiId) && row.spiId > 0)
     .map((row) => ({
       id: row.id,
       spiId: row.spiId as SpiId,
@@ -1146,6 +1242,239 @@ FOR JSON PATH;
   });
 }
 
+function ruleParameterValue(row: SpiRuleParameterRow): SpiRuleParameterValue {
+  if (row.parameterType === "number") {
+    const numericValue = Number(row.parameterValue);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  }
+  if (row.parameterType === "boolean") {
+    return ["1", "true", "yes"].includes(row.parameterValue.trim().toLowerCase());
+  }
+  return row.parameterValue;
+}
+
+function groupBySpiId<T extends { spiId: number }>(rows: T[]): Map<number, T[]> {
+  const grouped = new Map<number, T[]>();
+  for (const row of rows) {
+    const existing = grouped.get(row.spiId);
+    if (existing) {
+      existing.push(row);
+    } else {
+      grouped.set(row.spiId, [row]);
+    }
+  }
+  return grouped;
+}
+
+function groupByRuleKey<T extends { ruleKey: string }>(rows: T[]): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const existing = grouped.get(row.ruleKey);
+    if (existing) {
+      existing.push(row);
+    } else {
+      grouped.set(row.ruleKey, [row]);
+    }
+  }
+  return grouped;
+}
+
+export async function loadSeverityDefinitions(): Promise<SeverityDefinition[]> {
+  return severityDefinitionsCache.getOrSet("latest", async () => {
+    const rows = await executeSqlJson<SeverityDefinitionRow[]>(`
+SELECT
+  fsd.[severity_key] AS [severityKey],
+  fsd.[label] AS [label],
+  fsd.[display_order] AS [displayOrder],
+  fsd.[selectable_in_settings] AS [selectableInSettings],
+  fsd.[tone_key] AS [toneKey]
+FROM [${DATA_SCHEMA}].[finding_severity_definition] fsd
+ORDER BY fsd.[display_order], fsd.[severity_key]
+FOR JSON PATH;
+`);
+
+    return normalizeSeverityDefinitions(rows);
+  });
+}
+
+export async function loadSpiDefinitions(): Promise<SpiDefinition[]> {
+  return spiDefinitionsCache.getOrSet("latest", async () => {
+    const [
+      definitionRows,
+      applicabilityRows,
+      parameterRows,
+      teamRows,
+      actionRows,
+      conditionRows,
+      ruleDefinitionRows,
+      parameterDefinitionRows,
+      outcomeTemplateRows,
+      reportDetailRows,
+      classificationRuleRows
+    ] = await Promise.all([
+      executeSqlJson<SpiDefinitionRow[]>(`
+SELECT
+  sd.[spi_id] AS [spiId],
+  sd.[display_order] AS [displayOrder],
+  sd.[name] AS [name],
+  sd.[description] AS [description],
+  sd.[success_measure] AS [successMeasure],
+  sd.[priority_order] AS [priorityOrder],
+  sd.[default_severity] AS [defaultSeverity],
+  sd.[recommended_action] AS [recommendedAction],
+  sd.[enabled] AS [enabled],
+  sd.[rule_key] AS [ruleKey],
+  sd.[report_available] AS [reportAvailable],
+  sd.[trend_report_available] AS [trendReportAvailable],
+  sd.[report_detail_key] AS [reportDetailKey]
+FROM [${DATA_SCHEMA}].[spi_definition] sd
+ORDER BY sd.[display_order], sd.[spi_id]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiApplicableAssetTypeRow[]>(`
+SELECT
+  saat.[spi_id] AS [spiId],
+  saat.[asset_type] AS [assetType]
+FROM [${DATA_SCHEMA}].[spi_applicable_asset_type] saat
+ORDER BY saat.[spi_id], saat.[asset_type]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleParameterRow[]>(`
+SELECT
+  srp.[spi_id] AS [spiId],
+  srp.[parameter_key] AS [parameterKey],
+  srp.[parameter_type] AS [parameterType],
+  srp.[parameter_value] AS [parameterValue]
+FROM [${DATA_SCHEMA}].[spi_rule_parameter] srp
+ORDER BY srp.[spi_id], srp.[parameter_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiTaskingTeamRow[]>(`
+SELECT
+  stt.[spi_id] AS [spiId],
+  stt.[display_order] AS [displayOrder],
+  stt.[team] AS [team],
+  stt.[support_queue] AS [supportQueue],
+  stt.[contact_email] AS [contactEmail]
+FROM [${DATA_SCHEMA}].[spi_tasking_team] stt
+ORDER BY stt.[spi_id], stt.[display_order], stt.[team]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiTaskingActionTemplateRow[]>(`
+SELECT
+  stat.[spi_id] AS [spiId],
+  stat.[display_order] AS [displayOrder],
+  stat.[condition_key] AS [conditionKey],
+  stat.[action_text] AS [actionText]
+FROM [${DATA_SCHEMA}].[spi_tasking_action_template] stat
+ORDER BY stat.[spi_id], stat.[display_order]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiTaskingConditionTemplateRow[]>(`
+SELECT
+  stct.[spi_id] AS [spiId],
+  stct.[condition_key] AS [conditionKey],
+  stct.[template_text] AS [templateText]
+FROM [${DATA_SCHEMA}].[spi_tasking_condition_template] stct
+ORDER BY stct.[spi_id], stct.[condition_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleDefinitionRow[]>(`
+SELECT
+  srd.[rule_key] AS [ruleKey],
+  srd.[handler_key] AS [handlerKey],
+  srd.[display_order] AS [displayOrder],
+  srd.[name] AS [name],
+  srd.[description] AS [description],
+  srd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_rule_definition] srd
+ORDER BY srd.[display_order], srd.[rule_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleParameterDefinitionRow[]>(`
+SELECT
+  srpd.[rule_key] AS [ruleKey],
+  srpd.[parameter_key] AS [parameterKey],
+  srpd.[parameter_type] AS [parameterType],
+  srpd.[required] AS [required],
+  srpd.[default_value] AS [defaultValue],
+  srpd.[allowed_values_json] AS [allowedValuesJson],
+  srpd.[display_order] AS [displayOrder],
+  srpd.[description] AS [description]
+FROM [${DATA_SCHEMA}].[spi_rule_parameter_definition] srpd
+ORDER BY srpd.[rule_key], srpd.[display_order], srpd.[parameter_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleOutcomeTemplateRow[]>(`
+SELECT
+  srot.[rule_key] AS [ruleKey],
+  srot.[outcome_key] AS [outcomeKey],
+  srot.[compliance_status] AS [complianceStatus],
+  srot.[reason_template] AS [reasonTemplate],
+  srot.[evidence_template] AS [evidenceTemplate]
+FROM [${DATA_SCHEMA}].[spi_rule_outcome_template] srot
+ORDER BY srot.[rule_key], srot.[outcome_key], srot.[compliance_status]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiReportDetailDefinitionRow[]>(`
+SELECT
+  srdd.[report_detail_key] AS [reportDetailKey],
+  srdd.[handler_key] AS [handlerKey],
+  srdd.[display_order] AS [displayOrder],
+  srdd.[name] AS [name],
+  srdd.[description] AS [description],
+  srdd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_report_detail_definition] srdd
+ORDER BY srdd.[display_order], srdd.[report_detail_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiFindingClassificationRuleRow[]>(`
+SELECT
+  sfcr.[classification_rule_id] AS [classificationRuleId],
+  sfcr.[display_order] AS [displayOrder],
+  sfcr.[enabled] AS [enabled],
+  sfcr.[spi_id] AS [spiId],
+  sfcr.[compliance_status] AS [complianceStatus],
+  sfcr.[condition_key] AS [conditionKey],
+  sfcr.[severity_key] AS [severityKey],
+  sfcr.[priority_rank] AS [priorityRank],
+  sfcr.[description] AS [description]
+FROM [${DATA_SCHEMA}].[spi_finding_classification_rule] sfcr
+ORDER BY sfcr.[display_order], sfcr.[classification_rule_id]
+FOR JSON PATH;
+`)
+    ]);
+
+    const applicabilityBySpi = groupBySpiId(applicabilityRows);
+    const parametersBySpi = groupBySpiId(parameterRows);
+    const teamsBySpi = groupBySpiId(teamRows);
+    const actionsBySpi = groupBySpiId(actionRows);
+    const conditionsBySpi = groupBySpiId(conditionRows);
+    const ruleDefinitionByKey = new Map(ruleDefinitionRows.map((row) => [row.ruleKey, row]));
+    const parameterDefinitionsByRule = groupByRuleKey(parameterDefinitionRows);
+    const outcomeTemplatesByRule = groupByRuleKey(outcomeTemplateRows);
+    const reportDetailByKey = new Map(reportDetailRows.map((row) => [row.reportDetailKey, row]));
+
+    return normalizeSpiDefinitions(
+      definitionRows.map((row) => ({
+        ...row,
+        ruleDefinition: ruleDefinitionByKey.get(row.ruleKey),
+        parameterDefinitions: parameterDefinitionsByRule.get(row.ruleKey) ?? [],
+        outcomeTemplates: outcomeTemplatesByRule.get(row.ruleKey) ?? [],
+        classificationRules: classificationRuleRows,
+        reportDetailDefinition: reportDetailByKey.get(row.reportDetailKey),
+        applicableAssetTypes: (applicabilityBySpi.get(row.spiId) ?? []).map((item) => item.assetType),
+        ruleParameters: Object.fromEntries(
+          (parametersBySpi.get(row.spiId) ?? []).map((item) => [item.parameterKey, ruleParameterValue(item)])
+        ),
+        taskingTeams: teamsBySpi.get(row.spiId) ?? [],
+        taskingActions: actionsBySpi.get(row.spiId) ?? [],
+        taskingConditions: conditionsBySpi.get(row.spiId) ?? []
+      }))
+    );
+  });
+}
+
 export async function loadKpiDefinitions(): Promise<KpiDefinition[]> {
   return kpiDefinitionsCache.getOrSet("latest", async () => {
     const rows = await executeSqlJson<KpiDefinitionRow[]>(`
@@ -1196,15 +1525,26 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
   );
 }
 
-export async function loadMeasuresSettings(): Promise<MeasuresSettings> {
-  const version = await loadLatestMeasuresSettingsVersion();
+export async function loadMeasuresSettings(
+  providedSpiDefinitions?: SpiDefinition[],
+  providedSeverityDefinitions?: SeverityDefinition[]
+): Promise<MeasuresSettings> {
+  const [version, spiDefinitions, severityDefinitions] = await Promise.all([
+    loadLatestMeasuresSettingsVersion(),
+    providedSpiDefinitions ? Promise.resolve(providedSpiDefinitions) : loadSpiDefinitions(),
+    providedSeverityDefinitions ? Promise.resolve(providedSeverityDefinitions) : loadSeverityDefinitions()
+  ]);
 
   if (!version) {
-    return defaultMeasuresSettings();
+    return defaultMeasuresSettings(spiDefinitions, severityDefinitions);
   }
 
   return measuresSettingsByVersionCache.getOrSet(
-    `version:${version.settingsVersionId}:${version.updatedAt}`,
+    [
+      `version:${version.settingsVersionId}:${version.updatedAt}`,
+      spiDefinitionsCacheSignature(spiDefinitions),
+      severityDefinitionsCacheSignature(severityDefinitions)
+    ].join("::"),
     async () => {
       const [severityRows, priorityRows] = await Promise.all([
         executeSqlJson<MeasuresMatrixRow[]>(`
@@ -1242,34 +1582,35 @@ FOR JSON PATH;
         updatedAt: coerceIsoTimestamp(version.updatedAt),
         severityMatrix,
         priorityMatrix
-      });
+      }, spiDefinitions, severityDefinitions);
     }
   );
 }
 
 export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSettings> {
-  const normalized = normalizeMeasuresSettings(input);
+  const [spiDefinitions, severityDefinitions] = await Promise.all([loadSpiDefinitions(), loadSeverityDefinitions()]);
+  const normalized = normalizeMeasuresSettings(input, spiDefinitions, severityDefinitions);
   const persisted: MeasuresSettings = {
     ...normalized,
     updatedAt: new Date().toISOString()
   };
 
   const severityValueTuples: string[] = [];
-  for (const spiId of SPI_ID_VALUES) {
+  for (const definition of spiDefinitions) {
     for (const assetType of ASSET_TYPES) {
-      const key = `${spiId}:${assetType}`;
+      const key = `${definition.spiId}:${assetType}`;
       const severity = persisted.severityMatrix[key];
       if (severity) {
-        severityValueTuples.push(`(@newVersionId, ${spiId}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(severity)})`);
+        severityValueTuples.push(`(@newVersionId, ${definition.spiId}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(severity)})`);
       }
     }
   }
 
   const priorityValueTuples: string[] = [];
-  for (const spiId of SPI_ID_VALUES) {
-    const priorityRank = persisted.priorityMatrix[String(spiId)];
+  for (const definition of spiDefinitions) {
+    const priorityRank = persisted.priorityMatrix[String(definition.spiId)];
     if (priorityRank) {
-      priorityValueTuples.push(`(@newVersionId, ${spiId}, ${priorityRank})`);
+      priorityValueTuples.push(`(@newVersionId, ${definition.spiId}, ${priorityRank})`);
     }
   }
 
@@ -1462,6 +1803,8 @@ export function clearDataLoaderCaches(): void {
   datasetBySnapshotIdCache.clear();
   referenceVersionsCache.clear();
   kpiDefinitionsCache.clear();
+  spiDefinitionsCache.clear();
+  severityDefinitionsCache.clear();
   measuresSettingsVersionCache.clear();
   measuresSettingsByVersionCache.clear();
   discoveryToolsSettingsVersionCache.clear();
@@ -1475,6 +1818,8 @@ export function __resetDataLoaderCachesForTest(): void {
   datasetBySnapshotIdCache.resetStats();
   referenceVersionsCache.resetStats();
   kpiDefinitionsCache.resetStats();
+  spiDefinitionsCache.resetStats();
+  severityDefinitionsCache.resetStats();
   measuresSettingsVersionCache.resetStats();
   measuresSettingsByVersionCache.resetStats();
   discoveryToolsSettingsVersionCache.resetStats();

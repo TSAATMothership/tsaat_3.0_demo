@@ -1,6 +1,12 @@
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { NextRequest, NextResponse } from "next/server";
-import { loadDatasetForDate, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadDatasetForDate,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { isUnassignedNetworkId } from "@/lib/discovery-filter-scope";
 import { buildNetworkDiscoveryReportModel, type NetworkDiscoveryReportModel } from "@/lib/network-discovery-report-model";
 import {
@@ -136,17 +142,20 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedDataDate = networkDiscoveryReportDataDateFromSearchParams(request.nextUrl.searchParams);
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
   const model = buildNetworkDiscoveryReportModel({
     dataset,
     discoveryToolsSettings,
     measuresSettings,
+    spiDefinitions,
     networkId,
     filters
   });

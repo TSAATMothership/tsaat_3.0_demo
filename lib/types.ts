@@ -229,20 +229,11 @@ export interface Dataset {
   findings?: Finding[];
 }
 
-export type SpiId =
-  | 1
-  | 2
-  | 3
-  | 4
-  | 5
-  | 6
-  | 7
-  | 8
-  | 9
-  | 10;
+export type SpiId = number;
 
 export interface SpiEvaluation {
   spiId: SpiId;
+  outcomeKey?: string;
   status: ComplianceStatus;
   evidence: Record<string, string | number | boolean | null>;
   reasons: string[];
@@ -275,12 +266,7 @@ export interface RollupResult {
   counts: RollupCounts;
 }
 
-export type FindingSeverity =
-  | "High Risk"
-  | "Critical Exposure"
-  | "Major"
-  | "Moderate"
-  | "Data Gap";
+export type FindingSeverity = string;
 
 export type FindingWorkflowStatus = "open" | "closed";
 

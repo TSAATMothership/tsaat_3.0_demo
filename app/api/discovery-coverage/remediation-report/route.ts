@@ -3,7 +3,13 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
-import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadCurrentDataset,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
 import { Asset } from "@/lib/types";
@@ -129,14 +135,16 @@ function includesSearch(
 }
 
 export async function GET(request: NextRequest) {
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadCurrentDataset(),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const queryObject = sanitizeDiscoverySearchParams(Object.fromEntries(request.nextUrl.searchParams.entries()));
   const filters = parseFilters(queryObject);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
 
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));

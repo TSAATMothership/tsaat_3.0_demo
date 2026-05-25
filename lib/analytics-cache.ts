@@ -2,6 +2,12 @@ import { buildAnalytics } from "@/lib/analytics";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { ServerMemoryCache } from "@/lib/server-cache";
+import {
+  SeverityDefinition,
+  SpiDefinition,
+  severityDefinitionsCacheSignature,
+  spiDefinitionsCacheSignature
+} from "@/lib/spi-definitions";
 import { AnalyticsResult, Dataset, Filters } from "@/lib/types";
 
 const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -49,12 +55,16 @@ export function settingsCacheSignature(
 function analyticsCacheKey(
   dataset: Dataset,
   filters: Filters,
+  spiDefinitions: SpiDefinition[],
+  severityDefinitions: SeverityDefinition[],
   measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings
 ): string {
   return [
     datasetCacheSignature(dataset),
     filtersCacheKey(filters),
+    spiDefinitionsCacheSignature(spiDefinitions),
+    severityDefinitionsCacheSignature(severityDefinitions),
     settingsCacheSignature(measuresSettings, discoveryToolsSettings)
   ].join("::");
 }
@@ -62,16 +72,18 @@ function analyticsCacheKey(
 export function getCachedAnalytics(
   dataset: Dataset,
   filters: Filters,
+  spiDefinitions: SpiDefinition[],
+  severityDefinitions: SeverityDefinition[],
   measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings
 ): AnalyticsResult {
-  const key = analyticsCacheKey(dataset, filters, measuresSettings, discoveryToolsSettings);
+  const key = analyticsCacheKey(dataset, filters, spiDefinitions, severityDefinitions, measuresSettings, discoveryToolsSettings);
   const cached = analyticsCache.get(key);
   if (cached) {
     return cached;
   }
 
-  const value = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const value = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   analyticsCache.set(key, value);
   return value;
 }
@@ -84,4 +96,3 @@ export function __resetAnalyticsCacheForTest(): void {
   clearAnalyticsCache();
   analyticsCache.resetStats();
 }
-

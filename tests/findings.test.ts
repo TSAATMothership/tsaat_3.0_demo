@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildFindings } from "@/lib/findings";
 import { Asset, AssetSpiEvaluation } from "@/lib/types";
+import { testSpiDefinitions } from "./spi-definition-fixtures";
 
 describe("findings prioritization", () => {
   it("places high-risk findings above others", () => {
@@ -64,12 +65,69 @@ describe("findings prioritization", () => {
       }
     ];
 
-    const findings = buildFindings(assets, evaluations, new Set(["srv-1"]));
+    const findings = buildFindings(assets, evaluations, new Set(["srv-1"]), {
+      spiDefinitions: testSpiDefinitions
+    });
 
     expect(findings[0].spiId).toBe(4);
     expect(findings[0].severity).toBe("High Risk");
     expect(findings[0].complianceStatus).toBe("Non-compliant");
     expect(["open", "closed"]).toContain(findings[0].status);
     expect(findings.some((finding) => finding.priorityRank > findings[0].priorityRank)).toBe(true);
+  });
+
+  it("uses DB classification rules before settings overrides are applied", () => {
+    const assets: Asset[] = [
+      {
+        id: "netd-2",
+        name: "Device 2",
+        hostname: "netd-2",
+        type: "network-device",
+        networkId: "net-1",
+        securityDomain: "Protected",
+        lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+        vulnerabilities: [],
+        networkOs: null,
+        patchState: null
+      }
+    ];
+    const definitions = testSpiDefinitions.map((definition) =>
+      definition.spiId === 9
+        ? {
+            ...definition,
+            classificationRules: definition.classificationRules.map((rule) =>
+              rule.classificationRuleId === "spi9-moderate"
+                ? { ...rule, severityKey: "Major", priorityRank: 2 }
+                : rule
+            )
+          }
+        : definition
+    );
+    const evaluations: AssetSpiEvaluation[] = [
+      {
+        assetId: "netd-2",
+        assetType: "network-device",
+        networkId: "net-1",
+        systemId: null,
+        environmentType: null,
+        securityDomain: "Protected",
+        systemCriticality: null,
+        discoveryCoverageCompliant: true,
+        evaluations: [
+          {
+            spiId: 9,
+            status: "Non-compliant",
+            evidence: { patchLatest: false },
+            reasons: ["Patch lag"]
+          }
+        ]
+      }
+    ];
+
+    const findings = buildFindings(assets, evaluations, new Set(), { spiDefinitions: definitions });
+
+    expect(findings[0].spiId).toBe(9);
+    expect(findings[0].severity).toBe("Major");
+    expect(findings[0].priorityRank).toBe(2);
   });
 });

@@ -1,16 +1,18 @@
 import { buildAnalytics } from "@/lib/analytics";
 import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
+import { MeasuresSettings } from "@/lib/measures-settings";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { Dataset, Filters, TrendPoint } from "@/lib/types";
 
 export function buildTrendPoints(
   snapshots: Dataset[],
-  filters: Filters = {},
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  filters: Filters,
+  spiDefinitions: SpiDefinition[],
+  measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): TrendPoint[] {
   return snapshots.map((snapshot, index) => {
-    const analytics = buildAnalytics(snapshot, snapshot.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+    const analytics = buildAnalytics(snapshot, snapshot.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
     const highRiskCount = analytics.findings.filter((finding) => finding.severity === "High Risk").length;
     const criticalExposureCount = analytics.findings.filter(
       (finding) => finding.severity === "Critical Exposure"
@@ -51,9 +53,10 @@ export interface NetworkP12TrendSeries {
 export function buildNetworkP12TrendSeries(
   snapshots: Dataset[],
   networks: Array<{ id: string; name: string }>,
-  filters: Filters = {},
+  filters: Filters,
+  spiDefinitions: SpiDefinition[],
+  measuresSettings: MeasuresSettings,
   lookbackWeeks = 12,
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
   discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): NetworkP12TrendSeries[] {
   const scopedSnapshots = snapshots.slice(-lookbackWeeks);
@@ -67,6 +70,7 @@ export function buildNetworkP12TrendSeries(
       snapshot,
       snapshot.ictSystems,
       globalScopeFilters,
+      spiDefinitions,
       measuresSettings,
       discoveryToolsSettings
     );

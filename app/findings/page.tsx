@@ -6,7 +6,6 @@ import { FindingsTable } from "@/components/findings-table";
 import { FindingsViewTabId, FindingsViewTabs } from "@/components/findings-view-tabs";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { buildCveVulnerabilityIndexByAssetId } from "@/lib/cve";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
 import { Finding } from "@/lib/types";
@@ -95,7 +94,8 @@ export default async function FindingsPage({
           criticality: undefined
         }
       : searchParams;
-  const { analytics, dataset, filterOptions, filters } = await getCoreAppData(effectiveSearchParams);
+  const { analytics, dataset, filterOptions, filters, spiDefinitions, severityDefinitions } =
+    await getCoreAppData(effectiveSearchParams);
   const today = isDateOnly(dataset.snapshotDate) ? dataset.snapshotDate : new Date().toISOString().slice(0, 10);
   const historyStartDate = new Date(`${today}T00:00:00.000Z`);
   historyStartDate.setUTCFullYear(historyStartDate.getUTCFullYear() - 2);
@@ -105,7 +105,7 @@ export default async function FindingsPage({
   const requestedTab = firstParam(searchParams.findingsTab)?.trim().toLowerCase();
   const selectedStatus: "open" | "closed" = requestedTab === "closed" ? "closed" : "open";
   const requestedSpi = Number(firstParam(searchParams.spi));
-  const selectedSpi = Number.isInteger(requestedSpi) && requestedSpi >= 1 && requestedSpi <= 10 ? requestedSpi : undefined;
+  const selectedSpi = spiDefinitions.some((definition) => definition.spiId === requestedSpi) ? requestedSpi : undefined;
   const requestedPriority = Number(firstParam(searchParams.priority));
   const selectedPriority =
     Number.isInteger(requestedPriority) && requestedPriority >= 1 && requestedPriority !== 90
@@ -114,10 +114,8 @@ export default async function FindingsPage({
   const selectedSeverity = firstParam(searchParams.severity)?.trim() || undefined;
   const selectedSearchTerm = firstParam(searchParams.search)?.trim() ?? "";
   const normalizedSearchTerm = selectedSearchTerm.toLowerCase();
-  const spiCatalog = Object.keys(SPI_DESCRIPTIONS)
-    .map((value) => Number(value))
-    .filter((value) => Number.isInteger(value))
-    .sort((a, b) => a - b);
+  const spiCatalog = spiDefinitions.map((definition) => definition.spiId);
+  const spiDefinitionById = new Map(spiDefinitions.map((definition) => [definition.spiId, definition]));
 
   const matchesBaseFindingFilters = (finding: Finding) => {
     if (selectedSpi && finding.spiId !== selectedSpi) {
@@ -276,7 +274,7 @@ export default async function FindingsPage({
     timelineStatusByFindingId.set(finding.id, timelineStatus);
     return true;
   });
-  const severityOptions = Array.from(new Set(timelineFindings.map((finding) => finding.severity)));
+  const severityOptions = severityDefinitions.map((definition) => definition.severityKey);
 
   const findings = timelineFindings.filter(matchesActiveFindingFilters);
 
@@ -299,7 +297,7 @@ export default async function FindingsPage({
             value: selectedSpi ? String(selectedSpi) : undefined,
             options: spiOptions.map((spi) => ({
               id: String(spi),
-              label: `SPI ${spi} - ${SPI_DESCRIPTIONS[spi as keyof typeof SPI_DESCRIPTIONS]}`
+              label: `SPI ${spi} - ${spiDefinitionById.get(spi)?.description ?? "Unmapped SPI"}`
             }))
           },
           priorityFilterSelect,
@@ -340,7 +338,7 @@ export default async function FindingsPage({
 
     return {
       spiId,
-      description: SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS],
+      description: spiDefinitionById.get(spiId)?.description ?? `SPI ${spiId}`,
       totalOpenFindings: spiFindings.length,
       criticalExposureCount,
       highRiskCount,
@@ -562,6 +560,7 @@ export default async function FindingsPage({
                 spiOptions={spiOptions}
                 priorityOptions={priorityOptions}
                 severityOptions={severityOptions}
+                spiDefinitions={spiDefinitions}
                 assetCvesByAssetId={cvesByAssetId}
               />
             </div>

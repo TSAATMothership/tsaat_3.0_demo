@@ -6,13 +6,22 @@ import {
   SpiEvaluation,
   WorkstationAsset
 } from "@/lib/types";
+import { isSpiApplicableToAssetType, SpiDefinition } from "@/lib/spi-definitions";
 
-function hasCriticalVulnerability(asset: Asset): boolean {
-  return asset.vulnerabilities.some((vuln) => vuln.severity === "Critical");
+function hasVulnerabilitySeverity(asset: Asset, severity: string): boolean {
+  return asset.vulnerabilities.some((vuln) => vuln.severity === severity);
+}
+
+function vulnerabilitySeverityCount(asset: Asset, severity: string): number {
+  return asset.vulnerabilities.filter((vuln) => vuln.severity === severity).length;
 }
 
 function isProductionContext(asset: Asset): boolean {
   return asset.systemContext?.environmentType === "Production";
+}
+
+function isEnvironmentContext(asset: Asset, environmentType: string): boolean {
+  return asset.systemContext?.environmentType === environmentType;
 }
 
 function statusFromBool(value: boolean): ComplianceStatus {
@@ -21,34 +30,106 @@ function statusFromBool(value: boolean): ComplianceStatus {
 
 function evaluateSupportRule(
   supportStatus: string | undefined | null,
-  reasonLabel: string
-): Pick<SpiEvaluation, "status" | "reasons"> {
-  if (!supportStatus || supportStatus === "Unknown") {
-    return { status: "Unknown", reasons: [`Missing ${reasonLabel}.`] };
+  reasonLabel: string,
+  unsupportedStatus: string,
+  unknownSupportStatus: string
+): Pick<SpiEvaluation, "outcomeKey" | "status" | "reasons"> {
+  if (!supportStatus || supportStatus === unknownSupportStatus) {
+    return { outcomeKey: "missing_support_status", status: "Unknown", reasons: [`Missing ${reasonLabel}.`] };
   }
   return {
-    status: supportStatus === "OutOfSupport" ? "Non-compliant" : "Compliant",
+    outcomeKey: supportStatus === unsupportedStatus ? "unsupported" : "supported",
+    status: supportStatus === unsupportedStatus ? "Non-compliant" : "Compliant",
     reasons:
-      supportStatus === "OutOfSupport"
+      supportStatus === unsupportedStatus
         ? [`${reasonLabel} is out of support.`]
         : [`${reasonLabel} is vendor supported.`]
   };
 }
 
-function evaluateSpi1(asset: ServerAsset | WorkstationAsset): SpiEvaluation {
+function numberParameter(definition: SpiDefinition, key: string, fallback: number): number {
+  const value = definition.ruleParameters[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function stringParameter(definition: SpiDefinition, key: string, fallback: string): string {
+  const value = definition.ruleParameters[key];
+  return typeof value === "string" && value.trim().length ? value.trim() : fallback;
+}
+
+function booleanParameter(definition: SpiDefinition, key: string, fallback: boolean): boolean {
+  const value = definition.ruleParameters[key];
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function renderOutcomeTemplate(template: string, definition: SpiDefinition, evaluation: SpiEvaluation): string {
+  const context: Record<string, string | number | boolean | null | undefined> = {
+    spiId: definition.spiId,
+    status: evaluation.status,
+    ...definition.ruleParameters,
+    ...evaluation.evidence
+  };
+
+  return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => {
+    const value = context[key];
+    return value === null || value === undefined ? "" : String(value);
+  });
+}
+
+function applyOutcomeTemplate(definition: SpiDefinition, evaluation: SpiEvaluation): SpiEvaluation {
+  const outcomeKey = evaluation.outcomeKey;
+  if (!outcomeKey) {
+    return evaluation;
+  }
+  const template = definition.outcomeTemplates.find(
+    (item) => item.outcomeKey === outcomeKey && item.complianceStatus === evaluation.status
+  );
+  if (!template) {
+    return evaluation;
+  }
+  return {
+    ...evaluation,
+    reasons: [renderOutcomeTemplate(template.reasonTemplate, definition, evaluation)]
+  };
+}
+
+function unsupportedStatusParameter(definition: SpiDefinition): string {
+  return stringParameter(definition, "unsupportedStatus", "OutOfSupport");
+}
+
+function unknownSupportStatusParameter(definition: SpiDefinition): string {
+  return stringParameter(definition, "unknownSupportStatus", "Unknown");
+}
+
+function vulnerabilitySeverityParameter(definition: SpiDefinition): string {
+  return stringParameter(definition, "vulnerabilitySeverity", "Critical");
+}
+
+function environmentTypeParameter(definition: SpiDefinition): string {
+  return stringParameter(definition, "environmentType", "Production");
+}
+
+function evaluateSpi1(asset: ServerAsset | WorkstationAsset, definition: SpiDefinition): SpiEvaluation {
   const os = asset.operatingSystem;
   if (!os) {
     return {
-      spiId: 1,
+      spiId: definition.spiId,
+      outcomeKey: "missing_os_data",
       status: "Unknown",
       evidence: { operatingSystem: null, supportStatus: null },
       reasons: ["Operating system data is missing."]
     };
   }
 
-  const result = evaluateSupportRule(os.supportStatus, "Operating system");
+  const result = evaluateSupportRule(
+    os.supportStatus,
+    "Operating system",
+    unsupportedStatusParameter(definition),
+    unknownSupportStatusParameter(definition)
+  );
   return {
-    spiId: 1,
+    spiId: definition.spiId,
+    outcomeKey: result.outcomeKey === "missing_support_status" ? "missing_os_data" : result.outcomeKey,
     status: result.status,
     evidence: {
       operatingSystem: `${os.family} ${os.version}`,
@@ -58,11 +139,13 @@ function evaluateSpi1(asset: ServerAsset | WorkstationAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi2(asset: ServerAsset | WorkstationAsset): SpiEvaluation {
+function evaluateSpi2(asset: ServerAsset | WorkstationAsset, definition: SpiDefinition): SpiEvaluation {
+  const maxNMinus = numberParameter(definition, "maxNMinus", 2);
   const os = asset.operatingSystem;
   if (!os || os.nMinus === null || os.nMinus === undefined) {
     return {
-      spiId: 2,
+      spiId: definition.spiId,
+      outcomeKey: "missing_n_minus",
       status: "Unknown",
       evidence: {
         operatingSystem: os ? `${os.family} ${os.version}` : null,
@@ -73,27 +156,30 @@ function evaluateSpi2(asset: ServerAsset | WorkstationAsset): SpiEvaluation {
   }
 
   return {
-    spiId: 2,
-    status: os.nMinus <= 2 ? "Compliant" : "Non-compliant",
+    spiId: definition.spiId,
+    outcomeKey: os.nMinus <= maxNMinus ? "within_n_minus" : "older_than_n_minus",
+    status: os.nMinus <= maxNMinus ? "Compliant" : "Non-compliant",
     evidence: {
       operatingSystem: `${os.family} ${os.version}`,
       nMinus: os.nMinus,
       currentMajor: os.currentSupportedMajor
     },
     reasons:
-      os.nMinus <= 2
-        ? ["OS is within N-2 range."]
-        : ["OS major version is older than N-2."]
+      os.nMinus <= maxNMinus
+        ? [`OS is within N-${maxNMinus} range.`]
+        : [`OS major version is older than N-${maxNMinus}.`]
   };
 }
 
-function evaluateSpi3(asset: ServerAsset): SpiEvaluation {
-  const critical = hasCriticalVulnerability(asset);
+function evaluateSpi3(asset: ServerAsset, definition: SpiDefinition): SpiEvaluation {
+  const severity = vulnerabilitySeverityParameter(definition);
+  const critical = hasVulnerabilitySeverity(asset, severity);
   return {
-    spiId: 3,
+    spiId: definition.spiId,
+    outcomeKey: critical ? "critical_vulnerability_present" : "no_critical_vulnerability",
     status: statusFromBool(!critical),
     evidence: {
-      criticalVulnerabilities: asset.vulnerabilities.filter((v) => v.severity === "Critical").length
+      criticalVulnerabilities: vulnerabilitySeverityCount(asset, severity)
     },
     reasons: critical
       ? ["Server has one or more critical vulnerabilities."]
@@ -101,13 +187,14 @@ function evaluateSpi3(asset: ServerAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi4(asset: ServerAsset): SpiEvaluation {
-  const critical = hasCriticalVulnerability(asset);
-  const production = isProductionContext(asset);
+function evaluateSpi4(asset: ServerAsset, definition: SpiDefinition): SpiEvaluation {
+  const critical = hasVulnerabilitySeverity(asset, vulnerabilitySeverityParameter(definition));
+  const production = isEnvironmentContext(asset, environmentTypeParameter(definition));
   const os = asset.operatingSystem;
   if (!production) {
     return {
-      spiId: 4,
+      spiId: definition.spiId,
+      outcomeKey: "not_production_context",
       status: "Compliant",
       evidence: {
         productionContext: false,
@@ -118,9 +205,11 @@ function evaluateSpi4(asset: ServerAsset): SpiEvaluation {
     };
   }
 
-  if (!os || !os.supportStatus || os.supportStatus === "Unknown") {
+  const unknownSupportStatus = unknownSupportStatusParameter(definition);
+  if (!os || !os.supportStatus || os.supportStatus === unknownSupportStatus) {
     return {
-      spiId: 4,
+      spiId: definition.spiId,
+      outcomeKey: "missing_os_support",
       status: "Unknown",
       evidence: {
         productionContext: true,
@@ -131,9 +220,10 @@ function evaluateSpi4(asset: ServerAsset): SpiEvaluation {
     };
   }
 
-  const triggered = critical && os.supportStatus === "OutOfSupport";
+  const triggered = critical && os.supportStatus === unsupportedStatusParameter(definition);
   return {
-    spiId: 4,
+    spiId: definition.spiId,
+    outcomeKey: triggered ? "triggered" : "not_triggered",
     status: triggered ? "Non-compliant" : "Compliant",
     evidence: {
       productionContext: true,
@@ -146,14 +236,16 @@ function evaluateSpi4(asset: ServerAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi5(asset: ServerAsset): SpiEvaluation {
-  const critical = hasCriticalVulnerability(asset);
-  const production = isProductionContext(asset);
+function evaluateSpi5(asset: ServerAsset, definition: SpiDefinition): SpiEvaluation {
+  const critical = hasVulnerabilitySeverity(asset, vulnerabilitySeverityParameter(definition));
+  const production = isEnvironmentContext(asset, environmentTypeParameter(definition));
   const software = asset.installedSoftware;
+  const unsupportedStatus = unsupportedStatusParameter(definition);
 
   if (!production) {
     return {
-      spiId: 5,
+      spiId: definition.spiId,
+      outcomeKey: "not_production_context",
       status: "Compliant",
       evidence: {
         productionContext: false,
@@ -166,7 +258,8 @@ function evaluateSpi5(asset: ServerAsset): SpiEvaluation {
 
   if (!software.length) {
     return {
-      spiId: 5,
+      spiId: definition.spiId,
+      outcomeKey: "missing_software",
       status: "Unknown",
       evidence: {
         productionContext: true,
@@ -177,10 +270,11 @@ function evaluateSpi5(asset: ServerAsset): SpiEvaluation {
     };
   }
 
-  const outOfSupportCount = software.filter((item) => item.supportStatus === "OutOfSupport").length;
+  const outOfSupportCount = software.filter((item) => item.supportStatus === unsupportedStatus).length;
   const triggered = critical && outOfSupportCount > 0;
   return {
-    spiId: 5,
+    spiId: definition.spiId,
+    outcomeKey: triggered ? "triggered" : "not_triggered",
     status: triggered ? "Non-compliant" : "Compliant",
     evidence: {
       productionContext: true,
@@ -193,14 +287,16 @@ function evaluateSpi5(asset: ServerAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi6(asset: WorkstationAsset): SpiEvaluation {
-  const critical = hasCriticalVulnerability(asset);
-  const production = isProductionContext(asset);
+function evaluateSpi6(asset: WorkstationAsset, definition: SpiDefinition): SpiEvaluation {
+  const critical = hasVulnerabilitySeverity(asset, vulnerabilitySeverityParameter(definition));
+  const production = isEnvironmentContext(asset, environmentTypeParameter(definition));
   const software = asset.installedSoftware;
+  const unsupportedStatus = unsupportedStatusParameter(definition);
 
   if (!production) {
     return {
-      spiId: 6,
+      spiId: definition.spiId,
+      outcomeKey: "not_production_context",
       status: "Compliant",
       evidence: {
         productionContext: false,
@@ -213,7 +309,8 @@ function evaluateSpi6(asset: WorkstationAsset): SpiEvaluation {
 
   if (!software.length) {
     return {
-      spiId: 6,
+      spiId: definition.spiId,
+      outcomeKey: "missing_software",
       status: "Unknown",
       evidence: {
         productionContext: true,
@@ -224,10 +321,11 @@ function evaluateSpi6(asset: WorkstationAsset): SpiEvaluation {
     };
   }
 
-  const outOfSupportCount = software.filter((item) => item.supportStatus === "OutOfSupport").length;
+  const outOfSupportCount = software.filter((item) => item.supportStatus === unsupportedStatus).length;
   const triggered = critical && outOfSupportCount > 0;
   return {
-    spiId: 6,
+    spiId: definition.spiId,
+    outcomeKey: triggered ? "triggered" : "not_triggered",
     status: triggered ? "Non-compliant" : "Compliant",
     evidence: {
       productionContext: true,
@@ -242,13 +340,15 @@ function evaluateSpi6(asset: WorkstationAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi7(asset: NetworkDeviceAsset): SpiEvaluation {
-  const critical = hasCriticalVulnerability(asset);
+function evaluateSpi7(asset: NetworkDeviceAsset, definition: SpiDefinition): SpiEvaluation {
+  const severity = vulnerabilitySeverityParameter(definition);
+  const critical = hasVulnerabilitySeverity(asset, severity);
   return {
-    spiId: 7,
+    spiId: definition.spiId,
+    outcomeKey: critical ? "critical_vulnerability_present" : "no_critical_vulnerability",
     status: statusFromBool(!critical),
     evidence: {
-      criticalVulnerabilities: asset.vulnerabilities.filter((v) => v.severity === "Critical").length
+      criticalVulnerabilities: vulnerabilitySeverityCount(asset, severity)
     },
     reasons: critical
       ? ["Network device has critical vulnerabilities."]
@@ -256,11 +356,12 @@ function evaluateSpi7(asset: NetworkDeviceAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi8(asset: NetworkDeviceAsset): SpiEvaluation {
+function evaluateSpi8(asset: NetworkDeviceAsset, definition: SpiDefinition): SpiEvaluation {
   const networkOs = asset.networkOs;
   if (!networkOs) {
     return {
-      spiId: 8,
+      spiId: definition.spiId,
+      outcomeKey: "missing_network_os",
       status: "Unknown",
       evidence: {
         networkOs: null,
@@ -270,9 +371,15 @@ function evaluateSpi8(asset: NetworkDeviceAsset): SpiEvaluation {
     };
   }
 
-  const result = evaluateSupportRule(networkOs.supportStatus, "Network OS/firmware");
+  const result = evaluateSupportRule(
+    networkOs.supportStatus,
+    "Network OS/firmware",
+    unsupportedStatusParameter(definition),
+    unknownSupportStatusParameter(definition)
+  );
   return {
-    spiId: 8,
+    spiId: definition.spiId,
+    outcomeKey: result.outcomeKey === "missing_support_status" ? "missing_network_os" : result.outcomeKey,
     status: result.status,
     evidence: {
       networkOs: `${networkOs.family} ${networkOs.version}`,
@@ -282,11 +389,12 @@ function evaluateSpi8(asset: NetworkDeviceAsset): SpiEvaluation {
   };
 }
 
-function evaluateSpi9(asset: NetworkDeviceAsset): SpiEvaluation {
+function evaluateSpi9(asset: NetworkDeviceAsset, definition: SpiDefinition): SpiEvaluation {
   const patchState = asset.patchState;
   if (!patchState || patchState.isLatest === null) {
     return {
-      spiId: 9,
+      spiId: definition.spiId,
+      outcomeKey: "missing_patch_state",
       status: "Unknown",
       evidence: {
         isLatestPatch: null,
@@ -296,24 +404,29 @@ function evaluateSpi9(asset: NetworkDeviceAsset): SpiEvaluation {
     };
   }
 
+  const latestPatchRequired = booleanParameter(definition, "latestPatchRequired", true);
+  const compliant = patchState.isLatest === latestPatchRequired;
   return {
-    spiId: 9,
-    status: patchState.isLatest ? "Compliant" : "Non-compliant",
+    spiId: definition.spiId,
+    outcomeKey: compliant ? "current" : "not_current",
+    status: compliant ? "Compliant" : "Non-compliant",
     evidence: {
       isLatestPatch: patchState.isLatest,
       lastPatchedDate: patchState.lastPatchedDate
     },
-    reasons: patchState.isLatest
+    reasons: compliant
       ? ["Network device patch level is current."]
       : ["Network device is not on latest patch level."]
   };
 }
 
-function evaluateSpi10(asset: Asset): SpiEvaluation {
+function evaluateSpi10(asset: Asset, definition: SpiDefinition): SpiEvaluation {
   const { eolStatus, warrantyStatus } = asset.lifecycle;
-  if (eolStatus === "Unknown" || warrantyStatus === "Unknown") {
+  const unknownLifecycleStatus = stringParameter(definition, "unknownLifecycleStatus", "Unknown");
+  if (eolStatus === unknownLifecycleStatus || warrantyStatus === unknownLifecycleStatus) {
     return {
-      spiId: 10,
+      spiId: definition.spiId,
+      outcomeKey: "missing_lifecycle",
       status: "Unknown",
       evidence: {
         eolStatus,
@@ -323,9 +436,12 @@ function evaluateSpi10(asset: Asset): SpiEvaluation {
     };
   }
 
-  const compliant = eolStatus !== "EOL" && warrantyStatus === "InWarranty";
+  const endOfLifeStatus = stringParameter(definition, "endOfLifeStatus", "EOL");
+  const inWarrantyStatus = stringParameter(definition, "inWarrantyStatus", "InWarranty");
+  const compliant = eolStatus !== endOfLifeStatus && warrantyStatus === inWarrantyStatus;
   return {
-    spiId: 10,
+    spiId: definition.spiId,
+    outcomeKey: compliant ? "current" : "expired",
     status: compliant ? "Compliant" : "Non-compliant",
     evidence: {
       eolStatus,
@@ -337,31 +453,55 @@ function evaluateSpi10(asset: Asset): SpiEvaluation {
   };
 }
 
-export function evaluateAssetSpis(asset: Asset): SpiEvaluation[] {
-  const base: SpiEvaluation[] = [evaluateSpi10(asset)];
-
-  if (asset.type === "server") {
-    return [
-      evaluateSpi1(asset),
-      evaluateSpi2(asset),
-      evaluateSpi3(asset),
-      evaluateSpi4(asset),
-      evaluateSpi5(asset),
-      ...base
-    ];
+function evaluateAssetSpiDefinition(asset: Asset, definition: SpiDefinition): SpiEvaluation | null {
+  if (!isSpiApplicableToAssetType(definition, asset.type)) {
+    return null;
   }
 
-  if (asset.type === "workstation") {
-    return [evaluateSpi1(asset), evaluateSpi2(asset), evaluateSpi6(asset), ...base];
+  let evaluation: SpiEvaluation | null = null;
+
+  switch (definition.ruleDefinition.handlerKey) {
+    case "os-support":
+      evaluation = asset.type === "server" || asset.type === "workstation" ? evaluateSpi1(asset, definition) : null;
+      break;
+    case "os-n-minus":
+      evaluation = asset.type === "server" || asset.type === "workstation" ? evaluateSpi2(asset, definition) : null;
+      break;
+    case "server-critical-vulnerability":
+      evaluation = asset.type === "server" ? evaluateSpi3(asset, definition) : null;
+      break;
+    case "production-server-critical-unsupported-os":
+      evaluation = asset.type === "server" ? evaluateSpi4(asset, definition) : null;
+      break;
+    case "production-server-critical-unsupported-software":
+      evaluation = asset.type === "server" ? evaluateSpi5(asset, definition) : null;
+      break;
+    case "production-workstation-critical-unsupported-software":
+      evaluation = asset.type === "workstation" ? evaluateSpi6(asset, definition) : null;
+      break;
+    case "network-device-critical-vulnerability":
+      evaluation = asset.type === "network-device" ? evaluateSpi7(asset, definition) : null;
+      break;
+    case "network-device-support":
+      evaluation = asset.type === "network-device" ? evaluateSpi8(asset, definition) : null;
+      break;
+    case "network-device-patch-currency":
+      evaluation = asset.type === "network-device" ? evaluateSpi9(asset, definition) : null;
+      break;
+    case "asset-lifecycle-currency":
+      evaluation = evaluateSpi10(asset, definition);
+      break;
   }
 
-  if (asset.type === "network-device") {
-    return [evaluateSpi7(asset), evaluateSpi8(asset), evaluateSpi9(asset), ...base];
-  }
+  return evaluation ? applyOutcomeTemplate(definition, evaluation) : null;
+}
 
-  return base;
+export function evaluateAssetSpis(asset: Asset, spiDefinitions: SpiDefinition[]): SpiEvaluation[] {
+  return spiDefinitions
+    .map((definition) => evaluateAssetSpiDefinition(asset, definition))
+    .filter((evaluation): evaluation is SpiEvaluation => Boolean(evaluation));
 }
 
 export function hasProductionCriticalVulnerability(asset: Asset): boolean {
-  return isProductionContext(asset) && hasCriticalVulnerability(asset);
+  return isProductionContext(asset) && hasVulnerabilitySeverity(asset, "Critical");
 }

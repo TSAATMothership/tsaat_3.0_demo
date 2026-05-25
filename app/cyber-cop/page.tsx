@@ -11,7 +11,6 @@ import {
   type CyberCopImpactSpiDriver
 } from "@/components/cyber-cop-dashboard";
 import { FilterBar } from "@/components/filter-bar";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
@@ -19,7 +18,7 @@ import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { buildNetworkPerformanceReportModel, buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { applyAssetFilters } from "@/lib/selectors";
-import { SPI_IDS } from "@/lib/spi-metadata";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
@@ -43,10 +42,13 @@ function omitSearchParams(
   return result;
 }
 
-function readSpiFilter(searchParams: Record<string, string | string[] | undefined>): SpiId | undefined {
+function readSpiFilter(
+  searchParams: Record<string, string | string[] | undefined>,
+  spiDefinitions: SpiDefinition[]
+): SpiId | undefined {
   const value = firstParam(searchParams.spi)?.trim();
   const numericValue = Number(value);
-  if (SPI_IDS.includes(numericValue as SpiId)) {
+  if (spiDefinitions.some((definition) => definition.spiId === numericValue)) {
     return numericValue as SpiId;
   }
   return undefined;
@@ -594,8 +596,10 @@ function toImpactSpiDrivers(
       highRiskCount: number;
       otherCount: number;
     }
-  >
+  >,
+  spiDefinitions: SpiDefinition[]
 ): CyberCopImpactSpiDriver[] {
+  const definitionsById = new Map(spiDefinitions.map((definition) => [definition.spiId, definition]));
   return Array.from(countBySpi.entries())
     .sort((a, b) => {
       const aTotal = a[1].criticalExposureCount + a[1].highRiskCount + a[1].otherCount;
@@ -608,7 +612,7 @@ function toImpactSpiDrivers(
     .map(([spiId, row]) => ({
       spiId,
       label: `SPI ${spiId}`,
-      description: SPI_DESCRIPTIONS[spiId as SpiId],
+      description: definitionsById.get(spiId)?.description ?? `SPI ${spiId}`,
       criticalExposureCount: row.criticalExposureCount,
       highRiskCount: row.highRiskCount,
       otherCount: row.otherCount,
@@ -616,7 +620,7 @@ function toImpactSpiDrivers(
     }));
 }
 
-function buildImpactSpiDrivers(findings: Finding[]): CyberCopImpactSpiDriver[] {
+function buildImpactSpiDrivers(findings: Finding[], spiDefinitions: SpiDefinition[]): CyberCopImpactSpiDriver[] {
   const countBySpi = findings.reduce<
     Map<
       number,
@@ -645,11 +649,12 @@ function buildImpactSpiDrivers(findings: Finding[]): CyberCopImpactSpiDriver[] {
     return accumulator;
   }, new Map());
 
-  return toImpactSpiDrivers(countBySpi);
+  return toImpactSpiDrivers(countBySpi, spiDefinitions);
 }
 
 function buildImpactSpiDriversBySystemId(
-  findings: Finding[]
+  findings: Finding[],
+  spiDefinitions: SpiDefinition[]
 ): Record<string, CyberCopImpactSpiDriver[]> {
   const bySystem = new Map<
     string,
@@ -688,7 +693,10 @@ function buildImpactSpiDriversBySystemId(
   }
 
   return Object.fromEntries(
-    Array.from(bySystem.entries()).map(([systemId, countBySpi]) => [systemId, toImpactSpiDrivers(countBySpi)])
+    Array.from(bySystem.entries()).map(([systemId, countBySpi]) => [
+      systemId,
+      toImpactSpiDrivers(countBySpi, spiDefinitions)
+    ])
   );
 }
 
@@ -1096,12 +1104,11 @@ export default async function CyberCopPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
-  const selectedSpiId = readSpiFilter(searchParams);
   const measureSearch = readMeasureSearch(searchParams);
   const networkHeatmapSearchParams = omitSearchParams(searchParams, ["system", "criticality", "environment"]);
   const systemHeatmapSearchParams = omitSearchParams(searchParams, ["network"]);
   const [
-    { analytics, filterOptions, filters, dataset, systems, networks },
+    { analytics, filterOptions, filters, dataset, systems, networks, spiDefinitions, severityDefinitions },
     networkHeatmapData,
     systemHeatmapData
   ] = await Promise.all([
@@ -1109,8 +1116,9 @@ export default async function CyberCopPage({
     getCoreAppData(networkHeatmapSearchParams),
     getCoreAppData(systemHeatmapSearchParams)
   ]);
+  const selectedSpiId = readSpiFilter(searchParams, spiDefinitions);
   const selectedDataDate = extractDataDateParam(searchParams);
-  const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const severityOptions: FindingSeverity[] = severityDefinitions.map((definition) => definition.severityKey);
   const networkHeatmapExtraSelects = [
     {
       key: "severity",
@@ -1134,6 +1142,8 @@ export default async function CyberCopPage({
     networks: networkHeatmapData.networks,
     systems: networkHeatmapData.systems,
     kpiDefinitions: networkHeatmapData.kpiDefinitions,
+    spiDefinitions: networkHeatmapData.spiDefinitions,
+    severityDefinitions: networkHeatmapData.severityDefinitions,
     asOfDate: networkHeatmapData.dataset.snapshotDate
   });
   const systemSpiHeatmapModel = buildSystemPerformanceReportModel({
@@ -1143,6 +1153,8 @@ export default async function CyberCopPage({
     networks: systemHeatmapData.networks,
     systems: systemHeatmapData.systems,
     kpiDefinitions: systemHeatmapData.kpiDefinitions,
+    spiDefinitions: systemHeatmapData.spiDefinitions,
+    severityDefinitions: systemHeatmapData.severityDefinitions,
     asOfDate: systemHeatmapData.dataset.snapshotDate
   });
 
@@ -1347,8 +1359,8 @@ export default async function CyberCopPage({
   const systemImpact = buildSystemImpact(openFindings, systems);
   const impactLinks = buildImpactLinks(systems);
   const impactAssetTypeHeatmapBySystemId = buildImpactAssetTypeHeatmapBySystemId(filteredAssets, openFindings, systems);
-  const impactSpiDrivers = buildImpactSpiDrivers(openFindings);
-  const impactSpiDriversBySystemId = buildImpactSpiDriversBySystemId(openFindings);
+  const impactSpiDrivers = buildImpactSpiDrivers(openFindings, spiDefinitions);
+  const impactSpiDriversBySystemId = buildImpactSpiDriversBySystemId(openFindings, spiDefinitions);
   const impactEnvironmentSplit = buildImpactEnvironmentSplit(openFindings);
   const impactEnvironmentSplitBySystemId = buildImpactEnvironmentSplitBySystemId(openFindings);
   const impactEntityTrends = buildImpactEntityTrends(analytics.findings, systemImpact, chartAnchorDateKey, 5);
@@ -1415,6 +1427,7 @@ export default async function CyberCopPage({
         }
         networkSpiHeatmapModel={networkSpiHeatmapModel}
         systemSpiHeatmapModel={systemSpiHeatmapModel}
+        spiDefinitions={spiDefinitions}
         selectedSpiId={selectedSpiId}
         initialMeasureSearch={measureSearch}
         complianceScoreCards={complianceScoreCards}

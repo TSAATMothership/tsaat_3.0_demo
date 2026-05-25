@@ -2,7 +2,13 @@ import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
-import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadCurrentDataset,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import {
   filterRealNetworkAssets,
@@ -150,14 +156,16 @@ function createPage(pdfDoc: PDFDocument, pageTitle: string, titleFont: PDFFont):
 }
 
 export async function GET(request: NextRequest) {
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadCurrentDataset(),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
 
   const scopedEvaluations = filterRealNetworkEvaluations(analytics.evaluations);
   const scopedAssetIds = new Set(scopedEvaluations.map((evaluation) => evaluation.assetId));

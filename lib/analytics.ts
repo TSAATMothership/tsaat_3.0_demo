@@ -5,9 +5,9 @@ import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/dis
 import {
   applyMeasuresPrioritySettings,
   applyMeasuresSeveritySettings,
-  defaultMeasuresSettings,
   MeasuresSettings
 } from "@/lib/measures-settings";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { buildRollups, mergeStatusCounts } from "@/lib/rollup";
 import { applyAssetFilters } from "@/lib/selectors";
 import { evaluateAssetSpis, hasProductionCriticalVulnerability } from "@/lib/spi-rules";
@@ -25,7 +25,8 @@ import {
 function toAssetEvaluation(
   asset: Asset,
   systemsById: Map<string, ICTSystem>,
-  discoveryToolsSettings: DiscoveryToolsSettings
+  discoveryToolsSettings: DiscoveryToolsSettings,
+  spiDefinitions: SpiDefinition[]
 ): AssetSpiEvaluation {
   const systemId = asset.systemContext?.systemId;
   const system = systemId ? systemsById.get(systemId) : undefined;
@@ -40,7 +41,7 @@ function toAssetEvaluation(
     securityDomain: asset.securityDomain,
     systemCriticality: system?.criticality ?? null,
     discoveryCoverageCompliant: discoveryCoverage.coverageCompliance,
-    evaluations: evaluateAssetSpis(asset)
+    evaluations: evaluateAssetSpis(asset, spiDefinitions)
   };
 }
 
@@ -55,13 +56,16 @@ function statusPercent(statuses: ComplianceStatus[]): number {
 export function buildAnalytics(
   dataset: Dataset,
   systems: ICTSystem[],
-  filters: Filters = {},
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  filters: Filters,
+  spiDefinitions: SpiDefinition[],
+  measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ): AnalyticsResult {
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
   const systemsById = new Map(systems.map((system) => [system.id, system]));
-  const evaluations = filteredAssets.map((asset) => toAssetEvaluation(asset, systemsById, discoveryToolsSettings));
+  const evaluations = filteredAssets.map((asset) =>
+    toAssetEvaluation(asset, systemsById, discoveryToolsSettings, spiDefinitions)
+  );
 
   const allStatuses = evaluations.flatMap((assetEval) =>
     assetEval.evaluations.map((evaluation) => evaluation.status)
@@ -77,12 +81,15 @@ export function buildAnalytics(
       return dataset.findings;
     }
 
-    const allEvaluations = dataset.assets.map((asset) => toAssetEvaluation(asset, systemsById, discoveryToolsSettings));
+    const allEvaluations = dataset.assets.map((asset) =>
+      toAssetEvaluation(asset, systemsById, discoveryToolsSettings, spiDefinitions)
+    );
     const allProductionCriticalSet = new Set(
       dataset.assets.filter((asset) => hasProductionCriticalVulnerability(asset)).map((asset) => asset.id)
     );
     return buildFindings(dataset.assets, allEvaluations, allProductionCriticalSet, {
-      anchorDate: dataset.snapshotDate
+      anchorDate: dataset.snapshotDate,
+      spiDefinitions
     });
   })();
   const findingsWithConfiguredSeverity = applyMeasuresSeveritySettings(sourceFindings, dataset.assets, measuresSettings);

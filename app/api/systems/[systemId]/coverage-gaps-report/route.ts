@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import { evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
-import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadCurrentDataset,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { Asset, ComplianceStatus, EnvironmentType } from "@/lib/types";
 
@@ -188,11 +194,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { systemId: string } }
 ) {
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadCurrentDataset(),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
 
   if (!system) {
@@ -203,6 +211,7 @@ export async function GET(
     dataset,
     dataset.ictSystems,
     { ictSystem: system.id },
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );

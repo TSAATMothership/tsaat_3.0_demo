@@ -1,7 +1,13 @@
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadCurrentDataset,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
 
@@ -111,15 +117,17 @@ function createPage(pdfDoc: PDFDocument, pageTitle: string, titleFont: PDFFont):
 }
 
 export async function GET(request: NextRequest) {
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadCurrentDataset(),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
 
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   const systemsById = new Map(dataset.ictSystems.map((system) => [system.id, system]));
   const assetsById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
+import { SpiDefinition } from "@/lib/spi-definitions";
 
 function nextProgressValue(current: number): number {
   if (current >= 92) {
@@ -33,11 +33,13 @@ function normalizeQuery(query: string): string {
 
 export function FindingsSpiTiles({
   spiCatalog,
+  spiDefinitions = [],
   selectedSpi,
   selectedStatus,
   findingsBySpi
 }: {
   spiCatalog: number[];
+  spiDefinitions?: SpiDefinition[];
   selectedSpi?: number;
   selectedStatus: "open" | "closed";
   findingsBySpi: Record<number, number>;
@@ -51,6 +53,10 @@ export function FindingsSpiTiles({
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spiDefinitionById = useMemo(
+    () => new Map(spiDefinitions.map((definition) => [definition.spiId, definition])),
+    [spiDefinitions]
+  );
 
   useEffect(() => {
     setIsMounted(true);
@@ -142,7 +148,9 @@ export function FindingsSpiTiles({
                 }`}
               >
                 <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">SPI {spiId}</p>
-                <p className="mt-1 text-sm text-slate-100">{SPI_DESCRIPTIONS[spiId as keyof typeof SPI_DESCRIPTIONS]}</p>
+                <p className="mt-1 text-sm text-slate-100">
+                  {spiDefinitionById.get(spiId)?.description ?? "Unmapped SPI"}
+                </p>
                 <p className="mt-3 text-2xl font-semibold text-sky-100">{findingsBySpi[spiId] ?? 0}</p>
                 <p className="text-[11px] text-slate-300/75">
                   {selectedStatus === "closed" ? "Closed findings" : "Open findings"}

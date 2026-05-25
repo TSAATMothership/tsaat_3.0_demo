@@ -1,6 +1,7 @@
 import { getCachedAnalytics } from "@/lib/analytics-cache";
 import { defaultDiscoveryToolsSettings, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
+import { MeasuresSettings } from "@/lib/measures-settings";
+import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import { AnalyticsResult, Dataset, Filters } from "@/lib/types";
 
 function filtersKey(filters: Filters): string {
@@ -19,7 +20,9 @@ function filtersKey(filters: Filters): string {
 
 export function createSnapshotAnalyticsMemo(
   filters: Filters,
-  measuresSettings: MeasuresSettings = defaultMeasuresSettings(),
+  spiDefinitions: SpiDefinition[],
+  severityDefinitions: SeverityDefinition[],
+  measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings = defaultDiscoveryToolsSettings()
 ) {
   const filterKey = filtersKey(filters);
@@ -32,7 +35,14 @@ export function createSnapshotAnalyticsMemo(
       return cached;
     }
 
-    const computed = getCachedAnalytics(snapshot, filters, measuresSettings, discoveryToolsSettings);
+    const computed = getCachedAnalytics(
+      snapshot,
+      filters,
+      spiDefinitions,
+      severityDefinitions,
+      measuresSettings,
+      discoveryToolsSettings
+    );
     cache.set(key, computed);
     return computed;
   };

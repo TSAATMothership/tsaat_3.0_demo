@@ -34,8 +34,9 @@ describe("SPI heatmap tabs", () => {
 
     expect(filters).toContain("SPI Filter");
     expect(filters).toContain("Text Search");
-    expect(filters).toContain("SPI_NAMES");
-    expect(filters).toContain("SPI_DESCRIPTIONS");
+    expect(filters).toContain("spiDefinitions.map");
+    expect(filters).toContain("definition.name");
+    expect(filters).toContain("definition.description");
     expect(filters).toContain("selectedSpiDetails");
     expect(filters).toContain("dynamicSearch");
     expect(filters).toContain("localSpiFilter");
@@ -43,7 +44,7 @@ describe("SPI heatmap tabs", () => {
     expect(filters).toContain("onSearchValueChange");
     expect(filters).toContain("Filters rows as you type");
     expect(filters).toContain('!dynamicSearch ? (');
-    expect(filters).toContain("SPI {spiId} - {SPI_NAMES[spiId]}: {SPI_DESCRIPTIONS[spiId]}");
+    expect(filters).toContain("SPI {definition.spiId} - {definition.name}: {definition.description}");
     expect(filters).toContain('params.set("spi", value)');
     expect(filters).toContain('params.set("measureSearch", trimmedSearch)');
     expect(matrix).toContain("selectedSpiId");

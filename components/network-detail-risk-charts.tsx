@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { SPI_DESCRIPTIONS, SPI_NAMES } from "@/lib/spi-metadata";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { FindingSeverity, FindingWorkflowStatus, HighRiskCveDetail } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
@@ -237,6 +237,10 @@ function buildAffectedDeviceRowsForFinding(
       }
       return a.assetName.localeCompare(b.assetName);
     });
+}
+
+function spiNameFromFindings(spiId: number, findings: NetworkDetailRiskFindingRow[]): string {
+  return findings.find((finding) => finding.spiId === spiId)?.title ?? "Unmapped SPI";
 }
 
 function buildWorkbookXml({
@@ -1231,7 +1235,7 @@ export function RiskFindingsDrillThrough({
                   {!lockedSpiId ? <option value="all">All SPI</option> : null}
                   {spiFilterOptions.map((spiId) => (
                     <option key={spiId} value={String(spiId)}>
-                      {`SPI ${spiId} - ${SPI_NAMES[spiId as keyof typeof SPI_NAMES] ?? "Unmapped SPI"}`}
+                      {`SPI ${spiId} - ${spiNameFromFindings(spiId, sourceFindings)}`}
                     </option>
                   ))}
                 </select>
@@ -1438,6 +1442,7 @@ export function RiskFindingsDrillThrough({
 export function NetworkDetailRiskCharts({
   riskProfile,
   findings = [],
+  spiDefinitions = [],
   assetHighRiskCvesByAssetId = {},
   asOfDate = new Date().toISOString().slice(0, 10),
   scopeDescription = "Open findings by severity in current network detail scope.",
@@ -1453,6 +1458,7 @@ export function NetworkDetailRiskCharts({
     weeklyTrend: NetworkDetailWeeklyRiskPoint[];
   };
   findings?: NetworkDetailRiskFindingRow[];
+  spiDefinitions?: SpiDefinition[];
   assetHighRiskCvesByAssetId?: Record<string, AssetHighRiskCveEntry[]>;
   asOfDate?: string;
   scopeDescription?: string;
@@ -1474,6 +1480,10 @@ export function NetworkDetailRiskCharts({
   const [isCveDetailsModalOpen, setIsCveDetailsModalOpen] = useState(false);
   const [cveSearchTerm, setCveSearchTerm] = useState("");
   const [isMounted, setIsMounted] = useState(false);
+  const spiDefinitionById = useMemo(
+    () => new Map(spiDefinitions.map((definition) => [definition.spiId, definition])),
+    [spiDefinitions]
+  );
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const assetDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cveDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1835,10 +1845,11 @@ export function NetworkDetailRiskCharts({
   }, [searchFilteredFindings, selectedAsOfDate]);
 
   const closedFindingsBySpi = useMemo(() => {
-    const spiIds = Object.keys(SPI_NAMES)
-      .map((value) => Number(value))
-      .filter((value) => Number.isInteger(value))
-      .sort((a, b) => a - b);
+    const spiIds = (
+      spiDefinitions.length
+        ? spiDefinitions.map((definition) => definition.spiId)
+        : Array.from(new Set(findings.map((finding) => finding.spiId)))
+    ).sort((a, b) => a - b);
 
     return spiIds.map((spiId) => {
       const count = findings.filter((finding) => {
@@ -1855,7 +1866,7 @@ export function NetworkDetailRiskCharts({
         count
       };
     });
-  }, [findings, selectedAsOfDate]);
+  }, [findings, selectedAsOfDate, spiDefinitions]);
 
   const closedFindingsBySpiChartRows = useMemo(
     () => closedFindingsBySpi.map((row) => ({ ...row, spiLabel: `SPI ${row.spiId}` })),
@@ -2641,8 +2652,9 @@ export function NetworkDetailRiskCharts({
                               if (!row?.spiId) {
                                 return null;
                               }
-                              const name = SPI_NAMES[row.spiId as keyof typeof SPI_NAMES] ?? "Unmapped SPI";
-                              const description = SPI_DESCRIPTIONS[row.spiId as keyof typeof SPI_DESCRIPTIONS] ?? "";
+                              const definition = spiDefinitionById.get(row.spiId);
+                              const name = definition?.name ?? spiNameFromFindings(row.spiId, findings);
+                              const description = definition?.description ?? "";
                               return (
                                 <div className="rounded-md border border-slate-500/55 bg-slate-950/95 p-2 text-xs text-slate-100 shadow-lg">
                                   <p className="font-semibold">{`SPI ${row.spiId} - ${name}`}</p>
@@ -2678,7 +2690,7 @@ export function NetworkDetailRiskCharts({
                     <option value="all">All SPI</option>
                     {spiFilterOptions.map((spiId) => (
                       <option key={spiId} value={String(spiId)}>
-                        {`SPI ${spiId} - ${SPI_NAMES[spiId as keyof typeof SPI_NAMES] ?? "Unmapped SPI"}`}
+                        {`SPI ${spiId} - ${spiDefinitionById.get(spiId)?.name ?? spiNameFromFindings(spiId, findings)}`}
                       </option>
                     ))}
                   </select>

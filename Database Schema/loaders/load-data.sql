@@ -117,29 +117,330 @@ BEGIN
   THROW 51000, @LoadError, 1;
 END;
 
-INSERT INTO [tsaat].[spi_definition] (
-  [spi_id],
-  [name],
-  [description],
-  [success_measure],
-  [priority_order],
-  [recommended_action]
+DECLARE @SeverityJson NVARCHAR(MAX);
+SET @FilePath = @PackageDataRoot + N'\severity-definitions.json';
+SET @SeverityJson = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @SeverityJson OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @SeverityJson OUTPUT;
+END;
+IF @SeverityJson IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+DECLARE @SpiRuleDefinitionJson NVARCHAR(MAX);
+SET @FilePath = @PackageDataRoot + N'\spi-rule-definitions.json';
+SET @SpiRuleDefinitionJson = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @SpiRuleDefinitionJson OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @SpiRuleDefinitionJson OUTPUT;
+END;
+IF @SpiRuleDefinitionJson IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+DECLARE @SpiReportDetailJson NVARCHAR(MAX);
+SET @FilePath = @PackageDataRoot + N'\spi-report-detail-definitions.json';
+SET @SpiReportDetailJson = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @SpiReportDetailJson OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @SpiReportDetailJson OUTPUT;
+END;
+IF @SpiReportDetailJson IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+DECLARE @SpiClassificationJson NVARCHAR(MAX);
+SET @FilePath = @PackageDataRoot + N'\spi-finding-classification-rules.json';
+SET @SpiClassificationJson = NULL;
+IF @DataLoadMode = N'ClientPayload'
+BEGIN
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @SpiClassificationJson OUTPUT;
+END
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @SpiClassificationJson OUTPUT;
+END;
+IF @SpiClassificationJson IS NULL
+BEGIN
+  SET @LoadError = N'Unable to load JSON payload: ' + @FilePath;
+  THROW 51000, @LoadError, 1;
+END;
+
+MERGE [tsaat].[finding_severity_definition] AS target
+USING (
+  SELECT
+    severity.[severity_key],
+    severity.[label],
+    severity.[display_order],
+    severity.[selectable_in_settings],
+    severity.[tone_key]
+  FROM OPENJSON(@SeverityJson, '$.severities') WITH (
+    [severity_key] NVARCHAR(30) '$.severityKey',
+    [label] NVARCHAR(80) '$.label',
+    [display_order] INT '$.displayOrder',
+    [selectable_in_settings] BIT '$.selectableInSettings',
+    [tone_key] NVARCHAR(40) '$.toneKey'
+  ) AS severity
+) AS source
+ON target.[severity_key] = source.[severity_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [label] = source.[label],
+    [display_order] = source.[display_order],
+    [selectable_in_settings] = source.[selectable_in_settings],
+    [tone_key] = source.[tone_key]
+WHEN NOT MATCHED THEN
+  INSERT ([severity_key], [label], [display_order], [selectable_in_settings], [tone_key])
+  VALUES (source.[severity_key], source.[label], source.[display_order], source.[selectable_in_settings], source.[tone_key]);
+
+DECLARE @SeedRuleKeys TABLE ([rule_key] NVARCHAR(100) NOT NULL PRIMARY KEY);
+INSERT INTO @SeedRuleKeys ([rule_key])
+SELECT rule_definition.[rule_key]
+FROM OPENJSON(@SpiRuleDefinitionJson, '$.rules') WITH ([rule_key] NVARCHAR(100) '$.ruleKey') AS rule_definition;
+
+MERGE [tsaat].[spi_rule_definition] AS target
+USING (
+  SELECT
+    rule_definition.[rule_key],
+    rule_definition.[handler_key],
+    rule_definition.[display_order],
+    rule_definition.[name],
+    rule_definition.[description],
+    rule_definition.[enabled]
+  FROM OPENJSON(@SpiRuleDefinitionJson, '$.rules') WITH (
+    [rule_key] NVARCHAR(100) '$.ruleKey',
+    [handler_key] NVARCHAR(100) '$.handlerKey',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS rule_definition
+) AS source
+ON target.[rule_key] = source.[rule_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [handler_key] = source.[handler_key],
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([rule_key], [handler_key], [display_order], [name], [description], [enabled])
+  VALUES (source.[rule_key], source.[handler_key], source.[display_order], source.[name], source.[description], source.[enabled]);
+
+DELETE child FROM [tsaat].[spi_rule_outcome_template] AS child INNER JOIN @SeedRuleKeys AS seed ON seed.[rule_key] = child.[rule_key];
+DELETE child FROM [tsaat].[spi_rule_parameter_definition] AS child INNER JOIN @SeedRuleKeys AS seed ON seed.[rule_key] = child.[rule_key];
+
+INSERT INTO [tsaat].[spi_rule_parameter_definition] (
+  [rule_key],
+  [parameter_key],
+  [parameter_type],
+  [required],
+  [default_value],
+  [allowed_values_json],
+  [display_order],
+  [description]
 )
 SELECT
-  spi.spi_id,
-  spi.[name],
-  spi.[description],
-  spi.[success_measure],
-  spi.[priority_order],
-  spi.[recommended_action]
-FROM OPENJSON(@Json, '$.spis') WITH (
-  [spi_id] SMALLINT '$.spiId',
-  [name] NVARCHAR(255) '$.name',
-  [description] NVARCHAR(1000) '$.description',
-  [success_measure] NVARCHAR(1000) '$.successMeasure',
-  [priority_order] INT '$.priorityOrder',
-  [recommended_action] NVARCHAR(MAX) '$.recommendedAction'
-) AS spi;
+  rule_definition.[rule_key],
+  parameter.[parameter_key],
+  parameter.[parameter_type],
+  parameter.[required],
+  parameter.[default_value],
+  JSON_QUERY(parameter.[allowed_values_json]),
+  parameter.[display_order],
+  parameter.[description]
+FROM OPENJSON(@SpiRuleDefinitionJson, '$.rules') WITH (
+  [rule_key] NVARCHAR(100) '$.ruleKey',
+  [parameters] NVARCHAR(MAX) '$.parameters' AS JSON
+) AS rule_definition
+CROSS APPLY OPENJSON(COALESCE(rule_definition.[parameters], N'[]')) WITH (
+  [parameter_key] NVARCHAR(100) '$.parameterKey',
+  [parameter_type] NVARCHAR(20) '$.parameterType',
+  [required] BIT '$.required',
+  [default_value] NVARCHAR(4000) '$.defaultValue',
+  [allowed_values_json] NVARCHAR(MAX) '$.allowedValues' AS JSON,
+  [display_order] INT '$.displayOrder',
+  [description] NVARCHAR(1000) '$.description'
+) AS parameter;
+
+INSERT INTO [tsaat].[spi_rule_outcome_template] (
+  [rule_key],
+  [outcome_key],
+  [compliance_status],
+  [reason_template],
+  [evidence_template]
+)
+SELECT
+  rule_definition.[rule_key],
+  outcome.[outcome_key],
+  outcome.[compliance_status],
+  outcome.[reason_template],
+  outcome.[evidence_template]
+FROM OPENJSON(@SpiRuleDefinitionJson, '$.rules') WITH (
+  [rule_key] NVARCHAR(100) '$.ruleKey',
+  [outcomes] NVARCHAR(MAX) '$.outcomes' AS JSON
+) AS rule_definition
+CROSS APPLY OPENJSON(COALESCE(rule_definition.[outcomes], N'[]')) WITH (
+  [outcome_key] NVARCHAR(100) '$.outcomeKey',
+  [compliance_status] NVARCHAR(20) '$.complianceStatus',
+  [reason_template] NVARCHAR(MAX) '$.reasonTemplate',
+  [evidence_template] NVARCHAR(MAX) '$.evidenceTemplate'
+) AS outcome;
+
+MERGE [tsaat].[spi_report_detail_definition] AS target
+USING (
+  SELECT
+    report_detail.[report_detail_key],
+    report_detail.[handler_key],
+    report_detail.[display_order],
+    report_detail.[name],
+    report_detail.[description],
+    report_detail.[enabled]
+  FROM OPENJSON(@SpiReportDetailJson, '$.reportDetails') WITH (
+    [report_detail_key] NVARCHAR(100) '$.reportDetailKey',
+    [handler_key] NVARCHAR(100) '$.handlerKey',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [enabled] BIT '$.enabled'
+  ) AS report_detail
+) AS source
+ON target.[report_detail_key] = source.[report_detail_key]
+WHEN MATCHED THEN
+  UPDATE SET
+    [handler_key] = source.[handler_key],
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [enabled] = source.[enabled]
+WHEN NOT MATCHED THEN
+  INSERT ([report_detail_key], [handler_key], [display_order], [name], [description], [enabled])
+  VALUES (source.[report_detail_key], source.[handler_key], source.[display_order], source.[name], source.[description], source.[enabled]);
+
+DECLARE @SeedSpiIds TABLE ([spi_id] INT NOT NULL PRIMARY KEY);
+INSERT INTO @SeedSpiIds ([spi_id])
+SELECT spi.[spi_id]
+FROM OPENJSON(@Json, '$.spis') WITH ([spi_id] INT '$.spiId') AS spi;
+
+MERGE [tsaat].[spi_definition] AS target
+USING (
+  SELECT
+    spi.spi_id,
+    spi.[display_order],
+    spi.[name],
+    spi.[description],
+    spi.[success_measure],
+    spi.[priority_order],
+    spi.[default_severity],
+    spi.[recommended_action],
+    spi.[enabled],
+    spi.[rule_key],
+    spi.[report_available],
+    spi.[trend_report_available],
+    spi.[report_detail_key]
+  FROM OPENJSON(@Json, '$.spis') WITH (
+    [spi_id] INT '$.spiId',
+    [display_order] INT '$.displayOrder',
+    [name] NVARCHAR(255) '$.name',
+    [description] NVARCHAR(1000) '$.description',
+    [success_measure] NVARCHAR(1000) '$.successMeasure',
+    [priority_order] INT '$.priorityOrder',
+    [default_severity] NVARCHAR(30) '$.defaultSeverity',
+    [recommended_action] NVARCHAR(MAX) '$.recommendedAction',
+    [enabled] BIT '$.enabled',
+    [rule_key] NVARCHAR(100) '$.ruleKey',
+    [report_available] BIT '$.reportAvailable',
+    [trend_report_available] BIT '$.trendReportAvailable',
+    [report_detail_key] NVARCHAR(100) '$.reportDetailKey'
+  ) AS spi
+) AS source
+ON target.[spi_id] = source.[spi_id]
+WHEN MATCHED THEN
+  UPDATE SET
+    [display_order] = source.[display_order],
+    [name] = source.[name],
+    [description] = source.[description],
+    [success_measure] = source.[success_measure],
+    [priority_order] = source.[priority_order],
+    [default_severity] = source.[default_severity],
+    [recommended_action] = source.[recommended_action],
+    [enabled] = source.[enabled],
+    [rule_key] = source.[rule_key],
+    [report_available] = source.[report_available],
+    [trend_report_available] = source.[trend_report_available],
+    [report_detail_key] = source.[report_detail_key]
+WHEN NOT MATCHED THEN
+  INSERT ([spi_id], [display_order], [name], [description], [success_measure], [priority_order], [default_severity], [recommended_action], [enabled], [rule_key], [report_available], [trend_report_available], [report_detail_key])
+  VALUES (source.[spi_id], source.[display_order], source.[name], source.[description], source.[success_measure], source.[priority_order], source.[default_severity], source.[recommended_action], source.[enabled], source.[rule_key], source.[report_available], source.[trend_report_available], source.[report_detail_key]);
+
+MERGE [tsaat].[spi_finding_classification_rule] AS target
+USING (
+  SELECT
+    classification.[classification_rule_id],
+    classification.[display_order],
+    classification.[enabled],
+    classification.[spi_id],
+    classification.[compliance_status],
+    classification.[condition_key],
+    classification.[severity_key],
+    classification.[priority_rank],
+    classification.[description]
+  FROM OPENJSON(@SpiClassificationJson, '$.classificationRules') WITH (
+    [classification_rule_id] NVARCHAR(100) '$.classificationRuleId',
+    [display_order] INT '$.displayOrder',
+    [enabled] BIT '$.enabled',
+    [spi_id] INT '$.spiId',
+    [compliance_status] NVARCHAR(20) '$.complianceStatus',
+    [condition_key] NVARCHAR(60) '$.conditionKey',
+    [severity_key] NVARCHAR(30) '$.severityKey',
+    [priority_rank] INT '$.priorityRank',
+    [description] NVARCHAR(1000) '$.description'
+  ) AS classification
+) AS source
+ON target.[classification_rule_id] = source.[classification_rule_id]
+WHEN MATCHED THEN
+  UPDATE SET
+    [display_order] = source.[display_order],
+    [enabled] = source.[enabled],
+    [spi_id] = source.[spi_id],
+    [compliance_status] = source.[compliance_status],
+    [condition_key] = source.[condition_key],
+    [severity_key] = source.[severity_key],
+    [priority_rank] = source.[priority_rank],
+    [description] = source.[description]
+WHEN NOT MATCHED THEN
+  INSERT ([classification_rule_id], [display_order], [enabled], [spi_id], [compliance_status], [condition_key], [severity_key], [priority_rank], [description])
+  VALUES (source.[classification_rule_id], source.[display_order], source.[enabled], source.[spi_id], source.[compliance_status], source.[condition_key], source.[severity_key], source.[priority_rank], source.[description]);
+
+DELETE child FROM [tsaat].[spi_tasking_condition_template] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
+DELETE child FROM [tsaat].[spi_tasking_action_template] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
+DELETE child FROM [tsaat].[spi_tasking_team] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
+DELETE child FROM [tsaat].[spi_rule_parameter] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
+DELETE child FROM [tsaat].[spi_applicable_asset_type] AS child INNER JOIN @SeedSpiIds AS seed ON seed.[spi_id] = child.[spi_id];
 
 INSERT INTO [tsaat].[spi_applicable_asset_type] (
   [spi_id],
@@ -149,10 +450,94 @@ SELECT
   spi.spi_id,
   aat.[value]
 FROM OPENJSON(@Json, '$.spis') WITH (
-  [spi_id] SMALLINT '$.spiId',
+  [spi_id] INT '$.spiId',
   [applicable_asset_types] NVARCHAR(MAX) '$.applicableAssetTypes' AS JSON
 ) AS spi
 CROSS APPLY OPENJSON(spi.[applicable_asset_types]) AS aat;
+
+INSERT INTO [tsaat].[spi_rule_parameter] (
+  [spi_id],
+  [parameter_key],
+  [parameter_type],
+  [parameter_value]
+)
+SELECT
+  spi.[spi_id],
+  parameter.[key],
+  CASE
+    WHEN parameter.[type] = 2 THEN N'number'
+    WHEN parameter.[type] = 3 THEN N'boolean'
+    ELSE N'string'
+  END,
+  CONVERT(NVARCHAR(4000), parameter.[value])
+FROM OPENJSON(@Json, '$.spis') WITH (
+  [spi_id] INT '$.spiId',
+  [rule_parameters] NVARCHAR(MAX) '$.ruleParameters' AS JSON
+) AS spi
+CROSS APPLY OPENJSON(COALESCE(spi.[rule_parameters], N'{}')) AS parameter;
+
+INSERT INTO [tsaat].[spi_tasking_team] (
+  [spi_id],
+  [display_order],
+  [team],
+  [support_queue],
+  [contact_email]
+)
+SELECT
+  spi.[spi_id],
+  team.[display_order],
+  team.[team],
+  team.[support_queue],
+  team.[contact_email]
+FROM OPENJSON(@Json, '$.spis') WITH (
+  [spi_id] INT '$.spiId',
+  [tasking_teams] NVARCHAR(MAX) '$.taskingTeams' AS JSON
+) AS spi
+CROSS APPLY OPENJSON(spi.[tasking_teams]) WITH (
+  [display_order] INT '$.displayOrder',
+  [team] NVARCHAR(255) '$.team',
+  [support_queue] NVARCHAR(100) '$.supportQueue',
+  [contact_email] NVARCHAR(255) '$.contactEmail'
+) AS team;
+
+INSERT INTO [tsaat].[spi_tasking_action_template] (
+  [spi_id],
+  [display_order],
+  [condition_key],
+  [action_text]
+)
+SELECT
+  spi.[spi_id],
+  action.[display_order],
+  action.[condition_key],
+  action.[action_text]
+FROM OPENJSON(@Json, '$.spis') WITH (
+  [spi_id] INT '$.spiId',
+  [tasking_actions] NVARCHAR(MAX) '$.taskingActions' AS JSON
+) AS spi
+CROSS APPLY OPENJSON(spi.[tasking_actions]) WITH (
+  [display_order] INT '$.displayOrder',
+  [condition_key] NVARCHAR(40) '$.conditionKey',
+  [action_text] NVARCHAR(MAX) '$.actionText'
+) AS action;
+
+INSERT INTO [tsaat].[spi_tasking_condition_template] (
+  [spi_id],
+  [condition_key],
+  [template_text]
+)
+SELECT
+  spi.[spi_id],
+  condition.[condition_key],
+  condition.[template_text]
+FROM OPENJSON(@Json, '$.spis') WITH (
+  [spi_id] INT '$.spiId',
+  [tasking_conditions] NVARCHAR(MAX) '$.taskingConditions' AS JSON
+) AS spi
+CROSS APPLY OPENJSON(spi.[tasking_conditions]) WITH (
+  [condition_key] NVARCHAR(40) '$.conditionKey',
+  [template_text] NVARCHAR(MAX) '$.templateText'
+) AS condition;
 
 SET @FilePath = @PackageDataRoot + N'\kpi-definitions.json';
 SET @Json = NULL;
@@ -324,7 +709,7 @@ INSERT INTO [tsaat].[measures_severity_matrix] (
 )
 SELECT
   1,
-  TRY_CONVERT(SMALLINT, LEFT(ms.[key], CHARINDEX(':', ms.[key]) - 1)),
+  TRY_CONVERT(INT, LEFT(ms.[key], CHARINDEX(':', ms.[key]) - 1)),
   SUBSTRING(ms.[key], CHARINDEX(':', ms.[key]) + 1, 255),
   ms.[value]
 FROM OPENJSON(@Json, '$.severityMatrix') AS ms

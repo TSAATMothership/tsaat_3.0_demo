@@ -10,6 +10,7 @@ tsaat.discovery_tool|7
 tsaat.discovery_tool_asset_scope|42
 tsaat.discovery_tools_settings_version|1
 tsaat.finding|12134
+tsaat.finding_severity_definition|5
 tsaat.ict_system|480
 tsaat.ict_system_hierarchy|0
 tsaat.kpi_definition|10
@@ -26,6 +27,15 @@ tsaat.reference_software_supported_version|60
 tsaat.reference_version_set|1
 tsaat.spi_applicable_asset_type|17
 tsaat.spi_definition|10
+tsaat.spi_finding_classification_rule|13
+tsaat.spi_report_detail_definition|1
+tsaat.spi_rule_definition|10
+tsaat.spi_rule_outcome_template|31
+tsaat.spi_rule_parameter|21
+tsaat.spi_rule_parameter_definition|21
+tsaat.spi_tasking_action_template|30
+tsaat.spi_tasking_condition_template|30
+tsaat.spi_tasking_team|20
 tsaat.system_business_service|312
 tsaat.system_environment|448
 tsaat.system_environment_asset|5600

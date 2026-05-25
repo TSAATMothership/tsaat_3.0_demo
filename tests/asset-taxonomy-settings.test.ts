@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { defaultMeasuresSettings } from "@/lib/measures-settings";
-import { SPI_APPLICABLE_ASSET_TYPES } from "@/lib/spi-metadata";
+import { testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
 
 describe("asset taxonomy settings integration", () => {
   it("includes all asset types in discovery tool scope defaults", () => {
@@ -15,8 +15,8 @@ describe("asset taxonomy settings integration", () => {
   });
 
   it("includes all asset types in the measures severity matrix defaults", () => {
-    const settings = defaultMeasuresSettings();
-    for (const spiId of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const) {
+    const settings = defaultMeasuresSettings(testSpiDefinitions, testSeverityDefinitions);
+    for (const { spiId } of testSpiDefinitions) {
       for (const assetType of ASSET_TYPES) {
         expect(settings.severityMatrix[`${spiId}:${assetType}`]).toBeTruthy();
       }
@@ -25,10 +25,11 @@ describe("asset taxonomy settings integration", () => {
   });
 
   it("keeps new asset types applicable to SPI 10 only", () => {
-    expect(SPI_APPLICABLE_ASSET_TYPES[10]).toEqual(
+    const applicableTypesBySpi = new Map(testSpiDefinitions.map((definition) => [definition.spiId, definition.applicableAssetTypes]));
+    expect(applicableTypesBySpi.get(10)).toEqual(
       expect.arrayContaining(["storage-device", "printer-device", "other"])
     );
-    expect(SPI_APPLICABLE_ASSET_TYPES[1]).not.toEqual(
+    expect(applicableTypesBySpi.get(1)).not.toEqual(
       expect.arrayContaining(["storage-device", "printer-device", "other"])
     );
   });

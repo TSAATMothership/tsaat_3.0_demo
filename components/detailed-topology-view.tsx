@@ -7,6 +7,7 @@ import { IctSystemImpactAnalyser2Chart } from "@/components/ict-system-impact-an
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { isRealNetworkId } from "@/lib/network-scope";
 import type { NetworkTopologyData, TopologyEntityType, TopologyNodeDetails } from "@/lib/network-topology";
+import type { SpiDefinition } from "@/lib/spi-definitions";
 import type { AssetType } from "@/lib/types";
 
 type ComplianceMode = "cyber" | "discovery";
@@ -1173,11 +1174,13 @@ function buildTopologyLayout(data: NetworkTopologyData, mode: TopologyLayoutMode
 export function DetailedTopologyView({
   isOpen,
   onClose,
-  data
+  data,
+  spiDefinitions = []
 }: {
   isOpen: boolean;
   onClose: () => void;
   data: NetworkTopologyData;
+  spiDefinitions?: SpiDefinition[];
 }) {
   const [complianceMode, setComplianceMode] = useState<ComplianceMode>("cyber");
   const [selectedTileFilterId, setSelectedTileFilterId] = useState("__all__");
@@ -7365,6 +7368,7 @@ export function DetailedTopologyView({
                   {...(!isSystemImpactAnalyser ? { includeNetworkAxis: true } : {})}
                   showAssetTypeFilter
                   showSelectedTileText
+                  spiDefinitions={spiDefinitions}
                   onAssetFocus={openCiFlowFocusForAssetId}
                 />
               </div>

@@ -7,11 +7,11 @@ import {
   KpiComplianceChart,
   SecurityPerformanceIndicatorComplianceChart
 } from "@/components/security-performance-indicator-compliance-chart";
-import { SPI_DESCRIPTIONS, SPI_IDS } from "@/lib/spi-metadata";
 import { buildKpiRows } from "@/lib/measures";
 import { getCoreAppData } from "@/lib/app-data";
 import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
 import { FindingSeverity, type SpiId } from "@/lib/types";
+import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) {
@@ -20,10 +20,13 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
-function readSpiFilter(searchParams: Record<string, string | string[] | undefined>): SpiId | undefined {
+function readSpiFilter(
+  searchParams: Record<string, string | string[] | undefined>,
+  spiDefinitions: SpiDefinition[]
+): SpiId | undefined {
   const value = firstParam(searchParams.spi)?.trim();
   const numericValue = Number(value);
-  if (SPI_IDS.includes(numericValue as SpiId)) {
+  if (spiDefinitions.some((definition) => definition.spiId === numericValue)) {
     return numericValue as SpiId;
   }
   return undefined;
@@ -40,12 +43,23 @@ export default async function MeasuresPage({
 }) {
   const requestedTab = firstParam(searchParams.measuresTab)?.trim().toLowerCase();
   const activeTab = resolveMeasuresTab(requestedTab);
-  const selectedSpiId = readSpiFilter(searchParams);
   const measureSearch = readMeasureSearch(searchParams);
-  const { analytics, filterOptions, filters, dataset, systems, networks, kpiDefinitions, measuresSettings } =
+  const {
+    analytics,
+    filterOptions,
+    filters,
+    dataset,
+    systems,
+    networks,
+    kpiDefinitions,
+    spiDefinitions,
+    severityDefinitions,
+    measuresSettings
+  } =
     await getCoreAppData(searchParams);
+  const selectedSpiId = readSpiFilter(searchParams, spiDefinitions);
   const kpiRows = buildKpiRows(analytics, systems, networks, kpiDefinitions);
-  const severityOptions: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+  const severityOptions: FindingSeverity[] = severityDefinitions.map((definition: SeverityDefinition) => definition.severityKey);
   const measuresExtraSelects = [
     {
       key: "severity",
@@ -54,7 +68,8 @@ export default async function MeasuresPage({
       options: severityOptions.map((severity) => ({ id: severity, label: severity }))
     }
   ];
-  const spiCompliancePoints = SPI_IDS.map((spiId) => {
+  const spiCompliancePoints = spiDefinitions.map((definition) => {
+    const spiId = definition.spiId;
     const statuses = analytics.evaluations.flatMap((assetEvaluation) =>
       assetEvaluation.evaluations
         .filter((evaluation) => evaluation.spiId === spiId)
@@ -68,7 +83,7 @@ export default async function MeasuresPage({
 
     return {
       label: `SPI ${spiId}`,
-      description: SPI_DESCRIPTIONS[spiId],
+      description: definition.description,
       possibleCompliancePercent: possibleCompliance > 0 ? 100 : 0,
       actualCompliancePercent,
       possibleCompliance,
@@ -136,6 +151,7 @@ export default async function MeasuresPage({
                 systems={systems}
                 networks={networks}
                 kpiDefinitions={kpiDefinitions}
+                spiDefinitions={spiDefinitions}
                 filters={filters}
                 filterOptions={filterOptions}
                 mode="kpi"
@@ -155,6 +171,7 @@ export default async function MeasuresPage({
             </div>
             <MeasuresSpiFilters
               selectedSpiId={selectedSpiId}
+              spiDefinitions={spiDefinitions}
               searchValue={measureSearch}
               placeholder="Search SPI name, description or success measure"
             />
@@ -164,6 +181,7 @@ export default async function MeasuresPage({
                 analytics={analytics}
                 systems={systems}
                 networks={networks}
+                spiDefinitions={spiDefinitions}
                 filters={filters}
                 filterOptions={filterOptions}
                 mode="spi"
@@ -173,7 +191,11 @@ export default async function MeasuresPage({
             </div>
           </div>
         ) : (
-          <MeasuresSettingsMatrix initialSettings={measuresSettings} />
+          <MeasuresSettingsMatrix
+            initialSettings={measuresSettings}
+            spiDefinitions={spiDefinitions}
+            severityDefinitions={severityDefinitions}
+          />
         )}
       </div>
     </div>

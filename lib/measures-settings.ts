@@ -1,22 +1,8 @@
-import { Asset, AssetType, Finding, FindingSeverity, SpiId } from "@/lib/types";
 import { ASSET_TYPES } from "@/lib/asset-taxonomy";
-import { SPI_IDS, SPI_PRIORITY_ORDER } from "@/lib/spi-metadata";
-
-export const MEASURES_SEVERITY_OPTIONS: FindingSeverity[] = [
-  "Critical Exposure",
-  "High Risk",
-  "Major",
-  "Moderate",
-  "Data Gap"
-];
-
-export const MEASURES_SELECTABLE_SEVERITY_OPTIONS: Exclude<FindingSeverity, "Data Gap">[] =
-  MEASURES_SEVERITY_OPTIONS.filter(
-    (severity): severity is Exclude<FindingSeverity, "Data Gap"> => severity !== "Data Gap"
-);
+import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
+import { Asset, AssetType, Finding, FindingSeverity, SpiId } from "@/lib/types";
 
 export const MEASURES_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
-export const MEASURES_SPI_IDS: SpiId[] = [...SPI_IDS];
 export const MEASURES_PRIORITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7] as const;
 export type MeasuresPriorityRank = (typeof MEASURES_PRIORITY_OPTIONS)[number];
 
@@ -26,19 +12,6 @@ export interface MeasuresSettings {
   priorityMatrix: Record<string, MeasuresPriorityRank>;
 }
 
-const DEFAULT_SEVERITY_BY_SPI: Record<SpiId, FindingSeverity> = {
-  1: "Major",
-  2: "Moderate",
-  3: "Critical Exposure",
-  4: "High Risk",
-  5: "High Risk",
-  6: "High Risk",
-  7: "Critical Exposure",
-  8: "Major",
-  9: "Moderate",
-  10: "Moderate"
-};
-
 export function severityMatrixKey(spiId: SpiId, assetType: AssetType): string {
   return `${spiId}:${assetType}`;
 }
@@ -47,34 +20,18 @@ export function priorityMatrixKey(spiId: SpiId): string {
   return String(spiId);
 }
 
-export function defaultMeasuresSettings(): MeasuresSettings {
-  const severityMatrix: Record<string, FindingSeverity> = {};
-  const priorityMatrix: Record<string, MeasuresPriorityRank> = {};
-
-  for (const spiId of MEASURES_SPI_IDS) {
-    for (const assetType of MEASURES_ASSET_TYPES) {
-      severityMatrix[severityMatrixKey(spiId, assetType)] = DEFAULT_SEVERITY_BY_SPI[spiId];
-    }
-    priorityMatrix[priorityMatrixKey(spiId)] = SPI_PRIORITY_ORDER[spiId] as MeasuresPriorityRank;
-  }
-
-  return {
-    updatedAt: new Date().toISOString(),
-    severityMatrix,
-    priorityMatrix
-  };
+function severityKeys(severityDefinitions: SeverityDefinition[]): Set<string> {
+  return new Set(severityDefinitions.map((definition) => definition.severityKey));
 }
 
-function isFindingSeverity(value: unknown): value is FindingSeverity {
-  return typeof value === "string" && MEASURES_SEVERITY_OPTIONS.includes(value as FindingSeverity);
-}
-
-function normalizeSeverityValue(value: FindingSeverity): FindingSeverity {
-  return value === "Data Gap" ? "Moderate" : value;
-}
-
-function isSpiId(value: unknown): value is SpiId {
-  return typeof value === "number" && Number.isInteger(value) && MEASURES_SPI_IDS.includes(value as SpiId);
+function firstSelectableSeverity(severityDefinitions: SeverityDefinition[]): FindingSeverity {
+  return (
+    severityDefinitions.find(
+      (definition) => definition.selectableInSettings && definition.severityKey === "Moderate"
+    )?.severityKey ??
+    severityDefinitions.find((definition) => definition.selectableInSettings)?.severityKey ??
+    "Moderate"
+  );
 }
 
 function isMeasuresPriorityRank(value: unknown): value is MeasuresPriorityRank {
@@ -89,12 +46,68 @@ function isAssetType(value: unknown): value is AssetType {
   return typeof value === "string" && MEASURES_ASSET_TYPES.includes(value as AssetType);
 }
 
-export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
-  const fallback = defaultMeasuresSettings();
+function isSpiId(value: unknown, spiDefinitions: SpiDefinition[]): value is SpiId {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    spiDefinitions.some((definition) => definition.spiId === value)
+  );
+}
+
+function normalizeSeverityValue(
+  value: FindingSeverity,
+  severityDefinitions: SeverityDefinition[],
+  fallback: FindingSeverity
+): FindingSeverity {
+  const definition = severityDefinitions.find((item) => item.severityKey === value);
+  return definition?.selectableInSettings ? value : fallback;
+}
+
+export function selectableSeverityDefinitions(severityDefinitions: SeverityDefinition[]): SeverityDefinition[] {
+  return severityDefinitions.filter((definition) => definition.selectableInSettings);
+}
+
+export function defaultMeasuresSettings(
+  spiDefinitions: SpiDefinition[],
+  severityDefinitions: SeverityDefinition[]
+): MeasuresSettings {
+  const severityMatrix: Record<string, FindingSeverity> = {};
+  const priorityMatrix: Record<string, MeasuresPriorityRank> = {};
+  const validSeverities = severityKeys(severityDefinitions);
+  const defaultSelectableSeverity = firstSelectableSeverity(severityDefinitions);
+
+  for (const definition of spiDefinitions) {
+    const defaultSeverity = validSeverities.has(definition.defaultSeverity)
+      ? normalizeSeverityValue(definition.defaultSeverity, severityDefinitions, defaultSelectableSeverity)
+      : defaultSelectableSeverity;
+
+    for (const assetType of MEASURES_ASSET_TYPES) {
+      severityMatrix[severityMatrixKey(definition.spiId, assetType)] = defaultSeverity;
+    }
+
+    const priorityRank = isMeasuresPriorityRank(definition.priorityOrder) ? definition.priorityOrder : 7;
+    priorityMatrix[priorityMatrixKey(definition.spiId)] = priorityRank;
+  }
+
+  return {
+    updatedAt: new Date().toISOString(),
+    severityMatrix,
+    priorityMatrix
+  };
+}
+
+export function normalizeMeasuresSettings(
+  input: unknown,
+  spiDefinitions: SpiDefinition[],
+  severityDefinitions: SeverityDefinition[]
+): MeasuresSettings {
+  const fallback = defaultMeasuresSettings(spiDefinitions, severityDefinitions);
   if (!input || typeof input !== "object") {
     return fallback;
   }
 
+  const validSeverities = severityKeys(severityDefinitions);
+  const defaultSelectableSeverity = firstSelectableSeverity(severityDefinitions);
   const candidate = input as { updatedAt?: unknown; severityMatrix?: unknown; priorityMatrix?: unknown };
   const severityMatrix: Record<string, FindingSeverity> = { ...fallback.severityMatrix };
   const priorityMatrix: Record<string, MeasuresPriorityRank> = { ...fallback.priorityMatrix };
@@ -103,10 +116,19 @@ export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
     for (const [rawKey, rawSeverity] of Object.entries(candidate.severityMatrix as Record<string, unknown>)) {
       const [spiIdText, assetTypeText] = rawKey.split(":");
       const spiId = Number(spiIdText);
-      if (!isSpiId(spiId) || !isAssetType(assetTypeText) || !isFindingSeverity(rawSeverity)) {
+      if (
+        !isSpiId(spiId, spiDefinitions) ||
+        !isAssetType(assetTypeText) ||
+        typeof rawSeverity !== "string" ||
+        !validSeverities.has(rawSeverity)
+      ) {
         continue;
       }
-      severityMatrix[severityMatrixKey(spiId, assetTypeText)] = normalizeSeverityValue(rawSeverity);
+      severityMatrix[severityMatrixKey(spiId, assetTypeText)] = normalizeSeverityValue(
+        rawSeverity,
+        severityDefinitions,
+        defaultSelectableSeverity
+      );
     }
   }
 
@@ -114,7 +136,7 @@ export function normalizeMeasuresSettings(input: unknown): MeasuresSettings {
     for (const [rawKey, rawPriority] of Object.entries(candidate.priorityMatrix as Record<string, unknown>)) {
       const spiId = Number(rawKey);
       const priority = typeof rawPriority === "string" ? Number(rawPriority) : rawPriority;
-      if (!isSpiId(spiId) || !isMeasuresPriorityRank(priority)) {
+      if (!isSpiId(spiId, spiDefinitions) || !isMeasuresPriorityRank(priority)) {
         continue;
       }
       priorityMatrix[priorityMatrixKey(spiId)] = priority;
@@ -151,10 +173,6 @@ export function applyMeasuresSeveritySettings(
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
 
   return findings.map((finding) => {
-    if (!isSpiId(finding.spiId)) {
-      return finding;
-    }
-
     const assetType = findingAssetType(finding, assetsById);
     if (!assetType) {
       return finding;
@@ -174,7 +192,7 @@ export function applyMeasuresSeveritySettings(
 
 export function applyMeasuresPrioritySettings(findings: Finding[], settings: MeasuresSettings): Finding[] {
   return findings.map((finding) => {
-    if (finding.complianceStatus !== "Non-compliant" || !isSpiId(finding.spiId)) {
+    if (finding.complianceStatus !== "Non-compliant") {
       return finding;
     }
 

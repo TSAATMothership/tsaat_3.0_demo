@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateAssetSpis } from "@/lib/spi-rules";
 import { ServerAsset, StorageDeviceAsset, WorkstationAsset } from "@/lib/types";
+import { testSpiDefinitions } from "./spi-definition-fixtures";
 
 function baseServer(): ServerAsset {
   return {
@@ -48,11 +49,13 @@ function baseServer(): ServerAsset {
 
 describe("SPI rules", () => {
   it("triggers high-risk SPI 4 and 5 for production server", () => {
-    const evaluations = evaluateAssetSpis(baseServer());
+    const evaluations = evaluateAssetSpis(baseServer(), testSpiDefinitions);
     const spi4 = evaluations.find((item) => item.spiId === 4);
     const spi5 = evaluations.find((item) => item.spiId === 5);
 
     expect(spi4?.status).toBe("Non-compliant");
+    expect(spi4?.outcomeKey).toBe("triggered");
+    expect(spi4?.reasons).toEqual(["High Risk: Production server has critical vulnerability on unsupported OS."]);
     expect(spi5?.status).toBe("Non-compliant");
   });
 
@@ -70,7 +73,7 @@ describe("SPI rules", () => {
       installedSoftware: []
     };
 
-    const evaluations = evaluateAssetSpis(workstation);
+    const evaluations = evaluateAssetSpis(workstation, testSpiDefinitions);
     expect(evaluations.find((item) => item.spiId === 1)?.status).toBe("Unknown");
     expect(evaluations.find((item) => item.spiId === 2)?.status).toBe("Unknown");
   });
@@ -87,9 +90,30 @@ describe("SPI rules", () => {
       vulnerabilities: []
     };
 
-    const evaluations = evaluateAssetSpis(storage);
+    const evaluations = evaluateAssetSpis(storage, testSpiDefinitions);
     expect(evaluations).toHaveLength(1);
     expect(evaluations[0]?.spiId).toBe(10);
     expect(evaluations[0]?.status).toBe("Compliant");
+  });
+
+  it("uses DB outcome templates without changing the rule result", () => {
+    const definitions = testSpiDefinitions.map((definition) =>
+      definition.spiId === 2
+        ? {
+            ...definition,
+            outcomeTemplates: definition.outcomeTemplates.map((template) =>
+              template.outcomeKey === "older_than_n_minus"
+                ? { ...template, reasonTemplate: "DB template says OS is outside N-{maxNMinus}." }
+                : template
+            )
+          }
+        : definition
+    );
+
+    const evaluation = evaluateAssetSpis(baseServer(), definitions).find((item) => item.spiId === 2);
+
+    expect(evaluation?.status).toBe("Non-compliant");
+    expect(evaluation?.outcomeKey).toBe("older_than_n_minus");
+    expect(evaluation?.reasons).toEqual(["DB template says OS is outside N-2."]);
   });
 });

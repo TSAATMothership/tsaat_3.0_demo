@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import { workflowStatusAtAsOf } from "@/lib/finding-status";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { CveVulnerabilityDetail, Finding, FindingSeverity, VulnerabilitySeverity } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
@@ -203,6 +203,7 @@ export function FindingsTable({
   spiOptions,
   priorityOptions,
   severityOptions,
+  spiDefinitions,
   assetCvesByAssetId = {}
 }: {
   findings: Finding[];
@@ -216,6 +217,7 @@ export function FindingsTable({
   spiOptions: number[];
   priorityOptions: number[];
   severityOptions: string[];
+  spiDefinitions: SpiDefinition[];
   assetCvesByAssetId?: Record<string, AssetCveEntry[]>;
 }) {
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
@@ -229,6 +231,10 @@ export function FindingsTable({
   const [isMounted, setIsMounted] = useState(false);
   const assetDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cveDetailsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spiDefinitionById = useMemo(
+    () => new Map(spiDefinitions.map((definition) => [definition.spiId, definition])),
+    [spiDefinitions]
+  );
 
   const dismissOverlaysImmediately = useCallback(() => {
     if (assetDetailsCloseTimerRef.current) {
@@ -679,7 +685,7 @@ export function FindingsTable({
                 <option value="">All SPI</option>
                 {spiOptions.map((option) => (
                   <option key={option} value={option}>
-                    SPI {option} - {SPI_DESCRIPTIONS[option as keyof typeof SPI_DESCRIPTIONS]}
+                    SPI {option} - {spiDefinitionById.get(option)?.description ?? "Unmapped SPI"}
                   </option>
                 ))}
               </select>

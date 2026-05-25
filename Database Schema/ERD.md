@@ -34,14 +34,81 @@ erDiagram
 
   measures_settings_version ||--o{ measures_severity_matrix : "settings_version_id"
   measures_settings_version ||--o{ measures_priority_matrix : "settings_version_id"
+  finding_severity_definition ||--o{ measures_severity_matrix : "severity"
+  finding_severity_definition ||--o{ finding : "severity"
+  finding_severity_definition ||--o{ spi_finding_classification_rule : "severity_key"
+  spi_rule_definition ||--o{ spi_definition : "rule_key"
+  spi_rule_definition ||--o{ spi_rule_parameter_definition : "rule_key"
+  spi_rule_definition ||--o{ spi_rule_outcome_template : "rule_key"
+  spi_report_detail_definition ||--o{ spi_definition : "report_detail_key"
   spi_definition ||--o{ measures_severity_matrix : "spi_id"
   spi_definition ||--o{ measures_priority_matrix : "spi_id"
+  spi_definition ||--o{ spi_finding_classification_rule : "spi_id"
+  spi_definition ||--o{ spi_applicable_asset_type : "spi_id"
+  spi_definition ||--o{ spi_rule_parameter : "spi_id"
+  spi_definition ||--o{ spi_tasking_team : "spi_id"
+  spi_definition ||--o{ spi_tasking_action_template : "spi_id"
+  spi_definition ||--o{ spi_tasking_condition_template : "spi_id"
 
   kpi_definition {
     string kpi_id
     int display_order
     string calculation_key
     boolean report_available
+  }
+
+  spi_definition {
+    int spi_id
+    int display_order
+    string rule_key
+    string report_detail_key
+    boolean enabled
+    boolean report_available
+    boolean trend_report_available
+  }
+
+  spi_rule_definition {
+    string rule_key
+    string handler_key
+    int display_order
+    boolean enabled
+  }
+
+  spi_rule_parameter_definition {
+    string rule_key
+    string parameter_key
+    string parameter_type
+    boolean required
+  }
+
+  spi_rule_outcome_template {
+    string rule_key
+    string outcome_key
+    string compliance_status
+  }
+
+  spi_report_detail_definition {
+    string report_detail_key
+    string handler_key
+    int display_order
+    boolean enabled
+  }
+
+  spi_finding_classification_rule {
+    string classification_rule_id
+    int display_order
+    int spi_id
+    string condition_key
+    string severity_key
+    int priority_rank
+  }
+
+  finding_severity_definition {
+    string severity_key
+    string label
+    int display_order
+    boolean selectable_in_settings
+    string tone_key
   }
 ```
 
@@ -71,6 +138,15 @@ erDiagram
   - `ato_number` (`NVARCHAR(100)`)
   - `apm_number` (`NVARCHAR(100)`)
 - Measures settings are versioned:
-  - `measures_severity_matrix` maps SPI and asset type to finding severity.
+  - `measures_severity_matrix` maps SPI and asset type to finding severity through `finding_severity_definition`.
   - `measures_priority_matrix` maps SPI to P1-P7 priority rank for non-compliant findings.
+- SPI metadata is database-driven:
+  - `spi_definition` stores catalogue text, display order, enabled/report flags, supported `rule_key`, default severity, and supported report detail key.
+  - `spi_rule_definition` and `spi_report_detail_definition` are catalogues mapping database keys to application-owned handler keys.
+  - `spi_rule_parameter_definition` stores rule parameter schema/defaults and `spi_rule_outcome_template` stores DB-backed reason/evidence templates.
+  - `spi_finding_classification_rule` stores generated finding severity/priority rules using controlled condition keys.
+  - `spi_applicable_asset_type` controls applicability by asset type.
+  - `spi_rule_parameter` stores typed parameters for supported rule dispatchers.
+  - `spi_tasking_team`, `spi_tasking_action_template`, and `spi_tasking_condition_template` store tasking contacts and report text templates.
+- SPI calculations remain runtime code behind supported handler keys; database formulas or executable expressions are not used.
 - `kpi_definition` stores database-driven KPI catalogue metadata, calculation keys, display order, and report availability.

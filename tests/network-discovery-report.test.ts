@@ -13,6 +13,7 @@ import {
   networkDiscoveryReportFilename
 } from "@/lib/network-discovery-report-links";
 import type { Asset, Dataset, ManagedNetwork, Vulnerability } from "@/lib/types";
+import { testMeasuresSettings, testSpiDefinitions } from "./spi-definition-fixtures";
 
 const timestamp = "2026-04-23T00:00:00.000Z";
 
@@ -186,6 +187,8 @@ describe("network discovery report model", () => {
     const model = buildNetworkDiscoveryReportModel({
       dataset: createDataset(),
       discoveryToolsSettings,
+      measuresSettings: testMeasuresSettings,
+      spiDefinitions: testSpiDefinitions,
       networkId: "net-alpha",
       filters: {
         managedNetwork: "net-beta",
@@ -207,6 +210,8 @@ describe("network discovery report model", () => {
     const model = buildNetworkDiscoveryReportModel({
       dataset: createDataset(),
       discoveryToolsSettings,
+      measuresSettings: testMeasuresSettings,
+      spiDefinitions: testSpiDefinitions,
       networkId: "net-alpha"
     });
 
@@ -245,6 +250,8 @@ describe("network discovery report model", () => {
     const model = buildNetworkDiscoveryReportModel({
       dataset: createDataset(),
       discoveryToolsSettings,
+      measuresSettings: testMeasuresSettings,
+      spiDefinitions: testSpiDefinitions,
       networkId: "net-missing"
     });
 
@@ -268,6 +275,8 @@ describe("network discovery report model", () => {
     const model = buildNetworkDiscoveryReportModel({
       dataset,
       discoveryToolsSettings,
+      measuresSettings: testMeasuresSettings,
+      spiDefinitions: testSpiDefinitions,
       networkId: UNASSIGNED_NETWORK_ID
     });
 

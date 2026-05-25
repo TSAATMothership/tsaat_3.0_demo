@@ -536,7 +536,10 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     const page = readRepoFile("app/cyber-cop/page.tsx");
 
     expect(dashboard).toContain('{ id: "ict-system-impact-analyser-2", label: "ICT System Impact Analyser" }');
-    expect(dashboard).toContain("<IctSystemImpactAnalyser2Chart embedded systemScopeIds={systemScopeIds} />");
+    expect(dashboard).toContain("<IctSystemImpactAnalyser2Chart");
+    expect(dashboard).toContain("embedded");
+    expect(dashboard).toContain("systemScopeIds={systemScopeIds}");
+    expect(dashboard).toContain("spiDefinitions={spiDefinitions}");
     expect(dashboard).toContain('selectionMode="multi"');
     expect(dashboard).toContain("selectedItemIds={selectedIctSystemIds}");
     expect(dashboard).toContain("onVisibleItemIdsChange={(itemIds) =>");

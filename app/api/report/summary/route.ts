@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
-import { loadCurrentDataset, loadDiscoveryToolsSettings, loadMeasuresSettings } from "@/lib/data-loader";
+import {
+  loadCurrentDataset,
+  loadDiscoveryToolsSettings,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
 
@@ -185,13 +191,15 @@ async function buildSummaryPdf(params: {
 }
 
 export async function GET(request: NextRequest) {
-  const [dataset, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadCurrentDataset(),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const filters = parseFilters(Object.fromEntries(request.nextUrl.searchParams.entries()));
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   const topRisks = analytics.findings.slice(0, 10);
   const productionExceptions = analytics.findings.filter(
     (finding) => finding.scope.environmentType === "Production" || finding.severity === "High Risk"

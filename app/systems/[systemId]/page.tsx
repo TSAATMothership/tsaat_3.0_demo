@@ -7,14 +7,14 @@ import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { SystemDetailTabId, SystemDetailTabs } from "@/components/system-detail-tabs";
 import { buildAnalytics } from "@/lib/analytics";
-import { PRIORITY_ORDER, SPI_DESCRIPTIONS } from "@/lib/constants";
 import { buildCveVulnerabilityIndexByAssetId, buildHighRiskCveIndexByAssetId } from "@/lib/cve";
-import { SPI_IDS } from "@/lib/spi-metadata";
 import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadLatestSnapshotsForDate,
-  loadMeasuresSettings
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
 } from "@/lib/data-loader";
 import { DiscoveryCoverageValue, evaluateDiscoveryCoverage } from "@/lib/discovery-coverage";
 import { extractDataDateParam, withDataDate } from "@/lib/data-date";
@@ -28,6 +28,7 @@ import {
   discoveryCoverageValueLabel
 } from "@/lib/scoped-discovery-tool-coverage";
 import { Asset, ComplianceStatus, Dataset, EnvironmentType, Finding, FindingSeverity } from "@/lib/types";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { Suspense } from "react";
 
 type KpiFilterKey =
@@ -201,25 +202,18 @@ function resolveAssetIpAddress(asset: Asset): string {
   return String(value).trim();
 }
 
-function fallbackFindingSeverity(status: ComplianceStatus, spiId: number): FindingSeverity {
+function fallbackFindingSeverity(status: ComplianceStatus, spiId: number, spiDefinitions: SpiDefinition[]): FindingSeverity {
   if (status === "Unknown") {
     return "Data Gap";
   }
-  if (spiId === 4 || spiId === 5 || spiId === 6) {
-    return "High Risk";
-  }
-  if (spiId === 1 || spiId === 3 || spiId === 7 || spiId === 8) {
-    return "Major";
-  }
-  return "Moderate";
+  return spiDefinitions.find((definition) => definition.spiId === spiId)?.defaultSeverity ?? "Moderate";
 }
 
-function fallbackPriorityRank(status: ComplianceStatus, spiId: number): number {
+function fallbackPriorityRank(status: ComplianceStatus, spiId: number, spiDefinitions: SpiDefinition[]): number {
   if (status === "Unknown") {
     return 90;
   }
-  const mapped = PRIORITY_ORDER[spiId as keyof typeof PRIORITY_ORDER];
-  return mapped ?? 99;
+  return spiDefinitions.find((definition) => definition.spiId === spiId)?.priorityOrder ?? 99;
 }
 
 function toFindingDateKey(timestamp?: string | null): string | null {
@@ -450,6 +444,7 @@ function buildSystemKpiSnapshotMetrics(
   systemId: string,
   selectedEnvironment: EnvironmentType | undefined,
   serverSearchTerm: string,
+  spiDefinitions: SpiDefinition[],
   measuresSettings: MeasuresSettings,
   discoveryToolsSettings: DiscoveryToolsSettings
 ): SystemKpiSnapshotMetrics {
@@ -470,6 +465,7 @@ function buildSystemKpiSnapshotMetrics(
     snapshot,
     snapshot.ictSystems,
     { ictSystem: systemId },
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
@@ -641,12 +637,14 @@ export default async function SystemDetailPage({
 }) {
   const requestParams = searchParams ?? {};
   const requestedDataDate = extractDataDateParam(requestParams);
-  const [dataset, snapshots, measuresSettings, discoveryToolsSettings] = await Promise.all([
+  const [dataset, snapshots, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(requestedDataDate),
     loadLatestSnapshotsForDate(requestedDataDate, 12),
-    loadMeasuresSettings(),
-    loadDiscoveryToolsSettings()
+    loadDiscoveryToolsSettings(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const system = dataset.ictSystems.find((item) => item.id === params.systemId);
 
   if (!system) {
@@ -672,6 +670,7 @@ export default async function SystemDetailPage({
     dataset,
     dataset.ictSystems,
     { ictSystem: system.id },
+    spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
@@ -1082,7 +1081,8 @@ export default async function SystemDetailPage({
   );
   const complianceOverviewScore = complianceScore(complianceOverviewStatuses);
 
-  const complianceMeasureRows = SPI_IDS.map((spiId) => {
+  const complianceMeasureRows = spiDefinitions.map((definition) => {
+    const spiId = definition.spiId;
     const scopedSpiEvaluations = scopedEvaluationRows.filter((row) => row.spiId === spiId);
     const compliant = scopedSpiEvaluations.filter((row) => row.status === "Compliant").length;
     const nonCompliant = scopedSpiEvaluations.filter((row) => row.status === "Non-compliant").length;
@@ -1120,7 +1120,7 @@ export default async function SystemDetailPage({
 
     return {
       spiId,
-      label: `SPI ${spiId} - ${SPI_DESCRIPTIONS[spiId]}`,
+      label: `SPI ${spiId} - ${definition.description}`,
       total,
       compliant,
       nonCompliant,
@@ -1315,9 +1315,10 @@ export default async function SystemDetailPage({
           : null) ?? systemOwnerFallback;
 
       const timestamp = latestFinding?.timestamp ?? `${dataset.snapshotDate}T00:00:00.000Z`;
-      const severity = latestFinding?.severity ?? fallbackFindingSeverity(row.status, row.spiId);
-      const priorityRank = latestFinding?.priorityRank ?? fallbackPriorityRank(row.status, row.spiId);
-      const title = latestFinding?.title ?? SPI_DESCRIPTIONS[row.spiId];
+      const definition = spiDefinitions.find((item) => item.spiId === row.spiId);
+      const severity = latestFinding?.severity ?? fallbackFindingSeverity(row.status, row.spiId, spiDefinitions);
+      const priorityRank = latestFinding?.priorityRank ?? fallbackPriorityRank(row.status, row.spiId, spiDefinitions);
+      const title = latestFinding?.title ?? definition?.description ?? `SPI ${row.spiId}`;
       const recommendedAction =
         latestFinding?.recommendedAction ??
         (row.reasons.length
@@ -1339,7 +1340,7 @@ export default async function SystemDetailPage({
         closedTimestampLabel: null,
         title,
         timestampLabel: formatTimestamp(timestamp),
-        measureLabel: `SPI ${row.spiId} - ${SPI_DESCRIPTIONS[row.spiId]}`,
+        measureLabel: `SPI ${row.spiId} - ${definition?.description ?? "Unmapped SPI"}`,
         priorityRank,
         severity,
         workflowStatus: "open" as const,
@@ -1501,6 +1502,7 @@ export default async function SystemDetailPage({
       system.id,
       selectedEnvironment,
       serverSearchTerm,
+      spiDefinitions,
       measuresSettings,
       discoveryToolsSettings
     );
@@ -1606,7 +1608,7 @@ export default async function SystemDetailPage({
         </div>
       </section>
 
-      <SystemDetailTabs activeTab={activeDetailTab} topologyData={topologyData} />
+      <SystemDetailTabs activeTab={activeDetailTab} topologyData={topologyData} spiDefinitions={spiDefinitions} />
 
       <div
         className={
@@ -1775,6 +1777,7 @@ export default async function SystemDetailPage({
               weeklyTrend: systemDetailWeeklyRiskTrend
             }}
             findings={riskProfileFindings}
+            spiDefinitions={spiDefinitions}
             assetHighRiskCvesByAssetId={highRiskCvesByAssetId}
           />
         </div>

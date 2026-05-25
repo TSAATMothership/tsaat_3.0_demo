@@ -2,17 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
-import { SPI_DESCRIPTIONS } from "@/lib/constants";
 import {
   MEASURES_ASSET_TYPES,
   MEASURES_PRIORITY_OPTIONS,
-  MEASURES_SELECTABLE_SEVERITY_OPTIONS,
-  MEASURES_SPI_IDS,
   MeasuresPriorityRank,
   MeasuresSettings,
   priorityMatrixKey,
+  selectableSeverityDefinitions,
   severityMatrixKey
 } from "@/lib/measures-settings";
+import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, FindingSeverity, SpiId } from "@/lib/types";
 
 type SettingsMatrixTab = "severity" | "priority";
@@ -27,7 +26,15 @@ function matrixEqual<T extends string | number>(a: Record<string, T>, b: Record<
   return true;
 }
 
-export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: MeasuresSettings }) {
+export function MeasuresSettingsMatrix({
+  initialSettings,
+  spiDefinitions,
+  severityDefinitions
+}: {
+  initialSettings: MeasuresSettings;
+  spiDefinitions: SpiDefinition[];
+  severityDefinitions: SeverityDefinition[];
+}) {
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsMatrixTab>("severity");
   const [savedSettings, setSavedSettings] = useState<MeasuresSettings>(initialSettings);
   const [draftMatrix, setDraftMatrix] = useState<Record<string, FindingSeverity>>(initialSettings.severityMatrix);
@@ -47,6 +54,7 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
     [draftPriorityMatrix, savedSettings.priorityMatrix]
   );
   const isDirty = isSeverityDirty || isPriorityDirty;
+  const selectableSeverities = selectableSeverityDefinitions(severityDefinitions);
 
   const setSeverity = (spiId: SpiId, assetType: AssetType, severity: FindingSeverity) => {
     const key = severityMatrixKey(spiId, assetType);
@@ -191,14 +199,14 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
               </tr>
             </thead>
             <tbody>
-              {MEASURES_SPI_IDS.map((spiId) => (
-                <tr key={spiId} className="border-t border-sky-400/10">
+              {spiDefinitions.map((definition) => (
+                <tr key={definition.spiId} className="border-t border-sky-400/10">
                   <td className="px-3 py-2">
-                    <p className="font-semibold text-slate-100">SPI {spiId}</p>
-                    <p className="mt-1 text-xs text-slate-300/80">{SPI_DESCRIPTIONS[spiId]}</p>
+                    <p className="font-semibold text-slate-100">SPI {definition.spiId}</p>
+                    <p className="mt-1 text-xs text-slate-300/80">{definition.description}</p>
                   </td>
                   {MEASURES_ASSET_TYPES.map((assetType) => {
-                    const key = severityMatrixKey(spiId, assetType);
+                    const key = severityMatrixKey(definition.spiId, assetType);
                     const selectedValue =
                       draftMatrix[key] === "Data Gap" ? "Moderate" : (draftMatrix[key] ?? "Moderate");
 
@@ -206,12 +214,12 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
                       <td key={key} className="px-3 py-2">
                         <select
                           value={selectedValue}
-                          onChange={(event) => setSeverity(spiId, assetType, event.target.value as FindingSeverity)}
+                          onChange={(event) => setSeverity(definition.spiId, assetType, event.target.value as FindingSeverity)}
                           className="w-full min-w-[170px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
                         >
-                          {MEASURES_SELECTABLE_SEVERITY_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
+                          {selectableSeverities.map((option) => (
+                            <option key={option.severityKey} value={option.severityKey}>
+                              {option.label}
                             </option>
                           ))}
                         </select>
@@ -234,20 +242,20 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
               </tr>
             </thead>
             <tbody>
-              {MEASURES_SPI_IDS.map((spiId) => {
-                const key = priorityMatrixKey(spiId);
+              {spiDefinitions.map((definition) => {
+                const key = priorityMatrixKey(definition.spiId);
                 const selectedValue = draftPriorityMatrix[key] ?? 7;
 
                 return (
-                  <tr key={spiId} className="border-t border-sky-400/10">
+                  <tr key={definition.spiId} className="border-t border-sky-400/10">
                     <td className="px-3 py-2">
-                      <p className="font-semibold text-slate-100">SPI {spiId}</p>
-                      <p className="mt-1 text-xs text-slate-300/80">{SPI_DESCRIPTIONS[spiId]}</p>
+                      <p className="font-semibold text-slate-100">SPI {definition.spiId}</p>
+                      <p className="mt-1 text-xs text-slate-300/80">{definition.description}</p>
                     </td>
                     <td className="px-3 py-2">
                       <select
                         value={selectedValue}
-                        onChange={(event) => setPriority(spiId, Number(event.target.value) as MeasuresPriorityRank)}
+                        onChange={(event) => setPriority(definition.spiId, Number(event.target.value) as MeasuresPriorityRank)}
                         className="w-full min-w-[150px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
                       >
                         {MEASURES_PRIORITY_OPTIONS.map((option) => (
@@ -258,7 +266,7 @@ export function MeasuresSettingsMatrix({ initialSettings }: { initialSettings: M
                       </select>
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-300/80">
-                      Non-compliant SPI {spiId} findings map to P{selectedValue}. Unknown/Data Gap findings remain P90.
+                      Non-compliant SPI {definition.spiId} findings map to P{selectedValue}. Unknown/Data Gap findings remain P90.
                     </td>
                   </tr>
                 );

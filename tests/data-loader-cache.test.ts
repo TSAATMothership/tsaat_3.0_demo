@@ -8,7 +8,7 @@ import {
   loadReferenceVersions,
   saveMeasuresSettings
 } from "@/lib/data-loader";
-import { defaultMeasuresSettings } from "@/lib/measures-settings";
+import { testMeasuresSettings, testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
 
 const executeSqlJsonMock = vi.hoisted(() => vi.fn());
 const executeSqlTextMock = vi.hoisted(() => vi.fn());
@@ -65,6 +65,108 @@ function installSqlMock(): void {
 
     if (sql.includes("FROM [tsaat].[measures_priority_matrix]")) {
       return [{ spiId: 1, priorityRank: 3 }];
+    }
+
+    if (sql.includes("FROM [tsaat].[finding_severity_definition]")) {
+      return testSeverityDefinitions.map((definition) => ({
+        severityKey: definition.severityKey,
+        label: definition.label,
+        displayOrder: definition.displayOrder,
+        selectableInSettings: definition.selectableInSettings,
+        toneKey: definition.toneKey
+      }));
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_definition] sd")) {
+      return testSpiDefinitions.map((definition) => ({
+        spiId: definition.spiId,
+        displayOrder: definition.displayOrder,
+        name: definition.name,
+        description: definition.description,
+        successMeasure: definition.successMeasure,
+        priorityOrder: definition.priorityOrder,
+        defaultSeverity: definition.defaultSeverity,
+        recommendedAction: definition.recommendedAction,
+        enabled: definition.enabled,
+        ruleKey: definition.ruleKey,
+        reportAvailable: definition.reportAvailable,
+        trendReportAvailable: definition.trendReportAvailable,
+        reportDetailKey: definition.reportDetailKey
+      }));
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_applicable_asset_type]")) {
+      return testSpiDefinitions.flatMap((definition) =>
+        definition.applicableAssetTypes.map((assetType) => ({ spiId: definition.spiId, assetType }))
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_rule_definition]")) {
+      return Array.from(new Map(testSpiDefinitions.map((definition) => [definition.ruleKey, definition.ruleDefinition])).values());
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_rule_parameter_definition]")) {
+      return testSpiDefinitions.flatMap((definition) =>
+        definition.parameterDefinitions.map((parameterDefinition) => ({
+          ...parameterDefinition,
+          allowedValuesJson: JSON.stringify(parameterDefinition.allowedValues)
+        }))
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_rule_outcome_template]")) {
+      return testSpiDefinitions.flatMap((definition) => definition.outcomeTemplates);
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_report_detail_definition]")) {
+      return Array.from(
+        new Map(
+          testSpiDefinitions.map((definition) => [definition.reportDetailKey, definition.reportDetailDefinition])
+        ).values()
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_finding_classification_rule]")) {
+      return Array.from(
+        new Map(
+          testSpiDefinitions.flatMap((definition) =>
+            definition.classificationRules.map((rule) => [rule.classificationRuleId, rule] as const)
+          )
+        ).values()
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_rule_parameter]")) {
+      return testSpiDefinitions.flatMap((definition) =>
+        Object.entries(definition.ruleParameters).map(([parameterKey, parameterValue]) => ({
+          spiId: definition.spiId,
+          parameterKey,
+          parameterType: typeof parameterValue === "number" ? "number" : typeof parameterValue === "boolean" ? "boolean" : "string",
+          parameterValue: String(parameterValue)
+        }))
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_tasking_team]")) {
+      return testSpiDefinitions.flatMap((definition) =>
+        definition.taskingTeams.map((team) => ({ spiId: definition.spiId, ...team }))
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_tasking_action_template]")) {
+      return testSpiDefinitions.flatMap((definition) =>
+        definition.taskingActions.map((action) => ({ spiId: definition.spiId, ...action }))
+      );
+    }
+
+    if (sql.includes("FROM [tsaat].[spi_tasking_condition_template]")) {
+      return testSpiDefinitions.flatMap((definition) =>
+        Object.entries(definition.taskingConditions).map(([conditionKey, templateText]) => ({
+          spiId: definition.spiId,
+          conditionKey,
+          templateText
+        }))
+      );
     }
 
     if (sql.includes("FROM [tsaat].[kpi_definition]")) {
@@ -128,7 +230,7 @@ describe("data loader caches", () => {
 
   it("invalidates measures settings cache after a save", async () => {
     await loadMeasuresSettings();
-    await saveMeasuresSettings(defaultMeasuresSettings());
+    await saveMeasuresSettings(testMeasuresSettings);
     executeSqlJsonMock.mockClear();
 
     await loadMeasuresSettings();

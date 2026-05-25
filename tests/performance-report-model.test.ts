@@ -4,6 +4,7 @@ import {
   buildSystemPerformanceReportModel
 } from "@/lib/performance-report-model";
 import { normalizeKpiDefinitions } from "@/lib/kpi-definitions";
+import { testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
 import {
   AnalyticsResult,
   Asset,
@@ -213,6 +214,8 @@ describe("performance report model", () => {
       networks,
       systems,
       kpiDefinitions,
+      spiDefinitions: testSpiDefinitions,
+      severityDefinitions: testSeverityDefinitions,
       asOfDate: snapshotDate
     });
 
@@ -296,6 +299,8 @@ describe("performance report model", () => {
       networks,
       systems,
       kpiDefinitions,
+      spiDefinitions: testSpiDefinitions,
+      severityDefinitions: testSeverityDefinitions,
       asOfDate: snapshotDate
     });
 
@@ -329,6 +334,8 @@ describe("performance report model", () => {
       networks,
       systems,
       kpiDefinitions,
+      spiDefinitions: testSpiDefinitions,
+      severityDefinitions: testSeverityDefinitions,
       asOfDate: snapshotDate
     });
 

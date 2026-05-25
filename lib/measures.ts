@@ -1,8 +1,6 @@
-import { SPI_DESCRIPTIONS, SPI_IDS, SPI_SUCCESS_MEASURES } from "@/lib/spi-metadata";
 import { KpiCalculationKey, KpiDefinition } from "@/lib/kpi-definitions";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { AnalyticsResult, ComplianceStatus, ICTSystem, ManagedNetwork, SpiId } from "@/lib/types";
-
-export { SPI_IDS } from "@/lib/spi-metadata";
 
 export interface KpiRow {
   id: string;
@@ -23,8 +21,13 @@ export interface KpiRow {
 
 export interface SpiRow {
   spiId: SpiId;
+  displayOrder: number;
+  name: string;
   description: string;
   successMeasure: string;
+  reportAvailable: boolean;
+  trendReportAvailable: boolean;
+  reportDetailKey: string;
   scorePercent: number;
   compliant: number;
   nonCompliant: number;
@@ -311,8 +314,9 @@ export function buildKpiRows(
   }));
 }
 
-export function buildSpiRows(analytics: AnalyticsResult): SpiRow[] {
-  return SPI_IDS.map((spiId) => {
+export function buildSpiRows(analytics: AnalyticsResult, spiDefinitions: SpiDefinition[]): SpiRow[] {
+  return spiDefinitions.map((definition) => {
+    const spiId = definition.spiId;
     const statuses = analytics.evaluations.flatMap((assetEvaluation) =>
       assetEvaluation.evaluations.filter((evaluation) => evaluation.spiId === spiId).map((evaluation) => evaluation.status)
     );
@@ -324,8 +328,13 @@ export function buildSpiRows(analytics: AnalyticsResult): SpiRow[] {
 
     return {
       spiId,
-      description: SPI_DESCRIPTIONS[spiId],
-      successMeasure: SPI_SUCCESS_MEASURES[spiId],
+      displayOrder: definition.displayOrder,
+      name: definition.name,
+      description: definition.description,
+      successMeasure: definition.successMeasure,
+      reportAvailable: definition.reportAvailable,
+      trendReportAvailable: definition.trendReportAvailable,
+      reportDetailKey: definition.reportDetailKey,
       scorePercent: toPercent(compliant, total),
       compliant,
       nonCompliant,

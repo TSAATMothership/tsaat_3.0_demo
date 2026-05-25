@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DetailedTopologyView } from "@/components/detailed-topology-view";
 import type { NetworkTopologyData } from "@/lib/network-topology";
+import type { SpiDefinition } from "@/lib/spi-definitions";
 
 type NetworkDetailTabId = "network-details" | "cyber-posture" | "discovery-compliance" | "compliance-overview";
 
@@ -29,10 +30,12 @@ const tabs: Array<{ id: NetworkDetailTabId; label: string }> = [
 
 export function NetworkDetailTabs({
   activeTab,
-  topologyData
+  topologyData,
+  spiDefinitions
 }: {
   activeTab: NetworkDetailTabId;
   topologyData: NetworkTopologyData;
+  spiDefinitions: SpiDefinition[];
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname() ?? "/";
@@ -154,6 +157,7 @@ export function NetworkDetailTabs({
         isOpen={isDetailedTopologyOpen}
         onClose={() => setIsDetailedTopologyOpen(false)}
         data={topologyData}
+        spiDefinitions={spiDefinitions}
       />
 
       {isMounted && isLoading

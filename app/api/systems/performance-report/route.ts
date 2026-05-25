@@ -4,7 +4,9 @@ import {
   loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadKpiDefinitions,
-  loadMeasuresSettings
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
 import { createPerformanceReportPdf } from "@/lib/performance-report-pdf";
@@ -23,14 +25,16 @@ export async function GET(request: NextRequest) {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const { network: _ignoredNetwork, ...systemsOnlyQueryObject } = queryObject;
   const selectedDataDate = extractDataDateParam(systemsOnlyQueryObject);
-  const [dataset, measuresSettings, discoveryToolsSettings, kpiDefinitions] = await Promise.all([
+  const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(selectedDataDate),
-    loadMeasuresSettings(),
     loadDiscoveryToolsSettings(),
-    loadKpiDefinitions()
+    loadKpiDefinitions(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
   ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const filters = parseFilters(systemsOnlyQueryObject);
-  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, measuresSettings, discoveryToolsSettings);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   const networks = filterNetworks(dataset.managedNetworks, filters);
   const systems = filterSystems(dataset.ictSystems, filters);
   const model = buildSystemPerformanceReportModel({
@@ -40,6 +44,8 @@ export async function GET(request: NextRequest) {
     networks,
     systems,
     kpiDefinitions,
+    spiDefinitions,
+    severityDefinitions,
     asOfDate: selectedDataDate ?? dataset.snapshotDate
   });
   const pdfArrayBuffer = await createPerformanceReportPdf(model);

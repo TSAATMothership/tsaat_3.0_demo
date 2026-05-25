@@ -1,5 +1,6 @@
 import { recommendedAction } from "@/lib/actions";
 import { KpiRow, SpiRow } from "@/lib/measures";
+import { spiDefinitionById, SpiDefinition, SpiTaskingActionTemplate } from "@/lib/spi-definitions";
 import { SpiId } from "@/lib/types";
 
 export interface TeamContact {
@@ -98,89 +99,19 @@ export function teamsForKpi(kpiId: string): TeamContact[] {
   return uniqueTeams([...(byId[kpiId] ?? []), ...base]);
 }
 
-export function teamsForSpi(spiId: SpiId): TeamContact[] {
-  const common = [
-    {
-      team: "Cyber Security Operations Centre",
-      supportQueue: "CSOC-ESCALATION",
-      contactEmail: "csoc@defence.local"
-    }
-  ];
-
-  const map: Record<SpiId, TeamContact[]> = {
-    1: [
-      {
-        team: "Endpoint Platform Team",
-        supportQueue: "ENDPOINT-OS",
-        contactEmail: "endpoint.os@defence.local"
-      }
-    ],
-    2: [
-      {
-        team: "Endpoint Platform Team",
-        supportQueue: "ENDPOINT-LIFECYCLE",
-        contactEmail: "endpoint.lifecycle@defence.local"
-      }
-    ],
-    3: [
-      {
-        team: "Server Security Operations Team",
-        supportQueue: "SERVER-SEC",
-        contactEmail: "server.secops@defence.local"
-      }
-    ],
-    4: [
-      {
-        team: "Production Security Response Team",
-        supportQueue: "PROD-SERVER-RISK",
-        contactEmail: "prod.server@defence.local"
-      }
-    ],
-    5: [
-      {
-        team: "Application Sustainment and Security Team",
-        supportQueue: "APP-SUSTAINMENT-SEC",
-        contactEmail: "app.sec@defence.local"
-      }
-    ],
-    6: [
-      {
-        team: "Workstation Engineering Team",
-        supportQueue: "WORKSTATION-PROD",
-        contactEmail: "workstation.ops@defence.local"
-      }
-    ],
-    7: [
-      {
-        team: "Network Security Engineering Team",
-        supportQueue: "NETWORK-CRITICAL-VULN",
-        contactEmail: "network.sec@defence.local"
-      }
-    ],
-    8: [
-      {
-        team: "Network Firmware and Baseline Team",
-        supportQueue: "NETWORK-FIRMWARE",
-        contactEmail: "network.firmware@defence.local"
-      }
-    ],
-    9: [
-      {
-        team: "Network Patch and Sustainment Team",
-        supportQueue: "NETWORK-PATCH",
-        contactEmail: "network.patch@defence.local"
-      }
-    ],
-    10: [
-      {
-        team: "Asset Lifecycle and Sustainment Team",
-        supportQueue: "ASSET-LIFECYCLE",
-        contactEmail: "asset.lifecycle@defence.local"
-      }
-    ]
-  };
-
-  return uniqueTeams([...(map[spiId] ?? []), ...common]);
+export function teamsForSpi(spiId: SpiId, spiDefinitions: SpiDefinition[]): TeamContact[] {
+  const definition = spiDefinitionById(spiDefinitions).get(spiId);
+  return uniqueTeams(
+    definition?.taskingTeams.length
+      ? definition.taskingTeams.map(({ team, supportQueue, contactEmail }) => ({ team, supportQueue, contactEmail }))
+      : [
+          {
+            team: "Cyber Security Operations Centre",
+            supportQueue: "CSOC-ESCALATION",
+            contactEmail: "csoc@defence.local"
+          }
+        ]
+  );
 }
 
 export function taskingConditionForKpi(row: KpiRow): string {
@@ -240,18 +171,59 @@ export function remediationActionsForKpi(row: KpiRow): string[] {
   return KPI_ACTIONS[row.id] ?? ["Maintain monitoring cadence and verify control effectiveness."];
 }
 
-export function taskingConditionForSpi(row: SpiRow): string {
-  if (row.nonCompliant > 0) {
-    return `Detected ${row.nonCompliant} non-compliant evaluation(s) for SPI-${row.spiId}. Current measured compliance is ${row.scorePercent}% across ${row.total} applicable evaluation(s).`;
-  }
-  if (row.unknown > 0) {
-    return `SPI-${row.spiId} has no non-compliant evaluations in scope, but ${row.unknown} unknown evaluation(s) require data-quality remediation.`;
-  }
-  return `SPI-${row.spiId} is fully compliant in current scope (${row.scorePercent}% across ${row.total} evaluations).`;
+function applyTaskingTemplate(template: string, row: SpiRow): string {
+  return template
+    .replaceAll("{spiId}", String(row.spiId))
+    .replaceAll("{scorePercent}", String(row.scorePercent))
+    .replaceAll("{compliant}", String(row.compliant))
+    .replaceAll("{nonCompliant}", String(row.nonCompliant))
+    .replaceAll("{unknown}", String(row.unknown))
+    .replaceAll("{total}", String(row.total));
 }
 
-export function remediationActionsForSpi(row: SpiRow): string[] {
-  const actions = [recommendedAction(row.spiId)];
+export function taskingConditionForSpi(row: SpiRow, spiDefinition?: SpiDefinition): string {
+  if (row.nonCompliant > 0) {
+    return applyTaskingTemplate(
+      spiDefinition?.taskingConditions.non_compliant ??
+        "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+      row
+    );
+  }
+  if (row.unknown > 0) {
+    return applyTaskingTemplate(
+      spiDefinition?.taskingConditions.unknown ??
+        "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+      row
+    );
+  }
+  return applyTaskingTemplate(
+    spiDefinition?.taskingConditions.compliant ??
+      "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations).",
+    row
+  );
+}
+
+function actionApplies(row: SpiRow, action: SpiTaskingActionTemplate): boolean {
+  if (action.conditionKey === "always") {
+    return true;
+  }
+  if (action.conditionKey === "when_unknown") {
+    return row.unknown > 0;
+  }
+  return row.nonCompliant === 0 && row.unknown === 0;
+}
+
+export function remediationActionsForSpi(row: SpiRow, spiDefinitions: SpiDefinition[]): string[] {
+  const definition = spiDefinitionById(spiDefinitions).get(row.spiId);
+  const configuredActions = definition?.taskingActions
+    .filter((action) => actionApplies(row, action))
+    .map((action) => action.actionText);
+
+  if (configuredActions?.length) {
+    return configuredActions;
+  }
+
+  const actions = [recommendedAction(row.spiId, spiDefinitions)];
   if (row.unknown > 0) {
     actions.push("Resolve missing evidence fields to remove Unknown outcomes and increase confidence.");
   }

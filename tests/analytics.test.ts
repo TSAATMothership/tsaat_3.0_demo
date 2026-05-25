@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildAnalytics } from "@/lib/analytics";
-import { defaultMeasuresSettings, MeasuresSettings } from "@/lib/measures-settings";
+import { MeasuresSettings } from "@/lib/measures-settings";
 import { Dataset, Finding } from "@/lib/types";
+import { testMeasuresSettings, testSpiDefinitions } from "./spi-definition-fixtures";
 
 function baseFinding(id: string, assetId: string): Finding {
   return {
@@ -96,8 +97,14 @@ describe("analytics findings filtering", () => {
       findings: [baseFinding("finding-1", "srv-1"), baseFinding("finding-2", "wks-1")]
     };
 
-    const unfiltered = buildAnalytics(dataset, dataset.ictSystems);
-    const serverOnly = buildAnalytics(dataset, dataset.ictSystems, { assetType: "server" });
+    const unfiltered = buildAnalytics(dataset, dataset.ictSystems, {}, testSpiDefinitions, testMeasuresSettings);
+    const serverOnly = buildAnalytics(
+      dataset,
+      dataset.ictSystems,
+      { assetType: "server" },
+      testSpiDefinitions,
+      testMeasuresSettings
+    );
 
     expect(unfiltered.findings.map((finding) => finding.id).sort()).toEqual(["finding-1", "finding-2"]);
     expect(serverOnly.findings.map((finding) => finding.id)).toEqual(["finding-1"]);
@@ -183,7 +190,7 @@ describe("analytics findings filtering", () => {
       ]
     };
 
-    const analytics = buildAnalytics(dataset, dataset.ictSystems);
+    const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, testSpiDefinitions, testMeasuresSettings);
     const findingIds = analytics.findings.map((finding) => finding.id);
 
     expect(analytics.findings).toHaveLength(10);
@@ -256,18 +263,18 @@ describe("analytics findings filtering", () => {
     };
 
     const settings: MeasuresSettings = {
-      ...defaultMeasuresSettings(),
+      ...testMeasuresSettings,
       updatedAt: "2026-03-01T00:00:00.000Z",
       severityMatrix: {
-        ...defaultMeasuresSettings().severityMatrix,
+        ...testMeasuresSettings.severityMatrix,
         "1:server": "High Risk",
         "1:workstation": "Major",
         "1:network-device": "Major"
       },
-      priorityMatrix: defaultMeasuresSettings().priorityMatrix
+      priorityMatrix: testMeasuresSettings.priorityMatrix
     };
 
-    const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, settings);
+    const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, testSpiDefinitions, settings);
     expect(analytics.findings).toHaveLength(1);
     expect(analytics.findings[0]?.severity).toBe("High Risk");
   });
@@ -345,8 +352,8 @@ describe("analytics findings filtering", () => {
       ]
     };
 
-    const defaults = defaultMeasuresSettings();
-    const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, {
+    const defaults = testMeasuresSettings;
+    const analytics = buildAnalytics(dataset, dataset.ictSystems, {}, testSpiDefinitions, {
       ...defaults,
       priorityMatrix: {
         ...defaults.priorityMatrix,

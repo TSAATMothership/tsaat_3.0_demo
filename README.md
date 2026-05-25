@@ -262,6 +262,9 @@ npm test
   - `server`
   - `workstation`
   - `network-device`
+  - `storage-device`
+  - `printer-device`
+  - `other`
 - Seed profile:
   - 70% of assets are mapped to ICT system models (server-only in systems)
   - 30% remain unmodelled (no ICT system context)
@@ -271,7 +274,9 @@ npm test
 
 ## SPI and Roll-up Logic (Short)
 
-- SPIs 1-10 are evaluated per applicable asset
+- SPI catalogue metadata, applicability, enabled/report flags, rule parameters, tasking metadata, and severity options are loaded from SQL Server seed tables.
+- Current seed data preserves SPIs 1-10 and evaluates them per applicable asset.
+- SPI score execution remains application code selected by supported database `rule_key` values.
 - Each SPI returns `Compliant`, `Non-compliant`, or `Unknown`
 - High Risk tagging is applied to SPI 4/5/6 trigger conditions
 - Critical Exposure tagging is applied where production assets have critical vulnerabilities

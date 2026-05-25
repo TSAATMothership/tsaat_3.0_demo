@@ -11,6 +11,7 @@
   - Database Schema/data/reference-versions.json
   - Database Schema/data/kpi-definitions.json
   - Database Schema/data/spi-definitions.json
+  - Database Schema/data/severity-definitions.json
   - Database Schema/data/discovery-tools-settings.json
   - Database Schema/data/measures-settings.json
 
@@ -97,27 +98,207 @@ CREATE TABLE [tsaat].[dataset_snapshot] (
 );
 GO
 
+CREATE TABLE [tsaat].[finding_severity_definition] (
+  [severity_key] NVARCHAR(30) NOT NULL,
+  [label] NVARCHAR(80) NOT NULL,
+  [display_order] INT NOT NULL,
+  [selectable_in_settings] BIT NOT NULL CONSTRAINT [DF_finding_severity_definition_selectable] DEFAULT (1),
+  [tone_key] NVARCHAR(40) NOT NULL,
+  CONSTRAINT [PK_finding_severity_definition] PRIMARY KEY CLUSTERED ([severity_key]),
+  CONSTRAINT [UQ_finding_severity_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_finding_severity_definition_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_finding_severity_definition_key] CHECK (LEN(LTRIM(RTRIM([severity_key]))) > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_rule_definition] (
+  [rule_key] NVARCHAR(100) NOT NULL,
+  [handler_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_rule_definition_enabled] DEFAULT (1),
+  CONSTRAINT [PK_spi_rule_definition] PRIMARY KEY CLUSTERED ([rule_key]),
+  CONSTRAINT [UQ_spi_rule_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_spi_rule_definition_key] CHECK (LEN(LTRIM(RTRIM([rule_key]))) > 0),
+  CONSTRAINT [CK_spi_rule_definition_handler] CHECK (LEN(LTRIM(RTRIM([handler_key]))) > 0),
+  CONSTRAINT [CK_spi_rule_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_rule_parameter_definition] (
+  [rule_key] NVARCHAR(100) NOT NULL,
+  [parameter_key] NVARCHAR(100) NOT NULL,
+  [parameter_type] NVARCHAR(20) NOT NULL,
+  [required] BIT NOT NULL CONSTRAINT [DF_spi_rule_parameter_definition_required] DEFAULT (0),
+  [default_value] NVARCHAR(4000) NULL,
+  [allowed_values_json] NVARCHAR(MAX) NULL,
+  [display_order] INT NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  CONSTRAINT [PK_spi_rule_parameter_definition] PRIMARY KEY CLUSTERED ([rule_key], [parameter_key]),
+  CONSTRAINT [FK_spi_rule_parameter_definition_rule]
+    FOREIGN KEY ([rule_key]) REFERENCES [tsaat].[spi_rule_definition]([rule_key]),
+  CONSTRAINT [CK_spi_rule_parameter_definition_type]
+    CHECK ([parameter_type] IN (N'string', N'number', N'boolean')),
+  CONSTRAINT [CK_spi_rule_parameter_definition_key] CHECK (LEN(LTRIM(RTRIM([parameter_key]))) > 0),
+  CONSTRAINT [CK_spi_rule_parameter_definition_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_rule_parameter_definition_allowed_json]
+    CHECK ([allowed_values_json] IS NULL OR ISJSON([allowed_values_json]) = 1)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_rule_outcome_template] (
+  [rule_key] NVARCHAR(100) NOT NULL,
+  [outcome_key] NVARCHAR(100) NOT NULL,
+  [compliance_status] NVARCHAR(20) NOT NULL,
+  [reason_template] NVARCHAR(MAX) NOT NULL,
+  [evidence_template] NVARCHAR(MAX) NULL,
+  CONSTRAINT [PK_spi_rule_outcome_template] PRIMARY KEY CLUSTERED ([rule_key], [outcome_key], [compliance_status]),
+  CONSTRAINT [FK_spi_rule_outcome_template_rule]
+    FOREIGN KEY ([rule_key]) REFERENCES [tsaat].[spi_rule_definition]([rule_key]),
+  CONSTRAINT [CK_spi_rule_outcome_template_status]
+    CHECK ([compliance_status] IN (N'Compliant', N'Non-compliant', N'Unknown')),
+  CONSTRAINT [CK_spi_rule_outcome_template_key] CHECK (LEN(LTRIM(RTRIM([outcome_key]))) > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_report_detail_definition] (
+  [report_detail_key] NVARCHAR(100) NOT NULL,
+  [handler_key] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [name] NVARCHAR(255) NOT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_report_detail_definition_enabled] DEFAULT (1),
+  CONSTRAINT [PK_spi_report_detail_definition] PRIMARY KEY CLUSTERED ([report_detail_key]),
+  CONSTRAINT [UQ_spi_report_detail_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [CK_spi_report_detail_definition_key] CHECK (LEN(LTRIM(RTRIM([report_detail_key]))) > 0),
+  CONSTRAINT [CK_spi_report_detail_definition_handler] CHECK (LEN(LTRIM(RTRIM([handler_key]))) > 0),
+  CONSTRAINT [CK_spi_report_detail_definition_display_order] CHECK ([display_order] > 0)
+);
+GO
+
 CREATE TABLE [tsaat].[spi_definition] (
-  [spi_id] SMALLINT NOT NULL,
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
   [name] NVARCHAR(255) NOT NULL,
   [description] NVARCHAR(1000) NOT NULL,
   [success_measure] NVARCHAR(1000) NOT NULL,
   [priority_order] INT NOT NULL,
+  [default_severity] NVARCHAR(30) NOT NULL,
   [recommended_action] NVARCHAR(MAX) NOT NULL,
-  CONSTRAINT [PK_spi_definition] PRIMARY KEY CLUSTERED ([spi_id])
-  ,CONSTRAINT [CK_spi_definition_spi_id] CHECK ([spi_id] BETWEEN 1 AND 10)
-  ,CONSTRAINT [CK_spi_definition_priority_order] CHECK ([priority_order] > 0)
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_definition_enabled] DEFAULT (1),
+  [rule_key] NVARCHAR(100) NOT NULL,
+  [report_available] BIT NOT NULL CONSTRAINT [DF_spi_definition_report_available] DEFAULT (1),
+  [trend_report_available] BIT NOT NULL CONSTRAINT [DF_spi_definition_trend_report_available] DEFAULT (1),
+  [report_detail_key] NVARCHAR(100) NOT NULL CONSTRAINT [DF_spi_definition_report_detail_key] DEFAULT (N'standard-asset-annex'),
+  CONSTRAINT [PK_spi_definition] PRIMARY KEY CLUSTERED ([spi_id]),
+  CONSTRAINT [UQ_spi_definition_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [FK_spi_definition_default_severity]
+    FOREIGN KEY ([default_severity]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
+  CONSTRAINT [FK_spi_definition_rule]
+    FOREIGN KEY ([rule_key]) REFERENCES [tsaat].[spi_rule_definition]([rule_key]),
+  CONSTRAINT [FK_spi_definition_report_detail]
+    FOREIGN KEY ([report_detail_key]) REFERENCES [tsaat].[spi_report_detail_definition]([report_detail_key]),
+  CONSTRAINT [CK_spi_definition_spi_id] CHECK ([spi_id] > 0),
+  CONSTRAINT [CK_spi_definition_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_definition_priority_order] CHECK ([priority_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_finding_classification_rule] (
+  [classification_rule_id] NVARCHAR(100) NOT NULL,
+  [display_order] INT NOT NULL,
+  [enabled] BIT NOT NULL CONSTRAINT [DF_spi_finding_classification_rule_enabled] DEFAULT (1),
+  [spi_id] INT NULL,
+  [compliance_status] NVARCHAR(20) NULL,
+  [condition_key] NVARCHAR(60) NOT NULL,
+  [severity_key] NVARCHAR(30) NULL,
+  [priority_rank] INT NULL,
+  [description] NVARCHAR(1000) NOT NULL,
+  CONSTRAINT [PK_spi_finding_classification_rule] PRIMARY KEY CLUSTERED ([classification_rule_id]),
+  CONSTRAINT [UQ_spi_finding_classification_rule_display_order] UNIQUE ([display_order]),
+  CONSTRAINT [FK_spi_finding_classification_rule_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [FK_spi_finding_classification_rule_severity]
+    FOREIGN KEY ([severity_key]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
+  CONSTRAINT [CK_spi_finding_classification_rule_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_finding_classification_rule_priority] CHECK ([priority_rank] IS NULL OR [priority_rank] > 0),
+  CONSTRAINT [CK_spi_finding_classification_rule_status]
+    CHECK ([compliance_status] IS NULL OR [compliance_status] IN (N'Compliant', N'Non-compliant', N'Unknown')),
+  CONSTRAINT [CK_spi_finding_classification_rule_condition]
+    CHECK ([condition_key] IN (
+      N'always',
+      N'when_unknown',
+      N'when_non_compliant',
+      N'when_production_critical_asset',
+      N'when_not_production_critical_asset'
+    )),
+  CONSTRAINT [CK_spi_finding_classification_rule_key] CHECK (LEN(LTRIM(RTRIM([classification_rule_id]))) > 0)
 );
 GO
 
 CREATE TABLE [tsaat].[spi_applicable_asset_type] (
-  [spi_id] SMALLINT NOT NULL,
+  [spi_id] INT NOT NULL,
   [asset_type] NVARCHAR(20) NOT NULL,
   CONSTRAINT [PK_spi_applicable_asset_type] PRIMARY KEY CLUSTERED ([spi_id], [asset_type]),
   CONSTRAINT [FK_spi_applicable_asset_type_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [CK_spi_applicable_asset_type_asset_type]
     CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
+);
+GO
+
+CREATE TABLE [tsaat].[spi_rule_parameter] (
+  [spi_id] INT NOT NULL,
+  [parameter_key] NVARCHAR(100) NOT NULL,
+  [parameter_type] NVARCHAR(20) NOT NULL,
+  [parameter_value] NVARCHAR(4000) NOT NULL,
+  CONSTRAINT [PK_spi_rule_parameter] PRIMARY KEY CLUSTERED ([spi_id], [parameter_key]),
+  CONSTRAINT [FK_spi_rule_parameter_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [CK_spi_rule_parameter_type]
+    CHECK ([parameter_type] IN (N'string', N'number', N'boolean')),
+  CONSTRAINT [CK_spi_rule_parameter_key]
+    CHECK (LEN(LTRIM(RTRIM([parameter_key]))) > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_tasking_team] (
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [team] NVARCHAR(255) NOT NULL,
+  [support_queue] NVARCHAR(100) NOT NULL,
+  [contact_email] NVARCHAR(255) NOT NULL,
+  CONSTRAINT [PK_spi_tasking_team] PRIMARY KEY CLUSTERED ([spi_id], [display_order]),
+  CONSTRAINT [FK_spi_tasking_team_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [CK_spi_tasking_team_display_order] CHECK ([display_order] > 0)
+);
+GO
+
+CREATE TABLE [tsaat].[spi_tasking_action_template] (
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [condition_key] NVARCHAR(40) NOT NULL,
+  [action_text] NVARCHAR(MAX) NOT NULL,
+  CONSTRAINT [PK_spi_tasking_action_template] PRIMARY KEY CLUSTERED ([spi_id], [display_order]),
+  CONSTRAINT [FK_spi_tasking_action_template_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [CK_spi_tasking_action_template_display_order] CHECK ([display_order] > 0),
+  CONSTRAINT [CK_spi_tasking_action_template_condition]
+    CHECK ([condition_key] IN (N'always', N'when_unknown', N'when_fully_compliant'))
+);
+GO
+
+CREATE TABLE [tsaat].[spi_tasking_condition_template] (
+  [spi_id] INT NOT NULL,
+  [condition_key] NVARCHAR(40) NOT NULL,
+  [template_text] NVARCHAR(MAX) NOT NULL,
+  CONSTRAINT [PK_spi_tasking_condition_template] PRIMARY KEY CLUSTERED ([spi_id], [condition_key]),
+  CONSTRAINT [FK_spi_tasking_condition_template_spi]
+    FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [CK_spi_tasking_condition_template_condition]
+    CHECK ([condition_key] IN (N'non_compliant', N'unknown', N'compliant'))
 );
 GO
 
@@ -529,7 +710,7 @@ GO
 CREATE TABLE [tsaat].[finding] (
   [snapshot_id] BIGINT NOT NULL,
   [finding_id] NVARCHAR(255) NOT NULL,
-  [spi_id] SMALLINT NOT NULL,
+  [spi_id] INT NOT NULL,
   [priority_rank] INT NOT NULL,
   [severity] NVARCHAR(30) NOT NULL,
   [compliance_status] NVARCHAR(20) NOT NULL,
@@ -567,10 +748,10 @@ CREATE TABLE [tsaat].[finding] (
     FOREIGN KEY ([snapshot_id], [system_id], [environment_type]) REFERENCES [tsaat].[system_environment]([snapshot_id], [system_id], [environment_type]),
   CONSTRAINT [FK_finding_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [FK_finding_severity]
+    FOREIGN KEY ([severity]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
   CONSTRAINT [CK_finding_priority_rank]
     CHECK ([priority_rank] > 0),
-  CONSTRAINT [CK_finding_severity]
-    CHECK ([severity] IN (N'High Risk', N'Critical Exposure', N'Major', N'Moderate', N'Data Gap')),
   CONSTRAINT [CK_finding_compliance_status]
     CHECK ([compliance_status] IN (N'Compliant', N'Non-compliant', N'Unknown')),
   CONSTRAINT [CK_finding_environment_type]
@@ -686,7 +867,7 @@ GO
 
 CREATE TABLE [tsaat].[measures_severity_matrix] (
   [settings_version_id] BIGINT NOT NULL,
-  [spi_id] SMALLINT NOT NULL,
+  [spi_id] INT NOT NULL,
   [asset_type] NVARCHAR(20) NOT NULL,
   [severity] NVARCHAR(30) NOT NULL,
   CONSTRAINT [PK_measures_severity_matrix] PRIMARY KEY CLUSTERED ([settings_version_id], [spi_id], [asset_type]),
@@ -694,16 +875,16 @@ CREATE TABLE [tsaat].[measures_severity_matrix] (
     FOREIGN KEY ([settings_version_id]) REFERENCES [tsaat].[measures_settings_version]([settings_version_id]),
   CONSTRAINT [FK_measures_severity_matrix_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
+  CONSTRAINT [FK_measures_severity_matrix_severity]
+    FOREIGN KEY ([severity]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
   CONSTRAINT [CK_measures_severity_matrix_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other')),
-  CONSTRAINT [CK_measures_severity_matrix_severity]
-    CHECK ([severity] IN (N'High Risk', N'Critical Exposure', N'Major', N'Moderate', N'Data Gap'))
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
 );
 GO
 
 CREATE TABLE [tsaat].[measures_priority_matrix] (
   [settings_version_id] BIGINT NOT NULL,
-  [spi_id] SMALLINT NOT NULL,
+  [spi_id] INT NOT NULL,
   [priority_rank] INT NOT NULL,
   CONSTRAINT [PK_measures_priority_matrix] PRIMARY KEY CLUSTERED ([settings_version_id], [spi_id]),
   CONSTRAINT [FK_measures_priority_matrix_version]
