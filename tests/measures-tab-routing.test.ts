@@ -11,6 +11,12 @@ describe("Measures tab routing", () => {
     ]);
     expect(MEASURES_TABS.map((tab) => tab.label)).not.toContain("Networks - SPI Heatmap");
     expect(MEASURES_TABS.map((tab) => tab.label)).not.toContain("ICT Systems - SPI Heatmap");
+    expect(MEASURES_TABS.find((tab) => tab.id === "measures-kpi")?.label).toBe("Performance Measures-KPIs");
+    expect(MEASURES_TABS.find((tab) => tab.id === "measures-spi")?.label).toBe("Findings Measures-SPIs");
+    expect(MEASURES_TABS.find((tab) => tab.id === "spi-settings")?.label).toBe("SPI Risk Severity Settings");
+    expect(measuresTabLoadingLabel("measures-kpi")).toBe("Performance Measures-KPIs");
+    expect(measuresTabLoadingLabel("measures-spi")).toBe("Findings Measures-SPIs");
+    expect(measuresTabLoadingLabel("spi-settings")).toBe("SPI Risk Severity Settings");
     expect(resolveMeasuresTab("kpi-settings")).toBe("summary");
   });
 

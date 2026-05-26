@@ -138,7 +138,7 @@ export function SecurityPerformanceIndicatorComplianceChart({
 }) {
   return (
     <ComplianceRadarChart
-      title="Security Performance Indicator Compliance"
+      title="Findings Measures - Security Performance Indicator Compliance"
       subtitle="Each point is a database-defined SPI, comparing total possible compliance against actual compliant checks."
       data={data}
     />
@@ -148,7 +148,7 @@ export function SecurityPerformanceIndicatorComplianceChart({
 export function KpiComplianceChart({ data }: { data: CompliancePoint[] }) {
   return (
     <ComplianceRadarChart
-      title="KPI Compliance"
+      title="Key Performance Indicator Compliance"
       subtitle="Each point is a database-defined KPI, comparing target performance against actual score in current filter scope."
       data={data}
     />
