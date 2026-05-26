@@ -266,7 +266,11 @@ function matchesMultiFilter(values: string[], rowValue: string | null | undefine
   return !values.length || values.includes(rowValue ?? "");
 }
 
-function filterRows(rows: ImpactAnalyser2Row[], filters: ImpactAnalyser2Filters): ImpactAnalyser2Row[] {
+function filterRows(
+  rows: ImpactAnalyser2Row[],
+  filters: ImpactAnalyser2Filters,
+  diagramMode: ImpactAnalyser2DiagramMode
+): ImpactAnalyser2Row[] {
   const normalizedSearch = filters.search.trim().toLowerCase();
   const systemIdFilter = filters.systemIds ? new Set(filters.systemIds) : null;
   return rows.filter((row) => {
@@ -285,8 +289,11 @@ function filterRows(rows: ImpactAnalyser2Row[], filters: ImpactAnalyser2Filters)
     if (!matchesMultiFilter(filters.findingCriticality, row.severity)) {
       return false;
     }
-    if (filters.selectedSearchOption) {
+    if (filters.selectedSearchOption && diagramMode !== "ci") {
       return rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value;
+    }
+    if (filters.selectedSearchOption && diagramMode === "ci") {
+      return true;
     }
     if (!rowMatchesSearch(row, normalizedSearch)) {
       return false;
@@ -583,7 +590,7 @@ function buildSearchOptions(
 }
 
 function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>) {
-  const filteredRows = filterRows(sourceRows, request.filters);
+  const filteredRows = filterRows(sourceRows, request.filters, request.layout.diagramMode);
   const normalizedSearch = request.filters.search.trim().toLowerCase();
   const axes = buildAxes(filteredRows, request.layout.includeNetworkAxis, request.layout.diagramMode);
   const assetAxis = axes.find((axis) => axis.key === "asset");

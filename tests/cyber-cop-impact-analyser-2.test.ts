@@ -816,7 +816,57 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain('title="CI Analyser"');
     expect(detailedTopology).toContain('diagramMode="ci"');
     expect(detailedTopology).toContain("CI_FLOW_RELATIONSHIP_TYPES.map");
+    expect(detailedTopology).toContain("includedAssetTypes: CI_ASSET_TYPES");
+    expect(detailedTopology).toContain("const handleCiAnalyserSelectedNodeChange = useCallback");
+    expect(detailedTopology).toContain('node.axisKey !== "asset" && node.axisKey !== "relatedAsset"');
+    expect(detailedTopology).toContain("onSelectedNodeChange={handleCiAnalyserSelectedNodeChange}");
+    expect(detailedTopology).toContain("extraControls={");
+    expect(detailedTopology).toContain("ci-focus-analyser-relationship-filter");
+    expect(detailedTopology).toContain("grid-cols-[minmax(15rem,0.55fr)_minmax(0,1.8fr)]");
+    expect(detailedTopology).toContain('id="ci-focus-compliance-mode"');
+    expect(detailedTopology).toContain('className="mt-auto shrink-0"');
+    expect(detailedTopology).toContain("bg-slate-950/55 p-3");
+    expect(detailedTopology).toContain('className="select-none rounded-3xl border-2 px-4 py-3 text-slate-900');
+    expect(detailedTopology).not.toContain("const ciAnalyserExternalSelectedSearchOption");
+    expect(detailedTopology).not.toContain("externalSelectedSearchOption={ciAnalyserExternalSelectedSearchOption}");
     expect(detailedTopology).not.toContain("Linked Models");
+    expect(detailedTopology).not.toContain("ciFlowIncludedAssetTypes");
+    expect(detailedTopology).not.toContain("toggleCiFlowIncludedAssetType");
+    expect(detailedTopology).not.toContain("ciFlowHover");
+    expect(detailedTopology).not.toContain("ciFlowHovered");
+    expect(detailedTopology).not.toContain("Export Non-Modelled CIs");
+    expect(detailedTopology).not.toContain("presentedNonModelledCiRows");
+    expect(detailedTopology).not.toContain("exportPresentedNonModelledCis");
+
+    const ciFocusTileSection = detailedTopology.slice(
+      detailedTopology.indexOf('id="ci-focus-compliance-mode"'),
+      detailedTopology.indexOf('title="CI Analyser"')
+    );
+    expect(ciFocusTileSection).toContain("Compliance");
+    expect(ciFocusTileSection).not.toContain("Relationships");
+    expect(ciFocusTileSection).not.toContain("CI Types");
+    expect(ciFocusTileSection).not.toContain("Tile Search");
+    expect(ciFocusTileSection).not.toContain("Green compliant");
+    expect(ciFocusTileSection).not.toContain("In-model CI");
+    expect(ciFocusTileSection).not.toContain("Out-of-model CI");
+    expect(ciFocusTileSection).not.toContain("Orbit + Pan");
+    expect(ciFocusTileSection).not.toContain("Reset View");
+    expect(ciFocusTileSection).not.toContain("Drag: rotate");
+    expect(ciFocusTileSection).not.toContain("Root CI pinned");
+    expect(ciFocusTileSection).not.toContain("Zoom {detailedZoomPercent}%");
+    expect(ciFocusTileSection).not.toContain("detailedViewportRef");
+    expect(ciFocusTileSection).not.toContain("detailedCanvasRef");
+    expect(ciFocusTileSection).not.toContain('absolute bottom-4 left-4');
+    expect(ciFocusTileSection).not.toContain(">Close</button>");
+
+    const ciAnalyserComponentStart = detailedTopology.indexOf('title="CI Analyser"');
+    const ciAnalyserSection = detailedTopology.slice(
+      ciAnalyserComponentStart,
+      detailedTopology.indexOf("/>", ciAnalyserComponentStart)
+    );
+    expect(ciAnalyserSection).toContain("Relationships");
+    expect(ciAnalyserSection).toContain("CI_FLOW_RELATIONSHIP_TYPES.map");
+    expect(ciAnalyserSection).not.toContain("Compliance");
   });
 
   it("keeps V2 worker-side filtering and Canvas/WebGL rendering markers", () => {
@@ -854,6 +904,17 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("selectedFindingCriticalities");
     expect(component).toContain("includeNetworkAxis?: boolean");
     expect(component).toContain("includeNetworkAxis = false");
+    expect(component).toContain("export interface ImpactAnalyser2SelectedSearchOption");
+    expect(component).toContain("export interface ImpactAnalyser2SelectedNode");
+    expect(component).toContain("externalSelectedSearchOption?: ImpactAnalyser2SelectedSearchOption | null");
+    expect(component).toContain("onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void");
+    expect(component).toContain("extraControls?: ReactNode");
+    expect(component).toContain("const activeSelectedSearchOption = selectedSearchOption ?? externalSelectedSearchOption");
+    expect(component).toContain("selectedSearchOption: activeSelectedSearchOption");
+    expect(component).toContain("selectedNode: activeSelectedNode");
+    expect(component).toContain("onSelectedNodeChange?.(activeSelectedNode)");
+    expect(component).toContain("{extraControls}");
+    expect(component).toContain('queueDiagramFilterRefresh({ type: "scroll-to-selected-node", node: externalSelectedNode })');
     expect(component).toContain('diagramMode = "risk"');
     expect(component).toContain('diagramMode?: ImpactAnalyser2DiagramMode');
     expect(component).toContain("sourceRows?: ImpactAnalyser2Row[]");
@@ -890,8 +951,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("const systemScopeKey = hasSystemScope");
     expect(component).toContain("systemIds: normalizedSystemScopeIds");
     expect(component).toContain("diagramSystemIds: systemScopeKey");
-    expect(component).toContain("diagramSearchAxis: selectedSearchOption?.axisKey");
-    expect(component).toContain("diagramSearchValue: selectedSearchOption?.value");
+    expect(component).toContain("diagramSearchAxis: activeSelectedSearchOption?.axisKey");
+    expect(component).toContain("diagramSearchValue: activeSelectedSearchOption?.value");
     expect(component).toContain("diagramEnvironment: selectedEnvironmentKey");
     expect(component).toContain("diagramSecurityDomain: selectedSecurityDomainKey");
     expect(component).toContain("diagramFindingCriticality: selectedFindingCriticalityKey");
@@ -923,6 +984,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("let rowCanDraw = true");
     expect(worker).toContain("return { positions: positions.slice(0, offset), colors: colors.slice(0, colorOffset) }");
     expect(worker).toContain("filters.selectedSearchOption");
+    expect(worker).toContain('diagramMode !== "ci"');
+    expect(worker).toContain('diagramMode === "ci"');
     expect(worker).toContain("rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value");
     expect(worker).toContain("if (!rowMatchesSearch(row, normalizedSearch))");
     expect(worker).toContain("rows: filteredRows");

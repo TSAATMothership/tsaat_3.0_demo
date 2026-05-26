@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import {
   NetworkDetailRiskFindingRow,
@@ -58,14 +58,14 @@ interface ImpactAnalyser2SearchOption {
   axisKey: string;
 }
 
-interface ImpactAnalyser2SelectedSearchOption {
+export interface ImpactAnalyser2SelectedSearchOption {
   axisKey: string;
   value: string;
   label: string;
   category: string;
 }
 
-interface ImpactAnalyser2SelectedNode {
+export interface ImpactAnalyser2SelectedNode {
   axisKey: string;
   value: string;
 }
@@ -378,7 +378,10 @@ export function IctSystemImpactAnalyser2Chart({
   showAssetTypeFilter = false,
   showSelectedTileText = false,
   spiDefinitions = [],
-  onAssetFocus
+  onAssetFocus,
+  externalSelectedSearchOption,
+  onSelectedNodeChange,
+  extraControls
 }: {
   embedded?: boolean;
   systemScopeIds?: string[];
@@ -395,6 +398,9 @@ export function IctSystemImpactAnalyser2Chart({
   showSelectedTileText?: boolean;
   spiDefinitions?: SpiDefinition[];
   onAssetFocus?: (assetId: string) => void;
+  externalSelectedSearchOption?: ImpactAnalyser2SelectedSearchOption | null;
+  onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void;
+  extraControls?: ReactNode;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
@@ -404,6 +410,7 @@ export function IctSystemImpactAnalyser2Chart({
   const latestRequestIdRef = useRef(0);
   const acceptedWorkerResultRequestIdRef = useRef(0);
   const pendingViewportActionRef = useRef<ImpactAnalyser2PendingViewportAction | null>(null);
+  const previousExternalSelectedSearchKeyRef = useRef<string | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const baseLineRef = useRef<THREE.LineSegments | null>(null);
@@ -447,6 +454,22 @@ export function IctSystemImpactAnalyser2Chart({
   const selectedAssetTypeKey = joinMultiFilterParam(selectedAssetTypes);
   const selectedFindingCriticalityKey = joinMultiFilterParam(selectedFindingCriticalities);
   const isCiDiagramMode = diagramMode === "ci";
+  const activeSelectedSearchOption = selectedSearchOption ?? externalSelectedSearchOption;
+  const activeSelectedNode = useMemo<ImpactAnalyser2SelectedNode | null>(() => {
+    if (selectedNode) {
+      return selectedNode;
+    }
+    if (activeSelectedSearchOption) {
+      return {
+        axisKey: activeSelectedSearchOption.axisKey,
+        value: activeSelectedSearchOption.value
+      };
+    }
+    return null;
+  }, [
+    activeSelectedSearchOption,
+    selectedNode
+  ]);
 
   const spiCounts = useMemo(() => new Map(workerResult?.spiCounts ?? []), [workerResult?.spiCounts]);
   const spiDefinitionById = useMemo(
@@ -481,7 +504,8 @@ export function IctSystemImpactAnalyser2Chart({
     }
     return map;
   }, [sourceRows]);
-  const selectedAssetMeta = selectedNode?.axisKey === "asset" ? assetMetaById.get(selectedNode.value) ?? null : null;
+  const selectedAssetMeta =
+    activeSelectedNode?.axisKey === "asset" ? assetMetaById.get(activeSelectedNode.value) ?? null : null;
   const selectedAssetTileText = selectedAssetMeta
     ? [
         `Type: ${formatAssetTypeLabel(selectedAssetMeta.assetType)}`,
@@ -574,6 +598,42 @@ export function IctSystemImpactAnalyser2Chart({
     setHoverInfo(null);
     queueDiagramFilterRefresh({ type: "reset" });
   }, [queueDiagramFilterRefresh]);
+  useEffect(() => {
+    const externalKey = externalSelectedSearchOption
+      ? `${externalSelectedSearchOption.axisKey}:${externalSelectedSearchOption.value}`
+      : null;
+    if (!externalSelectedSearchOption) {
+      if (previousExternalSelectedSearchKeyRef.current) {
+        previousExternalSelectedSearchKeyRef.current = null;
+        setDiagramSearch("");
+        setSelectedSearchOption(null);
+        setSelectedNode(null);
+        setHoverInfo(null);
+        queueDiagramFilterRefresh({ type: "reset" });
+      }
+      return;
+    }
+    if (previousExternalSelectedSearchKeyRef.current === externalKey) {
+      return;
+    }
+    previousExternalSelectedSearchKeyRef.current = externalKey;
+    const externalSelectedNode = {
+      axisKey: externalSelectedSearchOption.axisKey,
+      value: externalSelectedSearchOption.value
+    };
+    setDiagramSearch(externalSelectedSearchOption.label);
+    setSelectedSearchOption(null);
+    setSelectedNode(null);
+    setIsDiagramSearchFocused(false);
+    setHoverInfo(null);
+    queueDiagramFilterRefresh({ type: "scroll-to-selected-node", node: externalSelectedNode });
+  }, [
+    externalSelectedSearchOption,
+    externalSelectedSearchOption?.axisKey,
+    externalSelectedSearchOption?.label,
+    externalSelectedSearchOption?.value,
+    queueDiagramFilterRefresh
+  ]);
   const applyQueuedDiagramViewportAction = useCallback(
     (result: ImpactAnalyser2WorkerResult) => {
       const action: ImpactAnalyser2PendingViewportAction = pendingViewportActionRef.current ?? { type: "clamp" };
@@ -603,9 +663,13 @@ export function IctSystemImpactAnalyser2Chart({
   }, [selectedAssetTileText]);
 
   useEffect(() => {
-    selectedNodeRef.current = selectedNode;
+    selectedNodeRef.current = activeSelectedNode;
     setSelectedTileCopyFeedback("idle");
-  }, [selectedNode]);
+  }, [activeSelectedNode]);
+
+  useEffect(() => {
+    onSelectedNodeChange?.(activeSelectedNode);
+  }, [activeSelectedNode, onSelectedNodeChange]);
 
   useEffect(() => {
     workerResultRef.current = workerResult;
@@ -755,10 +819,10 @@ export function IctSystemImpactAnalyser2Chart({
         findingCriticality: selectedFindingCriticalityKey ? selectedFindingCriticalityKey.split(",") : [],
         assetType: selectedAssetTypeKey ? selectedAssetTypeKey.split(",") : [],
         search: diagramSearch,
-        selectedSearchOption,
+        selectedSearchOption: activeSelectedSearchOption,
         systemIds: normalizedSystemScopeIds
       },
-      selectedNode,
+      selectedNode: activeSelectedNode,
       layout: {
         assetAxisLabel,
         assetSearchCategory,
@@ -776,12 +840,12 @@ export function IctSystemImpactAnalyser2Chart({
     });
   }, [
     diagramSearch,
-    selectedSearchOption,
+    activeSelectedSearchOption,
     selectedEnvironmentKey,
     selectedAssetTypeKey,
     selectedFindingCriticalityKey,
     normalizedSystemScopeIds,
-    selectedNode,
+    activeSelectedNode,
     selectedSecurityDomainKey,
     viewportSize.width,
     workerReady,
@@ -1075,7 +1139,7 @@ export function IctSystemImpactAnalyser2Chart({
         overlayAnimationFrameRef.current = null;
       }
     };
-  }, [drawOverlay, scrollTop, selectedNode, viewportSize.height, viewportSize.width, workerResult]);
+  }, [activeSelectedNode, drawOverlay, scrollTop, viewportSize.height, viewportSize.width, workerResult]);
 
   const findNodeAtPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -1145,8 +1209,8 @@ export function IctSystemImpactAnalyser2Chart({
             diagramFindingCriticality: selectedFindingCriticalityKey,
             diagramAssetType: selectedAssetTypeKey,
             diagramSearch,
-            diagramSearchAxis: selectedSearchOption?.axisKey,
-            diagramSearchValue: selectedSearchOption?.value,
+            diagramSearchAxis: activeSelectedSearchOption?.axisKey,
+            diagramSearchValue: activeSelectedSearchOption?.value,
             diagramSystemIds: systemScopeKey
           }),
           { cache: "no-store" }
@@ -1168,7 +1232,7 @@ export function IctSystemImpactAnalyser2Chart({
       selectedAssetTypeKey,
       selectedEnvironmentKey,
       selectedFindingCriticalityKey,
-      selectedSearchOption,
+      activeSelectedSearchOption,
       selectedSecurityDomainKey,
       systemScopeKey
     ]
@@ -1178,7 +1242,10 @@ export function IctSystemImpactAnalyser2Chart({
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const hit = findNodeAtPoint(event.clientX, event.clientY);
       if (!hit) {
-        setSelectedNode(null);
+        if (selectedSearchOption || selectedNode || !externalSelectedSearchOption) {
+          setSelectedSearchOption(null);
+          setSelectedNode(null);
+        }
         return;
       }
       if (!isCiDiagramMode && hit.action === "spi-findings") {
@@ -1194,7 +1261,15 @@ export function IctSystemImpactAnalyser2Chart({
       }
       setSelectedNode((current) => (selectedNodeEquals(current, hit.node) ? null : hit.node));
     },
-    [findNodeAtPoint, isCiDiagramMode, onAssetFocus, openSpiDrillThrough]
+    [
+      externalSelectedSearchOption,
+      findNodeAtPoint,
+      isCiDiagramMode,
+      onAssetFocus,
+      openSpiDrillThrough,
+      selectedNode,
+      selectedSearchOption
+    ]
   );
 
   const handleOverlayPointerMove = useCallback(
@@ -1413,6 +1488,7 @@ export function IctSystemImpactAnalyser2Chart({
                 />
               </>
             ) : null}
+            {extraControls}
           </div>
         </div>
 
@@ -1425,14 +1501,20 @@ export function IctSystemImpactAnalyser2Chart({
                   ? `${workerResult.filteredRowCount} CI relationship path${
                       workerResult.filteredRowCount === 1 ? "" : "s"
                     } from selected asset${
-                      selectedNode ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(selectedNode.axisKey, selectedNode.value)}` : ""
+                      activeSelectedNode
+                        ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(activeSelectedNode.axisKey, activeSelectedNode.value)}`
+                        : ""
                     }`
                 : showAssetTypeFilter
                   ? `${workerResult.filteredFindingRowCount} finding paths across ${workerResult.filteredAssetCount} assets${
-                      selectedNode ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(selectedNode.axisKey, selectedNode.value)}` : ""
+                      activeSelectedNode
+                        ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(activeSelectedNode.axisKey, activeSelectedNode.value)}`
+                        : ""
                     }`
                   : `${workerResult.filteredFindingRowCount} of ${workerResult.totalRowCount} open server findings${
-                    selectedNode ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(selectedNode.axisKey, selectedNode.value)}` : ""
+                    activeSelectedNode
+                      ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(activeSelectedNode.axisKey, activeSelectedNode.value)}`
+                      : ""
                   }`}
             </p>
             <div className="flex flex-wrap justify-end gap-2 text-[11px] text-slate-300/80">

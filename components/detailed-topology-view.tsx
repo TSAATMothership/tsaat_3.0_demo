@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { IctSystemImpactAnalyser2Chart, type ImpactAnalyser2Row } from "@/components/ict-system-impact-analyser-2";
+import {
+  IctSystemImpactAnalyser2Chart,
+  type ImpactAnalyser2Row,
+  type ImpactAnalyser2SelectedNode
+} from "@/components/ict-system-impact-analyser-2";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import {
   buildCiAnalyserRowsFromScope,
@@ -659,13 +663,6 @@ function compareCiByCompliance(left: ScopedCiItem, right: ScopedCiItem, mode: Co
   return left.hostname.localeCompare(right.hostname);
 }
 
-function ciAssetTypeLabel(assetType: CiAssetType): string {
-  if (assetType === "other") {
-    return "Other Assets";
-  }
-  return `${assetTypeLabel(assetType)}s`;
-}
-
 function ciSearchKey(nodeId: string, assetType: CiAssetType): string {
   return `${nodeId}:${assetType}`;
 }
@@ -1184,9 +1181,6 @@ export function DetailedTopologyView({
   const [detailedZoom, setDetailedZoom] = useState(1);
   const [focusedCiFlowRootAssetId, setFocusedCiFlowRootAssetId] = useState<string | null>(null);
   const [selectedCiFlowNodeId, setSelectedCiFlowNodeId] = useState<string | null>(null);
-  const [ciFlowIncludedAssetTypes, setCiFlowIncludedAssetTypes] = useState<Set<CiAssetType>>(
-    () => new Set<CiAssetType>(CI_ASSET_TYPES)
-  );
   const [ciFlowIncludedDependencyTypes, setCiFlowIncludedDependencyTypes] = useState<Set<CiFlowRelationshipType>>(
     () => new Set<CiFlowRelationshipType>(CI_FLOW_RELATIONSHIP_TYPES)
   );
@@ -1289,8 +1283,6 @@ export function DetailedTopologyView({
   const ciFlowOuterShellSpinAngleRef = useRef(0);
   const ciFlowInnerShellSpinAngleRef = useRef(0);
   const ciFlowOuterShellSpinLastTimestampRef = useRef<number | null>(null);
-  const ciFlowHoverLocalPointRef = useRef<{ x: number; y: number } | null>(null);
-  const ciFlowHoveredNodeIdRef = useRef<string | null>(null);
   const ciFlowPinnedRootScreenPositionRef = useRef<{ x: number; y: number } | null>(null);
   const ciFlowNodeDragStateRef = useRef<{
     nodeId: string;
@@ -2162,12 +2154,11 @@ export function DetailedTopologyView({
       rootAssetId: focusedCiFlowRootAssetId,
       ciNodes: data.ciNodes,
       ciDependencies: data.ciDependencies,
-      includedAssetTypes: ciFlowIncludedAssetTypes,
+      includedAssetTypes: CI_ASSET_TYPES,
       includedDependencyTypes: ciFlowIncludedDependencyTypes,
       maxRelatedNodes: CI_FLOW_MAX_RELATED_NODES
     });
   }, [
-    ciFlowIncludedAssetTypes,
     ciFlowIncludedDependencyTypes,
     data.ciDependencies,
     data.ciNodes,
@@ -3263,13 +3254,6 @@ export function DetailedTopologyView({
   }, [detailedTree, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
 
   useEffect(() => {
-    if (!isDetailedTopologyOpen || !ciFlowRootNodeId || !isCiFlowFocusPanelOpen) {
-      return;
-    }
-    setSelectedCiFlowNodeId(ciFlowRootNodeId);
-  }, [ciFlowRootNodeId, isCiFlowFocusPanelOpen, isDetailedTopologyOpen]);
-
-  useEffect(() => {
     if (!isDetailedTopologyOpen || isCiFlowFocusPanelOpen || !detailedTree || !detailedSelectedNodeId) {
       return;
     }
@@ -3311,7 +3295,7 @@ export function DetailedTopologyView({
     if (detailedFilteredNodeIds.has(selectedCiFlowNodeId)) {
       return;
     }
-    setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    setSelectedCiFlowNodeId(null);
     if (detailedSelectedTileFilterId !== "__all__") {
       setDetailedSelectedTileFilterId("__all__");
     }
@@ -4238,17 +4222,13 @@ export function DetailedTopologyView({
         const previous = ciFlowOuterShellSpinLastTimestampRef.current ?? now;
         const deltaSeconds = Math.max(0, Math.min(0.05, (now - previous) / 1000));
         ciFlowOuterShellSpinLastTimestampRef.current = now;
-        const shouldPauseSpin = Boolean(ciFlowHoveredNodeIdRef.current);
-        if (!shouldPauseSpin) {
-          const spinSpeedRadiansPerSecond = 0.16;
-          ciFlowOuterShellSpinAngleRef.current =
-            (ciFlowOuterShellSpinAngleRef.current + deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
-          ciFlowInnerShellSpinAngleRef.current =
-            (ciFlowInnerShellSpinAngleRef.current - deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
-        }
+        const spinSpeedRadiansPerSecond = 0.16;
+        ciFlowOuterShellSpinAngleRef.current =
+          (ciFlowOuterShellSpinAngleRef.current + deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
+        ciFlowInnerShellSpinAngleRef.current =
+          (ciFlowInnerShellSpinAngleRef.current - deltaSeconds * spinSpeedRadiansPerSecond) % (Math.PI * 2);
       } else {
         ciFlowOuterShellSpinLastTimestampRef.current = null;
-        ciFlowHoveredNodeIdRef.current = null;
       }
       if (isFlowMode) {
         if (!viewState.initialized) {
@@ -4532,21 +4512,6 @@ export function DetailedTopologyView({
             ciFlowAutoFitPendingRef.current = false;
           }
         }
-        const hoverPoint = ciFlowHoverLocalPointRef.current;
-        let hoveredNodeId: string | null = null;
-        if (hoverPoint) {
-          let bestProjection: (typeof latestFlowProjectedNodes)[number] | null = null;
-          for (const projected of latestFlowProjectedNodes) {
-            if (!pointInCircle(projected.centerX, projected.centerY, projected.radius, hoverPoint.x, hoverPoint.y)) {
-              continue;
-            }
-            if (!bestProjection || projected.depth < bestProjection.depth) {
-              bestProjection = projected;
-            }
-          }
-          hoveredNodeId = bestProjection?.node.id ?? null;
-        }
-        ciFlowHoveredNodeIdRef.current = hoveredNodeId;
       }
 
       if (isFlowMode && ciFlowGraph) {
@@ -4669,9 +4634,6 @@ export function DetailedTopologyView({
           if (!detailedFilteredNodeIds.has(edge.fromNodeId) || !detailedFilteredNodeIds.has(edge.toNodeId)) {
             continue;
           }
-          if (hasFlowSelection && !ciFlowHighlightedEdgeIds.has(edge.id)) {
-            continue;
-          }
           const fromProjection = flowProjectedNodeById.get(edge.fromNodeId);
           const toProjection = flowProjectedNodeById.get(edge.toNodeId);
           if (!fromProjection || !toProjection) {
@@ -4686,7 +4648,7 @@ export function DetailedTopologyView({
           context.lineTo(toProjection.centerX, toProjection.centerY);
           context.strokeStyle = color;
           context.globalAlpha =
-            (isHighlighted ? 0.95 : 0.72) *
+            (isHighlighted ? 0.95 : hasFlowSelection ? 0.28 : 0.72) *
             Math.max(0, Math.min(1, ciFlowTweenProgressRef.current)) *
             depthOpacity;
           context.lineWidth = edge.dependencyType === "Unmodelled Attachment" ? 2.1 : isHighlighted ? 3.6 : 2.6;
@@ -5158,7 +5120,6 @@ export function DetailedTopologyView({
       }
       if (isFlowMode) {
         const local = clientToLocal(event.clientX, event.clientY);
-        ciFlowHoverLocalPointRef.current = { x: local.x, y: local.y };
         const hitNode = hitTestFlowNode(local.x, local.y);
         if (hitNode) {
           setSelectedCiFlowNodeId(hitNode.id);
@@ -5271,10 +5232,7 @@ export function DetailedTopologyView({
       const interaction = detailedCanvasInteractionRef.current;
       updateCiFlowFocusBadgeTooltip(event.clientX, event.clientY);
       if (isFlowMode) {
-        const local = clientToLocal(event.clientX, event.clientY);
-        ciFlowHoverLocalPointRef.current = { x: local.x, y: local.y };
         if (!interaction || interaction.pointerId !== event.pointerId) {
-          requestDraw();
           return;
         }
       } else if (!interaction || interaction.pointerId !== event.pointerId) {
@@ -5334,9 +5292,6 @@ export function DetailedTopologyView({
       if (!isFlowMode) {
         return;
       }
-      ciFlowHoverLocalPointRef.current = null;
-      ciFlowHoveredNodeIdRef.current = null;
-      requestDraw();
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -5919,23 +5874,6 @@ export function DetailedTopologyView({
     setIsDetailedTileSearchFocused(false);
   };
 
-  const toggleCiFlowIncludedAssetType = (assetType: CiAssetType) => {
-    setCiFlowIncludedAssetTypes((current) => {
-      const next = new Set(current);
-      if (next.has(assetType)) {
-        if (next.size === 1) {
-          return current;
-        }
-        next.delete(assetType);
-      } else {
-        next.add(assetType);
-      }
-      return next;
-    });
-    setSelectedCiFlowNodeId(ciFlowRootNodeId);
-    setDetailedSelectedTileFilterId("__all__");
-  };
-
   const toggleCiFlowIncludedDependencyType = (dependencyType: CiFlowRelationshipType) => {
     setCiFlowIncludedDependencyTypes((current) => {
       const next = new Set(current);
@@ -5946,16 +5884,40 @@ export function DetailedTopologyView({
       }
       return next;
     });
-    setSelectedCiFlowNodeId(ciFlowRootNodeId);
     setDetailedSelectedTileFilterId("__all__");
   };
+
+  const handleCiAnalyserSelectedNodeChange = useCallback(
+    (node: ImpactAnalyser2SelectedNode | null) => {
+      if (!isCiFlowFocusPanelOpen) {
+        return;
+      }
+      if (!node) {
+        setSelectedCiFlowNodeId(null);
+        return;
+      }
+      if (node.axisKey !== "asset" && node.axisKey !== "relatedAsset") {
+        return;
+      }
+      const nextNodeId = ciFlowNodeIdForAsset(node.value);
+      if (ciFlowNodeById.has(nextNodeId)) {
+        setSelectedCiFlowNodeId(nextNodeId);
+        return;
+      }
+      if (node.axisKey === "asset" && ciFlowRootNodeId) {
+        setSelectedCiFlowNodeId(ciFlowRootNodeId);
+        return;
+      }
+      setSelectedCiFlowNodeId(null);
+    },
+    [ciFlowNodeById, ciFlowRootNodeId, isCiFlowFocusPanelOpen]
+  );
 
   const clearDetailedTileSearchSelection = () => {
     setDetailedSelectedTileFilterId("__all__");
     setDetailedTileFilterSearchText("");
     setIsDetailedTileSearchFocused(false);
-    if (isCiFlowFocusPanelOpen && ciFlowRootNodeId) {
-      setSelectedCiFlowNodeId(ciFlowRootNodeId);
+    if (isCiFlowFocusPanelOpen) {
       return;
     }
     if (detailedTree?.rootNodeId) {
@@ -6201,7 +6163,7 @@ export function DetailedTopologyView({
     ? compliancePercentages(rootCiFlowFocusCompliance)
     : null;
   const selectedCiFlowFocusNode =
-    isCiFlowFocusPanelOpen && selectedCiFlowNodeId && selectedCiFlowNodeId !== ciFlowRootNodeId
+    isCiFlowFocusPanelOpen && selectedCiFlowNodeId
       ? ciFlowNodeById.get(selectedCiFlowNodeId) ?? null
       : null;
   const selectedCiFlowFocusCompliance = selectedCiFlowFocusNode
@@ -6341,20 +6303,16 @@ export function DetailedTopologyView({
   }, [presentedDetailedNodes]);
   const presentedDetailedEdges = useMemo<DetailedDisplayEdge[]>(() => {
     if (isCiFlowFocusPanelOpen) {
-      const hasFlowSelection = Boolean(ciFlowActiveSelectionNodeId);
       return detailedDisplayEdges.filter(
         (edge) =>
           presentedDetailedNodeIdSet.has(edge.fromNodeId) &&
-          presentedDetailedNodeIdSet.has(edge.toNodeId) &&
-          (!hasFlowSelection || ciFlowHighlightedEdgeIds.has(edge.id))
+          presentedDetailedNodeIdSet.has(edge.toNodeId)
       );
     }
     return detailedDisplayEdges.filter(
       (edge) => presentedDetailedNodeIdSet.has(edge.fromNodeId) && presentedDetailedNodeIdSet.has(edge.toNodeId)
     );
   }, [
-    ciFlowActiveSelectionNodeId,
-    ciFlowHighlightedEdgeIds,
     detailedDisplayEdges,
     isCiFlowFocusPanelOpen,
     presentedDetailedNodeIdSet
@@ -6770,89 +6728,6 @@ export function DetailedTopologyView({
     presentedDetailedEdges,
     presentedDetailedNodes
   ]);
-  const presentedNonModelledCiRows = useMemo(() => {
-    if (!isCiFlowFocusPanelOpen) {
-      return [];
-    }
-    return presentedDetailedNodes
-      .filter(
-        (node): node is DetailedDisplayNode & { entityType: "ci"; isInModelScope: boolean; assetId?: string } =>
-          node.entityType === "ci" && "isInModelScope" in node && !node.isInModelScope
-      )
-      .map((node) => {
-        const sourceCi = node.assetId ? flowCiNodeByAssetId.get(node.assetId) ?? null : null;
-        const networkId = sourceCi?.networkId ?? "";
-        return {
-          ciId: node.assetId ?? "",
-          ciName: node.name,
-          hostName: sourceCi?.hostname ?? node.name,
-          ipAddress: sourceCi?.ipAddress ?? "",
-          assetType: sourceCi ? ciAssetTypeSingularLabel(sourceCi.type) : "",
-          environment: normalizeCiEnvironmentLabel(sourceCi?.environmentType),
-          networkId,
-          networkName: networkId ? (networkNameById.get(networkId) ?? networkId) : "",
-          ictSystemId: sourceCi?.systemId ?? "",
-          ictSystemName: sourceCi?.systemName ?? "",
-          modelStatus: "modelLabel" in node ? node.modelLabel : "Not Modelled"
-        };
-      })
-      .sort((left, right) => {
-        const hostDelta = left.hostName.localeCompare(right.hostName);
-        if (hostDelta !== 0) {
-          return hostDelta;
-        }
-        return left.ciId.localeCompare(right.ciId);
-      });
-  }, [
-    flowCiNodeByAssetId,
-    isCiFlowFocusPanelOpen,
-    networkNameById,
-    presentedDetailedNodes
-  ]);
-  const exportPresentedNonModelledCis = useCallback(() => {
-    if (!presentedNonModelledCiRows.length) {
-      return;
-    }
-    const headers = [
-      "CI ID",
-      "CI Name",
-      "Hostname",
-      "IP Address",
-      "Asset Type",
-      "Environment",
-      "Network ID",
-      "Network Name",
-      "ICT System ID",
-      "ICT System Name",
-      "Model Status"
-    ];
-    const dataRows = presentedNonModelledCiRows.map((row) => [
-      row.ciId,
-      row.ciName,
-      row.hostName,
-      row.ipAddress,
-      row.assetType,
-      row.environment,
-      row.networkId,
-      row.networkName,
-      row.ictSystemId,
-      row.ictSystemName,
-      row.modelStatus
-    ]);
-    const csv = [headers, ...dataRows].map((row) => row.map((value) => csvCell(value)).join(",")).join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const rootName = ciFlowRootTile?.name ?? "ci-flow";
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `non-modelled-cis-${safeCsvFilenameSegment(rootName)}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 0);
-  }, [ciFlowRootTile?.name, presentedNonModelledCiRows]);
   return (
     <div
       className={`fixed inset-0 z-[1200] transition-transform duration-300 ease-out ${
@@ -7168,316 +7043,105 @@ export function DetailedTopologyView({
                   </div>
                 </div>
 
-                <div className="grid min-h-0 flex-1 grid-cols-[minmax(20rem,1fr)_minmax(0,2fr)]">
-                  <section className="flex min-h-0 min-w-0 flex-col border-r border-sky-400/20">
-                <div className="flex max-h-[18rem] flex-wrap items-center gap-2 overflow-y-auto border-b border-sky-400/15 px-3 py-3 text-xs">
-                  <label className="text-slate-300/85" htmlFor="ci-flow-topology-compliance-mode">
-                    Compliance
-                  </label>
-                  <select
-                    id="ci-flow-topology-compliance-mode"
-                    value={complianceMode}
-                    onChange={(event) => setComplianceMode(event.target.value as ComplianceMode)}
-                    className="rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100"
-                  >
-                    <option value="cyber">Cyber Security Compliance</option>
-                    <option value="discovery">Discovery Compliance</option>
-                  </select>
-                  <label className="ml-2 text-slate-300/85" htmlFor="ci-flow-topology-tile-filter-search">
-                    Tile Search
-                  </label>
-                  <div className="relative w-[440px] max-w-full">
-                    <div className="flex items-center gap-2">
-                      <input
-                        ref={detailedTileSearchInputRef}
-                        id="ci-flow-topology-tile-filter-search"
-                        type="search"
-                        value={detailedTileFilterSearchText}
-                        onChange={(event) => setDetailedTileFilterSearchText(event.target.value)}
-                        onFocus={() => setIsDetailedTileSearchFocused(true)}
-                        onBlur={() => {
-                          detailedTileSearchBlurTimerRef.current = window.setTimeout(() => {
-                            setIsDetailedTileSearchFocused(false);
-                            setDetailedTileFilterSearchText((currentText) => currentText.trim());
-                            detailedTileSearchBlurTimerRef.current = null;
-                          }, 120);
-                        }}
-                        placeholder="Search tile type or name"
-                        className="min-w-0 flex-1 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100 placeholder:text-slate-400/90"
-                      />
-                      {isDetailedTileFilterActive ? (
-                        <button
-                          type="button"
-                          onClick={clearDetailedTileSearchSelection}
-                          className="rounded-md border border-slate-500/45 bg-slate-900/70 px-2.5 py-1.5 font-semibold text-slate-200"
-                        >
-                          Clear
-                        </button>
-                      ) : null}
-                    </div>
-                    {hasDetailedTileSearchTerm && isDetailedTileSearchFocused ? (
-                      <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
-                        {filteredDetailedTileDropdownOptions.length ? (
-                          <ul className="space-y-1">
-                            {filteredDetailedTileDropdownOptions.map((node) => (
-                              <li key={`ci-flow-tile-search-result-${node.id}`}>
-                                <button
-                                  type="button"
-                                  onMouseDown={(event) => {
-                                    event.preventDefault();
-                                    if (detailedTileSearchBlurTimerRef.current !== null) {
-                                      window.clearTimeout(detailedTileSearchBlurTimerRef.current);
-                                      detailedTileSearchBlurTimerRef.current = null;
-                                    }
-                                    selectDetailedTileFilter(node.id);
-                                    detailedTileSearchInputRef.current?.blur();
-                                  }}
-                                  className={`w-full rounded-md border px-2 py-1.5 text-left text-xs ${
-                                    detailedSelectedTileFilterId === node.id
-                                      ? "border-violet-300/75 bg-violet-500/15 text-violet-100"
-                                      : "border-sky-400/20 bg-slate-900/70 text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
-                                  }`}
-                                >
-                                  {detailedEntityTypeLabel(node.entityType)}: {node.name}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs text-slate-300">
-                            No matching tiles
-                          </p>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                  <span className="mx-1 h-5 w-px bg-sky-400/20" />
-                  <button
-                    type="button"
-                    onClick={() => zoomDetailedBy(1.14)}
-                    className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
-                  >
-                    Zoom In
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => zoomDetailedBy(0.88)}
-                    className="rounded-md border border-sky-400/35 bg-slate-900/60 px-2.5 py-1.5 font-semibold text-sky-100"
-                  >
-                    Zoom Out
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-sky-200/70 bg-sky-500/18 px-2.5 py-1.5 font-semibold text-sky-100"
-                    aria-pressed="true"
-                  >
-                    Orbit + Pan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetDetailedTopologyView}
-                    className="rounded-md border border-slate-400/45 bg-slate-800/70 px-2.5 py-1.5 font-semibold text-slate-100"
-                  >
-                    Reset View
-                  </button>
-                  <span className="rounded-md border border-sky-400/25 bg-slate-900/75 px-2 py-1 text-[11px] text-slate-200">
-                    Drag: rotate | Wheel: zoom | Root CI pinned
-                  </span>
-                  <span className="rounded-md border border-slate-500/40 bg-slate-900/70 px-2 py-1 text-slate-200">
-                    Zoom {detailedZoomPercent}%
-                  </span>
-                  <span className="mx-1 h-5 w-px bg-sky-400/20" />
-                  <div className="relative flex items-center gap-1.5">
-                    <span className="text-slate-300/85">CI Types</span>
-                    <details className="relative">
-                      <summary className="list-none cursor-pointer rounded-md border border-slate-500/45 bg-slate-900/65 px-2.5 py-1 font-semibold text-slate-200 hover:border-slate-300/55">
-                        {(CI_ASSET_TYPES as CiAssetType[])
-                          .filter((assetType) => ciFlowIncludedAssetTypes.has(assetType))
-                          .map((assetType) => ciAssetTypeLabel(assetType))
-                          .join(", ")}
-                      </summary>
-                      <div className="absolute left-0 top-[calc(100%+0.3rem)] z-40 min-w-[13rem] rounded-md border border-sky-400/35 bg-slate-950/95 p-2 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
-                        <ul className="space-y-1.5">
-                          {(CI_ASSET_TYPES as CiAssetType[]).map((assetType) => {
-                            const isEnabled = ciFlowIncludedAssetTypes.has(assetType);
-                            return (
-                              <li key={`ci-flow-asset-type-filter-${assetType}`}>
-                                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-slate-100 hover:bg-slate-800/70">
-                                  <input
-                                    type="checkbox"
-                                    checked={isEnabled}
-                                    onChange={() => toggleCiFlowIncludedAssetType(assetType)}
-                                    className="h-3.5 w-3.5 accent-cyan-400"
-                                  />
-                                  <span className="text-xs font-semibold">{ciAssetTypeLabel(assetType)}</span>
-                                </label>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    </details>
-                  </div>
-                  <div className="flex items-center gap-1.5 rounded-md border border-sky-400/20 bg-slate-900/55 px-2 py-1">
-                    <span className="text-slate-300/85">Relationships</span>
-                    {CI_FLOW_RELATIONSHIP_TYPES.map((dependencyType) => (
-                      <label
-                        key={`ci-flow-relationship-filter-${dependencyType}`}
-                        className="flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-slate-100 hover:bg-slate-800/70"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={ciFlowIncludedDependencyTypes.has(dependencyType)}
-                          onChange={() => toggleCiFlowIncludedDependencyType(dependencyType)}
-                          className="h-3.5 w-3.5 accent-cyan-400"
-                        />
-                        <span className="text-xs font-semibold">{dependencyType.replace(" Dependency", "")}</span>
+                <div className="grid min-h-0 flex-1 grid-cols-[minmax(15rem,0.55fr)_minmax(0,1.8fr)]">
+                  <section className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto border-r border-sky-400/20 bg-slate-950/55 p-3">
+                    <div className="flex shrink-0 items-center justify-between gap-2 text-xs">
+                      <label className="text-slate-300/85" htmlFor="ci-focus-compliance-mode">
+                        Compliance
                       </label>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                      Green compliant
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-                      Red non-compliant
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-                      Grey other
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                      CI relationship
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-sm border border-emerald-400 bg-slate-200" />
-                      In-model CI
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-sm border border-red-400 bg-slate-200" />
-                      Out-of-model CI
-                    </span>
-                    <span className="mx-1 h-5 w-px bg-sky-400/20" />
-                    {(
-                      [
-                        "network",
-                        "mission-capability",
-                        "service",
-                        "ict-system",
-                        "environment",
-                        "not-modelled"
-                      ] as DetailedTileEntityType[]
-                    )
-                      .filter((entityType) => detailedPresentEntityTypes.has(entityType))
-                      .map((entityType) => (
-                        <span key={`ci-flow-entity-key-${entityType}`} className="inline-flex items-center gap-1">
-                          <span
-                            className="h-2.5 w-2.5 rounded-sm"
-                            style={{ backgroundColor: detailedTileColor(entityType) }}
-                          />
-                          {detailedEntityTypeLabel(entityType)}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-
-                <div ref={detailedViewportRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/75">
-                  <canvas ref={detailedCanvasRef} className="absolute inset-0 h-full w-full" />
-                  {rendererInitError ? (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 p-6 text-center">
-                      <p className="max-w-xl rounded-lg border border-amber-300/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                        {rendererInitError}
-                      </p>
-                    </div>
-                  ) : null}
-                  {rootCiFlowFocusNode && rootCiFlowFocusPercentages ? (
-                    <>
-                      <div className="pointer-events-auto absolute right-4 top-4 z-30 flex w-[22rem] flex-col gap-3">
-                      {rootCiFlowModelContextTile ? (
-                        <>
-                          <article
-                            className="rounded-2xl border-2 px-3 py-2.5 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)]"
-                            style={{
-                              borderColor: rootCiFlowModelContextTile.borderColor,
-                              backgroundColor: detailedTileColor(rootCiFlowModelContextTile.entityType)
-                            }}
-                          >
-                            <div className="space-y-0.5">
-                              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">
-                                {rootCiFlowModelContextTile.typeLabel}
-                              </p>
-                              <p className="text-sm font-semibold leading-snug text-slate-900">
-                                {rootCiFlowModelContextTile.name}
-                              </p>
-                              <p className="text-xs font-medium leading-snug text-slate-800">
-                                {rootCiFlowModelContextTile.subtitle}
-                              </p>
-                            </div>
-                            <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-sm bg-slate-300/95">
-                              <div className="flex h-full w-full">
-                                <div
-                                  className="h-full bg-emerald-600"
-                                  style={{ width: `${rootCiFlowModelContextTile.percentages.compliant}%` }}
-                                />
-                                <div
-                                  className="h-full bg-red-500"
-                                  style={{ width: `${rootCiFlowModelContextTile.percentages.nonCompliant}%` }}
-                                />
-                                <div
-                                  className="h-full bg-slate-400"
-                                  style={{ width: `${rootCiFlowModelContextTile.percentages.other}%` }}
-                                />
-                              </div>
-                            </div>
-                            <p className="mt-1.5 text-center text-xs font-medium text-slate-900">
-                              {rootCiFlowModelContextTile.percentages.compliant}% C |{" "}
-                              {rootCiFlowModelContextTile.percentages.nonCompliant}% NC |{" "}
-                              {rootCiFlowModelContextTile.percentages.other}% O
-                            </p>
-                          </article>
-                          <div className="mx-auto h-4 w-[2px] rounded-full bg-violet-300/85 shadow-[0_0_10px_rgba(196,181,253,0.75)]" />
-                        </>
-                      ) : null}
-                      <article
-                        className="rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
-                        style={{
-                          borderColor: "#a855f7",
-                          backgroundColor: detailedTileColor(rootCiFlowFocusNode.entityType)
-                        }}
+                      <select
+                        id="ci-focus-compliance-mode"
+                        value={complianceMode}
+                        onChange={(event) => setComplianceMode(event.target.value as ComplianceMode)}
+                        className="min-w-0 rounded-md border border-sky-400/35 bg-slate-900/85 px-2.5 py-1.5 text-slate-100"
                       >
-                        <div className="space-y-0.5">
-                          <p className="text-sm font-semibold leading-snug text-slate-900">
-                            Type: <span className="font-medium">{rootCiFlowFocusNode.typeLabel}</span>
-                          </p>
-                          <p className="text-sm font-semibold leading-snug text-slate-900">
-                            Name: <span className="font-medium">{rootCiFlowFocusNode.name}</span>
-                          </p>
-                          <p className="text-xs font-medium leading-snug text-slate-800">
-                            {rootCiFlowFocusNode.modelLabel}
-                          </p>
-                        </div>
-                        <div className="mt-3 h-3 w-full overflow-hidden rounded-sm bg-slate-300/95">
-                          <div className="flex h-full w-full">
-                            <div className="h-full bg-emerald-600" style={{ width: `${rootCiFlowFocusPercentages.compliant}%` }} />
-                            <div
-                              className="h-full bg-red-500"
-                              style={{ width: `${rootCiFlowFocusPercentages.nonCompliant}%` }}
-                            />
-                            <div className="h-full bg-slate-400" style={{ width: `${rootCiFlowFocusPercentages.other}%` }} />
-                          </div>
-                        </div>
-                        <p className="mt-2 text-center text-base font-medium text-slate-900">
-                          {rootCiFlowFocusPercentages.compliant}% C | {rootCiFlowFocusPercentages.nonCompliant}% NC |{" "}
-                          {rootCiFlowFocusPercentages.other}% O
-                        </p>
-                      </article>
-                      {selectedCiFlowFocusNode && selectedCiFlowFocusPercentages ? (
+                        <option value="cyber">Cyber Security Compliance</option>
+                        <option value="discovery">Discovery Compliance</option>
+                      </select>
+                    </div>
+                    <div className="flex shrink-0 flex-col gap-3">
+                      {rootCiFlowModelContextTile ? (
                         <article
-                          className="relative rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
+                          className="select-none rounded-2xl border-2 px-3 py-2.5 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)]"
+                          style={{
+                            borderColor: rootCiFlowModelContextTile.borderColor,
+                            backgroundColor: detailedTileColor(rootCiFlowModelContextTile.entityType)
+                          }}
+                        >
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">
+                              {rootCiFlowModelContextTile.typeLabel}
+                            </p>
+                            <p className="text-sm font-semibold leading-snug text-slate-900">
+                              {rootCiFlowModelContextTile.name}
+                            </p>
+                            <p className="text-xs font-medium leading-snug text-slate-800">
+                              {rootCiFlowModelContextTile.subtitle}
+                            </p>
+                          </div>
+                          <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                            <div className="flex h-full w-full">
+                              <div
+                                className="h-full bg-emerald-600"
+                                style={{ width: `${rootCiFlowModelContextTile.percentages.compliant}%` }}
+                              />
+                              <div
+                                className="h-full bg-red-500"
+                                style={{ width: `${rootCiFlowModelContextTile.percentages.nonCompliant}%` }}
+                              />
+                              <div
+                                className="h-full bg-slate-400"
+                                style={{ width: `${rootCiFlowModelContextTile.percentages.other}%` }}
+                              />
+                            </div>
+                          </div>
+                          <p className="mt-1.5 text-center text-xs font-medium text-slate-900">
+                            {rootCiFlowModelContextTile.percentages.compliant}% C |{" "}
+                            {rootCiFlowModelContextTile.percentages.nonCompliant}% NC |{" "}
+                            {rootCiFlowModelContextTile.percentages.other}% O
+                          </p>
+                        </article>
+                      ) : null}
+                      {rootCiFlowFocusNode && rootCiFlowFocusPercentages ? (
+                        <article
+                          className="select-none rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
+                          style={{
+                            borderColor: "#a855f7",
+                            backgroundColor: detailedTileColor(rootCiFlowFocusNode.entityType)
+                          }}
+                        >
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-semibold leading-snug text-slate-900">
+                              Type: <span className="font-medium">{rootCiFlowFocusNode.typeLabel}</span>
+                            </p>
+                            <p className="text-sm font-semibold leading-snug text-slate-900">
+                              Name: <span className="font-medium">{rootCiFlowFocusNode.name}</span>
+                            </p>
+                            <p className="text-xs font-medium leading-snug text-slate-800">
+                              {rootCiFlowFocusNode.modelLabel}
+                            </p>
+                          </div>
+                          <div className="mt-3 h-3 w-full overflow-hidden rounded-sm bg-slate-300/95">
+                            <div className="flex h-full w-full">
+                              <div className="h-full bg-emerald-600" style={{ width: `${rootCiFlowFocusPercentages.compliant}%` }} />
+                              <div
+                                className="h-full bg-red-500"
+                                style={{ width: `${rootCiFlowFocusPercentages.nonCompliant}%` }}
+                              />
+                              <div className="h-full bg-slate-400" style={{ width: `${rootCiFlowFocusPercentages.other}%` }} />
+                            </div>
+                          </div>
+                          <p className="mt-2 text-center text-base font-medium text-slate-900">
+                            {rootCiFlowFocusPercentages.compliant}% C | {rootCiFlowFocusPercentages.nonCompliant}% NC |{" "}
+                            {rootCiFlowFocusPercentages.other}% O
+                          </p>
+                        </article>
+                      ) : null}
+                    </div>
+                    {selectedCiFlowFocusNode && selectedCiFlowFocusPercentages ? (
+                      <div className="mt-auto shrink-0">
+                        <article
+                          className="select-none rounded-3xl border-2 px-4 py-3 text-slate-900 shadow-[0_14px_34px_rgba(0,0,0,0.48)]"
                           style={{
                             borderColor:
                               selectedCiFlowFocusNode.entityType === "ci"
@@ -7486,19 +7150,7 @@ export function DetailedTopologyView({
                             backgroundColor: detailedTileColor(selectedCiFlowFocusNode.entityType)
                           }}
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCiFlowNodeId(null);
-                              setDetailedSelectedTileFilterId("__all__");
-                              setDetailedTileFilterSearchText("");
-                              setIsDetailedTileSearchFocused(false);
-                            }}
-                            className="absolute right-3 top-3 rounded-md border border-slate-500/45 bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-100"
-                          >
-                            Close
-                          </button>
-                          <div className="space-y-0.5 pr-12">
+                          <div className="space-y-0.5">
                             <p className="text-sm font-semibold leading-snug text-slate-900">
                               Type: <span className="font-medium">{selectedCiFlowFocusNode.typeLabel}</span>
                             </p>
@@ -7524,26 +7176,8 @@ export function DetailedTopologyView({
                             {selectedCiFlowFocusPercentages.other}% O
                           </p>
                         </article>
-                      ) : null}
                       </div>
-                    </>
-                  ) : null}
-                  <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex flex-col items-end gap-1">
-                    <button
-                      type="button"
-                      onClick={exportPresentedNonModelledCis}
-                      disabled={!presentedNonModelledCiRows.length}
-                      className="rounded-full border border-cyan-300/55 bg-cyan-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.1em] text-cyan-100 shadow-[0_12px_26px_rgba(0,0,0,0.44)] transition hover:bg-cyan-500/32 disabled:cursor-not-allowed disabled:border-slate-500/45 disabled:bg-slate-900/75 disabled:text-slate-400"
-                      data-no-pan="true"
-                    >
-                      Export Non-Modelled CIs
-                    </button>
-                    <p className="rounded-md border border-slate-600/50 bg-slate-950/85 px-2 py-0.5 text-[11px] text-slate-200">
-                      {presentedNonModelledCiRows.length} non-modelled CI
-                      {presentedNonModelledCiRows.length === 1 ? "" : "s"} in current view
-                    </p>
-                  </div>
-                </div>
+                    ) : null}
                   </section>
                   <section className="min-h-0 min-w-0 p-2">
                     <IctSystemImpactAnalyser2Chart
@@ -7555,6 +7189,26 @@ export function DetailedTopologyView({
                       assetAxisLabel="Asset"
                       assetSearchCategory="Asset"
                       includeNetworkAxis={!isSystemImpactAnalyser}
+                      onSelectedNodeChange={handleCiAnalyserSelectedNodeChange}
+                      extraControls={
+                        <div className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-sky-400/20 bg-slate-900/55 px-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+                          <span>Relationships</span>
+                          {CI_FLOW_RELATIONSHIP_TYPES.map((dependencyType) => (
+                            <label
+                              key={`ci-focus-analyser-relationship-filter-${dependencyType}`}
+                              className="flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-slate-100 hover:bg-slate-800/70"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={ciFlowIncludedDependencyTypes.has(dependencyType)}
+                                onChange={() => toggleCiFlowIncludedDependencyType(dependencyType)}
+                                className="h-3.5 w-3.5 accent-cyan-400"
+                              />
+                              <span className="text-xs font-semibold">{dependencyType.replace(" Dependency", "")}</span>
+                            </label>
+                          ))}
+                        </div>
+                      }
                     />
                   </section>
               </div>
