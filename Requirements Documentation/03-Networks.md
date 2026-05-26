@@ -54,7 +54,7 @@ Major dependencies:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | loading overlay displayed |
+| Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | shared loading overlay waits for the route-ready marker |
 | Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends for real networks only | dataset, findings, evaluations | Dashboard cards and charts | network scope only; `net-unassigned` excluded | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
 | Networks | Action | Remediation planning | Open tab or generate report | Builds action metrics and remediation report link | findings, lifecycle, discovery status | Action board and PDF link | report reflects current filters | none beyond scope parsing | `/api/networks/remediation-report` | Action planning and export | |
 | Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | real network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source; `Unassigned Systems` is not a network | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
@@ -94,7 +94,7 @@ Primary data dependencies:
 | Quick wins | action tab | group open findings by identical recommended action text | findings | Runtime | backend | missing actions grouped to a default label |
 
 ## 8. Non-Database Calculations
-- Tab loading overlay progress is synthetic.
+- Tab loading progress is optimistic and completes only after the target route-ready marker is present.
 - Blast-radius selection and table search are client-side only.
 - Posture slideout content is rendered from the already loaded row model.
 - The remediation report URL is assembled from the current query string; no server call occurs until the user opens the link.

@@ -76,8 +76,9 @@ The page specifications repeatedly reference the following shared implementation
 - `lib/sql-server.ts`: runtime `sqlcmd` execution, bundled path fallback (`Dependencies/external/sqlcmd/win-x64/sqlcmd.exe`), local target normalization (`lpc:`), and SSL flag mapping
 - `middleware.ts`: server-side session enforcement for direct page/API access
 - `components/authenticated-session-guard.tsx`: client-side session revalidation for already-loaded authenticated pages
-- `components/filter-bar.tsx`: common filter UI and loading overlay behaviour
-- `components/menu-navigation.tsx`: global menu, route loading overlay, and date picker behaviour
+- `components/filter-bar.tsx`: common filter UI that dispatches route loading requests
+- `components/menu-navigation.tsx`: global menu and date picker behaviour
+- `components/filter-loading-overlay.tsx`: shared route loading overlay that completes after page-ready markers render
 
 ## Shared Data Domains
 The most frequently referenced tables across the pages are:
@@ -246,7 +247,7 @@ Major dependencies:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Cyber COP | Filter scope | Shared cross-page filter bar | Select filters or date | Re-runs `getCoreAppData()` for the new query state | `dataDate`, filter query params | Filtered dataset and analytics | All tiles and charts must share one scope | filter values must match supported IDs and enums | `FilterBar`, `lib/selectors.ts`, `lib/app-data.ts` | Consistent dashboard scope | Loading overlay shown during replace navigation |
+| Cyber COP | Filter scope | Shared cross-page filter bar | Select filters or date | Re-runs `getCoreAppData()` for the new query state | `dataDate`, filter query params | Filtered dataset and analytics | All tiles and charts must share one scope | filter values must match supported IDs and enums | `FilterBar`, `lib/selectors.ts`, `lib/app-data.ts` | Consistent dashboard scope | Shared route loading overlay remains open until the page-ready marker is rendered |
 | Cyber COP | Overview tab | Compliance and risk briefing | Open tab | Renders compliance tiles, risk charts, severity mix, daily trends | runtime analytics | Briefing dashboard | default tab | zero-safe values | `CyberCopDashboard` | Executive posture view | tab state is local only |
 | Cyber COP | Impact tab | Operational impact rollups | Open tab and optionally select leaderboard rows | Filters impact charts by selected service, mission, or system | open findings, system relationships | Impact charts and leaderboards | impact is based on open findings | selection clears when source leaves scope | mission/service tables | Business and mission prioritisation | search is client-side |
 | Cyber COP | Action tab | Remediation planning view | Open tab | Aggregates backlog, throughput, aging, and quick wins | findings, lifecycle, discovery, modelling data | Action summary and trend charts | immediate action reflects highest-severity open work | zero-safe calculations | findings plus lifecycle and discovery inputs | Remediation planning | quick wins grouped by action text |
@@ -291,7 +292,7 @@ If `tsaat.finding` has no rows for the selected snapshot, SQL Server still retur
 
 ## 8. Non-Database Calculations
 - Client tab selection is held in component state and not persisted.
-- Loading progress overlays use synthetic progress increments.
+- Loading progress uses optimistic increments and completes only after the target route-ready marker is present.
 - Leaderboard search is client-side text matching over already-rendered impact rows.
 - Daily trend chart labels are UTC-formatted display values derived from runtime date keys.
 
@@ -367,7 +368,7 @@ Major dependencies:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | loading overlay displayed |
+| Networks | Tab routing | Switches among overview, action, posture | Click tab | Updates `networksTab` in query string and reloads page | `networksTab` | Different tab layout | overview is default | unsupported values fall back to overview | `NetworksTabs` | URL-addressable tabs | shared loading overlay waits for the route-ready marker |
 | Networks | Overview | Network posture summary | Open tab | Aggregates compliance, modelling, severity, and trends for real networks only | dataset, findings, evaluations | Dashboard cards and charts | network scope only; `net-unassigned` excluded | zero-safe percentages | `getTrendAppData()`, analytics | Executive network view | |
 | Networks | Action | Remediation planning | Open tab or generate report | Builds action metrics and remediation report link | findings, lifecycle, discovery status | Action board and PDF link | report reflects current filters | none beyond scope parsing | `/api/networks/remediation-report` | Action planning and export | |
 | Networks | Posture table | Roll-up comparison across networks | Search, open slideout, drill down | Builds row model with posture and scores | real network rows, rollups, findings | Table, slideout, drill-down link | network list is the primary drill-down source; `Unassigned Systems` is not a network | search is client-side | `NetworksTable`, `NetworksTableClient` | Compare and navigate | slideout uses detail fallback fields |
@@ -407,7 +408,7 @@ Primary data dependencies:
 | Quick wins | action tab | group open findings by identical recommended action text | findings | Runtime | backend | missing actions grouped to a default label |
 
 ## 8. Non-Database Calculations
-- Tab loading overlay progress is synthetic.
+- Tab loading progress is optimistic and completes only after the target route-ready marker is present.
 - Blast-radius selection and table search are client-side only.
 - Posture slideout content is rendered from the already loaded row model.
 - The remediation report URL is assembled from the current query string; no server call occurs until the user opens the link.
@@ -935,7 +936,7 @@ Primary data dependencies:
 
 ## 8. Non-Database Calculations
 - Tool coverage calculation is SQL-produced from DB-backed detection rules; the app still owns slideout rendering, filtering, pagination, and CSV/PDF serialization.
-- Slideout loading progress, open/close state, search debounce, and CSV assembly are client-side only.
+- Coverage-by-tool slideout loading progress, open/close state, search debounce, and CSV assembly are client-side only. Page, tab, and filter navigation use the shared route loading overlay and complete after the route-ready marker is rendered.
 - Network summary slideouts reuse resolved detail fields and may include fallback metadata where descriptive source columns are blank. ATO, DIIS, and APM reference values are populated by loader/migration; legacy missing values render as `Missing` where directly displayed.
 
 ## 9. Rules, Assumptions, and Constraints

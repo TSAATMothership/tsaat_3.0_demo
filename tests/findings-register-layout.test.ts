@@ -25,7 +25,8 @@ describe("Findings register layout", () => {
     expect(timelineSource).toContain('variant?: "panel" | "embedded"');
     expect(timelineSource).toContain('variant === "embedded" ? timelineControl');
     expect(timelineSource).toContain('className="flex min-h-[1.875rem] items-center gap-2"');
-    expect(timelineSource).toContain("disabled={!hasPendingChanges || isLoading}");
+    expect(timelineSource).toContain("disabled={!hasPendingChanges}");
+    expect(timelineSource).toContain("startRouteLoading({ href, message: \"Applying timeline...\" })");
     expect(timelineSource).toContain("pointer-events-none border-slate-600/25 bg-slate-900/20 text-slate-500 opacity-0");
   });
 

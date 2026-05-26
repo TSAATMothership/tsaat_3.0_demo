@@ -1,7 +1,6 @@
 "use client";
 
-import { type ComponentProps, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { type ComponentProps, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CartesianGrid,
@@ -17,6 +16,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { FindingsHistoryLineChart } from "@/components/findings-history-line-chart";
 import { FindingsStatusTabs } from "@/components/findings-status-tabs";
 import { FindingsTimelineFilter } from "@/components/findings-timeline-filter";
+import { startRouteLoading } from "@/lib/route-loading";
 
 type FilterOptionsProp = ComponentProps<typeof FilterBar>["options"];
 type FiltersProp = ComponentProps<typeof FilterBar>["filters"];
@@ -25,19 +25,6 @@ type ExtraSelectField = NonNullable<ComponentProps<typeof FilterBar>["extraSelec
 interface SpiHistoryPoint {
   date: string;
   [key: `spi${number}`]: number | string;
-}
-
-function nextProgressValue(current: number): number {
-  if (current >= 92) {
-    return current + 1;
-  }
-  if (current >= 78) {
-    return current + 2;
-  }
-  if (current >= 55) {
-    return current + 3;
-  }
-  return current + 5;
 }
 
 function formatDisplayDate(value: string): string {
@@ -92,27 +79,6 @@ export function FindingsHistoryDrillthrough({
   const isPanelRequested = searchParams?.get("historyDrillthrough") === "1";
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const [isTransitionLoading, setIsTransitionLoading] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [pendingPanelRequested, setPendingPanelRequested] = useState<boolean | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (isPanelRequested) {
@@ -134,41 +100,6 @@ export function FindingsHistoryDrillthrough({
     return () => window.clearTimeout(timeout);
   }, [isPanelRequested]);
 
-  useEffect(() => {
-    if (!isTransitionLoading || pendingPanelRequested === null) {
-      return;
-    }
-    if (isPanelRequested !== pendingPanelRequested) {
-      return;
-    }
-
-    setLoadingProgress(100);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsTransitionLoading(false);
-      setPendingPanelRequested(null);
-      setLoadingProgress(0);
-    }, 140);
-  }, [isPanelRequested, isTransitionLoading, pendingPanelRequested]);
-
-  const beginTransitionLoading = (nextRequestedState: boolean) => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-    }
-    setIsTransitionLoading(true);
-    setLoadingProgress(0);
-    setPendingPanelRequested(nextRequestedState);
-    intervalRef.current = setInterval(() => {
-      setLoadingProgress((current) => Math.min(96, nextProgressValue(current)));
-    }, 85);
-  };
-
   const openPanel = () => {
     if (isPanelRequested) {
       return;
@@ -176,8 +107,9 @@ export function FindingsHistoryDrillthrough({
     const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.set("historyDrillthrough", "1");
     const query = params.toString();
-    beginTransitionLoading(true);
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const href = query ? `${pathname}?${query}` : pathname;
+    startRouteLoading({ href, message: "Opening SPI Trend Drill-Through..." });
+    router.replace(href, { scroll: false });
   };
 
   const closePanel = () => {
@@ -187,8 +119,9 @@ export function FindingsHistoryDrillthrough({
     const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.delete("historyDrillthrough");
     const query = params.toString();
-    beginTransitionLoading(false);
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const href = query ? `${pathname}?${query}` : pathname;
+    startRouteLoading({ href, message: "Closing SPI Trend Drill-Through..." });
+    router.replace(href, { scroll: false });
   };
 
   return (
@@ -293,34 +226,6 @@ export function FindingsHistoryDrillthrough({
           </aside>
         </div>
       ) : null}
-
-      {isMounted && isTransitionLoading
-        ? createPortal(
-            <div className="fixed inset-0 z-[9999] cursor-wait bg-slate-950/60">
-              <div className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-sky-300/35 bg-slate-900 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.7)]">
-                <div className="text-center">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-200">Loading</p>
-                  <p className="mt-1 text-2xl font-semibold text-sky-100">{loadingProgress}%</p>
-                </div>
-                <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-700">
-                  <div
-                    className="h-full rounded-full bg-sky-300 transition-[width] duration-75 ease-linear"
-                    style={{ width: `${loadingProgress}%` }}
-                  />
-                </div>
-                <div className="mt-5 flex items-center justify-center gap-3 text-xs text-slate-200">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
-                  <span>
-                    {pendingPanelRequested
-                      ? "Opening SPI Trend Drill-Through..."
-                      : "Closing SPI Trend Drill-Through..."}
-                  </span>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
     </>
   );
 }

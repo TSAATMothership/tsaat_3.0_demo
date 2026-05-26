@@ -7,6 +7,7 @@ import {
   type NetworkDiscoverySummaryTableRow
 } from "@/components/network-discovery-summary-table-client";
 import { FilterBar } from "@/components/filter-bar";
+import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { getCoreAppData } from "@/lib/app-data";
 import { buildDiscoveryCoverageByNetworkRows } from "@/lib/discovery-coverage-by-network-rows";
 import {
@@ -201,6 +202,7 @@ export default async function DiscoveryCoveragePage({
 
   return (
     <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+      <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Discovery Coverage View</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-100">Discovery</h1>

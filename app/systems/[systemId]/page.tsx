@@ -4,6 +4,7 @@ import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
+import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import { SystemDetailTabId, SystemDetailTabs } from "@/components/system-detail-tabs";
 import { buildAnalytics } from "@/lib/analytics";
@@ -23,7 +24,6 @@ import {
 } from "@/lib/discovery-coverage";
 import { extractDataDateParam, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
 import { MeasuresSettings } from "@/lib/measures-settings";
 import { buildSystemTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
@@ -1535,13 +1535,11 @@ export default async function SystemDetailPage({
   const highRiskP12Trend = trendPointsFor("highRiskP12Findings");
   const outOfWarrantyTrend = trendPointsFor("outOfWarrantyAssets");
   const nonCompliantDiscoveryCoverageTrend = trendPointsFor("nonCompliantDiscoveryCoverage");
-  const routeReadyLocationKey = buildLocationKeyFromParamsRecord(`/systems/${system.id}`, requestParams);
-
   return (
     <div
       className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]"
-      data-route-ready-key={encodeLocationKeyForAttribute(routeReadyLocationKey)}
     >
+      <RouteReadyMarker pathname={`/systems/${system.id}`} searchParams={requestParams} />
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>

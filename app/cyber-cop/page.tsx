@@ -11,6 +11,7 @@ import {
   type CyberCopImpactSpiDriver
 } from "@/components/cyber-cop-dashboard";
 import { FilterBar } from "@/components/filter-bar";
+import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
@@ -1392,6 +1393,7 @@ export default async function CyberCopPage({
       data-cyber-cop-page="true"
       className="relative left-1/2 -my-5 h-[calc(100vh-11rem+100px)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem+100px)] md:w-[min(2100px,calc(100vw-3rem))]"
     >
+      <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />
       <CyberCopDashboard
         snapshotDate={dataset.snapshotDate}
         filtersSlot={

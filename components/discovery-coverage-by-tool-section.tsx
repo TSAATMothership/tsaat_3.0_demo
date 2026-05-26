@@ -5,24 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { CoverageByToolRadar } from "@/components/coverage-by-tool-radar";
+import { LoadingOverlay, nextLoadingProgressValue } from "@/components/loading-overlay";
 import { DiscoveryCoverageValue } from "@/lib/discovery-coverage";
 
 const PANEL_TWEEN_MS = 260;
 const TOOL_ROWS_PAGE_SIZE = 200;
 const CSV_EXPORT_PAGE_SIZE = 5000;
-
-function nextProgressValue(current: number): number {
-  if (current >= 92) {
-    return current + 1;
-  }
-  if (current >= 78) {
-    return current + 2;
-  }
-  if (current >= 55) {
-    return current + 3;
-  }
-  return current + 5;
-}
 
 function csvCell(value: string | number | boolean): string {
   const text = String(value);
@@ -384,7 +372,7 @@ export function DiscoveryCoverageByToolSection({
     setSelectedToolId(toolId);
 
     panelLoadIntervalRef.current = setInterval(() => {
-      setPanelProgress((current) => Math.min(96, nextProgressValue(current)));
+      setPanelProgress((current) => Math.min(96, nextLoadingProgressValue(current)));
     }, 85);
   };
 
@@ -741,24 +729,11 @@ export function DiscoveryCoverageByToolSection({
       {panel ? (slideoutScopeElement ? createPortal(panel, slideoutScopeElement) : panel) : null}
 
       {isPanelLoading ? (
-        <div className="absolute inset-0 z-30 cursor-wait bg-slate-950/60">
-          <div className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-sky-300/35 bg-slate-900 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.7)]">
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-200">Loading</p>
-              <p className="mt-1 text-2xl font-semibold text-sky-100">{panelProgress}%</p>
-            </div>
-            <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-700">
-              <div
-                className="h-full rounded-full bg-sky-300 transition-[width] duration-75 ease-linear"
-                style={{ width: `${panelProgress}%` }}
-              />
-            </div>
-            <div className="mt-5 flex items-center justify-center gap-3 text-xs text-slate-200">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
-              <span>Opening {pendingToolLabel ?? "tool"} details...</span>
-            </div>
-          </div>
-        </div>
+        <LoadingOverlay
+          progress={panelProgress}
+          message={`Opening ${pendingToolLabel ?? "tool"} details...`}
+          className="absolute inset-0 z-30"
+        />
       ) : null}
 
       {isLoading ? (

@@ -5,6 +5,7 @@ import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailTabs } from "@/components/network-detail-tabs";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
+import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { ServerStreamHint } from "@/components/server-stream-hint";
 import {
   loadDatasetForDate,
@@ -24,7 +25,6 @@ import { buildAnalytics } from "@/lib/analytics";
 import { buildCveVulnerabilityIndexByAssetId, buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey, withDataDate } from "@/lib/data-date";
 import { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { buildLocationKeyFromParamsRecord, encodeLocationKeyForAttribute } from "@/lib/location-key";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { isUnassignedNetworkId } from "@/lib/network-scope";
 import { buildNetworkTopologyData } from "@/lib/network-topology";
@@ -1297,13 +1297,11 @@ export default async function NetworkDetailPage({
   const discoveryComplianceScore = discoveryComplianceTotal
     ? Number(((discoveryComplianceCounts.compliant / discoveryComplianceTotal) * 100).toFixed(1))
     : 0;
-  const routeReadyLocationKey = buildLocationKeyFromParamsRecord(`/networks/${network.id}`, requestParams);
-
   return (
     <div
       className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]"
-      data-route-ready-key={encodeLocationKeyForAttribute(routeReadyLocationKey)}
     >
+      <RouteReadyMarker pathname={`/networks/${network.id}`} searchParams={requestParams} />
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>

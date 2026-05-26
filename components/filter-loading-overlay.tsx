@@ -4,26 +4,42 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useSearchParams } from "next/navigation";
 import { buildLocationKey, encodeLocationKeyForAttribute, normalizeQuery } from "@/lib/location-key";
+import { DEFAULT_LOADING_INITIAL_PROGRESS, DEFAULT_LOADING_MESSAGE, LoadingOverlay, nextLoadingProgressValue } from "@/components/loading-overlay";
+import {
+  ROUTE_LOADING_COMPLETE_EVENT,
+  ROUTE_LOADING_START_EVENT,
+  type RouteLoadingStartDetail
+} from "@/lib/route-loading";
 
-const DEFAULT_MESSAGE = "Applying filters...";
 const STALE_OVERLAY_TIMEOUT_MS = 30000;
 const ROUTE_READY_POLL_MS = 16;
 
-function nextProgressValue(current: number): number {
-  if (current >= 92) {
-    return current + 1;
-  }
-  if (current >= 78) {
-    return current + 2;
-  }
-  if (current >= 55) {
-    return current + 3;
-  }
-  return current + 5;
+function hasRouteReadyMarker(locationKey: string): boolean {
+  const routeReadySelector = `[data-route-ready-key="${encodeLocationKeyForAttribute(locationKey)}"]`;
+  return Boolean(document.querySelector(routeReadySelector));
 }
 
-function shouldWaitForRouteReadyMarker(pathname: string): boolean {
-  return /^\/networks\/[^/]+$/.test(pathname) || /^\/systems\/[^/]+$/.test(pathname);
+function targetLocationKeyForForm(form: HTMLFormElement): string | null {
+  const method = (form.method || "get").toLowerCase();
+  if (method !== "get") {
+    return null;
+  }
+
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(form.getAttribute("action") || window.location.href, window.location.href);
+  } catch {
+    return null;
+  }
+
+  const params = new URLSearchParams();
+  for (const [key, value] of new FormData(form).entries()) {
+    if (typeof value === "string") {
+      params.append(key, value);
+    }
+  }
+  targetUrl.search = params.toString();
+  return buildLocationKey(targetUrl.pathname, targetUrl.search);
 }
 
 export function FilterLoadingOverlay() {
@@ -33,14 +49,15 @@ export function FilterLoadingOverlay() {
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useState(DEFAULT_MESSAGE);
+  const [message, setMessage] = useState(DEFAULT_LOADING_MESSAGE);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failsafeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startLocationKeyRef = useRef<string | null>(null);
   const targetLocationKeyRef = useRef<string | null>(null);
-  const waitForReadyMarkerRef = useRef(false);
+  const waitForReadyMarkerRef = useRef(true);
+  const documentTransitionRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (intervalRef.current) {
@@ -65,30 +82,33 @@ export function FilterLoadingOverlay() {
     clearTimers();
     setIsLoading(false);
     setProgress(0);
-    setMessage(DEFAULT_MESSAGE);
+    setMessage(DEFAULT_LOADING_MESSAGE);
     startLocationKeyRef.current = null;
     targetLocationKeyRef.current = null;
-    waitForReadyMarkerRef.current = false;
+    waitForReadyMarkerRef.current = true;
+    documentTransitionRef.current = false;
   }, [clearTimers]);
 
   type StartOverlayOptions = {
     message?: string;
     targetLocationKey?: string;
     waitForReadyMarker?: boolean;
+    documentTransition?: boolean;
   };
 
   const startOverlay = useCallback(
     (options: StartOverlayOptions = {}) => {
       clearTimers();
       setIsLoading(true);
-      setProgress(0);
-      setMessage(options.message || DEFAULT_MESSAGE);
+      setProgress(DEFAULT_LOADING_INITIAL_PROGRESS);
+      setMessage(options.message || DEFAULT_LOADING_MESSAGE);
       startLocationKeyRef.current = currentLocationKey;
       targetLocationKeyRef.current = options.targetLocationKey ?? null;
-      waitForReadyMarkerRef.current = options.waitForReadyMarker ?? false;
+      waitForReadyMarkerRef.current = options.waitForReadyMarker ?? true;
+      documentTransitionRef.current = options.documentTransition ?? false;
 
       intervalRef.current = setInterval(() => {
-        setProgress((current) => Math.min(96, nextProgressValue(current)));
+        setProgress((current) => Math.min(96, nextLoadingProgressValue(current)));
       }, 85);
 
       // Guard against stale overlays when navigation does not occur.
@@ -111,6 +131,40 @@ export function FilterLoadingOverlay() {
       clearTimers();
     };
   }, [clearTimers]);
+
+  useEffect(() => {
+    const onRouteLoadingStart = (event: Event) => {
+      const detail = (event as CustomEvent<RouteLoadingStartDetail>).detail ?? {};
+      startOverlay({
+        message: detail.message,
+        targetLocationKey: detail.targetLocationKey,
+        waitForReadyMarker: detail.waitForRouteReady,
+        documentTransition: detail.documentTransition
+      });
+    };
+
+    const onRouteLoadingComplete = () => {
+      if (!isLoading) {
+        return;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setProgress(100);
+      closeTimeoutRef.current = setTimeout(() => {
+        closeOverlay();
+      }, 140);
+    };
+
+    window.addEventListener(ROUTE_LOADING_START_EVENT, onRouteLoadingStart);
+    window.addEventListener(ROUTE_LOADING_COMPLETE_EVENT, onRouteLoadingComplete);
+
+    return () => {
+      window.removeEventListener(ROUTE_LOADING_START_EVENT, onRouteLoadingStart);
+      window.removeEventListener(ROUTE_LOADING_COMPLETE_EVENT, onRouteLoadingComplete);
+    };
+  }, [closeOverlay, isLoading, startOverlay]);
 
   useEffect(() => {
     if (!isMounted || !isLoading) {
@@ -138,6 +192,10 @@ export function FilterLoadingOverlay() {
       return;
     }
 
+    if (documentTransitionRef.current) {
+      return;
+    }
+
     const finalizeOverlay = () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -149,13 +207,13 @@ export function FilterLoadingOverlay() {
       }, 140);
     };
 
-    if (!waitForReadyMarkerRef.current || !targetLocationKey) {
+    if (!waitForReadyMarkerRef.current) {
       finalizeOverlay();
       return;
     }
 
-    const routeReadySelector = `[data-route-ready-key="${encodeLocationKeyForAttribute(targetLocationKey)}"]`;
-    if (document.querySelector(routeReadySelector)) {
+    const readyLocationKey = targetLocationKey ?? currentLocationKey;
+    if (hasRouteReadyMarker(readyLocationKey)) {
       finalizeOverlay();
       return;
     }
@@ -166,7 +224,7 @@ export function FilterLoadingOverlay() {
       if (cancelled) {
         return;
       }
-      if (document.querySelector(routeReadySelector)) {
+      if (hasRouteReadyMarker(readyLocationKey)) {
         finalizeOverlay();
         return;
       }
@@ -214,15 +272,15 @@ export function FilterLoadingOverlay() {
 
       const currentQuery = normalizeQuery((searchParams?.toString() ?? ""));
       const nextQuery = normalizeQuery(targetUrl.search);
-      if (targetUrl.pathname === pathname && currentQuery === nextQuery && targetUrl.hash === window.location.hash) {
+      if (targetUrl.pathname === pathname && currentQuery === nextQuery) {
         return;
       }
 
       const targetLocationKey = buildLocationKey(targetUrl.pathname, targetUrl.search);
       startOverlay({
-        message: anchor.dataset.filterLoadingMessage || DEFAULT_MESSAGE,
+        message: anchor.dataset.filterLoadingMessage || DEFAULT_LOADING_MESSAGE,
         targetLocationKey,
-        waitForReadyMarker: shouldWaitForRouteReadyMarker(targetUrl.pathname)
+        waitForReadyMarker: true
       });
     };
 
@@ -235,7 +293,9 @@ export function FilterLoadingOverlay() {
         return;
       }
       startOverlay({
-        message: form.dataset.filterLoadingMessage || DEFAULT_MESSAGE
+        message: form.dataset.filterLoadingMessage || DEFAULT_LOADING_MESSAGE,
+        targetLocationKey: targetLocationKeyForForm(form) ?? undefined,
+        waitForReadyMarker: true
       });
     };
 
@@ -253,24 +313,7 @@ export function FilterLoadingOverlay() {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] cursor-wait bg-slate-950/60">
-      <div className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-sky-300/35 bg-slate-900 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.7)]">
-        <div className="text-center">
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-200">Loading</p>
-          <p className="mt-1 text-2xl font-semibold text-sky-100">{progress}%</p>
-        </div>
-        <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-700">
-          <div
-            className="h-full rounded-full bg-sky-300 transition-[width] duration-75 ease-linear"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <div className="mt-5 flex items-center justify-center gap-3 text-xs text-slate-200">
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
-          <span>{message}</span>
-        </div>
-      </div>
-    </div>,
+    <LoadingOverlay progress={progress} message={message} />,
     document.body
   );
 }

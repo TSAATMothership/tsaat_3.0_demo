@@ -68,8 +68,9 @@ The page specifications repeatedly reference the following shared implementation
 - `Database Schema/loaders/build-and-load-database.ps1`: database schema/bootstrap loader, including client-payload and SQL-server-file seed load modes for local or remote SQL Server targets
 - `middleware.ts`: server-side session enforcement for direct page/API access
 - `components/authenticated-session-guard.tsx`: client-side session revalidation for already-loaded authenticated pages
-- `components/filter-bar.tsx`: common filter UI and loading overlay behaviour
-- `components/menu-navigation.tsx`: global menu, route loading overlay, and date picker behaviour
+- `components/filter-bar.tsx`: common filter UI that dispatches route loading requests
+- `components/menu-navigation.tsx`: global menu and date picker behaviour
+- `components/filter-loading-overlay.tsx`: shared route loading overlay that completes after page-ready markers render
 
 ## Shared Data Domains
 The most frequently referenced tables across the pages are:

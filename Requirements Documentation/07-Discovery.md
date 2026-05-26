@@ -128,7 +128,7 @@ Primary data dependencies:
 
 ## 8. Non-Database Calculations
 - Tool coverage calculation is SQL-produced from DB-backed detection rules; the app still owns slideout rendering, filtering, pagination, and CSV/PDF serialization.
-- Slideout loading progress, open/close state, search debounce, and CSV assembly are client-side only.
+- Coverage-by-tool slideout loading progress, open/close state, search debounce, and CSV assembly are client-side only. Page, tab, and filter navigation use the shared route loading overlay and complete after the route-ready marker is rendered.
 - Network summary slideouts reuse resolved detail fields and may include fallback metadata where descriptive source columns are blank. ATO, DIIS, and APM reference values are populated by loader/migration; legacy missing values render as `Missing` where directly displayed.
 
 ## 9. Rules, Assumptions, and Constraints

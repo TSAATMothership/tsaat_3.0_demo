@@ -1,5 +1,6 @@
 import { DatabaseSettingsPanel } from "@/components/database-settings-panel";
 import { PasswordSettingsPanel } from "@/components/password-settings-panel";
+import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { SettingsTabs, type SettingsTabId } from "@/components/settings-tabs";
 import { loadDatabaseSettingsDefaults } from "@/lib/database-settings";
 
@@ -36,6 +37,7 @@ export default async function SettingsPage({
 
   return (
     <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 space-y-3 md:w-[min(2100px,calc(100vw-3rem))]">
+      <RouteReadyMarker pathname="/settings" searchParams={searchParams} />
       <section className="panel p-4">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Application Configuration</p>
         <h1 className="mt-1 text-3xl font-semibold text-slate-100">Settings</h1>

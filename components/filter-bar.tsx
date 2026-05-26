@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ASSET_TYPES, assetTypeLabel } from "@/lib/asset-taxonomy";
 import { AssetType, EnvironmentType, Filters } from "@/lib/types";
+import { startRouteLoading } from "@/lib/route-loading";
 
 interface Option {
   id: string;
@@ -41,32 +42,6 @@ type FilterField =
   | "securityDomain"
   | "environment"
   | "assetType";
-
-function nextProgressValue(current: number): number {
-  if (current >= 92) {
-    return current + 1;
-  }
-  if (current >= 78) {
-    return current + 2;
-  }
-  if (current >= 55) {
-    return current + 3;
-  }
-  return current + 5;
-}
-
-function normalizeQuery(query: string): string {
-  const params = new URLSearchParams(query);
-  return Array.from(params.entries())
-    .sort(([aKey, aValue], [bKey, bValue]) => {
-      if (aKey === bKey) {
-        return aValue.localeCompare(bValue);
-      }
-      return aKey.localeCompare(bKey);
-    })
-    .map(([key, value]) => `${key}=${value}`)
-    .join("&");
-}
 
 function SelectField({
   label,
@@ -253,50 +228,8 @@ export function FilterBar({
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const hidden = useMemo(() => new Set(hiddenFields), [hiddenFields]);
-  const [isMounted, setIsMounted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [pendingQuery, setPendingQuery] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const params = useMemo(() => new URLSearchParams((searchParams?.toString() ?? "")), [searchParams]);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading || pendingQuery === null) {
-      return;
-    }
-
-    if (normalizeQuery((searchParams?.toString() ?? "")) !== normalizeQuery(pendingQuery)) {
-      return;
-    }
-
-    setProgress(100);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsLoading(false);
-      setPendingQuery(null);
-      setProgress(0);
-    }, 140);
-  }, [isLoading, pendingQuery, searchParams]);
 
   const updateParam = (key: string, value: string) => {
     const updated = new URLSearchParams(params.toString());
@@ -307,25 +240,15 @@ export function FilterBar({
     }
     const nextQuery = updated.toString();
 
+    const href = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+
     if (!enableLoadingOverlay) {
-      router.push(`${pathname}?${nextQuery}`, { scroll: false });
+      router.push(href, { scroll: false });
       return;
     }
 
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-    }
-
-    setIsLoading(true);
-    setProgress(0);
-    setPendingQuery(nextQuery);
-    intervalRef.current = setInterval(() => {
-      setProgress((current) => Math.min(96, nextProgressValue(current)));
-    }, 85);
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    startRouteLoading({ href, message: "Applying filters..." });
+    router.replace(href, { scroll: false });
   };
 
   return (
@@ -396,30 +319,6 @@ export function FilterBar({
         ))}
         {actions ? <div className="w-full sm:ml-auto sm:w-auto">{actions}</div> : null}
       </div>
-
-      {isMounted && isLoading && enableLoadingOverlay
-        ? createPortal(
-            <div className="fixed inset-0 z-[9999] cursor-wait bg-slate-950/60">
-              <div className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-sky-300/35 bg-slate-900 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.7)]">
-                <div className="text-center">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-200">Loading</p>
-                  <p className="mt-1 text-2xl font-semibold text-sky-100">{progress}%</p>
-                </div>
-                <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-700">
-                  <div
-                    className="h-full rounded-full bg-sky-300 transition-[width] duration-75 ease-linear"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <div className="mt-5 flex items-center justify-center gap-3 text-xs text-slate-200">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
-                  <span>Applying filters...</span>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
     </>
   );
 }

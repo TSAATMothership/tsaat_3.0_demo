@@ -55,7 +55,7 @@ Major dependencies:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Cyber COP | Filter scope | Shared cross-page filter bar | Select filters or date | Re-runs `getCoreAppData()` for the new query state | `dataDate`, filter query params | Filtered dataset and analytics | All tiles and charts must share one scope | filter values must match supported IDs and enums | `FilterBar`, `lib/selectors.ts`, `lib/app-data.ts` | Consistent dashboard scope | Loading overlay shown during replace navigation |
+| Cyber COP | Filter scope | Shared cross-page filter bar | Select filters or date | Re-runs `getCoreAppData()` for the new query state | `dataDate`, filter query params | Filtered dataset and analytics | All tiles and charts must share one scope | filter values must match supported IDs and enums | `FilterBar`, `lib/selectors.ts`, `lib/app-data.ts` | Consistent dashboard scope | Shared route loading overlay remains open until the page-ready marker is rendered |
 | Cyber COP | Overview tab | Compliance and risk briefing | Open tab | Renders compliance tiles, risk charts, severity mix, daily trends | runtime analytics | Briefing dashboard | default tab | zero-safe values | `CyberCopDashboard` | Executive posture view | tab state is local only |
 | Cyber COP | Impact tab | Operational impact rollups | Open tab and optionally select leaderboard rows | Filters impact charts by selected service, mission, or system | open findings, system relationships | Impact charts and leaderboards | impact is based on open findings | selection clears when source leaves scope | mission/service tables | Business and mission prioritisation | search is client-side |
 | Cyber COP | Action tab | Remediation planning view | Open tab | Aggregates backlog, throughput, aging, and quick wins | findings, lifecycle, discovery, modelling data | Action summary and trend charts | immediate action reflects highest-severity open work | zero-safe calculations | findings plus lifecycle and discovery inputs | Remediation planning | quick wins grouped by action text |
@@ -101,7 +101,7 @@ If `tsaat.finding` has no rows for the selected snapshot, SQL Server still retur
 
 ## 8. Non-Database Calculations
 - Client tab selection is held in component state and not persisted.
-- Loading progress overlays use synthetic progress increments.
+- Loading progress uses optimistic increments and completes only after the target route-ready marker is present.
 - Leaderboard search is client-side text matching over already-rendered impact rows.
 - Daily trend chart labels are UTC-formatted display values derived from runtime date keys.
 

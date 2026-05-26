@@ -13,6 +13,8 @@ import {
   todayDateKey,
   withDataDate
 } from "@/lib/data-date";
+import { normalizeQuery } from "@/lib/location-key";
+import { startRouteLoading } from "@/lib/route-loading";
 
 interface MenuItem {
   href: string;
@@ -25,32 +27,6 @@ function isMenuItemActive(pathname: string, href: string): boolean {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function nextProgressValue(current: number): number {
-  if (current >= 92) {
-    return current + 1;
-  }
-  if (current >= 78) {
-    return current + 2;
-  }
-  if (current >= 55) {
-    return current + 3;
-  }
-  return current + 5;
-}
-
-function normalizeQuery(query: string): string {
-  const params = new URLSearchParams(query);
-  return Array.from(params.entries())
-    .sort(([aKey, aValue], [bKey, bValue]) => {
-      if (aKey === bKey) {
-        return aValue.localeCompare(bValue);
-      }
-      return aKey.localeCompare(bKey);
-    })
-    .map(([key, value]) => `${key}=${value}`)
-    .join("&");
 }
 
 const operationsMenuItems: MenuItem[] = [
@@ -72,18 +48,11 @@ export function MenuNavigation({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
-  const [pendingPathname, setPendingPathname] = useState<string | null>(null);
-  const [pendingQuery, setPendingQuery] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isOperationsMenuOpen, setIsOperationsMenuOpen] = useState(false);
   const [cachedDataDate, setCachedDataDate] = useState<string>(todayDateKey());
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const closeDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   const showDataDatePicker = isDataDateScopedPath(pathname);
@@ -106,17 +75,6 @@ export function MenuNavigation({
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (closeDelayRef.current) {
-        clearTimeout(closeDelayRef.current);
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isOperationsMenuOpen) {
       return;
     }
@@ -133,81 +91,25 @@ export function MenuNavigation({
     };
   }, [isOperationsMenuOpen]);
 
-  useEffect(() => {
-    if (!isLoading) {
-      return;
-    }
-
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-    progressIntervalRef.current = setInterval(() => {
-      setProgress((current) => Math.min(96, nextProgressValue(current)));
-    }, 85);
-
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-        progressIntervalRef.current = null;
-      }
-    };
-  }, [isLoading]);
-
-  useEffect(() => {
-    if (!isLoading || !pendingPathname) {
-      return;
-    }
-
-    if (pathname !== pendingPathname) {
-      return;
-    }
-
-    if (pendingQuery !== null && normalizeQuery((searchParams?.toString() ?? "")) !== pendingQuery) {
-      return;
-    }
-
-    setProgress(100);
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-    closeDelayRef.current = setTimeout(() => {
-      setIsLoading(false);
-      setPendingHref(null);
-      setPendingPathname(null);
-      setPendingQuery(null);
-      setProgress(0);
-      closeDelayRef.current = null;
-    }, 120);
-  }, [isLoading, pathname, pendingPathname, pendingQuery, searchParams]);
-
-  const onMenuClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+  const onMenuClick = (event: MouseEvent<HTMLAnchorElement>, href: string, label: string) => {
     const targetPathname = extractHrefPathname(href);
     const targetQuery = normalizeQuery(new URL(href, "http://localhost").searchParams.toString());
+    const currentQuery = normalizeQuery(searchParams?.toString() ?? "");
 
-    if (isLoading) {
-      event.preventDefault();
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
     }
 
-    if (targetPathname === pathname) {
+    if (targetPathname === pathname && targetQuery === currentQuery) {
       event.preventDefault();
       return;
     }
 
     setIsOperationsMenuOpen(false);
-    setIsLoading(true);
-    setPendingHref(href);
-    setPendingPathname(targetPathname);
-    setPendingQuery(targetQuery);
-    setProgress(8);
+    startRouteLoading({ href, message: `Opening ${label}...` });
   };
 
   const onDataDateChange = (nextDataDate: string) => {
-    if (isLoading) {
-      return;
-    }
-
     const nextParams = new URLSearchParams((searchParams?.toString() ?? ""));
     const normalizedDataDate = normalizeDataDate(nextDataDate);
 
@@ -226,12 +128,9 @@ export function MenuNavigation({
     }
 
     setIsOperationsMenuOpen(false);
-    setIsLoading(true);
-    setPendingHref(query ? `${pathname}?${query}` : pathname);
-    setPendingPathname(pathname);
-    setPendingQuery(normalizedNextQuery);
-    setProgress(8);
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const href = query ? `${pathname}?${query}` : pathname;
+    startRouteLoading({ href, message: "Loading selected date..." });
+    router.replace(href, { scroll: false });
   };
 
   const onOpenDatePicker = () => {
@@ -251,15 +150,13 @@ export function MenuNavigation({
   };
 
   const onToggleOperationsMenu = () => {
-    if (isLoading) {
-      return;
-    }
     setIsOperationsMenuOpen((current) => !current);
   };
 
   const onOperationsMenuLinkClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
     setIsOperationsMenuOpen(false);
-    onMenuClick(event, href);
+    const label = operationsMenuItems.find((item) => item.href === extractHrefPathname(href))?.label ?? "selected page";
+    onMenuClick(event, href, label);
   };
 
   const onLogout = async () => {
@@ -316,7 +213,7 @@ export function MenuNavigation({
                 key={item.href}
                 href={href}
                 aria-current={isActive ? "page" : undefined}
-                onClick={(event) => onMenuClick(event, href)}
+                onClick={(event) => onMenuClick(event, href, item.label)}
                 className={`group flex h-11 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-[11px] uppercase tracking-[0.1em] transition ${linkClass}`}
               >
                 <span className="whitespace-nowrap">{item.label}</span>
@@ -470,29 +367,6 @@ export function MenuNavigation({
           )
         : null}
 
-      {isMounted && isLoading
-        ? createPortal(
-            <div className="fixed inset-0 z-[9999] cursor-wait bg-slate-950/60">
-              <div className="absolute left-1/2 top-1/2 w-[min(520px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-sky-300/35 bg-slate-900 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.7)]">
-                <div className="text-center">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-200">Loading</p>
-                  <p className="mt-1 text-2xl font-semibold text-sky-100">{progress}%</p>
-                </div>
-                <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-slate-700">
-                  <div
-                    className="h-full rounded-full bg-sky-300 transition-[width] duration-75 ease-linear"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <div className="mt-5 flex items-center justify-center gap-3 text-xs text-slate-200">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-cyan-100" />
-                  <span>Opening {pendingHref ?? "selected page"}...</span>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
     </>
   );
 }
