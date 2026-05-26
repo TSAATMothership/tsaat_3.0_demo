@@ -1,5 +1,6 @@
 type FindingSeverity = "High Risk" | "Critical Exposure" | "Major" | "Moderate" | "Data Gap";
 type SecurityDomain = "Secret" | "Protected" | "Unclassified";
+type ImpactAnalyser2DiagramMode = "risk" | "ci";
 
 interface ImpactAnalyser2Row {
   findingId: string | null;
@@ -22,6 +23,13 @@ interface ImpactAnalyser2Row {
   spiId: number | null;
   spiLabel: string;
   hasOpenFinding: boolean;
+  relatedAssetId?: string;
+  relatedAssetName?: string;
+  relatedAssetHostname?: string;
+  relatedAssetType?: string;
+  relatedAssetIpAddress?: string;
+  relatedSystemId?: string | null;
+  relatedSystemName?: string;
 }
 
 interface ImpactAnalyser2SelectedNode {
@@ -74,6 +82,7 @@ type WorkerRequest =
         assetAxisLabel: string;
         assetSearchCategory: string;
         includeNetworkAxis: boolean;
+        diagramMode: ImpactAnalyser2DiagramMode;
         width: number;
         left: number;
         right: number;
@@ -99,6 +108,8 @@ const searchCategoryOrder = [
   "Environment",
   "Assets",
   "Server",
+  "Related Asset",
+  "Related ICT System",
   "Asset Type",
   "Finding Severity",
   "SPI",
@@ -132,6 +143,12 @@ function rowAxisValue(row: ImpactAnalyser2Row, axisKey: string): string {
   }
   if (axisKey === "asset") {
     return row.assetId;
+  }
+  if (axisKey === "relatedAsset") {
+    return row.relatedAssetId ?? "";
+  }
+  if (axisKey === "relatedSystem") {
+    return row.relatedSystemName ?? "";
   }
   if (axisKey === "server") {
     return row.serverName;
@@ -182,6 +199,12 @@ function axisKeyForSearchCategory(category: string): string {
   if (category === "Assets" || category === "Server") {
     return "asset";
   }
+  if (category === "Related Asset") {
+    return "relatedAsset";
+  }
+  if (category === "Related ICT System") {
+    return "relatedSystem";
+  }
   if (category === "Asset Type") {
     return "assetType";
   }
@@ -224,6 +247,10 @@ function rowMatchesSearch(row: ImpactAnalyser2Row, normalizedSearch: string): bo
     row.assetName,
     row.assetHostname,
     row.assetType,
+    row.relatedAssetName ?? "",
+    row.relatedAssetHostname ?? "",
+    row.relatedAssetType ?? "",
+    row.relatedSystemName ?? "",
     row.serverName,
     row.serverHostname,
     row.severity ?? "",
@@ -268,8 +295,60 @@ function filterRows(rows: ImpactAnalyser2Row[], filters: ImpactAnalyser2Filters)
   });
 }
 
-function buildAxes(filteredRows: ImpactAnalyser2Row[], includeNetworkAxis: boolean): ImpactAnalyser2Axis[] {
+function buildAxes(
+  filteredRows: ImpactAnalyser2Row[],
+  includeNetworkAxis: boolean,
+  diagramMode: ImpactAnalyser2DiagramMode
+): ImpactAnalyser2Axis[] {
   const assetNameById = new Map(filteredRows.map((row) => [row.assetId, row.assetName || row.assetHostname || row.assetId]));
+  const relatedAssetNameById = new Map(
+    filteredRows.map((row) => [
+      row.relatedAssetId ?? "",
+      row.relatedAssetName || row.relatedAssetHostname || row.relatedAssetId || ""
+    ])
+  );
+  if (diagramMode === "ci") {
+    return [
+      ...(includeNetworkAxis
+        ? [
+            {
+              key: "network",
+              label: "Network",
+              values: uniqueSorted(filteredRows.map((row) => row.networkName).filter(Boolean))
+            }
+          ]
+        : []),
+      {
+        key: "system",
+        label: "ICT System",
+        values: uniqueSorted(filteredRows.map((row) => row.systemName).filter(Boolean))
+      },
+      {
+        key: "environment",
+        label: "Environment",
+        values: Array.from(new Set(filteredRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel)
+      },
+      {
+        key: "asset",
+        label: "Asset",
+        values: uniqueSorted(filteredRows.map((row) => row.assetId)).sort((left, right) =>
+          (assetNameById.get(left) ?? left).localeCompare(assetNameById.get(right) ?? right)
+        )
+      },
+      {
+        key: "relatedAsset",
+        label: "Related Asset",
+        values: uniqueSorted(filteredRows.map((row) => row.relatedAssetId ?? "").filter(Boolean)).sort((left, right) =>
+          (relatedAssetNameById.get(left) ?? left).localeCompare(relatedAssetNameById.get(right) ?? right)
+        )
+      },
+      {
+        key: "relatedSystem",
+        label: "Related ICT System",
+        values: uniqueSorted(filteredRows.map((row) => row.relatedSystemName ?? "").filter(Boolean))
+      }
+    ];
+  }
   const findingRows = filteredRows.filter(rowHasFindingPath);
   return [
     ...(includeNetworkAxis
@@ -344,10 +423,18 @@ function virtualYForValue(
   return top + (valueIndex * innerHeight) / (axis.values.length - 1);
 }
 
-function rowPathAxisKeys(row: ImpactAnalyser2Row, includeNetworkAxis: boolean): string[] {
+function rowPathAxisKeys(
+  row: ImpactAnalyser2Row,
+  includeNetworkAxis: boolean,
+  diagramMode: ImpactAnalyser2DiagramMode
+): string[] {
   const keys: string[] = [];
   if (includeNetworkAxis) {
     keys.push("network");
+  }
+  if (diagramMode === "ci") {
+    keys.push("system", "environment", "asset", "relatedAsset", "relatedSystem");
+    return keys;
   }
   if (!includeNetworkAxis || row.hasIctSystem) {
     keys.push("system", "environment");
@@ -364,6 +451,7 @@ function buildLineBuffers(params: {
   axes: ImpactAnalyser2Axis[];
   axisMaps: Array<Map<string, number>>;
   includeNetworkAxis: boolean;
+  diagramMode: ImpactAnalyser2DiagramMode;
   width: number;
   left: number;
   right: number;
@@ -373,7 +461,7 @@ function buildLineBuffers(params: {
 }) {
   const axisIndexByKey = new Map(params.axes.map((axis, index) => [axis.key, index]));
   const drawableRows = params.rows
-    .map((row) => ({ row, pathKeys: rowPathAxisKeys(row, params.includeNetworkAxis) }))
+    .map((row) => ({ row, pathKeys: rowPathAxisKeys(row, params.includeNetworkAxis, params.diagramMode) }))
     .filter(({ pathKeys }) => pathKeys.length > 1);
   const segmentCount = drawableRows.reduce((total, { pathKeys }) => total + Math.max(0, pathKeys.length - 1), 0);
   const positions = new Float32Array(segmentCount * 2 * 3);
@@ -441,7 +529,8 @@ function buildSearchOptions(
   normalizedSearch: string,
   limit: number,
   assetSearchCategory: string,
-  includeNetworkAxis: boolean
+  includeNetworkAxis: boolean,
+  diagramMode: ImpactAnalyser2DiagramMode
 ): ImpactAnalyser2SearchOption[] {
   const options = new Map<string, ImpactAnalyser2SearchOption>();
   for (const row of rows) {
@@ -453,6 +542,28 @@ function buildSearchOptions(
       addSearchOption(options, "Environment", row.environmentType ?? "Unassigned", row.environmentType ?? "Unassigned", normalizedSearch, limit);
     }
     addSearchOption(options, assetSearchCategory, row.assetName || row.assetHostname || row.assetId, row.assetId, normalizedSearch, limit);
+    if (diagramMode === "ci") {
+      addSearchOption(
+        options,
+        "Related Asset",
+        row.relatedAssetName || row.relatedAssetHostname || row.relatedAssetId || "",
+        row.relatedAssetId ?? "",
+        normalizedSearch,
+        limit
+      );
+      addSearchOption(
+        options,
+        "Related ICT System",
+        row.relatedSystemName ?? "",
+        row.relatedSystemName ?? "",
+        normalizedSearch,
+        limit
+      );
+      if (options.size >= limit) {
+        break;
+      }
+      continue;
+    }
     addSearchOption(options, "Asset Type", row.assetType, row.assetType, normalizedSearch, limit);
     if (row.severity) {
       addSearchOption(options, "Finding Severity", row.severity, row.severity, normalizedSearch, limit);
@@ -474,7 +585,7 @@ function buildSearchOptions(
 function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>) {
   const filteredRows = filterRows(sourceRows, request.filters);
   const normalizedSearch = request.filters.search.trim().toLowerCase();
-  const axes = buildAxes(filteredRows, request.layout.includeNetworkAxis);
+  const axes = buildAxes(filteredRows, request.layout.includeNetworkAxis, request.layout.diagramMode);
   const assetAxis = axes.find((axis) => axis.key === "asset");
   if (assetAxis) {
     assetAxis.label = request.layout.assetAxisLabel;
@@ -490,6 +601,7 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
     axes,
     axisMaps,
     includeNetworkAxis: request.layout.includeNetworkAxis,
+    diagramMode: request.layout.diagramMode,
     width: request.layout.width,
     left: request.layout.left,
     right: request.layout.right,
@@ -502,6 +614,7 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
     axes,
     axisMaps,
     includeNetworkAxis: request.layout.includeNetworkAxis,
+    diagramMode: request.layout.diagramMode,
     width: request.layout.width,
     left: request.layout.left,
     right: request.layout.right,
@@ -523,7 +636,8 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
     normalizedSearch,
     request.searchOptionLimit,
     request.layout.assetSearchCategory,
-    request.layout.includeNetworkAxis
+    request.layout.includeNetworkAxis,
+    request.layout.diagramMode
   );
   const filteredFindingRowCount = filteredRows.filter(rowHasFindingPath).length;
   const filteredAssetCount = new Set(filteredRows.map((row) => row.assetId)).size;

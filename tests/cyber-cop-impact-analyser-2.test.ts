@@ -2,6 +2,11 @@ import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import {
+  buildCiAnalyserRowsFromScope,
+  buildCiFlowAssetScope,
+  NON_MODELLED_RELATED_SYSTEM_LABEL
+} from "@/lib/ci-flow-analyser";
+import {
   buildCyberCopImpactAnalyserFindingRows,
   buildCyberCopImpactAnalyserRows,
   buildNetworkImpactAnalyserModelAssetIds,
@@ -11,6 +16,7 @@ import {
   filterCyberCopImpactAnalyserRows,
   type CyberCopImpactAnalyserRow
 } from "@/lib/cyber-cop-impact-analyser";
+import type { TopologyCiDependency, TopologyCiNode } from "@/lib/network-topology";
 import { Asset, Finding, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 function readRepoFile(relativePath: string): string {
@@ -140,6 +146,168 @@ const findings: Finding[] = [
     recommendedAction: "No action"
   }
 ];
+
+describe("CI Flow analyser helpers", () => {
+  const ciNodes: TopologyCiNode[] = [
+    {
+      id: "asset-root",
+      name: "Root Asset",
+      hostname: "root.example.test",
+      ipAddress: "10.0.0.10",
+      type: "server",
+      networkId: "network-1",
+      environmentType: "Production",
+      systemId: "system-root",
+      systemName: "Root System",
+      systemModelled: true
+    },
+    {
+      id: "asset-flow",
+      name: "Flow Asset",
+      hostname: "flow.example.test",
+      ipAddress: "10.0.0.11",
+      type: "workstation",
+      networkId: "network-1",
+      environmentType: "Production",
+      systemId: "system-flow",
+      systemName: "Flow System",
+      systemModelled: true
+    },
+    {
+      id: "asset-logical",
+      name: "Logical Asset",
+      hostname: "logical.example.test",
+      ipAddress: "10.0.0.12",
+      type: "network-device",
+      networkId: "network-2",
+      environmentType: "UAT",
+      systemId: "system-logical",
+      systemName: "Logical System",
+      systemModelled: true
+    },
+    {
+      id: "asset-unmodelled-a",
+      name: "Unmodelled A",
+      hostname: "unmodelled-a.example.test",
+      ipAddress: "10.0.0.13",
+      type: "printer-device",
+      networkId: "network-1",
+      environmentType: null,
+      systemId: null,
+      systemName: null,
+      systemModelled: false
+    },
+    {
+      id: "asset-unmodelled-b",
+      name: "Unmodelled B",
+      hostname: "unmodelled-b.example.test",
+      ipAddress: "10.0.0.14",
+      type: "storage-device",
+      networkId: "network-1",
+      environmentType: null,
+      systemId: null,
+      systemName: null,
+      systemModelled: false
+    }
+  ];
+  const ciDependencies: TopologyCiDependency[] = [
+    {
+      id: "flow-root-flow",
+      sourceAssetId: "asset-root",
+      targetAssetId: "asset-flow",
+      dependencyType: "Flow Dependency"
+    },
+    {
+      id: "logical-root-logical",
+      sourceAssetId: "asset-root",
+      targetAssetId: "asset-logical",
+      dependencyType: "Logical Dependency"
+    },
+    {
+      id: "flow-root-unmodelled-a",
+      sourceAssetId: "asset-root",
+      targetAssetId: "asset-unmodelled-a",
+      dependencyType: "Flow Dependency"
+    },
+    {
+      id: "flow-flow-unmodelled-b",
+      sourceAssetId: "asset-flow",
+      targetAssetId: "asset-unmodelled-b",
+      dependencyType: "Flow Dependency"
+    }
+  ];
+  const allAssetTypes = ["server", "workstation", "network-device", "storage-device", "printer-device", "other"] as const;
+  const networkNameById = new Map([
+    ["network-1", "Core Network"],
+    ["network-2", "Edge Network"]
+  ]);
+
+  it("builds CI analyser rows from the same visible CI flow scope", () => {
+    const scope = buildCiFlowAssetScope({
+      rootAssetId: "asset-root",
+      ciNodes,
+      ciDependencies,
+      includedAssetTypes: allAssetTypes,
+      includedDependencyTypes: ["Flow Dependency", "Logical Dependency"],
+      maxRelatedNodes: 110
+    });
+    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById });
+
+    expect(new Set(rows.map((row) => row.assetId))).toEqual(new Set(["asset-root"]));
+    expect(rows.map((row) => row.relatedAssetId).sort()).toEqual(
+      scope.visibleAssetIds.filter((assetId) => assetId !== "asset-root").sort()
+    );
+    expect(rows.map((row) => row.relatedSystemName)).toContain(NON_MODELLED_RELATED_SYSTEM_LABEL);
+  });
+
+  it("uses relationship type toggles for CI flow scope and analyser rows", () => {
+    const flowOnlyScope = buildCiFlowAssetScope({
+      rootAssetId: "asset-root",
+      ciNodes,
+      ciDependencies,
+      includedAssetTypes: allAssetTypes,
+      includedDependencyTypes: ["Flow Dependency"],
+      maxRelatedNodes: 110
+    });
+    const logicalOnlyScope = buildCiFlowAssetScope({
+      rootAssetId: "asset-root",
+      ciNodes,
+      ciDependencies,
+      includedAssetTypes: allAssetTypes,
+      includedDependencyTypes: ["Logical Dependency"],
+      maxRelatedNodes: 110
+    });
+
+    expect(
+      buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope: flowOnlyScope, networkNameById })
+        .map((row) => row.relatedAssetId)
+        .sort()
+    ).toEqual(["asset-flow", "asset-unmodelled-a", "asset-unmodelled-b"]);
+    expect(
+      buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope: logicalOnlyScope, networkNameById }).map(
+        (row) => row.relatedAssetId
+      )
+    ).toEqual(["asset-logical"]);
+  });
+
+  it("collapses all unmodelled related assets under one related ICT system value", () => {
+    const scope = buildCiFlowAssetScope({
+      rootAssetId: "asset-root",
+      ciNodes,
+      ciDependencies,
+      includedAssetTypes: allAssetTypes,
+      includedDependencyTypes: ["Flow Dependency"],
+      maxRelatedNodes: 110
+    });
+    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById });
+    const unmodelledSystemValues = rows
+      .filter((row) => row.relatedSystemId === null)
+      .map((row) => row.relatedSystemName);
+
+    expect(unmodelledSystemValues).toHaveLength(2);
+    expect(new Set(unmodelledSystemValues)).toEqual(new Set([NON_MODELLED_RELATED_SYSTEM_LABEL]));
+  });
+});
 
 describe("Cyber COP ICT System Impact Analyser helpers", () => {
   it("builds compact rows from open server findings with the required axis fields", () => {
@@ -643,6 +811,12 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("showAssetTypeFilter");
     expect(detailedTopology).toContain("showSelectedTileText");
     expect(detailedTopology).toContain("onAssetFocus={openCiFlowFocusForAssetId}");
+    expect(detailedTopology).toContain("const CI_ASSET_TYPES: CiAssetType[] = [...ASSET_TYPES]");
+    expect(detailedTopology).toContain('item.entityType === "ci" && item.ciAssetId === assetId');
+    expect(detailedTopology).toContain('title="CI Analyser"');
+    expect(detailedTopology).toContain('diagramMode="ci"');
+    expect(detailedTopology).toContain("CI_FLOW_RELATIONSHIP_TYPES.map");
+    expect(detailedTopology).not.toContain("Linked Models");
   });
 
   it("keeps V2 worker-side filtering and Canvas/WebGL rendering markers", () => {
@@ -680,6 +854,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("selectedFindingCriticalities");
     expect(component).toContain("includeNetworkAxis?: boolean");
     expect(component).toContain("includeNetworkAxis = false");
+    expect(component).toContain('diagramMode = "risk"');
+    expect(component).toContain('diagramMode?: ImpactAnalyser2DiagramMode');
+    expect(component).toContain("sourceRows?: ImpactAnalyser2Row[]");
     expect(component).toContain("Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}");
     expect(component).toContain("onAssetFocus?: (assetId: string) => void");
     expect(component).toContain('axis.key === "asset"');

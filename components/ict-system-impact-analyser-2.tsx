@@ -12,8 +12,9 @@ import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@
 
 type ImpactAnalyser2EnvironmentOption = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
 type ImpactAnalyser2FindingCriticalityOption = FindingSeverity;
+type ImpactAnalyser2DiagramMode = "risk" | "ci";
 
-interface ImpactAnalyser2Row {
+export interface ImpactAnalyser2Row {
   findingId: string | null;
   systemId: string | null;
   systemName: string;
@@ -34,6 +35,13 @@ interface ImpactAnalyser2Row {
   spiId: number | null;
   spiLabel: string;
   hasOpenFinding: boolean;
+  relatedAssetId?: string;
+  relatedAssetName?: string;
+  relatedAssetHostname?: string;
+  relatedAssetType?: AssetType;
+  relatedAssetIpAddress?: string;
+  relatedSystemId?: string | null;
+  relatedSystemName?: string;
 }
 
 interface ImpactAnalyser2Axis {
@@ -360,6 +368,8 @@ export function IctSystemImpactAnalyser2Chart({
   systemScopeIds,
   dataPath = "/api/cyber-cop/impact-analyser-2",
   findingsPath = "/api/cyber-cop/impact-analyser-2/findings",
+  sourceRows: providedRows,
+  diagramMode = "risk",
   title = "ICT System Impact Analyser Diagram",
   headingTooltip = "Scalable Canvas/WebGL analyser for open server findings across ICT system, environment, server, severity, and SPI.",
   assetAxisLabel = "Server",
@@ -374,6 +384,8 @@ export function IctSystemImpactAnalyser2Chart({
   systemScopeIds?: string[];
   dataPath?: string;
   findingsPath?: string;
+  sourceRows?: ImpactAnalyser2Row[];
+  diagramMode?: ImpactAnalyser2DiagramMode;
   title?: string;
   headingTooltip?: string;
   assetAxisLabel?: string;
@@ -434,6 +446,7 @@ export function IctSystemImpactAnalyser2Chart({
   const selectedSecurityDomainKey = joinMultiFilterParam(selectedSecurityDomains);
   const selectedAssetTypeKey = joinMultiFilterParam(selectedAssetTypes);
   const selectedFindingCriticalityKey = joinMultiFilterParam(selectedFindingCriticalities);
+  const isCiDiagramMode = diagramMode === "ci";
 
   const spiCounts = useMemo(() => new Map(workerResult?.spiCounts ?? []), [workerResult?.spiCounts]);
   const spiDefinitionById = useMemo(
@@ -443,16 +456,27 @@ export function IctSystemImpactAnalyser2Chart({
   const isDiagramInitialLoading = loadState === "idle" || loadState === "loading" || !workerReady || !workerResult;
   const displayedSeverities = useMemo(
     () =>
-      severityOrder.filter((severity) =>
-        workerResult?.axes.some((axis) => axis.key === "severity" && axis.values.includes(severity))
-      ),
-    [workerResult?.axes]
+      isCiDiagramMode
+        ? []
+        : severityOrder.filter((severity) =>
+            workerResult?.axes.some((axis) => axis.key === "severity" && axis.values.includes(severity))
+          ),
+    [isCiDiagramMode, workerResult?.axes]
   );
   const assetMetaById = useMemo(() => {
     const map = new Map<string, ImpactAnalyser2Row>();
     for (const row of sourceRows) {
       if (!map.has(row.assetId)) {
         map.set(row.assetId, row);
+      }
+    }
+    return map;
+  }, [sourceRows]);
+  const relatedAssetMetaById = useMemo(() => {
+    const map = new Map<string, ImpactAnalyser2Row>();
+    for (const row of sourceRows) {
+      if (row.relatedAssetId && !map.has(row.relatedAssetId)) {
+        map.set(row.relatedAssetId, row);
       }
     }
     return map;
@@ -466,7 +490,12 @@ export function IctSystemImpactAnalyser2Chart({
         `IP Address: ${selectedAssetMeta.assetIpAddress}`,
         `Environment: ${selectedAssetMeta.environmentType ?? "Unassigned"}`,
         `ICT System: ${selectedAssetMeta.hasIctSystem ? selectedAssetMeta.systemName : "Not linked to ICT system"}`,
-        `Security Domain: ${selectedAssetMeta.securityDomain}`,
+        ...(isCiDiagramMode
+          ? [
+              `Related Asset: ${selectedAssetMeta.relatedAssetName ?? selectedAssetMeta.relatedAssetHostname ?? selectedAssetMeta.relatedAssetId ?? "N/A"}`,
+              `Related ICT System: ${selectedAssetMeta.relatedSystemName ?? "N/A"}`
+            ]
+          : [`Security Domain: ${selectedAssetMeta.securityDomain}`]),
         `Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}`
       ].join("\n")
     : null;
@@ -476,12 +505,19 @@ export function IctSystemImpactAnalyser2Chart({
         const asset = assetMetaById.get(value);
         return asset?.assetName || asset?.assetHostname || value;
       }
+      if (axisKey === "relatedAsset") {
+        const asset = relatedAssetMetaById.get(value);
+        return asset?.relatedAssetName || asset?.relatedAssetHostname || value;
+      }
+      if (axisKey === "relatedSystem") {
+        return value;
+      }
       if (axisKey === "assetType") {
         return assetShapeLabel(value);
       }
       return value;
     },
-    [assetMetaById]
+    [assetMetaById, relatedAssetMetaById]
   );
   const reconcileDiagramViewport = useCallback((mode: "reset" | "clamp", virtualHeight?: number) => {
     const viewport = viewportRef.current;
@@ -651,6 +687,15 @@ export function IctSystemImpactAnalyser2Chart({
       setLoadState("loading");
       setLoadError(null);
       try {
+        if (providedRows) {
+          if (isCancelled) {
+            return;
+          }
+          setSourceRows(providedRows);
+          workerRef.current?.postMessage({ type: "init", rows: providedRows });
+          setLoadState("ready");
+          return;
+        }
         const response = await fetch(buildApiUrl(dataPath), { cache: "no-store" });
         if (!response.ok) {
           throw new Error(`Request failed with ${response.status}`);
@@ -675,7 +720,7 @@ export function IctSystemImpactAnalyser2Chart({
     return () => {
       isCancelled = true;
     };
-  }, [dataPath]);
+  }, [dataPath, providedRows]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -718,6 +763,7 @@ export function IctSystemImpactAnalyser2Chart({
         assetAxisLabel,
         assetSearchCategory,
         includeNetworkAxis,
+        diagramMode,
         width: viewportSize.width,
         left: chartLayout.left,
         right: chartLayout.right,
@@ -741,7 +787,8 @@ export function IctSystemImpactAnalyser2Chart({
     workerReady,
     assetAxisLabel,
     assetSearchCategory,
-    includeNetworkAxis
+    includeNetworkAxis,
+    diagramMode
   ]);
 
   useEffect(() => {
@@ -973,7 +1020,7 @@ export function IctSystemImpactAnalyser2Chart({
           context.font = `${isSelected ? "600" : "500"} 10px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
           context.fillText(truncateAxisLabel(displayNodeLabel(axis.key, value)), x, y + 22);
 
-          if (isSelected && axis.key === "spi") {
+          if (!isCiDiagramMode && isSelected && axis.key === "spi") {
             context.beginPath();
             context.arc(x + 13, y - 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1013,7 +1060,7 @@ export function IctSystemImpactAnalyser2Chart({
         overlayAnimationFrameRef.current = window.requestAnimationFrame(drawOverlay);
       }
     },
-    [assetMetaById, displayNodeLabel, onAssetFocus]
+    [assetMetaById, displayNodeLabel, isCiDiagramMode, onAssetFocus]
   );
 
   useEffect(() => {
@@ -1066,7 +1113,7 @@ export function IctSystemImpactAnalyser2Chart({
           const distance = Math.hypot(x - axisPixelX, virtualY - nodeY);
           const plusDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY - 13));
           const isSelectedActionBadge =
-            (axis.key === "spi" || (axis.key === "asset" && Boolean(onAssetFocus))) &&
+            ((!isCiDiagramMode && axis.key === "spi") || (axis.key === "asset" && Boolean(onAssetFocus))) &&
             isSelectedNode(selectedNodeRef.current, axis.key, value) &&
             plusDistance <= 11;
           if (isSelectedActionBadge) {
@@ -1082,7 +1129,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       return bestMatch;
     },
-    [onAssetFocus]
+    [isCiDiagramMode, onAssetFocus]
   );
 
   const openSpiDrillThrough = useCallback(
@@ -1134,7 +1181,7 @@ export function IctSystemImpactAnalyser2Chart({
         setSelectedNode(null);
         return;
       }
-      if (hit.action === "spi-findings") {
+      if (!isCiDiagramMode && hit.action === "spi-findings") {
         const spiId = spiIdFromNodeValue(hit.node.value);
         if (spiId) {
           void openSpiDrillThrough(spiId);
@@ -1147,7 +1194,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       setSelectedNode((current) => (selectedNodeEquals(current, hit.node) ? null : hit.node));
     },
-    [findNodeAtPoint, onAssetFocus, openSpiDrillThrough]
+    [findNodeAtPoint, isCiDiagramMode, onAssetFocus, openSpiDrillThrough]
   );
 
   const handleOverlayPointerMove = useCallback(
@@ -1166,16 +1213,18 @@ export function IctSystemImpactAnalyser2Chart({
             ? `Open findings for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
             : hit.action === "asset-focus"
               ? `Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
-              : nodeHoverTitle(
-                  hit.node.axisKey,
-                  displayNodeLabel(hit.node.axisKey, hit.node.value),
-                  spiCounts,
-                  spiDefinitionById
-                ),
+              : isCiDiagramMode
+                ? displayNodeLabel(hit.node.axisKey, hit.node.value)
+                : nodeHoverTitle(
+                    hit.node.axisKey,
+                    displayNodeLabel(hit.node.axisKey, hit.node.value),
+                    spiCounts,
+                    spiDefinitionById
+                  ),
         placement: hit.action !== "none" ? "left" : "default"
       });
     },
-    [displayNodeLabel, findNodeAtPoint, spiCounts, spiDefinitionById]
+    [displayNodeLabel, findNodeAtPoint, isCiDiagramMode, spiCounts, spiDefinitionById]
   );
 
   const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
@@ -1338,28 +1387,32 @@ export function IctSystemImpactAnalyser2Chart({
                 widthClassName="w-40"
               />
             ) : null}
-            <MultiSelectFilter
-              label="Findings Severity"
-              options={findingCriticalityFilterOptions}
-              selectedValues={selectedFindingCriticalities}
-              onChange={(values) => {
-                setSelectedFindingCriticalities(values);
-                resetDiagramViewportForFilterChange();
-              }}
-              formatOption={(severity) => severity}
-              widthClassName="w-36"
-            />
-            <MultiSelectFilter
-              label="Security Domain"
-              options={securityDomainOptions}
-              selectedValues={selectedSecurityDomains}
-              onChange={(values) => {
-                setSelectedSecurityDomains(values);
-                resetDiagramViewportForFilterChange();
-              }}
-              formatOption={(domain) => domain}
-              widthClassName="w-44"
-            />
+            {!isCiDiagramMode ? (
+              <>
+                <MultiSelectFilter
+                  label="Findings Severity"
+                  options={findingCriticalityFilterOptions}
+                  selectedValues={selectedFindingCriticalities}
+                  onChange={(values) => {
+                    setSelectedFindingCriticalities(values);
+                    resetDiagramViewportForFilterChange();
+                  }}
+                  formatOption={(severity) => severity}
+                  widthClassName="w-36"
+                />
+                <MultiSelectFilter
+                  label="Security Domain"
+                  options={securityDomainOptions}
+                  selectedValues={selectedSecurityDomains}
+                  onChange={(values) => {
+                    setSelectedSecurityDomains(values);
+                    resetDiagramViewportForFilterChange();
+                  }}
+                  formatOption={(domain) => domain}
+                  widthClassName="w-44"
+                />
+              </>
+            ) : null}
           </div>
         </div>
 
@@ -1368,6 +1421,12 @@ export function IctSystemImpactAnalyser2Chart({
             <p className="text-[11px] text-slate-300/75">
               {loadState === "loading" || !workerResult
                 ? "Loading analyser data..."
+                : isCiDiagramMode
+                  ? `${workerResult.filteredRowCount} CI relationship path${
+                      workerResult.filteredRowCount === 1 ? "" : "s"
+                    } from selected asset${
+                      selectedNode ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(selectedNode.axisKey, selectedNode.value)}` : ""
+                    }`
                 : showAssetTypeFilter
                   ? `${workerResult.filteredFindingRowCount} finding paths across ${workerResult.filteredAssetCount} assets${
                       selectedNode ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(selectedNode.axisKey, selectedNode.value)}` : ""
@@ -1392,7 +1451,9 @@ export function IctSystemImpactAnalyser2Chart({
           >
             {workerResult && workerResult.filteredRowCount === 0 ? (
               <p className="m-3 rounded-md border border-sky-300/15 bg-slate-900/55 px-3 py-2 text-xs text-slate-300/80">
-                No ICT System Impact Analyser findings match the selected filters.
+                {isCiDiagramMode
+                  ? "No CI relationship paths match the selected filters."
+                  : "No ICT System Impact Analyser findings match the selected filters."}
               </p>
             ) : (
               <div style={{ height: workerResult?.virtualHeight ?? chartLayout.minHeight }}>
@@ -1453,7 +1514,7 @@ export function IctSystemImpactAnalyser2Chart({
                       message="Building the ICT System Impact Analyser paths and node index."
                     />
                   ) : null}
-                  {isDrillThroughLoading ? (
+                  {!isCiDiagramMode && isDrillThroughLoading ? (
                     <ImpactAnalyserLoadingOverlay
                       title="Loading Risk Detail"
                       message="Preparing selected SPI findings for the Risk Detail slide-out."
@@ -1471,7 +1532,7 @@ export function IctSystemImpactAnalyser2Chart({
         </div>
       </section>
 
-      {drillThroughData ? (
+      {!isCiDiagramMode && drillThroughData ? (
         <RiskFindingsDrillThrough
           selection={{
             id: `ict-system-impact-analyser-spi-${drillThroughData.selectedSpiId}`,
