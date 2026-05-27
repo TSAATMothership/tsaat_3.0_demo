@@ -6310,28 +6310,32 @@ export function DetailedTopologyView({
     <article
       data-ci-focus-tile={tile.id}
       className={`select-none border-2 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)] ${
-        variant === "selected" ? "rounded-3xl px-4 py-3" : "rounded-2xl px-3 py-2.5"
+        variant === "selected" ? "rounded-3xl px-4 py-3" : "rounded-xl px-2.5 py-1.5"
       } ${tile.placeholder ? "border-dashed opacity-85" : ""}`}
       style={{
         borderColor: tile.borderColor,
         backgroundColor: detailedTileColor(tile.entityType)
       }}
     >
-      <div className="space-y-0.5">
-        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-800">{tile.typeLabel}</p>
-        <p className={`${variant === "selected" ? "text-sm" : "text-[13px]"} font-semibold leading-snug text-slate-900`}>
+      <div className="min-w-0 space-y-0.5">
+        <p className={`${variant === "selected" ? "text-xs" : "text-[10px]"} font-semibold uppercase tracking-[0.1em] text-slate-800`}>
+          {tile.typeLabel}
+        </p>
+        <p className={`${variant === "selected" ? "text-sm" : "text-xs"} truncate font-semibold leading-snug text-slate-900`}>
           {tile.name}
         </p>
-        <p className="text-xs font-medium leading-snug text-slate-800">{tile.subtitle}</p>
+        <p className={`${variant === "selected" ? "text-xs" : "text-[11px]"} truncate font-medium leading-snug text-slate-800`}>
+          {tile.subtitle}
+        </p>
       </div>
-      <div className={`${variant === "selected" ? "mt-3 h-3" : "mt-2.5 h-2.5"} w-full overflow-hidden rounded-sm bg-slate-300/95`}>
+      <div className={`${variant === "selected" ? "mt-3 h-3" : "mt-1.5 h-2"} w-full overflow-hidden rounded-sm bg-slate-300/95`}>
         <div className="flex h-full w-full">
           <div className="h-full bg-emerald-600" style={{ width: `${tile.percentages.compliant}%` }} />
           <div className="h-full bg-red-500" style={{ width: `${tile.percentages.nonCompliant}%` }} />
           <div className="h-full bg-slate-400" style={{ width: `${tile.percentages.other}%` }} />
         </div>
       </div>
-      <p className={`${variant === "selected" ? "mt-2 text-base" : "mt-1.5 text-xs"} text-center font-medium text-slate-900`}>
+      <p className={`${variant === "selected" ? "mt-2 text-base" : "mt-1 text-[11px]"} text-center font-medium text-slate-900`}>
         {tile.percentages.compliant}% C | {tile.percentages.nonCompliant}% NC | {tile.percentages.other}% O
       </p>
     </article>
@@ -7388,7 +7392,7 @@ export function DetailedTopologyView({
                         />
                         <div className="relative z-10 flex shrink-0 flex-col gap-5" data-ci-focus-context-rows>
                           {ciFocusContextRows.map((row) => (
-                            <div key={row.id} className="flex min-h-[5.75rem] min-w-0 gap-2" data-ci-focus-row={row.label}>
+                            <div key={row.id} className="flex min-h-[4.5rem] min-w-0 gap-2" data-ci-focus-row={row.label}>
                               <div className="flex w-8 shrink-0 items-center justify-center rounded-lg border border-sky-400/20 bg-slate-900/70">
                                 <span className="-rotate-90 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-100">
                                   {row.label}
