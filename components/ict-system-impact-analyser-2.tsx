@@ -40,6 +40,10 @@ export interface ImpactAnalyser2Row {
   relatedAssetHostname?: string;
   relatedAssetType?: AssetType;
   relatedAssetIpAddress?: string;
+  relatedAssetEnvironmentType?: ImpactAnalyser2EnvironmentOption | null;
+  relatedAssetNetworkId?: string;
+  relatedAssetNetworkName?: string;
+  relatedAssetHasIctSystem?: boolean;
   relatedSystemId?: string | null;
   relatedSystemName?: string;
 }
@@ -363,6 +367,46 @@ function ImpactAnalyserLoadingOverlay({
   );
 }
 
+function SelectedAssetPanel({
+  title,
+  text,
+  placement,
+  copyFeedback,
+  onCopy
+}: {
+  title: string;
+  text: string;
+  placement: "bottom-left" | "top-right";
+  copyFeedback: "idle" | "copied" | "failed";
+  onCopy: () => void;
+}) {
+  const placementClass = placement === "bottom-left" ? "bottom-3 left-3" : "right-3 top-3";
+  return (
+    <section
+      className={`pointer-events-auto absolute ${placementClass} z-20 w-[22rem] rounded-2xl border border-sky-300/35 bg-slate-950/92 p-3 text-slate-100 shadow-[0_12px_28px_rgba(0,0,0,0.45)]`}
+    >
+      <p className="text-[11px] uppercase tracking-[0.12em] text-sky-100">{title}</p>
+      <pre className="mt-2 select-text whitespace-pre-wrap break-words rounded-md border border-slate-700/70 bg-slate-900/70 p-2 text-xs leading-5 text-slate-100">
+        {text}
+      </pre>
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onCopy}
+          className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/24"
+        >
+          Copy Text
+        </button>
+        {copyFeedback === "copied" ? (
+          <span className="text-xs text-emerald-200">Copied</span>
+        ) : copyFeedback === "failed" ? (
+          <span className="text-xs text-red-200">Copy failed</span>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 export function IctSystemImpactAnalyser2Chart({
   embedded = false,
   systemScopeIds,
@@ -514,12 +558,7 @@ export function IctSystemImpactAnalyser2Chart({
         `IP Address: ${selectedAssetMeta.assetIpAddress}`,
         `Environment: ${selectedAssetMeta.environmentType ?? "Unassigned"}`,
         `ICT System: ${selectedAssetMeta.hasIctSystem ? selectedAssetMeta.systemName : "Not linked to ICT system"}`,
-        ...(isCiDiagramMode
-          ? [
-              `Related Asset: ${selectedAssetMeta.relatedAssetName ?? selectedAssetMeta.relatedAssetHostname ?? selectedAssetMeta.relatedAssetId ?? "N/A"}`,
-              `Related ICT System: ${selectedAssetMeta.relatedSystemName ?? "N/A"}`
-            ]
-          : [`Security Domain: ${selectedAssetMeta.securityDomain}`]),
+        ...(!isCiDiagramMode ? [`Security Domain: ${selectedAssetMeta.securityDomain}`] : []),
         `Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}`
       ].join("\n")
     : null;
@@ -540,6 +579,18 @@ export function IctSystemImpactAnalyser2Chart({
         return assetShapeLabel(value);
       }
       return value;
+    },
+    [assetMetaById, relatedAssetMetaById]
+  );
+  const assetShapeTypeForNode = useCallback(
+    (axisKey: string, value: string): AssetType | null => {
+      if (axisKey === "asset") {
+        return assetMetaById.get(value)?.assetType ?? "other";
+      }
+      if (axisKey === "relatedAsset") {
+        return relatedAssetMetaById.get(value)?.relatedAssetType ?? "other";
+      }
+      return null;
     },
     [assetMetaById, relatedAssetMetaById]
   );
@@ -756,7 +807,7 @@ export function IctSystemImpactAnalyser2Chart({
             return;
           }
           setSourceRows(providedRows);
-          workerRef.current?.postMessage({ type: "init", rows: providedRows });
+          workerRef.current?.postMessage({ type: "init", rows: providedRows, diagramMode });
           setLoadState("ready");
           return;
         }
@@ -769,7 +820,7 @@ export function IctSystemImpactAnalyser2Chart({
           return;
         }
         setSourceRows(payload.rows);
-        workerRef.current?.postMessage({ type: "init", rows: payload.rows });
+        workerRef.current?.postMessage({ type: "init", rows: payload.rows, diagramMode });
         setLoadState("ready");
       } catch (error) {
         if (isCancelled) {
@@ -784,7 +835,7 @@ export function IctSystemImpactAnalyser2Chart({
     return () => {
       isCancelled = true;
     };
-  }, [dataPath, providedRows]);
+  }, [dataPath, diagramMode, providedRows]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -960,7 +1011,7 @@ export function IctSystemImpactAnalyser2Chart({
   }, []);
 
   const drawOverlay = useCallback(
-    (timestamp: number) => {
+    () => {
       const canvas = overlayCanvasRef.current;
       const result = workerResultRef.current;
       const size = viewportSizeRef.current;
@@ -988,15 +1039,11 @@ export function IctSystemImpactAnalyser2Chart({
       const currentScrollTop = scrollTopRef.current;
 
       if (result.highlightPositions.length) {
-        const pulse = 0.65 + Math.sin(timestamp / 180) * 0.25;
         context.save();
-        context.shadowBlur = 12;
-        context.shadowColor = "rgba(103, 232, 249, 0.85)";
         context.lineCap = "round";
         context.lineJoin = "round";
-        context.globalAlpha = 0.75 + pulse * 0.25;
-        context.strokeStyle = "rgba(103, 232, 249, 0.9)";
-        context.lineWidth = 2.2 + pulse * 2.2;
+        context.strokeStyle = "#38bdf8";
+        context.lineWidth = 2.4;
         for (let index = 0; index < result.highlightPositions.length; index += 6) {
           context.beginPath();
           context.moveTo(result.highlightPositions[index], result.highlightPositions[index + 1] - currentScrollTop);
@@ -1041,7 +1088,7 @@ export function IctSystemImpactAnalyser2Chart({
           }
           const isSelected = isSelectedNode(selected, axis.key, value);
           const nodeRadius = isSelected ? 12 : 7;
-          const assetType = axis.key === "asset" ? assetMetaById.get(value)?.assetType ?? "other" : null;
+          const assetType = assetShapeTypeForNode(axis.key, value);
           context.beginPath();
           if (assetType === "workstation") {
             context.moveTo(x, y - nodeRadius);
@@ -1120,11 +1167,8 @@ export function IctSystemImpactAnalyser2Chart({
         }
       });
 
-      if (result.highlightPositions.length) {
-        overlayAnimationFrameRef.current = window.requestAnimationFrame(drawOverlay);
-      }
     },
-    [assetMetaById, displayNodeLabel, isCiDiagramMode, onAssetFocus]
+    [assetShapeTypeForNode, displayNodeLabel, isCiDiagramMode, onAssetFocus]
   );
 
   useEffect(() => {
@@ -1287,7 +1331,7 @@ export function IctSystemImpactAnalyser2Chart({
           hit.action === "spi-findings"
             ? `Open findings for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
             : hit.action === "asset-focus"
-              ? `Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
+              ? `Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
               : isCiDiagramMode
                 ? displayNodeLabel(hit.node.axisKey, hit.node.value)
                 : nodeHoverTitle(
@@ -1569,26 +1613,13 @@ export function IctSystemImpactAnalyser2Chart({
                     </div>
                   ) : null}
                   {showSelectedTileText && selectedAssetTileText ? (
-                    <section className="pointer-events-auto absolute right-3 top-3 z-20 w-[22rem] rounded-2xl border border-sky-300/35 bg-slate-950/92 p-3 text-slate-100 shadow-[0_12px_28px_rgba(0,0,0,0.45)]">
-                      <p className="text-[11px] uppercase tracking-[0.12em] text-sky-100">Selected Tile Text</p>
-                      <pre className="mt-2 select-text whitespace-pre-wrap break-words rounded-md border border-slate-700/70 bg-slate-900/70 p-2 text-xs leading-5 text-slate-100">
-                        {selectedAssetTileText}
-                      </pre>
-                      <div className="mt-2 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={copySelectedAssetTileText}
-                          className="rounded-md border border-cyan-300/45 bg-cyan-500/14 px-2.5 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/24"
-                        >
-                          Copy Text
-                        </button>
-                        {selectedTileCopyFeedback === "copied" ? (
-                          <span className="text-xs text-emerald-200">Copied</span>
-                        ) : selectedTileCopyFeedback === "failed" ? (
-                          <span className="text-xs text-red-200">Copy failed</span>
-                        ) : null}
-                      </div>
-                    </section>
+                    <SelectedAssetPanel
+                      title={isCiDiagramMode ? "Selected Asset" : "Selected Tile Text"}
+                      text={selectedAssetTileText}
+                      placement={isCiDiagramMode ? "bottom-left" : "top-right"}
+                      copyFeedback={selectedTileCopyFeedback}
+                      onCopy={copySelectedAssetTileText}
+                    />
                   ) : null}
                   {isDiagramInitialLoading ? (
                     <ImpactAnalyserLoadingOverlay

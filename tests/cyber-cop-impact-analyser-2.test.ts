@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCiAnalyserRowsFromScope,
   buildCiFlowAssetScope,
+  filterCiAnalyserRowsByModelledState,
   NON_MODELLED_RELATED_SYSTEM_LABEL
 } from "@/lib/ci-flow-analyser";
 import {
@@ -258,6 +259,18 @@ describe("CI Flow analyser helpers", () => {
       scope.visibleAssetIds.filter((assetId) => assetId !== "asset-root").sort()
     );
     expect(rows.map((row) => row.relatedSystemName)).toContain(NON_MODELLED_RELATED_SYSTEM_LABEL);
+    expect(rows.find((row) => row.relatedAssetId === "asset-logical")).toMatchObject({
+      relatedAssetType: "network-device",
+      relatedAssetEnvironmentType: "UAT",
+      relatedAssetNetworkId: "network-2",
+      relatedAssetNetworkName: "Edge Network",
+      relatedAssetHasIctSystem: true
+    });
+    expect(rows.find((row) => row.relatedAssetId === "asset-unmodelled-a")).toMatchObject({
+      relatedAssetType: "printer-device",
+      relatedAssetEnvironmentType: null,
+      relatedAssetHasIctSystem: false
+    });
   });
 
   it("uses relationship type toggles for CI flow scope and analyser rows", () => {
@@ -306,6 +319,29 @@ describe("CI Flow analyser helpers", () => {
 
     expect(unmodelledSystemValues).toHaveLength(2);
     expect(new Set(unmodelledSystemValues)).toEqual(new Set([NON_MODELLED_RELATED_SYSTEM_LABEL]));
+  });
+
+  it("filters CI analyser rows by related asset modelled state", () => {
+    const scope = buildCiFlowAssetScope({
+      rootAssetId: "asset-root",
+      ciNodes,
+      ciDependencies,
+      includedAssetTypes: allAssetTypes,
+      includedDependencyTypes: ["Flow Dependency", "Logical Dependency"],
+      maxRelatedNodes: 110
+    });
+    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById });
+
+    expect(filterCiAnalyserRowsByModelledState(rows, ["modelled"]).map((row) => row.relatedAssetId)).toEqual([
+      "asset-flow",
+      "asset-logical"
+    ]);
+    expect(filterCiAnalyserRowsByModelledState(rows, ["non-modelled"]).map((row) => row.relatedAssetId)).toEqual([
+      "asset-unmodelled-a",
+      "asset-unmodelled-b"
+    ]);
+    expect(filterCiAnalyserRowsByModelledState(rows, ["modelled", "non-modelled"])).toHaveLength(rows.length);
+    expect(filterCiAnalyserRowsByModelledState(rows, [])).toEqual([]);
   });
 });
 
@@ -779,6 +815,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     const findingsRoute = readRepoFile("app/api/networks/[networkId]/impact-analyser/findings/route.ts");
     const systemDataRoute = readRepoFile("app/api/systems/[systemId]/impact-analyser/route.ts");
     const systemFindingsRoute = readRepoFile("app/api/systems/[systemId]/impact-analyser/findings/route.ts");
+    const ciFlowAnalyser = readRepoFile("lib/ci-flow-analyser.ts");
 
     expect(dataRoute).toContain('export const dynamic = "force-dynamic"');
     expect(dataRoute).toContain("buildNetworkTopologyData");
@@ -811,22 +848,84 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("showAssetTypeFilter");
     expect(detailedTopology).toContain("showSelectedTileText");
     expect(detailedTopology).toContain("onAssetFocus={openCiFlowFocusForAssetId}");
+    expect(detailedTopology).toContain("const openCiFlowFocusForAsset = useCallback");
     expect(detailedTopology).toContain("const CI_ASSET_TYPES: CiAssetType[] = [...ASSET_TYPES]");
     expect(detailedTopology).toContain('item.entityType === "ci" && item.ciAssetId === assetId');
+    expect(detailedTopology).toContain("if (!flowCiNodeByAssetId.has(assetId))");
+    expect(detailedTopology).toContain("openCiFlowFocusForAsset(assetId, fallbackOriginCenter)");
+    expect(detailedTopology).toContain("const fallbackOriginCenter = rootNode");
     expect(detailedTopology).toContain('title="CI Analyser"');
     expect(detailedTopology).toContain('diagramMode="ci"');
+    expect(detailedTopology).toContain("includeNetworkAxis={!isSystemImpactAnalyser}\n                      showAssetTypeFilter");
+    expect(detailedTopology).toContain("CI_ANALYSER_MODELLED_FILTER_OPTIONS");
+    expect(detailedTopology).toContain('label: "Show Modelled"');
+    expect(detailedTopology).toContain('label: "Show Non-Modelled"');
+    expect(detailedTopology).toContain("ciAnalyserIncludedModelledStates");
+    expect(detailedTopology).toContain("filterCiAnalyserRowsByModelledState(unfilteredCiAnalyserRows, ciAnalyserIncludedModelledStates)");
+    expect(detailedTopology).toContain("toggleCiAnalyserIncludedModelledState");
+    expect(detailedTopology).toContain("const ciRelatedAssetTypeSummary = useMemo");
+    expect(detailedTopology).toContain("new Map<AssetType, number>");
+    expect(detailedTopology).toContain("row.relatedAssetType");
+    expect(detailedTopology).toContain("assetTypeLabel(assetType)");
+    expect(detailedTopology).toContain("ciRelatedAssetTypeSummaryTotal");
+    expect(ciFlowAnalyser).toContain("relatedAssetHasIctSystem === true");
     expect(detailedTopology).toContain("CI_FLOW_RELATIONSHIP_TYPES.map");
     expect(detailedTopology).toContain("includedAssetTypes: CI_ASSET_TYPES");
     expect(detailedTopology).toContain("const handleCiAnalyserSelectedNodeChange = useCallback");
     expect(detailedTopology).toContain('node.axisKey !== "asset" && node.axisKey !== "relatedAsset"');
+    expect(detailedTopology).toContain("selectedCiAnalyserRelatedAssetId");
+    expect(detailedTopology).toContain("ciAnalyserRows.some((row) => row.relatedAssetId === node.value)");
+    expect(detailedTopology).not.toContain("ciFlowNodeById.has");
     expect(detailedTopology).toContain("onSelectedNodeChange={handleCiAnalyserSelectedNodeChange}");
     expect(detailedTopology).toContain("extraControls={");
     expect(detailedTopology).toContain("ci-focus-analyser-relationship-filter");
+    expect(detailedTopology).toContain("ci-focus-analyser-modelled-filter");
     expect(detailedTopology).toContain("grid-cols-[minmax(15rem,0.55fr)_minmax(0,1.8fr)]");
     expect(detailedTopology).toContain('id="ci-focus-compliance-mode"');
-    expect(detailedTopology).toContain('className="mt-auto shrink-0"');
+    expect(detailedTopology).toContain("interface CiFocusTileModel");
+    expect(detailedTopology).toContain("interface CiFocusContextRow");
+    expect(detailedTopology).toContain(">Tile View</h4>");
+    expect(detailedTopology).toContain("data-ci-focus-tile-view-rows");
+    expect(detailedTopology).toContain("data-ci-focus-context-row-stack");
+    expect(detailedTopology).toContain("data-ci-focus-context-rows");
+    expect(detailedTopology).toContain("data-ci-focus-related-asset-type-summary");
+    expect(detailedTopology).toContain("data-ci-focus-related-asset-type-summary-items");
+    expect(detailedTopology).toContain("Related Assets By Type");
+    expect(detailedTopology).toContain("Current CI Analyser scope");
+    expect(detailedTopology).toContain("No related assets match the current filters.");
+    expect(detailedTopology).toContain('data-ci-focus-row={row.label}');
+    expect(detailedTopology).toContain('label: "Network"');
+    expect(detailedTopology).toContain('label: "ICT System"');
+    expect(detailedTopology).toContain('label: "Environment"');
+    expect(detailedTopology).toContain('label: "Asset"');
+    expect(detailedTopology).toContain('label: "Related Asset"');
+    expect(detailedTopology).toContain('className="-rotate-90 whitespace-nowrap');
+    expect(detailedTopology).toContain("data-ci-focus-vertical-connector");
+    expect(detailedTopology).toContain("className=\"pointer-events-none absolute bottom-8 top-8 z-0 w-px bg-white/75\"");
+    expect(detailedTopology).toContain('style={{ left: "calc(2.5rem + (100% - 2.5rem) / 2)" }}');
+    expect(detailedTopology).toContain("relative flex min-h-0 flex-1 flex-col gap-5");
+    expect(detailedTopology).toContain("relative z-10 flex shrink-0 flex-col gap-5");
+    expect(detailedTopology).toContain("selectedRelatedCiFlowFocusNode");
+    expect(detailedTopology).toContain("selectedCiAnalyserRelatedRow");
+    expect(detailedTopology).toContain("flowCiNodeByAssetId.get(selectedCiAnalyserRelatedRow.relatedAssetId");
+    expect(detailedTopology).toContain("Asset Type: ${assetTypeLabel(selectedRelatedCiFlowFocusNode.type)}");
+    expect(detailedTopology).toContain('"ci-focus-context-related-asset-placeholder"');
+    expect(detailedTopology).toContain('"No Related Asset Selected"');
+    expect(detailedTopology).toContain('"Select a related asset in the CI Analyser"');
+    expect(detailedTopology).toContain("placeholder: true");
+    expect(detailedTopology).toContain('setCiAnalyserSelectedAssetAxis("asset")');
+    expect(detailedTopology).toContain('setCiAnalyserSelectedAssetAxis("relatedAsset")');
+    expect(detailedTopology).toContain("setCiAnalyserSelectedAssetAxis(null)");
+    expect(detailedTopology).not.toContain('ciAnalyserSelectedAssetAxis === "relatedAsset" && ciFocusRelatedAssetTile');
+    expect(detailedTopology).toContain('id: "ci-focus-context-related-asset"');
     expect(detailedTopology).toContain("bg-slate-950/55 p-3");
-    expect(detailedTopology).toContain('className="select-none rounded-3xl border-2 px-4 py-3 text-slate-900');
+    expect(detailedTopology).toContain("renderCiFocusTile(row.tile)");
+    expect(detailedTopology).not.toContain('label: "Selected Asset"');
+    expect(detailedTopology).not.toContain("data-ci-focus-selected-pair");
+    expect(detailedTopology).not.toContain("data-ci-focus-selected-rows");
+    expect(detailedTopology).not.toContain("data-ci-focus-selected-pair-tile={row.label}");
+    expect(detailedTopology).not.toContain('"Select a Related Asset"');
+    expect(detailedTopology).not.toContain('"No related asset selected"');
     expect(detailedTopology).not.toContain("const ciAnalyserExternalSelectedSearchOption");
     expect(detailedTopology).not.toContain("externalSelectedSearchOption={ciAnalyserExternalSelectedSearchOption}");
     expect(detailedTopology).not.toContain("Linked Models");
@@ -839,10 +938,20 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).not.toContain("exportPresentedNonModelledCis");
 
     const ciFocusTileSection = detailedTopology.slice(
-      detailedTopology.indexOf('id="ci-focus-compliance-mode"'),
+      detailedTopology.indexOf(">Tile View</h4>"),
       detailedTopology.indexOf('title="CI Analyser"')
     );
     expect(ciFocusTileSection).toContain("Compliance");
+    expect(ciFocusTileSection).toContain("Tile View");
+    expect(ciFocusTileSection).toContain("data-ci-focus-tile-view-rows");
+    expect(ciFocusTileSection).toContain("data-ci-focus-vertical-connector");
+    expect(ciFocusTileSection).toContain("data-ci-focus-context-row-stack");
+    expect(ciFocusTileSection).toContain("data-ci-focus-context-rows");
+    expect(ciFocusTileSection).toContain("data-ci-focus-related-asset-type-summary");
+    expect(ciFocusTileSection).toContain("Related Assets By Type");
+    expect(ciFocusTileSection).toContain("gap-5");
+    expect(ciFocusTileSection).not.toContain("Selected Asset");
+    expect(ciFocusTileSection).not.toContain("data-ci-focus-selected-pair");
     expect(ciFocusTileSection).not.toContain("Relationships");
     expect(ciFocusTileSection).not.toContain("CI Types");
     expect(ciFocusTileSection).not.toContain("Tile Search");
@@ -865,7 +974,10 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
       detailedTopology.indexOf("/>", ciAnalyserComponentStart)
     );
     expect(ciAnalyserSection).toContain("Relationships");
+    expect(detailedTopology).toContain("Modelled");
+    expect(ciAnalyserSection).toContain("showSelectedTileText");
     expect(ciAnalyserSection).toContain("CI_FLOW_RELATIONSHIP_TYPES.map");
+    expect(ciAnalyserSection).not.toContain("Related Assets By Type");
     expect(ciAnalyserSection).not.toContain("Compliance");
   });
 
@@ -909,6 +1021,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("externalSelectedSearchOption?: ImpactAnalyser2SelectedSearchOption | null");
     expect(component).toContain("onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void");
     expect(component).toContain("extraControls?: ReactNode");
+    expect(component).toContain('workerRef.current?.postMessage({ type: "init", rows: providedRows, diagramMode })');
+    expect(component).toContain('workerRef.current?.postMessage({ type: "init", rows: payload.rows, diagramMode })');
     expect(component).toContain("const activeSelectedSearchOption = selectedSearchOption ?? externalSelectedSearchOption");
     expect(component).toContain("selectedSearchOption: activeSelectedSearchOption");
     expect(component).toContain("selectedNode: activeSelectedNode");
@@ -919,10 +1033,32 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain('diagramMode?: ImpactAnalyser2DiagramMode');
     expect(component).toContain("sourceRows?: ImpactAnalyser2Row[]");
     expect(component).toContain("Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}");
+    expect(component).toContain("function SelectedAssetPanel");
+    expect(component).toContain('title={isCiDiagramMode ? "Selected Asset" : "Selected Tile Text"}');
+    expect(component).toContain('placement={isCiDiagramMode ? "bottom-left" : "top-right"}');
+    expect(component).toContain('const placementClass = placement === "bottom-left" ? "bottom-3 left-3" : "right-3 top-3"');
+    expect(component).toContain('activeSelectedNode?.axisKey === "asset"');
+    expect(component).not.toContain("const selectedRelatedAssetMeta");
+    expect(component).not.toContain('activeSelectedNode?.axisKey === "relatedAsset" ? relatedAssetMetaById.get(activeSelectedNode.value)');
+    expect(component).not.toContain("selectedRelatedAssetMeta.relatedAssetType");
+    expect(component).not.toContain("selectedRelatedAssetMeta.relatedAssetEnvironmentType");
+    expect(component).not.toContain("selectedRelatedAssetMeta.relatedAssetNetworkName");
+    expect(component).not.toContain("selectedRelatedAssetMeta.relatedAssetHasIctSystem");
+    expect(component).not.toContain("Related Asset: ${selectedAssetMeta.relatedAssetName");
+    expect(component).not.toContain("Related ICT System: ${selectedAssetMeta.relatedSystemName");
     expect(component).toContain("onAssetFocus?: (assetId: string) => void");
     expect(component).toContain('axis.key === "asset"');
+    expect(component).toContain("const assetShapeTypeForNode = useCallback");
+    expect(component).toContain('if (axisKey === "relatedAsset")');
+    expect(component).toContain("relatedAssetMetaById.get(value)?.relatedAssetType");
+    expect(component).toContain("const assetType = assetShapeTypeForNode(axis.key, value)");
+    expect(component).toContain('if (isSelected && axis.key === "asset" && onAssetFocus)');
     expect(component).toContain('context.fillText("F"');
+    expect(component).toContain("Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
+    expect(component).not.toContain("Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
+    expect(component).not.toContain('assetType === "server" && onAssetFocus');
     expect(component).toContain("Selected Tile Text");
+    expect(component).toContain("Selected Asset");
     expect(component).toContain("if (!axis.values.length)");
     expect(component).toContain("selectedSearchOption");
     expect(component).toContain("setSelectedSearchOption(null)");
@@ -947,6 +1083,13 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("acceptedWorkerResultRequestIdRef.current = event.data.requestId");
     expect(component).toContain("if (acceptedWorkerResultRequestIdRef.current !== result.requestId)");
     expect(component).toContain("opacity: selectedNodeRef.current ? 0.14 : 0.42");
+    expect(component).toContain('context.strokeStyle = "#38bdf8"');
+    expect(component).toContain("context.lineWidth = 2.4");
+    expect(component).not.toContain("context.globalAlpha = 0.96");
+    expect(component).not.toContain("Math.sin(timestamp / 180)");
+    expect(component).not.toContain("const pulse = 0.65");
+    expect(component).not.toContain("context.shadowBlur = 12");
+    expect(component).not.toContain("context.lineWidth = 2.2 + pulse * 2.2");
     expect(component).toContain("systemScopeIds?: string[]");
     expect(component).toContain("const systemScopeKey = hasSystemScope");
     expect(component).toContain("systemIds: normalizedSystemScopeIds");
@@ -970,7 +1113,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("assetType: string");
     expect(worker).toContain("function matchesMultiFilter");
     expect(worker).toContain("environment: string[]");
-    expect(worker).toContain("if (!matchesMultiFilter(filters.assetType, row.assetType))");
+    expect(worker).toContain('const assetTypeFilterValue = diagramMode === "ci" ? row.relatedAssetType : row.assetType');
+    expect(worker).toContain("if (!matchesMultiFilter(filters.assetType, assetTypeFilterValue))");
+    expect(worker).toContain('request.diagramMode === "ci" ? row.relatedAssetType : row.assetType');
     expect(worker).toContain('key: "asset"');
     expect(worker).toContain('key: "network"');
     expect(worker).toContain("includeNetworkAxis");

@@ -152,6 +152,8 @@ Open `http://localhost:3000`. First access redirects to `/login`; use the creden
 
 After sign-in, the app monitors session validity while pages are open and returns to `/login` if the session expires, is cleared, or is invalidated by password rotation/logout in another tab. Rotate the app password from `/settings` -> `Password Settings`.
 
+During development, a stale `/_next/static/webpack/*.webpack.hot-update.json` `404` followed by a Fast Refresh full reload is expected after a dev-server restart or rebuild when an already-open browser tab still references the previous hot-update manifest. If the target page returns `200` and renders, hard refresh the tab. If it repeats, stop the dev server, delete `.next`, restart `npm run dev`, then hard refresh again.
+
 ### Offline Dependency Inventory
 
 Included in the repository for offline compile/run:
@@ -209,6 +211,7 @@ If an artifact is missing on an internet-connected preparation machine, restore 
 - Logout clears the local session cookie, broadcasts the sign-out to other open TSAAT tabs, and returns the browser to `/login`.
 - Local named instances such as `localhost\SQLEXPRESS` are normalized to `lpc:` for bundled `sqlcmd` compatibility.
 - `npm run dev` uses `scripts/run-next-dev-offline.cjs`, which disables SWC downloads and extracts/copies the bundled SWC artifact when needed.
+- Next.js dev `webpack.hot-update.json` `404` messages after Fast Refresh are usually stale browser hot-update requests, not application failures, when the page request itself returns `200`.
 - `DB_config` and `logindetails` use Windows DPAPI. The same Windows identity that creates a `CurrentUser` encrypted file must run/decrypt it; on a new computer, let `CreateDB.cmd` or `compileApp.cmd` recreate the local file.
 - If both the staged SWC binary and bundled SWC archive are missing, compile/startup fails with a local error instead of downloading from npm.
 

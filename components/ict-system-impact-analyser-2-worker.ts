@@ -28,6 +28,10 @@ interface ImpactAnalyser2Row {
   relatedAssetHostname?: string;
   relatedAssetType?: string;
   relatedAssetIpAddress?: string;
+  relatedAssetEnvironmentType?: string | null;
+  relatedAssetNetworkId?: string;
+  relatedAssetNetworkName?: string;
+  relatedAssetHasIctSystem?: boolean;
   relatedSystemId?: string | null;
   relatedSystemName?: string;
 }
@@ -72,6 +76,7 @@ type WorkerRequest =
   | {
       type: "init";
       rows: ImpactAnalyser2Row[];
+      diagramMode: ImpactAnalyser2DiagramMode;
     }
   | {
       type: "filter";
@@ -277,7 +282,8 @@ function filterRows(
     if (systemIdFilter && (!row.systemId || !systemIdFilter.has(row.systemId))) {
       return false;
     }
-    if (!matchesMultiFilter(filters.assetType, row.assetType)) {
+    const assetTypeFilterValue = diagramMode === "ci" ? row.relatedAssetType : row.assetType;
+    if (!matchesMultiFilter(filters.assetType, assetTypeFilterValue)) {
       return false;
     }
     if (!matchesMultiFilter(filters.environment, row.environmentType ?? "Unassigned")) {
@@ -684,7 +690,9 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
       type: "initialized",
       totalRowCount: sourceRows.length,
       environmentOptions: Array.from(new Set(sourceRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
-      assetTypeOptions: assetTypeOrder.filter((assetType) => sourceRows.some((row) => row.assetType === assetType)),
+      assetTypeOptions: assetTypeOrder.filter((assetType) =>
+        sourceRows.some((row) => (request.diagramMode === "ci" ? row.relatedAssetType : row.assetType) === assetType)
+      ),
       securityDomainOptions: Array.from(new Set(sourceRows.map((row) => row.securityDomain))).sort(
         (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
       )

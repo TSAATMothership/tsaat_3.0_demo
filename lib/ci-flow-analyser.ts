@@ -2,6 +2,7 @@ import type { TopologyCiDependency, TopologyCiNode } from "@/lib/network-topolog
 import type { AssetType, EnvironmentType, SecurityDomain } from "@/lib/types";
 
 export type CiFlowRelationshipType = "Flow Dependency" | "Logical Dependency";
+export type CiAnalyserModelledState = "modelled" | "non-modelled";
 
 export interface CiFlowRelationship {
   id: string;
@@ -42,11 +43,27 @@ export interface CiAnalyserRow {
   relatedAssetHostname: string;
   relatedAssetType: AssetType;
   relatedAssetIpAddress: string;
+  relatedAssetEnvironmentType: EnvironmentType | null;
+  relatedAssetNetworkId: string;
+  relatedAssetNetworkName: string;
+  relatedAssetHasIctSystem: boolean;
   relatedSystemId: string | null;
   relatedSystemName: string;
 }
 
 export const NON_MODELLED_RELATED_SYSTEM_LABEL = "Non Modelled";
+
+export function filterCiAnalyserRowsByModelledState<T extends { relatedAssetHasIctSystem?: boolean }>(
+  rows: T[],
+  includedModelledStates: Iterable<CiAnalyserModelledState>
+): T[] {
+  const includedModelledStateSet = new Set(includedModelledStates);
+  return rows.filter((row) =>
+    row.relatedAssetHasIctSystem === true
+      ? includedModelledStateSet.has("modelled")
+      : includedModelledStateSet.has("non-modelled")
+  );
+}
 
 function isSupportedRelationshipType(value: string): value is CiFlowRelationshipType {
   return value === "Flow Dependency" || value === "Logical Dependency";
@@ -220,6 +237,10 @@ export function buildCiAnalyserRowsFromScope({
         relatedAssetHostname: relatedNode.hostname || relatedNode.name || relatedNode.id,
         relatedAssetType: relatedNode.type,
         relatedAssetIpAddress: relatedNode.ipAddress || "N/A",
+        relatedAssetEnvironmentType: relatedNode.environmentType,
+        relatedAssetNetworkId: relatedNode.networkId,
+        relatedAssetNetworkName: networkNameById.get(relatedNode.networkId) ?? relatedNode.networkId,
+        relatedAssetHasIctSystem: Boolean(relatedNode.systemId),
         relatedSystemId: relatedNode.systemId,
         relatedSystemName
       };
