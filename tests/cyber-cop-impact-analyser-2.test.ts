@@ -216,7 +216,7 @@ describe("CI Flow analyser helpers", () => {
       environmentType: "UAT",
       systemId: "system-logical",
       systemName: "Logical System",
-      systemModelled: true,
+      systemModelled: false,
       cmdbRecordUrl: "https://cmdb.example.test/assets/asset-logical",
       networkOsSummary: "Cisco IOS XE 17 | Supported",
       patchStateSummary: "Latest: Yes",
@@ -243,11 +243,12 @@ describe("CI Flow analyser helpers", () => {
       type: "storage-device",
       networkId: "network-1",
       environmentType: null,
-      systemId: null,
-      systemName: null,
+      systemId: "system-raw-unmodelled",
+      systemName: "Raw Unmodelled System",
       systemModelled: false
     }
   ];
+  const modelAssetIds = ["asset-root", "asset-flow", "asset-logical"];
   const ciDependencies: TopologyCiDependency[] = [
     {
       id: "flow-root-flow",
@@ -289,7 +290,7 @@ describe("CI Flow analyser helpers", () => {
       includedDependencyTypes: ["Flow Dependency", "Logical Dependency"],
       maxRelatedNodes: 110
     });
-    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById });
+    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById, modelAssetIds });
 
     expect(new Set(rows.map((row) => row.assetId))).toEqual(new Set(["asset-root"]));
     expect(rows.map((row) => row.relatedAssetId).sort()).toEqual(
@@ -302,6 +303,8 @@ describe("CI Flow analyser helpers", () => {
       relatedAssetNetworkId: "network-2",
       relatedAssetNetworkName: "Edge Network",
       relatedAssetHasIctSystem: true,
+      relatedSystemId: "system-logical",
+      relatedSystemName: "Logical System",
       relatedAssetSecurityDomain: "Protected",
       relatedAssetCmdbRecordUrl: "https://cmdb.example.test/assets/asset-logical",
       relatedAssetNetworkOsSummary: "Cisco IOS XE 17 | Supported",
@@ -313,6 +316,11 @@ describe("CI Flow analyser helpers", () => {
       relatedAssetType: "printer-device",
       relatedAssetEnvironmentType: null,
       relatedAssetHasIctSystem: false
+    });
+    expect(rows.find((row) => row.relatedAssetId === "asset-unmodelled-b")).toMatchObject({
+      relatedAssetHasIctSystem: false,
+      relatedSystemId: null,
+      relatedSystemName: NON_MODELLED_RELATED_SYSTEM_LABEL
     });
   });
 
@@ -335,12 +343,12 @@ describe("CI Flow analyser helpers", () => {
     });
 
     expect(
-      buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope: flowOnlyScope, networkNameById })
+      buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope: flowOnlyScope, networkNameById, modelAssetIds })
         .map((row) => row.relatedAssetId)
         .sort()
     ).toEqual(["asset-flow", "asset-unmodelled-a", "asset-unmodelled-b"]);
     expect(
-      buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope: logicalOnlyScope, networkNameById }).map(
+      buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope: logicalOnlyScope, networkNameById, modelAssetIds }).map(
         (row) => row.relatedAssetId
       )
     ).toEqual(["asset-logical"]);
@@ -355,7 +363,7 @@ describe("CI Flow analyser helpers", () => {
       includedDependencyTypes: ["Flow Dependency"],
       maxRelatedNodes: 110
     });
-    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById });
+    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById, modelAssetIds });
     const unmodelledSystemValues = rows
       .filter((row) => row.relatedSystemId === null)
       .map((row) => row.relatedSystemName);
@@ -373,7 +381,7 @@ describe("CI Flow analyser helpers", () => {
       includedDependencyTypes: ["Flow Dependency", "Logical Dependency"],
       maxRelatedNodes: 110
     });
-    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById });
+    const rows = buildCiAnalyserRowsFromScope({ rootAssetId: "asset-root", ciNodes, scope, networkNameById, modelAssetIds });
 
     expect(filterCiAnalyserRowsByModelledState(rows, ["modelled"]).map((row) => row.relatedAssetId)).toEqual([
       "asset-flow",
@@ -917,6 +925,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("ciAnalyserIncludedModelledStates");
     expect(detailedTopology).toContain("filterCiAnalyserRowsByModelledState(unfilteredCiAnalyserRows, ciAnalyserIncludedModelledStates)");
     expect(detailedTopology).toContain("toggleCiAnalyserIncludedModelledState");
+    expect(detailedTopology).toContain("modelAssetIds: data.modelAssetIds");
+    expect(ciFlowAnalyser).toContain("const modelAssetIdSet = new Set(modelAssetIds)");
+    expect(ciFlowAnalyser).toContain("const isModelledCi = (node: TopologyCiNode) => modelAssetIdSet.has(node.id) || node.systemModelled");
+    expect(ciFlowAnalyser).toContain("const relatedIsModelled = isModelledCi(relatedNode)");
+    expect(ciFlowAnalyser).toContain("const relatedSystemId = relatedIsModelled ? relatedNode.systemId : null");
     expect(detailedTopology).toContain("const ciRelatedAssetTypeSummary = useMemo");
     expect(detailedTopology).toContain("new Map<AssetType, number>");
     expect(detailedTopology).toContain("row.relatedAssetType");
@@ -944,8 +957,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("data-ci-focus-context-rows");
     expect(detailedTopology).toContain("data-ci-focus-related-asset-type-summary");
     expect(detailedTopology).toContain("data-ci-focus-related-asset-type-summary-items");
+    expect(detailedTopology).toContain("data-ci-focus-related-asset-type-summary-table");
     expect(detailedTopology).toContain("Related Assets By Type");
     expect(detailedTopology).toContain("Current CI Analyser scope");
+    expect(detailedTopology).toContain("Asset Type");
+    expect(detailedTopology).toContain("Count");
     expect(detailedTopology).toContain("No related assets match the current filters.");
     expect(detailedTopology).toContain('data-ci-focus-row={row.label}');
     expect(detailedTopology).toContain('label: "Network"');
@@ -969,7 +985,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("placeholder: true");
     expect(detailedTopology).toContain("if (tile.placeholder)");
     expect(detailedTopology).toContain("data-ci-focus-placeholder-tile");
-    expect(detailedTopology).toContain("flex h-full min-h-[4.5rem] items-center justify-center");
+    expect(detailedTopology).toContain('className={`${tileClassName} relative overflow-hidden`}');
+    expect(detailedTopology).toContain('aria-hidden="true" className="invisible min-w-0 space-y-0.5"');
+    expect(detailedTopology).toContain("absolute inset-0 flex items-center justify-center");
+    expect(detailedTopology).toContain('className="flex min-h-[4.5rem] min-w-0 gap-2"');
+    expect(detailedTopology).toContain('<article data-ci-focus-tile={tile.id} className={tileClassName} style={tileStyle}>');
     expect(detailedTopology).toContain('{tile.placeholder ? "border-dashed opacity-85" : ""}');
     expect(detailedTopology).toContain("{tile.name}</p>");
     expect(detailedTopology).toContain('setCiAnalyserSelectedAssetAxis("asset")');
@@ -1007,6 +1027,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(ciFocusTileSection).toContain("data-ci-focus-context-row-stack");
     expect(ciFocusTileSection).toContain("data-ci-focus-context-rows");
     expect(ciFocusTileSection).toContain("data-ci-focus-related-asset-type-summary");
+    expect(ciFocusTileSection).toContain("data-ci-focus-related-asset-type-summary-table");
     expect(ciFocusTileSection).toContain("Related Assets By Type");
     expect(ciFocusTileSection).toContain("gap-5");
     expect(ciFocusTileSection).not.toContain("Selected Asset");
@@ -1026,6 +1047,16 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(ciFocusTileSection).not.toContain("detailedCanvasRef");
     expect(ciFocusTileSection).not.toContain('absolute bottom-4 left-4');
     expect(ciFocusTileSection).not.toContain(">Close</button>");
+    const relatedAssetSummarySection = ciFocusTileSection.slice(
+      ciFocusTileSection.indexOf("data-ci-focus-related-asset-type-summary"),
+      ciFocusTileSection.indexOf("</section>", ciFocusTileSection.indexOf("data-ci-focus-related-asset-type-summary"))
+    );
+    expect(relatedAssetSummarySection).toContain("<table");
+    expect(relatedAssetSummarySection).toContain("border-collapse");
+    expect(relatedAssetSummarySection).toContain("overflow-y-auto");
+    expect(relatedAssetSummarySection).not.toContain("grid gap-2");
+    expect(relatedAssetSummarySection).not.toContain("rounded-lg border border-slate-700/80");
+    expect(relatedAssetSummarySection).not.toContain("rounded-full border border-sky-300/25");
 
     const ciAnalyserComponentStart = detailedTopology.indexOf('title="CI Analyser"');
     const ciAnalyserSection = detailedTopology.slice(

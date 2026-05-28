@@ -2409,9 +2409,10 @@ export function DetailedTopologyView({
       rootAssetId: focusedCiFlowRootAssetId,
       ciNodes: data.ciNodes,
       scope: ciFlowAssetScope,
-      networkNameById
+      networkNameById,
+      modelAssetIds: data.modelAssetIds
     });
-  }, [ciFlowAssetScope, data.ciNodes, focusedCiFlowRootAssetId, networkNameById]);
+  }, [ciFlowAssetScope, data.ciNodes, data.modelAssetIds, focusedCiFlowRootAssetId, networkNameById]);
   const ciAnalyserRows = useMemo<ImpactAnalyser2Row[]>(() => {
     return filterCiAnalyserRowsByModelledState(unfilteredCiAnalyserRows, ciAnalyserIncludedModelledStates);
   }, [ciAnalyserIncludedModelledStates, unfilteredCiAnalyserRows]);
@@ -6330,10 +6331,39 @@ export function DetailedTopologyView({
         <article
           data-ci-focus-tile={tile.id}
           data-ci-focus-placeholder-tile
-          className={`${tileClassName} flex h-full min-h-[4.5rem] items-center justify-center px-3 py-3 text-center`}
+          className={`${tileClassName} relative overflow-hidden`}
           style={tileStyle}
         >
-          <p className="text-sm font-semibold leading-snug text-slate-900">{tile.name}</p>
+          <div aria-hidden="true" className="invisible min-w-0 space-y-0.5">
+            <p className={`${variant === "selected" ? "text-xs" : "text-[10px]"} font-semibold uppercase tracking-[0.1em] text-slate-800`}>
+              {tile.typeLabel}
+            </p>
+            <p className={`${variant === "selected" ? "text-sm" : "text-xs"} truncate font-semibold leading-snug text-slate-900`}>
+              {tile.name}
+            </p>
+            <p className={`${variant === "selected" ? "text-xs" : "text-[11px]"} truncate font-medium leading-snug text-slate-800`}>
+              Placeholder
+            </p>
+          </div>
+          <div
+            aria-hidden="true"
+            className={`${variant === "selected" ? "mt-3 h-3" : "mt-1.5 h-2"} invisible w-full overflow-hidden rounded-sm bg-slate-300/95`}
+          >
+            <div className="flex h-full w-full">
+              <div className="h-full bg-emerald-600" style={{ width: `${tile.percentages.compliant}%` }} />
+              <div className="h-full bg-red-500" style={{ width: `${tile.percentages.nonCompliant}%` }} />
+              <div className="h-full bg-slate-400" style={{ width: `${tile.percentages.other}%` }} />
+            </div>
+          </div>
+          <p
+            aria-hidden="true"
+            className={`${variant === "selected" ? "mt-2 text-base" : "mt-1 text-[11px]"} invisible text-center font-medium text-slate-900`}
+          >
+            {tile.percentages.compliant}% C | {tile.percentages.nonCompliant}% NC | {tile.percentages.other}% O
+          </p>
+          <div className="absolute inset-0 flex items-center justify-center px-3 py-3 text-center">
+            <p className="text-sm font-semibold leading-snug text-slate-900">{tile.name}</p>
+          </div>
         </article>
       );
     }
@@ -7426,7 +7456,7 @@ export function DetailedTopologyView({
                         </div>
                       </div>
                       <div
-                        className="relative z-10 rounded-xl border border-sky-400/25 bg-slate-900/75 p-3 shadow-[0_14px_28px_rgba(2,6,23,0.35)]"
+                        className="relative z-10 flex min-h-0 flex-1 flex-col rounded-xl border border-sky-400/25 bg-slate-900/75 p-3 shadow-[0_14px_28px_rgba(2,6,23,0.35)]"
                         data-ci-focus-related-asset-type-summary
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -7441,21 +7471,30 @@ export function DetailedTopologyView({
                           </div>
                         </div>
                         {ciRelatedAssetTypeSummary.length ? (
-                          <div className="mt-3 grid gap-2" data-ci-focus-related-asset-type-summary-items>
-                            {ciRelatedAssetTypeSummary.map((item) => (
-                              <div
-                                key={item.assetType}
-                                className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/80 bg-slate-950/65 px-2.5 py-2"
-                              >
-                                <span className="truncate text-xs font-medium text-slate-200">{item.label}</span>
-                                <span className="rounded-full border border-sky-300/25 bg-sky-400/10 px-2 py-0.5 text-xs font-semibold text-sky-100">
-                                  {item.count}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="mt-3 min-h-0 flex-1 overflow-y-auto" data-ci-focus-related-asset-type-summary-items>
+                            <table className="w-full table-fixed border-collapse text-left text-xs" data-ci-focus-related-asset-type-summary-table>
+                              <thead className="sticky top-0 bg-slate-900/95 text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                                <tr>
+                                  <th scope="col" className="py-1.5 pr-2 font-semibold">
+                                    Asset Type
+                                  </th>
+                                  <th scope="col" className="w-16 py-1.5 text-right font-semibold">
+                                    Count
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="text-slate-200">
+                                {ciRelatedAssetTypeSummary.map((item) => (
+                                  <tr key={item.assetType}>
+                                    <td className="truncate py-1 pr-2 font-medium">{item.label}</td>
+                                    <td className="py-1 text-right font-semibold text-sky-100">{item.count}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         ) : (
-                          <p className="mt-3 rounded-lg border border-dashed border-slate-600/70 bg-slate-950/45 px-3 py-2 text-xs text-slate-300/85">
+                          <p className="mt-3 min-h-0 flex-1 rounded-lg bg-slate-950/45 px-3 py-2 text-xs text-slate-300/85">
                             No related assets match the current filters.
                           </p>
                         )}

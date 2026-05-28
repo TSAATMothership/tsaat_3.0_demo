@@ -208,31 +208,39 @@ export function buildCiAnalyserRowsFromScope({
   rootAssetId,
   ciNodes,
   scope,
-  networkNameById
+  networkNameById,
+  modelAssetIds
 }: {
   rootAssetId: string;
   ciNodes: TopologyCiNode[];
   scope: Pick<CiFlowAssetScope, "visibleAssetIds" | "depthByAssetId">;
   networkNameById: Map<string, string>;
+  modelAssetIds: Iterable<string>;
 }): CiAnalyserRow[] {
   const ciNodeByAssetId = new Map(ciNodes.map((node) => [node.id, node]));
+  const modelAssetIdSet = new Set(modelAssetIds);
+  const isModelledCi = (node: TopologyCiNode) => modelAssetIdSet.has(node.id) || node.systemModelled;
   const rootNode = ciNodeByAssetId.get(rootAssetId);
   if (!rootNode) {
     return [];
   }
 
-  const rootSystemName = rootNode.systemId ? rootNode.systemName ?? rootNode.systemId : NON_MODELLED_RELATED_SYSTEM_LABEL;
+  const rootIsModelled = isModelledCi(rootNode);
+  const rootSystemId = rootIsModelled ? rootNode.systemId : null;
+  const rootSystemName = rootSystemId ? rootNode.systemName ?? rootSystemId : NON_MODELLED_RELATED_SYSTEM_LABEL;
   const rows = scope.visibleAssetIds
     .filter((assetId) => assetId !== rootAssetId)
     .map((assetId) => ciNodeByAssetId.get(assetId))
     .filter((node): node is TopologyCiNode => Boolean(node))
     .map((relatedNode): CiAnalyserRow => {
-      const relatedSystemName = relatedNode.systemId
-        ? relatedNode.systemName ?? relatedNode.systemId
+      const relatedIsModelled = isModelledCi(relatedNode);
+      const relatedSystemId = relatedIsModelled ? relatedNode.systemId : null;
+      const relatedSystemName = relatedSystemId
+        ? relatedNode.systemName ?? relatedSystemId
         : NON_MODELLED_RELATED_SYSTEM_LABEL;
       return {
         findingId: null,
-        systemId: rootNode.systemId,
+        systemId: rootSystemId,
         systemName: rootSystemName,
         environmentType: rootNode.environmentType,
         assetId: rootNode.id,
@@ -242,7 +250,7 @@ export function buildCiAnalyserRowsFromScope({
         assetIpAddress: rootNode.ipAddress || "N/A",
         networkId: rootNode.networkId,
         networkName: networkNameById.get(rootNode.networkId) ?? rootNode.networkId,
-        hasIctSystem: Boolean(rootNode.systemId),
+        hasIctSystem: rootIsModelled,
         serverId: rootNode.id,
         serverName: ciDisplayName(rootNode),
         serverHostname: rootNode.hostname || rootNode.name || rootNode.id,
@@ -268,7 +276,7 @@ export function buildCiAnalyserRowsFromScope({
         relatedAssetEnvironmentType: relatedNode.environmentType,
         relatedAssetNetworkId: relatedNode.networkId,
         relatedAssetNetworkName: networkNameById.get(relatedNode.networkId) ?? relatedNode.networkId,
-        relatedAssetHasIctSystem: Boolean(relatedNode.systemId),
+        relatedAssetHasIctSystem: relatedIsModelled,
         relatedAssetSecurityDomain: relatedNode.securityDomain ?? "Unclassified",
         relatedAssetCmdbRecordUrl: relatedNode.cmdbRecordUrl ?? null,
         relatedAssetLifecycleEolStatus: relatedNode.lifecycleEolStatus,
@@ -279,7 +287,7 @@ export function buildCiAnalyserRowsFromScope({
         relatedAssetInstalledSoftwareCount: relatedNode.installedSoftwareCount,
         relatedAssetVulnerabilityCount: relatedNode.vulnerabilityCount,
         relatedAssetCriticalVulnerabilityCount: relatedNode.criticalVulnerabilityCount,
-        relatedSystemId: relatedNode.systemId,
+        relatedSystemId,
         relatedSystemName
       };
     });
