@@ -1112,6 +1112,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("Open CMDB record");
     expect(component).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left">');
     expect(component).toContain('scope="row"');
+    expect(component).toContain('aria-hidden="true"');
+    expect(component).toContain("fixed inset-0 z-[90] pointer-events-none cursor-default select-none");
+    expect(component).toContain("absolute inset-0 cursor-default select-none bg-slate-950/35");
+    expect(component).toContain("cursor-pointer break-words text-cyan-200");
+    expect(component).not.toContain('aria-label="Close Asset Details"');
     expect(component).not.toContain("Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).not.toContain('assetType === "server" && onAssetFocus');
     expect(component).not.toContain("Selected Tile Text");

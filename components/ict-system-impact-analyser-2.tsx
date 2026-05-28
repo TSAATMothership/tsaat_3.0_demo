@@ -454,21 +454,20 @@ function AssetDetailsPanel({
   ];
 
   return (
-    <div className="fixed inset-0 z-[90] pointer-events-none">
-      <button
-        type="button"
-        aria-label="Close Asset Details"
+    <div className="fixed inset-0 z-[90] pointer-events-none cursor-default select-none">
+      <div
+        aria-hidden="true"
         onClick={onClose}
-        className={`absolute inset-0 bg-slate-950/35 transition-opacity duration-200 ${
+        className={`absolute inset-0 cursor-default select-none bg-slate-950/35 transition-opacity duration-200 ${
           isOpen ? "pointer-events-auto opacity-100" : "opacity-0"
         }`}
       />
       <aside
-        className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950/95 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out pointer-events-auto ${
+        className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950/95 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out pointer-events-auto cursor-default select-none ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-sky-300/20 pb-3">
+        <div className="flex cursor-default select-none items-start justify-between gap-3 border-b border-sky-300/20 pb-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.14em] text-sky-200/80">Read Only</p>
             <h3 className="text-lg font-semibold text-sky-100">Asset Details</h3>
@@ -510,7 +509,7 @@ function AssetDetailsPanel({
                       href={cmdbRecordUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="break-words text-cyan-200 underline decoration-cyan-300/60 underline-offset-2 hover:text-cyan-100"
+                      className="cursor-pointer break-words text-cyan-200 underline decoration-cyan-300/60 underline-offset-2 hover:text-cyan-100"
                     >
                       Open CMDB record
                     </a>
