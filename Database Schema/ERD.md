@@ -313,6 +313,7 @@ erDiagram
   - `diis_id` (`NVARCHAR(100)`)
   - `ato_number` (`NVARCHAR(100)`)
   - `apm_number` (`NVARCHAR(100)`)
+- `asset` includes optional `cmdb_record_url` (`NVARCHAR(1024)`) for read-only asset details drill-through links.
 - `ict_system` includes platform flags:
   - `adf_platform` (`BIT`)
   - `enterprise_platform` (`BIT`)

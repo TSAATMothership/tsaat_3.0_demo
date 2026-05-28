@@ -120,6 +120,7 @@ Key domain groups
 
 4) Asset posture:
 - `asset`
+  - includes optional `cmdb_record_url` for read-only asset drill-through links.
 - `asset_operating_system`
 - `asset_network_os`
 - `asset_patch_state`

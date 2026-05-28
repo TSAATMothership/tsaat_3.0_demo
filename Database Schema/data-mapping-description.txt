@@ -207,7 +207,7 @@ Snapshots and domain entities:
   - environments[].assetIds[] -> system_environment_asset
 
 - assets[]:
-  - id,name,hostname,ipAddress,type,networkId,securityDomain,systemContext.systemId,systemContext.environmentType,lifecycle.eolStatus,lifecycle.warrantyStatus
+  - id,name,hostname,ipAddress,cmdbRecordUrl,type,networkId,securityDomain,systemContext.systemId,systemContext.environmentType,lifecycle.eolStatus,lifecycle.warrantyStatus
     -> asset
   - operatingSystem -> asset_operating_system
   - networkOs -> asset_network_os

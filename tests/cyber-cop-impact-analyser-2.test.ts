@@ -62,14 +62,37 @@ const serverAsset: Asset = {
   id: "server-1",
   name: "PAY-SRV-01",
   hostname: "pay-srv-01.example.test",
+  cmdbRecordUrl: "https://cmdb.example.test/assets/server-1",
   networkId: "network-1",
   securityDomain: "Secret",
   lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
-  vulnerabilities: [],
+  vulnerabilities: [
+    {
+      id: "vuln-1",
+      assetId: "server-1",
+      cve: "CVE-2026-0001",
+      description: "Critical test vulnerability",
+      remediationGuidance: "Patch",
+      criticality: "Critical",
+      severity: "Critical",
+      exploitability: "Exploitable",
+      detectedDate: "2026-01-01",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+      source: "scanner"
+    }
+  ],
   systemContext: { systemId: "system-1", environmentType: "Production" },
   type: "server",
-  operatingSystem: null,
-  installedSoftware: []
+  operatingSystem: {
+    family: "Windows Server",
+    vendor: "Microsoft",
+    majorVersion: 2022,
+    version: "2022",
+    supportStatus: "Supported",
+    currentSupportedMajor: 2022,
+    nMinus: 0
+  },
+  installedSoftware: [{ name: "Security Agent", version: "1.0.0", supportStatus: "Supported" }]
 };
 
 const workstationAsset: Asset = {
@@ -363,7 +386,14 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
       securityDomain: "Secret",
       severity: "Critical Exposure",
       spiId: 3,
-      spiLabel: "SPI 3"
+      spiLabel: "SPI 3",
+      cmdbRecordUrl: "https://cmdb.example.test/assets/server-1",
+      lifecycleEolStatus: "Supported",
+      lifecycleWarrantyStatus: "InWarranty",
+      operatingSystemSummary: "Microsoft Windows Server 2022 | Supported",
+      installedSoftwareCount: 1,
+      vulnerabilityCount: 1,
+      criticalVulnerabilityCount: 1
     });
   });
 
@@ -846,8 +876,12 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("assetAxisLabel=\"Assets\"");
     expect(detailedTopology).toContain("assetSearchCategory=\"Assets\"");
     expect(detailedTopology).toContain("showAssetTypeFilter");
-    expect(detailedTopology).toContain("showSelectedTileText");
     expect(detailedTopology).toContain("onAssetFocus={openCiFlowFocusForAssetId}");
+    expect(detailedTopology).toContain("const assetFocusEligibleAssetIds = useMemo");
+    expect(detailedTopology).toContain("for (const dependency of data.ciDependencies)");
+    expect(detailedTopology).toContain("eligibleAssetIds.add(dependency.sourceAssetId)");
+    expect(detailedTopology).toContain("eligibleAssetIds.add(dependency.targetAssetId)");
+    expect(detailedTopology).toContain("assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}");
     expect(detailedTopology).toContain("const openCiFlowFocusForAsset = useCallback");
     expect(detailedTopology).toContain("const CI_ASSET_TYPES: CiAssetType[] = [...ASSET_TYPES]");
     expect(detailedTopology).toContain('item.entityType === "ci" && item.ciAssetId === assetId');
@@ -979,6 +1013,14 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(ciAnalyserSection).toContain("CI_FLOW_RELATIONSHIP_TYPES.map");
     expect(ciAnalyserSection).not.toContain("Related Assets By Type");
     expect(ciAnalyserSection).not.toContain("Compliance");
+
+    const riskImpactAnalyserSectionStart = detailedTopology.indexOf("title={impactAnalyserTitle}");
+    const riskImpactAnalyserSection = detailedTopology.slice(
+      riskImpactAnalyserSectionStart,
+      detailedTopology.indexOf("/>", riskImpactAnalyserSectionStart)
+    );
+    expect(riskImpactAnalyserSection).not.toContain("showSelectedTileText");
+    expect(riskImpactAnalyserSection).toContain("assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}");
   });
 
   it("keeps V2 worker-side filtering and Canvas/WebGL rendering markers", () => {
@@ -1034,10 +1076,12 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("sourceRows?: ImpactAnalyser2Row[]");
     expect(component).toContain("Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}");
     expect(component).toContain("function SelectedAssetPanel");
-    expect(component).toContain('title={isCiDiagramMode ? "Selected Asset" : "Selected Tile Text"}');
-    expect(component).toContain('placement={isCiDiagramMode ? "bottom-left" : "top-right"}');
+    expect(component).toContain("function AssetDetailsPanel");
+    expect(component).toContain('title="Selected Asset"');
+    expect(component).toContain('placement="bottom-left"');
     expect(component).toContain('const placementClass = placement === "bottom-left" ? "bottom-3 left-3" : "right-3 top-3"');
     expect(component).toContain('activeSelectedNode?.axisKey === "asset"');
+    expect(component).toContain("isCiDiagramMode && selectedAssetMeta");
     expect(component).not.toContain("const selectedRelatedAssetMeta");
     expect(component).not.toContain('activeSelectedNode?.axisKey === "relatedAsset" ? relatedAssetMetaById.get(activeSelectedNode.value)');
     expect(component).not.toContain("selectedRelatedAssetMeta.relatedAssetType");
@@ -1047,17 +1091,30 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).not.toContain("Related Asset: ${selectedAssetMeta.relatedAssetName");
     expect(component).not.toContain("Related ICT System: ${selectedAssetMeta.relatedSystemName");
     expect(component).toContain("onAssetFocus?: (assetId: string) => void");
+    expect(component).toContain("assetFocusEligibleAssetIds?: string[]");
+    expect(component).toContain("const assetFocusEligibleAssetIdSet = useMemo");
+    expect(component).toContain("const isAssetFocusEligible = useCallback");
     expect(component).toContain('axis.key === "asset"');
     expect(component).toContain("const assetShapeTypeForNode = useCallback");
     expect(component).toContain('if (axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.get(value)?.relatedAssetType");
     expect(component).toContain("const assetType = assetShapeTypeForNode(axis.key, value)");
-    expect(component).toContain('if (isSelected && axis.key === "asset" && onAssetFocus)');
+    expect(component).toContain('if (!isCiDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value))');
+    expect(component).toContain('if (!isCiDiagramMode && isSelected && axis.key === "asset")');
     expect(component).toContain('context.fillText("F"');
+    expect(component).toContain('context.fillText("D"');
     expect(component).toContain("Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
+    expect(component).toContain("Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
+    expect(component).toContain('hit.action === "asset-details"');
+    expect(component).toContain("openAssetDetails(hit.node.value)");
+    expect(component).toContain("Asset Details");
+    expect(component).toContain("CMDB Record");
+    expect(component).toContain("Open CMDB record");
+    expect(component).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left">');
+    expect(component).toContain('scope="row"');
     expect(component).not.toContain("Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).not.toContain('assetType === "server" && onAssetFocus');
-    expect(component).toContain("Selected Tile Text");
+    expect(component).not.toContain("Selected Tile Text");
     expect(component).toContain("Selected Asset");
     expect(component).toContain("if (!axis.values.length)");
     expect(component).toContain("selectedSearchOption");
@@ -1137,5 +1194,38 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("rows: selectedRows");
     expect(worker).toContain("searchOptions");
     expect(worker).toContain("highlightPositions");
+    expect(worker).toContain('label: "Security Posture Indicator"');
+    expect(worker).not.toContain('label: "SPI"');
+  });
+
+  it("keeps asset CMDB record URL wired through DB and analyser row artefacts", () => {
+    const schema = readRepoFile("Database Schema/database-schema.sql");
+    const migration = readRepoFile("Database Schema/migrations/019_add_asset_cmdb_record_url.sql");
+    const loader = readRepoFile("Database Schema/loaders/load-data.sql");
+    const validator = readRepoFile("Database Schema/loaders/validate-database.sql");
+    const mappingDocs = readRepoFile("Database Schema/data-mapping-description.txt");
+    const schemaDocs = readRepoFile("Database Schema/database-schema-description.txt");
+    const erd = readRepoFile("Database Schema/ERD.md");
+    const dataLoader = readRepoFile("lib/data-loader.ts");
+    const types = readRepoFile("lib/types.ts");
+    const rowBuilder = readRepoFile("lib/cyber-cop-impact-analyser.ts");
+    const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+
+    expect(schema).toContain("[cmdb_record_url] NVARCHAR(1024) NULL");
+    expect(migration).toContain("019_add_asset_cmdb_record_url.sql");
+    expect(migration).toContain("ADD [cmdb_record_url] NVARCHAR(1024) NULL");
+    expect(loader).toContain("[cmdb_record_url]");
+    expect(loader).toContain("'$.cmdbRecordUrl'");
+    expect(validator).toContain("COL_LENGTH(N'tsaat.asset', N'cmdb_record_url')");
+    expect(mappingDocs).toContain("cmdbRecordUrl");
+    expect(schemaDocs).toContain("cmdb_record_url");
+    expect(erd).toContain("cmdb_record_url");
+    expect(dataLoader).toContain("cmdbRecordUrl: string | null");
+    expect(dataLoader).toContain("a.[cmdb_record_url] AS [cmdbRecordUrl]");
+    expect(types).toContain("cmdbRecordUrl?: string | null");
+    expect(rowBuilder).toContain("cmdbRecordUrl?: string | null");
+    expect(rowBuilder).toContain("cmdbRecordUrl: asset.cmdbRecordUrl ?? null");
+    expect(component).toContain("asset.cmdbRecordUrl");
+    expect(component).toContain("Open CMDB record");
   });
 });

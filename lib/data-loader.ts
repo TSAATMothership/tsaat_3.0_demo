@@ -186,6 +186,7 @@ type AssetRow = {
   name: string;
   hostname: string;
   ipAddress: string | null;
+  cmdbRecordUrl: string | null;
   type: AssetType;
   networkId: string;
   securityDomain: "Secret" | "Protected" | "Unclassified";
@@ -1011,6 +1012,7 @@ SELECT
       a.[name] AS [name],
       a.[hostname] AS [hostname],
       a.[ip_address] AS [ipAddress],
+      a.[cmdb_record_url] AS [cmdbRecordUrl],
       a.[asset_type] AS [type],
       a.[network_id] AS [networkId],
       a.[security_domain] AS [securityDomain],
@@ -1450,6 +1452,7 @@ function buildDatasetFromSnapshotRow(
       id: assetRow.id,
       name: assetRow.name,
       hostname: assetRow.hostname,
+      cmdbRecordUrl: assetRow.cmdbRecordUrl ?? null,
       networkId: assetRow.networkId,
       securityDomain: assetRow.securityDomain,
       lifecycle: {

@@ -840,6 +840,7 @@ CREATE TABLE [tsaat].[asset] (
   [name] NVARCHAR(255) NOT NULL,
   [hostname] NVARCHAR(255) NOT NULL,
   [ip_address] NVARCHAR(64) NULL,
+  [cmdb_record_url] NVARCHAR(1024) NULL,
   [asset_type] NVARCHAR(20) NOT NULL,
   [network_id] NVARCHAR(255) NOT NULL,
   [security_domain] NVARCHAR(20) NOT NULL,

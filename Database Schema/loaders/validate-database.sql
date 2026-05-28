@@ -139,6 +139,9 @@ IF @KpiReportDetailBindingCount < 3
 IF @AssetCount <= 0
   THROW 52000, 'Validation failed: asset table is empty.', 1;
 
+IF COL_LENGTH(N'tsaat.asset', N'cmdb_record_url') IS NULL
+  THROW 52000, 'Validation failed: asset.cmdb_record_url column is missing.', 1;
+
 IF @FindingCount <= 0
   THROW 52000, 'Validation failed: finding table is empty.', 1;
 

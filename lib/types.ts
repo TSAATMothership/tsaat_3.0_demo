@@ -155,6 +155,7 @@ interface BaseAsset {
   id: string;
   name: string;
   hostname: string;
+  cmdbRecordUrl?: string | null;
   networkId: string;
   securityDomain: SecurityDomain;
   lifecycle: Lifecycle;

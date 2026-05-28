@@ -35,6 +35,15 @@ export interface ImpactAnalyser2Row {
   spiId: number | null;
   spiLabel: string;
   hasOpenFinding: boolean;
+  cmdbRecordUrl?: string | null;
+  lifecycleEolStatus?: string;
+  lifecycleWarrantyStatus?: string;
+  operatingSystemSummary?: string | null;
+  networkOsSummary?: string | null;
+  patchStateSummary?: string | null;
+  installedSoftwareCount?: number;
+  vulnerabilityCount?: number;
+  criticalVulnerabilityCount?: number;
   relatedAssetId?: string;
   relatedAssetName?: string;
   relatedAssetHostname?: string;
@@ -116,7 +125,7 @@ const chartLayout = {
   minHeight: 330
 };
 
-type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-focus";
+type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-focus" | "asset-details";
 type ImpactAnalyser2PendingViewportAction =
   | { type: "reset" }
   | { type: "clamp" }
@@ -407,6 +416,117 @@ function SelectedAssetPanel({
   );
 }
 
+function formatAssetDetailValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") {
+    return "Not supplied";
+  }
+  return String(value);
+}
+
+function AssetDetailsPanel({
+  asset,
+  isOpen,
+  onClose
+}: {
+  asset: ImpactAnalyser2Row;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const cmdbRecordUrl = asset.cmdbRecordUrl?.trim() ?? "";
+  const detailRows: Array<[string, string | number | null | undefined]> = [
+    ["Asset ID", asset.assetId],
+    ["Name", asset.assetName],
+    ["Hostname", asset.assetHostname],
+    ["Asset Type", formatAssetTypeLabel(asset.assetType)],
+    ["IP Address", asset.assetIpAddress],
+    ["Network", asset.networkName || asset.networkId],
+    ["ICT System", asset.hasIctSystem ? asset.systemName : "Not linked to ICT system"],
+    ["Environment", asset.environmentType ?? "Unassigned"],
+    ["Security Domain", asset.securityDomain],
+    ["Lifecycle EOL", asset.lifecycleEolStatus],
+    ["Warranty", asset.lifecycleWarrantyStatus],
+    ["Operating System", asset.operatingSystemSummary],
+    ["Network OS", asset.networkOsSummary],
+    ["Patch Status", asset.patchStateSummary],
+    ["Installed Software", asset.installedSoftwareCount],
+    ["Vulnerabilities", asset.vulnerabilityCount],
+    ["Critical Vulnerabilities", asset.criticalVulnerabilityCount]
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[90] pointer-events-none">
+      <button
+        type="button"
+        aria-label="Close Asset Details"
+        onClick={onClose}
+        className={`absolute inset-0 bg-slate-950/35 transition-opacity duration-200 ${
+          isOpen ? "pointer-events-auto opacity-100" : "opacity-0"
+        }`}
+      />
+      <aside
+        className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950/95 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out pointer-events-auto ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-sky-300/20 pb-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.14em] text-sky-200/80">Read Only</p>
+            <h3 className="text-lg font-semibold text-sky-100">Asset Details</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-600/80 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-800"
+          >
+            Close
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto py-3">
+          <table className="w-full table-fixed border-separate border-spacing-y-1 text-left">
+            <tbody>
+              {detailRows.map(([label, value], index) => (
+                <tr key={label} className={index % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
+                  <th
+                    scope="row"
+                    className="w-36 align-top rounded-l-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400"
+                  >
+                    {label}
+                  </th>
+                  <td className="rounded-r-md px-3 py-2 text-sm font-medium text-slate-100">
+                    <span className="block break-words">{formatAssetDetailValue(value)}</span>
+                  </td>
+                </tr>
+              ))}
+              <tr className={detailRows.length % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
+                <th
+                  scope="row"
+                  className="w-36 align-top rounded-l-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400"
+                >
+                  CMDB Record
+                </th>
+                <td className="rounded-r-md px-3 py-2 text-sm font-medium text-slate-100">
+                  {cmdbRecordUrl ? (
+                    <a
+                      href={cmdbRecordUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="break-words text-cyan-200 underline decoration-cyan-300/60 underline-offset-2 hover:text-cyan-100"
+                    >
+                      Open CMDB record
+                    </a>
+                  ) : (
+                    "Not supplied"
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 export function IctSystemImpactAnalyser2Chart({
   embedded = false,
   systemScopeIds,
@@ -423,6 +543,7 @@ export function IctSystemImpactAnalyser2Chart({
   showSelectedTileText = false,
   spiDefinitions = [],
   onAssetFocus,
+  assetFocusEligibleAssetIds,
   externalSelectedSearchOption,
   onSelectedNodeChange,
   extraControls
@@ -442,6 +563,7 @@ export function IctSystemImpactAnalyser2Chart({
   showSelectedTileText?: boolean;
   spiDefinitions?: SpiDefinition[];
   onAssetFocus?: (assetId: string) => void;
+  assetFocusEligibleAssetIds?: string[];
   externalSelectedSearchOption?: ImpactAnalyser2SelectedSearchOption | null;
   onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void;
   extraControls?: ReactNode;
@@ -459,6 +581,7 @@ export function IctSystemImpactAnalyser2Chart({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const baseLineRef = useRef<THREE.LineSegments | null>(null);
   const overlayAnimationFrameRef = useRef<number | null>(null);
+  const assetDetailsCloseTimerRef = useRef<number | null>(null);
   const selectedNodeRef = useRef<ImpactAnalyser2SelectedNode | null>(null);
   const workerResultRef = useRef<ImpactAnalyser2WorkerResult | null>(null);
   const viewportSizeRef = useRef({ width: 0, height: 0 });
@@ -487,6 +610,8 @@ export function IctSystemImpactAnalyser2Chart({
   const [drillThroughError, setDrillThroughError] = useState<string | null>(null);
   const [isDrillThroughLoading, setIsDrillThroughLoading] = useState(false);
   const [selectedTileCopyFeedback, setSelectedTileCopyFeedback] = useState<"idle" | "copied" | "failed">("idle");
+  const [selectedAssetDetails, setSelectedAssetDetails] = useState<ImpactAnalyser2Row | null>(null);
+  const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
   const hasSystemScope = Array.isArray(systemScopeIds);
   const systemScopeKey = hasSystemScope ? Array.from(new Set(systemScopeIds)).sort().join(",") : "";
   const normalizedSystemScopeIds = useMemo(
@@ -548,9 +673,19 @@ export function IctSystemImpactAnalyser2Chart({
     }
     return map;
   }, [sourceRows]);
+  const assetFocusEligibleAssetIdSet = useMemo(
+    () => new Set(assetFocusEligibleAssetIds ?? []),
+    [assetFocusEligibleAssetIds]
+  );
+  const isAssetFocusEligible = useCallback(
+    (assetId: string) =>
+      Boolean(onAssetFocus) &&
+      (assetFocusEligibleAssetIds === undefined || assetFocusEligibleAssetIdSet.has(assetId)),
+    [assetFocusEligibleAssetIdSet, assetFocusEligibleAssetIds, onAssetFocus]
+  );
   const selectedAssetMeta =
     activeSelectedNode?.axisKey === "asset" ? assetMetaById.get(activeSelectedNode.value) ?? null : null;
-  const selectedAssetTileText = selectedAssetMeta
+  const selectedAssetTileText = isCiDiagramMode && selectedAssetMeta
     ? [
         `Type: ${formatAssetTypeLabel(selectedAssetMeta.assetType)}`,
         `Name: ${selectedAssetMeta.assetName}`,
@@ -558,7 +693,6 @@ export function IctSystemImpactAnalyser2Chart({
         `IP Address: ${selectedAssetMeta.assetIpAddress}`,
         `Environment: ${selectedAssetMeta.environmentType ?? "Unassigned"}`,
         `ICT System: ${selectedAssetMeta.hasIctSystem ? selectedAssetMeta.systemName : "Not linked to ICT system"}`,
-        ...(!isCiDiagramMode ? [`Security Domain: ${selectedAssetMeta.securityDomain}`] : []),
         `Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}`
       ].join("\n")
     : null;
@@ -717,6 +851,15 @@ export function IctSystemImpactAnalyser2Chart({
     selectedNodeRef.current = activeSelectedNode;
     setSelectedTileCopyFeedback("idle");
   }, [activeSelectedNode]);
+
+  useEffect(() => {
+    return () => {
+      if (assetDetailsCloseTimerRef.current !== null) {
+        window.clearTimeout(assetDetailsCloseTimerRef.current);
+        assetDetailsCloseTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     onSelectedNodeChange?.(activeSelectedNode);
@@ -1149,7 +1292,7 @@ export function IctSystemImpactAnalyser2Chart({
             context.lineTo(x + 13, y - 9.5);
             context.stroke();
           }
-          if (isSelected && axis.key === "asset" && onAssetFocus) {
+          if (!isCiDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value)) {
             context.beginPath();
             context.arc(x + 13, y - 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1164,11 +1307,26 @@ export function IctSystemImpactAnalyser2Chart({
             context.fillText("F", x + 13, y - 12.5);
             context.textBaseline = "alphabetic";
           }
+          if (!isCiDiagramMode && isSelected && axis.key === "asset") {
+            context.beginPath();
+            context.arc(x + 13, y + 13, 7, 0, Math.PI * 2);
+            context.fillStyle = "#0f172a";
+            context.fill();
+            context.strokeStyle = "#ecfeff";
+            context.lineWidth = 1.4;
+            context.stroke();
+            context.fillStyle = "#ecfeff";
+            context.font = "700 9px ui-sans-serif, system-ui, sans-serif";
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.fillText("D", x + 13, y + 13.5);
+            context.textBaseline = "alphabetic";
+          }
         }
       });
 
     },
-    [assetShapeTypeForNode, displayNodeLabel, isCiDiagramMode, onAssetFocus]
+    [assetShapeTypeForNode, displayNodeLabel, isAssetFocusEligible, isCiDiagramMode]
   );
 
   useEffect(() => {
@@ -1219,11 +1377,19 @@ export function IctSystemImpactAnalyser2Chart({
           const nodeY = valueVirtualY(axis, valueIndex, result.virtualHeight);
           const value = axis.values[valueIndex];
           const distance = Math.hypot(x - axisPixelX, virtualY - nodeY);
-          const plusDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY - 13));
+          const topRightBadgeDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY - 13));
+          const bottomRightBadgeDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY + 13));
+          const isSelected = isSelectedNode(selectedNodeRef.current, axis.key, value);
+          if (!isCiDiagramMode && axis.key === "asset" && isSelected && bottomRightBadgeDistance <= 11) {
+            return {
+              node: { axisKey: axis.key, value },
+              action: "asset-details"
+            };
+          }
           const isSelectedActionBadge =
-            ((!isCiDiagramMode && axis.key === "spi") || (axis.key === "asset" && Boolean(onAssetFocus))) &&
-            isSelectedNode(selectedNodeRef.current, axis.key, value) &&
-            plusDistance <= 11;
+            ((!isCiDiagramMode && axis.key === "spi") || (axis.key === "asset" && isAssetFocusEligible(value))) &&
+            isSelected &&
+            topRightBadgeDistance <= 11;
           if (isSelectedActionBadge) {
             return {
               node: { axisKey: axis.key, value },
@@ -1237,7 +1403,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       return bestMatch;
     },
-    [isCiDiagramMode, onAssetFocus]
+    [isAssetFocusEligible, isCiDiagramMode]
   );
 
   const openSpiDrillThrough = useCallback(
@@ -1282,6 +1448,33 @@ export function IctSystemImpactAnalyser2Chart({
     ]
   );
 
+  const openAssetDetails = useCallback(
+    (assetId: string) => {
+      const asset = assetMetaById.get(assetId);
+      if (!asset) {
+        return;
+      }
+      if (assetDetailsCloseTimerRef.current !== null) {
+        window.clearTimeout(assetDetailsCloseTimerRef.current);
+        assetDetailsCloseTimerRef.current = null;
+      }
+      setSelectedAssetDetails(asset);
+      window.requestAnimationFrame(() => setIsAssetDetailsPanelOpen(true));
+    },
+    [assetMetaById]
+  );
+
+  const closeAssetDetails = useCallback(() => {
+    setIsAssetDetailsPanelOpen(false);
+    if (assetDetailsCloseTimerRef.current !== null) {
+      window.clearTimeout(assetDetailsCloseTimerRef.current);
+    }
+    assetDetailsCloseTimerRef.current = window.setTimeout(() => {
+      setSelectedAssetDetails(null);
+      assetDetailsCloseTimerRef.current = null;
+    }, 220);
+  }, []);
+
   const handleOverlayClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       const hit = findNodeAtPoint(event.clientX, event.clientY);
@@ -1303,6 +1496,10 @@ export function IctSystemImpactAnalyser2Chart({
         onAssetFocus?.(hit.node.value);
         return;
       }
+      if (hit.action === "asset-details") {
+        openAssetDetails(hit.node.value);
+        return;
+      }
       setSelectedNode((current) => (selectedNodeEquals(current, hit.node) ? null : hit.node));
     },
     [
@@ -1310,6 +1507,7 @@ export function IctSystemImpactAnalyser2Chart({
       findNodeAtPoint,
       isCiDiagramMode,
       onAssetFocus,
+      openAssetDetails,
       openSpiDrillThrough,
       selectedNode,
       selectedSearchOption
@@ -1330,6 +1528,8 @@ export function IctSystemImpactAnalyser2Chart({
         text:
           hit.action === "spi-findings"
             ? `Open findings for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
+            : hit.action === "asset-details"
+              ? `Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
             : hit.action === "asset-focus"
               ? `Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
               : isCiDiagramMode
@@ -1612,11 +1812,11 @@ export function IctSystemImpactAnalyser2Chart({
                       {hoverInfo.text}
                     </div>
                   ) : null}
-                  {showSelectedTileText && selectedAssetTileText ? (
+                  {isCiDiagramMode && showSelectedTileText && selectedAssetTileText ? (
                     <SelectedAssetPanel
-                      title={isCiDiagramMode ? "Selected Asset" : "Selected Tile Text"}
+                      title="Selected Asset"
                       text={selectedAssetTileText}
-                      placement={isCiDiagramMode ? "bottom-left" : "top-right"}
+                      placement="bottom-left"
                       copyFeedback={selectedTileCopyFeedback}
                       onCopy={copySelectedAssetTileText}
                     />
@@ -1661,6 +1861,9 @@ export function IctSystemImpactAnalyser2Chart({
           asOfDate={drillThroughData.snapshotDate}
           onClose={() => setDrillThroughData(null)}
         />
+      ) : null}
+      {!isCiDiagramMode && selectedAssetDetails ? (
+        <AssetDetailsPanel asset={selectedAssetDetails} isOpen={isAssetDetailsPanelOpen} onClose={closeAssetDetails} />
       ) : null}
     </>
   );

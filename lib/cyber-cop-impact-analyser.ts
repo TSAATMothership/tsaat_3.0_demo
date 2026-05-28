@@ -32,6 +32,15 @@ export interface CyberCopImpactAnalyserRow {
   spiId: number | null;
   spiLabel: string;
   hasOpenFinding: boolean;
+  cmdbRecordUrl?: string | null;
+  lifecycleEolStatus?: string;
+  lifecycleWarrantyStatus?: string;
+  operatingSystemSummary?: string | null;
+  networkOsSummary?: string | null;
+  patchStateSummary?: string | null;
+  installedSoftwareCount?: number;
+  vulnerabilityCount?: number;
+  criticalVulnerabilityCount?: number;
 }
 
 export interface CyberCopImpactAnalyserFindingRow {
@@ -166,6 +175,63 @@ function assetDisplayName(asset: Asset): string {
   return asset.name || asset.hostname || asset.id;
 }
 
+function formatOperatingSystemSummary(
+  operatingSystem:
+    | {
+        family: string;
+        vendor: string;
+        version: string;
+        supportStatus: string;
+      }
+    | null
+    | undefined
+): string | null {
+  if (!operatingSystem) {
+    return null;
+  }
+  const name = [operatingSystem.vendor, operatingSystem.family, operatingSystem.version]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return [name || "Operating system recorded", operatingSystem.supportStatus].filter(Boolean).join(" | ");
+}
+
+function assetOperatingSystemSummary(asset: Asset): string | null {
+  if (asset.type !== "server" && asset.type !== "workstation") {
+    return null;
+  }
+  return formatOperatingSystemSummary(asset.operatingSystem);
+}
+
+function assetNetworkOsSummary(asset: Asset): string | null {
+  if (asset.type !== "network-device") {
+    return null;
+  }
+  return formatOperatingSystemSummary(asset.networkOs);
+}
+
+function assetPatchStateSummary(asset: Asset): string | null {
+  if (asset.type !== "network-device" || !asset.patchState) {
+    return null;
+  }
+  const latestLabel =
+    asset.patchState.isLatest === null ? "Latest: Unknown" : asset.patchState.isLatest ? "Latest: Yes" : "Latest: No";
+  return asset.patchState.lastPatchedDate ? `${latestLabel} | Last patched: ${asset.patchState.lastPatchedDate}` : latestLabel;
+}
+
+function assetInstalledSoftwareCount(asset: Asset): number {
+  if (asset.type !== "server" && asset.type !== "workstation") {
+    return 0;
+  }
+  return asset.installedSoftware.length;
+}
+
+function criticalVulnerabilityCount(asset: Asset): number {
+  return asset.vulnerabilities.filter(
+    (vulnerability) => vulnerability.severity === "Critical" || vulnerability.criticality === "Critical"
+  ).length;
+}
+
 function rowForAssetFinding(
   asset: Asset,
   finding: Finding | null,
@@ -205,7 +271,16 @@ function rowForAssetFinding(
     severity: finding?.severity ?? null,
     spiId: finding?.spiId ?? null,
     spiLabel: finding ? `SPI ${finding.spiId}` : "",
-    hasOpenFinding: Boolean(finding)
+    hasOpenFinding: Boolean(finding),
+    cmdbRecordUrl: asset.cmdbRecordUrl ?? null,
+    lifecycleEolStatus: asset.lifecycle.eolStatus,
+    lifecycleWarrantyStatus: asset.lifecycle.warrantyStatus,
+    operatingSystemSummary: assetOperatingSystemSummary(asset),
+    networkOsSummary: assetNetworkOsSummary(asset),
+    patchStateSummary: assetPatchStateSummary(asset),
+    installedSoftwareCount: assetInstalledSoftwareCount(asset),
+    vulnerabilityCount: asset.vulnerabilities.length,
+    criticalVulnerabilityCount: criticalVulnerabilityCount(asset)
   };
 }
 

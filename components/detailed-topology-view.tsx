@@ -1416,6 +1416,17 @@ export function DetailedTopologyView({
   const flowCiNodeByAssetId = useMemo(() => {
     return new Map(data.ciNodes.map((node) => [node.id, node]));
   }, [data.ciNodes]);
+  const assetFocusEligibleAssetIds = useMemo(() => {
+    const eligibleAssetIds = new Set<string>();
+    for (const dependency of data.ciDependencies) {
+      if (dependency.sourceAssetId === dependency.targetAssetId) {
+        continue;
+      }
+      eligibleAssetIds.add(dependency.sourceAssetId);
+      eligibleAssetIds.add(dependency.targetAssetId);
+    }
+    return Array.from(eligibleAssetIds).sort((left, right) => left.localeCompare(right));
+  }, [data.ciDependencies]);
   const modelAssetIdSet = useMemo(() => new Set(data.modelAssetIds), [data.modelAssetIds]);
   const networkNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -7108,9 +7119,9 @@ export function DetailedTopologyView({
                   assetSearchCategory="Assets"
                   {...(!isSystemImpactAnalyser ? { includeNetworkAxis: true } : {})}
                   showAssetTypeFilter
-                  showSelectedTileText
                   spiDefinitions={spiDefinitions}
                   onAssetFocus={openCiFlowFocusForAssetId}
+                  assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}
                 />
               </div>
 

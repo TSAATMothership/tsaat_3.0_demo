@@ -32,7 +32,7 @@ Major dependencies:
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches among visible tabs and opens a topology modal.
 - **User perspective:** the user can move between metadata, compliance, and discovery views, and open a richer topology representation.
-- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes.
+- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes. The Network Impact Analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes.
 - **Outcome:** tab states are bookmarkable; topology is not.
 
 ### Feature: Details Tab
@@ -86,8 +86,8 @@ Key dependencies:
 | Page Name | Feature Name | Schema | Table | Column | Data Type (if known) | Purpose on Page | CRUD Usage | Join / Relationship Logic | Default Value / Rule | Calculation / Transformation | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Network Detail | Network metadata | `tsaat` | `managed_network` | `network_id`, `name`, `classification`, ownership and link columns, `diis_id`, `ato_number`, `apm_number`, `modelling_status`, `discovery_status` | mixed | header, details tab, discovery summary | Read | root network record for page | deterministic ATO, DIIS, and APM values are loaded/backfilled; legacy blank references display as `Missing`; descriptive blanks may use fallback display values | direct display | network modelling status is persisted for future use |
-| Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal and relationship context | Read | combined into topology graph | no persisted graph view | runtime graph build | topology includes synthetic relation edges |
-| Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
+| Network Detail | Network hierarchy and topology | `tsaat` | `managed_network_hierarchy`, `ict_system_hierarchy`, `network_declared_system`, `network_declared_asset`, `ci_dependency` | parent-child keys and dependency fields | string, enum-like | topology modal, Network Impact Analyser CI focus eligibility, and relationship context | Read | combined into topology graph | CI focus badge appears only when the selected asset has a direct CI dependency | runtime graph build | topology includes synthetic relation edges |
+| Network Detail | Asset evidence | `tsaat` | `asset`, child posture tables, `asset_vulnerability` | asset identity, optional `cmdb_record_url`, OS, patch, software, vulnerability fields including CVE `criticality` | mixed | compliance overview, discovery table, asset inventory, Asset Details slide-out | Read | joined by `asset_id` inside one snapshot | assets filtered by network and optional KPI filters; CMDB link shows `Not supplied` when absent | runtime SPI, exposure, discovery evaluation, and CVE criticality filtering | |
 | Network Detail | Findings | `tsaat` | `finding`, `usp_get_effective_findings_snapshot` | IDs, scope columns, display priority/severity, timestamps, `evidence`, `recommended_action` | mixed | compliance drillthroughs, hidden cyber posture, risk charts | Read | findings linked to assets, systems, and network | SQL-generated fallback if no persisted rows exist | severity and non-compliant priority remap applied by SQL effective findings | |
 | Network Detail | Settings-driven logic | `tsaat` | measures and discovery settings tables | version and detail columns | mixed | compliance severity and discovery rules | Read | latest settings versions applied | defaults if settings tables are empty | runtime only | |
 
@@ -104,7 +104,7 @@ Key dependencies:
 | Findings drillthrough history | compliance overview panel | aggregate monthly open counts from SQL-produced workflow status and finding timestamps | SQL-produced effective findings | Runtime display over SQL result | backend and client | no application-side workflow reconstruction helper |
 
 ## 8. Non-Database Calculations
-- `DetailedTopologyView` creates runtime graph layouts and client-only interactions from already-loaded topology data.
+- `DetailedTopologyView` creates runtime graph layouts and client-only interactions from already-loaded topology data; the Asset Details slide-out is a read-only renderer over the selected analyser row and optional asset `cmdb_record_url`.
 - Compliance overview side panels, asset detail overlays, and the all-CVE detail modal with criticality filtering are client-only UI states.
 - Hidden cyber-posture P1/P2 findings list caps visible rows at `80`.
 - Discovery search, tool filter, and asset-type filter are query-parameter-driven view filters over the already selected snapshot.

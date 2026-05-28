@@ -408,7 +408,7 @@ function buildAxes(
     },
     {
       key: "spi",
-      label: "SPI",
+      label: "Security Posture Indicator",
       values: Array.from(new Set(findingRows.map((row) => row.spiLabel).filter(Boolean))).sort(
         (left, right) => Number(left.replace("SPI ", "")) - Number(right.replace("SPI ", ""))
       )
