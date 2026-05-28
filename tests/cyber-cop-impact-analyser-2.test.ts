@@ -965,8 +965,13 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("Asset Type: ${assetTypeLabel(selectedRelatedCiFlowFocusNode.type)}");
     expect(detailedTopology).toContain('"ci-focus-context-related-asset-placeholder"');
     expect(detailedTopology).toContain('"No Related Asset Selected"');
-    expect(detailedTopology).toContain('"Select a related asset in the CI Analyser"');
+    expect(detailedTopology).not.toContain('"Select a related asset in the CI Analyser"');
     expect(detailedTopology).toContain("placeholder: true");
+    expect(detailedTopology).toContain("if (tile.placeholder)");
+    expect(detailedTopology).toContain("data-ci-focus-placeholder-tile");
+    expect(detailedTopology).toContain("flex h-full min-h-[4.5rem] items-center justify-center");
+    expect(detailedTopology).toContain('{tile.placeholder ? "border-dashed opacity-85" : ""}');
+    expect(detailedTopology).toContain("{tile.name}</p>");
     expect(detailedTopology).toContain('setCiAnalyserSelectedAssetAxis("asset")');
     expect(detailedTopology).toContain('setCiAnalyserSelectedAssetAxis("relatedAsset")');
     expect(detailedTopology).toContain("setCiAnalyserSelectedAssetAxis(null)");

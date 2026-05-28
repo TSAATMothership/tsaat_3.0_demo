@@ -228,7 +228,7 @@ interface CiFocusTileModel {
   entityType: DetailedTileEntityType;
   typeLabel: string;
   name: string;
-  subtitle: string;
+  subtitle?: string;
   borderColor: string;
   percentages: { compliant: number; nonCompliant: number; other: number };
   placeholder?: boolean;
@@ -6317,40 +6317,52 @@ export function DetailedTopologyView({
     );
   };
 
-  const renderCiFocusTile = (tile: CiFocusTileModel, variant: "context" | "selected" = "context") => (
-    <article
-      data-ci-focus-tile={tile.id}
-      className={`select-none border-2 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)] ${
-        variant === "selected" ? "rounded-3xl px-4 py-3" : "rounded-xl px-2.5 py-1.5"
-      } ${tile.placeholder ? "border-dashed opacity-85" : ""}`}
-      style={{
-        borderColor: tile.borderColor,
-        backgroundColor: detailedTileColor(tile.entityType)
-      }}
-    >
-      <div className="min-w-0 space-y-0.5">
-        <p className={`${variant === "selected" ? "text-xs" : "text-[10px]"} font-semibold uppercase tracking-[0.1em] text-slate-800`}>
-          {tile.typeLabel}
-        </p>
-        <p className={`${variant === "selected" ? "text-sm" : "text-xs"} truncate font-semibold leading-snug text-slate-900`}>
-          {tile.name}
-        </p>
-        <p className={`${variant === "selected" ? "text-xs" : "text-[11px]"} truncate font-medium leading-snug text-slate-800`}>
-          {tile.subtitle}
-        </p>
-      </div>
-      <div className={`${variant === "selected" ? "mt-3 h-3" : "mt-1.5 h-2"} w-full overflow-hidden rounded-sm bg-slate-300/95`}>
-        <div className="flex h-full w-full">
-          <div className="h-full bg-emerald-600" style={{ width: `${tile.percentages.compliant}%` }} />
-          <div className="h-full bg-red-500" style={{ width: `${tile.percentages.nonCompliant}%` }} />
-          <div className="h-full bg-slate-400" style={{ width: `${tile.percentages.other}%` }} />
+  const renderCiFocusTile = (tile: CiFocusTileModel, variant: "context" | "selected" = "context") => {
+    const tileClassName = `select-none border-2 text-slate-900 shadow-[0_10px_20px_rgba(0,0,0,0.36)] ${
+      variant === "selected" ? "rounded-3xl px-4 py-3" : "rounded-xl px-2.5 py-1.5"
+    } ${tile.placeholder ? "border-dashed opacity-85" : ""}`;
+    const tileStyle = {
+      borderColor: tile.borderColor,
+      backgroundColor: detailedTileColor(tile.entityType)
+    };
+    if (tile.placeholder) {
+      return (
+        <article
+          data-ci-focus-tile={tile.id}
+          data-ci-focus-placeholder-tile
+          className={`${tileClassName} flex h-full min-h-[4.5rem] items-center justify-center px-3 py-3 text-center`}
+          style={tileStyle}
+        >
+          <p className="text-sm font-semibold leading-snug text-slate-900">{tile.name}</p>
+        </article>
+      );
+    }
+    return (
+      <article data-ci-focus-tile={tile.id} className={tileClassName} style={tileStyle}>
+        <div className="min-w-0 space-y-0.5">
+          <p className={`${variant === "selected" ? "text-xs" : "text-[10px]"} font-semibold uppercase tracking-[0.1em] text-slate-800`}>
+            {tile.typeLabel}
+          </p>
+          <p className={`${variant === "selected" ? "text-sm" : "text-xs"} truncate font-semibold leading-snug text-slate-900`}>
+            {tile.name}
+          </p>
+          <p className={`${variant === "selected" ? "text-xs" : "text-[11px]"} truncate font-medium leading-snug text-slate-800`}>
+            {tile.subtitle}
+          </p>
         </div>
-      </div>
-      <p className={`${variant === "selected" ? "mt-2 text-base" : "mt-1 text-[11px]"} text-center font-medium text-slate-900`}>
-        {tile.percentages.compliant}% C | {tile.percentages.nonCompliant}% NC | {tile.percentages.other}% O
-      </p>
-    </article>
-  );
+        <div className={`${variant === "selected" ? "mt-3 h-3" : "mt-1.5 h-2"} w-full overflow-hidden rounded-sm bg-slate-300/95`}>
+          <div className="flex h-full w-full">
+            <div className="h-full bg-emerald-600" style={{ width: `${tile.percentages.compliant}%` }} />
+            <div className="h-full bg-red-500" style={{ width: `${tile.percentages.nonCompliant}%` }} />
+            <div className="h-full bg-slate-400" style={{ width: `${tile.percentages.other}%` }} />
+          </div>
+        </div>
+        <p className={`${variant === "selected" ? "mt-2 text-base" : "mt-1 text-[11px]"} text-center font-medium text-slate-900`}>
+          {tile.percentages.compliant}% C | {tile.percentages.nonCompliant}% NC | {tile.percentages.other}% O
+        </p>
+      </article>
+    );
+  };
 
   const detailedZoomPercent = Math.round(detailedZoom * 100);
   const ciFlowRootTile = ciFlowRootNodeId ? ciFlowNodeById.get(ciFlowRootNodeId) ?? null : null;
@@ -6515,7 +6527,6 @@ export function DetailedTopologyView({
           entityType: "not-modelled",
           typeLabel: "Related Asset",
           name: "No Related Asset Selected",
-          subtitle: "Select a related asset in the CI Analyser",
           borderColor: detailedTileStrokeColor("not-modelled"),
           percentages: emptyPercentages,
           placeholder: true
