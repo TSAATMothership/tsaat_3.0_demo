@@ -75,11 +75,13 @@ interface ImpactAnalyser2SearchOption {
 type WorkerRequest =
   | {
       type: "init";
+      initRequestId: number;
       rows: ImpactAnalyser2Row[];
       diagramMode: ImpactAnalyser2DiagramMode;
     }
   | {
       type: "filter";
+      initRequestId: number;
       requestId: number;
       filters: ImpactAnalyser2Filters;
       selectedNode: ImpactAnalyser2SelectedNode | null;
@@ -658,6 +660,7 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
   workerScope.postMessage(
     {
       type: "filtered",
+      initRequestId: request.initRequestId,
       requestId: request.requestId,
       axes,
       filteredRowCount: filteredRows.length,
@@ -688,6 +691,7 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
     sourceRows = request.rows;
     workerScope.postMessage({
       type: "initialized",
+      initRequestId: request.initRequestId,
       totalRowCount: sourceRows.length,
       environmentOptions: Array.from(new Set(sourceRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
       assetTypeOptions: assetTypeOrder.filter((assetType) =>

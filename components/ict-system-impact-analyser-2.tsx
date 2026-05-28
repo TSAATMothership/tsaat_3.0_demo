@@ -94,6 +94,7 @@ export interface ImpactAnalyser2SelectedNode {
 }
 
 interface ImpactAnalyser2WorkerResult {
+  initRequestId: number;
   requestId: number;
   axes: ImpactAnalyser2Axis[];
   filteredRowCount: number;
@@ -659,6 +660,7 @@ export function IctSystemImpactAnalyser2Chart({
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const latestRequestIdRef = useRef(0);
+  const latestWorkerInitRequestIdRef = useRef(0);
   const acceptedWorkerResultRequestIdRef = useRef(0);
   const pendingViewportActionRef = useRef<ImpactAnalyser2PendingViewportAction | null>(null);
   const previousExternalSelectedSearchKeyRef = useRef<string | null>(null);
@@ -675,6 +677,7 @@ export function IctSystemImpactAnalyser2Chart({
   const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [workerReady, setWorkerReady] = useState(false);
+  const [acknowledgedWorkerInitRequestId, setAcknowledgedWorkerInitRequestId] = useState(0);
   const [sourceRows, setSourceRows] = useState<ImpactAnalyser2Row[]>([]);
   const [environmentOptions, setEnvironmentOptions] = useState<ImpactAnalyser2EnvironmentOption[]>([]);
   const [securityDomainOptions, setSecurityDomainOptions] = useState<SecurityDomain[]>([]);
@@ -874,6 +877,22 @@ export function IctSystemImpactAnalyser2Chart({
     setDrillThroughData(null);
     setDrillThroughError(null);
   }, []);
+  const clearRenderedDiagram = useCallback(() => {
+    workerResultRef.current = null;
+    const scene = sceneRef.current;
+    if (baseLineRef.current) {
+      scene?.remove(baseLineRef.current);
+      disposeLine(baseLineRef.current);
+      baseLineRef.current = null;
+    }
+    rendererRef.current?.clear();
+    const overlayCanvas = overlayCanvasRef.current;
+    const overlayContext = overlayCanvas?.getContext("2d");
+    if (overlayCanvas && overlayContext) {
+      overlayContext.setTransform(1, 0, 0, 1, 0, 0);
+      overlayContext.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+  }, []);
   const resetDiagramViewportForFilterChange = useCallback(() => {
     setSelectedSearchOption(null);
     setSelectedNode(null);
@@ -989,19 +1008,28 @@ export function IctSystemImpactAnalyser2Chart({
       event: MessageEvent<
         | {
             type: "initialized";
+            initRequestId: number;
             totalRowCount: number;
             environmentOptions: ImpactAnalyser2EnvironmentOption[];
             assetTypeOptions: CanonicalAssetType[];
             securityDomainOptions: SecurityDomain[];
           }
-        | ({ type: "filtered"; requestId: number } & ImpactAnalyser2WorkerResult)
+        | ({ type: "filtered"; initRequestId: number; requestId: number } & ImpactAnalyser2WorkerResult)
       >
     ) => {
       if (event.data.type === "initialized") {
+        if (event.data.initRequestId !== latestWorkerInitRequestIdRef.current) {
+          return;
+        }
         setEnvironmentOptions(event.data.environmentOptions.sort(sortEnvironmentLabel) as ImpactAnalyser2EnvironmentOption[]);
         setAssetTypeOptions(event.data.assetTypeOptions.sort(sortAssetTypeLabel) as CanonicalAssetType[]);
         setSecurityDomainOptions(event.data.securityDomainOptions);
+        setAcknowledgedWorkerInitRequestId(event.data.initRequestId);
         setWorkerReady(true);
+        setLoadState("ready");
+        return;
+      }
+      if (event.data.initRequestId !== latestWorkerInitRequestIdRef.current) {
         return;
       }
       if (event.data.requestId !== latestRequestIdRef.current) {
@@ -1009,6 +1037,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       acceptedWorkerResultRequestIdRef.current = event.data.requestId;
       setWorkerResult({
+        initRequestId: event.data.initRequestId,
         requestId: event.data.requestId,
         axes: event.data.axes,
         filteredRowCount: event.data.filteredRowCount,
@@ -1038,6 +1067,18 @@ export function IctSystemImpactAnalyser2Chart({
 
   useEffect(() => {
     let isCancelled = false;
+    const initialiseRows = (rows: ImpactAnalyser2Row[]) => {
+      const initRequestId = latestWorkerInitRequestIdRef.current + 1;
+      latestWorkerInitRequestIdRef.current = initRequestId;
+      acceptedWorkerResultRequestIdRef.current = 0;
+      setSourceRows(rows);
+      setWorkerReady(false);
+      setAcknowledgedWorkerInitRequestId(0);
+      clearRenderedDiagram();
+      setWorkerResult(null);
+      queueDiagramFilterRefresh({ type: "clamp" });
+      workerRef.current?.postMessage({ type: "init", initRequestId, rows, diagramMode });
+    };
     async function loadRows() {
       setLoadState("loading");
       setLoadError(null);
@@ -1046,9 +1087,7 @@ export function IctSystemImpactAnalyser2Chart({
           if (isCancelled) {
             return;
           }
-          setSourceRows(providedRows);
-          workerRef.current?.postMessage({ type: "init", rows: providedRows, diagramMode });
-          setLoadState("ready");
+          initialiseRows(providedRows);
           return;
         }
         const response = await fetch(buildApiUrl(dataPath), { cache: "no-store" });
@@ -1059,9 +1098,7 @@ export function IctSystemImpactAnalyser2Chart({
         if (isCancelled) {
           return;
         }
-        setSourceRows(payload.rows);
-        workerRef.current?.postMessage({ type: "init", rows: payload.rows, diagramMode });
-        setLoadState("ready");
+        initialiseRows(payload.rows);
       } catch (error) {
         if (isCancelled) {
           return;
@@ -1075,7 +1112,7 @@ export function IctSystemImpactAnalyser2Chart({
     return () => {
       isCancelled = true;
     };
-  }, [dataPath, diagramMode, providedRows]);
+  }, [clearRenderedDiagram, dataPath, diagramMode, providedRows, queueDiagramFilterRefresh]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -1097,12 +1134,13 @@ export function IctSystemImpactAnalyser2Chart({
   }, []);
 
   useEffect(() => {
-    if (!workerReady || !workerRef.current || !viewportSize.width) {
+    if (!workerReady || !acknowledgedWorkerInitRequestId || !workerRef.current || !viewportSize.width) {
       return;
     }
     latestRequestIdRef.current += 1;
     workerRef.current.postMessage({
       type: "filter",
+      initRequestId: acknowledgedWorkerInitRequestId,
       requestId: latestRequestIdRef.current,
       filters: {
         environment: selectedEnvironmentKey ? selectedEnvironmentKey.split(",") : [],
@@ -1143,7 +1181,8 @@ export function IctSystemImpactAnalyser2Chart({
     assetAxisLabel,
     assetSearchCategory,
     includeNetworkAxis,
-    diagramMode
+    diagramMode,
+    acknowledgedWorkerInitRequestId
   ]);
 
   useEffect(() => {
@@ -1184,11 +1223,22 @@ export function IctSystemImpactAnalyser2Chart({
     if (!canvas || !result || width <= 0 || height <= 0) {
       return;
     }
+    if (result.initRequestId !== acknowledgedWorkerInitRequestId) {
+      return;
+    }
     if (acceptedWorkerResultRequestIdRef.current !== result.requestId) {
       return;
     }
 
     let renderer = rendererRef.current;
+    if (renderer && renderer.domElement !== canvas) {
+      disposeLine(baseLineRef.current);
+      baseLineRef.current = null;
+      renderer.dispose();
+      rendererRef.current = null;
+      sceneRef.current = null;
+      renderer = null;
+    }
     if (!renderer) {
       try {
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
@@ -1236,7 +1286,7 @@ export function IctSystemImpactAnalyser2Chart({
     const camera = new THREE.OrthographicCamera(0, width, cameraScrollTop, cameraScrollTop + height, -1, 1);
     renderer.clear();
     renderer.render(scene, camera);
-  }, [scrollTop, viewportSize.height, viewportSize.width, workerResult]);
+  }, [acknowledgedWorkerInitRequestId, scrollTop, viewportSize.height, viewportSize.width, workerResult]);
 
   useEffect(() => {
     return () => {
@@ -1883,72 +1933,71 @@ export function IctSystemImpactAnalyser2Chart({
             onScroll={handleScroll}
             className="relative mt-1.5 min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-sky-300/10 bg-slate-950/35"
           >
-            {workerResult && workerResult.filteredRowCount === 0 ? (
-              <p className="m-3 rounded-md border border-sky-300/15 bg-slate-900/55 px-3 py-2 text-xs text-slate-300/80">
-                {isCiDiagramMode
-                  ? "No CI relationship paths match the selected filters."
-                  : "No ICT System Impact Analyser findings match the selected filters."}
-              </p>
-            ) : (
-              <div style={{ height: workerResult?.virtualHeight ?? chartLayout.minHeight }}>
-                <div className="sticky top-0 relative" style={{ height: viewportSize.height || "100%" }}>
-                  <canvas
-                    ref={webglCanvasRef}
-                    className="absolute inset-0 h-full w-full"
-                    aria-hidden="true"
+            <div style={{ height: workerResult?.virtualHeight ?? chartLayout.minHeight }}>
+              <div className="sticky top-0 relative" style={{ height: viewportSize.height || "100%" }}>
+                <canvas
+                  ref={webglCanvasRef}
+                  className="absolute inset-0 h-full w-full"
+                  aria-hidden="true"
+                />
+                <canvas
+                  ref={overlayCanvasRef}
+                  role="img"
+                  aria-label="ICT System Impact Analyser Canvas WebGL parallel coordinates"
+                  className="absolute inset-0 h-full w-full cursor-pointer"
+                  onClick={handleOverlayClick}
+                  onPointerMove={handleOverlayPointerMove}
+                  onPointerLeave={() => setHoverInfo(null)}
+                />
+                {workerResult && workerResult.filteredRowCount === 0 ? (
+                  <p className="pointer-events-none absolute left-3 top-3 z-20 max-w-sm rounded-md border border-sky-300/15 bg-slate-900/80 px-3 py-2 text-xs text-slate-300/80 shadow-lg">
+                    {isCiDiagramMode
+                      ? "No CI relationship paths match the selected filters."
+                      : "No ICT System Impact Analyser findings match the selected filters."}
+                  </p>
+                ) : null}
+                {hoverInfo ? (
+                  <div
+                    className="pointer-events-none absolute z-30 whitespace-pre-line rounded-md border border-sky-300/35 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
+                    style={{
+                      left: tooltipLeft,
+                      top: tooltipTop,
+                      maxWidth: tooltipMaxWidth,
+                      maxHeight: Math.max(80, viewportSize.height - 16),
+                      overflow: "hidden"
+                    }}
+                  >
+                    {hoverInfo.text}
+                  </div>
+                ) : null}
+                {isCiDiagramMode && showSelectedTileText && selectedAssetTileText ? (
+                  <SelectedAssetPanel
+                    title="Selected Asset"
+                    text={selectedAssetTileText}
+                    placement="bottom-left"
+                    copyFeedback={selectedTileCopyFeedback}
+                    onCopy={copySelectedAssetTileText}
                   />
-                  <canvas
-                    ref={overlayCanvasRef}
-                    role="img"
-                    aria-label="ICT System Impact Analyser Canvas WebGL parallel coordinates"
-                    className="absolute inset-0 h-full w-full cursor-pointer"
-                    onClick={handleOverlayClick}
-                    onPointerMove={handleOverlayPointerMove}
-                    onPointerLeave={() => setHoverInfo(null)}
+                ) : null}
+                {isDiagramInitialLoading ? (
+                  <ImpactAnalyserLoadingOverlay
+                    title="Loading Diagram"
+                    message="Building the ICT System Impact Analyser paths and node index."
                   />
-                  {hoverInfo ? (
-                    <div
-                      className="pointer-events-none absolute z-30 whitespace-pre-line rounded-md border border-sky-300/35 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
-                      style={{
-                        left: tooltipLeft,
-                        top: tooltipTop,
-                        maxWidth: tooltipMaxWidth,
-                        maxHeight: Math.max(80, viewportSize.height - 16),
-                        overflow: "hidden"
-                      }}
-                    >
-                      {hoverInfo.text}
-                    </div>
-                  ) : null}
-                  {isCiDiagramMode && showSelectedTileText && selectedAssetTileText ? (
-                    <SelectedAssetPanel
-                      title="Selected Asset"
-                      text={selectedAssetTileText}
-                      placement="bottom-left"
-                      copyFeedback={selectedTileCopyFeedback}
-                      onCopy={copySelectedAssetTileText}
-                    />
-                  ) : null}
-                  {isDiagramInitialLoading ? (
-                    <ImpactAnalyserLoadingOverlay
-                      title="Loading Diagram"
-                      message="Building the ICT System Impact Analyser paths and node index."
-                    />
-                  ) : null}
-                  {!isCiDiagramMode && isDrillThroughLoading ? (
-                    <ImpactAnalyserLoadingOverlay
-                      title="Loading Risk Detail"
-                      message="Preparing selected SPI findings for the Risk Detail slide-out."
-                    />
-                  ) : null}
-                  {drillThroughError ? (
-                    <div className="absolute right-3 top-3 max-w-sm rounded-md border border-rose-400/35 bg-rose-950/90 px-3 py-2 text-xs text-rose-100 shadow-lg">
-                      {drillThroughError}
-                    </div>
-                  ) : null}
-                </div>
+                ) : null}
+                {!isCiDiagramMode && isDrillThroughLoading ? (
+                  <ImpactAnalyserLoadingOverlay
+                    title="Loading Risk Detail"
+                    message="Preparing selected SPI findings for the Risk Detail slide-out."
+                  />
+                ) : null}
+                {drillThroughError ? (
+                  <div className="absolute right-3 top-3 max-w-sm rounded-md border border-rose-400/35 bg-rose-950/90 px-3 py-2 text-xs text-rose-100 shadow-lg">
+                    {drillThroughError}
+                  </div>
+                ) : null}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </section>
