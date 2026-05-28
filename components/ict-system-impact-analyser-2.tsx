@@ -53,6 +53,16 @@ export interface ImpactAnalyser2Row {
   relatedAssetNetworkId?: string;
   relatedAssetNetworkName?: string;
   relatedAssetHasIctSystem?: boolean;
+  relatedAssetSecurityDomain?: SecurityDomain;
+  relatedAssetCmdbRecordUrl?: string | null;
+  relatedAssetLifecycleEolStatus?: string;
+  relatedAssetLifecycleWarrantyStatus?: string;
+  relatedAssetOperatingSystemSummary?: string | null;
+  relatedAssetNetworkOsSummary?: string | null;
+  relatedAssetPatchStateSummary?: string | null;
+  relatedAssetInstalledSoftwareCount?: number;
+  relatedAssetVulnerabilityCount?: number;
+  relatedAssetCriticalVulnerabilityCount?: number;
   relatedSystemId?: string | null;
   relatedSystemName?: string;
 }
@@ -423,12 +433,88 @@ function formatAssetDetailValue(value: string | number | null | undefined): stri
   return String(value);
 }
 
+interface AssetDetailsPanelModel {
+  assetId: string;
+  assetName: string;
+  assetHostname: string;
+  assetType: AssetType;
+  assetIpAddress: string;
+  networkId: string;
+  networkName: string;
+  hasIctSystem: boolean;
+  systemName: string;
+  environmentType: ImpactAnalyser2EnvironmentOption | null;
+  securityDomain: SecurityDomain;
+  cmdbRecordUrl?: string | null;
+  lifecycleEolStatus?: string;
+  lifecycleWarrantyStatus?: string;
+  operatingSystemSummary?: string | null;
+  networkOsSummary?: string | null;
+  patchStateSummary?: string | null;
+  installedSoftwareCount?: number;
+  vulnerabilityCount?: number;
+  criticalVulnerabilityCount?: number;
+}
+
+function rootAssetDetailsFromRow(row: ImpactAnalyser2Row): AssetDetailsPanelModel {
+  return {
+    assetId: row.assetId,
+    assetName: row.assetName,
+    assetHostname: row.assetHostname,
+    assetType: row.assetType,
+    assetIpAddress: row.assetIpAddress,
+    networkId: row.networkId,
+    networkName: row.networkName,
+    hasIctSystem: row.hasIctSystem,
+    systemName: row.systemName,
+    environmentType: row.environmentType,
+    securityDomain: row.securityDomain,
+    cmdbRecordUrl: row.cmdbRecordUrl ?? null,
+    lifecycleEolStatus: row.lifecycleEolStatus,
+    lifecycleWarrantyStatus: row.lifecycleWarrantyStatus,
+    operatingSystemSummary: row.operatingSystemSummary,
+    networkOsSummary: row.networkOsSummary,
+    patchStateSummary: row.patchStateSummary,
+    installedSoftwareCount: row.installedSoftwareCount,
+    vulnerabilityCount: row.vulnerabilityCount,
+    criticalVulnerabilityCount: row.criticalVulnerabilityCount
+  };
+}
+
+function relatedAssetDetailsFromRow(row: ImpactAnalyser2Row): AssetDetailsPanelModel | null {
+  if (!row.relatedAssetId || !row.relatedAssetType) {
+    return null;
+  }
+  return {
+    assetId: row.relatedAssetId,
+    assetName: row.relatedAssetName || row.relatedAssetHostname || row.relatedAssetId,
+    assetHostname: row.relatedAssetHostname || row.relatedAssetName || row.relatedAssetId,
+    assetType: row.relatedAssetType,
+    assetIpAddress: row.relatedAssetIpAddress || "N/A",
+    networkId: row.relatedAssetNetworkId ?? "Not supplied",
+    networkName: row.relatedAssetNetworkName ?? row.relatedAssetNetworkId ?? "Not supplied",
+    hasIctSystem: row.relatedAssetHasIctSystem === true,
+    systemName: row.relatedSystemName ?? "Not linked to ICT system",
+    environmentType: row.relatedAssetEnvironmentType ?? null,
+    securityDomain: row.relatedAssetSecurityDomain ?? "Unclassified",
+    cmdbRecordUrl: row.relatedAssetCmdbRecordUrl ?? null,
+    lifecycleEolStatus: row.relatedAssetLifecycleEolStatus,
+    lifecycleWarrantyStatus: row.relatedAssetLifecycleWarrantyStatus,
+    operatingSystemSummary: row.relatedAssetOperatingSystemSummary,
+    networkOsSummary: row.relatedAssetNetworkOsSummary,
+    patchStateSummary: row.relatedAssetPatchStateSummary,
+    installedSoftwareCount: row.relatedAssetInstalledSoftwareCount,
+    vulnerabilityCount: row.relatedAssetVulnerabilityCount,
+    criticalVulnerabilityCount: row.relatedAssetCriticalVulnerabilityCount
+  };
+}
+
 function AssetDetailsPanel({
   asset,
   isOpen,
   onClose
 }: {
-  asset: ImpactAnalyser2Row;
+  asset: AssetDetailsPanelModel;
   isOpen: boolean;
   onClose: () => void;
 }) {
@@ -454,7 +540,7 @@ function AssetDetailsPanel({
   ];
 
   return (
-    <div className="fixed inset-0 z-[90] pointer-events-none cursor-default select-none">
+    <div className="fixed inset-0 z-[90] pointer-events-none cursor-default">
       <div
         aria-hidden="true"
         onClick={onClose}
@@ -463,7 +549,7 @@ function AssetDetailsPanel({
         }`}
       />
       <aside
-        className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950/95 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out pointer-events-auto cursor-default select-none ${
+        className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950/95 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out pointer-events-auto cursor-default ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -480,8 +566,8 @@ function AssetDetailsPanel({
             Close
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto py-3">
-          <table className="w-full table-fixed border-separate border-spacing-y-1 text-left">
+        <div className="min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3">
+          <table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">
             <tbody>
               {detailRows.map(([label, value], index) => (
                 <tr key={label} className={index % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
@@ -609,7 +695,7 @@ export function IctSystemImpactAnalyser2Chart({
   const [drillThroughError, setDrillThroughError] = useState<string | null>(null);
   const [isDrillThroughLoading, setIsDrillThroughLoading] = useState(false);
   const [selectedTileCopyFeedback, setSelectedTileCopyFeedback] = useState<"idle" | "copied" | "failed">("idle");
-  const [selectedAssetDetails, setSelectedAssetDetails] = useState<ImpactAnalyser2Row | null>(null);
+  const [selectedAssetDetails, setSelectedAssetDetails] = useState<AssetDetailsPanelModel | null>(null);
   const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
   const hasSystemScope = Array.isArray(systemScopeIds);
   const systemScopeKey = hasSystemScope ? Array.from(new Set(systemScopeIds)).sort().join(",") : "";
@@ -681,6 +767,18 @@ export function IctSystemImpactAnalyser2Chart({
       Boolean(onAssetFocus) &&
       (assetFocusEligibleAssetIds === undefined || assetFocusEligibleAssetIdSet.has(assetId)),
     [assetFocusEligibleAssetIdSet, assetFocusEligibleAssetIds, onAssetFocus]
+  );
+  const canOpenAssetDetails = useCallback(
+    (axisKey: string, value: string) => {
+      if (axisKey === "asset") {
+        return assetMetaById.has(value);
+      }
+      if (isCiDiagramMode && axisKey === "relatedAsset") {
+        return relatedAssetMetaById.has(value);
+      }
+      return false;
+    },
+    [assetMetaById, isCiDiagramMode, relatedAssetMetaById]
   );
   const selectedAssetMeta =
     activeSelectedNode?.axisKey === "asset" ? assetMetaById.get(activeSelectedNode.value) ?? null : null;
@@ -1306,7 +1404,7 @@ export function IctSystemImpactAnalyser2Chart({
             context.fillText("F", x + 13, y - 12.5);
             context.textBaseline = "alphabetic";
           }
-          if (!isCiDiagramMode && isSelected && axis.key === "asset") {
+          if (isSelected && canOpenAssetDetails(axis.key, value)) {
             context.beginPath();
             context.arc(x + 13, y + 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1325,7 +1423,7 @@ export function IctSystemImpactAnalyser2Chart({
       });
 
     },
-    [assetShapeTypeForNode, displayNodeLabel, isAssetFocusEligible, isCiDiagramMode]
+    [assetShapeTypeForNode, canOpenAssetDetails, displayNodeLabel, isAssetFocusEligible, isCiDiagramMode]
   );
 
   useEffect(() => {
@@ -1379,7 +1477,7 @@ export function IctSystemImpactAnalyser2Chart({
           const topRightBadgeDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY - 13));
           const bottomRightBadgeDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY + 13));
           const isSelected = isSelectedNode(selectedNodeRef.current, axis.key, value);
-          if (!isCiDiagramMode && axis.key === "asset" && isSelected && bottomRightBadgeDistance <= 11) {
+          if (isSelected && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11) {
             return {
               node: { axisKey: axis.key, value },
               action: "asset-details"
@@ -1402,7 +1500,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       return bestMatch;
     },
-    [isAssetFocusEligible, isCiDiagramMode]
+    [canOpenAssetDetails, isAssetFocusEligible, isCiDiagramMode]
   );
 
   const openSpiDrillThrough = useCallback(
@@ -1448,19 +1546,30 @@ export function IctSystemImpactAnalyser2Chart({
   );
 
   const openAssetDetails = useCallback(
-    (assetId: string) => {
-      const asset = assetMetaById.get(assetId);
-      if (!asset) {
+    (node: ImpactAnalyser2SelectedNode) => {
+      const asset =
+        node.axisKey === "asset"
+          ? assetMetaById.get(node.value)
+          : isCiDiagramMode && node.axisKey === "relatedAsset"
+            ? relatedAssetMetaById.get(node.value)
+            : null;
+      const assetDetails =
+        node.axisKey === "asset" && asset
+          ? rootAssetDetailsFromRow(asset)
+          : node.axisKey === "relatedAsset" && asset
+            ? relatedAssetDetailsFromRow(asset)
+            : null;
+      if (!assetDetails) {
         return;
       }
       if (assetDetailsCloseTimerRef.current !== null) {
         window.clearTimeout(assetDetailsCloseTimerRef.current);
         assetDetailsCloseTimerRef.current = null;
       }
-      setSelectedAssetDetails(asset);
+      setSelectedAssetDetails(assetDetails);
       window.requestAnimationFrame(() => setIsAssetDetailsPanelOpen(true));
     },
-    [assetMetaById]
+    [assetMetaById, isCiDiagramMode, relatedAssetMetaById]
   );
 
   const closeAssetDetails = useCallback(() => {
@@ -1496,7 +1605,7 @@ export function IctSystemImpactAnalyser2Chart({
         return;
       }
       if (hit.action === "asset-details") {
-        openAssetDetails(hit.node.value);
+        openAssetDetails(hit.node);
         return;
       }
       setSelectedNode((current) => (selectedNodeEquals(current, hit.node) ? null : hit.node));
@@ -1861,7 +1970,7 @@ export function IctSystemImpactAnalyser2Chart({
           onClose={() => setDrillThroughData(null)}
         />
       ) : null}
-      {!isCiDiagramMode && selectedAssetDetails ? (
+      {selectedAssetDetails ? (
         <AssetDetailsPanel asset={selectedAssetDetails} isOpen={isAssetDetailsPanelOpen} onClose={closeAssetDetails} />
       ) : null}
     </>

@@ -180,10 +180,18 @@ describe("CI Flow analyser helpers", () => {
       ipAddress: "10.0.0.10",
       type: "server",
       networkId: "network-1",
+      securityDomain: "Secret",
       environmentType: "Production",
       systemId: "system-root",
       systemName: "Root System",
-      systemModelled: true
+      systemModelled: true,
+      cmdbRecordUrl: "https://cmdb.example.test/assets/asset-root",
+      lifecycleEolStatus: "Supported",
+      lifecycleWarrantyStatus: "InWarranty",
+      operatingSystemSummary: "Microsoft Windows Server 2022 | Supported",
+      installedSoftwareCount: 2,
+      vulnerabilityCount: 3,
+      criticalVulnerabilityCount: 1
     },
     {
       id: "asset-flow",
@@ -204,10 +212,16 @@ describe("CI Flow analyser helpers", () => {
       ipAddress: "10.0.0.12",
       type: "network-device",
       networkId: "network-2",
+      securityDomain: "Protected",
       environmentType: "UAT",
       systemId: "system-logical",
       systemName: "Logical System",
-      systemModelled: true
+      systemModelled: true,
+      cmdbRecordUrl: "https://cmdb.example.test/assets/asset-logical",
+      networkOsSummary: "Cisco IOS XE 17 | Supported",
+      patchStateSummary: "Latest: Yes",
+      vulnerabilityCount: 5,
+      criticalVulnerabilityCount: 2
     },
     {
       id: "asset-unmodelled-a",
@@ -287,7 +301,13 @@ describe("CI Flow analyser helpers", () => {
       relatedAssetEnvironmentType: "UAT",
       relatedAssetNetworkId: "network-2",
       relatedAssetNetworkName: "Edge Network",
-      relatedAssetHasIctSystem: true
+      relatedAssetHasIctSystem: true,
+      relatedAssetSecurityDomain: "Protected",
+      relatedAssetCmdbRecordUrl: "https://cmdb.example.test/assets/asset-logical",
+      relatedAssetNetworkOsSummary: "Cisco IOS XE 17 | Supported",
+      relatedAssetPatchStateSummary: "Latest: Yes",
+      relatedAssetVulnerabilityCount: 5,
+      relatedAssetCriticalVulnerabilityCount: 2
     });
     expect(rows.find((row) => row.relatedAssetId === "asset-unmodelled-a")).toMatchObject({
       relatedAssetType: "printer-device",
@@ -1076,6 +1096,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("sourceRows?: ImpactAnalyser2Row[]");
     expect(component).toContain("Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}");
     expect(component).toContain("function SelectedAssetPanel");
+    expect(component).toContain("interface AssetDetailsPanelModel");
+    expect(component).toContain("function rootAssetDetailsFromRow");
+    expect(component).toContain("function relatedAssetDetailsFromRow");
     expect(component).toContain("function AssetDetailsPanel");
     expect(component).toContain('title="Selected Asset"');
     expect(component).toContain('placement="bottom-left"');
@@ -1100,24 +1123,32 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("relatedAssetMetaById.get(value)?.relatedAssetType");
     expect(component).toContain("const assetType = assetShapeTypeForNode(axis.key, value)");
     expect(component).toContain('if (!isCiDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value))');
-    expect(component).toContain('if (!isCiDiagramMode && isSelected && axis.key === "asset")');
+    expect(component).toContain("const canOpenAssetDetails = useCallback");
+    expect(component).toContain('if (isCiDiagramMode && axisKey === "relatedAsset")');
+    expect(component).toContain("relatedAssetMetaById.has(value)");
+    expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value))");
+    expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11)");
     expect(component).toContain('context.fillText("F"');
     expect(component).toContain('context.fillText("D"');
     expect(component).toContain("Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).toContain("Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).toContain('hit.action === "asset-details"');
-    expect(component).toContain("openAssetDetails(hit.node.value)");
+    expect(component).toContain("openAssetDetails(hit.node)");
+    expect(component).toContain("relatedAssetDetailsFromRow(asset)");
+    expect(component).toContain("relatedAssetCmdbRecordUrl");
     expect(component).toContain("Asset Details");
     expect(component).toContain("CMDB Record");
     expect(component).toContain("Open CMDB record");
-    expect(component).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left">');
+    expect(component).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">');
     expect(component).toContain('scope="row"');
     expect(component).toContain('aria-hidden="true"');
-    expect(component).toContain("fixed inset-0 z-[90] pointer-events-none cursor-default select-none");
+    expect(component).toContain("fixed inset-0 z-[90] pointer-events-none cursor-default");
     expect(component).toContain("absolute inset-0 cursor-default select-none bg-slate-950/35");
+    expect(component).toContain("min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3");
     expect(component).toContain("cursor-pointer break-words text-cyan-200");
     expect(component).not.toContain('aria-label="Close Asset Details"');
     expect(component).not.toContain("Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
+    expect(component).not.toContain("{!isCiDiagramMode && selectedAssetDetails");
     expect(component).not.toContain('assetType === "server" && onAssetFocus');
     expect(component).not.toContain("Selected Tile Text");
     expect(component).toContain("Selected Asset");

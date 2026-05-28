@@ -38,6 +38,15 @@ export interface CiAnalyserRow {
   spiId: null;
   spiLabel: string;
   hasOpenFinding: false;
+  cmdbRecordUrl?: string | null;
+  lifecycleEolStatus?: string;
+  lifecycleWarrantyStatus?: string;
+  operatingSystemSummary?: string | null;
+  networkOsSummary?: string | null;
+  patchStateSummary?: string | null;
+  installedSoftwareCount?: number;
+  vulnerabilityCount?: number;
+  criticalVulnerabilityCount?: number;
   relatedAssetId: string;
   relatedAssetName: string;
   relatedAssetHostname: string;
@@ -47,6 +56,16 @@ export interface CiAnalyserRow {
   relatedAssetNetworkId: string;
   relatedAssetNetworkName: string;
   relatedAssetHasIctSystem: boolean;
+  relatedAssetSecurityDomain?: SecurityDomain;
+  relatedAssetCmdbRecordUrl?: string | null;
+  relatedAssetLifecycleEolStatus?: string;
+  relatedAssetLifecycleWarrantyStatus?: string;
+  relatedAssetOperatingSystemSummary?: string | null;
+  relatedAssetNetworkOsSummary?: string | null;
+  relatedAssetPatchStateSummary?: string | null;
+  relatedAssetInstalledSoftwareCount?: number;
+  relatedAssetVulnerabilityCount?: number;
+  relatedAssetCriticalVulnerabilityCount?: number;
   relatedSystemId: string | null;
   relatedSystemName: string;
 }
@@ -227,11 +246,20 @@ export function buildCiAnalyserRowsFromScope({
         serverId: rootNode.id,
         serverName: ciDisplayName(rootNode),
         serverHostname: rootNode.hostname || rootNode.name || rootNode.id,
-        securityDomain: "Unclassified",
+        securityDomain: rootNode.securityDomain ?? "Unclassified",
         severity: null,
         spiId: null,
         spiLabel: "",
         hasOpenFinding: false,
+        cmdbRecordUrl: rootNode.cmdbRecordUrl ?? null,
+        lifecycleEolStatus: rootNode.lifecycleEolStatus,
+        lifecycleWarrantyStatus: rootNode.lifecycleWarrantyStatus,
+        operatingSystemSummary: rootNode.operatingSystemSummary,
+        networkOsSummary: rootNode.networkOsSummary,
+        patchStateSummary: rootNode.patchStateSummary,
+        installedSoftwareCount: rootNode.installedSoftwareCount,
+        vulnerabilityCount: rootNode.vulnerabilityCount,
+        criticalVulnerabilityCount: rootNode.criticalVulnerabilityCount,
         relatedAssetId: relatedNode.id,
         relatedAssetName: ciDisplayName(relatedNode),
         relatedAssetHostname: relatedNode.hostname || relatedNode.name || relatedNode.id,
@@ -241,6 +269,16 @@ export function buildCiAnalyserRowsFromScope({
         relatedAssetNetworkId: relatedNode.networkId,
         relatedAssetNetworkName: networkNameById.get(relatedNode.networkId) ?? relatedNode.networkId,
         relatedAssetHasIctSystem: Boolean(relatedNode.systemId),
+        relatedAssetSecurityDomain: relatedNode.securityDomain ?? "Unclassified",
+        relatedAssetCmdbRecordUrl: relatedNode.cmdbRecordUrl ?? null,
+        relatedAssetLifecycleEolStatus: relatedNode.lifecycleEolStatus,
+        relatedAssetLifecycleWarrantyStatus: relatedNode.lifecycleWarrantyStatus,
+        relatedAssetOperatingSystemSummary: relatedNode.operatingSystemSummary,
+        relatedAssetNetworkOsSummary: relatedNode.networkOsSummary,
+        relatedAssetPatchStateSummary: relatedNode.patchStateSummary,
+        relatedAssetInstalledSoftwareCount: relatedNode.installedSoftwareCount,
+        relatedAssetVulnerabilityCount: relatedNode.vulnerabilityCount,
+        relatedAssetCriticalVulnerabilityCount: relatedNode.criticalVulnerabilityCount,
         relatedSystemId: relatedNode.systemId,
         relatedSystemName
       };

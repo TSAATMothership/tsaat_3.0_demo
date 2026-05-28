@@ -59,10 +59,20 @@ export interface TopologyCiNode {
   ipAddress: string;
   type: Asset["type"];
   networkId: string;
+  securityDomain?: Asset["securityDomain"];
   environmentType: EnvironmentType | null;
   systemId: string | null;
   systemName: string | null;
   systemModelled: boolean;
+  cmdbRecordUrl?: string | null;
+  lifecycleEolStatus?: string;
+  lifecycleWarrantyStatus?: string;
+  operatingSystemSummary?: string | null;
+  networkOsSummary?: string | null;
+  patchStateSummary?: string | null;
+  installedSoftwareCount?: number;
+  vulnerabilityCount?: number;
+  criticalVulnerabilityCount?: number;
 }
 
 export interface TopologyCiDependency {
@@ -637,6 +647,63 @@ function buildCmdbTopologies(
     .sort((a, b) => a.systemName.localeCompare(b.systemName));
 }
 
+function formatTopologyOperatingSystemSummary(
+  operatingSystem:
+    | {
+        vendor: string;
+        family: string;
+        version: string;
+        supportStatus: string;
+      }
+    | null
+    | undefined
+): string | null {
+  if (!operatingSystem) {
+    return null;
+  }
+  const name = [operatingSystem.vendor, operatingSystem.family, operatingSystem.version]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return [name || "Operating system recorded", operatingSystem.supportStatus].filter(Boolean).join(" | ");
+}
+
+function topologyAssetOperatingSystemSummary(asset: Asset): string | null {
+  if (asset.type !== "server" && asset.type !== "workstation") {
+    return null;
+  }
+  return formatTopologyOperatingSystemSummary(asset.operatingSystem);
+}
+
+function topologyAssetNetworkOsSummary(asset: Asset): string | null {
+  if (asset.type !== "network-device") {
+    return null;
+  }
+  return formatTopologyOperatingSystemSummary(asset.networkOs);
+}
+
+function topologyAssetPatchStateSummary(asset: Asset): string | null {
+  if (asset.type !== "network-device" || !asset.patchState) {
+    return null;
+  }
+  const latestLabel =
+    asset.patchState.isLatest === null ? "Latest: Unknown" : asset.patchState.isLatest ? "Latest: Yes" : "Latest: No";
+  return asset.patchState.lastPatchedDate ? `${latestLabel} | Last patched: ${asset.patchState.lastPatchedDate}` : latestLabel;
+}
+
+function topologyAssetInstalledSoftwareCount(asset: Asset): number {
+  if (asset.type !== "server" && asset.type !== "workstation") {
+    return 0;
+  }
+  return asset.installedSoftware.length;
+}
+
+function topologyCriticalVulnerabilityCount(asset: Asset): number {
+  return asset.vulnerabilities.filter(
+    (vulnerability) => vulnerability.severity === "Critical" || vulnerability.criticality === "Critical"
+  ).length;
+}
+
 function buildCiDependencyTopologyData(
   dataset: Dataset,
   scopedAssetIds: Set<string>,
@@ -698,10 +765,20 @@ function buildCiDependencyTopologyData(
         ipAddress: resolveAssetIpAddress(asset),
         type: asset.type,
         networkId: asset.networkId,
+        securityDomain: asset.securityDomain,
         environmentType: asset.systemContext?.environmentType ?? null,
         systemId: ownerSystemId,
         systemName: ownerSystem?.name ?? null,
-        systemModelled: ownerSystem?.modellingStatus ?? false
+        systemModelled: ownerSystem?.modellingStatus ?? false,
+        cmdbRecordUrl: asset.cmdbRecordUrl ?? null,
+        lifecycleEolStatus: asset.lifecycle.eolStatus,
+        lifecycleWarrantyStatus: asset.lifecycle.warrantyStatus,
+        operatingSystemSummary: topologyAssetOperatingSystemSummary(asset),
+        networkOsSummary: topologyAssetNetworkOsSummary(asset),
+        patchStateSummary: topologyAssetPatchStateSummary(asset),
+        installedSoftwareCount: topologyAssetInstalledSoftwareCount(asset),
+        vulnerabilityCount: asset.vulnerabilities.length,
+        criticalVulnerabilityCount: topologyCriticalVulnerabilityCount(asset)
       };
     })
     .sort((left, right) => left.hostname.localeCompare(right.hostname));

@@ -465,7 +465,7 @@ Major dependencies:
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches among visible tabs and opens a topology modal.
 - **User perspective:** the user can move between metadata, compliance, and discovery views, and open a richer topology representation.
-- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes. The Network Impact Analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes.
+- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes. The Network Impact Analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes; the CI Focus analyser exposes the same details action for selected Asset and Related Asset nodes.
 - **Outcome:** tab states are bookmarkable; topology is not.
 
 ### Feature: Details Tab
@@ -537,7 +537,7 @@ Key dependencies:
 | Findings drillthrough history | compliance overview panel | aggregate monthly open counts from SQL-produced workflow status and finding timestamps | SQL-produced effective findings | Runtime display over SQL result | backend and client | no application-side workflow reconstruction helper |
 
 ## 8. Non-Database Calculations
-- `DetailedTopologyView` creates runtime graph layouts and client-only interactions from already-loaded topology data; the Asset Details slide-out is a read-only renderer over the selected analyser row and optional asset `cmdb_record_url`.
+- `DetailedTopologyView` creates runtime graph layouts and client-only interactions from already-loaded topology data; the Asset Details slide-out is a read-only renderer over the selected analyser row, including CI Focus Asset and Related Asset rows, and optional asset `cmdb_record_url`.
 - Compliance overview side panels, asset detail overlays, and the all-CVE detail modal with criticality filtering are client-only UI states.
 - Hidden cyber-posture P1/P2 findings list caps visible rows at `80`.
 - Discovery search, tool filter, and asset-type filter are query-parameter-driven view filters over the already selected snapshot.
@@ -714,7 +714,7 @@ Important hidden behaviour:
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches between visible tabs and opens the detailed topology modal.
 - **User perspective:** the user can move between metadata, compliance evidence, and discovery coverage, and open a richer topology surface for CI relationships.
-- **System behaviour:** `systemDetailTab` in the query string controls the main visible tab; the topology modal is client-side only and receives runtime topology data built from the snapshot model. The embedded impact analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for selected assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes.
+- **System behaviour:** `systemDetailTab` in the query string controls the main visible tab; the topology modal is client-side only and receives runtime topology data built from the snapshot model. The embedded impact analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for selected assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes; the CI Focus analyser exposes the same details action for selected Asset and Related Asset nodes.
 - **Outcome:** tab states are bookmarkable; topology modal state is not.
 
 ### Feature: Details Tab
@@ -786,7 +786,7 @@ Key dependencies:
 | P1/P2 findings filters | hidden scoped list | filter by SPI, priority, severity, search term, environment, and KPI-matched assets | findings plus request params | Runtime | backend | page contains this logic even though the list is not exposed as a separate visible tab |
 
 ## 8. Non-Database Calculations
-- `DetailedTopologyView` creates runtime graph layouts and modal-only interactions from already loaded topology data; the Asset Details slide-out is a read-only renderer over the selected analyser row and optional asset `cmdb_record_url`.
+- `DetailedTopologyView` creates runtime graph layouts and modal-only interactions from already loaded topology data; the Asset Details slide-out is a read-only renderer over the selected analyser row, including CI Focus Asset and Related Asset rows, and optional asset `cmdb_record_url`.
 - The page synthesises description, owner, support email, and service catalogue URL when source columns are blank; Details Overview ATO, APM, and DIIS reference values are shown from database fields or as `Missing`.
 - Compliance overview side panels, asset detail overlays, and the all-CVE detail modal with criticality filtering are client-only UI states.
 - Query-driven scopes for `environment`, `serverSearch`, and `kpiFilter` are runtime view filters over the selected snapshot, not persisted state.
