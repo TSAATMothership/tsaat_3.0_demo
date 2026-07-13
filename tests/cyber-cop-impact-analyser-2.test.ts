@@ -793,11 +793,23 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
 });
 
 describe("Cyber COP ICT System Impact Analyser source wiring", () => {
-  it("keeps the scalable analyser as the only Impact analyser tab", () => {
+  it("promotes the scalable analyser to a main Cyber COP tab after the ICT System SPI heatmap", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const page = readRepoFile("app/cyber-cop/page.tsx");
+    const dashboardTabsStart = dashboard.indexOf("const cyberCopTabs");
+    const dashboardTabsEnd = dashboard.indexOf("];", dashboardTabsStart);
+    const dashboardTabs = dashboard.slice(dashboardTabsStart, dashboardTabsEnd);
+    const impactTabsStart = dashboard.indexOf("const impactChartTabs");
+    const impactTabsEnd = dashboard.indexOf("];", impactTabsStart);
+    const impactTabs = dashboard.slice(impactTabsStart, impactTabsEnd);
 
-    expect(dashboard).toContain('{ id: "ict-system-impact-analyser-2", label: "ICT System Impact Analyser" }');
+    expect(dashboard).toContain('{ id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" }');
+    expect(dashboardTabs.indexOf('{ id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" }')).toBeGreaterThan(
+      dashboardTabs.indexOf('{ id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }')
+    );
+    expect(impactTabs).not.toContain("ICT System Impact Analyser");
+    expect(dashboard).toContain('activeTab === "ict-system-impact-analyser"');
+    expect(dashboard).toContain('id="cyber-cop-tabpanel-ict-system-impact-analyser"');
     expect(dashboard).toContain("<IctSystemImpactAnalyser2Chart");
     expect(dashboard).toContain("embedded");
     expect(dashboard).toContain("systemScopeIds={appliedSystemIds}");
@@ -806,7 +818,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toContain("selectedItemIds={selectedIctSystemIds}");
     expect(dashboard).toContain("onVisibleItemIdsChange={(itemIds) =>");
     expect(dashboard).toContain("const activeImpactSystemRows = useMemo");
-    expect(dashboard).toContain("<IctSystemImpactAnalyserRunPanel systemOptions={systemRows}");
+    expect(dashboard).toContain("systemOptions={activeImpactSystemRows}");
     expect(dashboard).not.toContain('"network-diagram"');
     expect(dashboard).not.toContain("NetworkDiagramChart");
     expect(dashboard).not.toContain("CyberCopNetworkDiagramRow");
@@ -842,7 +854,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toMatch(
       /useEffect\(\(\) => \{\s+setSelectedIctSystemIds\(\[\]\);\s+setIctSystemVisibleScope\(\{ active: false, itemIds: \[\] \}\);\s+\}, \[activeImpactScopeTab\]\);/
     );
-    expect(dashboard).toContain("systemOptions={systemRows}");
+    expect(dashboard).toContain("systemOptions={activeImpactSystemRows}");
   });
 
   it("gates the Cyber COP analyser behind an explicit ICT system selection and Run action", () => {

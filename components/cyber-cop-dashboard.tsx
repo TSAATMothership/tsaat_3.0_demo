@@ -192,27 +192,28 @@ export interface CyberCopDashboardProps {
   dailyCriticalExposure: CyberCopDailyTrendPoint[];
 }
 
-type CyberCopTabId = "overview" | "impact" | "action" | "networks-spi-heatmap" | "systems-spi-heatmap";
+type CyberCopTabId =
+  | "overview"
+  | "impact"
+  | "action"
+  | "networks-spi-heatmap"
+  | "systems-spi-heatmap"
+  | "ict-system-impact-analyser";
 type ImpactScopeTabId = "business-services" | "mission-capabilities";
-type ImpactChartTabId =
-  | "spi"
-  | "blast-radius"
-  | "ict-system-impact-analyser-2"
-  | "environment"
-  | "mission-business";
+type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
 
 const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "impact", label: "Impact" },
   { id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" },
   { id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" },
+  { id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" },
   { id: "action", label: "Action" }
 ];
 
 const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "spi", label: "SPI Barchart" },
   { id: "blast-radius", label: "Server Risk Heatmap" },
-  { id: "ict-system-impact-analyser-2", label: "ICT System Impact Analyser" },
   { id: "environment", label: "Environment Split" },
   { id: "mission-business", label: "Critical Findings Blast Radius" }
 ];
@@ -1523,7 +1524,6 @@ function IctSystemImpactAnalyserRunPanel({
 function ImpactChartTabs({
   spiRows,
   systemRows,
-  spiDefinitions,
   assetTypeHeatmapBySystemId,
   environmentRows,
   missionRows,
@@ -1534,7 +1534,6 @@ function ImpactChartTabs({
 }: {
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
-  spiDefinitions: SpiDefinition[];
   assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
   missionRows: CyberCopImpactItem[];
@@ -1554,7 +1553,7 @@ function ImpactChartTabs({
       <div
         role="tablist"
         aria-label="Cyber COP impact chart tabs"
-        className="grid min-w-0 shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-5"
+        className="grid min-w-0 shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4"
       >
         {impactChartTabs.map((tab) => {
           const isActive = activeChartTab === tab.id;
@@ -1603,9 +1602,6 @@ function ImpactChartTabs({
                 assetsBySystemId={assetTypeHeatmapBySystemId}
                 embedded
               />
-            ) : null}
-            {activeChartTab === "ict-system-impact-analyser-2" ? (
-              <IctSystemImpactAnalyserRunPanel systemOptions={systemRows} spiDefinitions={spiDefinitions} />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (
@@ -2135,7 +2131,7 @@ export function CyberCopDashboard({
   return (
     <div className="space-y-2">
       <section className="panel p-2">
-        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
           {cyberCopTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -2229,7 +2225,7 @@ export function CyberCopDashboard({
                 <section className="panel flex min-h-[20rem] min-w-0 flex-col p-3 xl:min-h-0">
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Business Services Impact</h3>
+                      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Impact</h3>
                       <p className="mt-1 text-xs text-slate-300/80">
                         Select the active business or mission scope for the ICT Systems table.
                       </p>
@@ -2366,7 +2362,6 @@ export function CyberCopDashboard({
                   <ImpactChartTabs
                     spiRows={filteredImpactSpiDrivers}
                     systemRows={activeImpactSystemRows}
-                    spiDefinitions={spiDefinitions}
                     assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
                     environmentRows={filteredImpactEnvironmentSplit}
                   missionRows={filteredMissionImpact}
@@ -2452,6 +2447,25 @@ export function CyberCopDashboard({
                 initialSearchValue={initialMeasureSearch}
                 placeholder="Search security domain or ICT system"
                 localSpiFilter
+              />
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "ict-system-impact-analyser" ? (
+        <div
+          id="cyber-cop-tabpanel-ict-system-impact-analyser"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-ict-system-impact-analyser"
+          className={tabPanelClass}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
+            <div className="min-h-0 min-w-0">
+              <IctSystemImpactAnalyserRunPanel
+                systemOptions={activeImpactSystemRows}
+                spiDefinitions={spiDefinitions}
               />
             </div>
             <CyberCopTabFooter />
