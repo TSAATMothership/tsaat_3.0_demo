@@ -800,14 +800,13 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toContain('{ id: "ict-system-impact-analyser-2", label: "ICT System Impact Analyser" }');
     expect(dashboard).toContain("<IctSystemImpactAnalyser2Chart");
     expect(dashboard).toContain("embedded");
-    expect(dashboard).toContain("systemScopeIds={systemScopeIds}");
+    expect(dashboard).toContain("systemScopeIds={appliedSystemIds}");
     expect(dashboard).toContain("spiDefinitions={spiDefinitions}");
     expect(dashboard).toContain('selectionMode="multi"');
     expect(dashboard).toContain("selectedItemIds={selectedIctSystemIds}");
     expect(dashboard).toContain("onVisibleItemIdsChange={(itemIds) =>");
     expect(dashboard).toContain("const activeImpactSystemRows = useMemo");
-    expect(dashboard).toContain("const activeImpactSystemIds = useMemo");
-    expect(dashboard).toContain("systemScopeIds={activeImpactSystemIds}");
+    expect(dashboard).toContain("<IctSystemImpactAnalyserRunPanel systemOptions={systemRows}");
     expect(dashboard).not.toContain('"network-diagram"');
     expect(dashboard).not.toContain("NetworkDiagramChart");
     expect(dashboard).not.toContain("CyberCopNetworkDiagramRow");
@@ -843,7 +842,22 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toMatch(
       /useEffect\(\(\) => \{\s+setSelectedIctSystemIds\(\[\]\);\s+setIctSystemVisibleScope\(\{ active: false, itemIds: \[\] \}\);\s+\}, \[activeImpactScopeTab\]\);/
     );
-    expect(dashboard).toContain("systemScopeIds={activeImpactSystemIds}");
+    expect(dashboard).toContain("systemOptions={systemRows}");
+  });
+
+  it("gates the Cyber COP analyser behind an explicit ICT system selection and Run action", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+
+    expect(dashboard).toContain("function IctSystemImpactAnalyserRunPanel");
+    expect(dashboard).toContain('const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>([])');
+    expect(dashboard).toContain('const [appliedSystemIds, setAppliedSystemIds] = useState<string[]>([])');
+    expect(dashboard).toContain('aria-multiselectable="true"');
+    expect(dashboard).toContain('disabled={!selectedSystemIds.length || isLoading}');
+    expect(dashboard).toContain('setAppliedSystemIds([...selectedSystemIds])');
+    expect(dashboard).toContain('setAppliedSystemIds([])');
+    expect(dashboard).toContain('onLoadStateChange={handleLoadStateChange}');
+    expect(dashboard).toContain("Select one or more ICT systems, then select Run to load the analyser.");
+    expect(dashboard).toContain("key={`cyber-cop-impact-analyser-run-${runRequestId}`}");
   });
 
   it("uses lazy dynamic API routes for data and selected SPI findings", () => {
@@ -853,6 +867,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
 
     expect(dataRoute).toContain('export const dynamic = "force-dynamic"');
     expect(dataRoute).toContain("buildCyberCopImpactAnalyserRows");
+    expect(dataRoute).toContain('request.nextUrl.searchParams.get("diagramSystemIds")');
+    expect(dataRoute).toContain("diagramSystemIds.has(systemId)");
+    expect(dataRoute).toContain("buildCyberCopImpactAnalyserRows(analyserAssets");
     expect(findingsRoute).toContain('export const dynamic = "force-dynamic"');
     expect(findingsRoute).toContain("filterCyberCopImpactAnalyserRows");
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSearchAxis")');
@@ -861,8 +878,12 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(findingsRoute).toContain("systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)");
     expect(component).toContain('dataPath = "/api/cyber-cop/impact-analyser-2"');
     expect(component).toContain('findingsPath = "/api/cyber-cop/impact-analyser-2/findings"');
-    expect(component).toContain("fetch(buildApiUrl(dataPath)");
+    expect(component).toContain("buildApiUrl(dataPath, {");
+    expect(component).toContain("diagramSystemIds: systemScopeKey");
     expect(component).toContain("buildApiUrl(findingsPath");
+    expect(component).toContain("signal: abortController.signal");
+    expect(component).toContain("abortController.abort()");
+    expect(component).toContain("onLoadStateChange?.(reportedLoadState)");
   });
 
   it("wires detailed topology views to network and ICT system scoped analysers", () => {

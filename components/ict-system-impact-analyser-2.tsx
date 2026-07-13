@@ -13,6 +13,7 @@ import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@
 type ImpactAnalyser2EnvironmentOption = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
 type ImpactAnalyser2FindingCriticalityOption = FindingSeverity;
 type ImpactAnalyser2DiagramMode = "risk" | "ci";
+export type ImpactAnalyser2LoadState = "idle" | "loading" | "ready" | "error";
 
 export interface ImpactAnalyser2Row {
   findingId: string | null;
@@ -632,6 +633,7 @@ export function IctSystemImpactAnalyser2Chart({
   assetFocusEligibleAssetIds,
   externalSelectedSearchOption,
   onSelectedNodeChange,
+  onLoadStateChange,
   extraControls
 }: {
   embedded?: boolean;
@@ -652,6 +654,7 @@ export function IctSystemImpactAnalyser2Chart({
   assetFocusEligibleAssetIds?: string[];
   externalSelectedSearchOption?: ImpactAnalyser2SelectedSearchOption | null;
   onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void;
+  onLoadStateChange?: (loadState: ImpactAnalyser2LoadState) => void;
   extraControls?: ReactNode;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -674,7 +677,7 @@ export function IctSystemImpactAnalyser2Chart({
   const viewportSizeRef = useRef({ width: 0, height: 0 });
   const scrollTopRef = useRef(0);
 
-  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [loadState, setLoadState] = useState<ImpactAnalyser2LoadState>("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [workerReady, setWorkerReady] = useState(false);
   const [acknowledgedWorkerInitRequestId, setAcknowledgedWorkerInitRequestId] = useState(0);
@@ -734,6 +737,14 @@ export function IctSystemImpactAnalyser2Chart({
     [spiDefinitions]
   );
   const isDiagramInitialLoading = loadState === "idle" || loadState === "loading" || !workerReady || !workerResult;
+  const reportedLoadState: ImpactAnalyser2LoadState =
+    loadState === "error"
+      ? "error"
+      : loadState === "idle"
+        ? "idle"
+        : isDiagramInitialLoading
+          ? "loading"
+          : "ready";
   const displayedSeverities = useMemo(
     () =>
       isCiDiagramMode
@@ -969,6 +980,10 @@ export function IctSystemImpactAnalyser2Chart({
   }, [activeSelectedNode]);
 
   useEffect(() => {
+    onLoadStateChange?.(reportedLoadState);
+  }, [onLoadStateChange, reportedLoadState]);
+
+  useEffect(() => {
     return () => {
       if (assetDetailsCloseTimerRef.current !== null) {
         window.clearTimeout(assetDetailsCloseTimerRef.current);
@@ -1067,6 +1082,7 @@ export function IctSystemImpactAnalyser2Chart({
 
   useEffect(() => {
     let isCancelled = false;
+    const abortController = new AbortController();
     const initialiseRows = (rows: ImpactAnalyser2Row[]) => {
       const initRequestId = latestWorkerInitRequestIdRef.current + 1;
       latestWorkerInitRequestIdRef.current = initRequestId;
@@ -1090,7 +1106,12 @@ export function IctSystemImpactAnalyser2Chart({
           initialiseRows(providedRows);
           return;
         }
-        const response = await fetch(buildApiUrl(dataPath), { cache: "no-store" });
+        const response = await fetch(
+          buildApiUrl(dataPath, {
+            diagramSystemIds: systemScopeKey
+          }),
+          { cache: "no-store", signal: abortController.signal }
+        );
         if (!response.ok) {
           throw new Error(`Request failed with ${response.status}`);
         }
@@ -1103,6 +1124,9 @@ export function IctSystemImpactAnalyser2Chart({
         if (isCancelled) {
           return;
         }
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         setLoadState("error");
         setLoadError(error instanceof Error ? error.message : "Unable to load analyser data.");
       }
@@ -1111,8 +1135,9 @@ export function IctSystemImpactAnalyser2Chart({
     loadRows();
     return () => {
       isCancelled = true;
+      abortController.abort();
     };
-  }, [clearRenderedDiagram, dataPath, diagramMode, providedRows, queueDiagramFilterRefresh]);
+  }, [clearRenderedDiagram, dataPath, diagramMode, providedRows, queueDiagramFilterRefresh, systemScopeKey]);
 
   useEffect(() => {
     const viewport = viewportRef.current;

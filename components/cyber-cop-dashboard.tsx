@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -19,7 +19,10 @@ import {
   ZAxis
 } from "recharts";
 import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
-import { IctSystemImpactAnalyser2Chart } from "@/components/ict-system-impact-analyser-2";
+import {
+  IctSystemImpactAnalyser2Chart,
+  type ImpactAnalyser2LoadState
+} from "@/components/ict-system-impact-analyser-2";
 import {
   NetworkDetailRiskCharts,
   NetworkDetailRiskFindingRow,
@@ -1345,10 +1348,181 @@ function MissionBusinessBlastRadiusChart({
   );
 }
 
+function IctSystemImpactAnalyserRunPanel({
+  systemOptions: availableSystems,
+  spiDefinitions
+}: {
+  systemOptions: CyberCopImpactItem[];
+  spiDefinitions: SpiDefinition[];
+}) {
+  const [isSystemSelectorOpen, setIsSystemSelectorOpen] = useState(false);
+  const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>([]);
+  const [appliedSystemIds, setAppliedSystemIds] = useState<string[]>([]);
+  const [loadState, setLoadState] = useState<ImpactAnalyser2LoadState>("idle");
+  const [runRequestId, setRunRequestId] = useState(0);
+  const systemOptions = useMemo(
+    () => [...availableSystems].sort((left, right) => left.name.localeCompare(right.name)),
+    [availableSystems]
+  );
+  const systemOptionKey = useMemo(() => systemOptions.map((system) => system.id).join(","), [systemOptions]);
+  const selectedSystemIdSet = useMemo(() => new Set(selectedSystemIds), [selectedSystemIds]);
+  const selectedSystemLabel =
+    selectedSystemIds.length === 0
+      ? "Select ICT Systems"
+      : selectedSystemIds.length === 1
+        ? systemOptions.find((system) => system.id === selectedSystemIds[0])?.name ?? "1 selected"
+        : `${selectedSystemIds.length} selected`;
+  const isLoading = loadState === "loading";
+
+  useEffect(() => {
+    setSelectedSystemIds([]);
+    setAppliedSystemIds([]);
+    setLoadState("idle");
+    setIsSystemSelectorOpen(false);
+  }, [systemOptionKey]);
+
+  const updateSelectedSystemIds = useCallback((nextSystemIds: string[]) => {
+    setSelectedSystemIds(nextSystemIds);
+    setAppliedSystemIds([]);
+    setLoadState("idle");
+  }, []);
+
+  const toggleSelectedSystem = useCallback(
+    (systemId: string) => {
+      const nextSelectedSystemIds = selectedSystemIdSet.has(systemId)
+        ? selectedSystemIds.filter((id) => id !== systemId)
+        : systemOptions
+            .filter((system) => selectedSystemIdSet.has(system.id) || system.id === systemId)
+            .map((system) => system.id);
+      updateSelectedSystemIds(nextSelectedSystemIds);
+    },
+    [selectedSystemIdSet, selectedSystemIds, systemOptions, updateSelectedSystemIds]
+  );
+
+  const handleRun = useCallback(() => {
+    if (!selectedSystemIds.length || isLoading) {
+      return;
+    }
+    setAppliedSystemIds([...selectedSystemIds]);
+    setRunRequestId((current) => current + 1);
+    setLoadState("loading");
+  }, [isLoading, selectedSystemIds]);
+
+  const handleLoadStateChange = useCallback((nextLoadState: ImpactAnalyser2LoadState) => {
+    setLoadState((currentLoadState) =>
+      currentLoadState === "loading" && nextLoadState === "idle" ? currentLoadState : nextLoadState
+    );
+  }, []);
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col p-1">
+      <div className="relative z-50 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-sky-300/15 bg-slate-950/55 p-2">
+        <div
+          className="relative flex h-8 min-w-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
+          onBlur={() => window.setTimeout(() => setIsSystemSelectorOpen(false), 120)}
+        >
+          <span className="shrink-0">ICT System</span>
+          <button
+            type="button"
+            aria-label="Select ICT systems for the ICT System Impact Analyser"
+            aria-haspopup="listbox"
+            aria-expanded={isSystemSelectorOpen}
+            disabled={!systemOptions.length}
+            onClick={() => setIsSystemSelectorOpen((current) => !current)}
+            className="flex h-8 w-64 min-w-0 items-center justify-between gap-2 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/50 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70"
+          >
+            <span className="truncate">{systemOptions.length ? selectedSystemLabel : "No ICT systems available"}</span>
+            <span className="shrink-0 text-[10px] text-slate-400">{isSystemSelectorOpen ? "Close" : "Select"}</span>
+          </button>
+          {isSystemSelectorOpen ? (
+            <div
+              role="listbox"
+              aria-label="ICT systems"
+              aria-multiselectable="true"
+              className="absolute left-0 top-[calc(100%+0.25rem)] z-[60] max-h-72 w-[22rem] max-w-[calc(100vw-3rem)] overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]"
+            >
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => updateSelectedSystemIds([])}
+                disabled={!selectedSystemIds.length}
+                className="mb-1 flex w-full items-center justify-between rounded-md border border-sky-400/15 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/85 disabled:cursor-not-allowed disabled:text-slate-500"
+              >
+                <span>Clear selection</span>
+                <span>{selectedSystemIds.length} selected</span>
+              </button>
+              <div className="space-y-1">
+                {systemOptions.map((system) => {
+                  const checked = selectedSystemIdSet.has(system.id);
+                  return (
+                    <label
+                      key={`impact-analyser-system-option-${system.id}`}
+                      role="option"
+                      aria-selected={checked}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs normal-case tracking-normal ${
+                        checked
+                          ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
+                          : "border-sky-400/15 bg-slate-900/70 text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/85"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSelectedSystem(system.id)}
+                        className="h-3.5 w-3.5 rounded border-sky-300/45 bg-slate-950 text-cyan-300"
+                      />
+                      <span className="truncate" title={system.name}>
+                        {system.name}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={handleRun}
+          disabled={!selectedSystemIds.length || isLoading}
+          className="h-8 rounded-md border border-cyan-300/40 bg-cyan-500/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
+        >
+          {isLoading ? "Running..." : "Run"}
+        </button>
+        <p className="min-w-0 text-xs text-slate-300/75">
+          {selectedSystemIds.length
+            ? `${selectedSystemIds.length} ICT system${selectedSystemIds.length === 1 ? "" : "s"} ready to run.`
+            : "Select one or more ICT systems to enable Run."}
+        </p>
+      </div>
+
+      <div className="mt-2 min-h-0 min-w-0 flex-1">
+        {appliedSystemIds.length ? (
+          <IctSystemImpactAnalyser2Chart
+            key={`cyber-cop-impact-analyser-run-${runRequestId}`}
+            embedded
+            systemScopeIds={appliedSystemIds}
+            spiDefinitions={spiDefinitions}
+            onLoadStateChange={handleLoadStateChange}
+          />
+        ) : (
+          <div className="flex h-full min-h-[20rem] items-center justify-center rounded-lg border border-dashed border-sky-300/20 bg-slate-950/35 p-6 text-center">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-200">ICT System Impact Analyser</p>
+              <p className="mt-2 text-sm text-slate-300/75">
+                Select one or more ICT systems, then select Run to load the analyser.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ImpactChartTabs({
   spiRows,
   systemRows,
-  systemScopeIds,
   spiDefinitions,
   assetTypeHeatmapBySystemId,
   environmentRows,
@@ -1360,7 +1534,6 @@ function ImpactChartTabs({
 }: {
   spiRows: CyberCopImpactSpiDriver[];
   systemRows: CyberCopImpactItem[];
-  systemScopeIds: string[];
   spiDefinitions: SpiDefinition[];
   assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   environmentRows: CyberCopImpactEnvironmentSplitRow[];
@@ -1432,11 +1605,7 @@ function ImpactChartTabs({
               />
             ) : null}
             {activeChartTab === "ict-system-impact-analyser-2" ? (
-              <IctSystemImpactAnalyser2Chart
-                embedded
-                systemScopeIds={systemScopeIds}
-                spiDefinitions={spiDefinitions}
-              />
+              <IctSystemImpactAnalyserRunPanel systemOptions={systemRows} spiDefinitions={spiDefinitions} />
             ) : null}
             {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
             {activeChartTab === "mission-business" ? (
@@ -1686,10 +1855,6 @@ export function CyberCopDashboard({
   const activeImpactSystemRows = useMemo(
     () => (selectedIctSystems.length ? selectedIctSystems : ictSystemTableRows),
     [ictSystemTableRows, selectedIctSystems]
-  );
-  const activeImpactSystemIds = useMemo(
-    () => activeImpactSystemRows.map((system) => system.id),
-    [activeImpactSystemRows]
   );
 
   useEffect(() => {
@@ -2201,7 +2366,6 @@ export function CyberCopDashboard({
                   <ImpactChartTabs
                     spiRows={filteredImpactSpiDrivers}
                     systemRows={activeImpactSystemRows}
-                    systemScopeIds={activeImpactSystemIds}
                     spiDefinitions={spiDefinitions}
                     assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
                     environmentRows={filteredImpactEnvironmentSplit}
