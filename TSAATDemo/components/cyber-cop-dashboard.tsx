@@ -1,0 +1,2477 @@
+"use client";
+
+import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  XAxis,
+  YAxis,
+  ZAxis
+} from "recharts";
+import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
+import {
+  IctSystemImpactAnalyser2Chart,
+  type ImpactAnalyser2LoadState
+} from "@/components/ict-system-impact-analyser-2";
+import {
+  NetworkDetailRiskCharts,
+  NetworkDetailRiskFindingRow,
+  RiskFindingsDrillThrough
+} from "@/components/network-detail-risk-charts";
+import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
+import { type PerformanceReportModel } from "@/lib/performance-report-model";
+import { type SpiDefinition } from "@/lib/spi-definitions";
+import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain, type SpiId } from "@/lib/types";
+
+export interface CyberCopImpactItem {
+  id: string;
+  name: string;
+  criticality: Criticality;
+  findings: number;
+  highPriority: number;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  impactedAssets: number;
+}
+
+export interface CyberCopSeveritySummary {
+  severity: FindingSeverity;
+  count: number;
+}
+
+export interface CyberCopWeeklyRiskPoint {
+  weekLabel: string;
+  highRiskCount: number | null;
+  criticalExposureCount: number | null;
+}
+
+export interface CyberCopDailyTrendPoint {
+  date: string;
+  label: string;
+  count: number | null;
+}
+
+export interface CyberCopImpactSpiDriver {
+  spiId: number;
+  label: string;
+  description: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  count: number;
+}
+
+export interface CyberCopImpactEnvironmentSplitRow {
+  environment: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  total: number;
+}
+
+export interface CyberCopImpactEntityTrendPoint {
+  weekLabel: string;
+  count: number;
+}
+
+export interface CyberCopImpactEntityTrend {
+  id: string;
+  name: string;
+  criticality: Criticality;
+  riskCount: number;
+  weeklyTrend: CyberCopImpactEntityTrendPoint[];
+}
+
+export interface CyberCopActionOldestFindingRow {
+  findingId: string;
+  title: string;
+  severity: FindingSeverity;
+  spiLabel: string;
+  systemName: string;
+  openedDate: string;
+  ageDays: number;
+  recommendedAction: string;
+}
+
+export interface CyberCopActionQuickWinRow {
+  actionText: string;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  otherCount: number;
+  total: number;
+  systemCount: number;
+}
+
+export interface CyberCopImpactLinks {
+  businessToSystems: Record<string, string[]>;
+  missionToSystems: Record<string, string[]>;
+}
+
+export interface CyberCopAssetTypeHeatmapAsset {
+  id: string;
+  name: string;
+  hostname: string;
+  assetType: AssetType;
+  systemId: string;
+  systemName: string;
+  environmentType: EnvironmentType | null;
+  securityDomain: SecurityDomain;
+  criticalExposureCount: number;
+  highRiskCount: number;
+  severeFindingCount: number;
+  riskScore: number;
+}
+
+type ServerHeatmapEnvironmentOption = EnvironmentType | "Unassigned";
+type ServerHeatmapSecurityDomainOption = SecurityDomain;
+
+export interface CyberCopDashboardProps {
+  snapshotDate: string;
+  filtersSlot?: ReactNode;
+  networkSpiHeatmapFilterSlot?: ReactNode;
+  systemSpiHeatmapFilterSlot?: ReactNode;
+  networkSpiHeatmapModel: PerformanceReportModel;
+  systemSpiHeatmapModel: PerformanceReportModel;
+  spiDefinitions: SpiDefinition[];
+  selectedSpiId?: SpiId;
+  initialMeasureSearch: string;
+  complianceScoreCards: OverviewScoreCard[];
+  riskProfile: {
+    openFindings: number;
+    p1p2Count: number;
+    highRiskOpenCount: number;
+    criticalExposureOpenCount: number;
+    severitySummary: CyberCopSeveritySummary[];
+    weeklyTrend: CyberCopWeeklyRiskPoint[];
+  };
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
+  impact: {
+    business: CyberCopImpactItem[];
+    mission: CyberCopImpactItem[];
+    systems: CyberCopImpactItem[];
+  };
+  impactLinks: CyberCopImpactLinks;
+  impactAssetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  impactSpiDrivers: CyberCopImpactSpiDriver[];
+  impactSpiDriversBySystemId: Record<string, CyberCopImpactSpiDriver[]>;
+  impactEnvironmentSplit: CyberCopImpactEnvironmentSplitRow[];
+  impactEnvironmentSplitBySystemId: Record<string, CyberCopImpactEnvironmentSplitRow[]>;
+  impactEntityTrends: CyberCopImpactEntityTrend[];
+  actionPlan: {
+    immediateAction: number;
+    nonCompliantOs: number;
+    nonCompliantOsTotal: number;
+    assetsOutOfWarrantyEol: number;
+    scopedAssetsTotal: number;
+    serversWithCriticalFindings: number;
+    scopedServersTotal: number;
+    networksWithoutDiscoveryEnabled: number;
+    scopedNetworksTotal: number;
+    networksDiscoveryNonCompliant: number;
+    networksWithNoTargetState: number;
+    diisIctSystemsDefined: number;
+    ictSystemsNotModelled: number;
+    ictSystemsModelled: number;
+    ictSystemsModelledDiscoveryNonCompliant: number;
+  };
+  actionOldestOpenFindings: CyberCopActionOldestFindingRow[];
+  actionQuickWins: CyberCopActionQuickWinRow[];
+  dailyHighRisk: CyberCopDailyTrendPoint[];
+  dailyCriticalExposure: CyberCopDailyTrendPoint[];
+}
+
+type CyberCopTabId =
+  | "overview"
+  | "impact"
+  | "action"
+  | "networks-spi-heatmap"
+  | "systems-spi-heatmap"
+  | "ict-system-impact-analyser";
+type ImpactScopeTabId = "business-services" | "mission-capabilities";
+type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
+
+const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
+  { id: "overview", label: "Overview" },
+  { id: "impact", label: "Impact" },
+  { id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" },
+  { id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" },
+  { id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" },
+  { id: "action", label: "Action" }
+];
+
+const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
+  { id: "spi", label: "SPI Barchart" },
+  { id: "blast-radius", label: "Server Risk Heatmap" },
+  { id: "environment", label: "Environment Split" },
+  { id: "mission-business", label: "Critical Findings Blast Radius" }
+];
+
+const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
+const impactSeverityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
+const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
+
+function chartSurfaceClass(embedded?: boolean): string {
+  return embedded
+    ? "flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2"
+    : "panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-4";
+}
+
+function interpolateColor(
+  start: [number, number, number],
+  end: [number, number, number],
+  ratio: number
+): string {
+  const clampedRatio = Math.max(0, Math.min(1, ratio));
+  const [red, green, blue] = start.map((channel, index) =>
+    Math.round(channel + (end[index] - channel) * clampedRatio)
+  );
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function assetHeatmapColor(score: number, maxScore: number): string {
+  if (score <= 0 || maxScore <= 0) {
+    return "rgb(34, 197, 94)";
+  }
+
+  const ratio = Math.min(1, score / maxScore);
+  if (ratio <= 0.5) {
+    return interpolateColor([34, 197, 94], [250, 204, 21], ratio / 0.5);
+  }
+  return interpolateColor([250, 204, 21], [239, 68, 68], (ratio - 0.5) / 0.5);
+}
+
+function severityStrokeColor(severity: FindingSeverity): string {
+  if (severity === "Critical Exposure") {
+    return "#ef4444";
+  }
+  if (severity === "High Risk") {
+    return "#f97316";
+  }
+  if (severity === "Major") {
+    return "#facc15";
+  }
+  if (severity === "Moderate") {
+    return "#38bdf8";
+  }
+  return "#a78bfa";
+}
+
+function sortEnvironmentLabel(left: ServerHeatmapEnvironmentOption, right: ServerHeatmapEnvironmentOption): number {
+  if (left === "Production") {
+    return -1;
+  }
+  if (right === "Production") {
+    return 1;
+  }
+  if (left === "Unassigned") {
+    return 1;
+  }
+  if (right === "Unassigned") {
+    return -1;
+  }
+  return left.localeCompare(right);
+}
+
+function formatDateKey(
+  dateKey: string,
+  options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }
+): string {
+  const parsed = new Date(`${dateKey}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return dateKey;
+  }
+  return parsed.toLocaleDateString("en-US", { ...options, timeZone: "UTC" });
+}
+
+function criticalityClass(criticality: Criticality): string {
+  if (criticality === "Critical") {
+    return "border-red-400/40 text-red-100";
+  }
+  return "border-sky-300/35 text-sky-100";
+}
+
+function sameStringArray(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function ImpactLeaderboard({
+  title,
+  subtitle,
+  items,
+  selectedItemId,
+  selectedItemIds = [],
+  selectedText,
+  onSelectItem,
+  onSelectedItemIdsChange,
+  onFilterScopeChange,
+  onVisibleItemIdsChange,
+  selectionMode = "single",
+  embedded = false,
+  hideHeader = false,
+  showClearSelectionButton,
+  clearSelectionDisabled,
+  onClearSelection
+}: {
+  title: string;
+  subtitle: string;
+  items: CyberCopImpactItem[];
+  selectedItemId?: string | null;
+  selectedItemIds?: string[];
+  selectedText?: string | null;
+  onSelectItem?: (item: CyberCopImpactItem) => void;
+  onSelectedItemIdsChange?: (itemIds: string[]) => void;
+  onFilterScopeChange?: (scope: { active: boolean; itemIds: string[] }) => void;
+  onVisibleItemIdsChange?: (itemIds: string[]) => void;
+  selectionMode?: "single" | "multi";
+  embedded?: boolean;
+  hideHeader?: boolean;
+  showClearSelectionButton?: boolean;
+  clearSelectionDisabled?: boolean;
+  onClearSelection?: () => void;
+}) {
+  const listId = useId();
+  const [query, setQuery] = useState("");
+  const riskScopedItems = useMemo(
+    () => items.filter((item) => item.criticalExposureCount > 0 || item.highRiskCount > 0),
+    [items]
+  );
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredItems = useMemo(() => {
+    if (!normalizedQuery) {
+      return riskScopedItems;
+    }
+
+    const exactMatch = riskScopedItems.find((item) => item.name.toLowerCase() === normalizedQuery);
+    if (exactMatch) {
+      return [exactMatch];
+    }
+
+    return riskScopedItems.filter((item) => item.name.toLowerCase().includes(normalizedQuery));
+  }, [riskScopedItems, normalizedQuery]);
+
+  const selectedItem = useMemo(
+    () => riskScopedItems.find((item) => item.id === selectedItemId),
+    [riskScopedItems, selectedItemId]
+  );
+  const selectedItemIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+
+  const multiSelect = selectionMode === "multi";
+  const selectable = Boolean(onSelectItem) || multiSelect;
+  const selectedLabel = multiSelect
+    ? selectedItemIds.length
+      ? `${selectedItemIds.length} selected`
+      : null
+    : selectedText ?? selectedItem?.name ?? null;
+  const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems]);
+
+  const toggleMultiSelectedItem = (itemId: string) => {
+    if (!onSelectedItemIdsChange) {
+      return;
+    }
+    onSelectedItemIdsChange(
+      selectedItemIdSet.has(itemId)
+        ? selectedItemIds.filter((id) => id !== itemId)
+        : [...selectedItemIds, itemId]
+    );
+  };
+
+  const selectVisibleItems = () => {
+    onSelectedItemIdsChange?.(visibleItemIds);
+  };
+
+  const clearMultiSelection = () => {
+    onSelectedItemIdsChange?.([]);
+  };
+
+  useEffect(() => {
+    if (!onFilterScopeChange) {
+      return;
+    }
+    onFilterScopeChange({
+      active: normalizedQuery.length > 0,
+      itemIds: filteredItems.map((item) => item.id)
+    });
+  }, [filteredItems, normalizedQuery, onFilterScopeChange]);
+
+  useEffect(() => {
+    onVisibleItemIdsChange?.(visibleItemIds);
+  }, [onVisibleItemIdsChange, visibleItemIds]);
+
+  const content = (
+    <>
+      {hideHeader ? (
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs text-slate-300/80">{subtitle}</p>
+          <p className="min-h-[1rem] shrink-0 text-right text-[11px] text-cyan-100/90">
+            {selectedLabel ? `Selected: ${selectedLabel}` : "Selected: none"}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+            <p className="min-h-[1rem] text-right text-[11px] text-cyan-100/90">
+              {selectedLabel ? `Selected: ${selectedLabel}` : "Selected: none"}
+            </p>
+          </div>
+          <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+        </>
+      )}
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          list={listId}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={`Search ${title.toLowerCase()}`}
+          className="min-w-[13rem] flex-1 rounded-md border border-sky-300/25 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
+        />
+        <button
+          type="button"
+          onClick={() => setQuery("")}
+          className="whitespace-nowrap rounded-md border border-sky-300/25 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-slate-200 hover:bg-slate-800/90"
+        >
+          Clear
+        </button>
+        {multiSelect && onSelectedItemIdsChange ? (
+          <>
+            <button
+              type="button"
+              onClick={selectVisibleItems}
+              disabled={!visibleItemIds.length}
+              className="whitespace-nowrap rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+            >
+              Select Visible
+            </button>
+            <button
+              type="button"
+              onClick={clearMultiSelection}
+              disabled={!selectedItemIds.length}
+              className="whitespace-nowrap rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+            >
+              Clear Selection
+            </button>
+          </>
+        ) : null}
+        {showClearSelectionButton && onClearSelection ? (
+          <button
+            type="button"
+            onClick={onClearSelection}
+            disabled={clearSelectionDisabled}
+            className="whitespace-nowrap rounded-md border border-cyan-300/35 bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.12em] text-cyan-100 hover:bg-slate-800/90 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70 disabled:hover:bg-slate-900/80"
+          >
+            Clear Selection
+          </button>
+        ) : null}
+        <datalist id={listId}>
+          {riskScopedItems.map((item) => (
+            <option key={item.id} value={item.name} />
+          ))}
+        </datalist>
+      </div>
+      {riskScopedItems.length ? (
+        <div className="mt-2.5 min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+          <table className="w-full table-fixed text-xs xl:text-sm">
+            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
+              <tr>
+                {multiSelect ? <th className="w-[10%] px-2 py-2 text-left">Select</th> : null}
+                <th className={`${multiSelect ? "w-[34%]" : "w-[42%]"} px-2 py-2 text-left`}>Name</th>
+                <th className={`${multiSelect ? "w-[18%]" : "w-[20%]"} px-2 py-2 text-left`}>Criticality</th>
+                <th className={`${multiSelect ? "w-[14%]" : "w-[14%]"} px-2 py-2 text-right`}>Crit Exp</th>
+                <th className={`${multiSelect ? "w-[12%]" : "w-[12%]"} px-2 py-2 text-right`}>High</th>
+                <th className={`${multiSelect ? "w-[12%]" : "w-[12%]"} px-2 py-2 text-right`}>Assets</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.map((item) => {
+                const rowSelected = multiSelect ? selectedItemIdSet.has(item.id) : selectedItemId === item.id;
+                return (
+                <tr
+                  key={item.id}
+                  className={`border-t border-sky-300/10 ${rowSelected ? "bg-cyan-500/10" : ""}`}
+                >
+                  {multiSelect ? (
+                    <td className="px-2 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIdSet.has(item.id)}
+                        onChange={() => toggleMultiSelectedItem(item.id)}
+                        aria-label={`Select ${item.name}`}
+                        className="h-4 w-4 rounded border-sky-300/35 bg-slate-900 text-cyan-300"
+                      />
+                    </td>
+                  ) : null}
+                  <td className="px-2 py-2 text-slate-100">
+                    {selectable ? (
+                      <button
+                        type="button"
+                        onClick={() => (multiSelect ? toggleMultiSelectedItem(item.id) : onSelectItem?.(item))}
+                        title={item.name}
+                        className="block w-full truncate text-left text-slate-100 hover:text-cyan-100"
+                      >
+                        {item.name}
+                      </button>
+                    ) : (
+                      <span title={item.name} className="block truncate">
+                        {item.name}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span className={`inline-block max-w-full truncate rounded-full border px-1.5 py-0.5 text-[10px] xl:px-2 xl:text-[11px] ${criticalityClass(item.criticality)}`}>
+                      {item.criticality}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-red-100">{item.criticalExposureCount}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-orange-100">{item.highRiskCount}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-slate-200">{item.impactedAssets}</td>
+                </tr>
+                );
+              })}
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={multiSelect ? 6 : 5} className="px-3 py-4 text-center text-sm text-slate-300/80">
+                    No matching rows.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-lg border border-sky-300/15 bg-slate-950/45 p-3 text-sm text-slate-300/80">
+          No critical exposure or high risk impact in current scope.
+        </p>
+      )}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex h-full min-h-0 flex-col">{content}</div>;
+  }
+
+  return (
+    <section className="panel flex h-full min-h-0 flex-col p-3">
+      {content}
+    </section>
+  );
+}
+
+function actionSegmentWidth(value: number, total: number): string {
+  if (!total || value <= 0) {
+    return "0%";
+  }
+  return `${Math.max(2, (value / total) * 100)}%`;
+}
+
+type ActionPlanMatrixTone = "critical" | "warning" | "watch";
+
+type ActionPlanMatrixRow = {
+  action: string;
+  detail: string;
+  count: number;
+  scope: string;
+  total?: number;
+  actionLabel?: string;
+  clearLabel?: string;
+  statusLabel: string;
+  tone: ActionPlanMatrixTone;
+  emphasized?: boolean;
+};
+
+function actionMatrixToneClasses(tone: ActionPlanMatrixTone) {
+  if (tone === "critical") {
+    return {
+      count: "text-red-100",
+      segment: "bg-red-400/95",
+      badge: "border-red-300/30 bg-red-500/10 text-red-100",
+      row: "bg-red-500/[0.06]"
+    };
+  }
+  if (tone === "warning") {
+    return {
+      count: "text-amber-100",
+      segment: "bg-amber-300/95",
+      badge: "border-amber-300/30 bg-amber-500/10 text-amber-100",
+      row: "bg-amber-500/[0.045]"
+    };
+  }
+  return {
+    count: "text-sky-100",
+    segment: "bg-sky-300/95",
+    badge: "border-sky-300/30 bg-sky-500/10 text-sky-100",
+    row: "bg-sky-500/[0.045]"
+  };
+}
+
+function actionRateLabel(count: number, total?: number): string {
+  if (typeof total !== "number") {
+    return "Baseline";
+  }
+  if (total <= 0) {
+    return "0%";
+  }
+  return `${Number(((Math.max(0, count) / total) * 100).toFixed(1))}%`;
+}
+
+function ActionPlanMatrix({ title, rows }: { title: string; rows: ActionPlanMatrixRow[] }) {
+  return (
+    <section className="min-w-0 overflow-hidden rounded-xl border border-sky-300/15 bg-slate-950/35">
+      <div className="border-b border-sky-300/10 px-3 py-2">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+      </div>
+      <div className="overflow-hidden">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[38%]" />
+            <col className="w-[11%]" />
+            <col className="w-[18%]" />
+            <col className="w-[11%]" />
+            <col className="w-[22%]" />
+          </colgroup>
+          <thead className="bg-slate-900/70 text-[10px] uppercase tracking-[0.13em] text-slate-300/70">
+            <tr>
+              <th className="px-2 py-2 text-left">Action</th>
+              <th className="px-2 py-2 text-right">Count</th>
+              <th className="px-2 py-2 text-left">Scope</th>
+              <th className="px-2 py-2 text-right">Rate</th>
+              <th className="px-2 py-2 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const toneClasses = actionMatrixToneClasses(row.tone);
+              const safeTotal = typeof row.total === "number" ? Math.max(0, row.total) : undefined;
+              const boundedCount = safeTotal === undefined ? Math.max(0, row.count) : Math.min(Math.max(0, row.count), safeTotal);
+              const clearCount = safeTotal === undefined ? 0 : Math.max(0, safeTotal - boundedCount);
+              const statusTitle =
+                safeTotal === undefined
+                  ? row.statusLabel
+                  : `${clearCount} ${row.clearLabel?.toLowerCase() ?? "clear"}, ${boundedCount} ${
+                      row.actionLabel?.toLowerCase() ?? "requiring action"
+                    }`;
+
+              return (
+                <tr
+                  key={`${title}-${row.action}`}
+                  className={`border-t border-sky-300/10 ${row.emphasized ? toneClasses.row : ""}`}
+                >
+                  <td className="px-2 py-2">
+                    <p className={row.emphasized ? "font-semibold text-slate-100" : "font-medium text-slate-200"}>{row.action}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{row.detail}</p>
+                  </td>
+                  <td className={`px-2 py-2 text-right text-base font-semibold tabular-nums ${toneClasses.count}`}>
+                    {row.count}
+                  </td>
+                  <td className="break-words px-2 py-2 text-xs text-slate-300">{row.scope}</td>
+                  <td className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-slate-100">
+                    {actionRateLabel(row.count, row.total)}
+                  </td>
+                  <td className="px-2 py-2">
+                    {safeTotal === undefined ? (
+                      <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] ${toneClasses.badge}`}>
+                        {row.statusLabel}
+                      </span>
+                    ) : (
+                      <div className="w-full" title={statusTitle}>
+                        <div
+                          className="flex h-2.5 overflow-hidden rounded-full border border-sky-300/20 bg-slate-800/80"
+                          aria-label={`${row.action}: ${row.count}`}
+                        >
+                          <div
+                            className="h-full bg-emerald-400/90"
+                            style={{ width: actionSegmentWidth(clearCount, safeTotal) }}
+                          />
+                          <div
+                            className={`h-full ${toneClasses.segment}`}
+                            style={{ width: actionSegmentWidth(boundedCount, safeTotal) }}
+                          />
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                          <span>{row.clearLabel}</span>
+                          <span className={toneClasses.count}>{row.actionLabel}</span>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function DailyTrendPanel({
+  title,
+  subtitle,
+  color,
+  data,
+  compact = false
+}: {
+  title: string;
+  subtitle: string;
+  color: string;
+  data: CyberCopDailyTrendPoint[];
+  compact?: boolean;
+}) {
+  if (!data.length) {
+    return (
+      <section className={`panel ${compact ? "p-3" : "p-4"}`}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+        <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+        <p className="mt-3 text-sm text-slate-300/80">No daily trend data available.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`panel ${compact ? "flex h-full min-h-0 flex-col p-3" : "p-4"}`}>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+          <p className="mt-1 text-xs text-slate-300/80">{subtitle}</p>
+        </div>
+        {compact ? null : (
+          <p className="rounded-full border border-sky-300/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
+            Latest: {data[data.length - 1]?.count ?? "-"} on{" "}
+            {formatDateKey(data[data.length - 1]?.date ?? "", { month: "short", day: "numeric", year: "numeric" })}
+          </p>
+        )}
+      </div>
+      <div className={compact ? "mt-2 min-h-0 flex-1" : "mt-2.5 h-48"}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={compact ? { top: 4, right: 10, left: 0, bottom: 0 } : { top: 8, right: 14, left: 6, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis
+              dataKey="date"
+              tickFormatter={(value) => formatDateKey(String(value))}
+              minTickGap={compact ? 54 : 42}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              formatter={(value) => [value ?? "-", "Open Findings"]}
+              labelFormatter={(label) =>
+                formatDateKey(String(label), {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric"
+                })
+              }
+            />
+            <Line type="monotone" dataKey="count" stroke={color} strokeWidth={2.2} dot={false} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function AssetTypeHeatmapChart({
+  items,
+  assetsBySystemId,
+  embedded = false
+}: {
+  items: CyberCopImpactItem[];
+  assetsBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  embedded?: boolean;
+}) {
+  const allServerAssets = useMemo(() => {
+    const seenAssetIds = new Set<string>();
+    return items
+      .flatMap((item) => assetsBySystemId[item.id] ?? [])
+      .filter((asset) => asset.assetType === "server")
+      .filter((asset) => {
+        if (seenAssetIds.has(asset.id)) {
+          return false;
+        }
+        seenAssetIds.add(asset.id);
+        return true;
+      })
+      .sort((a, b) => {
+        if (b.riskScore !== a.riskScore) {
+          return b.riskScore - a.riskScore;
+        }
+        if (b.criticalExposureCount !== a.criticalExposureCount) {
+          return b.criticalExposureCount - a.criticalExposureCount;
+        }
+        if (b.highRiskCount !== a.highRiskCount) {
+          return b.highRiskCount - a.highRiskCount;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [assetsBySystemId, items]);
+
+  const environmentOptions = useMemo<ServerHeatmapEnvironmentOption[]>(
+    () =>
+      Array.from(new Set(allServerAssets.map((asset) => asset.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
+    [allServerAssets]
+  );
+  const securityDomainOptions = useMemo<ServerHeatmapSecurityDomainOption[]>(
+    () =>
+      Array.from(new Set(allServerAssets.map((asset) => asset.securityDomain))).sort(
+        (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
+      ),
+    [allServerAssets]
+  );
+  const [selectedEnvironment, setSelectedEnvironment] = useState<ServerHeatmapEnvironmentOption | "all">("all");
+  const [selectedSecurityDomain, setSelectedSecurityDomain] = useState<ServerHeatmapSecurityDomainOption | "all">("all");
+
+  useEffect(() => {
+    if (selectedEnvironment !== "all" && !environmentOptions.includes(selectedEnvironment)) {
+      setSelectedEnvironment("all");
+    }
+  }, [environmentOptions, selectedEnvironment]);
+
+  useEffect(() => {
+    if (selectedSecurityDomain !== "all" && !securityDomainOptions.includes(selectedSecurityDomain)) {
+      setSelectedSecurityDomain("all");
+    }
+  }, [securityDomainOptions, selectedSecurityDomain]);
+
+  const serverAssets = useMemo(() => {
+    return allServerAssets.filter((asset) => {
+      if (selectedEnvironment !== "all" && (asset.environmentType ?? "Unassigned") !== selectedEnvironment) {
+        return false;
+      }
+      if (selectedSecurityDomain !== "all" && asset.securityDomain !== selectedSecurityDomain) {
+        return false;
+      }
+      return true;
+    });
+  }, [allServerAssets, selectedEnvironment, selectedSecurityDomain]);
+
+  const maxRiskScore = serverAssets.reduce((maxScore, asset) => Math.max(maxScore, asset.riskScore), 0);
+  const serverCriticalExposureCount = serverAssets.reduce(
+    (total, asset) => total + asset.criticalExposureCount,
+    0
+  );
+  const serverHighRiskCount = serverAssets.reduce((total, asset) => total + asset.highRiskCount, 0);
+
+  if (!allServerAssets.length) {
+    return (
+      <section className={chartSurfaceClass(embedded)}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Server Risk Heatmap</h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          Servers coloured by open critical and high finding volume.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No server heatmap data in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={chartSurfaceClass(embedded)}>
+      <div className="flex min-w-0 shrink-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-sm uppercase tracking-[0.14em] text-slate-100">Server Risk Heatmap</h3>
+          <p className="mt-1 text-xs text-slate-300/80">
+            Servers coloured by open critical and high finding volume.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Environment</span>
+            <select
+              value={selectedEnvironment}
+              onChange={(event) =>
+                setSelectedEnvironment(event.target.value as ServerHeatmapEnvironmentOption | "all")
+              }
+              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {environmentOptions.map((environment) => (
+                <option key={`server-heatmap-environment-${environment}`} value={environment}>
+                  {environment}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Security Domain</span>
+            <select
+              value={selectedSecurityDomain}
+              onChange={(event) =>
+                setSelectedSecurityDomain(event.target.value as ServerHeatmapSecurityDomainOption | "all")
+              }
+              className="h-8 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-xs normal-case tracking-normal text-slate-100"
+            >
+              <option value="all">All</option>
+              {securityDomainOptions.map((domain) => (
+                <option key={`server-heatmap-security-domain-${domain}`} value={domain}>
+                  {domain}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+            <span>Low</span>
+            <span className="h-2 w-24 max-w-[36vw] rounded-full bg-[linear-gradient(90deg,#22c55e,#facc15,#ef4444)]" />
+            <span>High</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h4 className="break-words text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">Servers</h4>
+            <p className="mt-0.5 text-[11px] text-slate-300/75">
+              {serverAssets.length} of {allServerAssets.length} servers
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1.5 text-[11px] tabular-nums">
+            <span className="rounded border border-red-400/20 bg-red-500/10 px-2 py-0.5 text-red-100">
+              {serverCriticalExposureCount} critical
+            </span>
+            <span className="rounded border border-orange-300/20 bg-orange-400/10 px-2 py-0.5 text-orange-100">
+              {serverHighRiskCount} high
+            </span>
+          </div>
+        </div>
+        <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+          {serverAssets.length ? (
+            <div className="flex w-full flex-wrap content-start gap-1">
+              {serverAssets.map((asset) => (
+                <span
+                  key={`asset-heatmap-cell-${asset.id}`}
+                  aria-label={`${asset.name}, Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
+                  className="h-4 w-4 shrink-0 rounded-[4px] border border-white/15 shadow-[0_0_10px_rgba(15,23,42,0.35)]"
+                  role="img"
+                  style={{ backgroundColor: assetHeatmapColor(asset.riskScore, maxRiskScore) }}
+                  title={`${asset.name}\n${asset.systemName}\n${asset.environmentType ?? "Unassigned"}\n${asset.securityDomain}\nServer\nCritical Exposure: ${asset.criticalExposureCount}\nHigh Risk: ${asset.highRiskCount}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-md border border-sky-300/15 bg-slate-900/55 px-3 py-2 text-xs text-slate-300/80">
+              No servers match the selected filters.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SpiDriverChart({
+  rows,
+  findings,
+  allFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
+  embedded = false
+}: {
+  rows: CyberCopImpactSpiDriver[];
+  findings: NetworkDetailRiskFindingRow[];
+  allFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
+  embedded?: boolean;
+}) {
+  const [selectedSpiId, setSelectedSpiId] = useState<number | null>(null);
+  if (!rows.length) {
+    return (
+      <section className={chartSurfaceClass(embedded)}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Control families driving severe open impact.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No severe SPI driver data in current scope.</p>
+      </section>
+    );
+  }
+
+  const topRows = rows.slice(0, 10);
+  const chartData = topRows.map((row) => ({
+    ...row,
+    spiLabel: row.label
+  }));
+  const selectedSpiRow = selectedSpiId ? chartData.find((row) => row.spiId === selectedSpiId) ?? null : null;
+  const selectedSpiFindings = selectedSpiId
+    ? findings.filter((finding) => finding.workflowStatus === "open" && finding.spiId === selectedSpiId)
+    : [];
+  const selectedSpiTotalCount = selectedSpiRow?.count ?? selectedSpiFindings.length;
+
+  const openSpiDrillThrough = (spiId: number) => {
+    setSelectedSpiId(spiId);
+  };
+
+  return (
+    <>
+      <section className={chartSurfaceClass(embedded)}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">SPI Driver (Critical + High)</h3>
+            <p className="mt-1 text-xs text-slate-300/80">Top SPI controls contributing to severe open findings.</p>
+          </div>
+          <p className="rounded-md border border-sky-300/20 bg-slate-950/50 px-2 py-1 text-[11px] text-sky-200/90">
+            Select an SPI bar to open Findings.
+          </p>
+        </div>
+        <div className="mt-2 min-h-0 flex-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 18, left: 12, bottom: 8 }}>
+              <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+              <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+              <YAxis dataKey="spiLabel" type="category" width={68} tick={{ fill: "#d2e6f4", fontSize: 11 }} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) {
+                    return null;
+                  }
+                  const row = payload[0].payload as CyberCopImpactSpiDriver;
+                  return (
+                    <div className="rounded-md border border-slate-500/60 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-lg">
+                      <p>{row.description}</p>
+                    </div>
+                  );
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+              <Bar
+                dataKey="criticalExposureCount"
+                stackId="severity"
+                name="Critical Exposure"
+                fill="#ef4444"
+                isAnimationActive={false}
+              >
+                {chartData.map((row) => {
+                  const selected = selectedSpiId === row.spiId;
+                  return (
+                    <Cell
+                      key={`spi-driver-critical-${row.spiId}`}
+                      className="cursor-pointer"
+                      fill="#ef4444"
+                      fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
+                      stroke={selected ? "#e2e8f0" : "transparent"}
+                      strokeWidth={selected ? 1.4 : 0}
+                      onClick={() => openSpiDrillThrough(row.spiId)}
+                    />
+                  );
+                })}
+              </Bar>
+              <Bar
+                dataKey="highRiskCount"
+                stackId="severity"
+                name="High Risk"
+                fill="#f97316"
+                isAnimationActive={false}
+              >
+                {chartData.map((row) => {
+                  const selected = selectedSpiId === row.spiId;
+                  return (
+                    <Cell
+                      key={`spi-driver-high-${row.spiId}`}
+                      className="cursor-pointer"
+                      fill="#f97316"
+                      fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
+                      stroke={selected ? "#e2e8f0" : "transparent"}
+                      strokeWidth={selected ? 1.4 : 0}
+                      onClick={() => openSpiDrillThrough(row.spiId)}
+                    />
+                  );
+                })}
+              </Bar>
+              <Bar
+                dataKey="otherCount"
+                stackId="severity"
+                name="Other"
+                fill="#38bdf8"
+                radius={[0, 6, 6, 0]}
+                isAnimationActive={false}
+              >
+                <LabelList dataKey="count" position="right" fill="#e2e8f0" fontSize={11} />
+                {chartData.map((row) => {
+                  const selected = selectedSpiId === row.spiId;
+                  return (
+                    <Cell
+                      key={`spi-driver-other-${row.spiId}`}
+                      className="cursor-pointer"
+                      fill="#38bdf8"
+                      fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
+                      stroke={selected ? "#e2e8f0" : "transparent"}
+                      strokeWidth={selected ? 1.4 : 0}
+                      onClick={() => openSpiDrillThrough(row.spiId)}
+                    />
+                  );
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {selectedSpiId ? (
+        <RiskFindingsDrillThrough
+          selection={{
+            id: `cyber-cop-spi-driver-${selectedSpiId}`,
+            label: `SPI ${selectedSpiId}`,
+            findings: selectedSpiFindings,
+            totalCount: selectedSpiTotalCount,
+            lockedSpiId: selectedSpiId,
+            emptyMessage: "No open findings were generated for the selected SPI bar.",
+            exportSlug: `spi-${selectedSpiId}`
+          }}
+          allFindings={allFindings}
+          assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+          asOfDate={asOfDate}
+          onClose={() => setSelectedSpiId(null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function EnvironmentImpactSplitChart({
+  rows,
+  embedded = false
+}: {
+  rows: CyberCopImpactEnvironmentSplitRow[];
+  embedded?: boolean;
+}) {
+  if (!rows.length) {
+    return (
+      <section className={chartSurfaceClass(embedded)}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Open finding impact by environment type.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No environment impact data in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={chartSurfaceClass(embedded)}>
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Environment Impact Split</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Open findings grouped by environment and severity band.</p>
+      <div className="mt-2 min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 8, right: 18, left: 6, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis dataKey="environment" tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              formatter={(value, key, item) => {
+                const row = item.payload as CyberCopImpactEnvironmentSplitRow;
+                if (key === "criticalExposureCount") {
+                  return [value, "Critical Exposure"];
+                }
+                if (key === "highRiskCount") {
+                  return [value, "High Risk"];
+                }
+                if (key === "otherCount") {
+                  return [value, "Other"];
+                }
+                return [row.total, "Total"];
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "12px", color: "#d1e3ef" }} />
+            <Bar dataKey="criticalExposureCount" stackId="severity" name="Critical Exposure" fill="#ef4444" isAnimationActive={false} />
+            <Bar dataKey="highRiskCount" stackId="severity" name="High Risk" fill="#f97316" isAnimationActive={false} />
+            <Bar dataKey="otherCount" stackId="severity" name="Other" fill="#38bdf8" isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function MissionBusinessBlastRadiusChart({
+  missionRows,
+  businessRows,
+  embedded = false
+}: {
+  missionRows: CyberCopImpactItem[];
+  businessRows: CyberCopImpactItem[];
+  embedded?: boolean;
+}) {
+  type DomainPoint = {
+    id: string;
+    name: string;
+    domain: "Mission Capability" | "Business Service";
+    criticality: Criticality;
+    impactedAssets: number;
+    criticalExposureCount: number;
+    highRiskCount: number;
+    findings: number;
+    bubbleSize: number;
+  };
+
+  const missionPoints = useMemo(
+    () =>
+      missionRows
+        .filter((row) => row.criticalExposureCount > 0)
+        .sort((a, b) => {
+          if (b.criticalExposureCount !== a.criticalExposureCount) {
+            return b.criticalExposureCount - a.criticalExposureCount;
+          }
+          if (b.impactedAssets !== a.impactedAssets) {
+            return b.impactedAssets - a.impactedAssets;
+          }
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 28)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          domain: "Mission Capability" as const,
+          criticality: row.criticality,
+          impactedAssets: row.impactedAssets,
+          criticalExposureCount: row.criticalExposureCount,
+          highRiskCount: row.highRiskCount,
+          findings: row.findings,
+          bubbleSize: Math.max(1, row.findings)
+        })),
+    [missionRows]
+  );
+  const businessPoints = useMemo(
+    () =>
+      businessRows
+        .filter((row) => row.criticalExposureCount > 0)
+        .sort((a, b) => {
+          if (b.criticalExposureCount !== a.criticalExposureCount) {
+            return b.criticalExposureCount - a.criticalExposureCount;
+          }
+          if (b.impactedAssets !== a.impactedAssets) {
+            return b.impactedAssets - a.impactedAssets;
+          }
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 28)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          domain: "Business Service" as const,
+          criticality: row.criticality,
+          impactedAssets: row.impactedAssets,
+          criticalExposureCount: row.criticalExposureCount,
+          highRiskCount: row.highRiskCount,
+          findings: row.findings,
+          bubbleSize: Math.max(1, row.findings)
+        })),
+    [businessRows]
+  );
+  const hasPoints = missionPoints.length > 0 || businessPoints.length > 0;
+
+  if (!hasPoints) {
+    return (
+      <section className={chartSurfaceClass(embedded)}>
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">
+          Critical Findings Blast Radius
+        </h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          Mission capabilities and business services with open critical exposure findings.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No mission capability or business service critical exposure data in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={chartSurfaceClass(embedded)}>
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">
+        Critical Findings Blast Radius
+      </h3>
+      <p className="mt-1 text-xs text-slate-300/80">
+        X: impacted assets, Y: open critical exposure findings, bubble size: total open findings.
+      </p>
+      <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-300/80">
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-300" />
+          Mission Capability
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-cyan-300" />
+          Business Service
+        </span>
+      </div>
+      <div className="mt-2 min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 8, right: 18, left: 8, bottom: 8 }}>
+            <CartesianGrid stroke="rgba(120,180,210,0.14)" />
+            <XAxis
+              type="number"
+              dataKey="impactedAssets"
+              name="Impacted Assets"
+              allowDecimals={false}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <YAxis
+              type="number"
+              dataKey="criticalExposureCount"
+              name="Critical Exposure Findings"
+              allowDecimals={false}
+              tick={{ fill: "#a8c6d8", fontSize: 11 }}
+            />
+            <ZAxis type="number" dataKey="bubbleSize" range={[80, 520]} />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              contentStyle={{ backgroundColor: "#0f172a", border: "1px solid rgba(148,163,184,0.5)" }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) {
+                  return null;
+                }
+
+                const point = payload[0].payload as DomainPoint;
+                return (
+                  <div className="rounded-md border border-sky-300/35 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-[0_10px_24px_rgba(0,0,0,0.45)]">
+                    <p className="font-medium text-slate-100">{point.name}</p>
+                    <p className="mt-0.5 text-slate-300/90">{point.domain}</p>
+                    <p className="mt-1 text-slate-200">Critical Exposure: {point.criticalExposureCount}</p>
+                    <p className="text-slate-200">High Risk: {point.highRiskCount}</p>
+                    <p className="text-slate-200">Impacted Assets: {point.impactedAssets}</p>
+                    <p className="text-slate-200">Open Findings: {point.findings}</p>
+                  </div>
+                );
+              }}
+            />
+            <Scatter name="Mission Capability" data={missionPoints} fill="#fcd34d" isAnimationActive={false} />
+            <Scatter name="Business Service" data={businessPoints} fill="#67e8f9" isAnimationActive={false} />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function IctSystemImpactAnalyserRunPanel({
+  systemOptions: availableSystems,
+  spiDefinitions
+}: {
+  systemOptions: CyberCopImpactItem[];
+  spiDefinitions: SpiDefinition[];
+}) {
+  const [isSystemSelectorOpen, setIsSystemSelectorOpen] = useState(false);
+  const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>([]);
+  const [appliedSystemIds, setAppliedSystemIds] = useState<string[]>([]);
+  const [loadState, setLoadState] = useState<ImpactAnalyser2LoadState>("idle");
+  const [runRequestId, setRunRequestId] = useState(0);
+  const systemOptions = useMemo(
+    () => [...availableSystems].sort((left, right) => left.name.localeCompare(right.name)),
+    [availableSystems]
+  );
+  const systemOptionKey = useMemo(() => systemOptions.map((system) => system.id).join(","), [systemOptions]);
+  const selectedSystemIdSet = useMemo(() => new Set(selectedSystemIds), [selectedSystemIds]);
+  const selectedSystemLabel =
+    selectedSystemIds.length === 0
+      ? "Select ICT Systems"
+      : selectedSystemIds.length === 1
+        ? systemOptions.find((system) => system.id === selectedSystemIds[0])?.name ?? "1 selected"
+        : `${selectedSystemIds.length} selected`;
+  const isLoading = loadState === "loading";
+
+  useEffect(() => {
+    setSelectedSystemIds([]);
+    setAppliedSystemIds([]);
+    setLoadState("idle");
+    setIsSystemSelectorOpen(false);
+  }, [systemOptionKey]);
+
+  const updateSelectedSystemIds = useCallback((nextSystemIds: string[]) => {
+    setSelectedSystemIds(nextSystemIds);
+    setAppliedSystemIds([]);
+    setLoadState("idle");
+  }, []);
+
+  const toggleSelectedSystem = useCallback(
+    (systemId: string) => {
+      const nextSelectedSystemIds = selectedSystemIdSet.has(systemId)
+        ? selectedSystemIds.filter((id) => id !== systemId)
+        : systemOptions
+            .filter((system) => selectedSystemIdSet.has(system.id) || system.id === systemId)
+            .map((system) => system.id);
+      updateSelectedSystemIds(nextSelectedSystemIds);
+    },
+    [selectedSystemIdSet, selectedSystemIds, systemOptions, updateSelectedSystemIds]
+  );
+
+  const handleRun = useCallback(() => {
+    if (!selectedSystemIds.length || isLoading) {
+      return;
+    }
+    setAppliedSystemIds([...selectedSystemIds]);
+    setRunRequestId((current) => current + 1);
+    setLoadState("loading");
+  }, [isLoading, selectedSystemIds]);
+
+  const handleLoadStateChange = useCallback((nextLoadState: ImpactAnalyser2LoadState) => {
+    setLoadState((currentLoadState) =>
+      currentLoadState === "loading" && nextLoadState === "idle" ? currentLoadState : nextLoadState
+    );
+  }, []);
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-col p-1">
+      <div className="relative z-50 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-sky-300/15 bg-slate-950/55 p-2">
+        <div
+          className="relative flex h-8 min-w-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
+          onBlur={() => window.setTimeout(() => setIsSystemSelectorOpen(false), 120)}
+        >
+          <span className="shrink-0">ICT System</span>
+          <button
+            type="button"
+            aria-label="Select ICT systems for the ICT System Impact Analyser"
+            aria-haspopup="listbox"
+            aria-expanded={isSystemSelectorOpen}
+            disabled={!systemOptions.length}
+            onClick={() => setIsSystemSelectorOpen((current) => !current)}
+            className="flex h-8 w-64 min-w-0 items-center justify-between gap-2 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/50 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70"
+          >
+            <span className="truncate">{systemOptions.length ? selectedSystemLabel : "No ICT systems available"}</span>
+            <span className="shrink-0 text-[10px] text-slate-400">{isSystemSelectorOpen ? "Close" : "Select"}</span>
+          </button>
+          {isSystemSelectorOpen ? (
+            <div
+              role="listbox"
+              aria-label="ICT systems"
+              aria-multiselectable="true"
+              className="absolute left-0 top-[calc(100%+0.25rem)] z-[60] max-h-72 w-[22rem] max-w-[calc(100vw-3rem)] overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]"
+            >
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => updateSelectedSystemIds([])}
+                disabled={!selectedSystemIds.length}
+                className="mb-1 flex w-full items-center justify-between rounded-md border border-sky-400/15 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/85 disabled:cursor-not-allowed disabled:text-slate-500"
+              >
+                <span>Clear selection</span>
+                <span>{selectedSystemIds.length} selected</span>
+              </button>
+              <div className="space-y-1">
+                {systemOptions.map((system) => {
+                  const checked = selectedSystemIdSet.has(system.id);
+                  return (
+                    <label
+                      key={`impact-analyser-system-option-${system.id}`}
+                      role="option"
+                      aria-selected={checked}
+                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs normal-case tracking-normal ${
+                        checked
+                          ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
+                          : "border-sky-400/15 bg-slate-900/70 text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/85"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSelectedSystem(system.id)}
+                        className="h-3.5 w-3.5 rounded border-sky-300/45 bg-slate-950 text-cyan-300"
+                      />
+                      <span className="truncate" title={system.name}>
+                        {system.name}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={handleRun}
+          disabled={!selectedSystemIds.length || isLoading}
+          className="h-8 rounded-md border border-cyan-300/40 bg-cyan-500/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
+        >
+          {isLoading ? "Running..." : "Run"}
+        </button>
+        <p className="min-w-0 text-xs text-slate-300/75">
+          {selectedSystemIds.length
+            ? `${selectedSystemIds.length} ICT system${selectedSystemIds.length === 1 ? "" : "s"} ready to run.`
+            : "Select one or more ICT systems to enable Run."}
+        </p>
+      </div>
+
+      <div className="mt-2 min-h-0 min-w-0 flex-1">
+        {appliedSystemIds.length ? (
+          <IctSystemImpactAnalyser2Chart
+            key={`cyber-cop-impact-analyser-run-${runRequestId}`}
+            embedded
+            systemScopeIds={appliedSystemIds}
+            spiDefinitions={spiDefinitions}
+            onLoadStateChange={handleLoadStateChange}
+          />
+        ) : (
+          <div className="flex h-full min-h-[20rem] items-center justify-center rounded-lg border border-dashed border-sky-300/20 bg-slate-950/35 p-6 text-center">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-200">ICT System Impact Analyser</p>
+              <p className="mt-2 text-sm text-slate-300/75">
+                Select one or more ICT systems, then select Run to load the analyser.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ImpactChartTabs({
+  spiRows,
+  systemRows,
+  assetTypeHeatmapBySystemId,
+  environmentRows,
+  missionRows,
+  businessRows,
+  riskFindings,
+  assetHighRiskCvesByAssetId,
+  asOfDate
+}: {
+  spiRows: CyberCopImpactSpiDriver[];
+  systemRows: CyberCopImpactItem[];
+  assetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
+  environmentRows: CyberCopImpactEnvironmentSplitRow[];
+  missionRows: CyberCopImpactItem[];
+  businessRows: CyberCopImpactItem[];
+  riskFindings: NetworkDetailRiskFindingRow[];
+  assetHighRiskCvesByAssetId?: Record<string, HighRiskCveDetail[]>;
+  asOfDate?: string;
+}) {
+  const [activeChartTab, setActiveChartTab] = useState<ImpactChartTabId>("spi");
+  const visibleSystemIds = useMemo(() => new Set(systemRows.map((row) => row.id)), [systemRows]);
+  const scopedRiskFindings = useMemo(() => {
+    return riskFindings.filter((finding) => Boolean(finding.systemId) && visibleSystemIds.has(finding.systemId as string));
+  }, [riskFindings, visibleSystemIds]);
+
+  return (
+    <section className="panel flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden p-2">
+      <div
+        role="tablist"
+        aria-label="Cyber COP impact chart tabs"
+        className="grid min-w-0 shrink-0 grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {impactChartTabs.map((tab) => {
+          const isActive = activeChartTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              id={`cyber-cop-impact-chart-tab-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls="cyber-cop-impact-chart-panel"
+              onClick={() => setActiveChartTab(tab.id)}
+              className={`min-w-0 rounded-md border px-3 py-2 text-left text-xs font-semibold uppercase leading-snug tracking-[0.12em] transition ${
+                isActive
+                  ? "border-cyan-300/55 bg-cyan-500/15 text-cyan-100"
+                  : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        id="cyber-cop-impact-chart-panel"
+        role="tabpanel"
+        aria-labelledby={`cyber-cop-impact-chart-tab-${activeChartTab}`}
+        className="mt-2 min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-sky-300/10 bg-slate-950/30 p-1"
+      >
+        <div className="h-full min-h-0 min-w-0 overflow-hidden">
+          <div className="h-full min-h-0 w-full min-w-0 max-w-full overflow-hidden">
+            {activeChartTab === "spi" ? (
+              <SpiDriverChart
+                rows={spiRows}
+                findings={scopedRiskFindings}
+                allFindings={scopedRiskFindings}
+                assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                asOfDate={asOfDate}
+                embedded
+              />
+            ) : null}
+            {activeChartTab === "blast-radius" ? (
+              <AssetTypeHeatmapChart
+                items={systemRows}
+                assetsBySystemId={assetTypeHeatmapBySystemId}
+                embedded
+              />
+            ) : null}
+            {activeChartTab === "environment" ? <EnvironmentImpactSplitChart rows={environmentRows} embedded /> : null}
+            {activeChartTab === "mission-business" ? (
+              <MissionBusinessBlastRadiusChart
+                missionRows={missionRows}
+                businessRows={businessRows}
+                embedded
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function severityPillClass(severity: FindingSeverity): string {
+  if (severity === "Critical Exposure") {
+    return "border-red-400/35 text-red-100";
+  }
+  if (severity === "High Risk") {
+    return "border-orange-400/35 text-orange-100";
+  }
+  if (severity === "Major") {
+    return "border-amber-300/35 text-amber-100";
+  }
+  if (severity === "Moderate") {
+    return "border-sky-300/35 text-sky-100";
+  }
+  return "border-slate-400/35 text-slate-200";
+}
+
+function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRow[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel flex h-full min-h-0 flex-col p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
+        <p className="mt-1 text-xs text-slate-300/80">Longest-running open Critical Exposure and High Risk findings requiring escalation or unblock.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No open Critical Exposure or High Risk findings in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel flex h-full min-h-0 flex-col p-3">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Longest-running open Critical Exposure and High Risk findings requiring escalation or unblock.</p>
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
+            <tr>
+              <th className="w-[11.5rem] min-w-[11.5rem] whitespace-nowrap px-3 py-2 text-left">Severity</th>
+              <th className="px-3 py-2 text-right">Age (Days)</th>
+              <th className="px-3 py-2 text-left">SPI</th>
+              <th className="px-3 py-2 text-left">ICT System</th>
+              <th className="px-3 py-2 text-left">Opened</th>
+              <th className="px-3 py-2 text-left">Title</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.findingId} className="border-t border-sky-300/10">
+                <td className="w-[11.5rem] min-w-[11.5rem] whitespace-nowrap px-3 py-2">
+                  <span
+                    className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}
+                  >
+                    {row.severity}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right text-slate-100">{row.ageDays}</td>
+                <td className="px-3 py-2 text-slate-200">{row.spiLabel}</td>
+                <td className="px-3 py-2 text-slate-200">{row.systemName}</td>
+                <td className="px-3 py-2 text-slate-300">{row.openedDate}</td>
+                <td className="px-3 py-2 text-slate-200">{row.title}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
+  if (!rows.length) {
+    return (
+      <section className="panel flex h-full min-h-0 flex-col p-4">
+        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
+        <p className="mt-1 text-xs text-slate-300/80">
+          Repeated remediation actions that can reduce severe findings fastest.
+        </p>
+        <p className="mt-3 text-sm text-slate-300/80">No quick-win action clusters in current scope.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="panel flex h-full min-h-0 flex-col p-3">
+      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
+      <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
+        <table className="min-w-full text-sm">
+          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
+            <tr>
+              <th className="px-3 py-2 text-left">Recommended Action</th>
+              <th className="px-3 py-2 text-right">Critical Exposure</th>
+              <th className="px-3 py-2 text-right">High Risk</th>
+              <th className="px-3 py-2 text-right">Other</th>
+              <th className="px-3 py-2 text-right">Total</th>
+              <th className="px-3 py-2 text-right">ICT Systems</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.actionText} className="border-t border-sky-300/10">
+                <td className="px-3 py-2 text-slate-100">{row.actionText}</td>
+                <td className="px-3 py-2 text-right text-red-100">{row.criticalExposureCount}</td>
+                <td className="px-3 py-2 text-right text-orange-100">{row.highRiskCount}</td>
+                <td className="px-3 py-2 text-right text-sky-100">{row.otherCount}</td>
+                <td className="px-3 py-2 text-right text-slate-200">{row.total}</td>
+                <td className="px-3 py-2 text-right text-slate-200">{row.systemCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function CyberCopTabFooter() {
+  return (
+    <footer className="mt-auto shrink-0 border-t border-sky-300/15 bg-slate-950/30">
+      <div className="px-4 py-3 text-center text-xs text-slate-300/70">TSAAT | Cyber Operations Compliance Reporting.</div>
+    </footer>
+  );
+}
+
+export function CyberCopDashboard({
+  snapshotDate,
+  filtersSlot,
+  networkSpiHeatmapFilterSlot,
+  systemSpiHeatmapFilterSlot,
+  networkSpiHeatmapModel,
+  systemSpiHeatmapModel,
+  spiDefinitions,
+  selectedSpiId,
+  initialMeasureSearch,
+  complianceScoreCards,
+  riskProfile,
+  riskFindings,
+  assetHighRiskCvesByAssetId = {},
+  asOfDate,
+  impact,
+  impactLinks,
+  impactAssetTypeHeatmapBySystemId,
+  impactSpiDrivers,
+  impactSpiDriversBySystemId,
+  impactEnvironmentSplit,
+  impactEnvironmentSplitBySystemId,
+  actionPlan,
+  actionOldestOpenFindings,
+  actionQuickWins,
+  dailyHighRisk,
+  dailyCriticalExposure
+}: CyberCopDashboardProps) {
+  const [activeTab, setActiveTab] = useState<CyberCopTabId>("overview");
+  const [activeImpactScopeTab, setActiveImpactScopeTab] = useState<ImpactScopeTabId>("business-services");
+  const [selectedBusinessServiceId, setSelectedBusinessServiceId] = useState<string | null>(null);
+  const [selectedMissionCapabilityId, setSelectedMissionCapabilityId] = useState<string | null>(null);
+  const [selectedIctSystemIds, setSelectedIctSystemIds] = useState<string[]>([]);
+  const [ictSystemVisibleScope, setIctSystemVisibleScope] = useState<{ active: boolean; itemIds: string[] }>({
+    active: false,
+    itemIds: []
+  });
+  const [businessSearchScope, setBusinessSearchScope] = useState<{ active: boolean; itemIds: string[] }>({
+    active: false,
+    itemIds: []
+  });
+  const [missionSearchScope, setMissionSearchScope] = useState<{ active: boolean; itemIds: string[] }>({
+    active: false,
+    itemIds: []
+  });
+
+  const scopedSystemImpact = useMemo(() => {
+    if (activeImpactScopeTab === "business-services" && selectedBusinessServiceId) {
+      const allowedSystemIds = new Set(impactLinks.businessToSystems[selectedBusinessServiceId] ?? []);
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    if (activeImpactScopeTab === "mission-capabilities" && selectedMissionCapabilityId) {
+      const allowedSystemIds = new Set(impactLinks.missionToSystems[selectedMissionCapabilityId] ?? []);
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    if (activeImpactScopeTab === "business-services" && businessSearchScope.active) {
+      if (!businessSearchScope.itemIds.length) {
+        return [];
+      }
+      const allowedSystemIds = new Set(
+        businessSearchScope.itemIds.flatMap((businessId) => impactLinks.businessToSystems[businessId] ?? [])
+      );
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    if (activeImpactScopeTab === "mission-capabilities" && missionSearchScope.active) {
+      if (!missionSearchScope.itemIds.length) {
+        return [];
+      }
+      const allowedSystemIds = new Set(
+        missionSearchScope.itemIds.flatMap((missionId) => impactLinks.missionToSystems[missionId] ?? [])
+      );
+      return impact.systems.filter((system) => allowedSystemIds.has(system.id));
+    }
+
+    return impact.systems;
+  }, [
+    activeImpactScopeTab,
+    impact.systems,
+    impactLinks.businessToSystems,
+    impactLinks.missionToSystems,
+    selectedBusinessServiceId,
+    selectedMissionCapabilityId,
+    businessSearchScope,
+    missionSearchScope
+  ]);
+
+  const selectedBusinessService = useMemo(
+    () => impact.business.find((item) => item.id === selectedBusinessServiceId),
+    [impact.business, selectedBusinessServiceId]
+  );
+  const selectedMissionCapability = useMemo(
+    () => impact.mission.find((item) => item.id === selectedMissionCapabilityId),
+    [impact.mission, selectedMissionCapabilityId]
+  );
+  const ictSystemTableRows = useMemo(() => {
+    if (!ictSystemVisibleScope.active) {
+      return scopedSystemImpact;
+    }
+    const visibleIds = new Set(ictSystemVisibleScope.itemIds);
+    return scopedSystemImpact.filter((system) => visibleIds.has(system.id));
+  }, [ictSystemVisibleScope, scopedSystemImpact]);
+  const selectedIctSystems = useMemo(() => {
+    const selectedIds = new Set(selectedIctSystemIds);
+    return ictSystemTableRows.filter((system) => selectedIds.has(system.id));
+  }, [ictSystemTableRows, selectedIctSystemIds]);
+  const activeImpactSystemRows = useMemo(
+    () => (selectedIctSystems.length ? selectedIctSystems : ictSystemTableRows),
+    [ictSystemTableRows, selectedIctSystems]
+  );
+
+  useEffect(() => {
+    if (!ictSystemVisibleScope.active) {
+      return;
+    }
+    const visibleIds = new Set(ictSystemVisibleScope.itemIds);
+    setSelectedIctSystemIds((current) => {
+      const next = current.filter((id) => visibleIds.has(id));
+      return sameStringArray(current, next) ? current : next;
+    });
+  }, [ictSystemVisibleScope]);
+
+  useEffect(() => {
+    setSelectedIctSystemIds([]);
+    setIctSystemVisibleScope({ active: false, itemIds: [] });
+  }, [activeImpactScopeTab]);
+
+  const businessImpactForLeaderboard = useMemo(() => {
+    if (!selectedIctSystems.length) {
+      return impact.business;
+    }
+    const selectedIds = new Set(selectedIctSystems.map((system) => system.id));
+
+    return impact.business.filter((item) =>
+      (impactLinks.businessToSystems[item.id] ?? []).some((systemId) => selectedIds.has(systemId))
+    );
+  }, [impact.business, impactLinks.businessToSystems, selectedIctSystems]);
+  const missionImpactForLeaderboard = useMemo(() => {
+    if (!selectedIctSystems.length) {
+      return impact.mission;
+    }
+    const selectedIds = new Set(selectedIctSystems.map((system) => system.id));
+
+    return impact.mission.filter((item) =>
+      (impactLinks.missionToSystems[item.id] ?? []).some((systemId) => selectedIds.has(systemId))
+    );
+  }, [impact.mission, impactLinks.missionToSystems, selectedIctSystems]);
+  const filteredBusinessImpact = useMemo(() => {
+    if (selectedBusinessServiceId) {
+      return impact.business.filter((item) => item.id === selectedBusinessServiceId);
+    }
+
+    const activeSystemIds = new Set(activeImpactSystemRows.map((system) => system.id));
+    const businessScopeIds = businessSearchScope.active ? new Set(businessSearchScope.itemIds) : null;
+
+    return impact.business.filter((item) => {
+      if (businessScopeIds && !businessScopeIds.has(item.id)) {
+        return false;
+      }
+      const linkedSystemIds = impactLinks.businessToSystems[item.id] ?? [];
+      return linkedSystemIds.some((systemId) => activeSystemIds.has(systemId));
+    });
+  }, [
+    selectedBusinessServiceId,
+    impact.business,
+    activeImpactSystemRows,
+    businessSearchScope,
+    impactLinks.businessToSystems
+  ]);
+  const filteredMissionImpact = useMemo(() => {
+    if (selectedMissionCapabilityId) {
+      return impact.mission.filter((item) => item.id === selectedMissionCapabilityId);
+    }
+
+    const activeSystemIds = new Set(activeImpactSystemRows.map((system) => system.id));
+    const missionScopeIds = missionSearchScope.active ? new Set(missionSearchScope.itemIds) : null;
+
+    return impact.mission.filter((item) => {
+      if (missionScopeIds && !missionScopeIds.has(item.id)) {
+        return false;
+      }
+      const linkedSystemIds = impactLinks.missionToSystems[item.id] ?? [];
+      return linkedSystemIds.some((systemId) => activeSystemIds.has(systemId));
+    });
+  }, [
+    selectedMissionCapabilityId,
+    impact.mission,
+    activeImpactSystemRows,
+    missionSearchScope,
+    impactLinks.missionToSystems
+  ]);
+  const filteredImpactSpiDrivers = useMemo(() => {
+    const aggregated = new Map<number, CyberCopImpactSpiDriver>();
+    for (const system of activeImpactSystemRows) {
+      const rows = impactSpiDriversBySystemId[system.id] ?? [];
+      for (const row of rows) {
+        const current = aggregated.get(row.spiId) ?? {
+          spiId: row.spiId,
+          label: row.label,
+          description: row.description,
+          criticalExposureCount: 0,
+          highRiskCount: 0,
+          otherCount: 0,
+          count: 0
+        };
+        current.criticalExposureCount += row.criticalExposureCount;
+        current.highRiskCount += row.highRiskCount;
+        current.otherCount += row.otherCount;
+        current.count += row.count;
+        aggregated.set(row.spiId, current);
+      }
+    }
+
+    return Array.from(aggregated.values()).sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      return a.spiId - b.spiId;
+    });
+  }, [
+    activeImpactSystemRows,
+    impactSpiDriversBySystemId
+  ]);
+  const filteredImpactEnvironmentSplit = useMemo(() => {
+    const aggregated = new Map<string, CyberCopImpactEnvironmentSplitRow>();
+    for (const system of activeImpactSystemRows) {
+      const rows = impactEnvironmentSplitBySystemId[system.id] ?? [];
+      for (const row of rows) {
+        const current = aggregated.get(row.environment) ?? {
+          environment: row.environment,
+          criticalExposureCount: 0,
+          highRiskCount: 0,
+          otherCount: 0,
+          total: 0
+        };
+        current.criticalExposureCount += row.criticalExposureCount;
+        current.highRiskCount += row.highRiskCount;
+        current.otherCount += row.otherCount;
+        current.total += row.total;
+        aggregated.set(row.environment, current);
+      }
+    }
+
+    return impactEnvironmentOrder
+      .map((environment) => aggregated.get(environment))
+      .filter((row): row is CyberCopImpactEnvironmentSplitRow => Boolean(row))
+      .filter((row) => row.total > 0);
+  }, [
+    activeImpactSystemRows,
+    impactEnvironmentSplitBySystemId
+  ]);
+  const ictSystemsSelectedText =
+    selectedIctSystems.length === 1
+      ? selectedIctSystems[0].name
+      : selectedIctSystems.length > 1
+        ? `${selectedIctSystems.length} ICT systems selected`
+        : activeImpactScopeTab === "business-services"
+          ? selectedBusinessService?.name ?? null
+          : selectedMissionCapability?.name ?? null;
+
+  const ictSystemsSubtitle = selectedIctSystems.length
+    ? `Charts scoped to ${selectedIctSystems.length} selected ICT system${selectedIctSystems.length === 1 ? "" : "s"}.`
+    : ictSystemVisibleScope.active
+      ? `Charts follow ${ictSystemTableRows.length} visible ICT system row${ictSystemTableRows.length === 1 ? "" : "s"}.`
+      : "Systems with highest open finding pressure.";
+  const threatSurfaceActionRows: ActionPlanMatrixRow[] = [
+    {
+      action: "Immediate action (critical and High-risk findings)",
+      detail: "Open Critical Exposure + High Risk findings",
+      count: actionPlan.immediateAction,
+      scope: "Open severe findings",
+      statusLabel: "Immediate",
+      tone: "critical",
+      emphasized: true
+    },
+    {
+      action: "Total Non-Compliant OS",
+      detail: "Server and workstation OS controls",
+      count: actionPlan.nonCompliantOs,
+      total: actionPlan.nonCompliantOsTotal,
+      scope: `${actionPlan.nonCompliantOsTotal} endpoints`,
+      actionLabel: "Non-compliant",
+      clearLabel: "Compliant",
+      statusLabel: "OS posture",
+      tone: "warning"
+    },
+    {
+      action: "Assets out of Warranty/EOL",
+      detail: "Scoped asset lifecycle posture",
+      count: actionPlan.assetsOutOfWarrantyEol,
+      total: actionPlan.scopedAssetsTotal,
+      scope: `${actionPlan.scopedAssetsTotal} assets`,
+      actionLabel: "Warranty/EOL",
+      clearLabel: "Current",
+      statusLabel: "Lifecycle",
+      tone: "critical"
+    },
+    {
+      action: "Servers with Critical findings",
+      detail: "Unique server assets",
+      count: actionPlan.serversWithCriticalFindings,
+      total: actionPlan.scopedServersTotal,
+      scope: `${actionPlan.scopedServersTotal} servers`,
+      actionLabel: "Critical",
+      clearLabel: "No critical",
+      statusLabel: "Server risk",
+      tone: "critical"
+    }
+  ];
+  const discoveryActionRows: ActionPlanMatrixRow[] = [
+    {
+      action: "Networks without discovery enabled",
+      detail: "Managed network discovery status",
+      count: actionPlan.networksWithoutDiscoveryEnabled,
+      total: actionPlan.scopedNetworksTotal,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      actionLabel: "Disabled",
+      clearLabel: "Enabled",
+      statusLabel: "Discovery status",
+      tone: "warning"
+    },
+    {
+      action: "Networks Discovery non-compliant",
+      detail: "Discovery-enabled networks with gaps",
+      count: actionPlan.networksDiscoveryNonCompliant,
+      total: actionPlan.scopedNetworksTotal,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      actionLabel: "Non-compliant",
+      clearLabel: "Compliant",
+      statusLabel: "Coverage",
+      tone: "warning"
+    },
+    {
+      action: "Networks with no target state",
+      detail: "Target state inventory coverage",
+      count: actionPlan.networksWithNoTargetState,
+      total: actionPlan.scopedNetworksTotal,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      actionLabel: "No target",
+      clearLabel: "Target set",
+      statusLabel: "Target state",
+      tone: "warning"
+    }
+  ];
+  const ictSystemModellingActionRows: ActionPlanMatrixRow[] = [
+    {
+      action: "DIIS ICT Systems defined",
+      detail: "Total DIIS-defined ICT systems in scope",
+      count: actionPlan.diisIctSystemsDefined,
+      scope: "DIIS inventory",
+      statusLabel: "Defined scope",
+      tone: "watch",
+      emphasized: true
+    },
+    {
+      action: "ICT Systems not modelled",
+      detail: "DIIS systems without TSAAT models",
+      count: actionPlan.ictSystemsNotModelled,
+      total: actionPlan.diisIctSystemsDefined,
+      scope: `${actionPlan.diisIctSystemsDefined} DIIS systems`,
+      actionLabel: "Not modelled",
+      clearLabel: "Modelled",
+      statusLabel: "Modelling",
+      tone: "warning"
+    },
+    {
+      action: "ICT System Modelled and Discovery non-compliant",
+      detail: "Modelled systems with discovery gaps",
+      count: actionPlan.ictSystemsModelledDiscoveryNonCompliant,
+      total: actionPlan.ictSystemsModelled,
+      scope: `${actionPlan.ictSystemsModelled} modelled systems`,
+      actionLabel: "Non-compliant",
+      clearLabel: "Compliant",
+      statusLabel: "Discovery",
+      tone: "critical"
+    }
+  ];
+
+  const tabButtonClass = (isActive: boolean): string =>
+    `rounded-lg border px-3 py-2.5 text-left text-xs uppercase tracking-[0.14em] transition ${
+      isActive
+        ? "border-cyan-300/50 bg-cyan-500/15 text-cyan-100"
+        : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
+    }`;
+  const tabPanelClass = "h-[min(calc(100vh-19rem+100px),1228px)] overflow-hidden";
+
+  return (
+    <div className="space-y-2">
+      <section className="panel p-2">
+        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+          {cyberCopTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`cyber-cop-tab-${tab.id}`}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`cyber-cop-tabpanel-${tab.id}`}
+                className={tabButtonClass(isActive)}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeTab === "overview" ? (
+        <div
+          id="cyber-cop-tabpanel-overview"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-overview"
+          className={tabPanelClass}
+        >
+          <div className="flex h-full flex-col">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
+              <div className="min-h-0">{filtersSlot}</div>
+
+              <section className="panel cop-reveal relative overflow-hidden p-2.5">
+                <div className="grid items-center gap-2 xl:grid-cols-[minmax(16rem,0.62fr)_minmax(0,2.4fr)]">
+                  <div className="min-w-0">
+                    <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Compliance Scores</h2>
+                    <p className="mt-0.5 text-xs text-slate-300/80">
+                      Snapshot baseline for Defence Cyber Terrain posture at {snapshotDate}.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+                    {complianceScoreCards.map((card) => (
+                      <OverviewScoreCardTile key={card.title} card={card} />
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <div className="cop-reveal cop-reveal-delay-1 min-h-0">
+                <NetworkDetailRiskCharts
+                  asOfDate={asOfDate}
+                  scopeDescription="Open finding pressure by severity across the Defence Cyber Terrain."
+                  riskProfile={riskProfile}
+                  findings={riskFindings}
+                  assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                  enableFindingsDrillThrough={false}
+                />
+              </div>
+              <div className="cop-reveal cop-reveal-delay-3 grid min-h-0 gap-2 lg:grid-cols-2">
+                <DailyTrendPanel
+                  title="Open High Risk Findings"
+                  subtitle="Daily open high-risk trajectory for the last 12 months. Right edge aligns to the selected date."
+                  color="#f97316"
+                  data={dailyHighRisk}
+                  compact
+                />
+                <DailyTrendPanel
+                  title="Open Critical Exposure Findings"
+                  subtitle="Daily open critical-exposure trajectory for the last 12 months. Right edge aligns to the selected date."
+                  color="#ef4444"
+                  data={dailyCriticalExposure}
+                  compact
+                />
+              </div>
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "impact" ? (
+        <div
+          id="cyber-cop-tabpanel-impact"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-impact"
+          className={tabPanelClass}
+        >
+          <div className="flex h-full flex-col">
+            <div className="grid min-h-0 min-w-0 flex-1 gap-2 overflow-y-auto overflow-x-hidden xl:grid-cols-[minmax(26rem,0.92fr)_minmax(0,1.42fr)] xl:overflow-hidden">
+              <div className="cop-reveal cop-reveal-delay-2 grid min-h-0 min-w-0 auto-rows-[minmax(20rem,auto)] gap-2 xl:grid-rows-[minmax(17rem,0.85fr)_minmax(28rem,1.85fr)] xl:auto-rows-auto xl:overflow-hidden">
+                <section className="panel flex min-h-[20rem] min-w-0 flex-col p-3 xl:min-h-0">
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Impact</h3>
+                      <p className="mt-1 text-xs text-slate-300/80">
+                        Select the active business or mission scope for the ICT Systems table.
+                      </p>
+                    </div>
+                    <div
+                      role="tablist"
+                      aria-label="Business and mission impact scope tabs"
+                      className="grid shrink-0 grid-cols-2 gap-1 rounded-lg border border-sky-300/15 bg-slate-950/45 p-1"
+                    >
+                      {[
+                        { id: "business-services" as const, label: "Business Services" },
+                        { id: "mission-capabilities" as const, label: "Mission Capabilities" }
+                      ].map((tab) => {
+                        const isActive = activeImpactScopeTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            id={`cyber-cop-impact-scope-tab-${tab.id}`}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
+                            aria-controls={`cyber-cop-impact-scope-panel-${tab.id}`}
+                            onClick={() => setActiveImpactScopeTab(tab.id)}
+                            className={`rounded-md px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                              isActive
+                                ? "bg-cyan-500/18 text-cyan-100"
+                                : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-100"
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mt-2 min-h-0 flex-1">
+                    <div
+                      id="cyber-cop-impact-scope-panel-business-services"
+                      role="tabpanel"
+                      aria-labelledby="cyber-cop-impact-scope-tab-business-services"
+                      className={activeImpactScopeTab === "business-services" ? "h-full min-h-0" : "hidden"}
+                    >
+                      <ImpactLeaderboard
+                        title="Business Services"
+                        subtitle="Services carrying concentrated findings."
+                        items={businessImpactForLeaderboard}
+                        selectedItemId={selectedBusinessServiceId}
+                        selectedText={selectedBusinessService?.name ?? null}
+                        onSelectItem={(item) => {
+                          setSelectedIctSystemIds([]);
+                          setIctSystemVisibleScope({ active: false, itemIds: [] });
+                          setSelectedBusinessServiceId((current) => (current === item.id ? null : item.id));
+                        }}
+                        onFilterScopeChange={({ active, itemIds }) =>
+                          setBusinessSearchScope((current) => {
+                            if (
+                              current.active === active &&
+                              current.itemIds.length === itemIds.length &&
+                              current.itemIds.every((id, index) => id === itemIds[index])
+                            ) {
+                              return current;
+                            }
+                            return { active, itemIds };
+                          })
+                        }
+                        showClearSelectionButton
+                        clearSelectionDisabled={!selectedBusinessServiceId}
+                        onClearSelection={() => setSelectedBusinessServiceId(null)}
+                        embedded
+                        hideHeader
+                      />
+                    </div>
+                    <div
+                      id="cyber-cop-impact-scope-panel-mission-capabilities"
+                      role="tabpanel"
+                      aria-labelledby="cyber-cop-impact-scope-tab-mission-capabilities"
+                      className={activeImpactScopeTab === "mission-capabilities" ? "h-full min-h-0" : "hidden"}
+                    >
+                      <ImpactLeaderboard
+                        title="Mission Capabilities"
+                        subtitle="Capabilities affected by current findings."
+                        items={missionImpactForLeaderboard}
+                        selectedItemId={selectedMissionCapabilityId}
+                        selectedText={selectedMissionCapability?.name ?? null}
+                        onSelectItem={(item) => {
+                          setSelectedIctSystemIds([]);
+                          setIctSystemVisibleScope({ active: false, itemIds: [] });
+                          setSelectedMissionCapabilityId((current) => (current === item.id ? null : item.id));
+                        }}
+                        onFilterScopeChange={({ active, itemIds }) =>
+                          setMissionSearchScope((current) => {
+                            if (
+                              current.active === active &&
+                              current.itemIds.length === itemIds.length &&
+                              current.itemIds.every((id, index) => id === itemIds[index])
+                            ) {
+                              return current;
+                            }
+                            return { active, itemIds };
+                          })
+                        }
+                        showClearSelectionButton
+                        clearSelectionDisabled={!selectedMissionCapabilityId}
+                        onClearSelection={() => setSelectedMissionCapabilityId(null)}
+                        embedded
+                        hideHeader
+                      />
+                    </div>
+                  </div>
+                </section>
+                <div className="min-h-[28rem] xl:min-h-0">
+                  <ImpactLeaderboard
+                    title="ICT Systems Impact"
+                    subtitle={ictSystemsSubtitle}
+                    items={scopedSystemImpact}
+                    selectedText={ictSystemsSelectedText}
+                    selectionMode="multi"
+                    selectedItemIds={selectedIctSystemIds}
+                    onSelectedItemIdsChange={setSelectedIctSystemIds}
+                    onVisibleItemIdsChange={(itemIds) => {
+                      setIctSystemVisibleScope((current) => {
+                        if (current.active && sameStringArray(current.itemIds, itemIds)) {
+                          return current;
+                        }
+                        return { active: true, itemIds };
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="cop-reveal cop-reveal-delay-3 min-h-[34rem] min-w-0 max-w-full overflow-hidden xl:min-h-0">
+                  <ImpactChartTabs
+                    spiRows={filteredImpactSpiDrivers}
+                    systemRows={activeImpactSystemRows}
+                    assetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
+                    environmentRows={filteredImpactEnvironmentSplit}
+                  missionRows={filteredMissionImpact}
+                  businessRows={filteredBusinessImpact}
+                  riskFindings={riskFindings}
+                  assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
+                  asOfDate={asOfDate}
+                />
+              </div>
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "action" ? (
+        <div
+          id="cyber-cop-tabpanel-action"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-action"
+          className={tabPanelClass}
+        >
+          <div className="flex h-full flex-col">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
+              <section className="panel cyber-cop-pulse-border p-3">
+                <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
+                <p className="mt-1 text-xs text-slate-300/80">Focused action groups for current threat surface, discovery, and modelling risk.</p>
+                <div className="mt-2.5 grid gap-2 xl:grid-cols-2 min-[1900px]:grid-cols-[minmax(0,1fr)_minmax(40rem,0.95fr)_minmax(40rem,0.95fr)]">
+                  <ActionPlanMatrix title="Threat Surface Area Action Plan" rows={threatSurfaceActionRows} />
+                  <ActionPlanMatrix title="Discovery Action Plan" rows={discoveryActionRows} />
+                  <ActionPlanMatrix title="ICT System Modelling Action Plan" rows={ictSystemModellingActionRows} />
+                </div>
+              </section>
+
+              <div className="grid min-h-0 auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
+                <OldestOpenFindingsTable rows={actionOldestOpenFindings.slice(0, 8)} />
+                <ActionQuickWinsTable rows={actionQuickWins.slice(0, 8)} />
+              </div>
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "networks-spi-heatmap" ? (
+        <div
+          id="cyber-cop-tabpanel-networks-spi-heatmap"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-networks-spi-heatmap"
+          className={tabPanelClass}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
+            <div className="min-h-0">{networkSpiHeatmapFilterSlot}</div>
+            <div className="min-h-0">
+              <MeasuresSpiHeatmapSection
+                model={networkSpiHeatmapModel}
+                spiDefinitions={spiDefinitions}
+                selectedSpiId={selectedSpiId}
+                initialSearchValue={initialMeasureSearch}
+                placeholder="Search security domain or network"
+                localSpiFilter
+              />
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "systems-spi-heatmap" ? (
+        <div
+          id="cyber-cop-tabpanel-systems-spi-heatmap"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-systems-spi-heatmap"
+          className={tabPanelClass}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
+            <div className="min-h-0">{systemSpiHeatmapFilterSlot}</div>
+            <div className="min-h-0">
+              <MeasuresSpiHeatmapSection
+                model={systemSpiHeatmapModel}
+                spiDefinitions={spiDefinitions}
+                selectedSpiId={selectedSpiId}
+                initialSearchValue={initialMeasureSearch}
+                placeholder="Search security domain or ICT system"
+                localSpiFilter
+              />
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === "ict-system-impact-analyser" ? (
+        <div
+          id="cyber-cop-tabpanel-ict-system-impact-analyser"
+          role="tabpanel"
+          aria-labelledby="cyber-cop-tab-ict-system-impact-analyser"
+          className={tabPanelClass}
+        >
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
+            <div className="min-h-0 min-w-0">
+              <IctSystemImpactAnalyserRunPanel
+                systemOptions={activeImpactSystemRows}
+                spiDefinitions={spiDefinitions}
+              />
+            </div>
+            <CyberCopTabFooter />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

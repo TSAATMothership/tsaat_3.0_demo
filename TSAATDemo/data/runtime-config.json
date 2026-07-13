@@ -1,0 +1,3280 @@
+{
+  "exportedAt": "2026-07-13T22:57:55.022Z",
+  "source": "TSAAT SQL snapshot export",
+  "referenceVersions": {
+    "osCurrentMajor": {
+      "ciscoIos": 17,
+      "fortios": 7,
+      "junos": 22,
+      "rhel": 9,
+      "ubuntu": 24,
+      "windowsClient": 11,
+      "windowsServer": 2022
+    },
+    "softwareSupportMatrix": {
+      "7-Zip": [
+        "24.0",
+        "23.1",
+        "16.0"
+      ],
+      "Adobe Reader": [
+        "2024",
+        "2021",
+        "2017"
+      ],
+      "Apache HTTP Server": [
+        "2.4.58",
+        "2.4.57",
+        "2.2.0"
+      ],
+      "Docker Engine": [
+        "26.0",
+        "25.0",
+        "20.10"
+      ],
+      "Elasticsearch": [
+        "8.13",
+        "7.17",
+        "6.8"
+      ],
+      "GitLab Runner": [
+        "17.0",
+        "16.5",
+        "14.0"
+      ],
+      "Google Chrome": [
+        "131",
+        "126",
+        "102"
+      ],
+      "Java Runtime": [
+        "21",
+        "17",
+        "8"
+      ],
+      "Microsoft Office": [
+        "365",
+        "2021",
+        "2013"
+      ],
+      "Microsoft SQL Server": [
+        "2022",
+        "2019",
+        "2012"
+      ],
+      "Microsoft Teams": [
+        "2410",
+        "2405",
+        "2201"
+      ],
+      "Mozilla Firefox": [
+        "133",
+        "128",
+        "97"
+      ],
+      "NGINX": [
+        "1.25.4",
+        "1.24.0",
+        "1.16.1"
+      ],
+      "Node.js Runtime": [
+        "22",
+        "20",
+        "14"
+      ],
+      "OpenJDK Runtime": [
+        "21",
+        "17",
+        "8"
+      ],
+      "PostgreSQL": [
+        "16.2",
+        "15.6",
+        "11.0"
+      ],
+      "Python": [
+        "3.12",
+        "3.11",
+        "3.7"
+      ],
+      "Secure VPN Client": [
+        "10.2",
+        "9.8",
+        "8.0"
+      ],
+      "Tomcat": [
+        "10.1.19",
+        "9.0.87",
+        "7.0.0"
+      ],
+      "Visual Studio Code": [
+        "1.96",
+        "1.90",
+        "1.70"
+      ]
+    }
+  },
+  "severityDefinitions": [
+    {
+      "severityKey": "Critical Exposure",
+      "label": "Critical Exposure",
+      "displayOrder": 1,
+      "selectableInSettings": true,
+      "toneKey": "critical"
+    },
+    {
+      "severityKey": "High Risk",
+      "label": "High Risk",
+      "displayOrder": 2,
+      "selectableInSettings": true,
+      "toneKey": "high"
+    },
+    {
+      "severityKey": "Major",
+      "label": "Major",
+      "displayOrder": 3,
+      "selectableInSettings": true,
+      "toneKey": "major"
+    },
+    {
+      "severityKey": "Moderate",
+      "label": "Moderate",
+      "displayOrder": 4,
+      "selectableInSettings": true,
+      "toneKey": "moderate"
+    },
+    {
+      "severityKey": "Data Gap",
+      "label": "Data Gap",
+      "displayOrder": 5,
+      "selectableInSettings": false,
+      "toneKey": "data-gap"
+    }
+  ],
+  "priorityDefinitions": [
+    {
+      "priorityRank": 1,
+      "label": "P1",
+      "displayOrder": 1,
+      "selectableInSettings": true,
+      "description": "Immediate priority remediation."
+    },
+    {
+      "priorityRank": 2,
+      "label": "P2",
+      "displayOrder": 2,
+      "selectableInSettings": true,
+      "description": "High priority remediation."
+    },
+    {
+      "priorityRank": 3,
+      "label": "P3",
+      "displayOrder": 3,
+      "selectableInSettings": true,
+      "description": "Major priority remediation."
+    },
+    {
+      "priorityRank": 4,
+      "label": "P4",
+      "displayOrder": 4,
+      "selectableInSettings": true,
+      "description": "Elevated priority remediation."
+    },
+    {
+      "priorityRank": 5,
+      "label": "P5",
+      "displayOrder": 5,
+      "selectableInSettings": true,
+      "description": "Standard priority remediation."
+    },
+    {
+      "priorityRank": 6,
+      "label": "P6",
+      "displayOrder": 6,
+      "selectableInSettings": true,
+      "description": "Lower priority remediation."
+    },
+    {
+      "priorityRank": 7,
+      "label": "P7",
+      "displayOrder": 7,
+      "selectableInSettings": true,
+      "description": "Lowest selectable priority remediation."
+    },
+    {
+      "priorityRank": 90,
+      "label": "P90",
+      "displayOrder": 90,
+      "selectableInSettings": false,
+      "description": "Data gap priority used for unknown evidence."
+    }
+  ],
+  "findingDisplayConfiguration": {
+    "sourcePolicies": [
+      {
+        "policyKey": "persisted-first",
+        "displayOrder": 1,
+        "name": "Persisted Findings First",
+        "description": "Use persisted findings when available for a snapshot; generate deterministic SPI findings only when the snapshot has no persisted findings.",
+        "usePersistedFindings": true,
+        "generateWhenEmpty": true,
+        "enabled": true
+      }
+    ],
+    "generationPolicies": [
+      {
+        "policyKey": "persisted-first",
+        "historyStartDate": "2024-02-10",
+        "historyWindowYears": 2,
+        "baselineBacklogCount": 200,
+        "minOpenCount": 180,
+        "maxOpenCount": 320,
+        "addProbabilityPercent": 38,
+        "addRateMinPercent": 0,
+        "addRateMaxPercent": 40,
+        "closeRateMinPercent": 10,
+        "closeRateMaxPercent": 20,
+        "closeBackfillMinCount": 1,
+        "closeBackfillMaxCount": 3,
+        "timezoneOffsetMinutes": -300
+      }
+    ],
+    "workflowStatuses": [
+      {
+        "statusKey": "open",
+        "label": "Open",
+        "displayOrder": 1,
+        "toneKey": "warning",
+        "terminalStatus": false
+      },
+      {
+        "statusKey": "closed",
+        "label": "Closed",
+        "displayOrder": 2,
+        "toneKey": "success",
+        "terminalStatus": true
+      }
+    ],
+    "buckets": [
+      {
+        "bucketKey": "critical-exposure",
+        "bucketType": "severity",
+        "label": "Critical Exposure",
+        "displayOrder": 1,
+        "toneKey": "critical",
+        "conditionKey": "severity_equals",
+        "severityKey": "Critical Exposure",
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Findings whose display severity is Critical Exposure."
+      },
+      {
+        "bucketKey": "high-risk",
+        "bucketType": "severity",
+        "label": "High Risk",
+        "displayOrder": 2,
+        "toneKey": "warning",
+        "conditionKey": "severity_equals",
+        "severityKey": "High Risk",
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Findings whose display severity is High Risk."
+      },
+      {
+        "bucketKey": "major",
+        "bucketType": "severity",
+        "label": "Major",
+        "displayOrder": 3,
+        "toneKey": "major",
+        "conditionKey": "severity_equals",
+        "severityKey": "Major",
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Findings whose display severity is Major."
+      },
+      {
+        "bucketKey": "moderate",
+        "bucketType": "severity",
+        "label": "Moderate",
+        "displayOrder": 4,
+        "toneKey": "info",
+        "conditionKey": "severity_equals",
+        "severityKey": "Moderate",
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Findings whose display severity is Moderate."
+      },
+      {
+        "bucketKey": "data-gap",
+        "bucketType": "severity",
+        "label": "Data Gap",
+        "displayOrder": 5,
+        "toneKey": "neutral",
+        "conditionKey": "severity_equals",
+        "severityKey": "Data Gap",
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Findings whose display severity is Data Gap."
+      },
+      {
+        "bucketKey": "priority-1-2",
+        "bucketType": "priority",
+        "label": "P1-P2",
+        "displayOrder": 10,
+        "toneKey": "critical",
+        "conditionKey": "priority_between",
+        "severityKey": null,
+        "priorityMin": 1,
+        "priorityMax": 2,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Immediate action priority findings."
+      },
+      {
+        "bucketKey": "priority-data-gap",
+        "bucketType": "priority",
+        "label": "P90 Data Gap",
+        "displayOrder": 11,
+        "toneKey": "neutral",
+        "conditionKey": "priority_equals",
+        "severityKey": null,
+        "priorityMin": 90,
+        "priorityMax": 90,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Data-gap priority findings."
+      },
+      {
+        "bucketKey": "open",
+        "bucketType": "workflow",
+        "label": "Open",
+        "displayOrder": 20,
+        "toneKey": "warning",
+        "conditionKey": "workflow_equals",
+        "severityKey": null,
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": "open",
+        "enabled": true,
+        "description": "Findings open at the selected as-of date."
+      },
+      {
+        "bucketKey": "closed",
+        "bucketType": "workflow",
+        "label": "Closed",
+        "displayOrder": 21,
+        "toneKey": "success",
+        "conditionKey": "workflow_equals",
+        "severityKey": null,
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": "closed",
+        "enabled": true,
+        "description": "Findings closed at the selected as-of date."
+      },
+      {
+        "bucketKey": "other-risk",
+        "bucketType": "severity",
+        "label": "Other",
+        "displayOrder": 99,
+        "toneKey": "info",
+        "conditionKey": "severity_not_in",
+        "severityKey": "Critical Exposure|High Risk",
+        "priorityMin": null,
+        "priorityMax": null,
+        "workflowStatus": null,
+        "enabled": true,
+        "description": "Findings that are not Critical Exposure or High Risk."
+      }
+    ],
+    "evidenceFields": [
+      {
+        "fieldKey": "asset-name",
+        "displayOrder": 1,
+        "label": "Asset Name",
+        "purposeKey": "asset_name",
+        "candidateKeys": [
+          "assetName",
+          "asset_name",
+          "hostname",
+          "assetHostname"
+        ],
+        "fallbackValue": null,
+        "enabled": true
+      },
+      {
+        "fieldKey": "asset-ip-address",
+        "displayOrder": 2,
+        "label": "Asset IP address",
+        "purposeKey": "asset_ip_address",
+        "candidateKeys": [
+          "assetIpAddress",
+          "assetIp",
+          "ipAddress",
+          "ip",
+          "ipv4Address",
+          "ipv4",
+          "ip_address"
+        ],
+        "fallbackValue": "Not available",
+        "enabled": true
+      },
+      {
+        "fieldKey": "asset-type",
+        "displayOrder": 3,
+        "label": "Asset Type",
+        "purposeKey": "asset_type",
+        "candidateKeys": [
+          "assetType",
+          "asset_type",
+          "type"
+        ],
+        "fallbackValue": "Unknown",
+        "enabled": true
+      },
+      {
+        "fieldKey": "change-assignment-group",
+        "displayOrder": 4,
+        "label": "Asset Change Assignment Group",
+        "purposeKey": "change_assignment_group",
+        "candidateKeys": [
+          "assetChangeAssignmentGroup",
+          "changeAssignmentGroup",
+          "changeGroup",
+          "change_assignment_group"
+        ],
+        "fallbackValue": "Not assigned",
+        "enabled": true
+      },
+      {
+        "fieldKey": "incident-assignment-group",
+        "displayOrder": 5,
+        "label": "Asset Incident Assignment Group",
+        "purposeKey": "incident_assignment_group",
+        "candidateKeys": [
+          "assetIncidentAssignmentGroup",
+          "incidentAssignmentGroup",
+          "incidentGroup",
+          "incident_assignment_group"
+        ],
+        "fallbackValue": "Not assigned",
+        "enabled": true
+      },
+      {
+        "fieldKey": "owner",
+        "displayOrder": 6,
+        "label": "Owner",
+        "purposeKey": "owner",
+        "candidateKeys": [
+          "assetOwner",
+          "owner",
+          "serviceOwner"
+        ],
+        "fallbackValue": "Not assigned",
+        "enabled": true
+      },
+      {
+        "fieldKey": "evidence-preview-1",
+        "displayOrder": 20,
+        "label": "Evidence Preview",
+        "purposeKey": "evidence_preview",
+        "candidateKeys": [],
+        "fallbackValue": "No evidence captured",
+        "enabled": true
+      }
+    ],
+    "registerColumns": [
+      {
+        "columnKey": "measure",
+        "label": "Measure",
+        "displayOrder": 1,
+        "valueKey": "measure",
+        "enabled": true
+      },
+      {
+        "columnKey": "severity",
+        "label": "Severity",
+        "displayOrder": 2,
+        "valueKey": "severity",
+        "enabled": true
+      },
+      {
+        "columnKey": "timestamp",
+        "label": "Timestamp",
+        "displayOrder": 3,
+        "valueKey": "timestamp",
+        "enabled": true
+      },
+      {
+        "columnKey": "title",
+        "label": "Title",
+        "displayOrder": 4,
+        "valueKey": "title",
+        "enabled": true
+      },
+      {
+        "columnKey": "status",
+        "label": "Status",
+        "displayOrder": 5,
+        "valueKey": "status",
+        "enabled": true
+      },
+      {
+        "columnKey": "evidence",
+        "label": "Evidence",
+        "displayOrder": 6,
+        "valueKey": "evidence_preview",
+        "enabled": true
+      },
+      {
+        "columnKey": "recommended-action",
+        "label": "Recommended Action",
+        "displayOrder": 7,
+        "valueKey": "recommended_action",
+        "enabled": true
+      }
+    ]
+  },
+  "spiDefinitions": [
+    {
+      "spiId": 1,
+      "displayOrder": 1,
+      "name": "Operating System Support",
+      "description": "Operating systems must not be out of vendor support.",
+      "successMeasure": "100% of applicable servers/workstations run vendor-supported OS versions.",
+      "priorityOrder": 3,
+      "defaultSeverity": "Major",
+      "recommendedAction": "Upgrade or migrate affected operating systems to vendor-supported versions and add lifecycle governance checkpoints.",
+      "enabled": true,
+      "ruleKey": "os-support",
+      "ruleParameters": {
+        "unsupportedStatus": "OutOfSupport",
+        "unknownSupportStatus": "Unknown"
+      },
+      "ruleDefinition": {
+        "ruleKey": "os-support",
+        "handlerKey": "os-support",
+        "displayOrder": 1,
+        "name": "Operating System Support Rule",
+        "description": "Evaluates operating system vendor support status for servers and workstations.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "os-support",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 1,
+        "statusExpressionSql": "CASE WHEN ctx.os_display_name IS NULL THEN N'Unknown' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'Unknown' WHEN ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.os_display_name IS NULL THEN N'missing_os_data' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'missing_os_data' WHEN ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'unsupported' ELSE N'supported' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "os-support",
+            "evidenceKey": "operatingSystem",
+            "displayOrder": 1,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.os_display_name",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "os-support",
+            "evidenceKey": "supportStatus",
+            "displayOrder": 2,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.os_support_status",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "os-support",
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": [
+            "Supported",
+            "OutOfSupport",
+            "Unknown"
+          ],
+          "displayOrder": 1,
+          "description": "Support status treated as non-compliant."
+        },
+        {
+          "ruleKey": "os-support",
+          "parameterKey": "unknownSupportStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": [
+            "Unknown"
+          ],
+          "displayOrder": 2,
+          "description": "Support status treated as unknown."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "os-support",
+          "outcomeKey": "missing_os_data",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Operating system data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "os-support",
+          "outcomeKey": "supported",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Operating system is vendor supported.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "os-support",
+          "outcomeKey": "unsupported",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Operating system is out of support.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [
+        {
+          "featureKey": "os-non-compliant",
+          "spiId": 1,
+          "displayOrder": 1,
+          "complianceStatus": "Non-compliant",
+          "outcomeKey": null,
+          "enabled": true,
+          "description": "Operating-system posture non-compliance for server/workstation filters."
+        },
+        {
+          "featureKey": "out-of-support-os-report",
+          "spiId": 1,
+          "displayOrder": 1,
+          "complianceStatus": "Non-compliant",
+          "outcomeKey": "unsupported",
+          "enabled": true,
+          "description": "Source SPI row for the ICT System out of support OS report."
+        }
+      ],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi1-major",
+          "displayOrder": 30,
+          "enabled": true,
+          "spiId": 1,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "Major",
+          "priorityRank": 3,
+          "description": "SPI-1 non-compliance is Major priority 3."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "server",
+        "workstation"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Endpoint Platform Team",
+          "supportQueue": "ENDPOINT-OS",
+          "contactEmail": "endpoint.os@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Upgrade or migrate affected operating systems to vendor-supported versions and add lifecycle governance checkpoints."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 2,
+      "displayOrder": 2,
+      "name": "Operating System N-2",
+      "description": "Operating systems must be N-2 or better.",
+      "successMeasure": "100% of applicable servers/workstations are N-2 or better.",
+      "priorityOrder": 4,
+      "defaultSeverity": "Moderate",
+      "recommendedAction": "Plan staged OS major-version uplift to reach N-2 or better across impacted hosts.",
+      "enabled": true,
+      "ruleKey": "os-n-minus",
+      "ruleParameters": {
+        "maxNMinus": 2
+      },
+      "ruleDefinition": {
+        "ruleKey": "os-n-minus",
+        "handlerKey": "os-n-minus",
+        "displayOrder": 2,
+        "name": "Operating System N-Minus Rule",
+        "description": "Evaluates operating system currency against the configured N-minus threshold.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "os-n-minus",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 2,
+        "statusExpressionSql": "CASE WHEN ctx.os_n_minus IS NULL THEN N'Unknown' WHEN ctx.os_n_minus <= [tsaat].[fn_spi_number_parameter](sd.spi_id,N'maxNMinus',2) THEN N'Compliant' ELSE N'Non-compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.os_n_minus IS NULL THEN N'missing_n_minus' WHEN ctx.os_n_minus <= [tsaat].[fn_spi_number_parameter](sd.spi_id,N'maxNMinus',2) THEN N'within_n_minus' ELSE N'older_than_n_minus' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "os-n-minus",
+            "evidenceKey": "operatingSystem",
+            "displayOrder": 1,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.os_display_name",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "os-n-minus",
+            "evidenceKey": "nMinus",
+            "displayOrder": 2,
+            "valueType": "number",
+            "valueExpressionSql": "ctx.os_n_minus",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "os-n-minus",
+            "evidenceKey": "currentMajor",
+            "displayOrder": 3,
+            "valueType": "number",
+            "valueExpressionSql": "ctx.os_current_supported_major",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "os-n-minus",
+          "parameterKey": "maxNMinus",
+          "parameterType": "number",
+          "required": false,
+          "defaultValue": "2",
+          "allowedValues": [],
+          "displayOrder": 1,
+          "description": "Maximum compliant N-minus distance."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "os-n-minus",
+          "outcomeKey": "missing_n_minus",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "N-minus metadata is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "os-n-minus",
+          "outcomeKey": "older_than_n_minus",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "OS major version is older than N-{maxNMinus}.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "os-n-minus",
+          "outcomeKey": "within_n_minus",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "OS is within N-{maxNMinus} range.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [
+        {
+          "featureKey": "os-non-compliant",
+          "spiId": 2,
+          "displayOrder": 2,
+          "complianceStatus": "Non-compliant",
+          "outcomeKey": null,
+          "enabled": true,
+          "description": "Operating-system N-minus posture non-compliance for server/workstation filters."
+        }
+      ],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi2-moderate",
+          "displayOrder": 40,
+          "enabled": true,
+          "spiId": 2,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "Moderate",
+          "priorityRank": 4,
+          "description": "SPI-2 non-compliance is Moderate priority 4."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "server",
+        "workstation"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Endpoint Platform Team",
+          "supportQueue": "ENDPOINT-LIFECYCLE",
+          "contactEmail": "endpoint.lifecycle@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Plan staged OS major-version uplift to reach N-2 or better across impacted hosts."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 3,
+      "displayOrder": 3,
+      "name": "Server Critical Vulnerability",
+      "description": "Servers must not have Critical vulnerabilities.",
+      "successMeasure": "0 servers with critical vulnerabilities.",
+      "priorityOrder": 2,
+      "defaultSeverity": "Critical Exposure",
+      "recommendedAction": "Patch or mitigate critical server vulnerabilities immediately and confirm exploitability posture.",
+      "enabled": true,
+      "ruleKey": "server-critical-vulnerability",
+      "ruleParameters": {
+        "vulnerabilitySeverity": "Critical"
+      },
+      "ruleDefinition": {
+        "ruleKey": "server-critical-vulnerability",
+        "handlerKey": "server-critical-vulnerability",
+        "displayOrder": 3,
+        "name": "Server Critical Vulnerability Rule",
+        "description": "Evaluates whether a server has vulnerabilities at the configured severity.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "server-critical-vulnerability",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 3,
+        "statusExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'critical_vulnerability_present' ELSE N'no_critical_vulnerability' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "server-critical-vulnerability",
+            "evidenceKey": "criticalVulnerabilities",
+            "displayOrder": 1,
+            "valueType": "number",
+            "valueExpressionSql": "[tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical'))",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "server-critical-vulnerability",
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": [
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+          ],
+          "displayOrder": 1,
+          "description": "Vulnerability severity that triggers non-compliance."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "server-critical-vulnerability",
+          "outcomeKey": "critical_vulnerability_present",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Server has one or more critical vulnerabilities.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "server-critical-vulnerability",
+          "outcomeKey": "no_critical_vulnerability",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "No critical server vulnerabilities present.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [
+        {
+          "featureKey": "production-critical-exposure",
+          "spiId": 3,
+          "displayOrder": 1,
+          "complianceStatus": "Non-compliant",
+          "outcomeKey": null,
+          "enabled": true,
+          "description": "Server critical vulnerability row used to classify production critical exposure."
+        }
+      ],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi3-critical-exposure-production",
+          "displayOrder": 20,
+          "enabled": true,
+          "spiId": 3,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_production_critical_asset",
+          "severityKey": "Critical Exposure",
+          "priorityRank": 2,
+          "description": "SPI-3 production-critical non-compliance is Critical Exposure priority 2."
+        },
+        {
+          "classificationRuleId": "spi3-major-non-production",
+          "displayOrder": 22,
+          "enabled": true,
+          "spiId": 3,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_not_production_critical_asset",
+          "severityKey": "Major",
+          "priorityRank": 2,
+          "description": "SPI-3 non-production-critical non-compliance is Major priority 2."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "server"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Server Security Operations Team",
+          "supportQueue": "SERVER-SEC",
+          "contactEmail": "server.secops@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Patch or mitigate critical server vulnerabilities immediately and confirm exploitability posture."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 4,
+      "displayOrder": 4,
+      "name": "Production Server High Risk (Critical + Unsupported OS)",
+      "description": "High Risk: Production servers must not have Critical vulns with out-of-support OS.",
+      "successMeasure": "0 production servers with critical vulnerabilities on unsupported OS.",
+      "priorityOrder": 1,
+      "defaultSeverity": "High Risk",
+      "recommendedAction": "Treat as immediate operational risk: isolate or patch production server, remove critical vuln, and uplift unsupported OS.",
+      "enabled": true,
+      "ruleKey": "production-server-critical-unsupported-os",
+      "ruleParameters": {
+        "environmentType": "Production",
+        "vulnerabilitySeverity": "Critical",
+        "unsupportedStatus": "OutOfSupport",
+        "unknownSupportStatus": "Unknown"
+      },
+      "ruleDefinition": {
+        "ruleKey": "production-server-critical-unsupported-os",
+        "handlerKey": "production-server-critical-unsupported-os",
+        "displayOrder": 4,
+        "name": "Production Server Critical Unsupported OS Rule",
+        "description": "Evaluates production servers for the high-risk combination of critical vulnerability and unsupported OS.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "production-server-critical-unsupported-os",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 4,
+        "statusExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'Compliant' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'Unknown' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'not_production_context' WHEN ctx.os_support_status IS NULL OR ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'missing_os_support' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND ctx.os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'triggered' ELSE N'not_triggered' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "production-server-critical-unsupported-os",
+            "evidenceKey": "productionContext",
+            "displayOrder": 1,
+            "valueType": "boolean",
+            "valueExpressionSql": "CAST(CASE WHEN ctx.environment_type = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') THEN 1 ELSE 0 END AS BIT)",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "production-server-critical-unsupported-os",
+            "evidenceKey": "criticalVulnerability",
+            "displayOrder": 2,
+            "valueType": "boolean",
+            "valueExpressionSql": "CAST(CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN 1 ELSE 0 END AS BIT)",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "production-server-critical-unsupported-os",
+            "evidenceKey": "osSupportStatus",
+            "displayOrder": 3,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.os_support_status",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "parameterKey": "environmentType",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Production",
+          "allowedValues": [
+            "Production",
+            "Development",
+            "UAT",
+            "Test"
+          ],
+          "displayOrder": 1,
+          "description": "System environment type in scope."
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": [
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+          ],
+          "displayOrder": 2,
+          "description": "Vulnerability severity that contributes to the high-risk condition."
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": [
+            "Supported",
+            "OutOfSupport",
+            "Unknown"
+          ],
+          "displayOrder": 3,
+          "description": "OS support status that contributes to the high-risk condition."
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "parameterKey": "unknownSupportStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": [
+            "Unknown"
+          ],
+          "displayOrder": 4,
+          "description": "OS support status treated as unknown."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "outcomeKey": "missing_os_support",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Production server OS support status is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "outcomeKey": "not_production_context",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Asset is not in production context.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "outcomeKey": "not_triggered",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "High Risk condition not triggered.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-os",
+          "outcomeKey": "triggered",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "High Risk: Production server has critical vulnerability on unsupported OS.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi4-high-risk",
+          "displayOrder": 10,
+          "enabled": true,
+          "spiId": 4,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "High Risk",
+          "priorityRank": 1,
+          "description": "SPI-4 non-compliance is High Risk priority 1."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "server"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Production Security Response Team",
+          "supportQueue": "PROD-SERVER-RISK",
+          "contactEmail": "prod.server@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Treat as immediate operational risk: isolate or patch production server, remove critical vuln, and uplift unsupported OS."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 5,
+      "displayOrder": 5,
+      "name": "Production Server High Risk (Critical + Unsupported Software)",
+      "description": "High Risk: Production servers must not have Critical vulns with out-of-support installed software.",
+      "successMeasure": "0 production servers with critical vulnerabilities plus unsupported installed software.",
+      "priorityOrder": 1,
+      "defaultSeverity": "High Risk",
+      "recommendedAction": "Prioritize production server software remediation: update unsupported software and clear linked critical vulnerabilities.",
+      "enabled": true,
+      "ruleKey": "production-server-critical-unsupported-software",
+      "ruleParameters": {
+        "environmentType": "Production",
+        "vulnerabilitySeverity": "Critical",
+        "unsupportedStatus": "OutOfSupport"
+      },
+      "ruleDefinition": {
+        "ruleKey": "production-server-critical-unsupported-software",
+        "handlerKey": "production-server-critical-unsupported-software",
+        "displayOrder": 5,
+        "name": "Production Server Critical Unsupported Software Rule",
+        "description": "Evaluates production servers for critical vulnerabilities with unsupported installed software.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "production-server-critical-unsupported-software",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 5,
+        "statusExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'Compliant' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'Unknown' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'not_production_context' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'missing_software' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'triggered' ELSE N'not_triggered' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "production-server-critical-unsupported-software",
+            "evidenceKey": "productionContext",
+            "displayOrder": 1,
+            "valueType": "boolean",
+            "valueExpressionSql": "CAST(CASE WHEN ctx.environment_type = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') THEN 1 ELSE 0 END AS BIT)",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "production-server-critical-unsupported-software",
+            "evidenceKey": "criticalVulnerability",
+            "displayOrder": 2,
+            "valueType": "boolean",
+            "valueExpressionSql": "CAST(CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN 1 ELSE 0 END AS BIT)",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "production-server-critical-unsupported-software",
+            "evidenceKey": "outOfSupportSoftwareCount",
+            "displayOrder": 3,
+            "valueType": "number",
+            "valueExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN 0 WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN NULL ELSE [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) END",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "parameterKey": "environmentType",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Production",
+          "allowedValues": [
+            "Production",
+            "Development",
+            "UAT",
+            "Test"
+          ],
+          "displayOrder": 1,
+          "description": "System environment type in scope."
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": [
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+          ],
+          "displayOrder": 2,
+          "description": "Vulnerability severity that contributes to the high-risk condition."
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": [
+            "Supported",
+            "OutOfSupport",
+            "Unknown"
+          ],
+          "displayOrder": 3,
+          "description": "Software support status that contributes to the high-risk condition."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "outcomeKey": "missing_software",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Installed software data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "outcomeKey": "not_production_context",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Asset is not in production context.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "outcomeKey": "not_triggered",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "High Risk condition not triggered.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-server-critical-unsupported-software",
+          "outcomeKey": "triggered",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "High Risk: Production server has critical vulnerability and unsupported installed software.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi5-high-risk",
+          "displayOrder": 11,
+          "enabled": true,
+          "spiId": 5,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "High Risk",
+          "priorityRank": 1,
+          "description": "SPI-5 non-compliance is High Risk priority 1."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "server"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Application Sustainment and Security Team",
+          "supportQueue": "APP-SUSTAINMENT-SEC",
+          "contactEmail": "app.sec@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Prioritize production server software remediation: update unsupported software and clear linked critical vulnerabilities."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 6,
+      "displayOrder": 6,
+      "name": "Production Workstation High Risk (Critical + Unsupported Software)",
+      "description": "High Risk: Production-supporting workstations must not have Critical vulns with out-of-support installed software.",
+      "successMeasure": "0 production-supporting workstations with critical vulnerabilities plus unsupported installed software.",
+      "priorityOrder": 1,
+      "defaultSeverity": "High Risk",
+      "recommendedAction": "Prioritize production-support workstation software remediation: update unsupported software and clear linked critical vulnerabilities.",
+      "enabled": true,
+      "ruleKey": "production-workstation-critical-unsupported-software",
+      "ruleParameters": {
+        "environmentType": "Production",
+        "vulnerabilitySeverity": "Critical",
+        "unsupportedStatus": "OutOfSupport"
+      },
+      "ruleDefinition": {
+        "ruleKey": "production-workstation-critical-unsupported-software",
+        "handlerKey": "production-workstation-critical-unsupported-software",
+        "displayOrder": 6,
+        "name": "Production Workstation Critical Unsupported Software Rule",
+        "description": "Evaluates production-supporting workstations for critical vulnerabilities with unsupported installed software.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "production-workstation-critical-unsupported-software",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 6,
+        "statusExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'Compliant' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'Unknown' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN N'not_production_context' WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN N'missing_software' WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 AND [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) > 0 THEN N'triggered' ELSE N'not_triggered' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "production-workstation-critical-unsupported-software",
+            "evidenceKey": "productionContext",
+            "displayOrder": 1,
+            "valueType": "boolean",
+            "valueExpressionSql": "CAST(CASE WHEN ctx.environment_type = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') THEN 1 ELSE 0 END AS BIT)",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "production-workstation-critical-unsupported-software",
+            "evidenceKey": "criticalVulnerability",
+            "displayOrder": 2,
+            "valueType": "boolean",
+            "valueExpressionSql": "CAST(CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN 1 ELSE 0 END AS BIT)",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "production-workstation-critical-unsupported-software",
+            "evidenceKey": "outOfSupportSoftwareCount",
+            "displayOrder": 3,
+            "valueType": "number",
+            "valueExpressionSql": "CASE WHEN ctx.environment_type <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'environmentType',N'Production') OR ctx.environment_type IS NULL THEN 0 WHEN [tsaat].[fn_spi_installed_software_count](ctx.snapshot_id,ctx.asset_id) = 0 THEN NULL ELSE [tsaat].[fn_spi_software_support_status_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport')) END",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "parameterKey": "environmentType",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Production",
+          "allowedValues": [
+            "Production",
+            "Development",
+            "UAT",
+            "Test"
+          ],
+          "displayOrder": 1,
+          "description": "System environment type in scope."
+        },
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": [
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+          ],
+          "displayOrder": 2,
+          "description": "Vulnerability severity that contributes to the high-risk condition."
+        },
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": [
+            "Supported",
+            "OutOfSupport",
+            "Unknown"
+          ],
+          "displayOrder": 3,
+          "description": "Software support status that contributes to the high-risk condition."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "outcomeKey": "missing_software",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Installed software data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "outcomeKey": "not_production_context",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Workstation is not in production-support context.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "outcomeKey": "not_triggered",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "High Risk condition not triggered.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "production-workstation-critical-unsupported-software",
+          "outcomeKey": "triggered",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "High Risk: Production-support workstation has critical vulnerability and unsupported installed software.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi6-high-risk",
+          "displayOrder": 12,
+          "enabled": true,
+          "spiId": 6,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "High Risk",
+          "priorityRank": 1,
+          "description": "SPI-6 non-compliance is High Risk priority 1."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "workstation"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Workstation Engineering Team",
+          "supportQueue": "WORKSTATION-PROD",
+          "contactEmail": "workstation.ops@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Prioritize production-support workstation software remediation: update unsupported software and clear linked critical vulnerabilities."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 7,
+      "displayOrder": 7,
+      "name": "Network Device Critical Vulnerability",
+      "description": "Network devices must not have Critical vulnerabilities.",
+      "successMeasure": "0 network devices with critical vulnerabilities.",
+      "priorityOrder": 2,
+      "defaultSeverity": "Critical Exposure",
+      "recommendedAction": "Patch or mitigate critical network-device vulnerabilities and validate rule/ACL hardening.",
+      "enabled": true,
+      "ruleKey": "network-device-critical-vulnerability",
+      "ruleParameters": {
+        "vulnerabilitySeverity": "Critical"
+      },
+      "ruleDefinition": {
+        "ruleKey": "network-device-critical-vulnerability",
+        "handlerKey": "network-device-critical-vulnerability",
+        "displayOrder": 7,
+        "name": "Network Device Critical Vulnerability Rule",
+        "description": "Evaluates whether a network device has vulnerabilities at the configured severity.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "network-device-critical-vulnerability",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 7,
+        "statusExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN [tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical')) > 0 THEN N'critical_vulnerability_present' ELSE N'no_critical_vulnerability' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "network-device-critical-vulnerability",
+            "evidenceKey": "criticalVulnerabilities",
+            "displayOrder": 1,
+            "valueType": "number",
+            "valueExpressionSql": "[tsaat].[fn_spi_vulnerability_count](ctx.snapshot_id,ctx.asset_id,[tsaat].[fn_spi_string_parameter](sd.spi_id,N'vulnerabilitySeverity',N'Critical'))",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "network-device-critical-vulnerability",
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": [
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+          ],
+          "displayOrder": 1,
+          "description": "Vulnerability severity that triggers non-compliance."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "network-device-critical-vulnerability",
+          "outcomeKey": "critical_vulnerability_present",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Network device has critical vulnerabilities.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "network-device-critical-vulnerability",
+          "outcomeKey": "no_critical_vulnerability",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "No critical vulnerabilities found on network device.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [
+        {
+          "featureKey": "production-critical-exposure",
+          "spiId": 7,
+          "displayOrder": 2,
+          "complianceStatus": "Non-compliant",
+          "outcomeKey": null,
+          "enabled": true,
+          "description": "Network device critical vulnerability row used to classify production critical exposure."
+        }
+      ],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi7-critical-exposure-production",
+          "displayOrder": 21,
+          "enabled": true,
+          "spiId": 7,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_production_critical_asset",
+          "severityKey": "Critical Exposure",
+          "priorityRank": 2,
+          "description": "SPI-7 production-critical non-compliance is Critical Exposure priority 2."
+        },
+        {
+          "classificationRuleId": "spi7-major-non-production",
+          "displayOrder": 23,
+          "enabled": true,
+          "spiId": 7,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_not_production_critical_asset",
+          "severityKey": "Major",
+          "priorityRank": 2,
+          "description": "SPI-7 non-production-critical non-compliance is Major priority 2."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "network-device"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Security Engineering Team",
+          "supportQueue": "NETWORK-CRITICAL-VULN",
+          "contactEmail": "network.sec@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Patch or mitigate critical network-device vulnerabilities and validate rule/ACL hardening."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 8,
+      "displayOrder": 8,
+      "name": "Network Device Support",
+      "description": "Network devices must not have unsupported OS/firmware.",
+      "successMeasure": "100% of network-device OS/firmware versions are supported.",
+      "priorityOrder": 3,
+      "defaultSeverity": "Major",
+      "recommendedAction": "Upgrade device firmware/OS to supported releases and align with approved baseline catalog.",
+      "enabled": true,
+      "ruleKey": "network-device-support",
+      "ruleParameters": {
+        "unsupportedStatus": "OutOfSupport",
+        "unknownSupportStatus": "Unknown"
+      },
+      "ruleDefinition": {
+        "ruleKey": "network-device-support",
+        "handlerKey": "network-device-support",
+        "displayOrder": 8,
+        "name": "Network Device Support Rule",
+        "description": "Evaluates network device OS or firmware vendor support status.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "network-device-support",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 8,
+        "statusExpressionSql": "CASE WHEN ctx.network_os_display_name IS NULL THEN N'Unknown' WHEN ctx.network_os_support_status IS NULL OR ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'Unknown' WHEN ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'Non-compliant' ELSE N'Compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.network_os_display_name IS NULL THEN N'missing_network_os' WHEN ctx.network_os_support_status IS NULL OR ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownSupportStatus',N'Unknown') THEN N'missing_network_os' WHEN ctx.network_os_support_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unsupportedStatus',N'OutOfSupport') THEN N'unsupported' ELSE N'supported' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "network-device-support",
+            "evidenceKey": "networkOs",
+            "displayOrder": 1,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.network_os_display_name",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "network-device-support",
+            "evidenceKey": "supportStatus",
+            "displayOrder": 2,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.network_os_support_status",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "network-device-support",
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": [
+            "Supported",
+            "OutOfSupport",
+            "Unknown"
+          ],
+          "displayOrder": 1,
+          "description": "Support status treated as non-compliant."
+        },
+        {
+          "ruleKey": "network-device-support",
+          "parameterKey": "unknownSupportStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": [
+            "Unknown"
+          ],
+          "displayOrder": 2,
+          "description": "Support status treated as unknown."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "network-device-support",
+          "outcomeKey": "missing_network_os",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Network OS/firmware data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "network-device-support",
+          "outcomeKey": "supported",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Network OS/firmware is vendor supported.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "network-device-support",
+          "outcomeKey": "unsupported",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Network OS/firmware is out of support.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi8-major",
+          "displayOrder": 31,
+          "enabled": true,
+          "spiId": 8,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "Major",
+          "priorityRank": 3,
+          "description": "SPI-8 non-compliance is Major priority 3."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "network-device"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Firmware and Baseline Team",
+          "supportQueue": "NETWORK-FIRMWARE",
+          "contactEmail": "network.firmware@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Upgrade device firmware/OS to supported releases and align with approved baseline catalog."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 9,
+      "displayOrder": 9,
+      "name": "Network Device Patch Currency",
+      "description": "Network devices must be on latest patches.",
+      "successMeasure": "100% of network devices on latest patch level.",
+      "priorityOrder": 6,
+      "defaultSeverity": "Moderate",
+      "recommendedAction": "Bring network devices to latest patch level and enforce maintenance windows with SLA tracking.",
+      "enabled": true,
+      "ruleKey": "network-device-patch-currency",
+      "ruleParameters": {
+        "latestPatchRequired": true
+      },
+      "ruleDefinition": {
+        "ruleKey": "network-device-patch-currency",
+        "handlerKey": "network-device-patch-currency",
+        "displayOrder": 9,
+        "name": "Network Device Patch Currency Rule",
+        "description": "Evaluates whether network devices are on the configured current patch state.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "network-device-patch-currency",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 9,
+        "statusExpressionSql": "CASE WHEN ctx.patch_is_latest IS NULL THEN N'Unknown' WHEN ctx.patch_is_latest = [tsaat].[fn_spi_boolean_parameter](sd.spi_id,N'latestPatchRequired',1) THEN N'Compliant' ELSE N'Non-compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.patch_is_latest IS NULL THEN N'missing_patch_state' WHEN ctx.patch_is_latest = [tsaat].[fn_spi_boolean_parameter](sd.spi_id,N'latestPatchRequired',1) THEN N'current' ELSE N'not_current' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "network-device-patch-currency",
+            "evidenceKey": "isLatestPatch",
+            "displayOrder": 1,
+            "valueType": "boolean",
+            "valueExpressionSql": "ctx.patch_is_latest",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "network-device-patch-currency",
+            "evidenceKey": "lastPatchedDate",
+            "displayOrder": 2,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.patch_last_patched_date",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "network-device-patch-currency",
+          "parameterKey": "latestPatchRequired",
+          "parameterType": "boolean",
+          "required": false,
+          "defaultValue": "true",
+          "allowedValues": [
+            "true",
+            "false"
+          ],
+          "displayOrder": 1,
+          "description": "Whether latest patch state is required for compliance."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "network-device-patch-currency",
+          "outcomeKey": "current",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Network device patch level is current.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "network-device-patch-currency",
+          "outcomeKey": "missing_patch_state",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Patch state is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "network-device-patch-currency",
+          "outcomeKey": "not_current",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Network device is not on latest patch level.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi9-moderate",
+          "displayOrder": 60,
+          "enabled": true,
+          "spiId": 9,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "Moderate",
+          "priorityRank": 6,
+          "description": "SPI-9 non-compliance is Moderate priority 6."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "network-device"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Patch and Sustainment Team",
+          "supportQueue": "NETWORK-PATCH",
+          "contactEmail": "network.patch@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Bring network devices to latest patch level and enforce maintenance windows with SLA tracking."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    },
+    {
+      "spiId": 10,
+      "displayOrder": 10,
+      "name": "Asset Lifecycle Currency",
+      "description": "No physical device should be EOL or out of warranty.",
+      "successMeasure": "0 physical devices in EOL or out-of-warranty state.",
+      "priorityOrder": 7,
+      "defaultSeverity": "Moderate",
+      "recommendedAction": "Replace or renew lifecycle-expired assets (EOL / out-of-warranty) through prioritized capital plan.",
+      "enabled": true,
+      "ruleKey": "asset-lifecycle-currency",
+      "ruleParameters": {
+        "endOfLifeStatus": "EOL",
+        "inWarrantyStatus": "InWarranty",
+        "unknownLifecycleStatus": "Unknown"
+      },
+      "ruleDefinition": {
+        "ruleKey": "asset-lifecycle-currency",
+        "handlerKey": "asset-lifecycle-currency",
+        "displayOrder": 10,
+        "name": "Asset Lifecycle Currency Rule",
+        "description": "Evaluates physical asset lifecycle and warranty currency.",
+        "enabled": true
+      },
+      "calculationDefinition": {
+        "ruleKey": "asset-lifecycle-currency",
+        "sourceKey": "asset-evaluation-context",
+        "displayOrder": 10,
+        "statusExpressionSql": "CASE WHEN ctx.lifecycle_eol_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') OR ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') THEN N'Unknown' WHEN ctx.lifecycle_eol_status <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'endOfLifeStatus',N'EOL') AND ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'inWarrantyStatus',N'InWarranty') THEN N'Compliant' ELSE N'Non-compliant' END",
+        "outcomeExpressionSql": "CASE WHEN ctx.lifecycle_eol_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') OR ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'unknownLifecycleStatus',N'Unknown') THEN N'missing_lifecycle' WHEN ctx.lifecycle_eol_status <> [tsaat].[fn_spi_string_parameter](sd.spi_id,N'endOfLifeStatus',N'EOL') AND ctx.lifecycle_warranty_status = [tsaat].[fn_spi_string_parameter](sd.spi_id,N'inWarrantyStatus',N'InWarranty') THEN N'current' ELSE N'expired' END",
+        "enabled": true,
+        "source": {
+          "sourceKey": "asset-evaluation-context",
+          "sourceObjectName": "[tsaat].[vw_spi_asset_evaluation_context]",
+          "displayOrder": 1,
+          "name": "SPI Asset Evaluation Context",
+          "description": "Approved read-only source for SQL-driven SPI measure calculations.",
+          "enabled": true
+        },
+        "evidenceExpressions": [
+          {
+            "ruleKey": "asset-lifecycle-currency",
+            "evidenceKey": "eolStatus",
+            "displayOrder": 1,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.lifecycle_eol_status",
+            "omitWhenNull": false
+          },
+          {
+            "ruleKey": "asset-lifecycle-currency",
+            "evidenceKey": "warrantyStatus",
+            "displayOrder": 2,
+            "valueType": "string",
+            "valueExpressionSql": "ctx.lifecycle_warranty_status",
+            "omitWhenNull": false
+          }
+        ]
+      },
+      "parameterDefinitions": [
+        {
+          "ruleKey": "asset-lifecycle-currency",
+          "parameterKey": "endOfLifeStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "EOL",
+          "allowedValues": [
+            "Supported",
+            "EOL",
+            "Unknown"
+          ],
+          "displayOrder": 1,
+          "description": "Lifecycle status treated as end-of-life."
+        },
+        {
+          "ruleKey": "asset-lifecycle-currency",
+          "parameterKey": "inWarrantyStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "InWarranty",
+          "allowedValues": [
+            "InWarranty",
+            "OutOfWarranty",
+            "Unknown"
+          ],
+          "displayOrder": 2,
+          "description": "Warranty status required for compliance."
+        },
+        {
+          "ruleKey": "asset-lifecycle-currency",
+          "parameterKey": "unknownLifecycleStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": [
+            "Unknown"
+          ],
+          "displayOrder": 3,
+          "description": "Lifecycle or warranty status treated as unknown."
+        }
+      ],
+      "outcomeTemplates": [
+        {
+          "ruleKey": "asset-lifecycle-currency",
+          "outcomeKey": "current",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Lifecycle and warranty are within policy.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "asset-lifecycle-currency",
+          "outcomeKey": "expired",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Device is EOL or out of warranty.",
+          "evidenceTemplate": null
+        },
+        {
+          "ruleKey": "asset-lifecycle-currency",
+          "outcomeKey": "missing_lifecycle",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Lifecycle data is incomplete.",
+          "evidenceTemplate": null
+        }
+      ],
+      "featureBindings": [],
+      "classificationRules": [
+        {
+          "classificationRuleId": "unknown-data-gap",
+          "displayOrder": 1,
+          "enabled": true,
+          "spiId": null,
+          "complianceStatus": "Unknown",
+          "conditionKey": "when_unknown",
+          "severityKey": "Data Gap",
+          "priorityRank": 90,
+          "description": "Unknown SPI outcomes generate Data Gap findings."
+        },
+        {
+          "classificationRuleId": "spi10-moderate",
+          "displayOrder": 70,
+          "enabled": true,
+          "spiId": 10,
+          "complianceStatus": "Non-compliant",
+          "conditionKey": "when_non_compliant",
+          "severityKey": "Moderate",
+          "priorityRank": 7,
+          "description": "SPI-10 non-compliance is Moderate priority 7."
+        }
+      ],
+      "reportAvailable": true,
+      "trendReportAvailable": true,
+      "reportDetailKey": "standard-asset-annex",
+      "reportDetailDefinition": {
+        "reportDetailKey": "standard-asset-annex",
+        "handlerKey": "standard-asset-annex",
+        "displayOrder": 1,
+        "name": "Standard Asset Annex",
+        "description": "Uses the application-owned standard asset annex renderer for SPI detail reports.",
+        "enabled": true
+      },
+      "applicableAssetTypes": [
+        "network-device",
+        "other",
+        "printer-device",
+        "server",
+        "storage-device",
+        "workstation"
+      ],
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Asset Lifecycle and Sustainment Team",
+          "supportQueue": "ASSET-LIFECYCLE",
+          "contactEmail": "asset.lifecycle@defence.local"
+        },
+        {
+          "displayOrder": 2,
+          "team": "Cyber Security Operations Centre",
+          "supportQueue": "CSOC-ESCALATION",
+          "contactEmail": "csoc@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Replace or renew lifecycle-expired assets (EOL / out-of-warranty) through prioritized capital plan."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "when_unknown",
+          "actionText": "Resolve missing evidence fields to remove Unknown outcomes and increase confidence."
+        },
+        {
+          "displayOrder": 3,
+          "conditionKey": "when_fully_compliant",
+          "actionText": "Maintain current control baseline and continue scheduled assurance checks."
+        }
+      ],
+      "taskingConditions": {
+        "non_compliant": "Detected {nonCompliant} non-compliant evaluation(s) for SPI-{spiId}. Current measured compliance is {scorePercent}% across {total} applicable evaluation(s).",
+        "unknown": "SPI-{spiId} has no non-compliant evaluations in scope, but {unknown} unknown evaluation(s) require data-quality remediation.",
+        "compliant": "SPI-{spiId} is fully compliant in current scope ({scorePercent}% across {total} evaluations)."
+      }
+    }
+  ],
+  "kpiDefinitions": [
+    {
+      "id": "KPI-1",
+      "displayOrder": 1,
+      "name": "Overall SPI Compliance",
+      "description": "Share of compliant checks across all applicable SPI evaluations in current filter scope.",
+      "successMeasure": "Target >= 95% compliant checks.",
+      "calculationKey": "overall-spi-compliance",
+      "reportAvailable": false,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "overall-spi-compliance",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 1,
+        "name": "Overall SPI Compliance",
+        "description": "Compliant SPI evaluations divided by all applicable SPI evaluations.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-POSTURE",
+          "contactEmail": "cga.posture@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Prioritize recovery of non-compliant SPI domains with strongest operational impact."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Set two-week checkpoint for compliance uplift verification."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-2",
+      "displayOrder": 2,
+      "name": "Overall DPE Compliance",
+      "description": "Share of compliant SPI checks for Defence Protected Environment (Protected security domain) assets in scope.",
+      "successMeasure": "Target >= 95% compliant checks for DPE assets.",
+      "calculationKey": "protected-domain-compliance",
+      "reportAvailable": false,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "protected-domain-compliance",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 2,
+        "name": "Protected Domain Compliance",
+        "description": "Compliant SPI evaluations for Protected-domain assets divided by all applicable Protected-domain SPI evaluations.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Vulnerability Operations Team",
+          "supportQueue": "CYBER-VULN-OPS",
+          "contactEmail": "vuln.ops@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Open remediation tasks for all failing SPI checks and assign accountable owner."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Track closure rate weekly until backlog reaches target."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-3",
+      "displayOrder": 3,
+      "name": "Overall DSE Compliance",
+      "description": "Share of compliant SPI checks for Defence Secret Environment (Secret security domain) assets in scope.",
+      "successMeasure": "Target >= 95% compliant checks for DSE assets.",
+      "calculationKey": "secret-domain-compliance",
+      "reportAvailable": false,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "secret-domain-compliance",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 3,
+        "name": "Secret Domain Compliance",
+        "description": "Compliant SPI evaluations for Secret-domain assets divided by all applicable Secret-domain SPI evaluations.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Data Quality and Asset Intelligence Team",
+          "supportQueue": "CYBER-DATA-QUALITY",
+          "contactEmail": "asset.data@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Resolve unknown data fields in asset, lifecycle, and patch records."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Implement data completeness guardrails in ingestion workflow."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-4",
+      "displayOrder": 4,
+      "name": "Critical ICT System Compliance",
+      "description": "Share of compliant SPI checks for assets assigned to ICT systems marked as Critical.",
+      "successMeasure": "Target >= 95% compliant checks on Critical ICT Systems.",
+      "calculationKey": "critical-ict-system-compliance",
+      "reportAvailable": false,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "critical-ict-system-compliance",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 4,
+        "name": "Critical ICT System Compliance",
+        "description": "Compliant SPI evaluations for assets belonging to Critical ICT systems divided by all applicable Critical-system SPI evaluations.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "critical-system-threshold",
+        "handlerKey": "critical-system-threshold",
+        "displayOrder": 2,
+        "name": "Critical ICT Systems at Threshold",
+        "description": "Lists critical ICT systems at or below the configured compliance threshold.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Production Security Response Team",
+          "supportQueue": "CYBER-PROD-RESP",
+          "contactEmail": "prod.response@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Trigger immediate high-risk production mitigation workflow."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Require executive escalation for unresolved high-risk items older than 48 hours."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-5",
+      "displayOrder": 5,
+      "name": "Critical Exposure in Production",
+      "description": "Production assets with critical-vulnerability exposure requiring urgent treatment.",
+      "successMeasure": "Target = 0 critical exposure findings.",
+      "calculationKey": "critical-exposure-in-production",
+      "reportAvailable": true,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "critical-exposure-in-production",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 5,
+        "name": "Critical Exposure in Production",
+        "description": "Count of Critical Exposure findings with score percent derived from non-critical-exposure findings over all findings.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "critical-exposure-assets",
+        "handlerKey": "critical-exposure-assets",
+        "displayOrder": 3,
+        "name": "Critical Exposure Assets",
+        "description": "Lists assets with Critical Exposure findings.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Critical Exposure Response Cell",
+          "supportQueue": "CYBER-CRIT-EXPOSURE",
+          "contactEmail": "crit.exposure@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Contain and remediate all production critical-exposure assets."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Validate compensating controls where immediate patching is not feasible."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-6",
+      "displayOrder": 6,
+      "name": "Discovery Coverage Compliance",
+      "description": "Share of in-scope assets meeting discovery coverage across required tooling checkpoints.",
+      "successMeasure": "Target = 100% discovery coverage compliance.",
+      "calculationKey": "discovery-coverage-compliance",
+      "reportAvailable": true,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "discovery-coverage-compliance",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 6,
+        "name": "Discovery Coverage Compliance",
+        "description": "Discovery-compliant assets divided by all scoped assets with discovery coverage rows.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Joint Cyber Operations Tasking Team",
+          "supportQueue": "CYBER-TASKING",
+          "contactEmail": "tasking.ops@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Re-balance operations workload to close priority 1-2 items first."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Run daily command stand-up until immediate backlog returns to target."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-7",
+      "displayOrder": 7,
+      "name": "ICT Systems have an active ATO",
+      "description": "Share of in-scope ICT systems with an active Authority to Operate (ATO) record.",
+      "successMeasure": "Target = 100% of ICT systems with active ATO.",
+      "calculationKey": "active-ato-coverage",
+      "reportAvailable": true,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "active-ato-coverage",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 7,
+        "name": "Active ATO Coverage",
+        "description": "Scoped ICT systems passing the seeded deterministic ATO proxy divided by scoped ICT systems.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "ICT Governance and Accreditation Team",
+          "supportQueue": "ICT-ATO-GOV",
+          "contactEmail": "ato.governance@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Validate ATO currency for non-compliant ICT systems and initiate renewal workflows."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Escalate expired or missing ATO records to ICT governance authority."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-8",
+      "displayOrder": 8,
+      "name": "ICT Systems are registered within DIIS",
+      "description": "Share of in-scope ICT systems registered in the DIIS register.",
+      "successMeasure": "Target = 100% of ICT systems registered within DIIS.",
+      "calculationKey": "diis-registration-coverage",
+      "reportAvailable": true,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "diis-registration-coverage",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 8,
+        "name": "DIIS Registration Coverage",
+        "description": "Scoped ICT systems passing the seeded deterministic DIIS registration proxy divided by scoped ICT systems.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "ICT Registry and Integration Team",
+          "supportQueue": "ICT-DIIS-REG",
+          "contactEmail": "diis.registry@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Register all non-compliant ICT systems within DIIS and verify metadata completeness."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Set weekly reconciliation between ICT system inventory and DIIS register."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-9",
+      "displayOrder": 9,
+      "name": "DIIS Systems Modelled Coverage",
+      "description": "Share of ICT systems defined in DIIS that have been modelled in TSAAT.",
+      "successMeasure": "Target = 100% of DIIS-defined ICT systems are modelled.",
+      "calculationKey": "diis-modelled-coverage",
+      "reportAvailable": true,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "diis-modelled-coverage",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 9,
+        "name": "DIIS Modelled Coverage",
+        "description": "DIIS-defined scoped ICT systems with modelling enabled divided by DIIS-defined scoped ICT systems.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "unmodelled-diis-systems",
+        "handlerKey": "unmodelled-diis-systems",
+        "displayOrder": 4,
+        "name": "Unmodelled DIIS Systems",
+        "description": "Lists DIIS-defined ICT systems without modelling enabled.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "ICT Modelling and Architecture Team",
+          "supportQueue": "ICT-MODELLING",
+          "contactEmail": "ict.modelling@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Prioritize DIIS systems with no model and assign modelling owners."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Track modelling completion weekly until DIIS model coverage reaches target."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    },
+    {
+      "id": "KPI-10",
+      "displayOrder": 10,
+      "name": "Networks Discovery Enablement",
+      "description": "Share of defined managed networks with discovery status set to Discovery Enabled.",
+      "successMeasure": "Target = 100% of defined networks are Discovery Enabled.",
+      "calculationKey": "network-discovery-enablement",
+      "reportAvailable": true,
+      "enabled": true,
+      "calculationDefinition": {
+        "calculationKey": "network-discovery-enablement",
+        "sourceKey": "kpi-snapshot-scope-context",
+        "displayOrder": 10,
+        "name": "Network Discovery Enablement",
+        "description": "Scoped networks marked Discovery Enabled divided by scoped networks.",
+        "enabled": true
+      },
+      "reportDetailDefinition": {
+        "reportDetailKey": "generic-kpi-summary",
+        "handlerKey": "generic-kpi-summary",
+        "displayOrder": 1,
+        "name": "Generic KPI Summary",
+        "description": "Default KPI tasking report detail section.",
+        "enabled": true
+      },
+      "taskingTeams": [
+        {
+          "displayOrder": 1,
+          "team": "Network Discovery Operations Team",
+          "supportQueue": "NETWORK-DISCOVERY",
+          "contactEmail": "network.discovery@defence.local"
+        },
+        {
+          "displayOrder": 90,
+          "team": "Cyber Governance and Assurance Team",
+          "supportQueue": "CGA-ASSURANCE",
+          "contactEmail": "cga.assurance@defence.local"
+        }
+      ],
+      "taskingActions": [
+        {
+          "displayOrder": 1,
+          "conditionKey": "always",
+          "actionText": "Enable discovery on all defined networks currently marked Discovery Non Enabled."
+        },
+        {
+          "displayOrder": 2,
+          "conditionKey": "always",
+          "actionText": "Apply weekly validation against network inventory to keep discovery status current."
+        }
+      ],
+      "taskingConditions": {
+        "compliant": "{kpiId} is currently within target in this filter scope with no detected non-compliant condition.",
+        "non_compliant": "Detected {nonCompliantCount} non-compliant measure item(s) for {kpiId}. This indicates current posture is below target threshold and requires directed remediation.",
+        "unknown": "No non-compliance detected for {kpiId}, however {unknownCount} data-gap item(s) limit confidence in full compliance assessment."
+      }
+    }
+  ],
+  "measuresSettings": {
+    "updatedAt": "2026-03-01T00:00:00.000Z",
+    "severityMatrix": {
+      "1:server": "Major",
+      "1:workstation": "Major",
+      "1:network-device": "Major",
+      "1:storage-device": "Major",
+      "1:printer-device": "Major",
+      "1:other": "Major",
+      "2:server": "Moderate",
+      "2:workstation": "Moderate",
+      "2:network-device": "Moderate",
+      "2:storage-device": "Moderate",
+      "2:printer-device": "Moderate",
+      "2:other": "Moderate",
+      "3:server": "Critical Exposure",
+      "3:workstation": "Critical Exposure",
+      "3:network-device": "Critical Exposure",
+      "3:storage-device": "Critical Exposure",
+      "3:printer-device": "Critical Exposure",
+      "3:other": "Critical Exposure",
+      "4:server": "High Risk",
+      "4:workstation": "High Risk",
+      "4:network-device": "High Risk",
+      "4:storage-device": "High Risk",
+      "4:printer-device": "High Risk",
+      "4:other": "High Risk",
+      "5:server": "High Risk",
+      "5:workstation": "High Risk",
+      "5:network-device": "High Risk",
+      "5:storage-device": "High Risk",
+      "5:printer-device": "High Risk",
+      "5:other": "High Risk",
+      "6:server": "High Risk",
+      "6:workstation": "High Risk",
+      "6:network-device": "High Risk",
+      "6:storage-device": "High Risk",
+      "6:printer-device": "High Risk",
+      "6:other": "High Risk",
+      "7:server": "Critical Exposure",
+      "7:workstation": "Critical Exposure",
+      "7:network-device": "Critical Exposure",
+      "7:storage-device": "Critical Exposure",
+      "7:printer-device": "Critical Exposure",
+      "7:other": "Critical Exposure",
+      "8:server": "Major",
+      "8:workstation": "Major",
+      "8:network-device": "Major",
+      "8:storage-device": "Major",
+      "8:printer-device": "Major",
+      "8:other": "Major",
+      "9:server": "Moderate",
+      "9:workstation": "Moderate",
+      "9:network-device": "Moderate",
+      "9:storage-device": "Moderate",
+      "9:printer-device": "Moderate",
+      "9:other": "Moderate",
+      "10:server": "Moderate",
+      "10:workstation": "Moderate",
+      "10:network-device": "Moderate",
+      "10:storage-device": "Moderate",
+      "10:printer-device": "Moderate",
+      "10:other": "Moderate"
+    },
+    "priorityMatrix": {
+      "1": 3,
+      "2": 4,
+      "3": 2,
+      "4": 1,
+      "5": 1,
+      "6": 1,
+      "7": 2,
+      "8": 3,
+      "9": 6,
+      "10": 7
+    }
+  },
+  "discoveryToolsSettings": {
+    "updatedAt": "2026-03-15T08:19:52.977Z",
+    "tools": [
+      {
+        "id": "dsoc-siem",
+        "name": "DSOC SIEM",
+        "description": "Security event telemetry and correlation coverage.",
+        "el2Owner": "EL2 SOC Services",
+        "el2OperationsManager": "EL2 SIEM Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      },
+      {
+        "id": "elastic",
+        "name": "Elastic",
+        "description": "Endpoint and system telemetry indexing and observability coverage.",
+        "el2Owner": "EL2 SOC Services",
+        "el2OperationsManager": "EL2 Elastic Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      },
+      {
+        "id": "servicenow",
+        "name": "ServiceNow",
+        "description": "Service catalogue and lifecycle state integration.",
+        "el2Owner": "EL2 Service Management",
+        "el2OperationsManager": "EL2 ITSM Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      },
+      {
+        "id": "snow",
+        "name": "SNOW",
+        "description": "ServiceNow asset lifecycle and warranty coverage data.",
+        "el2Owner": "EL2 Service Management",
+        "el2OperationsManager": "EL2 ITSM Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      },
+      {
+        "id": "tanium",
+        "name": "Tanium",
+        "description": "Endpoint visibility and management telemetry for server and workstation assets.",
+        "el2Owner": "EL2 Endpoint Security",
+        "el2OperationsManager": "EL2 Endpoint Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      },
+      {
+        "id": "tenable",
+        "name": "Tenable",
+        "description": "Vulnerability scanner coverage and findings for in-scope assets.",
+        "el2Owner": "EL2 Vulnerability Management",
+        "el2OperationsManager": "EL2 Vulnerability Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      },
+      {
+        "id": "ucmdb",
+        "name": "UCMDB",
+        "description": "Authoritative CMDB records for managed assets and relationships.",
+        "el2Owner": "EL2 Configuration Management",
+        "el2OperationsManager": "EL2 CMDB Operations",
+        "assetTypeScope": {
+          "server": "required",
+          "workstation": "required",
+          "network-device": "required",
+          "storage-device": "required",
+          "printer-device": "required",
+          "other": "required"
+        }
+      }
+    ]
+  }
+}
