@@ -1,0 +1,33 @@
+{
+  "name": "tsaat-demo-lite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single-file offline TSAAT demonstration application",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
+    "verify": "node scripts/verify-single-file.mjs",
+    "smoke": "node scripts/smoke-browser.mjs",
+    "test": "npm run typecheck && npm run build && npm run verify && npm run smoke"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "fflate": "^0.8.2",
+    "papaparse": "^5.5.3",
+    "pdf-lib": "^1.17.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-is": "^18.2.0",
+    "recharts": "^3.7.0",
+    "three": "^0.181.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.24",
+    "esbuild": "^0.28.1",
+    "postcss": "^8.5.6",
+    "puppeteer-core": "^24.37.5",
+    "tailwindcss": "3.4.17",
+    "typescript": "^5.9.3"
+  }
+}
