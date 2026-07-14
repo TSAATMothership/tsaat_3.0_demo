@@ -1335,6 +1335,14 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).not.toContain('label: "SPI"');
   });
 
+  it("does not draw vertical blue divider lines through the analyser node columns", () => {
+    const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+
+    expect(component).not.toContain('context.strokeStyle = "rgba(125, 211, 252, 0.34)"');
+    expect(component).not.toContain("context.moveTo(x, chartLayout.top - currentScrollTop)");
+    expect(component).not.toContain("context.lineTo(x, result.virtualHeight - chartLayout.bottom - currentScrollTop)");
+  });
+
   it("keeps asset CMDB record URL wired through DB and analyser row artefacts", () => {
     const schema = readRepoFile("Database Schema/database-schema.sql");
     const migration = readRepoFile("Database Schema/migrations/019_add_asset_cmdb_record_url.sql");

@@ -1371,12 +1371,6 @@ export function IctSystemImpactAnalyser2Chart({
       context.font = "600 11px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
       result.axes.forEach((axis, axisIndex) => {
         const x = axisX(axisIndex, result.axes.length, size.width);
-        context.strokeStyle = "rgba(125, 211, 252, 0.34)";
-        context.lineWidth = 1;
-        context.beginPath();
-        context.moveTo(x, chartLayout.top - currentScrollTop);
-        context.lineTo(x, result.virtualHeight - chartLayout.bottom - currentScrollTop);
-        context.stroke();
 
         context.textAlign = axisIndex === 0 ? "left" : axisIndex === result.axes.length - 1 ? "right" : "center";
         context.fillStyle = "rgba(241, 245, 249, 0.96)";

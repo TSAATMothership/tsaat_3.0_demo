@@ -18,6 +18,11 @@ assert.doesNotMatch(html, /<link\b[^>]*\brel\s*=\s*["']?stylesheet/i, "External 
 assert.doesNotMatch(html, /\b(?:src|href)\s*=\s*["']\/_next\//i, "Next.js build assets are not allowed.");
 assert.doesNotMatch(html, /url\(["']?\/bg-topography\.svg/i, "The topography asset must be embedded.");
 assert.doesNotMatch(html, /<img\b[^>]*\bsrc\s*=\s*["']\//i, "Images must not use external paths.");
+assert.doesNotMatch(
+  html,
+  /rgba\(125,\s*211,\s*252,\s*(?:0?\.)34\)/,
+  "The generated analyser must not contain the retired vertical axis-divider stroke."
+);
 assert(html.includes("demo123"), "The hard-coded demo credential must be packaged.");
 assert(details.size > 1_000_000, "Output is unexpectedly small and likely incomplete.");
 
