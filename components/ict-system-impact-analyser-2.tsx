@@ -617,10 +617,14 @@ function AssetDetailsPanel({
 export function IctSystemImpactAnalyser2Chart({
   embedded = false,
   systemScopeIds,
+  networkScopeIds,
+  dataDate,
   dataPath = "/api/cyber-cop/impact-analyser-2",
   findingsPath = "/api/cyber-cop/impact-analyser-2/findings",
   sourceRows: providedRows,
   diagramMode = "risk",
+  analyserName = "ICT System Impact Analyser",
+  analyserSlug = "ict-system-impact-analyser",
   title = "ICT System Impact Analyser Diagram",
   headingTooltip = "Scalable Canvas/WebGL analyser for open server findings across ICT system, environment, server, severity, and SPI.",
   assetAxisLabel = "Server",
@@ -638,10 +642,14 @@ export function IctSystemImpactAnalyser2Chart({
 }: {
   embedded?: boolean;
   systemScopeIds?: string[];
+  networkScopeIds?: string[];
+  dataDate?: string;
   dataPath?: string;
   findingsPath?: string;
   sourceRows?: ImpactAnalyser2Row[];
   diagramMode?: ImpactAnalyser2DiagramMode;
+  analyserName?: string;
+  analyserSlug?: string;
   title?: string;
   headingTooltip?: string;
   assetAxisLabel?: string;
@@ -709,6 +717,8 @@ export function IctSystemImpactAnalyser2Chart({
     () => (hasSystemScope ? (systemScopeKey ? systemScopeKey.split(",").filter(Boolean) : []) : null),
     [hasSystemScope, systemScopeKey]
   );
+  const hasNetworkScope = Array.isArray(networkScopeIds);
+  const networkScopeKey = hasNetworkScope ? Array.from(new Set(networkScopeIds)).sort().join(",") : "";
   const selectedEnvironmentKey = joinMultiFilterParam(selectedEnvironments);
   const selectedSecurityDomainKey = joinMultiFilterParam(selectedSecurityDomains);
   const selectedAssetTypeKey = joinMultiFilterParam(selectedAssetTypes);
@@ -1071,7 +1081,7 @@ export function IctSystemImpactAnalyser2Chart({
     };
     worker.onerror = () => {
       setLoadState("error");
-      setLoadError("The ICT System Impact Analyser worker failed to initialise.");
+      setLoadError("The analyser worker failed to initialise.");
     };
 
     return () => {
@@ -1108,7 +1118,9 @@ export function IctSystemImpactAnalyser2Chart({
         }
         const response = await fetch(
           buildApiUrl(dataPath, {
-            diagramSystemIds: systemScopeKey
+            ...(dataDate ? { dataDate } : {}),
+            diagramSystemIds: systemScopeKey,
+            diagramNetworkIds: networkScopeKey
           }),
           { cache: "no-store", signal: abortController.signal }
         );
@@ -1137,7 +1149,7 @@ export function IctSystemImpactAnalyser2Chart({
       isCancelled = true;
       abortController.abort();
     };
-  }, [clearRenderedDiagram, dataPath, diagramMode, providedRows, queueDiagramFilterRefresh, systemScopeKey]);
+  }, [clearRenderedDiagram, dataDate, dataPath, diagramMode, networkScopeKey, providedRows, queueDiagramFilterRefresh, systemScopeKey]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -1218,6 +1230,7 @@ export function IctSystemImpactAnalyser2Chart({
     selectedFindingCriticalityKey,
     selectedSecurityDomainKey,
     systemScopeKey,
+    networkScopeKey,
     resetDiagramViewportForFilterChange
   ]);
 
@@ -1578,6 +1591,7 @@ export function IctSystemImpactAnalyser2Chart({
       try {
         const response = await fetch(
           buildApiUrl(findingsPath, {
+            ...(dataDate ? { dataDate } : {}),
             spiId,
             diagramEnvironment: selectedEnvironmentKey,
             diagramSecurityDomain: selectedSecurityDomainKey,
@@ -1586,7 +1600,8 @@ export function IctSystemImpactAnalyser2Chart({
             diagramSearch,
             diagramSearchAxis: activeSelectedSearchOption?.axisKey,
             diagramSearchValue: activeSelectedSearchOption?.value,
-            diagramSystemIds: systemScopeKey
+            diagramSystemIds: systemScopeKey,
+            diagramNetworkIds: networkScopeKey
           }),
           { cache: "no-store" }
         );
@@ -1603,11 +1618,13 @@ export function IctSystemImpactAnalyser2Chart({
     },
     [
       diagramSearch,
+      dataDate,
       findingsPath,
       selectedAssetTypeKey,
       selectedEnvironmentKey,
       selectedFindingCriticalityKey,
       activeSelectedSearchOption,
+      networkScopeKey,
       selectedSecurityDomainKey,
       systemScopeKey
     ]
@@ -1783,7 +1800,7 @@ export function IctSystemImpactAnalyser2Chart({
       <section className={chartSurfaceClass(embedded)}>
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
         <p className="mt-3 rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
-          {loadError ?? "Unable to load ICT System Impact Analyser."}
+          {loadError ?? `Unable to load ${analyserName}.`}
         </p>
       </section>
     );
@@ -1961,7 +1978,7 @@ export function IctSystemImpactAnalyser2Chart({
                 <canvas
                   ref={overlayCanvasRef}
                   role="img"
-                  aria-label="ICT System Impact Analyser Canvas WebGL parallel coordinates"
+                  aria-label={`${analyserName} Canvas WebGL parallel coordinates`}
                   className="absolute inset-0 h-full w-full cursor-pointer"
                   onClick={handleOverlayClick}
                   onPointerMove={handleOverlayPointerMove}
@@ -1971,7 +1988,7 @@ export function IctSystemImpactAnalyser2Chart({
                   <p className="pointer-events-none absolute left-3 top-3 z-20 max-w-sm rounded-md border border-sky-300/15 bg-slate-900/80 px-3 py-2 text-xs text-slate-300/80 shadow-lg">
                     {isCiDiagramMode
                       ? "No CI relationship paths match the selected filters."
-                      : "No ICT System Impact Analyser findings match the selected filters."}
+                      : `No ${analyserName} findings match the selected filters.`}
                   </p>
                 ) : null}
                 {hoverInfo ? (
@@ -2000,7 +2017,7 @@ export function IctSystemImpactAnalyser2Chart({
                 {isDiagramInitialLoading ? (
                   <ImpactAnalyserLoadingOverlay
                     title="Loading Diagram"
-                    message="Building the ICT System Impact Analyser paths and node index."
+                    message={`Building the ${analyserName} paths and node index.`}
                   />
                 ) : null}
                 {!isCiDiagramMode && isDrillThroughLoading ? (
@@ -2023,13 +2040,13 @@ export function IctSystemImpactAnalyser2Chart({
       {!isCiDiagramMode && drillThroughData ? (
         <RiskFindingsDrillThrough
           selection={{
-            id: `ict-system-impact-analyser-spi-${drillThroughData.selectedSpiId}`,
+            id: `${analyserSlug}-spi-${drillThroughData.selectedSpiId}`,
             label: `SPI ${drillThroughData.selectedSpiId}`,
             findings: drillThroughData.findings,
             totalCount: drillThroughData.totalCount,
             lockedSpiId: drillThroughData.selectedSpiId,
-            emptyMessage: "No open findings were generated for the selected ICT System Impact Analyser SPI.",
-            exportSlug: `ict-system-impact-analyser-spi-${drillThroughData.selectedSpiId}`
+            emptyMessage: `No open findings were generated for the selected ${analyserName} SPI.`,
+            exportSlug: `${analyserSlug}-spi-${drillThroughData.selectedSpiId}`
           }}
           allFindings={drillThroughData.allFindings}
           assetHighRiskCvesByAssetId={drillThroughData.assetHighRiskCvesByAssetId}

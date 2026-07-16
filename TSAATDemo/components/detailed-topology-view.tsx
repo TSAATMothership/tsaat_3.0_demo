@@ -7154,6 +7154,8 @@ export function DetailedTopologyView({
                   embedded
                   dataPath={impactAnalyserDataPath}
                   findingsPath={impactAnalyserFindingsPath}
+                  analyserName={impactAnalyserTitle}
+                  analyserSlug={isSystemImpactAnalyser ? "ict-system-impact-analyser" : "network-impact-analyser"}
                   title={impactAnalyserTitle}
                   headingTooltip={impactAnalyserHeadingTooltip}
                   assetAxisLabel="Assets"
@@ -7506,6 +7508,8 @@ export function DetailedTopologyView({
                       embedded
                       sourceRows={ciAnalyserRows}
                       diagramMode="ci"
+                      analyserName="CI Analyser"
+                      analyserSlug="ci-analyser"
                       title="CI Analyser"
                       headingTooltip="CI relationship analyser for assets related to the selected configuration item."
                       assetAxisLabel="Asset"

@@ -1402,6 +1402,7 @@ export default async function CyberCopPage({
         }
         networkSpiHeatmapModel={networkSpiHeatmapModel}
         systemSpiHeatmapModel={systemSpiHeatmapModel}
+        networkOptions={networks.map(({ id, name }) => ({ id, name }))}
         spiDefinitions={spiDefinitions}
         selectedSpiId={selectedSpiId}
         initialMeasureSearch={measureSearch}

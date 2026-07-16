@@ -202,7 +202,7 @@ No runtime calculations are performed.
 - **Primary user roles:** cyber operations leadership, cyber analysts, risk managers, network owners, ICT system owners. These roles are inferred from page function rather than explicitly modelled in code.
 
 ## 2. Page Summary
-This page is the main operational dashboard. It applies the shared filter model, loads the requested dataset snapshot, computes analytics at runtime, and renders three in-page tabs: `Overview`, `Impact`, and `Action`.
+This page is the main operational dashboard. It applies the shared filter model, loads the requested dataset snapshot, computes analytics at runtime, and renders seven in-page tabs: `Overview`, `Impact`, `Networks - SPI Heatmap`, `ICT System - SPI Heatmap`, `ICT System Impact Analyser`, `Network Impact Analyser`, and `Action`.
 
 Major dependencies:
 
@@ -238,6 +238,12 @@ Major dependencies:
 - **System behaviour:** the analyser starts with no systems selected, does not request analyser data until Run is selected, and scopes its data and SPI drill-through requests to the applied ICT system selection.
 - **Outcome:** detailed ICT system impact paths can be investigated without occupying an Impact chart sub-tab.
 
+### Feature: Network Impact Analyser Tab
+- **What it does:** provides a run-gated multi-network impact analyser immediately after `ICT System Impact Analyser`.
+- **User perspective:** the user selects one or more real networks in the current Cyber COP scope and explicitly selects Run to build the aggregate network report.
+- **System behaviour:** pending selection is local and is not written to the URL; the analyser starts with no selection, Run remains disabled until a network is selected, and changing or clearing the pending selection removes the previously applied report. On Run, each selected network uses the same topology, declared-asset, direct-asset, finding, Network axis, Assets axis, Asset Type filter, Asset Details, and SPI findings model as the single-network drill-through. Overlapping model assets are de-duplicated while their real network names are retained.
+- **Outcome:** one or more network impact scopes can be compared in a full-size Cyber COP report without opening separate network drill-through tabs.
+
 ### Feature: Action Tab
 - **What it does:** shows immediate action, remediation backlog, discovery gaps, modelling gaps, throughput, aging, oldest findings, and quick wins.
 - **User perspective:** the user can move from posture awareness to remediation planning.
@@ -245,7 +251,7 @@ Major dependencies:
 - **Outcome:** the page produces a tactical remediation view.
 
 ### Feature: Client-Side Tab State
-- **What it does:** switches among the Cyber COP overview, impact, SPI heatmap, ICT System Impact Analyser, and action tabs.
+- **What it does:** switches among the Cyber COP overview, impact, SPI heatmap, ICT System Impact Analyser, Network Impact Analyser, and action tabs.
 - **User perspective:** the dashboard changes without navigating to a new route.
 - **System behaviour:** tab state is local React state inside `CyberCopDashboard`; it is not encoded in the URL.
 - **Outcome:** interaction is fast, but tabs cannot be deep-linked directly.
@@ -257,6 +263,7 @@ Major dependencies:
 | Cyber COP | Overview tab | Compliance and risk briefing | Open tab | Renders compliance tiles, risk charts, severity mix, daily trends | runtime analytics | Briefing dashboard | default tab | zero-safe values | `CyberCopDashboard` | Executive posture view | tab state is local only |
 | Cyber COP | Impact tab | Operational impact rollups | Open tab and optionally select leaderboard rows | Filters impact charts by selected service, mission, or system | open findings, system relationships | Impact charts and leaderboards | impact is based on open findings | selection clears when source leaves scope | mission/service tables | Business and mission prioritisation | search is client-side |
 | Cyber COP | ICT System Impact Analyser tab | Run-gated selected-system impact analysis | Open the main analyser tab, select one or more ICT systems, then select Run | Mounts and loads the analyser only after Run with the applied ICT system IDs | current Impact ICT system scope, analyser selection, open findings | Selected-system analyser diagram and SPI drill-throughs | defaults to no ICT system selection; Run requires at least one selection | unavailable systems are removed when the current Impact scope changes; changing or clearing the pending selection removes the previous diagram | `CyberCopDashboard`, impact analyser API | Intentional full-size ICT system impact analysis | positioned immediately after `ICT System - SPI Heatmap`; selection is local state and is not written to the URL |
+| Cyber COP | Network Impact Analyser tab | Run-gated selected-network impact analysis | Open the main analyser tab, select one or more networks, then select Run | Unions and de-duplicates the selected network topology models, then mounts the analyser with the applied network IDs | current real-network scope, analyser selection, topology and asset relationships, open findings | Aggregate network analyser diagram, Asset Details, and SPI drill-throughs | defaults to no network selection; Run requires at least one selection; selection alone never loads data | invalid or out-of-scope network IDs are excluded; changing or clearing selection removes the previous diagram; an empty applied scope fails closed | `CyberCopDashboard`, shared impact analyser and Cyber COP analyser API | Full-size multi-network impact analysis with single-network drill-through semantics | positioned immediately after `ICT System Impact Analyser`; pending and applied selection are local state and are not written to the URL |
 | Cyber COP | Action tab | Remediation planning view | Open tab | Aggregates backlog, throughput, aging, and quick wins | findings, lifecycle, discovery, modelling data | Action summary and trend charts | immediate action reflects highest-severity open work | zero-safe calculations | findings plus lifecycle and discovery inputs | Remediation planning | quick wins grouped by action text |
 | Cyber COP | Severity remap | Applies configured severity matrix | Load page | Rewrites finding severity by SPI and asset type before display | findings, assets, measures settings | Severity-aware charts and counts | configured settings apply globally across all six canonical asset types | defaults used if no saved settings exist | measures settings tables | Configurable severity model | applies even when findings come from DB |
 

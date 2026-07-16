@@ -17,7 +17,7 @@ The application uses hash routes such as `TSAATDemo_lite.html#/cyber-cop` so nav
 - The eight source snapshots are split into shared and date-specific chunks, gzip-compressed, embedded in the HTML, and expanded only when requested.
 - Existing `/api/...` calls execute through an in-browser compatibility layer.
 - PDF, CSV, JSON, XLSX, and SVG exports are generated or downloaded in the browser.
-- Login state lasts for the browser tab when storage is available.
+- Login state is shared by tabs opened from the same HTML file and expires after 12 hours or when Logout is selected, when browser storage is available.
 - Measures and Discovery settings reset when the HTML document is reopened, matching the restart behavior of `TSAATDemo`.
 
 ## Rebuild and verify

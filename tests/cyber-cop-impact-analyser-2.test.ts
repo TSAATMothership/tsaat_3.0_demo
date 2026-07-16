@@ -654,6 +654,32 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
     expect(modelAssetIds).toEqual(["printer-1", "server-1", "storage-1", "workstation-1"]);
   });
 
+  it("deduplicates aggregate network scope and preserves each asset network name", () => {
+    const edgeAsset = {
+      ...workstationAsset,
+      id: "edge-workstation-1",
+      name: "EDGE-WS-01",
+      hostname: "edge-ws-01.example.test",
+      networkId: "network-2",
+      systemContext: undefined
+    } as Asset;
+    const rows = buildNetworkImpactAnalyserRows({
+      assets: [serverAsset, edgeAsset],
+      findings,
+      systems,
+      modelAssetIds: ["server-1", "server-1", "edge-workstation-1"],
+      networkNameById: new Map([
+        ["network-1", "Core Network"],
+        ["network-2", "Edge Network"]
+      ])
+    });
+
+    expect(rows.filter((row) => row.assetId === "server-1" && row.findingId === null)).toHaveLength(1);
+    expect(rows.filter((row) => row.assetId === "edge-workstation-1" && row.findingId === null)).toHaveLength(1);
+    expect(rows.find((row) => row.assetId === "server-1")?.networkName).toBe("Core Network");
+    expect(rows.find((row) => row.assetId === "edge-workstation-1")?.networkName).toBe("Edge Network");
+  });
+
   it("builds ICT system-scoped asset rows with the selected system as the root", () => {
     const systemWithModel = {
       ...systems[0],
@@ -872,6 +898,74 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toContain("key={`cyber-cop-impact-analyser-run-${runRequestId}`}");
   });
 
+  it("adds a run-gated Network Impact Analyser immediately after the ICT System analyser", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+    const page = readRepoFile("app/cyber-cop/page.tsx");
+    const dataRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/route.ts");
+    const findingsRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/findings/route.ts");
+    const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+    const dashboardTabsStart = dashboard.indexOf("const cyberCopTabs");
+    const dashboardTabsEnd = dashboard.indexOf("];", dashboardTabsStart);
+    const dashboardTabs = dashboard.slice(dashboardTabsStart, dashboardTabsEnd);
+    const ictTab = '{ id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" }';
+    const networkTab = '{ id: "network-impact-analyser", label: "Network Impact Analyser" }';
+    const actionTab = '{ id: "action", label: "Action" }';
+
+    expect(dashboardTabs.indexOf(networkTab)).toBeGreaterThan(dashboardTabs.indexOf(ictTab));
+    expect(dashboardTabs.indexOf(actionTab)).toBeGreaterThan(dashboardTabs.indexOf(networkTab));
+    expect(dashboardTabs).toContain(`${ictTab},
+  ${networkTab},
+  ${actionTab}`);
+    expect(dashboard).toContain("xl:grid-cols-7");
+    expect(dashboard).toContain('activeTab === "network-impact-analyser"');
+    expect(dashboard).toContain('id="cyber-cop-tabpanel-network-impact-analyser"');
+    expect(dashboard).toContain("function NetworkImpactAnalyserRunPanel");
+    expect(dashboard).toContain('const [selectedNetworkIds, setSelectedNetworkIds] = useState<string[]>([])');
+    expect(dashboard).toContain('const [appliedNetworkIds, setAppliedNetworkIds] = useState<string[]>([])');
+    expect(dashboard).toContain('aria-label="Select networks for the Network Impact Analyser"');
+    expect(dashboard).toContain('role="group"');
+    expect(dashboard).toContain("event.currentTarget.contains(nextTarget)");
+    expect(dashboard).toContain('disabled={!selectedNetworkIds.length || isLoading}');
+    expect(dashboard).toContain("setAppliedNetworkIds([...selectedNetworkIds])");
+    expect(dashboard).toContain("setAppliedNetworkIds([])");
+    expect(dashboard).toContain("networkScopeIds={appliedNetworkIds}");
+    expect(dashboard).toContain("dataDate={snapshotDate}");
+    expect(dashboard).toContain('analyserName="Network Impact Analyser"');
+    expect(dashboard).toContain('assetAxisLabel="Assets"');
+    expect(dashboard).toContain('assetSearchCategory="Assets"');
+    expect(dashboard).toContain("includeNetworkAxis");
+    expect(dashboard).toContain("showAssetTypeFilter");
+    expect(dashboard).toContain("Select one or more networks, then select Run to load the analyser.");
+    expect(dashboard).toContain("key={`cyber-cop-network-impact-analyser-run-${runRequestId}`}");
+    expect(page).toContain("networkOptions={networks.map(({ id, name }) => ({ id, name }))}");
+
+    expect(component).toContain("networkScopeIds?: string[]");
+    expect(component).toContain("dataDate?: string");
+    expect(component).toContain("...(dataDate ? { dataDate } : {})");
+    expect(component).toContain("const networkScopeKey = hasNetworkScope");
+    expect(component).toContain("diagramNetworkIds: networkScopeKey");
+    expect(dataRoute).toContain('request.nextUrl.searchParams.get("diagramNetworkIds")');
+    expect(dataRoute).toContain("if (diagramNetworkIdsParam !== null)");
+    expect(dataRoute).toContain("const selectedNetworks = networks.filter");
+    expect(dataRoute).toContain("applyAssetFilters(dataset.assets, dataset.ictSystems, filters)");
+    expect(dataRoute).toContain("networkScopedAssetIds.has(assetId)");
+    expect(dataRoute).toContain("buildNetworkTopologyData");
+    expect(dataRoute).toContain("buildNetworkImpactAnalyserModelAssetIds");
+    expect(dataRoute).toContain("modelAssetIds.add(assetId)");
+    expect(dataRoute).toContain("networkNameById");
+    expect(dataRoute).toContain("buildNetworkImpactAnalyserRows");
+    expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramNetworkIds")');
+    expect(findingsRoute).toContain("scopedAssets = networkScopedAssets.filter");
+    expect(findingsRoute).toContain("buildNetworkImpactAnalyserRows");
+    expect(findingsRoute).toContain(
+      "systemIds: isNetworkScope || diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)"
+    );
+    expect(findingsRoute).toContain(
+      "totalCount: isNetworkScope ? selectedRows.filter((row) => row.findingId).length : selectedRows.length"
+    );
+  });
+
+
   it("uses lazy dynamic API routes for data and selected SPI findings", () => {
     const dataRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/route.ts");
     const findingsRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/findings/route.ts");
@@ -887,7 +981,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSearchAxis")');
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSearchValue")');
     expect(findingsRoute).toContain('request.nextUrl.searchParams.get("diagramSystemIds")');
-    expect(findingsRoute).toContain("systemIds: diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)");
+    expect(findingsRoute).toContain(
+      "systemIds: isNetworkScope || diagramSystemIdsParam === null ? null : readCsvParam(diagramSystemIdsParam)"
+    );
     expect(component).toContain('dataPath = "/api/cyber-cop/impact-analyser-2"');
     expect(component).toContain('findingsPath = "/api/cyber-cop/impact-analyser-2/findings"');
     expect(component).toContain("buildApiUrl(dataPath, {");
@@ -1291,7 +1387,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("diagramSecurityDomain: selectedSecurityDomainKey");
     expect(component).toContain("diagramFindingCriticality: selectedFindingCriticalityKey");
     expect(component).toContain("diagramAssetType: selectedAssetTypeKey");
-    expect(component).toContain("exportSlug: `ict-system-impact-analyser-spi-${drillThroughData.selectedSpiId}`");
+    expect(component).toContain('analyserSlug = "ict-system-impact-analyser"');
+    expect(component).toContain("exportSlug: `${analyserSlug}-spi-${drillThroughData.selectedSpiId}`");
     expect(component).toContain("viewport.scrollTo");
     expect(worker).toContain("Float32Array");
     expect(worker).toContain("rowMatchesSearch");

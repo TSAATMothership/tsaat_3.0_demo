@@ -7,7 +7,7 @@ TSAAT Demo is a database-free replica of the TSAAT application. It preserves the
 - Username: `demo`
 - Password: `demo123`
 
-The signed session-cookie and logout behavior are the same as TSAAT. The credentials are fixed for the demo and cannot be changed.
+The signed session-cookie and logout behavior are the same as TSAAT. Authentication is shared across browser tabs for the 12-hour session, and Logout invalidates the session across those tabs. The credentials are fixed for the demo and cannot be changed.
 
 ## Run the app
 

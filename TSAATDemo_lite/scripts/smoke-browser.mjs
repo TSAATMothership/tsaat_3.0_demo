@@ -151,6 +151,7 @@ const browser = await puppeteer.launch({
 
 try {
   const page = await browser.newPage();
+  let drillThroughPage = null;
   page.setDefaultTimeout(120_000);
   await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
   await page.setOfflineMode(true);
@@ -215,6 +216,68 @@ try {
   await assertAlignedWorkspaceFooters(page, { width: 1440, height: 900 }, workspaceRoutes);
   await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
 
+  // Internal drill-throughs intentionally use noreferrer/noopener. Prove the
+  // shared offline session authenticates the independent file:// tab without
+  // weakening that isolation or prompting for the demo credentials again.
+  await navigateAndWait(page, "/networks/net-1", "Aegis Mesh North");
+  const drillThroughSelector = 'a[target="_blank"][href^="#/systems/"]';
+  await page.waitForSelector(drillThroughSelector);
+  const drillThrough = await page.$eval(drillThroughSelector, (anchor) => ({
+    hash: anchor.getAttribute("href"),
+    label: anchor.textContent?.trim()
+  }));
+  assert(drillThrough.hash?.startsWith("#/systems/"), "The ICT system drill-through route was not available.");
+  assert(drillThrough.label, "The ICT system drill-through label was not available.");
+
+  const existingTargets = new Set(browser.targets());
+  await page.click(drillThroughSelector);
+  const drillThroughTarget = await browser.waitForTarget(
+    (target) => target.type() === "page" && !existingTargets.has(target),
+    { timeout: 15_000 }
+  );
+  drillThroughPage = await drillThroughTarget.page();
+  assert(drillThroughPage, "The ICT system drill-through did not open a browser tab.");
+  drillThroughPage.setDefaultTimeout(120_000);
+  drillThroughPage.on("pageerror", (error) => runtimeErrors.push(error.message));
+  drillThroughPage.on("console", (message) => {
+    if (message.type() === "error") {
+      runtimeErrors.push(message.text());
+    }
+  });
+  drillThroughPage.on("request", (request) => {
+    if (/^https?:/i.test(request.url())) {
+      networkRequests.push(request.url());
+    }
+  });
+  await drillThroughPage.setOfflineMode(true);
+  await drillThroughPage.waitForFunction(
+    (expectedHash, expectedLabel) =>
+      window.location.hash === expectedHash &&
+      !document.body.innerText.includes("Loading TSAAT...") &&
+      document.body.innerText.includes(expectedLabel),
+    {},
+    drillThrough.hash,
+    drillThrough.label
+  );
+  assert.equal(new URL(drillThroughPage.url()).protocol, "file:");
+  assert.equal(await drillThroughPage.evaluate(() => window.opener === null), true);
+  assert.equal(
+    await drillThroughPage.evaluate(() => Boolean(document.querySelector('input[autocomplete="username"]'))),
+    false,
+    "The authenticated drill-through tab unexpectedly displayed Sign In."
+  );
+  assert.deepEqual(
+    await drillThroughPage.evaluate(async () => (await fetch("/api/auth/session")).json()),
+    { authenticated: true, username: "demo" },
+    "The drill-through tab did not inherit the active offline session."
+  );
+  assert.equal(
+    await page.evaluate(() => window.location.hash),
+    "#/networks/net-1",
+    "Opening the drill-through tab must not navigate the source tab."
+  );
+  await page.bringToFront();
+
   // Exercise the menu's router.replace path under file://. Chromium treats
   // local files as opaque origins, so this catches regressions where a full
   // file URL is passed to history.replaceState.
@@ -246,6 +309,7 @@ try {
       events: globalThis.__TSAAT_SMOKE_ROUTE_EVENTS__,
       inputValue: document.querySelector('input[aria-label="Data date"]')?.value,
       overlayVisible: document.body.innerText.includes("Loading selected date..."),
+      bodyText: document.body.innerText.slice(0, 1200),
       readyMarkers: Array.from(document.querySelectorAll("[data-route-ready-key]"), (marker) =>
         marker.getAttribute("data-route-ready-key")
       )
@@ -369,6 +433,203 @@ try {
     return !text.includes("Running...") && /open server findings|finding paths|relationship path/.test(text);
   });
 
+  await page.evaluate(() => {
+    const originalFetch = window.fetch.bind(window);
+    globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__ = [];
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/cyber-cop/impact-analyser-2")) {
+        globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.push(url);
+      }
+      return originalFetch(input, init);
+    };
+  });
+  const networkTabSelected = await page.evaluate(() => {
+    const button = Array.from(document.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent?.trim() === "Network Impact Analyser"
+    );
+    button?.click();
+    return Boolean(button);
+  });
+  assert(networkTabSelected, "Network Impact Analyser tab was not found.");
+  await page.waitForSelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+  const initialNetworkRunDisabled = await page.evaluate(() => {
+    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    const panel = selector?.closest('[role="tabpanel"]');
+    const run = Array.from(panel?.querySelectorAll("button") ?? []).find(
+      (candidate) => candidate.textContent?.trim() === "Run"
+    );
+    return Boolean(run?.disabled);
+  });
+  assert(initialNetworkRunDisabled, "Network Impact Analyser Run must start disabled.");
+  await page.click('button[aria-label="Select networks for the Network Impact Analyser"]');
+  await page.waitForSelector('[role="group"][aria-label="Networks"] input[type="checkbox"]');
+  const networkOptionCount = await page.$$eval(
+    '[role="group"][aria-label="Networks"] input[type="checkbox"]',
+    (checkboxes) => checkboxes.length
+  );
+  assert(networkOptionCount >= 2, "Network Impact Analyser requires at least two demo network options.");
+  const networkCheckboxes = await page.$$('[role="group"][aria-label="Networks"] input[type="checkbox"]');
+  await networkCheckboxes[0].click();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const networkSelectorStayedOpen = await page.evaluate(() => {
+    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    return selector?.getAttribute("aria-expanded") === "true" &&
+      Boolean(document.querySelector('[role="group"][aria-label="Networks"]'));
+  });
+  assert(networkSelectorStayedOpen, "The network selector closed after the first checkbox selection.");
+  const remainingNetworkCheckboxes = await page.$$(
+    '[role="group"][aria-label="Networks"] input[type="checkbox"]'
+  );
+  await remainingNetworkCheckboxes[1].click();
+  await page.click('button[aria-label="Select networks for the Network Impact Analyser"]');
+  await page.waitForFunction(() => {
+    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    return selector?.getAttribute("aria-expanded") === "false";
+  });
+  const preRunNetworkRequests = await page.evaluate(() => globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.slice());
+  assert.deepEqual(preRunNetworkRequests, [], "Selecting networks must not load the analyser before Run.");
+  const networkRunSelected = await page.evaluate(() => {
+    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    const panel = selector?.closest('[role="tabpanel"]');
+    const button = Array.from(panel?.querySelectorAll("button") ?? []).find(
+      (candidate) => candidate.textContent?.trim() === "Run" && !candidate.disabled
+    );
+    button?.click();
+    return Boolean(button);
+  });
+  assert(networkRunSelected, "Network Impact Analyser Run button was not enabled.");
+  await page.waitForFunction(() => {
+    const text = document.body.innerText;
+    return !text.includes("Running...") && /finding paths across/.test(text);
+  });
+  const networkImpactResult = await page.evaluate(() => {
+    const requests = globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.slice();
+    const dataRequest = requests.find((url) => !url.includes("/findings"));
+    const scope = dataRequest
+      ? new URL(dataRequest, window.location.href).searchParams.get("diagramNetworkIds")?.split(",").filter(Boolean) ?? []
+      : [];
+    const requestDataDate = dataRequest
+      ? new URL(dataRequest, window.location.href).searchParams.get("dataDate")
+      : null;
+    return {
+      requests,
+      scope,
+      requestDataDate,
+      hasNetworkCanvas: Boolean(
+        document.querySelector('canvas[aria-label="Network Impact Analyser Canvas WebGL parallel coordinates"]')
+      ),
+      hasAssetTypeFilter: document.body.textContent?.includes("Asset Type") ?? false
+    };
+  });
+  assert.equal(networkImpactResult.scope.length, 2, "The analyser request must contain both selected network IDs.");
+  assert.equal(
+    networkImpactResult.requestDataDate,
+    apiResults.snapshotDate,
+    "The analyser request must preserve the Cyber COP snapshot date in the lite hash router."
+  );
+  assert.deepEqual(
+    networkImpactResult.scope,
+    [...networkImpactResult.scope].sort(),
+    "The analyser request network scope must be stable and sorted."
+  );
+  assert(networkImpactResult.hasNetworkCanvas, "Network Impact Analyser canvas was not rendered.");
+  assert(networkImpactResult.hasAssetTypeFilter, "Network Impact Analyser Asset Type filter was not rendered.");
+  await page.click('button[aria-label="Select networks for the Network Impact Analyser"]');
+  await page.waitForSelector('[role="group"][aria-label="Networks"]');
+  const clearedNetworkSelection = await page.evaluate(() => {
+    const group = document.querySelector('[role="group"][aria-label="Networks"]');
+    const clear = Array.from(group?.querySelectorAll("button") ?? []).find(
+      (candidate) => candidate.textContent?.includes("Clear selection")
+    );
+    clear?.click();
+    return Boolean(clear);
+  });
+  assert(clearedNetworkSelection, "Network selection Clear action was not found.");
+  await page.waitForFunction(
+    () =>
+      document.body.innerText.includes("Select one or more networks, then select Run to load the analyser.") &&
+      !document.querySelector('canvas[aria-label="Network Impact Analyser Canvas WebGL parallel coordinates"]')
+  );
+  const postClearNetworkRequests = await page.evaluate(() => globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.slice());
+  assert.deepEqual(
+    postClearNetworkRequests,
+    networkImpactResult.requests,
+    "Clearing the pending network selection must not auto-load another report."
+  );
+  const networkFindingsApiResult = await page.evaluate(async (networkIds) => {
+    const params = new URLSearchParams({ diagramNetworkIds: networkIds.join(",") });
+    const dataResponse = await fetch(`/api/cyber-cop/impact-analyser-2?${params}`);
+    params.set("spiId", "1");
+    const findingsResponse = await fetch(`/api/cyber-cop/impact-analyser-2/findings?${params}`);
+    const dualScopeParams = new URLSearchParams(params);
+    dualScopeParams.set("diagramSystemIds", "unknown-system");
+    const dualScopeFindingsResponse = await fetch(
+      `/api/cyber-cop/impact-analyser-2/findings?${dualScopeParams}`
+    );
+    const unknownScopeResponse = await fetch(
+      "/api/cyber-cop/impact-analyser-2?diagramNetworkIds=unknown-network"
+    );
+    const data = await dataResponse.json();
+    const findings = await findingsResponse.json();
+    const dualScopeFindings = await dualScopeFindingsResponse.json();
+    const unknownScope = await unknownScopeResponse.json();
+    const filterDomain =
+      (data.rows ?? []).find((row) => row.hasIctSystem)?.securityDomain ?? data.rows?.[0]?.securityDomain ?? null;
+    const filteredParams = new URLSearchParams({ diagramNetworkIds: networkIds.join(",") });
+    if (filterDomain) {
+      filteredParams.set("securityDomain", filterDomain);
+    }
+    const filteredResponse = await fetch(`/api/cyber-cop/impact-analyser-2?${filteredParams}`);
+    const filteredData = await filteredResponse.json();
+    const modelAssetIds = new Set((data.rows ?? []).map((row) => row.assetId));
+    return {
+      dataStatus: dataResponse.status,
+      findingsStatus: findingsResponse.status,
+      dualScopeFindingsStatus: dualScopeFindingsResponse.status,
+      filteredStatus: filteredResponse.status,
+      unknownScopeStatus: unknownScopeResponse.status,
+      rowCount: data.rows?.length ?? 0,
+      allFindingCount: findings.allFindings?.length ?? 0,
+      dualScopeAllFindingCount: dualScopeFindings.allFindings?.length ?? -1,
+      outOfScopeFindingCount: (findings.allFindings ?? []).filter((finding) => !modelAssetIds.has(finding.assetId)).length,
+      hasNumericTotalCount: typeof findings.totalCount === "number",
+      unknownScopeRowCount: unknownScope.rows?.length ?? -1,
+      filteredRowCount: filteredData.rows?.length ?? 0,
+      filteredWrongDomainCount: (filteredData.rows ?? []).filter((row) => row.securityDomain !== filterDomain).length,
+      filteredAssignedSystemRowCount: (filteredData.rows ?? []).filter((row) => row.hasIctSystem).length
+    };
+  }, networkImpactResult.scope);
+  assert.equal(networkFindingsApiResult.dataStatus, 200);
+  assert.equal(networkFindingsApiResult.findingsStatus, 200);
+  assert.equal(networkFindingsApiResult.dualScopeFindingsStatus, 200);
+  assert.equal(networkFindingsApiResult.filteredStatus, 200);
+  assert.equal(networkFindingsApiResult.unknownScopeStatus, 200);
+  assert(networkFindingsApiResult.rowCount > 0, "Multi-network analyser API returned no model rows.");
+  assert(networkFindingsApiResult.allFindingCount > 0, "Multi-network analyser findings API returned no findings.");
+  assert.equal(
+    networkFindingsApiResult.outOfScopeFindingCount,
+    0,
+    "The multi-network findings API must use the same model asset scope as the analyser rows."
+  );
+  assert(networkFindingsApiResult.hasNumericTotalCount, "Multi-network findings API did not return a numeric total.");
+  assert.equal(networkFindingsApiResult.unknownScopeRowCount, 0, "An unknown network scope must fail closed.");
+  assert.equal(
+    networkFindingsApiResult.dualScopeAllFindingCount,
+    networkFindingsApiResult.allFindingCount,
+    "Network-scoped findings must consistently ignore an incompatible diagramSystemIds parameter."
+  );
+  assert(networkFindingsApiResult.filteredRowCount > 0, "The active Cyber COP security-domain scope returned no rows.");
+  assert.equal(
+    networkFindingsApiResult.filteredWrongDomainCount,
+    0,
+    "Network analyser rows must respect the active Cyber COP security-domain filter."
+  );
+  assert(
+    networkFindingsApiResult.filteredAssignedSystemRowCount > 0,
+    "Filtered network analyser rows lost their ICT system attribution."
+  );
+
   const logoutSelected = await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.trim().toLowerCase() === "logout"
@@ -380,11 +641,17 @@ try {
   await page.waitForFunction(() => window.location.hash === "#/login");
   const session = await page.evaluate(async () => (await fetch("/api/auth/session")).json());
   assert.equal(session.authenticated, false);
+  assert(drillThroughPage, "The drill-through tab was unavailable for logout verification.");
+  await drillThroughPage.bringToFront();
+  await drillThroughPage.waitForFunction(() => window.location.hash.startsWith("#/login"), { polling: 100 });
+  const drillThroughSession = await drillThroughPage.evaluate(async () => (await fetch("/api/auth/session")).json());
+  assert.equal(drillThroughSession.authenticated, false);
+  await drillThroughPage.close();
 
   assert.deepEqual(networkRequests, [], "The offline application attempted an HTTP request.");
   assert.deepEqual(runtimeErrors, [], "The offline application emitted browser errors.");
   console.log(
-    "Browser smoke passed: login, 9 routes, file-origin date replacement, dynamic details, APIs, settings, exports, worker, and logout."
+    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, dynamic details, APIs, settings, exports, ICT and multi-network analyser runs, worker, and cross-tab logout."
   );
   console.log("Network audit passed: zero HTTP or HTTPS requests while Chromium was offline.");
 } finally {

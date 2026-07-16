@@ -24,6 +24,8 @@ assert.doesNotMatch(
   "The generated analyser must not contain the retired vertical axis-divider stroke."
 );
 assert(html.includes("demo123"), "The hard-coded demo credential must be packaged.");
+assert(html.includes("Network Impact Analyser"), "The Network Impact Analyser tab must be packaged.");
+assert(html.includes("diagramNetworkIds"), "The multi-network analyser request contract must be packaged.");
 assert(details.size > 1_000_000, "Output is unexpectedly small and likely incomplete.");
 
 console.log(`Verified one self-contained HTML application (${(details.size / 1024 / 1024).toFixed(2)} MiB).`);

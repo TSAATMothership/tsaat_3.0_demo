@@ -337,13 +337,15 @@ export function buildNetworkImpactAnalyserRows({
   findings,
   systems,
   modelAssetIds,
-  networkName
+  networkName,
+  networkNameById
 }: {
   assets: Asset[];
   findings: Finding[];
   systems: Array<Pick<ICTSystem, "id" | "name">>;
   modelAssetIds: Iterable<string>;
   networkName?: string;
+  networkNameById?: Map<string, string>;
 }): CyberCopImpactAnalyserRow[] {
   const modelAssetIdSet = new Set(modelAssetIds);
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
@@ -352,7 +354,7 @@ export function buildNetworkImpactAnalyserRows({
     .map((assetId) => assetsById.get(assetId))
     .filter((asset): asset is Asset => Boolean(asset))
     .sort((left, right) => assetDisplayName(left).localeCompare(assetDisplayName(right)));
-  const rowOptions = { fallbackNetworkName: networkName };
+  const rowOptions = { fallbackNetworkName: networkName, networkNameById };
   const rows: CyberCopImpactAnalyserRow[] = scopedAssets.map((asset) =>
     rowForAssetFinding(asset, null, systemNameById, rowOptions)
   );
