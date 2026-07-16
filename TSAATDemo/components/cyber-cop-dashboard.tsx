@@ -1732,14 +1732,6 @@ function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
   );
 }
 
-function CyberCopTabFooter() {
-  return (
-    <footer className="mt-auto shrink-0 border-t border-sky-300/15 bg-slate-950/30">
-      <div className="px-4 py-3 text-center text-xs text-slate-300/70">TSAAT | Cyber Operations Compliance Reporting.</div>
-    </footer>
-  );
-}
-
 export function CyberCopDashboard({
   snapshotDate,
   filtersSlot,
@@ -2126,11 +2118,11 @@ export function CyberCopDashboard({
         ? "border-cyan-300/50 bg-cyan-500/15 text-cyan-100"
         : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
     }`;
-  const tabPanelClass = "h-[min(calc(100vh-19rem+100px),1228px)] overflow-hidden";
+  const tabPanelClass = "min-h-0 flex-1 overflow-hidden";
 
   return (
-    <div className="space-y-2">
-      <section className="panel p-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <section className="panel shrink-0 p-2">
         <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
           {cyberCopTabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -2207,7 +2199,6 @@ export function CyberCopDashboard({
                 />
               </div>
             </div>
-            <CyberCopTabFooter />
           </div>
         </div>
       ) : null}
@@ -2372,7 +2363,6 @@ export function CyberCopDashboard({
                 />
               </div>
             </div>
-            <CyberCopTabFooter />
           </div>
         </div>
       ) : null}
@@ -2401,7 +2391,6 @@ export function CyberCopDashboard({
                 <ActionQuickWinsTable rows={actionQuickWins.slice(0, 8)} />
               </div>
             </div>
-            <CyberCopTabFooter />
           </div>
         </div>
       ) : null}
@@ -2413,7 +2402,7 @@ export function CyberCopDashboard({
           aria-labelledby="cyber-cop-tab-networks-spi-heatmap"
           className={tabPanelClass}
         >
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
             <div className="min-h-0">{networkSpiHeatmapFilterSlot}</div>
             <div className="min-h-0">
               <MeasuresSpiHeatmapSection
@@ -2425,7 +2414,6 @@ export function CyberCopDashboard({
                 localSpiFilter
               />
             </div>
-            <CyberCopTabFooter />
           </div>
         </div>
       ) : null}
@@ -2437,7 +2425,7 @@ export function CyberCopDashboard({
           aria-labelledby="cyber-cop-tab-systems-spi-heatmap"
           className={tabPanelClass}
         >
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
+          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
             <div className="min-h-0">{systemSpiHeatmapFilterSlot}</div>
             <div className="min-h-0">
               <MeasuresSpiHeatmapSection
@@ -2449,7 +2437,6 @@ export function CyberCopDashboard({
                 localSpiFilter
               />
             </div>
-            <CyberCopTabFooter />
           </div>
         </div>
       ) : null}
@@ -2461,14 +2448,13 @@ export function CyberCopDashboard({
           aria-labelledby="cyber-cop-tab-ict-system-impact-analyser"
           className={tabPanelClass}
         >
-          <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)]">
             <div className="min-h-0 min-w-0">
               <IctSystemImpactAnalyserRunPanel
                 systemOptions={activeImpactSystemRows}
                 spiDefinitions={spiDefinitions}
               />
             </div>
-            <CyberCopTabFooter />
           </div>
         </div>
       ) : null}

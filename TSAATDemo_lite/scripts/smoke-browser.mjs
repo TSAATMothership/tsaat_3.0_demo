@@ -46,6 +46,56 @@ async function navigateAndWait(page, href, expectedText) {
   );
 }
 
+async function assertAlignedWorkspaceFooters(page, viewport, routes) {
+  await page.setViewport({ ...viewport, deviceScaleFactor: 1 });
+  const measurements = [];
+
+  for (const [href, expectedText] of routes) {
+    await navigateAndWait(page, href, expectedText);
+    const measurement = await page.evaluate(() => {
+      const workspaces = Array.from(document.querySelectorAll('[data-full-height-workspace="true"]'));
+      const footers = Array.from(document.querySelectorAll('[data-workspace-footer="true"]'));
+      const workspaceRect = workspaces[0]?.getBoundingClientRect();
+      const footerRect = footers[0]?.getBoundingClientRect();
+      return {
+        workspaceCount: workspaces.length,
+        footerCount: footers.length,
+        workspace: workspaceRect
+          ? { top: workspaceRect.top, bottom: workspaceRect.bottom, height: workspaceRect.height }
+          : null,
+        footer: footerRect ? { top: footerRect.top, bottom: footerRect.bottom, height: footerRect.height } : null,
+        documentHeight: document.documentElement.scrollHeight,
+        viewportHeight: window.innerHeight
+      };
+    });
+
+    assert.equal(measurement.workspaceCount, 1, `${href} must render exactly one full-height workspace.`);
+    assert.equal(measurement.footerCount, 1, `${href} must render exactly one workspace footer.`);
+    assert(measurement.workspace, `${href} workspace geometry was not available.`);
+    assert(measurement.footer, `${href} footer geometry was not available.`);
+    assert.equal(
+      measurement.documentHeight,
+      measurement.viewportHeight,
+      `${href} must not push its workspace footer below the viewport.`
+    );
+    measurements.push({ href, ...measurement });
+  }
+
+  const reference = measurements[0];
+  for (const measurement of measurements.slice(1)) {
+    for (const property of ["top", "bottom", "height"]) {
+      assert(
+        Math.abs(measurement.workspace[property] - reference.workspace[property]) <= 1,
+        `${measurement.href} workspace ${property} differs from Cyber COP at ${viewport.width}x${viewport.height}.`
+      );
+      assert(
+        Math.abs(measurement.footer[property] - reference.footer[property]) <= 1,
+        `${measurement.href} footer ${property} differs from Cyber COP at ${viewport.width}x${viewport.height}.`
+      );
+    }
+  }
+}
+
 const browser = await puppeteer.launch({
   headless: true,
   executablePath: browserPath(),
@@ -106,6 +156,17 @@ try {
   for (const [href, expectedText] of routes) {
     await navigateAndWait(page, href, expectedText);
   }
+
+  const workspaceRoutes = [
+    ["/cyber-cop", "Compliance Scores"],
+    ["/networks", "Networks Roll-Up Posture Summary"],
+    ["/systems", "ICT Systems Roll-Up Posture Summary"],
+    ["/networks/net-1", "Aegis Mesh North"],
+    ["/systems/sys-1", "Falcon Ops Hub"]
+  ];
+  await assertAlignedWorkspaceFooters(page, { width: 1600, height: 1000 }, workspaceRoutes);
+  await assertAlignedWorkspaceFooters(page, { width: 1440, height: 900 }, workspaceRoutes);
+  await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
 
   // Exercise the menu's router.replace path under file://. Chromium treats
   // local files as opaque origins, so this catches regressions where a full

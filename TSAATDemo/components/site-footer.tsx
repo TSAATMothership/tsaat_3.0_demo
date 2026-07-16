@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 export function SiteFooter() {
   const pathname = usePathname() ?? "/";
   const isCyberCopPage = Boolean(pathname?.startsWith("/cyber-cop"));
+  const isNetworksPage = Boolean(pathname?.startsWith("/networks"));
+  const isSystemsPage = Boolean(pathname?.startsWith("/systems"));
   const isMeasuresPage = Boolean(pathname?.startsWith("/measures"));
   const isDiscoveryCoveragePage = Boolean(pathname?.startsWith("/discovery-coverage"));
   const usesWideFooterLayout = isMeasuresPage || isDiscoveryCoveragePage;
 
-  if (isCyberCopPage) {
+  if (isCyberCopPage || isNetworksPage || isSystemsPage) {
     return null;
   }
 

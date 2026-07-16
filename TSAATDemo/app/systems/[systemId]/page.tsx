@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
+import { FullHeightWorkspace } from "@/components/full-height-workspace";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
 import { NetworkComplianceOverview } from "@/components/network-compliance-overview";
 import { NetworkDetailRiskCharts } from "@/components/network-detail-risk-charts";
@@ -1536,9 +1537,7 @@ export default async function SystemDetailPage({
   const outOfWarrantyTrend = trendPointsFor("outOfWarrantyAssets");
   const nonCompliantDiscoveryCoverageTrend = trendPointsFor("nonCompliantDiscoveryCoverage");
   return (
-    <div
-      className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]"
-    >
+    <FullHeightWorkspace>
       <RouteReadyMarker pathname={`/systems/${system.id}`} searchParams={requestParams} />
       <section className="panel shrink-0 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1954,6 +1953,6 @@ export default async function SystemDetailPage({
       </div>
       ) : null}
       </div>
-    </div>
+    </FullHeightWorkspace>
   );
 }

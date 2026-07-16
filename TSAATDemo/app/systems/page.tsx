@@ -1,4 +1,5 @@
 import { FilterBar } from "@/components/filter-bar";
+import { FullHeightWorkspace } from "@/components/full-height-workspace";
 import {
   SystemsOverviewPanel,
   SystemsPostureKpiSummary
@@ -527,7 +528,7 @@ export default async function SystemsPage({
     : 0;
 
   return (
-    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+    <FullHeightWorkspace>
       <RouteReadyMarker pathname="/systems" searchParams={searchParams} />
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">ICT Systems View</p>
@@ -674,6 +675,6 @@ export default async function SystemsPage({
           </div>
         )}
       </div>
-    </div>
+    </FullHeightWorkspace>
   );
 }

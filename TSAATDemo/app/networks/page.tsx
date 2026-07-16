@@ -1,4 +1,5 @@
 import { FilterBar } from "@/components/filter-bar";
+import { FullHeightWorkspace } from "@/components/full-height-workspace";
 import {
   NetworksOverviewPanel,
   NetworksPostureKpiSummary
@@ -545,7 +546,7 @@ export default async function NetworksPage({
     : 0;
 
   return (
-    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+    <FullHeightWorkspace>
       <RouteReadyMarker pathname="/networks" searchParams={searchParams} />
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Networks View</p>
@@ -677,6 +678,6 @@ export default async function NetworksPage({
           </div>
         )}
       </div>
-    </div>
+    </FullHeightWorkspace>
   );
 }
