@@ -30,6 +30,7 @@ import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { isUnassignedNetworkId } from "@/lib/network-scope";
 import { buildNetworkTopologyData } from "@/lib/network-topology";
 import { paginate, parsePageState } from "@/lib/pagination";
+import { buildWeeklyOpenRiskTrend } from "@/lib/risk-trend";
 import {
   buildScopedDiscoveryToolCoverage,
   discoveryCoverageValueLabel
@@ -109,24 +110,6 @@ function findingMatchesSearch(finding: Finding, normalizedSearchTerm: string) {
     .toLowerCase();
 
   return text.includes(normalizedSearchTerm);
-}
-
-function toUtcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function parseUtcDateKey(dateKey: string): Date {
-  return new Date(`${dateKey}T00:00:00.000Z`);
-}
-
-function addUtcDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
-function formatUtcDay(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -226,82 +209,6 @@ function fallbackPriorityRank(status: ComplianceStatus, spiId: number, spiDefini
     return 90;
   }
   return spiDefinitions.find((definition) => definition.spiId === spiId)?.priorityOrder ?? 99;
-}
-
-function toFindingDateKey(timestamp?: string | null): string | null {
-  if (!timestamp) {
-    return null;
-  }
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return toUtcDateKey(parsed);
-}
-
-function buildNetworkDetailWeeklyRiskTrend(
-  findings: Finding[],
-  endDateKey: string,
-  dataAvailableUntilDateKey: string,
-  weeks = 13
-) {
-  const endDate = parseUtcDateKey(endDateKey);
-  const effectiveDataEndDateKey =
-    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
-  const earliestSevereOpenedDateKey = findings
-    .filter((finding) => finding.severity === "High Risk" || finding.severity === "Critical Exposure")
-    .map((finding) => toFindingDateKey(finding.timestamp))
-    .filter((dateKey): dateKey is string => Boolean(dateKey))
-    .sort()[0];
-
-  return Array.from({ length: weeks }, (_, index) => {
-    const weekOffset = weeks - 1 - index;
-    const pointDate = addUtcDays(endDate, -weekOffset * 7);
-    const pointDateKey = toUtcDateKey(pointDate);
-
-    if (
-      pointDateKey > effectiveDataEndDateKey ||
-      (earliestSevereOpenedDateKey && pointDateKey < earliestSevereOpenedDateKey) ||
-      !earliestSevereOpenedDateKey
-    ) {
-      return {
-        weekLabel: formatUtcDay(pointDate),
-        highRiskCount: null,
-        criticalExposureCount: null
-      };
-    }
-
-    let highRiskCount = 0;
-    let criticalExposureCount = 0;
-
-    for (const finding of findings) {
-      if (finding.severity !== "High Risk" && finding.severity !== "Critical Exposure") {
-        continue;
-      }
-
-      const openedDateKey = toFindingDateKey(finding.timestamp);
-      if (!openedDateKey || openedDateKey > pointDateKey) {
-        continue;
-      }
-
-      const closedDateKey = toFindingDateKey(finding.closedTimestamp);
-      if (closedDateKey && closedDateKey <= pointDateKey) {
-        continue;
-      }
-
-      if (finding.severity === "High Risk") {
-        highRiskCount += 1;
-      } else {
-        criticalExposureCount += 1;
-      }
-    }
-
-    return {
-      weekLabel: formatUtcDay(pointDate),
-      highRiskCount,
-      criticalExposureCount
-    };
-  });
 }
 
 interface NetworkKpiSnapshotMetrics {
@@ -667,9 +574,9 @@ export default async function NetworkDetailPage({
     severity,
     count: riskSeverityCounts.get(severity) ?? 0
   }));
-  const networkDetailWeeklyRiskTrend = buildNetworkDetailWeeklyRiskTrend(
+  const networkDetailWeeklyRiskTrend = buildWeeklyOpenRiskTrend(
     networkScopedFindings,
-    requestedDataDate ?? todayDateKey(),
+    requestedDataDate ?? dataset.snapshotDate,
     dataset.snapshotDate,
     13
   );

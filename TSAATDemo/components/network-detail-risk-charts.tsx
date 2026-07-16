@@ -2304,18 +2304,18 @@ export function NetworkDetailRiskCharts({
   const containerClass =
     layout === "stacked"
       ? "grid h-full min-h-0 gap-2.5 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"
-      : "grid h-full min-h-[285px] gap-3 lg:grid-cols-2";
-  const riskPanelClass =
-    layout === "stacked"
-      ? "panel-alt flex min-h-0 flex-col overflow-hidden p-2.5"
-      : "panel-alt flex min-h-[285px] flex-col overflow-hidden p-2.5";
-  const chartBodyClass = layout === "stacked" ? "mt-1.5 min-h-0 flex-1" : "mt-1.5 min-h-[170px] flex-1";
-  const chartMinHeight = layout === "stacked" ? 1 : 170;
+      : "grid h-full min-h-0 gap-3 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] lg:grid-cols-2 lg:grid-rows-1";
+  const riskPanelClass = "panel-alt flex min-h-0 flex-col overflow-hidden p-2.5";
+  const chartBodyClass = "mt-1.5 min-h-0 flex-1";
+  const chartInitialDimension = { width: 640, height: 170 };
+  const hasWeeklyRiskTrendData = riskProfile.weeklyTrend.some(
+    (point) => point.highRiskCount !== null || point.criticalExposureCount !== null
+  );
 
   return (
     <>
-      <div className="h-full min-h-0 overflow-hidden">
-      <div className={containerClass}>
+      <div data-risk-charts="true" className="h-full min-h-0 overflow-hidden">
+        <div className={containerClass}>
         <section className={riskPanelClass}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-[220px] flex-1">
@@ -2352,7 +2352,13 @@ export function NetworkDetailRiskCharts({
           </div>
           <div className={chartBodyClass}>
             {isMounted ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={chartMinHeight}>
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={1}
+                minHeight={1}
+                initialDimension={chartInitialDimension}
+              >
                 <BarChart data={riskProfile.severitySummary} layout="vertical" margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                   <XAxis type="number" allowDecimals={false} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -2385,7 +2391,7 @@ export function NetworkDetailRiskCharts({
           </div>
         </section>
 
-        <section className={riskPanelClass}>
+        <section data-risk-trend-chart="true" className={riskPanelClass}>
           <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Risk Trend (3 Months)</h3>
           <p className="mt-1 text-xs text-slate-300/80">
             Weekly open finding counts for Critical Exposure and High Risk.
@@ -2401,8 +2407,14 @@ export function NetworkDetailRiskCharts({
             </span>
           </div>
           <div className={chartBodyClass}>
-            {isMounted ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={chartMinHeight}>
+            {isMounted && hasWeeklyRiskTrendData ? (
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={1}
+                minHeight={1}
+                initialDimension={chartInitialDimension}
+              >
                 <LineChart data={riskProfile.weeklyTrend} margin={{ top: 2, right: 6, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="rgba(120,180,210,0.14)" />
                   <XAxis dataKey="weekLabel" minTickGap={14} tick={{ fill: "#a8c6d8", fontSize: 11 }} />
@@ -2425,6 +2437,10 @@ export function NetworkDetailRiskCharts({
                   />
                 </LineChart>
               </ResponsiveContainer>
+            ) : isMounted ? (
+              <div className="flex h-full min-h-[4rem] items-center justify-center rounded-md border border-dashed border-sky-300/20 bg-slate-950/35 px-4 text-center text-xs text-slate-300/80">
+                No High Risk or Critical Exposure trend data is available for this scope.
+              </div>
             ) : null}
           </div>
         </section>

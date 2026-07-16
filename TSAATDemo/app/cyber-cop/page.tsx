@@ -19,6 +19,7 @@ import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { buildNetworkPerformanceReportModel, buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
+import { buildWeeklyOpenRiskTrend } from "@/lib/risk-trend";
 import { applyAssetFilters } from "@/lib/selectors";
 import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { SpiDefinition } from "@/lib/spi-definitions";
@@ -327,38 +328,6 @@ function buildOpenFindingsDailySeries(
   }
 
   return points;
-}
-
-function buildWeeklyRiskTrend(
-  highRiskDaily: CyberCopDailyTrendPoint[],
-  criticalExposureDaily: CyberCopDailyTrendPoint[],
-  weeks = 13
-) {
-  const endDateKey = highRiskDaily[highRiskDaily.length - 1]?.date ?? criticalExposureDaily[criticalExposureDaily.length - 1]?.date;
-  if (!endDateKey) {
-    return [];
-  }
-
-  const endDate = parseUtcDateKey(endDateKey);
-  const highRiskByDate = new Map(highRiskDaily.map((point) => [point.date, point.count]));
-  const criticalExposureByDate = new Map(criticalExposureDaily.map((point) => [point.date, point.count]));
-
-  return Array.from({ length: weeks }, (_, index) => {
-    const weekOffset = weeks - 1 - index;
-    const pointDate = addUtcDays(endDate, -weekOffset * 7);
-    const pointDateKey = toUtcDateKey(pointDate);
-    const highRiskCount = highRiskByDate.has(pointDateKey)
-      ? (highRiskByDate.get(pointDateKey) ?? null)
-      : null;
-    const criticalExposureCount = criticalExposureByDate.has(pointDateKey)
-      ? (criticalExposureByDate.get(pointDateKey) ?? null)
-      : null;
-    return {
-      weekLabel: formatUtcDay(pointDate),
-      highRiskCount,
-      criticalExposureCount
-    };
-  });
 }
 
 function buildSystemImpact(
@@ -1355,7 +1324,12 @@ export default async function CyberCopPage({
     chartWindowEndDateKey,
     dataset.snapshotDate
   );
-  const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
+  const weeklyRiskTrend = buildWeeklyOpenRiskTrend(
+    analytics.findings,
+    chartAnchorDateKey,
+    dataset.snapshotDate,
+    13
+  );
 
   const missionImpact = buildMissionCapabilityImpact(openFindings, systems);
   const businessImpact = buildBusinessServiceImpact(openFindings, systems);

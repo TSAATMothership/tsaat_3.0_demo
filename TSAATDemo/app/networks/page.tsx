@@ -12,6 +12,7 @@ import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { filterRealNetworkEvaluations, filterRealNetworkFindings, filterRealNetworks } from "@/lib/network-scope";
 import { deriveOverallStatus } from "@/lib/posture";
+import { buildOpenFindingsDailySeries, buildWeeklyOpenRiskTrend } from "@/lib/risk-trend";
 import { applyAssetFilters } from "@/lib/selectors";
 import { Asset, ComplianceStatus, Finding, FindingSeverity } from "@/lib/types";
 
@@ -41,35 +42,6 @@ function complianceCounts(statuses: ComplianceStatus[]) {
 function scoreFromCounts(counts: { compliant: number; nonCompliant: number; unknown?: number; other?: number }) {
   const denominator = counts.compliant + counts.nonCompliant + (counts.unknown ?? 0) + (counts.other ?? 0);
   return denominator ? Number(((counts.compliant / denominator) * 100).toFixed(1)) : 0;
-}
-
-function toUtcDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function parseUtcDateKey(dateKey: string): Date {
-  return new Date(`${dateKey}T00:00:00.000Z`);
-}
-
-function addUtcDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
-function formatUtcDay(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-}
-
-function toFindingDateKey(timestamp?: string | null): string | null {
-  if (!timestamp) {
-    return null;
-  }
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return toUtcDateKey(parsed);
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -155,104 +127,6 @@ function resolveAssetIpAddress(asset: Asset): string {
     return "N/A";
   }
   return String(value).trim();
-}
-
-function buildOpenFindingsDailySeries(
-  findings: Finding[],
-  severity: "High Risk" | "Critical Exposure",
-  endDateKey: string,
-  dataAvailableUntilDateKey: string,
-  days = 365
-) {
-  const endDate = parseUtcDateKey(endDateKey);
-  const startDate = addUtcDays(endDate, -(days - 1));
-  const startDateKey = toUtcDateKey(startDate);
-  const effectiveDataEndDateKey =
-    dataAvailableUntilDateKey <= endDateKey ? dataAvailableUntilDateKey : endDateKey;
-  const events = new Map<string, number>();
-  let openAtWindowStart = 0;
-
-  for (const finding of findings) {
-    if (finding.severity !== severity) {
-      continue;
-    }
-
-    const openedDateKey = toFindingDateKey(finding.timestamp);
-    if (!openedDateKey) {
-      continue;
-    }
-    const closedDateKey = toFindingDateKey(finding.closedTimestamp);
-
-    if (openedDateKey < startDateKey && (!closedDateKey || closedDateKey >= startDateKey)) {
-      openAtWindowStart += 1;
-    }
-
-    if (openedDateKey >= startDateKey && openedDateKey <= effectiveDataEndDateKey) {
-      events.set(openedDateKey, (events.get(openedDateKey) ?? 0) + 1);
-    }
-    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= effectiveDataEndDateKey) {
-      events.set(closedDateKey, (events.get(closedDateKey) ?? 0) - 1);
-    }
-  }
-
-  const points: Array<{ date: string; label: string; count: number | null }> = [];
-  let running = openAtWindowStart;
-  let hasObservedData = openAtWindowStart > 0;
-  for (let offset = 0; offset < days; offset += 1) {
-    const pointDate = addUtcDays(startDate, offset);
-    const pointDateKey = toUtcDateKey(pointDate);
-    if (pointDateKey > effectiveDataEndDateKey) {
-      points.push({
-        date: pointDateKey,
-        label: formatUtcDay(pointDate),
-        count: null
-      });
-      continue;
-    }
-    if (events.has(pointDateKey)) {
-      hasObservedData = true;
-    }
-    running += events.get(pointDateKey) ?? 0;
-    points.push({
-      date: pointDateKey,
-      label: formatUtcDay(pointDate),
-      count: hasObservedData ? Math.max(0, running) : null
-    });
-  }
-
-  return points;
-}
-
-function buildWeeklyRiskTrend(
-  highRiskDaily: Array<{ date: string; count: number | null }>,
-  criticalExposureDaily: Array<{ date: string; count: number | null }>,
-  weeks = 13
-) {
-  const endDateKey = highRiskDaily[highRiskDaily.length - 1]?.date ?? criticalExposureDaily[criticalExposureDaily.length - 1]?.date;
-  if (!endDateKey) {
-    return [];
-  }
-
-  const endDate = parseUtcDateKey(endDateKey);
-  const highRiskByDate = new Map(highRiskDaily.map((point) => [point.date, point.count]));
-  const criticalExposureByDate = new Map(criticalExposureDaily.map((point) => [point.date, point.count]));
-
-  return Array.from({ length: weeks }, (_, index) => {
-    const weekOffset = weeks - 1 - index;
-    const pointDate = addUtcDays(endDate, -weekOffset * 7);
-    const pointDateKey = toUtcDateKey(pointDate);
-    const highRiskCount = highRiskByDate.has(pointDateKey)
-      ? (highRiskByDate.get(pointDateKey) ?? null)
-      : null;
-    const criticalExposureCount = criticalExposureByDate.has(pointDateKey)
-      ? (criticalExposureByDate.get(pointDateKey) ?? null)
-      : null;
-    return {
-      weekLabel: formatUtcDay(pointDate),
-      highRiskCount,
-      criticalExposureCount
-    };
-  });
 }
 
 export default async function NetworksPage({
@@ -439,7 +313,12 @@ export default async function NetworksPage({
     chartWindowEndDateKey,
     dataset.snapshotDate
   );
-  const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
+  const weeklyRiskTrend = buildWeeklyOpenRiskTrend(
+    networkScopedFindings,
+    selectedDataDate ?? dataset.snapshotDate,
+    dataset.snapshotDate,
+    13
+  );
 
   const networkOwnerById = new Map(filterRealNetworks(dataset.managedNetworks).map((network) => [network.id, network.owner?.trim() ?? ""]));
   const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));

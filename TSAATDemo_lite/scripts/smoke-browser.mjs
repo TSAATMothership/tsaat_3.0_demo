@@ -52,11 +52,23 @@ async function assertAlignedWorkspaceFooters(page, viewport, routes) {
 
   for (const [href, expectedText] of routes) {
     await navigateAndWait(page, href, expectedText);
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-risk-trend-chart="true"] .recharts-line-curve').length === 2,
+      { timeout: 15_000 }
+    );
     const measurement = await page.evaluate(() => {
       const workspaces = Array.from(document.querySelectorAll('[data-full-height-workspace="true"]'));
       const footers = Array.from(document.querySelectorAll('[data-workspace-footer="true"]'));
       const workspaceRect = workspaces[0]?.getBoundingClientRect();
       const footerRect = footers[0]?.getBoundingClientRect();
+      const riskTrendPanels = Array.from(document.querySelectorAll('[data-risk-trend-chart="true"]'));
+      const riskTrendPanel = riskTrendPanels[0];
+      const riskChartsHost = riskTrendPanel?.closest('[data-risk-charts="true"]');
+      const riskTrendSvg = riskTrendPanel?.querySelector("svg");
+      const riskTrendPanelRect = riskTrendPanel?.getBoundingClientRect();
+      const riskChartsHostRect = riskChartsHost?.getBoundingClientRect();
+      const riskTrendSvgRect = riskTrendSvg?.getBoundingClientRect();
+      const riskTrendCurves = Array.from(riskTrendPanel?.querySelectorAll(".recharts-line-curve") ?? []);
       return {
         workspaceCount: workspaces.length,
         footerCount: footers.length,
@@ -64,6 +76,21 @@ async function assertAlignedWorkspaceFooters(page, viewport, routes) {
           ? { top: workspaceRect.top, bottom: workspaceRect.bottom, height: workspaceRect.height }
           : null,
         footer: footerRect ? { top: footerRect.top, bottom: footerRect.bottom, height: footerRect.height } : null,
+        riskTrend: {
+          panelCount: riskTrendPanels.length,
+          panel: riskTrendPanelRect
+            ? { top: riskTrendPanelRect.top, bottom: riskTrendPanelRect.bottom, height: riskTrendPanelRect.height }
+            : null,
+          host: riskChartsHostRect
+            ? { top: riskChartsHostRect.top, bottom: riskChartsHostRect.bottom, height: riskChartsHostRect.height }
+            : null,
+          svg: riskTrendSvgRect ? { width: riskTrendSvgRect.width, height: riskTrendSvgRect.height } : null,
+          curveLengths: riskTrendCurves.map((curve) => curve.getTotalLength()),
+          xAxisLabels: Array.from(
+            riskTrendPanel?.querySelectorAll(".recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value") ?? [],
+            (label) => label.textContent?.trim() ?? ""
+          )
+        },
         documentHeight: document.documentElement.scrollHeight,
         viewportHeight: window.innerHeight
       };
@@ -73,6 +100,26 @@ async function assertAlignedWorkspaceFooters(page, viewport, routes) {
     assert.equal(measurement.footerCount, 1, `${href} must render exactly one workspace footer.`);
     assert(measurement.workspace, `${href} workspace geometry was not available.`);
     assert(measurement.footer, `${href} footer geometry was not available.`);
+    assert.equal(measurement.riskTrend.panelCount, 1, `${href} must render exactly one Risk Trend chart.`);
+    assert(measurement.riskTrend.panel, `${href} Risk Trend panel geometry was not available.`);
+    assert(measurement.riskTrend.host, `${href} Risk Trend host geometry was not available.`);
+    assert(measurement.riskTrend.svg, `${href} Risk Trend SVG geometry was not available.`);
+    assert(measurement.riskTrend.svg.width > 0, `${href} Risk Trend SVG must have a positive width.`);
+    assert(measurement.riskTrend.svg.height > 0, `${href} Risk Trend SVG must have a positive height.`);
+    assert.equal(measurement.riskTrend.curveLengths.length, 2, `${href} must render both Risk Trend lines.`);
+    assert(
+      measurement.riskTrend.curveLengths.every((length) => length > 0),
+      `${href} Risk Trend lines must contain more than one plotted point.`
+    );
+    assert(
+      measurement.riskTrend.xAxisLabels.length >= 2,
+      `${href} Risk Trend must render multiple weekly date labels.`
+    );
+    assert(
+      measurement.riskTrend.panel.top >= measurement.riskTrend.host.top - 1 &&
+        measurement.riskTrend.panel.bottom <= measurement.riskTrend.host.bottom + 1,
+      `${href} Risk Trend panel must not be clipped by its chart host.`
+    );
     assert.equal(
       measurement.documentHeight,
       measurement.viewportHeight,
