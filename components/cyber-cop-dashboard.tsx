@@ -93,17 +93,6 @@ export interface CyberCopImpactEntityTrend {
   weeklyTrend: CyberCopImpactEntityTrendPoint[];
 }
 
-export interface CyberCopActionOldestFindingRow {
-  findingId: string;
-  title: string;
-  severity: FindingSeverity;
-  spiLabel: string;
-  systemName: string;
-  openedDate: string;
-  ageDays: number;
-  recommendedAction: string;
-}
-
 export interface CyberCopActionQuickWinRow {
   actionText: string;
   criticalExposureCount: number;
@@ -178,6 +167,7 @@ export interface CyberCopDashboardProps {
   impactEntityTrends: CyberCopImpactEntityTrend[];
   actionPlan: {
     immediateAction: number;
+    criticalHighOpenFindingsOver60Days: number;
     nonCompliantOs: number;
     nonCompliantOsTotal: number;
     assetsOutOfWarrantyEol: number;
@@ -186,6 +176,7 @@ export interface CyberCopDashboardProps {
     scopedServersTotal: number;
     networksWithoutDiscoveryEnabled: number;
     scopedNetworksTotal: number;
+    discoveryEnabledNetworksTotal: number;
     networksDiscoveryNonCompliant: number;
     networksWithNoTargetState: number;
     diisIctSystemsDefined: number;
@@ -193,8 +184,7 @@ export interface CyberCopDashboardProps {
     ictSystemsModelled: number;
     ictSystemsModelledDiscoveryNonCompliant: number;
   };
-  actionOldestOpenFindings: CyberCopActionOldestFindingRow[];
-  actionQuickWins: CyberCopActionQuickWinRow[];
+  threatSurfaceQuickWins: CyberCopActionQuickWinRow[];
   dailyHighRisk: CyberCopDailyTrendPoint[];
   dailyCriticalExposure: CyberCopDailyTrendPoint[];
 }
@@ -209,6 +199,7 @@ type CyberCopTabId =
   | "network-impact-analyser";
 type ImpactScopeTabId = "business-services" | "mission-capabilities";
 type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
+type ActionPlanTabId = "threat-surface" | "discovery" | "ict-system-modelling";
 
 const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
   { id: "overview", label: "Overview" },
@@ -226,6 +217,32 @@ const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "environment", label: "Environment Split" },
   { id: "mission-business", label: "Critical Findings Blast Radius" }
 ];
+
+const actionPlanTabs: Array<{ id: ActionPlanTabId; label: string }> = [
+  { id: "threat-surface", label: "Threat Surface Area Action Plan" },
+  { id: "discovery", label: "Discovery Action Plan" },
+  { id: "ict-system-modelling", label: "ICT System Modelling Action Plan" }
+];
+
+function actionPlanTabTarget(currentTabId: ActionPlanTabId, key: string): ActionPlanTabId | null {
+  const currentIndex = actionPlanTabs.findIndex((tab) => tab.id === currentTabId);
+  if (currentIndex < 0) {
+    return null;
+  }
+  if (key === "ArrowRight") {
+    return actionPlanTabs[(currentIndex + 1) % actionPlanTabs.length].id;
+  }
+  if (key === "ArrowLeft") {
+    return actionPlanTabs[(currentIndex - 1 + actionPlanTabs.length) % actionPlanTabs.length].id;
+  }
+  if (key === "Home") {
+    return actionPlanTabs[0].id;
+  }
+  if (key === "End") {
+    return actionPlanTabs[actionPlanTabs.length - 1].id;
+  }
+  return null;
+}
 
 const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
 const impactSeverityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
@@ -601,6 +618,15 @@ type ActionPlanMatrixRow = {
   emphasized?: boolean;
 };
 
+type ActionPlanQuickWinRow = {
+  actionText: string;
+  detail: string;
+  count: number;
+  scope: string;
+  priorityLabel: string;
+  tone: ActionPlanMatrixTone;
+};
+
 function actionMatrixToneClasses(tone: ActionPlanMatrixTone) {
   if (tone === "critical") {
     return {
@@ -638,12 +664,12 @@ function actionRateLabel(count: number, total?: number): string {
 
 function ActionPlanMatrix({ title, rows }: { title: string; rows: ActionPlanMatrixRow[] }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-sky-300/15 bg-slate-950/35">
-      <div className="border-b border-sky-300/10 px-3 py-2">
+    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-sky-300/15 bg-slate-950/35">
+      <div className="shrink-0 border-b border-sky-300/10 px-3 py-2">
         <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">{title}</h3>
       </div>
-      <div className="overflow-hidden">
-        <table className="w-full table-fixed text-sm">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="min-w-[48rem] w-full table-fixed text-sm">
           <colgroup>
             <col className="w-[38%]" />
             <col className="w-[11%]" />
@@ -1824,82 +1850,21 @@ function ImpactChartTabs({
   );
 }
 
-function severityPillClass(severity: FindingSeverity): string {
-  if (severity === "Critical Exposure") {
-    return "border-red-400/35 text-red-100";
-  }
-  if (severity === "High Risk") {
-    return "border-orange-400/35 text-orange-100";
-  }
-  if (severity === "Major") {
-    return "border-amber-300/35 text-amber-100";
-  }
-  if (severity === "Moderate") {
-    return "border-sky-300/35 text-sky-100";
-  }
-  return "border-slate-400/35 text-slate-200";
-}
-
-function OldestOpenFindingsTable({ rows }: { rows: CyberCopActionOldestFindingRow[] }) {
-  if (!rows.length) {
-    return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
-        <p className="mt-1 text-xs text-slate-300/80">Longest-running open Critical Exposure and High Risk findings requiring escalation or unblock.</p>
-        <p className="mt-3 text-sm text-slate-300/80">No open Critical Exposure or High Risk findings in current scope.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-3">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Oldest Open Findings</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Longest-running open Critical Exposure and High Risk findings requiring escalation or unblock.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
-        <table className="min-w-full text-sm">
-          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
-            <tr>
-              <th className="w-[11.5rem] min-w-[11.5rem] whitespace-nowrap px-3 py-2 text-left">Severity</th>
-              <th className="px-3 py-2 text-right">Age (Days)</th>
-              <th className="px-3 py-2 text-left">SPI</th>
-              <th className="px-3 py-2 text-left">ICT System</th>
-              <th className="px-3 py-2 text-left">Opened</th>
-              <th className="px-3 py-2 text-left">Title</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.findingId} className="border-t border-sky-300/10">
-                <td className="w-[11.5rem] min-w-[11.5rem] whitespace-nowrap px-3 py-2">
-                  <span
-                    className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] ${severityPillClass(row.severity)}`}
-                  >
-                    {row.severity}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right text-slate-100">{row.ageDays}</td>
-                <td className="px-3 py-2 text-slate-200">{row.spiLabel}</td>
-                <td className="px-3 py-2 text-slate-200">{row.systemName}</td>
-                <td className="px-3 py-2 text-slate-300">{row.openedDate}</td>
-                <td className="px-3 py-2 text-slate-200">{row.title}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
+function ActionQuickWinsTable({
+  planTitle,
+  rows
+}: {
+  planTitle: string;
+  rows: ActionPlanQuickWinRow[];
+}) {
   if (!rows.length) {
     return (
       <section className="panel flex h-full min-h-0 flex-col p-4">
         <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
         <p className="mt-1 text-xs text-slate-300/80">
-          Repeated remediation actions that can reduce severe findings fastest.
+          Recommended actions derived from the active {planTitle} data.
         </p>
-        <p className="mt-3 text-sm text-slate-300/80">No quick-win action clusters in current scope.</p>
+        <p className="mt-3 text-sm text-slate-300/80">No {planTitle.toLowerCase()} quick wins require action in the current scope.</p>
       </section>
     );
   }
@@ -1907,30 +1872,44 @@ function ActionQuickWinsTable({ rows }: { rows: CyberCopActionQuickWinRow[] }) {
   return (
     <section className="panel flex h-full min-h-0 flex-col p-3">
       <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Repeated remediation actions that can reduce severe findings fastest.</p>
+      <p className="mt-1 text-xs text-slate-300/80">Recommended actions derived from the active {planTitle} data.</p>
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
-        <table className="min-w-full text-sm">
+        <table className="min-w-[52rem] w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[31%]" />
+            <col className="w-[36%]" />
+            <col className="w-[9%]" />
+            <col className="w-[14%]" />
+            <col className="w-[10%]" />
+          </colgroup>
           <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
             <tr>
               <th className="px-3 py-2 text-left">Recommended Action</th>
-              <th className="px-3 py-2 text-right">Critical Exposure</th>
-              <th className="px-3 py-2 text-right">High Risk</th>
-              <th className="px-3 py-2 text-right">Other</th>
-              <th className="px-3 py-2 text-right">Total</th>
-              <th className="px-3 py-2 text-right">ICT Systems</th>
+              <th className="px-3 py-2 text-left">Why This Helps</th>
+              <th className="px-3 py-2 text-right">Items</th>
+              <th className="px-3 py-2 text-left">Scope</th>
+              <th className="px-3 py-2 text-left">Priority</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.actionText} className="border-t border-sky-300/10">
-                <td className="px-3 py-2 text-slate-100">{row.actionText}</td>
-                <td className="px-3 py-2 text-right text-red-100">{row.criticalExposureCount}</td>
-                <td className="px-3 py-2 text-right text-orange-100">{row.highRiskCount}</td>
-                <td className="px-3 py-2 text-right text-sky-100">{row.otherCount}</td>
-                <td className="px-3 py-2 text-right text-slate-200">{row.total}</td>
-                <td className="px-3 py-2 text-right text-slate-200">{row.systemCount}</td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const toneClasses = actionMatrixToneClasses(row.tone);
+              return (
+                <tr key={row.actionText} className="border-t border-sky-300/10">
+                  <td className="px-3 py-2 font-medium text-slate-100">{row.actionText}</td>
+                  <td className="px-3 py-2 text-xs text-slate-300">{row.detail}</td>
+                  <td className={`px-3 py-2 text-right text-base font-semibold tabular-nums ${toneClasses.count}`}>
+                    {row.count}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-200">{row.scope}</td>
+                  <td className="px-3 py-2">
+                    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] ${toneClasses.badge}`}>
+                      {row.priorityLabel}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1970,12 +1949,12 @@ export function CyberCopDashboard({
   impactEnvironmentSplit,
   impactEnvironmentSplitBySystemId,
   actionPlan,
-  actionOldestOpenFindings,
-  actionQuickWins,
+  threatSurfaceQuickWins,
   dailyHighRisk,
   dailyCriticalExposure
 }: CyberCopDashboardProps) {
   const [activeTab, setActiveTab] = useState<CyberCopTabId>("overview");
+  const [activeActionPlanTab, setActiveActionPlanTab] = useState<ActionPlanTabId>("threat-surface");
   const [activeImpactScopeTab, setActiveImpactScopeTab] = useState<ImpactScopeTabId>("business-services");
   const [selectedBusinessServiceId, setSelectedBusinessServiceId] = useState<string | null>(null);
   const [selectedMissionCapabilityId, setSelectedMissionCapabilityId] = useState<string | null>(null);
@@ -2225,6 +2204,18 @@ export function CyberCopDashboard({
       emphasized: true
     },
     {
+      action: "Critical/High Open Findings > 60 days old",
+      detail: "Open Critical Exposure and High Risk findings older than 60 whole days",
+      count: actionPlan.criticalHighOpenFindingsOver60Days,
+      total: actionPlan.immediateAction,
+      scope: `${actionPlan.immediateAction} open Critical/High findings`,
+      actionLabel: "> 60 days",
+      clearLabel: "60 days or less",
+      statusLabel: "Ageing breach",
+      tone: "critical",
+      emphasized: true
+    },
+    {
       action: "Total Non-Compliant OS",
       detail: "Server and workstation OS controls",
       count: actionPlan.nonCompliantOs,
@@ -2274,8 +2265,8 @@ export function CyberCopDashboard({
       action: "Networks Discovery non-compliant",
       detail: "Discovery-enabled networks with gaps",
       count: actionPlan.networksDiscoveryNonCompliant,
-      total: actionPlan.scopedNetworksTotal,
-      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      total: actionPlan.discoveryEnabledNetworksTotal,
+      scope: `${actionPlan.discoveryEnabledNetworksTotal} discovery-enabled networks`,
       actionLabel: "Non-compliant",
       clearLabel: "Compliant",
       statusLabel: "Coverage",
@@ -2326,6 +2317,89 @@ export function CyberCopDashboard({
       tone: "critical"
     }
   ];
+  const threatSurfaceQuickWinRows: ActionPlanQuickWinRow[] = threatSurfaceQuickWins.map((row) => {
+    const severityDetail = [
+      row.criticalExposureCount ? `${row.criticalExposureCount} Critical Exposure` : null,
+      row.highRiskCount ? `${row.highRiskCount} High Risk` : null,
+      row.otherCount ? `${row.otherCount} other` : null
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(" · ");
+    return {
+      actionText: row.actionText,
+      detail: severityDetail || `${row.total} open findings`,
+      count: row.total,
+      scope: row.systemCount
+        ? `${row.systemCount} ICT system${row.systemCount === 1 ? "" : "s"}`
+        : "Network / unassigned scope",
+      priorityLabel: row.criticalExposureCount ? "Immediate" : row.highRiskCount ? "Urgent" : "Planned",
+      tone: row.criticalExposureCount ? "critical" : row.highRiskCount ? "warning" : "watch"
+    };
+  });
+  const discoveryQuickWinRows: ActionPlanQuickWinRow[] = [
+    {
+      actionText: "Enable discovery on managed networks currently marked Discovery Non Enabled.",
+      detail: "Activate approved discovery tooling and scheduled scans on networks where discovery is disabled.",
+      count: actionPlan.networksWithoutDiscoveryEnabled,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      priorityLabel: "High",
+      tone: "warning" as const
+    },
+    {
+      actionText: "Remediate discovery-tool coverage gaps on discovery-enabled networks.",
+      detail: "Close missing-tool and coverage gaps so the current network inventory is complete and reliable.",
+      count: actionPlan.networksDiscoveryNonCompliant,
+      scope: `${actionPlan.discoveryEnabledNetworksTotal} discovery-enabled networks`,
+      priorityLabel: "High",
+      tone: "warning" as const
+    },
+    {
+      actionText: "Define and load target-state inventories for networks with no target state.",
+      detail: "Establish the expected asset inventory baseline used to identify unmanaged or missing devices.",
+      count: actionPlan.networksWithNoTargetState,
+      scope: `${actionPlan.scopedNetworksTotal} networks`,
+      priorityLabel: "Planned",
+      tone: "watch" as const
+    }
+  ].filter((row) => row.count > 0);
+  const ictSystemModellingQuickWinRows: ActionPlanQuickWinRow[] = [
+    {
+      actionText: "Complete TSAAT models for DIIS-defined ICT systems that are not modelled.",
+      detail: "Create the missing system, environment, asset and relationship model needed for risk analysis.",
+      count: actionPlan.ictSystemsNotModelled,
+      scope: `${actionPlan.diisIctSystemsDefined} DIIS systems`,
+      priorityLabel: "High",
+      tone: "warning" as const
+    },
+    {
+      actionText: "Remediate discovery coverage gaps for modelled DIIS ICT systems.",
+      detail: "Close discovery gaps that reduce confidence in otherwise modelled ICT system boundaries.",
+      count: actionPlan.ictSystemsModelledDiscoveryNonCompliant,
+      scope: `${actionPlan.ictSystemsModelled} modelled systems`,
+      priorityLabel: "Immediate",
+      tone: "critical" as const
+    }
+  ].filter((row) => row.count > 0);
+  const actionPlanModels: Record<
+    ActionPlanTabId,
+    { title: string; rows: ActionPlanMatrixRow[]; quickWins: ActionPlanQuickWinRow[] }
+  > = {
+    "threat-surface": {
+      title: "Threat Surface Area Action Plan",
+      rows: threatSurfaceActionRows,
+      quickWins: threatSurfaceQuickWinRows
+    },
+    discovery: {
+      title: "Discovery Action Plan",
+      rows: discoveryActionRows,
+      quickWins: discoveryQuickWinRows
+    },
+    "ict-system-modelling": {
+      title: "ICT System Modelling Action Plan",
+      rows: ictSystemModellingActionRows,
+      quickWins: ictSystemModellingQuickWinRows
+    }
+  };
 
   const tabButtonClass = (isActive: boolean): string =>
     `rounded-lg border px-3 py-2.5 text-left text-xs uppercase tracking-[0.14em] transition ${
@@ -2592,20 +2666,68 @@ export function CyberCopDashboard({
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
-            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
-              <section className="panel cyber-cop-pulse-border p-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+              <section className="panel cyber-cop-pulse-border shrink-0 p-3">
                 <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
-                <p className="mt-1 text-xs text-slate-300/80">Focused action groups for current threat surface, discovery, and modelling risk.</p>
-                <div className="mt-2.5 grid gap-2 xl:grid-cols-2 min-[1900px]:grid-cols-[minmax(0,1fr)_minmax(40rem,0.95fr)_minmax(40rem,0.95fr)]">
-                  <ActionPlanMatrix title="Threat Surface Area Action Plan" rows={threatSurfaceActionRows} />
-                  <ActionPlanMatrix title="Discovery Action Plan" rows={discoveryActionRows} />
-                  <ActionPlanMatrix title="ICT System Modelling Action Plan" rows={ictSystemModellingActionRows} />
+                <p className="mt-1 text-xs text-slate-300/80">
+                  Select a plan to review its current action data and plan-specific recommended quick wins.
+                </p>
+                <div
+                  role="tablist"
+                  aria-label="Cyber COP action plan tabs"
+                  className="mt-2.5 grid gap-1.5 md:grid-cols-3"
+                >
+                  {actionPlanTabs.map((tab) => {
+                    const isActive = activeActionPlanTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        id={`cyber-cop-action-plan-tab-${tab.id}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-controls={`cyber-cop-action-plan-panel-${tab.id}`}
+                        tabIndex={isActive ? 0 : -1}
+                        onClick={() => setActiveActionPlanTab(tab.id)}
+                        onKeyDown={(event) => {
+                          const targetTabId = actionPlanTabTarget(tab.id, event.key);
+                          if (!targetTabId) {
+                            return;
+                          }
+                          event.preventDefault();
+                          setActiveActionPlanTab(targetTabId);
+                          document.getElementById(`cyber-cop-action-plan-tab-${targetTabId}`)?.focus();
+                        }}
+                        className={`rounded-md border px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                          isActive
+                            ? "border-cyan-300/55 bg-cyan-500/15 text-cyan-100"
+                            : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
 
-              <div className="grid min-h-0 auto-rows-fr gap-2 lg:grid-cols-2 lg:grid-rows-1">
-                <OldestOpenFindingsTable rows={actionOldestOpenFindings.slice(0, 8)} />
-                <ActionQuickWinsTable rows={actionQuickWins.slice(0, 8)} />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {actionPlanTabs.map((tab) => {
+                  const plan = actionPlanModels[tab.id];
+                  const isActive = activeActionPlanTab === tab.id;
+                  return (
+                    <div
+                      key={tab.id}
+                      id={`cyber-cop-action-plan-panel-${tab.id}`}
+                      role="tabpanel"
+                      aria-labelledby={`cyber-cop-action-plan-tab-${tab.id}`}
+                      className={isActive ? "grid h-full min-h-0 grid-rows-2 gap-2 lg:grid-cols-2 lg:grid-rows-1" : "hidden"}
+                    >
+                      <ActionPlanMatrix title={plan.title} rows={plan.rows} />
+                      <ActionQuickWinsTable planTitle={plan.title} rows={plan.quickWins} />
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <CyberCopTabFooter />

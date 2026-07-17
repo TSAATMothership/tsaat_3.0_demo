@@ -519,6 +519,72 @@ try {
   );
 
   await navigateAndWait(page, "/cyber-cop", "Compliance Scores");
+  await page.click("#cyber-cop-tab-action");
+  await page.waitForSelector('[role="tablist"][aria-label="Cyber COP action plan tabs"]');
+  const readActionPlanState = async () =>
+    page.evaluate(() => {
+      const tablist = document.querySelector('[role="tablist"][aria-label="Cyber COP action plan tabs"]');
+      const selectedTab = tablist?.querySelector('[role="tab"][aria-selected="true"]');
+      const panels = Array.from(document.querySelectorAll('[id^="cyber-cop-action-plan-panel-"]'));
+      const activePanel = panels.find((panel) => !panel.classList.contains("hidden"));
+      return {
+        selectedTabId: selectedTab?.id ?? null,
+        selectedTabText: selectedTab?.textContent?.trim() ?? "",
+        focusedElementId: document.activeElement?.id ?? null,
+        activePanelText: activePanel?.textContent ?? "",
+        visiblePanelCount: panels.filter((panel) => !panel.classList.contains("hidden")).length,
+        panelCount: panels.length
+      };
+    });
+  const threatActionPlanState = await readActionPlanState();
+  assert.equal(threatActionPlanState.selectedTabId, "cyber-cop-action-plan-tab-threat-surface");
+  assert.equal(threatActionPlanState.panelCount, 3, "The Action view must provide exactly three plan panels.");
+  assert.equal(threatActionPlanState.visiblePanelCount, 1, "Only one Action plan panel may be visible.");
+  assert(threatActionPlanState.activePanelText.includes("Critical/High Open Findings > 60 days old"));
+  assert(threatActionPlanState.activePanelText.includes("Immediate action (critical and High-risk findings)"));
+  assert(threatActionPlanState.activePanelText.includes("Quick Wins by Recommended Action"));
+  assert(!threatActionPlanState.activePanelText.includes("Oldest Open Findings"));
+
+  await page.focus("#cyber-cop-action-plan-tab-threat-surface");
+  await page.keyboard.press("ArrowRight");
+  const discoveryActionPlanState = await readActionPlanState();
+  assert.equal(discoveryActionPlanState.selectedTabId, "cyber-cop-action-plan-tab-discovery");
+  assert.equal(discoveryActionPlanState.focusedElementId, "cyber-cop-action-plan-tab-discovery");
+  assert.equal(discoveryActionPlanState.visiblePanelCount, 1);
+  assert(discoveryActionPlanState.activePanelText.includes("Networks without discovery enabled"));
+  assert(
+    discoveryActionPlanState.activePanelText.includes(
+      "Enable discovery on managed networks currently marked Discovery Non Enabled."
+    )
+  );
+  assert(!discoveryActionPlanState.activePanelText.includes("Critical/High Open Findings > 60 days old"));
+
+  await page.keyboard.press("End");
+  const modellingActionPlanState = await readActionPlanState();
+  assert.equal(modellingActionPlanState.selectedTabId, "cyber-cop-action-plan-tab-ict-system-modelling");
+  assert.equal(modellingActionPlanState.focusedElementId, "cyber-cop-action-plan-tab-ict-system-modelling");
+  assert.equal(modellingActionPlanState.visiblePanelCount, 1);
+  assert(modellingActionPlanState.activePanelText.includes("ICT Systems not modelled"));
+  assert(
+    modellingActionPlanState.activePanelText.includes(
+      "Complete TSAAT models for DIIS-defined ICT systems that are not modelled."
+    )
+  );
+  assert(!modellingActionPlanState.activePanelText.includes("Networks without discovery enabled"));
+
+  await page.keyboard.press("ArrowLeft");
+  const discoveryViaLeftActionPlanState = await readActionPlanState();
+  assert.equal(discoveryViaLeftActionPlanState.selectedTabId, "cyber-cop-action-plan-tab-discovery");
+  assert.equal(discoveryViaLeftActionPlanState.focusedElementId, "cyber-cop-action-plan-tab-discovery");
+  assert.equal(discoveryViaLeftActionPlanState.visiblePanelCount, 1);
+
+  await page.keyboard.press("Home");
+  const threatViaHomeActionPlanState = await readActionPlanState();
+  assert.equal(threatViaHomeActionPlanState.selectedTabId, "cyber-cop-action-plan-tab-threat-surface");
+  assert.equal(threatViaHomeActionPlanState.focusedElementId, "cyber-cop-action-plan-tab-threat-surface");
+  assert.equal(threatViaHomeActionPlanState.visiblePanelCount, 1);
+  assert(threatViaHomeActionPlanState.activePanelText.includes("Critical/High Open Findings > 60 days old"));
+
   const tabSelected = await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.trim() === "ICT System Impact Analyser"
@@ -799,7 +865,7 @@ try {
   assert.deepEqual(networkRequests, [], "The offline application attempted an HTTP request.");
   assert.deepEqual(runtimeErrors, [], "The offline application emitted browser errors.");
   console.log(
-    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, global and nested CMDB drill-throughs, dynamic details, APIs, settings, exports, ICT and multi-network analyser runs, worker, and cross-tab logout."
+    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, global and nested CMDB drill-throughs, Cyber COP action-plan tabs, dynamic details, APIs, settings, exports, ICT and multi-network analyser runs, worker, and cross-tab logout."
   );
   console.log("Network audit passed: zero HTTP or HTTPS requests while Chromium was offline.");
 } finally {

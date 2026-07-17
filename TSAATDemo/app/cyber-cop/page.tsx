@@ -1,6 +1,5 @@
 import {
   CyberCopDashboard,
-  type CyberCopActionOldestFindingRow,
   type CyberCopActionQuickWinRow,
   type CyberCopAssetTypeHeatmapAsset,
   type CyberCopDailyTrendPoint,
@@ -14,6 +13,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { FullHeightWorkspace } from "@/components/full-height-workspace";
 import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
+import { countSevereOpenFindingsOlderThan } from "@/lib/cyber-cop-action-plan";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
@@ -963,52 +963,6 @@ function buildImpactAssetTypeHeatmapBySystemId(
   );
 }
 
-function differenceInWholeUtcDays(fromDate: Date, toDate: Date): number {
-  const deltaMs = toDate.getTime() - fromDate.getTime();
-  return Math.max(0, Math.floor(deltaMs / 86_400_000));
-}
-
-function formatActionDate(dateKey: string): string {
-  return parseUtcDateKey(dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-}
-
-function buildActionOldestOpenFindings(
-  openFindings: Finding[],
-  systems: Array<{ id: string; name: string }>,
-  endDateKey: string,
-  topCount = 12
-): CyberCopActionOldestFindingRow[] {
-  const systemNameById = new Map(systems.map((system) => [system.id, system.name]));
-  const today = parseUtcDateKey(endDateKey);
-
-  return openFindings
-    .filter((finding) => finding.severity === "Critical Exposure" || finding.severity === "High Risk")
-    .map((finding) => {
-      const openedDateKey = toFindingDateKey(finding.timestamp);
-      if (!openedDateKey) {
-        return null;
-      }
-      return {
-        findingId: finding.id,
-        title: finding.title,
-        severity: finding.severity,
-        spiLabel: `SPI ${finding.spiId}`,
-        systemName: (finding.scope.systemId && systemNameById.get(finding.scope.systemId)) || "Unassigned",
-        openedDate: formatActionDate(openedDateKey),
-        ageDays: differenceInWholeUtcDays(parseUtcDateKey(openedDateKey), today),
-        recommendedAction: finding.recommendedAction
-      };
-    })
-    .filter((row): row is CyberCopActionOldestFindingRow => Boolean(row))
-    .sort((a, b) => {
-      if (b.ageDays !== a.ageDays) {
-        return b.ageDays - a.ageDays;
-      }
-      return a.findingId.localeCompare(b.findingId);
-    })
-    .slice(0, topCount);
-}
-
 function buildActionQuickWins(openFindings: Finding[], topCount = 10): CyberCopActionQuickWinRow[] {
   const grouped = new Map<
     string,
@@ -1023,7 +977,10 @@ function buildActionQuickWins(openFindings: Finding[], topCount = 10): CyberCopA
   >();
 
   for (const finding of openFindings) {
-    const actionText = finding.recommendedAction?.trim() || "No recommended action provided";
+    const actionText = finding.recommendedAction?.trim();
+    if (!actionText) {
+      continue;
+    }
     const key = actionText.toLowerCase();
     const row = grouped.get(key) ?? {
       actionText,
@@ -1341,13 +1298,8 @@ export default async function CyberCopPage({
   const impactEnvironmentSplit = buildImpactEnvironmentSplit(openFindings);
   const impactEnvironmentSplitBySystemId = buildImpactEnvironmentSplitBySystemId(openFindings);
   const impactEntityTrends = buildImpactEntityTrends(analytics.findings, systemImpact, chartAnchorDateKey, 5);
-  const actionOldestOpenFindings = buildActionOldestOpenFindings(
-    openFindings,
-    systems,
-    chartAnchorDateKey,
-    12
-  );
-  const actionQuickWins = buildActionQuickWins(openFindings, 10);
+  const criticalHighOpenFindingsOver60Days = countSevereOpenFindingsOlderThan(openFindings, dataset.snapshotDate, 60);
+  const threatSurfaceQuickWins = buildActionQuickWins(openFindings, 10);
   const diisSystems = systems.filter((system) => system.diisDefined);
   const modelledDiisSystems = diisSystems.filter((system) => system.modellingStatus);
   const ictSystemsNotModelled = diisSystems.length - modelledDiisSystems.length;
@@ -1432,6 +1384,7 @@ export default async function CyberCopPage({
         impactEntityTrends={impactEntityTrends}
         actionPlan={{
           immediateAction,
+          criticalHighOpenFindingsOver60Days,
           nonCompliantOs,
           nonCompliantOsTotal,
           assetsOutOfWarrantyEol,
@@ -1440,6 +1393,7 @@ export default async function CyberCopPage({
           scopedServersTotal,
           networksWithoutDiscoveryEnabled,
           scopedNetworksTotal: networks.length,
+          discoveryEnabledNetworksTotal: discoveryEnabledNetworkIds.size,
           networksDiscoveryNonCompliant,
           networksWithNoTargetState,
           diisIctSystemsDefined: diisSystems.length,
@@ -1447,8 +1401,7 @@ export default async function CyberCopPage({
           ictSystemsModelled: modelledDiisSystems.length,
           ictSystemsModelledDiscoveryNonCompliant: modelledDiscoveryNonCompliantCount
         }}
-        actionOldestOpenFindings={actionOldestOpenFindings}
-        actionQuickWins={actionQuickWins}
+        threatSurfaceQuickWins={threatSurfaceQuickWins}
         dailyHighRisk={highRiskDaily}
         dailyCriticalExposure={criticalExposureDaily}
       />

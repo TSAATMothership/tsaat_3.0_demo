@@ -29,6 +29,15 @@ assert(html.includes("diagramNetworkIds"), "The multi-network analyser request c
 assert(html.includes("CMDB Drill Through"), "The shared CMDB drill-through panel must be packaged.");
 assert(html.includes("/api/assets/cmdb-details"), "The CMDB asset-details API bridge must be packaged.");
 assert(html.includes("data-cmdb-asset-id"), "Clickable CMDB device-name triggers must be packaged.");
+assert(html.includes("Threat Surface Area Action Plan"), "The Threat Surface Area Action Plan tab must be packaged.");
+assert(html.includes("Discovery Action Plan"), "The Discovery Action Plan tab must be packaged.");
+assert(html.includes("ICT System Modelling Action Plan"), "The ICT System Modelling Action Plan tab must be packaged.");
+assert(
+  html.includes("Critical/High Open Findings > 60 days old"),
+  "The Critical/High finding ageing action must be packaged."
+);
+assert(html.includes("Quick Wins by Recommended Action"), "Plan-specific recommended quick wins must be packaged.");
+assert(!html.includes("Oldest Open Findings"), "The removed Oldest Open Findings table must not be packaged.");
 assert(details.size > 1_000_000, "Output is unexpectedly small and likely incomplete.");
 
 console.log(`Verified one self-contained HTML application (${(details.size / 1024 / 1024).toFixed(2)} MiB).`);
