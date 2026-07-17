@@ -6,6 +6,7 @@ import {
   NetworkDetailRiskFindingRow,
   RiskFindingsDrillThrough
 } from "@/components/network-detail-risk-charts";
+import { CmdbDeviceName, useCmdbDrillThrough } from "@/components/cmdb-drill-through";
 import { ASSET_TYPES, assetTypeLabel, formatAssetTypeLabel, type CanonicalAssetType } from "@/lib/asset-taxonomy";
 import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
@@ -391,24 +392,44 @@ function ImpactAnalyserLoadingOverlay({
 function SelectedAssetPanel({
   title,
   text,
+  assetId,
+  assetName,
   placement,
   copyFeedback,
   onCopy
 }: {
   title: string;
   text: string;
+  assetId: string;
+  assetName: string;
   placement: "bottom-left" | "top-right";
   copyFeedback: "idle" | "copied" | "failed";
   onCopy: () => void;
 }) {
   const placementClass = placement === "bottom-left" ? "bottom-3 left-3" : "right-3 top-3";
+  const nameLine = `Name: ${assetName}`;
   return (
     <section
       className={`pointer-events-auto absolute ${placementClass} z-20 w-[22rem] rounded-2xl border border-sky-300/35 bg-slate-950/92 p-3 text-slate-100 shadow-[0_12px_28px_rgba(0,0,0,0.45)]`}
     >
       <p className="text-[11px] uppercase tracking-[0.12em] text-sky-100">{title}</p>
       <pre className="mt-2 select-text whitespace-pre-wrap break-words rounded-md border border-slate-700/70 bg-slate-900/70 p-2 text-xs leading-5 text-slate-100">
-        {text}
+        {text.split("\n").map((line) => (
+          <span key={line} className="block">
+            {line === nameLine ? (
+              <>
+                Name:{" "}
+                <CmdbDeviceName
+                  assetId={assetId}
+                  name={assetName}
+                  className="inline text-cyan-200 underline decoration-cyan-300/55 underline-offset-2 hover:text-cyan-100"
+                />
+              </>
+            ) : (
+              line
+            )}
+          </span>
+        ))}
       </pre>
       <div className="mt-2 flex items-center gap-2">
         <button
@@ -425,192 +446,6 @@ function SelectedAssetPanel({
         ) : null}
       </div>
     </section>
-  );
-}
-
-function formatAssetDetailValue(value: string | number | null | undefined): string {
-  if (value === null || value === undefined || value === "") {
-    return "Not supplied";
-  }
-  return String(value);
-}
-
-interface AssetDetailsPanelModel {
-  assetId: string;
-  assetName: string;
-  assetHostname: string;
-  assetType: AssetType;
-  assetIpAddress: string;
-  networkId: string;
-  networkName: string;
-  hasIctSystem: boolean;
-  systemName: string;
-  environmentType: ImpactAnalyser2EnvironmentOption | null;
-  securityDomain: SecurityDomain;
-  cmdbRecordUrl?: string | null;
-  lifecycleEolStatus?: string;
-  lifecycleWarrantyStatus?: string;
-  operatingSystemSummary?: string | null;
-  networkOsSummary?: string | null;
-  patchStateSummary?: string | null;
-  installedSoftwareCount?: number;
-  vulnerabilityCount?: number;
-  criticalVulnerabilityCount?: number;
-}
-
-function rootAssetDetailsFromRow(row: ImpactAnalyser2Row): AssetDetailsPanelModel {
-  return {
-    assetId: row.assetId,
-    assetName: row.assetName,
-    assetHostname: row.assetHostname,
-    assetType: row.assetType,
-    assetIpAddress: row.assetIpAddress,
-    networkId: row.networkId,
-    networkName: row.networkName,
-    hasIctSystem: row.hasIctSystem,
-    systemName: row.systemName,
-    environmentType: row.environmentType,
-    securityDomain: row.securityDomain,
-    cmdbRecordUrl: row.cmdbRecordUrl ?? null,
-    lifecycleEolStatus: row.lifecycleEolStatus,
-    lifecycleWarrantyStatus: row.lifecycleWarrantyStatus,
-    operatingSystemSummary: row.operatingSystemSummary,
-    networkOsSummary: row.networkOsSummary,
-    patchStateSummary: row.patchStateSummary,
-    installedSoftwareCount: row.installedSoftwareCount,
-    vulnerabilityCount: row.vulnerabilityCount,
-    criticalVulnerabilityCount: row.criticalVulnerabilityCount
-  };
-}
-
-function relatedAssetDetailsFromRow(row: ImpactAnalyser2Row): AssetDetailsPanelModel | null {
-  if (!row.relatedAssetId || !row.relatedAssetType) {
-    return null;
-  }
-  return {
-    assetId: row.relatedAssetId,
-    assetName: row.relatedAssetName || row.relatedAssetHostname || row.relatedAssetId,
-    assetHostname: row.relatedAssetHostname || row.relatedAssetName || row.relatedAssetId,
-    assetType: row.relatedAssetType,
-    assetIpAddress: row.relatedAssetIpAddress || "N/A",
-    networkId: row.relatedAssetNetworkId ?? "Not supplied",
-    networkName: row.relatedAssetNetworkName ?? row.relatedAssetNetworkId ?? "Not supplied",
-    hasIctSystem: row.relatedAssetHasIctSystem === true,
-    systemName: row.relatedSystemName ?? "Not linked to ICT system",
-    environmentType: row.relatedAssetEnvironmentType ?? null,
-    securityDomain: row.relatedAssetSecurityDomain ?? "Unclassified",
-    cmdbRecordUrl: row.relatedAssetCmdbRecordUrl ?? null,
-    lifecycleEolStatus: row.relatedAssetLifecycleEolStatus,
-    lifecycleWarrantyStatus: row.relatedAssetLifecycleWarrantyStatus,
-    operatingSystemSummary: row.relatedAssetOperatingSystemSummary,
-    networkOsSummary: row.relatedAssetNetworkOsSummary,
-    patchStateSummary: row.relatedAssetPatchStateSummary,
-    installedSoftwareCount: row.relatedAssetInstalledSoftwareCount,
-    vulnerabilityCount: row.relatedAssetVulnerabilityCount,
-    criticalVulnerabilityCount: row.relatedAssetCriticalVulnerabilityCount
-  };
-}
-
-function AssetDetailsPanel({
-  asset,
-  isOpen,
-  onClose
-}: {
-  asset: AssetDetailsPanelModel;
-  isOpen: boolean;
-  onClose: () => void;
-}) {
-  const cmdbRecordUrl = asset.cmdbRecordUrl?.trim() ?? "";
-  const detailRows: Array<[string, string | number | null | undefined]> = [
-    ["Asset ID", asset.assetId],
-    ["Name", asset.assetName],
-    ["Hostname", asset.assetHostname],
-    ["Asset Type", formatAssetTypeLabel(asset.assetType)],
-    ["IP Address", asset.assetIpAddress],
-    ["Network", asset.networkName || asset.networkId],
-    ["ICT System", asset.hasIctSystem ? asset.systemName : "Not linked to ICT system"],
-    ["Environment", asset.environmentType ?? "Unassigned"],
-    ["Security Domain", asset.securityDomain],
-    ["Lifecycle EOL", asset.lifecycleEolStatus],
-    ["Warranty", asset.lifecycleWarrantyStatus],
-    ["Operating System", asset.operatingSystemSummary],
-    ["Network OS", asset.networkOsSummary],
-    ["Patch Status", asset.patchStateSummary],
-    ["Installed Software", asset.installedSoftwareCount],
-    ["Vulnerabilities", asset.vulnerabilityCount],
-    ["Critical Vulnerabilities", asset.criticalVulnerabilityCount]
-  ];
-
-  return (
-    <div className="fixed inset-0 z-[90] pointer-events-none cursor-default">
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        className={`absolute inset-0 cursor-default select-none bg-slate-950/35 transition-opacity duration-200 ${
-          isOpen ? "pointer-events-auto opacity-100" : "opacity-0"
-        }`}
-      />
-      <aside
-        className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950/95 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out pointer-events-auto cursor-default ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex cursor-default select-none items-start justify-between gap-3 border-b border-sky-300/20 pb-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.14em] text-sky-200/80">Read Only</p>
-            <h3 className="text-lg font-semibold text-sky-100">Asset Details</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-600/80 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-800"
-          >
-            Close
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3">
-          <table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">
-            <tbody>
-              {detailRows.map(([label, value], index) => (
-                <tr key={label} className={index % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
-                  <th
-                    scope="row"
-                    className="w-36 align-top rounded-l-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400"
-                  >
-                    {label}
-                  </th>
-                  <td className="rounded-r-md px-3 py-2 text-sm font-medium text-slate-100">
-                    <span className="block break-words">{formatAssetDetailValue(value)}</span>
-                  </td>
-                </tr>
-              ))}
-              <tr className={detailRows.length % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
-                <th
-                  scope="row"
-                  className="w-36 align-top rounded-l-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400"
-                >
-                  CMDB Record
-                </th>
-                <td className="rounded-r-md px-3 py-2 text-sm font-medium text-slate-100">
-                  {cmdbRecordUrl ? (
-                    <a
-                      href={cmdbRecordUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="cursor-pointer break-words text-cyan-200 underline decoration-cyan-300/60 underline-offset-2 hover:text-cyan-100"
-                    >
-                      Open CMDB record
-                    </a>
-                  ) : (
-                    "Not supplied"
-                  )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </aside>
-    </div>
   );
 }
 
@@ -665,6 +500,7 @@ export function IctSystemImpactAnalyser2Chart({
   onLoadStateChange?: (loadState: ImpactAnalyser2LoadState) => void;
   extraControls?: ReactNode;
 }) {
+  const { openCmdbDrillThrough } = useCmdbDrillThrough();
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -679,7 +515,6 @@ export function IctSystemImpactAnalyser2Chart({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const baseLineRef = useRef<THREE.LineSegments | null>(null);
   const overlayAnimationFrameRef = useRef<number | null>(null);
-  const assetDetailsCloseTimerRef = useRef<number | null>(null);
   const selectedNodeRef = useRef<ImpactAnalyser2SelectedNode | null>(null);
   const workerResultRef = useRef<ImpactAnalyser2WorkerResult | null>(null);
   const viewportSizeRef = useRef({ width: 0, height: 0 });
@@ -709,8 +544,6 @@ export function IctSystemImpactAnalyser2Chart({
   const [drillThroughError, setDrillThroughError] = useState<string | null>(null);
   const [isDrillThroughLoading, setIsDrillThroughLoading] = useState(false);
   const [selectedTileCopyFeedback, setSelectedTileCopyFeedback] = useState<"idle" | "copied" | "failed">("idle");
-  const [selectedAssetDetails, setSelectedAssetDetails] = useState<AssetDetailsPanelModel | null>(null);
-  const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
   const hasSystemScope = Array.isArray(systemScopeIds);
   const systemScopeKey = hasSystemScope ? Array.from(new Set(systemScopeIds)).sort().join(",") : "";
   const normalizedSystemScopeIds = useMemo(
@@ -992,15 +825,6 @@ export function IctSystemImpactAnalyser2Chart({
   useEffect(() => {
     onLoadStateChange?.(reportedLoadState);
   }, [onLoadStateChange, reportedLoadState]);
-
-  useEffect(() => {
-    return () => {
-      if (assetDetailsCloseTimerRef.current !== null) {
-        window.clearTimeout(assetDetailsCloseTimerRef.current);
-        assetDetailsCloseTimerRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     onSelectedNodeChange?.(activeSelectedNode);
@@ -1639,35 +1463,17 @@ export function IctSystemImpactAnalyser2Chart({
           : isCiDiagramMode && node.axisKey === "relatedAsset"
             ? relatedAssetMetaById.get(node.value)
             : null;
-      const assetDetails =
-        node.axisKey === "asset" && asset
-          ? rootAssetDetailsFromRow(asset)
-          : node.axisKey === "relatedAsset" && asset
-            ? relatedAssetDetailsFromRow(asset)
-            : null;
-      if (!assetDetails) {
+      if (!asset) {
         return;
       }
-      if (assetDetailsCloseTimerRef.current !== null) {
-        window.clearTimeout(assetDetailsCloseTimerRef.current);
-        assetDetailsCloseTimerRef.current = null;
-      }
-      setSelectedAssetDetails(assetDetails);
-      window.requestAnimationFrame(() => setIsAssetDetailsPanelOpen(true));
+      const assetName =
+        node.axisKey === "relatedAsset"
+          ? asset.relatedAssetName || asset.relatedAssetHostname || node.value
+          : asset.assetName || asset.assetHostname || node.value;
+      openCmdbDrillThrough(node.value, assetName);
     },
-    [assetMetaById, isCiDiagramMode, relatedAssetMetaById]
+    [assetMetaById, isCiDiagramMode, openCmdbDrillThrough, relatedAssetMetaById]
   );
-
-  const closeAssetDetails = useCallback(() => {
-    setIsAssetDetailsPanelOpen(false);
-    if (assetDetailsCloseTimerRef.current !== null) {
-      window.clearTimeout(assetDetailsCloseTimerRef.current);
-    }
-    assetDetailsCloseTimerRef.current = window.setTimeout(() => {
-      setSelectedAssetDetails(null);
-      assetDetailsCloseTimerRef.current = null;
-    }, 220);
-  }, []);
 
   const handleOverlayClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1849,23 +1655,57 @@ export function IctSystemImpactAnalyser2Chart({
                   <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-40 max-h-56 overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]">
                     {workerResult?.searchOptions.length ? (
                       <ul className="space-y-1">
-                        {workerResult.searchOptions.map((option) => (
-                          <li key={`impact-analyser-2-search-${option.id}`}>
-                            <button
-                              type="button"
-                              onMouseDown={(event) => {
-                                event.preventDefault();
-                                selectDiagramSearchOption(option);
-                              }}
-                              className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
-                            >
-                              <span className="block truncate">{option.label}</span>
-                              <span className="block truncate text-[10px] uppercase tracking-[0.12em] text-slate-400/80">
-                                {option.category}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
+                        {workerResult.searchOptions.map((option) => {
+                          const isCmdbDevice = canOpenAssetDetails(option.axisKey, option.value);
+                          return (
+                            <li key={`impact-analyser-2-search-${option.id}`}>
+                              {isCmdbDevice ? (
+                                <div className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85">
+                                  <button
+                                    type="button"
+                                    data-cmdb-asset-id={option.value}
+                                    aria-label={`Open CMDB Drill Through for ${option.label}`}
+                                    title={`Open CMDB Drill Through for ${option.label}`}
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setIsDiagramSearchFocused(false);
+                                      openCmdbDrillThrough(option.value, option.label);
+                                    }}
+                                    className="block w-full truncate text-left text-cyan-200 underline decoration-cyan-300/55 underline-offset-2 hover:text-cyan-100"
+                                  >
+                                    {option.label}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`Select ${option.label} in the diagram`}
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      selectDiagramSearchOption(option);
+                                    }}
+                                    className="mt-0.5 block w-full truncate text-left text-[10px] uppercase tracking-[0.12em] text-slate-400/80 hover:text-sky-100"
+                                  >
+                                    {option.category} · Select in diagram
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    selectDiagramSearchOption(option);
+                                  }}
+                                  className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85"
+                                >
+                                  <span className="block truncate">{option.label}</span>
+                                  <span className="block truncate text-[10px] uppercase tracking-[0.12em] text-slate-400/80">
+                                    {option.category}
+                                  </span>
+                                </button>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <p className="rounded-md border border-slate-700/70 bg-slate-900/70 px-2 py-1.5 text-xs normal-case tracking-normal text-slate-300">
@@ -2006,10 +1846,12 @@ export function IctSystemImpactAnalyser2Chart({
                     {hoverInfo.text}
                   </div>
                 ) : null}
-                {isCiDiagramMode && showSelectedTileText && selectedAssetTileText ? (
+                {isCiDiagramMode && showSelectedTileText && selectedAssetTileText && selectedAssetMeta ? (
                   <SelectedAssetPanel
                     title="Selected Asset"
                     text={selectedAssetTileText}
+                    assetId={selectedAssetMeta.assetId}
+                    assetName={selectedAssetMeta.assetName}
                     placement="bottom-left"
                     copyFeedback={selectedTileCopyFeedback}
                     onCopy={copySelectedAssetTileText}
@@ -2054,9 +1896,6 @@ export function IctSystemImpactAnalyser2Chart({
           asOfDate={drillThroughData.snapshotDate}
           onClose={() => setDrillThroughData(null)}
         />
-      ) : null}
-      {selectedAssetDetails ? (
-        <AssetDetailsPanel asset={selectedAssetDetails} isOpen={isAssetDetailsPanelOpen} onClose={closeAssetDetails} />
       ) : null}
     </>
   );

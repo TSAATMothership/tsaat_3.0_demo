@@ -407,6 +407,117 @@ try {
     }
   }
 
+  await page.evaluate(() => {
+    const originalFetch = window.fetch.bind(window);
+    globalThis.__TSAAT_CMDB_REQUESTS__ = [];
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/assets/cmdb-details")) {
+        globalThis.__TSAAT_CMDB_REQUESTS__.push(url);
+      }
+      return originalFetch(input, init);
+    };
+  });
+
+  await navigateAndWait(
+    page,
+    "/systems/sys-1?dataDate=2026-04-16&systemDetailTab=discovery-compliance",
+    "Falcon Ops Hub"
+  );
+  await page.waitForSelector("[data-cmdb-asset-id]");
+  const baseCmdbAsset = await page.$eval("[data-cmdb-asset-id]", (button) => ({
+    assetId: button.getAttribute("data-cmdb-asset-id"),
+    name: button.textContent?.trim()
+  }));
+  assert(baseCmdbAsset.assetId, "The system discovery table CMDB trigger had no asset ID.");
+  await page.click("[data-cmdb-asset-id]");
+  await page.waitForSelector('[data-cmdb-drill-through] aside[data-load-state="ready"]');
+  const baseCmdbResult = await page.evaluate(() => {
+    const panel = document.querySelector("[data-cmdb-drill-through]");
+    const request = globalThis.__TSAAT_CMDB_REQUESTS__.at(-1);
+    return {
+      panelText: panel?.textContent ?? "",
+      requestDataDate: request ? new URL(request, window.location.href).searchParams.get("dataDate") : null,
+      requestAssetId: request ? new URL(request, window.location.href).searchParams.get("assetId") : null,
+      bodyOverflow: document.body.style.overflow,
+      panelBackgroundColor: panel?.querySelector("aside")
+        ? getComputedStyle(panel.querySelector("aside")).backgroundColor
+        : null
+    };
+  });
+  assert(baseCmdbResult.panelText.includes("CMDB Drill Through"));
+  assert(baseCmdbResult.panelText.includes("Asset Details"));
+  assert(baseCmdbResult.panelText.includes("CMDB Record"));
+  assert(baseCmdbResult.panelText.includes(baseCmdbAsset.name), "The CMDB panel did not show the selected device.");
+  assert.equal(baseCmdbResult.requestDataDate, "2026-04-16", "CMDB lookup lost the lite hash-route snapshot date.");
+  assert.equal(baseCmdbResult.requestAssetId, baseCmdbAsset.assetId, "CMDB lookup used the wrong asset ID.");
+  assert.equal(baseCmdbResult.bodyOverflow, "hidden", "The CMDB panel did not lock background scrolling.");
+  assert.equal(
+    baseCmdbResult.panelBackgroundColor,
+    "rgb(2, 6, 23)",
+    "The CMDB panel surface must be fully opaque."
+  );
+  await page.waitForFunction(() =>
+    document.querySelector("[data-cmdb-drill-through] aside")?.classList.contains("translate-x-0")
+  );
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const assertCmdbFocusIsContained = async () => {
+    const activeLabel = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
+    assert.equal(activeLabel, "Close CMDB Drill Through", "The CMDB drawer did not receive initial focus.");
+  };
+  await assertCmdbFocusIsContained();
+  await page.keyboard.press("Tab");
+  await assertCmdbFocusIsContained();
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("Tab");
+  await page.keyboard.up("Shift");
+  await assertCmdbFocusIsContained();
+  await page.click('button[aria-label="Close CMDB Drill Through"]');
+  await page.waitForFunction(() => !document.querySelector("[data-cmdb-drill-through]"));
+  const baseCmdbClosed = await page.evaluate((assetId) => ({
+    bodyOverflow: document.body.style.overflow,
+    focusReturned: document.activeElement?.getAttribute("data-cmdb-asset-id") === assetId
+  }), baseCmdbAsset.assetId);
+  assert.equal(baseCmdbClosed.bodyOverflow, "", "Closing CMDB did not restore background scrolling.");
+  assert(baseCmdbClosed.focusReturned, "Closing CMDB did not return focus to the selected device name.");
+
+  const unknownCmdbStatus = await page.evaluate(async () =>
+    (await fetch("/api/assets/cmdb-details?assetId=unknown-device&dataDate=2026-04-16")).status
+  );
+  assert.equal(unknownCmdbStatus, 404, "Unknown CMDB device IDs must return 404.");
+
+  await navigateAndWait(page, "/findings?dataDate=2026-04-16&findingsViewTab=register", "Findings Register");
+  const affectedCisOpened = await page.evaluate(() => {
+    const heading = Array.from(document.querySelectorAll("h3")).find(
+      (candidate) => candidate.textContent?.trim() === "Findings Register"
+    );
+    const register = heading?.closest(".panel");
+    const titleButton = register?.querySelector("tbody tr button");
+    titleButton?.click();
+    return Boolean(titleButton);
+  });
+  assert(affectedCisOpened, "A Findings Register affected-CI drill-through could not be opened.");
+  const nestedCmdbSelector =
+    'aside[aria-labelledby="findings-register-asset-details-title"] [data-cmdb-asset-id]';
+  await page.waitForSelector(nestedCmdbSelector);
+  const nestedAssetName = await page.$eval(nestedCmdbSelector, (button) => button.textContent?.trim() ?? "");
+  await page.click(nestedCmdbSelector);
+  await page.waitForSelector('[data-cmdb-drill-through] aside[data-load-state="ready"]');
+  assert(
+    await page.$eval("[data-cmdb-drill-through]", (panel, name) => panel.textContent?.includes(name), nestedAssetName),
+    "The nested affected-CI device name did not open its CMDB details."
+  );
+  await page.waitForFunction(() =>
+    document.querySelector("[data-cmdb-drill-through] aside")?.classList.contains("translate-x-0")
+  );
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector("[data-cmdb-drill-through]"));
+  assert(
+    await page.$('aside[aria-labelledby="findings-register-asset-details-title"]'),
+    "Escaping nested CMDB details also closed the underlying Affected CIs panel."
+  );
+
   await navigateAndWait(page, "/cyber-cop", "Compliance Scores");
   const tabSelected = await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
@@ -419,6 +530,11 @@ try {
   await page.waitForSelector('button[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
   await page.click('button[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
   await page.waitForSelector('[role="listbox"] input[type="checkbox"]');
+  const selectedIctSystemName = await page.$eval(
+    '[role="listbox"] label[role="option"]',
+    (label) => label.textContent?.trim() ?? ""
+  );
+  assert(selectedIctSystemName, "The selected ICT system option had no name.");
   await page.click('[role="listbox"] input[type="checkbox"]');
   const runSelected = await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
@@ -432,6 +548,38 @@ try {
     const text = document.body.innerText;
     return !text.includes("Running...") && /open server findings|finding paths|relationship path/.test(text);
   });
+  const ictSearchAsset = await page.evaluate(async (systemName) => {
+    const response = await fetch("/api/cyber-cop/impact-analyser-2");
+    const payload = await response.json();
+    const row = (payload.rows ?? []).find((candidate) => candidate.systemName === systemName);
+    return row ? { assetId: row.assetId, assetName: row.assetName } : null;
+  }, selectedIctSystemName);
+  assert(ictSearchAsset?.assetId, "No CMDB-backed device was available in the selected ICT system.");
+  await clearAndType(page, 'input[placeholder="Search diagram"]', ictSearchAsset.assetName);
+  const analyserSearchCmdbTrigger = await page.waitForFunction((assetId) => {
+    const searchInput = document.querySelector('input[placeholder="Search diagram"]');
+    const searchResults = searchInput?.parentElement?.querySelector("ul");
+    return Array.from(searchResults?.querySelectorAll("[data-cmdb-asset-id]") ?? []).find(
+      (element) => element.getAttribute("data-cmdb-asset-id") === assetId
+    );
+  }, {}, ictSearchAsset.assetId);
+  const analyserSearchCmdbElement = analyserSearchCmdbTrigger.asElement();
+  assert(analyserSearchCmdbElement, "The analyser device-name search result was not CMDB-enabled.");
+  await analyserSearchCmdbElement.click();
+  await page.waitForSelector('[data-cmdb-drill-through] aside[data-load-state="ready"]');
+  assert(
+    await page.$eval(
+      "[data-cmdb-drill-through]",
+      (panel, assetName) => panel.textContent?.includes(assetName),
+      ictSearchAsset.assetName
+    ),
+    "The analyser search-result device name did not open CMDB details."
+  );
+  await page.waitForFunction(() =>
+    document.querySelector("[data-cmdb-drill-through] aside")?.classList.contains("translate-x-0")
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector("[data-cmdb-drill-through]"));
 
   await page.evaluate(() => {
     const originalFetch = window.fetch.bind(window);
@@ -651,7 +799,7 @@ try {
   assert.deepEqual(networkRequests, [], "The offline application attempted an HTTP request.");
   assert.deepEqual(runtimeErrors, [], "The offline application emitted browser errors.");
   console.log(
-    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, dynamic details, APIs, settings, exports, ICT and multi-network analyser runs, worker, and cross-tab logout."
+    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, global and nested CMDB drill-throughs, dynamic details, APIs, settings, exports, ICT and multi-network analyser runs, worker, and cross-tab logout."
   );
   console.log("Network audit passed: zero HTTP or HTTPS requests while Chromium was offline.");
 } finally {

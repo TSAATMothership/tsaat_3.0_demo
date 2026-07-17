@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { Suspense } from "react";
 import "./globals.css";
 import { AuthenticatedSessionGuard } from "@/components/authenticated-session-guard";
+import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
 import { SiteFooter } from "@/components/site-footer";
@@ -69,7 +70,9 @@ export default function RootLayout({
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">{children}</main>
+        <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">
+          <CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider>
+        </main>
         <Suspense fallback={null}>
           <AuthenticatedSessionGuard />
         </Suspense>

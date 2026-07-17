@@ -32,7 +32,7 @@ Major dependencies:
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches among visible tabs and opens a topology modal.
 - **User perspective:** the user can move between metadata, compliance, and discovery views, and open a richer topology representation.
-- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes. The Network Impact Analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes; the CI Focus analyser exposes the same details action for selected Asset and Related Asset nodes.
+- **System behaviour:** `networkDetailTab` in the query string controls the main tab; the topology view is a client-side modal fed by runtime topology data built from real network relationships and CI dependencies, with `net-unassigned` excluded from network model nodes. The Network Impact Analyser `D` action, CI Focus Asset and Related Asset names, discovery coverage names, asset inventory names, affected-CI names, and device identifiers all open the shared read-only CMDB Drill Through by stable asset ID.
 - **Outcome:** tab states are bookmarkable; topology is not.
 
 ### Feature: Details Tab

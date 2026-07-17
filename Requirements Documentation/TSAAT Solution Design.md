@@ -80,6 +80,14 @@ The page specifications repeatedly reference the following shared implementation
 - `components/menu-navigation.tsx`: global menu and date picker behaviour
 - `components/filter-loading-overlay.tsx`: shared route loading overlay that completes after page-ready markers render
 
+## Shared CMDB Drill Through
+
+- Every structured device name in asset inventory, discovery coverage, affected-CI, risk, compliance, measures, findings, and nested CVE/detail surfaces is an asset-ID-backed CMDB trigger. Duplicate hostnames are never used for resolution.
+- The analyser `D` action, CI-focus device tiles, and Cyber COP server heatmap use the same global drawer rather than owning separate asset-detail panels.
+- `components/cmdb-drill-through.tsx` owns the accessible left-side dialog with a fully opaque panel surface, loading/error states, Escape/backdrop close, focus return, scroll locking, safe HTTP/HTTPS CMDB link handling, and snapshot-aware client cache.
+- `/api/assets/cmdb-details?assetId=...&dataDate=...` resolves canonical device, network, ICT-system, environment, lifecycle, operating-system, patch, software, vulnerability, and optional CMDB-record details from the full selected snapshot. Missing device IDs return `404`.
+- The provider is mounted once in the authenticated application shell; nested slide-outs and dialogs therefore open the CMDB drawer above their existing overlays without being clipped.
+
 ## Shared Data Domains
 The most frequently referenced tables across the pages are:
 

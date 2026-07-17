@@ -1,5 +1,6 @@
 import * as cyberImpact from "@/app/api/cyber-cop/impact-analyser-2/route";
 import * as cyberImpactFindings from "@/app/api/cyber-cop/impact-analyser-2/findings/route";
+import * as cmdbAssetDetails from "@/app/api/assets/cmdb-details/route";
 import * as discoveryNetworkReport from "@/app/api/discovery-coverage/network-report/route";
 import * as discoveryRemediationReport from "@/app/api/discovery-coverage/remediation-report/route";
 import * as discoveryTargetTemplate from "@/app/api/discovery-coverage/target-state-template/route";
@@ -31,6 +32,7 @@ import { NextRequest, NextResponse } from "./shims/next-server";
 type RouteModule = Partial<Record<"GET" | "POST" | "PUT" | "PATCH" | "DELETE", (...args: any[]) => Promise<Response>>>;
 
 const staticRoutes = new Map<string, RouteModule>([
+  ["/api/assets/cmdb-details", cmdbAssetDetails],
   ["/api/cyber-cop/impact-analyser-2", cyberImpact],
   ["/api/cyber-cop/impact-analyser-2/findings", cyberImpactFindings],
   ["/api/discovery-coverage/network-report", discoveryNetworkReport],

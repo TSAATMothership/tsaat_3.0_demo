@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { ComplianceStatus, CveVulnerabilityDetail, FindingSeverity, VulnerabilitySeverity } from "@/lib/types";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -756,7 +757,13 @@ export function NetworkComplianceOverview({
                 </h6>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs text-slate-300/80">Asset: {selectedAssetForCveDetails.assetName}</p>
+                    <p className="text-xs text-slate-300/80">
+                      Asset:{" "}
+                      <CmdbDeviceName
+                        assetId={selectedAssetForCveDetails.assetId}
+                        name={selectedAssetForCveDetails.assetName}
+                      />
+                    </p>
                     <p className="mt-1 text-xs text-slate-300/80">
                       CVEs in scope: {filteredAssetCves.length} of {selectedAssetCves.length}
                     </p>
@@ -1284,7 +1291,9 @@ export function NetworkComplianceOverview({
                             <tbody>
                               {assetDetailsRows.map((assetRow) => (
                                 <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
-                                  <td className="px-3 py-2 text-slate-100">{assetRow.assetName}</td>
+                                  <td className="px-3 py-2 text-slate-100">
+                                    <CmdbDeviceName assetId={assetRow.assetId} name={assetRow.assetName} />
+                                  </td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
                                   <td className="px-3 py-2">

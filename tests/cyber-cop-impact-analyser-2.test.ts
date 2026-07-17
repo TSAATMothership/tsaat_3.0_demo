@@ -1210,6 +1210,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
 
   it("keeps V2 worker-side filtering and Canvas/WebGL rendering markers", () => {
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+    const cmdbDrawer = readRepoFile("components/cmdb-drill-through.tsx");
     const worker = readRepoFile("components/ict-system-impact-analyser-2-worker.ts");
 
     expect(component).toContain("new Worker(new URL");
@@ -1289,10 +1290,10 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("sourceRows?: ImpactAnalyser2Row[]");
     expect(component).toContain("Network: ${selectedAssetMeta.networkName || selectedAssetMeta.networkId}");
     expect(component).toContain("function SelectedAssetPanel");
-    expect(component).toContain("interface AssetDetailsPanelModel");
-    expect(component).toContain("function rootAssetDetailsFromRow");
-    expect(component).toContain("function relatedAssetDetailsFromRow");
-    expect(component).toContain("function AssetDetailsPanel");
+    expect(component).toContain("useCmdbDrillThrough");
+    expect(component).toContain("openCmdbDrillThrough(node.value, assetName)");
+    expect(component).not.toContain("interface AssetDetailsPanelModel");
+    expect(component).not.toContain("function AssetDetailsPanel");
     expect(component).toContain('title="Selected Asset"');
     expect(component).toContain('placement="bottom-left"');
     expect(component).toContain('const placementClass = placement === "bottom-left" ? "bottom-3 left-3" : "right-3 top-3"');
@@ -1327,19 +1328,17 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).toContain('hit.action === "asset-details"');
     expect(component).toContain("openAssetDetails(hit.node)");
-    expect(component).toContain("relatedAssetDetailsFromRow(asset)");
-    expect(component).toContain("relatedAssetCmdbRecordUrl");
-    expect(component).toContain("Asset Details");
-    expect(component).toContain("CMDB Record");
-    expect(component).toContain("Open CMDB record");
-    expect(component).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">');
-    expect(component).toContain('scope="row"');
-    expect(component).toContain('aria-hidden="true"');
-    expect(component).toContain("fixed inset-0 z-[90] pointer-events-none cursor-default");
-    expect(component).toContain("absolute inset-0 cursor-default select-none bg-slate-950/35");
-    expect(component).toContain("min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3");
-    expect(component).toContain("cursor-pointer break-words text-cyan-200");
-    expect(component).not.toContain('aria-label="Close Asset Details"');
+    expect(cmdbDrawer).toContain("CMDB Drill Through");
+    expect(cmdbDrawer).toContain("Asset Details for");
+    expect(cmdbDrawer).toContain("CMDB Record");
+    expect(cmdbDrawer).toContain("Open CMDB record");
+    expect(cmdbDrawer).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">');
+    expect(cmdbDrawer).toContain('scope="row"');
+    expect(cmdbDrawer).toContain('role="dialog"');
+    expect(cmdbDrawer).toContain("fixed inset-0 z-[11000] pointer-events-none cursor-default");
+    expect(cmdbDrawer).toContain("min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3");
+    expect(cmdbDrawer).toContain("cursor-pointer break-words text-cyan-200");
+    expect(cmdbDrawer).toContain('aria-label="Close CMDB Drill Through"');
     expect(component).not.toContain("Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).not.toContain("{!isCiDiagramMode && selectedAssetDetails");
     expect(component).not.toContain('assetType === "server" && onAssetFocus');
@@ -1451,7 +1450,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     const dataLoader = readRepoFile("lib/data-loader.ts");
     const types = readRepoFile("lib/types.ts");
     const rowBuilder = readRepoFile("lib/cyber-cop-impact-analyser.ts");
-    const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+    const cmdbBuilder = readRepoFile("lib/cmdb-drill-through.ts");
+    const cmdbDrawer = readRepoFile("components/cmdb-drill-through.tsx");
 
     expect(schema).toContain("[cmdb_record_url] NVARCHAR(1024) NULL");
     expect(migration).toContain("019_add_asset_cmdb_record_url.sql");
@@ -1467,7 +1467,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(types).toContain("cmdbRecordUrl?: string | null");
     expect(rowBuilder).toContain("cmdbRecordUrl?: string | null");
     expect(rowBuilder).toContain("cmdbRecordUrl: asset.cmdbRecordUrl ?? null");
-    expect(component).toContain("asset.cmdbRecordUrl");
-    expect(component).toContain("Open CMDB record");
+    expect(cmdbBuilder).toContain("cmdbRecordUrl: asset.cmdbRecordUrl?.trim() || null");
+    expect(cmdbDrawer).toContain("details?.cmdbRecordUrl");
+    expect(cmdbDrawer).toContain("Open CMDB record");
   });
 });

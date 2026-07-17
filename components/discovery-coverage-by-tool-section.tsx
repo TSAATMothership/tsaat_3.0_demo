@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { CoverageByToolRadar } from "@/components/coverage-by-tool-radar";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { LoadingOverlay, nextLoadingProgressValue } from "@/components/loading-overlay";
 import { DiscoveryCoverageValue } from "@/lib/discovery-coverage";
 
@@ -589,7 +590,9 @@ export function DiscoveryCoverageByToolSection({
               <tbody>
                 {selectedToolRows.map((row) => (
                   <tr key={`${selectedTool.id}:${row.assetId}`} className="border-t border-sky-400/10">
-                    <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                    <td className="px-3 py-2 text-slate-100">
+                      <CmdbDeviceName assetId={row.assetId} name={row.hostname} />
+                    </td>
                     <td className="px-3 py-2 text-slate-300">{row.ipAddress}</td>
                     <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
                     <td className="px-3 py-2 text-slate-300">{row.network}</td>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import {
   IctSystemImpactAnalyser2Chart,
   type ImpactAnalyser2Row,
@@ -225,6 +226,7 @@ type DetailedDisplayEdge = DetailedTreeEdge | CiFlowEdgeLayout;
 
 interface CiFocusTileModel {
   id: string;
+  assetId?: string;
   entityType: DetailedTileEntityType;
   typeLabel: string;
   name: string;
@@ -762,6 +764,7 @@ function ciFocusTileForNode({
 }): Omit<CiFocusTileModel, "percentages"> {
   return {
     id,
+    assetId: node.assetId,
     entityType: node.entityType,
     typeLabel,
     name: node.name,
@@ -6374,7 +6377,15 @@ export function DetailedTopologyView({
             {tile.typeLabel}
           </p>
           <p className={`${variant === "selected" ? "text-sm" : "text-xs"} truncate font-semibold leading-snug text-slate-900`}>
-            {tile.name}
+            {tile.entityType === "ci" && tile.assetId ? (
+              <CmdbDeviceName
+                assetId={tile.assetId}
+                name={tile.name}
+                className="max-w-full truncate text-slate-900 underline decoration-slate-700/55 underline-offset-2 hover:text-slate-700"
+              />
+            ) : (
+              tile.name
+            )}
           </p>
           <p className={`${variant === "selected" ? "text-xs" : "text-[11px]"} truncate font-medium leading-snug text-slate-800`}>
             {tile.subtitle}
@@ -6446,6 +6457,7 @@ export function DetailedTopologyView({
       : "Not Modelled";
     return {
       id: "ci-focus-selected-related-asset",
+      assetId: selectedRelatedCiFlowFocusNode.id,
       entityType: "ci",
       typeLabel: "Related Asset",
       name: selectedRelatedCiFlowFocusNode.hostname || selectedRelatedCiFlowFocusNode.name || selectedRelatedCiFlowFocusNode.id,

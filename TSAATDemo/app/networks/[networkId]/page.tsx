@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
 import { FullHeightWorkspace } from "@/components/full-height-workspace";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
@@ -1746,7 +1747,9 @@ export default async function NetworkDetailPage({
                 <tbody>
                   {coverageRowsPage.items.map((row) => (
                     <tr key={row.assetId} className="border-t border-sky-400/10">
-                      <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                      <td className="px-3 py-2 text-slate-100">
+                        <CmdbDeviceName assetId={row.assetId} name={row.hostname} />
+                      </td>
                       <td className="px-3 py-2 text-slate-300">{row.assetIpAddress}</td>
                       <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
                       <td className="px-3 py-2 text-slate-300">{row.environment}</td>
@@ -1858,7 +1861,9 @@ export default async function NetworkDetailPage({
             <tbody>
               {inventoryRowsPage.items.map((asset) => (
                 <tr key={asset.id} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2 text-slate-100">{asset.hostname}</td>
+                  <td className="px-3 py-2 text-slate-100">
+                    <CmdbDeviceName assetId={asset.id} name={asset.hostname} />
+                  </td>
                   <td className="px-3 py-2 text-slate-300">{asset.type}</td>
                   <td className="px-3 py-2 text-slate-300">{asset.systemContext?.systemId ?? "-"}</td>
                   <td className="px-3 py-2 text-slate-300">{asset.systemContext?.environmentType ?? "-"}</td>
@@ -2052,7 +2057,9 @@ export default async function NetworkDetailPage({
                   P{finding.priorityRank} | SPI {finding.spiId} | {finding.severity}
                 </p>
                 <p className="mt-1 text-slate-100">{finding.title}</p>
-                <p className="mt-1 text-xs text-slate-300/75">{finding.scope.assetId}</p>
+                <p className="mt-1 text-xs text-slate-300/75">
+                  <CmdbDeviceName assetId={finding.scope.assetId} name={finding.scope.assetId} />
+                </p>
               </li>
             ))}
             {p12SectionFindings.length === 0 ? (

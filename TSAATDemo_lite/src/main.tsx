@@ -18,6 +18,7 @@ import ReportPage from "@/app/report/page";
 import SystemDetailPage from "@/app/systems/[systemId]/page";
 import SystemsPage from "@/app/systems/page";
 import { AuthenticatedSessionGuard } from "@/components/authenticated-session-guard";
+import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
 import { SiteFooter } from "@/components/site-footer";
@@ -263,7 +264,9 @@ function AppShell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">{page}</main>
+      <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">
+        <CmdbDrillThroughProvider>{page}</CmdbDrillThroughProvider>
+      </main>
       <Suspense fallback={null}>
         <AuthenticatedSessionGuard />
       </Suspense>

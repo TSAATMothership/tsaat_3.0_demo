@@ -19,6 +19,7 @@ import {
   ZAxis
 } from "recharts";
 import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
+import { useCmdbDrillThrough } from "@/components/cmdb-drill-through";
 import {
   IctSystemImpactAnalyser2Chart,
   type ImpactAnalyser2LoadState
@@ -801,6 +802,7 @@ function AssetTypeHeatmapChart({
   assetsBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
   embedded?: boolean;
 }) {
+  const { openCmdbDrillThrough } = useCmdbDrillThrough();
   const allServerAssets = useMemo(() => {
     const seenAssetIds = new Set<string>();
     return items
@@ -957,11 +959,12 @@ function AssetTypeHeatmapChart({
           {serverAssets.length ? (
             <div className="flex w-full flex-wrap content-start gap-1">
               {serverAssets.map((asset) => (
-                <span
+                <button
+                  type="button"
                   key={`asset-heatmap-cell-${asset.id}`}
-                  aria-label={`${asset.name}, Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
+                  aria-label={`Open CMDB Drill Through for ${asset.name}; Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
+                  onClick={() => openCmdbDrillThrough(asset.id, asset.name)}
                   className="h-4 w-4 shrink-0 rounded-[4px] border border-white/15 shadow-[0_0_10px_rgba(15,23,42,0.35)]"
-                  role="img"
                   style={{ backgroundColor: assetHeatmapColor(asset.riskScore, maxRiskScore) }}
                   title={`${asset.name}\n${asset.systemName}\n${asset.environmentType ?? "Unassigned"}\n${asset.securityDomain}\nServer\nCritical Exposure: ${asset.criticalExposureCount}\nHigh Risk: ${asset.highRiskCount}`}
                 />

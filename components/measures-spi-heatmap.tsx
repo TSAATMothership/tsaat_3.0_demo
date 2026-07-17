@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import {
   PerformanceAffectedCiRow,
   PerformanceEntityDetails,
@@ -477,7 +478,9 @@ function AffectedCisPanel({
               <tbody>
                 {rows.map((assetRow) => (
                   <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-100">{assetRow.assetName}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-100">
+                      <CmdbDeviceName assetId={assetRow.assetId} name={assetRow.assetName} />
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetIpAddress}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetType}</td>
                     <td className="whitespace-nowrap px-3 py-2">
@@ -583,7 +586,9 @@ function CveDetailsModal({
           </h6>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs text-slate-300/80">Asset: {assetRow.assetName}</p>
+              <p className="text-xs text-slate-300/80">
+                Asset: <CmdbDeviceName assetId={assetRow.assetId} name={assetRow.assetName} />
+              </p>
               <p className="mt-1 text-xs text-slate-300/80">
                 CVEs in scope: {filteredCves.length} of {cves.length}
               </p>

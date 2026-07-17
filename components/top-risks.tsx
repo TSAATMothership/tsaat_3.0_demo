@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { Finding } from "@/lib/types";
 
 const severityClass: Record<Finding["severity"], string> = {
@@ -25,7 +26,9 @@ export function TopRisks({ findings }: { findings: Finding[] }) {
               {finding.severity} | SPI {finding.spiId}
             </p>
             <p className="mt-1 text-slate-100">{finding.title}</p>
-            <p className="mt-1 text-xs text-slate-300/70">Asset: {finding.scope.assetId}</p>
+            <p className="mt-1 text-xs text-slate-300/70">
+              Asset: <CmdbDeviceName assetId={finding.scope.assetId} name={finding.scope.assetId} />
+            </p>
           </li>
         ))}
       </ul>

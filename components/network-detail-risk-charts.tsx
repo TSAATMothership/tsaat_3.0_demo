@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import {
   Bar,
   BarChart,
@@ -989,7 +990,13 @@ export function RiskFindingsDrillThrough({
                 </h6>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs text-slate-300/80">Asset: {selectedAssetForCveDetails.assetName}</p>
+                    <p className="text-xs text-slate-300/80">
+                      Asset:{" "}
+                      <CmdbDeviceName
+                        assetId={selectedAssetForCveDetails.assetId}
+                        name={selectedAssetForCveDetails.assetName}
+                      />
+                    </p>
                     <p className="mt-1 text-xs text-slate-300/80">CVEs in scope: {filteredAssetHighRiskCves.length}</p>
                   </div>
                   <button
@@ -1394,7 +1401,9 @@ export function RiskFindingsDrillThrough({
                         <tbody>
                           {affectedDeviceRows.map((device) => (
                             <tr key={device.assetId} className="border-t border-sky-400/10 align-top">
-                              <td className="whitespace-nowrap px-3 py-2 text-slate-100">{device.assetName}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-slate-100">
+                                <CmdbDeviceName assetId={device.assetId} name={device.assetName} />
+                              </td>
                               <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetId}</td>
                               <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetIpAddress}</td>
                               <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetType}</td>
@@ -2226,7 +2235,13 @@ export function NetworkDetailRiskCharts({
                 </h6>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs text-slate-300/80">Asset: {selectedAssetForCveDetails.assetName}</p>
+                    <p className="text-xs text-slate-300/80">
+                      Asset:{" "}
+                      <CmdbDeviceName
+                        assetId={selectedAssetForCveDetails.assetId}
+                        name={selectedAssetForCveDetails.assetName}
+                      />
+                    </p>
                     <p className="mt-1 text-xs text-slate-300/80">CVEs in scope: {filteredAssetHighRiskCves.length}</p>
                   </div>
                   <button
@@ -2867,7 +2882,9 @@ export function NetworkDetailRiskCharts({
                           <tbody>
                             {affectedDeviceRows.map((device) => (
                               <tr key={device.assetId} className="border-t border-sky-400/10 align-top">
-                                <td className="whitespace-nowrap px-3 py-2 text-slate-100">{device.assetName}</td>
+                                <td className="whitespace-nowrap px-3 py-2 text-slate-100">
+                                  <CmdbDeviceName assetId={device.assetId} name={device.assetName} />
+                                </td>
                                 <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetId}</td>
                                 <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetIpAddress}</td>
                                 <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetType}</td>

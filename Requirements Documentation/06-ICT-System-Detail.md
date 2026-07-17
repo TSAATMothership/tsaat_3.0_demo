@@ -37,7 +37,7 @@ Important hidden behaviour:
 ### Feature: Visible Tab Navigation and Detailed Topology Modal
 - **What it does:** switches between visible tabs and opens the detailed topology modal.
 - **User perspective:** the user can move between metadata, compliance evidence, and discovery coverage, and open a richer topology surface for CI relationships.
-- **System behaviour:** `systemDetailTab` in the query string controls the main visible tab; the topology modal is client-side only and receives runtime topology data built from the snapshot model. The embedded impact analyser labels the SPI axis as Security Posture Indicator, exposes CI Analyser focus only for selected assets with CI links, and opens a read-only Asset Details slide-out from selected asset nodes; the CI Focus analyser exposes the same details action for selected Asset and Related Asset nodes.
+- **System behaviour:** `systemDetailTab` in the query string controls the main visible tab; the topology modal is client-side only and receives runtime topology data built from the snapshot model. The embedded analyser `D` action, CI Focus Asset and Related Asset names, discovery coverage names, and all affected-CI device names open the shared read-only CMDB Drill Through by stable asset ID.
 - **Outcome:** tab states are bookmarkable; topology modal state is not.
 
 ### Feature: Details Tab

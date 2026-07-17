@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
 import { FullHeightWorkspace } from "@/components/full-height-workspace";
 import { MiniTrendSparkline } from "@/components/mini-trend-sparkline";
@@ -1773,7 +1774,9 @@ export default async function SystemDetailPage({
               <tbody>
                 {coverageRowsPage.items.map((row) => (
                   <tr key={row.assetId} className="border-t border-sky-400/10">
-                    <td className="px-3 py-2 text-slate-100">{row.hostname}</td>
+                    <td className="px-3 py-2 text-slate-100">
+                      <CmdbDeviceName assetId={row.assetId} name={row.hostname} />
+                    </td>
                     <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
                     <td className="px-3 py-2 text-slate-300">{row.environment}</td>
                     {discoveryToolCoverageModel.toolColumns.map((tool) => {
