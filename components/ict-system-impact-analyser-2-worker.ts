@@ -1,6 +1,6 @@
 type FindingSeverity = "High Risk" | "Critical Exposure" | "Major" | "Moderate" | "Data Gap";
 type SecurityDomain = "Secret" | "Protected" | "Unclassified";
-type ImpactAnalyser2DiagramMode = "risk" | "ci";
+type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies";
 
 interface ImpactAnalyser2Row {
   findingId: string | null;
@@ -109,6 +109,7 @@ const environmentOrder = ["Production", "Development", "UAT", "Test", "Unassigne
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
 const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
 const assetTypeOrder = ["server", "workstation", "network-device", "storage-device", "printer-device", "other"];
+const NOT_MODELLED_DEPENDENT_SYSTEM_LABEL = "Not Modelled";
 const searchCategoryOrder = [
   "Network",
   "ICT System",
@@ -117,6 +118,9 @@ const searchCategoryOrder = [
   "Server",
   "Related Asset",
   "Related ICT System",
+  "Dependent Server",
+  "Dependent Environment",
+  "Dependent ICT System",
   "Asset Type",
   "Finding Severity",
   "SPI",
@@ -153,6 +157,9 @@ function rowAxisValue(row: ImpactAnalyser2Row, axisKey: string): string {
   }
   if (axisKey === "relatedAsset") {
     return row.relatedAssetId ?? "";
+  }
+  if (axisKey === "relatedEnvironment") {
+    return row.relatedAssetEnvironmentType ?? "Unassigned";
   }
   if (axisKey === "relatedSystem") {
     return row.relatedSystemName ?? "";
@@ -209,7 +216,13 @@ function axisKeyForSearchCategory(category: string): string {
   if (category === "Related Asset") {
     return "relatedAsset";
   }
-  if (category === "Related ICT System") {
+  if (category === "Dependent Server") {
+    return "relatedAsset";
+  }
+  if (category === "Dependent Environment") {
+    return "relatedEnvironment";
+  }
+  if (category === "Related ICT System" || category === "Dependent ICT System") {
     return "relatedSystem";
   }
   if (category === "Asset Type") {
@@ -257,6 +270,7 @@ function rowMatchesSearch(row: ImpactAnalyser2Row, normalizedSearch: string): bo
     row.relatedAssetName ?? "",
     row.relatedAssetHostname ?? "",
     row.relatedAssetType ?? "",
+    row.relatedAssetEnvironmentType ?? "Unassigned",
     row.relatedSystemName ?? "",
     row.serverName,
     row.serverHostname,
@@ -284,7 +298,7 @@ function filterRows(
     if (systemIdFilter && (!row.systemId || !systemIdFilter.has(row.systemId))) {
       return false;
     }
-    const assetTypeFilterValue = diagramMode === "ci" ? row.relatedAssetType : row.assetType;
+    const assetTypeFilterValue = diagramMode === "risk" ? row.assetType : row.relatedAssetType;
     if (!matchesMultiFilter(filters.assetType, assetTypeFilterValue)) {
       return false;
     }
@@ -297,10 +311,10 @@ function filterRows(
     if (!matchesMultiFilter(filters.findingCriticality, row.severity)) {
       return false;
     }
-    if (filters.selectedSearchOption && diagramMode !== "ci") {
+    if (filters.selectedSearchOption && diagramMode === "risk") {
       return rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value;
     }
-    if (filters.selectedSearchOption && diagramMode === "ci") {
+    if (filters.selectedSearchOption && diagramMode !== "risk") {
       return true;
     }
     if (!rowMatchesSearch(row, normalizedSearch)) {
@@ -322,7 +336,22 @@ function buildAxes(
       row.relatedAssetName || row.relatedAssetHostname || row.relatedAssetId || ""
     ])
   );
-  if (diagramMode === "ci") {
+  if (diagramMode !== "risk") {
+    const isDependencyDiagram = diagramMode === "dependencies";
+    const relatedSystemValues = uniqueSorted(filteredRows.map((row) => row.relatedSystemName ?? "").filter(Boolean)).sort(
+      (left, right) => {
+        if (!isDependencyDiagram) {
+          return left.localeCompare(right);
+        }
+        if (left === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL) {
+          return -1;
+        }
+        if (right === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL) {
+          return 1;
+        }
+        return left.localeCompare(right);
+      }
+    );
     return [
       ...(includeNetworkAxis
         ? [
@@ -352,15 +381,26 @@ function buildAxes(
       },
       {
         key: "relatedAsset",
-        label: "Related Asset",
+        label: isDependencyDiagram ? "Dependent Server" : "Related Asset",
         values: uniqueSorted(filteredRows.map((row) => row.relatedAssetId ?? "").filter(Boolean)).sort((left, right) =>
           (relatedAssetNameById.get(left) ?? left).localeCompare(relatedAssetNameById.get(right) ?? right)
         )
       },
+      ...(isDependencyDiagram
+        ? [
+            {
+              key: "relatedEnvironment",
+              label: "Dependent Environment",
+              values: Array.from(
+                new Set(filteredRows.map((row) => row.relatedAssetEnvironmentType ?? "Unassigned"))
+              ).sort(sortEnvironmentLabel)
+            }
+          ]
+        : []),
       {
         key: "relatedSystem",
-        label: "Related ICT System",
-        values: uniqueSorted(filteredRows.map((row) => row.relatedSystemName ?? "").filter(Boolean))
+        label: isDependencyDiagram ? "Dependent ICT System" : "Related ICT System",
+        values: relatedSystemValues
       }
     ];
   }
@@ -447,8 +487,12 @@ function rowPathAxisKeys(
   if (includeNetworkAxis) {
     keys.push("network");
   }
-  if (diagramMode === "ci") {
-    keys.push("system", "environment", "asset", "relatedAsset", "relatedSystem");
+  if (diagramMode !== "risk") {
+    keys.push("system", "environment", "asset", "relatedAsset");
+    if (diagramMode === "dependencies") {
+      keys.push("relatedEnvironment");
+    }
+    keys.push("relatedSystem");
     return keys;
   }
   if (!includeNetworkAxis || row.hasIctSystem) {
@@ -557,18 +601,29 @@ function buildSearchOptions(
       addSearchOption(options, "Environment", row.environmentType ?? "Unassigned", row.environmentType ?? "Unassigned", normalizedSearch, limit);
     }
     addSearchOption(options, assetSearchCategory, row.assetName || row.assetHostname || row.assetId, row.assetId, normalizedSearch, limit);
-    if (diagramMode === "ci") {
+    if (diagramMode !== "risk") {
+      const isDependencyDiagram = diagramMode === "dependencies";
       addSearchOption(
         options,
-        "Related Asset",
+        isDependencyDiagram ? "Dependent Server" : "Related Asset",
         row.relatedAssetName || row.relatedAssetHostname || row.relatedAssetId || "",
         row.relatedAssetId ?? "",
         normalizedSearch,
         limit
       );
+      if (isDependencyDiagram) {
+        addSearchOption(
+          options,
+          "Dependent Environment",
+          row.relatedAssetEnvironmentType ?? "Unassigned",
+          row.relatedAssetEnvironmentType ?? "Unassigned",
+          normalizedSearch,
+          limit
+        );
+      }
       addSearchOption(
         options,
-        "Related ICT System",
+        isDependencyDiagram ? "Dependent ICT System" : "Related ICT System",
         row.relatedSystemName ?? "",
         row.relatedSystemName ?? "",
         normalizedSearch,
@@ -695,7 +750,7 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
       totalRowCount: sourceRows.length,
       environmentOptions: Array.from(new Set(sourceRows.map((row) => row.environmentType ?? "Unassigned"))).sort(sortEnvironmentLabel),
       assetTypeOptions: assetTypeOrder.filter((assetType) =>
-        sourceRows.some((row) => (request.diagramMode === "ci" ? row.relatedAssetType : row.assetType) === assetType)
+        sourceRows.some((row) => (request.diagramMode === "risk" ? row.assetType : row.relatedAssetType) === assetType)
       ),
       securityDomainOptions: Array.from(new Set(sourceRows.map((row) => row.securityDomain))).sort(
         (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)

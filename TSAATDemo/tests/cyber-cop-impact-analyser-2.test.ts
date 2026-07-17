@@ -10,15 +10,17 @@ import {
 import {
   buildCyberCopImpactAnalyserFindingRows,
   buildCyberCopImpactAnalyserRows,
+  buildCyberCopIctSystemDependencyRows,
   buildNetworkImpactAnalyserModelAssetIds,
   buildNetworkImpactAnalyserRows,
   buildSystemImpactAnalyserModelAssetIds,
   buildSystemImpactAnalyserRows,
   filterCyberCopImpactAnalyserRows,
+  NOT_MODELLED_DEPENDENT_SYSTEM_LABEL,
   type CyberCopImpactAnalyserRow
 } from "@/lib/cyber-cop-impact-analyser";
 import type { TopologyCiDependency, TopologyCiNode } from "@/lib/network-topology";
-import { Asset, Dataset, Finding, ICTSystem, ManagedNetwork } from "@/lib/types";
+import { Asset, CiDependency, Dataset, Finding, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 function readRepoFile(relativePath: string): string {
   return readFileSync(path.join(process.cwd(), relativePath), "utf8");
@@ -170,6 +172,278 @@ const findings: Finding[] = [
     recommendedAction: "No action"
   }
 ];
+
+function dependencyServer(id: string, name: string, systemContext?: Asset["systemContext"]): Asset {
+  return {
+    id,
+    name,
+    hostname: `${id}.example.test`,
+    cmdbRecordUrl: `https://cmdb.example.test/assets/${id}`,
+    networkId: "network-1",
+    securityDomain: "Secret",
+    lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+    vulnerabilities: [],
+    systemContext,
+    type: "server",
+    operatingSystem: null,
+    installedSoftware: []
+  };
+}
+
+function dependencyWorkstation(id: string, name: string): Asset {
+  return {
+    id,
+    name,
+    hostname: `${id}.example.test`,
+    networkId: "network-1",
+    securityDomain: "Secret",
+    lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
+    vulnerabilities: [],
+    type: "workstation",
+    operatingSystem: null,
+    installedSoftware: []
+  };
+}
+
+function dependencySystem(
+  id: string,
+  name: string,
+  modellingStatus: boolean,
+  environments: Array<{ type: ICTSystem["environments"][number]["type"]; assetIds: string[] }>
+): ICTSystem {
+  return {
+    ...systems[0],
+    id,
+    name,
+    modellingStatus,
+    environments: environments.map((environment, index) => ({
+      id: `${id}-environment-${index + 1}`,
+      name: environment.type,
+      ...environment
+    }))
+  };
+}
+
+describe("Cyber COP ICT System Dependencies rows", () => {
+  it("keeps directed modelled server dependencies and applies eligibility only to source servers", () => {
+    const assets = [
+      dependencyServer("source-a", "Source A", { systemId: "source-system", environmentType: "Production" }),
+      dependencyServer("source-b", "Source B", { systemId: "source-system", environmentType: "Production" }),
+      dependencyServer("target-modelled", "Target Modelled", {
+        systemId: "target-system",
+        environmentType: "UAT"
+      })
+    ];
+    const dependencySystems = [
+      dependencySystem("source-system", "Source System", true, [
+        { type: "Production", assetIds: ["source-a", "source-b"] }
+      ]),
+      dependencySystem("target-system", "Target System", true, [
+        { type: "UAT", assetIds: ["target-modelled"] }
+      ])
+    ];
+    const dependencies: CiDependency[] = [
+      {
+        id: "source-a-to-target",
+        sourceAssetId: "source-a",
+        targetAssetId: "target-modelled",
+        dependencyType: "Flow Dependency"
+      },
+      {
+        id: "source-b-to-target",
+        sourceAssetId: "source-b",
+        targetAssetId: "target-modelled",
+        dependencyType: "Logical Dependency"
+      }
+    ];
+
+    const rows = buildCyberCopIctSystemDependencyRows({
+      assets,
+      ciDependencies: dependencies,
+      systems: dependencySystems,
+      selectedSystemIds: ["source-system"],
+      sourceAssetIds: ["source-a"],
+      networkNameById: new Map([["network-1", "Core Network"]])
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      dependencyId: "source-a-to-target",
+      dependencyType: "Flow Dependency",
+      systemId: "source-system",
+      systemName: "Source System",
+      environmentType: "Production",
+      assetId: "source-a",
+      relatedAssetId: "target-modelled",
+      relatedAssetEnvironmentType: "UAT",
+      relatedAssetHasIctSystem: true,
+      relatedSystemId: "target-system",
+      relatedSystemName: "Target System"
+    });
+    expect(rows.map((row) => `${row.assetId}->${row.relatedAssetId}`)).toEqual(["source-a->target-modelled"]);
+  });
+
+  it("emits only the stored directed edges without synthesising a transitive dependency", () => {
+    const assets = [
+      dependencyServer("server-a", "Server A"),
+      dependencyServer("server-b", "Server B"),
+      dependencyServer("server-c", "Server C")
+    ];
+    const dependencySystems = [
+      dependencySystem("chain-system", "Chain System", true, [
+        { type: "Production", assetIds: assets.map((asset) => asset.id) }
+      ])
+    ];
+    const dependencies: CiDependency[] = [
+      {
+        id: "a-to-b",
+        sourceAssetId: "server-a",
+        targetAssetId: "server-b",
+        dependencyType: "Flow Dependency"
+      },
+      {
+        id: "b-to-c",
+        sourceAssetId: "server-b",
+        targetAssetId: "server-c",
+        dependencyType: "Flow Dependency"
+      }
+    ];
+
+    const rows = buildCyberCopIctSystemDependencyRows({
+      assets,
+      ciDependencies: dependencies,
+      systems: dependencySystems,
+      selectedSystemIds: ["chain-system"]
+    });
+
+    expect(rows.map((row) => `${row.assetId}->${row.relatedAssetId}`).sort()).toEqual([
+      "server-a->server-b",
+      "server-b->server-c"
+    ]);
+    expect(rows.some((row) => row.assetId === "server-a" && row.relatedAssetId === "server-c")).toBe(false);
+  });
+
+  it("deduplicates dependency ids and excludes self, dangling, and non-server edges", () => {
+    const assets = [
+      dependencyServer("source-server", "Source Server"),
+      dependencyServer("target-one", "Target One"),
+      dependencyServer("target-two", "Target Two"),
+      dependencyWorkstation("target-workstation", "Target Workstation")
+    ];
+    const dependencySystems = [
+      dependencySystem("edge-system", "Edge System", true, [
+        { type: "Production", assetIds: ["source-server"] }
+      ])
+    ];
+    const dependencies: CiDependency[] = [
+      {
+        id: "duplicate-id",
+        sourceAssetId: "source-server",
+        targetAssetId: "target-one",
+        dependencyType: "Logical Dependency"
+      },
+      {
+        id: "duplicate-id",
+        sourceAssetId: "source-server",
+        targetAssetId: "target-two",
+        dependencyType: "Flow Dependency"
+      },
+      {
+        id: "self-edge",
+        sourceAssetId: "source-server",
+        targetAssetId: "source-server",
+        dependencyType: "Flow Dependency"
+      },
+      {
+        id: "dangling-edge",
+        sourceAssetId: "source-server",
+        targetAssetId: "missing-server",
+        dependencyType: "Flow Dependency"
+      },
+      {
+        id: "non-server-target",
+        sourceAssetId: "source-server",
+        targetAssetId: "target-workstation",
+        dependencyType: "Flow Dependency"
+      },
+      {
+        id: "non-server-source",
+        sourceAssetId: "target-workstation",
+        targetAssetId: "source-server",
+        dependencyType: "Flow Dependency"
+      }
+    ];
+
+    const rows = buildCyberCopIctSystemDependencyRows({
+      assets,
+      ciDependencies: dependencies,
+      systems: dependencySystems,
+      selectedSystemIds: ["edge-system"]
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      dependencyId: "duplicate-id",
+      assetId: "source-server",
+      relatedAssetId: "target-one"
+    });
+  });
+
+  it("uses Not Modelled for absent, inactive-model, and context-only dependent servers", () => {
+    const assets = [
+      dependencyServer("source-server", "Source Server"),
+      dependencyServer("target-absent", "Target Absent"),
+      dependencyServer("target-inactive", "Target Inactive", {
+        systemId: "inactive-system",
+        environmentType: "Development"
+      }),
+      dependencyServer("target-context-only", "Target Context Only", {
+        systemId: "modelled-system",
+        environmentType: "UAT"
+      })
+    ];
+    const dependencySystems = [
+      dependencySystem("source-system", "Source System", true, [
+        { type: "Production", assetIds: ["source-server"] }
+      ]),
+      dependencySystem("inactive-system", "Inactive System", false, [
+        { type: "Development", assetIds: ["target-inactive"] }
+      ]),
+      dependencySystem("modelled-system", "Modelled System", true, [{ type: "UAT", assetIds: [] }])
+    ];
+    const dependencies: CiDependency[] = ["target-absent", "target-inactive", "target-context-only"].map(
+      (targetAssetId) => ({
+        id: `source-to-${targetAssetId}`,
+        sourceAssetId: "source-server",
+        targetAssetId,
+        dependencyType: "Logical Dependency"
+      })
+    );
+
+    const rows = buildCyberCopIctSystemDependencyRows({
+      assets,
+      ciDependencies: dependencies,
+      systems: dependencySystems,
+      selectedSystemIds: ["source-system"]
+    });
+
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.relatedAssetId).sort()).toEqual([
+      "target-absent",
+      "target-context-only",
+      "target-inactive"
+    ]);
+    expect(
+      rows.every(
+        (row) =>
+          row.relatedSystemId === null &&
+          row.relatedSystemName === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL &&
+          row.relatedAssetEnvironmentType === null &&
+          row.relatedAssetHasIctSystem === false
+      )
+    ).toBe(true);
+  });
+});
 
 describe("CI Flow analyser helpers", () => {
   const ciNodes: TopologyCiNode[] = [
@@ -853,6 +1127,60 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(page).not.toContain("impactNetworkDiagramRows");
   });
 
+  it("opens the lazy ICT System Dependencies overlay with the exact directed six-axis contract", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+    const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+    const worker = readRepoFile("components/ict-system-impact-analyser-2-worker.ts");
+    const dependencyRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/dependencies/route.ts");
+    const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
+    const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
+    const ictPanel = dashboard.slice(ictPanelStart, networkPanelStart);
+    const networkPanel = dashboard.slice(networkPanelStart);
+
+    expect(ictPanel).toContain("ICT System Dependencies");
+    expect(ictPanel).toContain('disabled={loadState !== "ready"}');
+    expect(ictPanel).toContain('aria-controls="cyber-cop-ict-system-dependencies-overlay"');
+    expect(ictPanel).toContain("diagramOverlay={");
+    expect(ictPanel).toContain('role="dialog"');
+    expect(ictPanel).toContain('event.key === "Escape"');
+    expect(ictPanel).toContain('aria-label="Close ICT System Dependencies"');
+    expect(ictPanel).toContain('dataPath="/api/cyber-cop/impact-analyser-2/dependencies"');
+    expect(ictPanel).toContain('diagramMode="dependencies"');
+    expect(ictPanel).toContain("systemScopeIds={appliedSystemIds}");
+    expect(networkPanel).not.toContain("ICT System Dependencies");
+
+    expect(component).toContain('type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies"');
+    expect(component).toContain('data-impact-analyser-diagram-overlay="true"');
+    expect(component).toContain('axis.key === "relatedSystem" && value === "Not Modelled"');
+    expect(component).toContain('? "#ef4444"');
+    expect(component).toContain('data-not-modelled-node-legend="true"');
+    expect(component).toContain("data-dependency-axis-order");
+
+    const dependencyAxesStart = worker.indexOf('const isDependencyDiagram = diagramMode === "dependencies"');
+    const dependencyAxes = worker.slice(dependencyAxesStart, worker.indexOf("const findingRows", dependencyAxesStart));
+    const expectedAxisLabels = [
+      'label: "ICT System"',
+      'label: "Environment"',
+      'label: isDependencyDiagram ? "Dependent Server" : "Related Asset"',
+      'label: "Dependent Environment"',
+      'label: isDependencyDiagram ? "Dependent ICT System" : "Related ICT System"'
+    ];
+    let previousAxisIndex = -1;
+    for (const axisLabel of expectedAxisLabels) {
+      const axisIndex = dependencyAxes.indexOf(axisLabel);
+      expect(axisIndex).toBeGreaterThan(previousAxisIndex);
+      previousAxisIndex = axisIndex;
+    }
+    expect(worker).toContain('assetAxis.label = request.layout.assetAxisLabel');
+    expect(worker).toContain('keys.push("relatedEnvironment")');
+    expect(worker).toContain('left === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL');
+
+    expect(dependencyRoute).toContain('export const dynamic = "force-dynamic"');
+    expect(dependencyRoute).toContain('request.nextUrl.searchParams.get("diagramSystemIds")');
+    expect(dependencyRoute).toContain("buildCyberCopIctSystemDependencyRows");
+    expect(dependencyRoute).toContain("sourceAssetIds: eligibleSourceAssetIds");
+  });
+
   it("combines business and mission impact scopes into one tabbed left panel", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
 
@@ -1316,9 +1644,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain('if (axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.get(value)?.relatedAssetType");
     expect(component).toContain("const assetType = assetShapeTypeForNode(axis.key, value)");
-    expect(component).toContain('if (!isCiDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value))');
+    expect(component).toContain(
+      'if (!isRelationshipDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value))'
+    );
     expect(component).toContain("const canOpenAssetDetails = useCallback");
-    expect(component).toContain('if (isCiDiagramMode && axisKey === "relatedAsset")');
+    expect(component).toContain('if (isRelationshipDiagramMode && axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.has(value)");
     expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value))");
     expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11)");
@@ -1402,9 +1732,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("assetType: string");
     expect(worker).toContain("function matchesMultiFilter");
     expect(worker).toContain("environment: string[]");
-    expect(worker).toContain('const assetTypeFilterValue = diagramMode === "ci" ? row.relatedAssetType : row.assetType');
+    expect(worker).toContain('const assetTypeFilterValue = diagramMode === "risk" ? row.assetType : row.relatedAssetType');
     expect(worker).toContain("if (!matchesMultiFilter(filters.assetType, assetTypeFilterValue))");
-    expect(worker).toContain('request.diagramMode === "ci" ? row.relatedAssetType : row.assetType');
+    expect(worker).toContain('request.diagramMode === "risk" ? row.assetType : row.relatedAssetType');
     expect(worker).toContain('key: "asset"');
     expect(worker).toContain('key: "network"');
     expect(worker).toContain("includeNetworkAxis");
@@ -1418,8 +1748,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain("let rowCanDraw = true");
     expect(worker).toContain("return { positions: positions.slice(0, offset), colors: colors.slice(0, colorOffset) }");
     expect(worker).toContain("filters.selectedSearchOption");
-    expect(worker).toContain('diagramMode !== "ci"');
-    expect(worker).toContain('diagramMode === "ci"');
+    expect(worker).toContain('diagramMode !== "risk"');
+    expect(worker).toContain('diagramMode === "risk"');
     expect(worker).toContain("rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value");
     expect(worker).toContain("if (!rowMatchesSearch(row, normalizedSearch))");
     expect(worker).toContain("rows: filteredRows");

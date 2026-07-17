@@ -8,6 +8,27 @@ const liteRoot = path.resolve(scriptDirectory, "..");
 const htmlPath = path.join(liteRoot, "TSAATDemo_lite.html");
 const html = await readFile(htmlPath, "utf8");
 const details = await stat(htmlPath);
+const dependencyAxisOrder = [
+  "ICT System",
+  "Environment",
+  "Server",
+  "Dependent Server",
+  "Dependent Environment",
+  "Dependent ICT System"
+];
+// The worker initially names the source asset axis "Asset" and applies the
+// packaged assetAxisLabel ("Server") before returning its result. Assert the
+// worker branch order here; the browser smoke test asserts the final labels.
+const dependencyWorkerAxisPattern = new RegExp(
+  [
+    "label\\s*:\\s*[\"']ICT System[\"']",
+    "label\\s*:\\s*[\"']Environment[\"']",
+    "label\\s*:\\s*[\"']Asset[\"']",
+    "[\"']Dependent Server[\"']",
+    "label\\s*:\\s*[\"']Dependent Environment[\"']",
+    "[\"']Dependent ICT System[\"']"
+  ].join("[\\s\\S]{0,1500}?")
+);
 
 assert(html.startsWith("<!doctype html>"), "Output must be an HTML5 document.");
 assert.match(html, /data-tsaat-lite-snapshots="8"/, "All eight snapshots must be packaged.");
@@ -26,6 +47,23 @@ assert.doesNotMatch(
 assert(html.includes("demo123"), "The hard-coded demo credential must be packaged.");
 assert(html.includes("Network Impact Analyser"), "The Network Impact Analyser tab must be packaged.");
 assert(html.includes("diagramNetworkIds"), "The multi-network analyser request contract must be packaged.");
+assert(html.includes("ICT System Dependencies"), "The ICT System Dependencies control and overlay must be packaged.");
+assert(
+  html.includes("/api/cyber-cop/impact-analyser-2/dependencies"),
+  "The ICT System Dependencies API bridge must be packaged."
+);
+assert(html.includes("data-dependency-axis-order"), "The dependency axis-order contract marker must be packaged.");
+assert(html.includes("assetAxisLabel"), "The packaged analyser must retain the Server axis-label override.");
+assert.match(
+  html,
+  dependencyWorkerAxisPattern,
+  `The packaged dependency diagram must preserve the exact axis order: ${dependencyAxisOrder.join(" -> ")}.`
+);
+assert(html.includes("Not Modelled"), "The dependency diagram Not Modelled terminal-node label must be packaged.");
+assert(
+  html.includes("data-not-modelled-node-legend"),
+  "The dependency diagram Not Modelled red-circle legend must be packaged."
+);
 assert(html.includes("CMDB Drill Through"), "The shared CMDB drill-through panel must be packaged.");
 assert(html.includes("/api/assets/cmdb-details"), "The CMDB asset-details API bridge must be packaged.");
 assert(html.includes("data-cmdb-asset-id"), "Clickable CMDB device-name triggers must be packaged.");

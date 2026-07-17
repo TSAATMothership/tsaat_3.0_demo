@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -1400,6 +1400,10 @@ function IctSystemImpactAnalyserRunPanel({
   const [appliedSystemIds, setAppliedSystemIds] = useState<string[]>([]);
   const [loadState, setLoadState] = useState<ImpactAnalyser2LoadState>("idle");
   const [runRequestId, setRunRequestId] = useState(0);
+  const [isDependenciesOpen, setIsDependenciesOpen] = useState(false);
+  const [dependencyRequestId, setDependencyRequestId] = useState(0);
+  const dependenciesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const dependenciesCloseRef = useRef<HTMLButtonElement | null>(null);
   const systemOptions = useMemo(
     () => [...availableSystems].sort((left, right) => left.name.localeCompare(right.name)),
     [availableSystems]
@@ -1419,12 +1423,33 @@ function IctSystemImpactAnalyserRunPanel({
     setAppliedSystemIds([]);
     setLoadState("idle");
     setIsSystemSelectorOpen(false);
+    setIsDependenciesOpen(false);
   }, [systemOptionKey]);
+
+  useEffect(() => {
+    if (!isDependenciesOpen) {
+      return;
+    }
+    const focusFrame = window.requestAnimationFrame(() => dependenciesCloseRef.current?.focus());
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsDependenciesOpen(false);
+        window.requestAnimationFrame(() => dependenciesTriggerRef.current?.focus());
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [dependencyRequestId, isDependenciesOpen]);
 
   const updateSelectedSystemIds = useCallback((nextSystemIds: string[]) => {
     setSelectedSystemIds(nextSystemIds);
     setAppliedSystemIds([]);
     setLoadState("idle");
+    setIsDependenciesOpen(false);
   }, []);
 
   const toggleSelectedSystem = useCallback(
@@ -1446,12 +1471,26 @@ function IctSystemImpactAnalyserRunPanel({
     setAppliedSystemIds([...selectedSystemIds]);
     setRunRequestId((current) => current + 1);
     setLoadState("loading");
+    setIsDependenciesOpen(false);
   }, [isLoading, selectedSystemIds]);
 
   const handleLoadStateChange = useCallback((nextLoadState: ImpactAnalyser2LoadState) => {
     setLoadState((currentLoadState) =>
       currentLoadState === "loading" && nextLoadState === "idle" ? currentLoadState : nextLoadState
     );
+  }, []);
+
+  const openDependencies = useCallback(() => {
+    if (loadState !== "ready" || !appliedSystemIds.length) {
+      return;
+    }
+    setDependencyRequestId((current) => current + 1);
+    setIsDependenciesOpen(true);
+  }, [appliedSystemIds.length, loadState]);
+
+  const closeDependencies = useCallback(() => {
+    setIsDependenciesOpen(false);
+    window.requestAnimationFrame(() => dependenciesTriggerRef.current?.focus());
   }, []);
 
   return (
@@ -1550,6 +1589,56 @@ function IctSystemImpactAnalyserRunPanel({
             dataDate={dataDate}
             spiDefinitions={spiDefinitions}
             onLoadStateChange={handleLoadStateChange}
+            extraControls={
+              <button
+                ref={dependenciesTriggerRef}
+                type="button"
+                aria-expanded={isDependenciesOpen}
+                aria-controls="cyber-cop-ict-system-dependencies-overlay"
+                disabled={loadState !== "ready"}
+                onClick={openDependencies}
+                className="ml-auto h-8 shrink-0 rounded-md border border-violet-300/45 bg-violet-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-violet-100 transition hover:border-violet-200/65 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
+              >
+                ICT System Dependencies
+              </button>
+            }
+            diagramOverlay={
+              isDependenciesOpen ? (
+                <div
+                  id="cyber-cop-ict-system-dependencies-overlay"
+                  role="dialog"
+                  aria-label="ICT System Dependencies"
+                  className="h-full min-h-0 min-w-0 bg-slate-950 p-1"
+                >
+                  <IctSystemImpactAnalyser2Chart
+                    key={`cyber-cop-ict-system-dependencies-${runRequestId}-${dependencyRequestId}`}
+                    embedded
+                    systemScopeIds={appliedSystemIds}
+                    dataDate={dataDate}
+                    dataPath="/api/cyber-cop/impact-analyser-2/dependencies"
+                    diagramMode="dependencies"
+                    analyserName="ICT System Dependencies"
+                    analyserSlug="ict-system-dependencies"
+                    title="ICT System Dependencies"
+                    headingTooltip="Directed server-to-server dependencies for the applied ICT system scope."
+                    assetAxisLabel="Server"
+                    assetSearchCategory="Server"
+                    onRetry={() => setDependencyRequestId((current) => current + 1)}
+                    extraControls={
+                      <button
+                        ref={dependenciesCloseRef}
+                        type="button"
+                        aria-label="Close ICT System Dependencies"
+                        onClick={closeDependencies}
+                        className="ml-auto h-8 shrink-0 rounded-md border border-rose-300/45 bg-rose-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-rose-100 hover:border-rose-200/65 hover:bg-rose-500/25"
+                      >
+                        Close
+                      </button>
+                    }
+                  />
+                </div>
+              ) : null
+            }
           />
         ) : (
           <div className="flex h-full min-h-[20rem] items-center justify-center rounded-lg border border-dashed border-sky-300/20 bg-slate-950/35 p-6 text-center">

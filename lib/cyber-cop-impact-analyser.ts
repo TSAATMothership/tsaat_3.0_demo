@@ -2,6 +2,7 @@ import { ASSET_TYPES, formatAssetTypeLabel, type CanonicalAssetType } from "@/li
 import {
   Asset,
   AssetType,
+  CiDependency,
   EnvironmentType,
   Finding,
   FindingSeverity,
@@ -41,6 +42,37 @@ export interface CyberCopImpactAnalyserRow {
   installedSoftwareCount?: number;
   vulnerabilityCount?: number;
   criticalVulnerabilityCount?: number;
+  dependencyId?: string;
+  dependencyType?: CiDependency["dependencyType"];
+  relatedAssetId?: string;
+  relatedAssetName?: string;
+  relatedAssetHostname?: string;
+  relatedAssetType?: AssetType;
+  relatedAssetIpAddress?: string;
+  relatedAssetEnvironmentType?: EnvironmentType | null;
+  relatedAssetNetworkId?: string;
+  relatedAssetNetworkName?: string;
+  relatedAssetHasIctSystem?: boolean;
+  relatedAssetSecurityDomain?: SecurityDomain;
+  relatedAssetCmdbRecordUrl?: string | null;
+  relatedAssetLifecycleEolStatus?: string;
+  relatedAssetLifecycleWarrantyStatus?: string;
+  relatedAssetOperatingSystemSummary?: string | null;
+  relatedAssetNetworkOsSummary?: string | null;
+  relatedAssetPatchStateSummary?: string | null;
+  relatedAssetInstalledSoftwareCount?: number;
+  relatedAssetVulnerabilityCount?: number;
+  relatedAssetCriticalVulnerabilityCount?: number;
+  relatedSystemId?: string | null;
+  relatedSystemName?: string;
+}
+
+export const NOT_MODELLED_DEPENDENT_SYSTEM_LABEL = "Not Modelled";
+
+interface IctSystemModelMembership {
+  systemId: string;
+  systemName: string;
+  environmentType: EnvironmentType;
 }
 
 export interface CyberCopImpactAnalyserFindingRow {
@@ -282,6 +314,161 @@ function rowForAssetFinding(
     vulnerabilityCount: asset.vulnerabilities.length,
     criticalVulnerabilityCount: criticalVulnerabilityCount(asset)
   };
+}
+
+export function buildCyberCopIctSystemDependencyRows({
+  assets,
+  ciDependencies,
+  systems,
+  selectedSystemIds,
+  sourceAssetIds,
+  networkNameById = new Map<string, string>()
+}: {
+  assets: Asset[];
+  ciDependencies: CiDependency[];
+  systems: Array<Pick<ICTSystem, "id" | "name" | "modellingStatus" | "environments">>;
+  selectedSystemIds: Iterable<string>;
+  sourceAssetIds?: Iterable<string>;
+  networkNameById?: Map<string, string>;
+}): CyberCopImpactAnalyserRow[] {
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const selectedSystemIdSet = new Set(selectedSystemIds);
+  const sourceAssetIdSet = sourceAssetIds ? new Set(sourceAssetIds) : null;
+  const membershipsByAssetId = new Map<string, IctSystemModelMembership[]>();
+
+  for (const system of systems) {
+    if (!system.modellingStatus) {
+      continue;
+    }
+    for (const environment of system.environments) {
+      for (const assetId of environment.assetIds) {
+        const memberships = membershipsByAssetId.get(assetId) ?? [];
+        if (!memberships.some((membership) => membership.systemId === system.id && membership.environmentType === environment.type)) {
+          memberships.push({
+            systemId: system.id,
+            systemName: system.name,
+            environmentType: environment.type
+          });
+          membershipsByAssetId.set(assetId, memberships);
+        }
+      }
+    }
+  }
+
+  const rows: CyberCopImpactAnalyserRow[] = [];
+  const seenDependencyIds = new Set<string>();
+  for (const dependency of ciDependencies) {
+    const dependencyId = dependency.id?.trim() || `${dependency.sourceAssetId}->${dependency.targetAssetId}:${dependency.dependencyType}`;
+    if (seenDependencyIds.has(dependencyId)) {
+      continue;
+    }
+    seenDependencyIds.add(dependencyId);
+    if (dependency.sourceAssetId === dependency.targetAssetId) {
+      continue;
+    }
+
+    const sourceAsset = assetById.get(dependency.sourceAssetId);
+    const dependentAsset = assetById.get(dependency.targetAssetId);
+    if (!sourceAsset || !dependentAsset || sourceAsset.type !== "server" || dependentAsset.type !== "server") {
+      continue;
+    }
+    if (sourceAssetIdSet && !sourceAssetIdSet.has(sourceAsset.id)) {
+      continue;
+    }
+
+    const sourceMemberships = (membershipsByAssetId.get(sourceAsset.id) ?? []).filter((membership) =>
+      selectedSystemIdSet.has(membership.systemId)
+    );
+    if (!sourceMemberships.length) {
+      continue;
+    }
+    const dependentMemberships = membershipsByAssetId.get(dependentAsset.id) ?? [];
+    const dependentTargets: Array<IctSystemModelMembership | null> = dependentMemberships.length
+      ? dependentMemberships
+      : [null];
+
+    for (const sourceMembership of sourceMemberships) {
+      for (const dependentMembership of dependentTargets) {
+        rows.push({
+          findingId: null,
+          systemId: sourceMembership.systemId,
+          systemName: sourceMembership.systemName,
+          environmentType: sourceMembership.environmentType,
+          assetId: sourceAsset.id,
+          assetName: assetDisplayName(sourceAsset),
+          assetHostname: sourceAsset.hostname || sourceAsset.name || sourceAsset.id,
+          assetType: sourceAsset.type,
+          assetIpAddress: resolveAssetIpAddress(sourceAsset),
+          networkId: sourceAsset.networkId,
+          networkName: networkNameById.get(sourceAsset.networkId) ?? sourceAsset.networkId,
+          hasIctSystem: true,
+          serverId: sourceAsset.id,
+          serverName: assetDisplayName(sourceAsset),
+          serverHostname: sourceAsset.hostname || sourceAsset.name || sourceAsset.id,
+          securityDomain: sourceAsset.securityDomain,
+          severity: null,
+          spiId: null,
+          spiLabel: "",
+          hasOpenFinding: false,
+          cmdbRecordUrl: sourceAsset.cmdbRecordUrl ?? null,
+          lifecycleEolStatus: sourceAsset.lifecycle.eolStatus,
+          lifecycleWarrantyStatus: sourceAsset.lifecycle.warrantyStatus,
+          operatingSystemSummary: assetOperatingSystemSummary(sourceAsset),
+          installedSoftwareCount: assetInstalledSoftwareCount(sourceAsset),
+          vulnerabilityCount: sourceAsset.vulnerabilities.length,
+          criticalVulnerabilityCount: criticalVulnerabilityCount(sourceAsset),
+          dependencyId,
+          dependencyType: dependency.dependencyType,
+          relatedAssetId: dependentAsset.id,
+          relatedAssetName: assetDisplayName(dependentAsset),
+          relatedAssetHostname: dependentAsset.hostname || dependentAsset.name || dependentAsset.id,
+          relatedAssetType: dependentAsset.type,
+          relatedAssetIpAddress: resolveAssetIpAddress(dependentAsset),
+          relatedAssetEnvironmentType: dependentMembership?.environmentType ?? null,
+          relatedAssetNetworkId: dependentAsset.networkId,
+          relatedAssetNetworkName: networkNameById.get(dependentAsset.networkId) ?? dependentAsset.networkId,
+          relatedAssetHasIctSystem: Boolean(dependentMembership),
+          relatedAssetSecurityDomain: dependentAsset.securityDomain,
+          relatedAssetCmdbRecordUrl: dependentAsset.cmdbRecordUrl ?? null,
+          relatedAssetLifecycleEolStatus: dependentAsset.lifecycle.eolStatus,
+          relatedAssetLifecycleWarrantyStatus: dependentAsset.lifecycle.warrantyStatus,
+          relatedAssetOperatingSystemSummary: assetOperatingSystemSummary(dependentAsset),
+          relatedAssetInstalledSoftwareCount: assetInstalledSoftwareCount(dependentAsset),
+          relatedAssetVulnerabilityCount: dependentAsset.vulnerabilities.length,
+          relatedAssetCriticalVulnerabilityCount: criticalVulnerabilityCount(dependentAsset),
+          relatedSystemId: dependentMembership?.systemId ?? null,
+          relatedSystemName: dependentMembership?.systemName ?? NOT_MODELLED_DEPENDENT_SYSTEM_LABEL
+        });
+      }
+    }
+  }
+
+  return rows.sort((left, right) => {
+    const sourceSystemDelta = left.systemName.localeCompare(right.systemName);
+    if (sourceSystemDelta) {
+      return sourceSystemDelta;
+    }
+    const sourceEnvironmentDelta = (left.environmentType ?? "Unassigned").localeCompare(right.environmentType ?? "Unassigned");
+    if (sourceEnvironmentDelta) {
+      return sourceEnvironmentDelta;
+    }
+    const sourceServerDelta = left.serverName.localeCompare(right.serverName);
+    if (sourceServerDelta) {
+      return sourceServerDelta;
+    }
+    const leftDependentSystem = left.relatedSystemName ?? NOT_MODELLED_DEPENDENT_SYSTEM_LABEL;
+    const rightDependentSystem = right.relatedSystemName ?? NOT_MODELLED_DEPENDENT_SYSTEM_LABEL;
+    if (leftDependentSystem !== rightDependentSystem) {
+      if (leftDependentSystem === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL) {
+        return -1;
+      }
+      if (rightDependentSystem === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL) {
+        return 1;
+      }
+      return leftDependentSystem.localeCompare(rightDependentSystem);
+    }
+    return (left.relatedAssetName ?? "").localeCompare(right.relatedAssetName ?? "");
+  });
 }
 
 export function buildCyberCopImpactAnalyserRows(

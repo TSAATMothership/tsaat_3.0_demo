@@ -10,6 +10,9 @@ const htmlPath = process.env.TSAAT_HTML_PATH
   ? path.resolve(process.env.TSAAT_HTML_PATH)
   : path.join(liteRoot, "TSAATDemo_lite.html");
 assert(existsSync(htmlPath), `TSAAT HTML file was not found at ${htmlPath}.`);
+const dependencyButtonLabel = "ICT System Dependencies";
+const dependencyAxisContract =
+  "ICT System -> Environment -> Server -> Dependent Server -> Dependent Environment -> Dependent ICT System";
 
 function browserPath() {
   const candidates = [
@@ -593,6 +596,17 @@ try {
     return Boolean(button);
   });
   assert(tabSelected, "ICT System Impact Analyser tab was not found.");
+  await page.evaluate(() => {
+    const originalFetch = window.fetch.bind(window);
+    globalThis.__TSAAT_ICT_DEPENDENCY_REQUESTS__ = [];
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/cyber-cop/impact-analyser-2/dependencies")) {
+        globalThis.__TSAAT_ICT_DEPENDENCY_REQUESTS__.push(url);
+      }
+      return originalFetch(input, init);
+    };
+  });
   await page.waitForSelector('button[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
   await page.click('button[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
   await page.waitForSelector('[role="listbox"] input[type="checkbox"]');
@@ -614,6 +628,174 @@ try {
     const text = document.body.innerText;
     return !text.includes("Running...") && /open server findings|finding paths|relationship path/.test(text);
   });
+  await page.waitForFunction(() => {
+    const trigger = document.querySelector('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
+    return trigger instanceof HTMLButtonElement && !trigger.disabled;
+  });
+  const dependencyTriggerPlacement = await page.evaluate((expectedLabel) => {
+    const trigger = document.querySelector('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
+    const filterRow = trigger?.parentElement;
+    const triggerRect = trigger?.getBoundingClientRect();
+    const filterRowRect = filterRow?.getBoundingClientRect();
+    return {
+      label: trigger?.textContent?.trim() ?? "",
+      isLastControl: Boolean(trigger && filterRow?.lastElementChild === trigger),
+      isRightAligned: Boolean(
+        triggerRect && filterRowRect && Math.abs(filterRowRect.right - triggerRect.right) <= 2
+      ),
+      hasExpectedLabel: trigger?.textContent?.trim() === expectedLabel
+    };
+  }, dependencyButtonLabel);
+  assert(dependencyTriggerPlacement.hasExpectedLabel, "The ICT dependency trigger did not use its exact label.");
+  assert(dependencyTriggerPlacement.isLastControl, "The ICT dependency trigger was not the final analyser filter control.");
+  assert(dependencyTriggerPlacement.isRightAligned, "The ICT dependency trigger was not aligned to the filter row's far right.");
+
+  await page.click('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
+  await page.waitForSelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
+  const dependencyOverlayGeometry = await page.evaluate(() => {
+    const trigger = document.querySelector('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
+    const filterRow = trigger?.parentElement;
+    const overlay = document.querySelector('[data-impact-analyser-diagram-overlay="true"]');
+    const diagramPane = overlay?.parentElement;
+    const overlayRect = overlay?.getBoundingClientRect();
+    const diagramPaneRect = diagramPane?.getBoundingClientRect();
+    const filterRowRect = filterRow?.getBoundingClientRect();
+    const coversDiagramPane = Boolean(
+      overlayRect &&
+        diagramPaneRect &&
+        Math.abs(overlayRect.left - diagramPaneRect.left) <= 1 &&
+        Math.abs(overlayRect.top - diagramPaneRect.top) <= 1 &&
+        Math.abs(overlayRect.right - diagramPaneRect.right) <= 1 &&
+        Math.abs(overlayRect.bottom - diagramPaneRect.bottom) <= 1
+    );
+    const leavesFilterRowVisible = Boolean(
+      overlayRect && filterRowRect && overlayRect.top >= filterRowRect.bottom - 1
+    );
+    return { coversDiagramPane, leavesFilterRowVisible };
+  });
+  assert(dependencyOverlayGeometry.coversDiagramPane, "The dependency overlay did not cover the base diagram pane.");
+  assert(
+    dependencyOverlayGeometry.leavesFilterRowVisible,
+    "The dependency overlay incorrectly covered the parent analyser filter row."
+  );
+
+  await page.waitForFunction(
+    (expectedOrder) => {
+      const dialog = document.querySelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
+      const axisMarker = dialog?.querySelector("[data-dependency-axis-order]");
+      return (
+        axisMarker?.getAttribute("data-dependency-axis-order") === expectedOrder &&
+        !dialog?.textContent?.includes("Loading analyser data...") &&
+        Boolean(dialog?.querySelector('canvas[aria-label="ICT System Dependencies Canvas WebGL parallel coordinates"]'))
+      );
+    },
+    {},
+    dependencyAxisContract
+  );
+  await page.waitForFunction(() => globalThis.__TSAAT_ICT_DEPENDENCY_REQUESTS__.length > 0);
+  const dependencyApiResult = await page.evaluate(async () => {
+    const requests = globalThis.__TSAAT_ICT_DEPENDENCY_REQUESTS__.slice();
+    const requestUrl = requests.find((url) => url.includes("/api/cyber-cop/impact-analyser-2/dependencies"));
+    if (!requestUrl) {
+      return { requests, requestUrl: null };
+    }
+    const response = await fetch(requestUrl);
+    const payload = await response.json();
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const parsedRequest = new URL(requestUrl, window.location.href);
+    const scope = parsedRequest.searchParams.get("diagramSystemIds")?.split(",").filter(Boolean) ?? [];
+    return {
+      requests,
+      requestUrl,
+      status: response.status,
+      requestDataDate: parsedRequest.searchParams.get("dataDate"),
+      scope,
+      totalRows: payload.totalRows,
+      rowCount: rows.length,
+      allServerToServer: rows.every(
+        (row) =>
+          row.assetType === "server" &&
+          row.relatedAssetType === "server" &&
+          Boolean(row.assetId) &&
+          Boolean(row.relatedAssetId) &&
+          row.assetId !== row.relatedAssetId
+      ),
+      allRowsHaveDependencyIds: rows.every((row) => Boolean(row.dependencyId)),
+      allRowsUseAppliedScope: rows.every((row) => scope.includes(row.systemId)),
+      hasNotModelled: rows.some(
+        (row) => row.relatedSystemName === "Not Modelled" && row.relatedSystemId === null
+      )
+    };
+  });
+  assert(dependencyApiResult.requestUrl, "Opening ICT System Dependencies did not call its dependency endpoint.");
+  assert.equal(dependencyApiResult.status, 200, "The ICT System Dependencies endpoint did not return HTTP 200.");
+  assert.equal(dependencyApiResult.scope.length, 1, "The dependency request did not preserve the applied ICT system scope.");
+  assert.equal(
+    dependencyApiResult.requestDataDate,
+    apiResults.snapshotDate,
+    "The dependency request did not preserve the Cyber COP snapshot date."
+  );
+  assert(dependencyApiResult.rowCount > 0, "The ICT System Dependencies endpoint returned no rows.");
+  assert.equal(dependencyApiResult.totalRows, dependencyApiResult.rowCount, "The dependency totalRows contract was inconsistent.");
+  assert(dependencyApiResult.allServerToServer, "The dependency endpoint returned a non-server or self dependency.");
+  assert(dependencyApiResult.allRowsHaveDependencyIds, "A dependency endpoint row did not retain its dependency ID.");
+  assert(dependencyApiResult.allRowsUseAppliedScope, "A dependency endpoint row escaped the applied ICT system scope.");
+  assert(dependencyApiResult.hasNotModelled, "The dependency endpoint returned no Not Modelled dependent system.");
+
+  const dependencyDiagramResult = await page.evaluate((expectedOrder) => {
+    const dialog = document.querySelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
+    const axisMarker = dialog?.querySelector("[data-dependency-axis-order]");
+    const legend = dialog?.querySelector('[data-not-modelled-node-legend="true"]');
+    const circle = legend?.querySelector("span");
+    const circleRect = circle?.getBoundingClientRect();
+    const circleStyle = circle ? getComputedStyle(circle) : null;
+    return {
+      axisOrder: axisMarker?.getAttribute("data-dependency-axis-order") ?? "",
+      axisOrderMatches: axisMarker?.getAttribute("data-dependency-axis-order") === expectedOrder,
+      legendText: legend?.textContent?.trim() ?? "",
+      circleIsRed: circleStyle?.backgroundColor === "rgb(239, 68, 68)",
+      circleIsRound: Boolean(
+        circleRect &&
+          circleStyle &&
+          circleRect.width > 0 &&
+          Math.abs(circleRect.width - circleRect.height) <= 0.5 &&
+          Number.parseFloat(circleStyle.borderRadius) >= circleRect.width / 2
+      )
+    };
+  }, dependencyAxisContract);
+  assert(dependencyDiagramResult.axisOrderMatches, `The dependency axes were not ${dependencyAxisContract}.`);
+  assert.equal(dependencyDiagramResult.legendText, "Not Modelled", "The terminal-node legend label was incorrect.");
+  assert(dependencyDiagramResult.circleIsRed, "The Not Modelled terminal-node legend was not red.");
+  assert(dependencyDiagramResult.circleIsRound, "The Not Modelled terminal-node legend was not circular.");
+
+  await page.click('button[aria-label="Close ICT System Dependencies"]');
+  await page.waitForFunction(
+    () =>
+      !document.querySelector("#cyber-cop-ict-system-dependencies-overlay") &&
+      document.activeElement?.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay"
+  );
+  const dependencyCloseState = await page.evaluate(() => ({
+    baseCanvasRestored: Boolean(
+      document.querySelector('canvas[aria-label="ICT System Impact Analyser Canvas WebGL parallel coordinates"]')
+    ),
+    focusReturned:
+      document.activeElement?.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay",
+    expanded: document
+      .querySelector('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]')
+      ?.getAttribute("aria-expanded")
+  }));
+  assert(dependencyCloseState.baseCanvasRestored, "Closing dependencies did not restore the base ICT analyser diagram.");
+  assert(dependencyCloseState.focusReturned, "Closing dependencies did not return focus to its trigger.");
+  assert.equal(dependencyCloseState.expanded, "false", "The dependency trigger remained expanded after Close.");
+
+  await page.click('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
+  await page.waitForSelector("#cyber-cop-ict-system-dependencies-overlay");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    () =>
+      !document.querySelector("#cyber-cop-ict-system-dependencies-overlay") &&
+      document.activeElement?.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay"
+  );
   const ictSearchAsset = await page.evaluate(async (systemName) => {
     const response = await fetch("/api/cyber-cop/impact-analyser-2");
     const payload = await response.json();
@@ -667,6 +849,16 @@ try {
   });
   assert(networkTabSelected, "Network Impact Analyser tab was not found.");
   await page.waitForSelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+  const networkHasDependencyTrigger = await page.evaluate((label) => {
+    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    const panel = selector?.closest('[role="tabpanel"]');
+    return Array.from(panel?.querySelectorAll("button") ?? []).some(
+      (candidate) =>
+        candidate.textContent?.trim() === label ||
+        candidate.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay"
+    );
+  }, dependencyButtonLabel);
+  assert.equal(networkHasDependencyTrigger, false, "Network Impact Analyser unexpectedly exposed ICT System Dependencies.");
   const initialNetworkRunDisabled = await page.evaluate(() => {
     const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
     const panel = selector?.closest('[role="tabpanel"]');
@@ -717,6 +909,20 @@ try {
     const text = document.body.innerText;
     return !text.includes("Running...") && /finding paths across/.test(text);
   });
+  const mountedNetworkHasDependencyTrigger = await page.evaluate((label) => {
+    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    const panel = selector?.closest('[role="tabpanel"]');
+    return Array.from(panel?.querySelectorAll("button") ?? []).some(
+      (candidate) =>
+        candidate.textContent?.trim() === label ||
+        candidate.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay"
+    );
+  }, dependencyButtonLabel);
+  assert.equal(
+    mountedNetworkHasDependencyTrigger,
+    false,
+    "The mounted Network Impact Analyser unexpectedly exposed ICT System Dependencies."
+  );
   const networkImpactResult = await page.evaluate(() => {
     const requests = globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.slice();
     const dataRequest = requests.find((url) => !url.includes("/findings"));
@@ -865,7 +1071,7 @@ try {
   assert.deepEqual(networkRequests, [], "The offline application attempted an HTTP request.");
   assert.deepEqual(runtimeErrors, [], "The offline application emitted browser errors.");
   console.log(
-    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, global and nested CMDB drill-throughs, Cyber COP action-plan tabs, dynamic details, APIs, settings, exports, ICT and multi-network analyser runs, worker, and cross-tab logout."
+    "Browser smoke passed: login, 9 routes, authenticated new-tab drill-through, file-origin date replacement, global and nested CMDB drill-throughs, Cyber COP action-plan tabs, dynamic details, APIs, settings, exports, ICT dependencies, ICT and multi-network analyser runs, worker, and cross-tab logout."
   );
   console.log("Network audit passed: zero HTTP or HTTPS requests while Chromium was offline.");
 } finally {

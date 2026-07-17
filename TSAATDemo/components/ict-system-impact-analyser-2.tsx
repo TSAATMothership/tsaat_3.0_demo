@@ -13,7 +13,7 @@ import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@
 
 type ImpactAnalyser2EnvironmentOption = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
 type ImpactAnalyser2FindingCriticalityOption = FindingSeverity;
-type ImpactAnalyser2DiagramMode = "risk" | "ci";
+type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies";
 export type ImpactAnalyser2LoadState = "idle" | "loading" | "ready" | "error";
 
 export interface ImpactAnalyser2Row {
@@ -473,7 +473,9 @@ export function IctSystemImpactAnalyser2Chart({
   externalSelectedSearchOption,
   onSelectedNodeChange,
   onLoadStateChange,
-  extraControls
+  extraControls,
+  diagramOverlay,
+  onRetry
 }: {
   embedded?: boolean;
   systemScopeIds?: string[];
@@ -499,6 +501,8 @@ export function IctSystemImpactAnalyser2Chart({
   onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void;
   onLoadStateChange?: (loadState: ImpactAnalyser2LoadState) => void;
   extraControls?: ReactNode;
+  diagramOverlay?: ReactNode;
+  onRetry?: () => void;
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -556,7 +560,10 @@ export function IctSystemImpactAnalyser2Chart({
   const selectedSecurityDomainKey = joinMultiFilterParam(selectedSecurityDomains);
   const selectedAssetTypeKey = joinMultiFilterParam(selectedAssetTypes);
   const selectedFindingCriticalityKey = joinMultiFilterParam(selectedFindingCriticalities);
+  const diagramSearchInputId = `${analyserSlug}-search`;
   const isCiDiagramMode = diagramMode === "ci";
+  const isDependenciesDiagramMode = diagramMode === "dependencies";
+  const isRelationshipDiagramMode = diagramMode !== "risk";
   const activeSelectedSearchOption = selectedSearchOption ?? externalSelectedSearchOption;
   const activeSelectedNode = useMemo<ImpactAnalyser2SelectedNode | null>(() => {
     if (selectedNode) {
@@ -590,12 +597,12 @@ export function IctSystemImpactAnalyser2Chart({
           : "ready";
   const displayedSeverities = useMemo(
     () =>
-      isCiDiagramMode
+      isRelationshipDiagramMode
         ? []
         : severityOrder.filter((severity) =>
             workerResult?.axes.some((axis) => axis.key === "severity" && axis.values.includes(severity))
           ),
-    [isCiDiagramMode, workerResult?.axes]
+    [isRelationshipDiagramMode, workerResult?.axes]
   );
   const assetMetaById = useMemo(() => {
     const map = new Map<string, ImpactAnalyser2Row>();
@@ -630,12 +637,12 @@ export function IctSystemImpactAnalyser2Chart({
       if (axisKey === "asset") {
         return assetMetaById.has(value);
       }
-      if (isCiDiagramMode && axisKey === "relatedAsset") {
+      if (isRelationshipDiagramMode && axisKey === "relatedAsset") {
         return relatedAssetMetaById.has(value);
       }
       return false;
     },
-    [assetMetaById, isCiDiagramMode, relatedAssetMetaById]
+    [assetMetaById, isRelationshipDiagramMode, relatedAssetMetaById]
   );
   const selectedAssetMeta =
     activeSelectedNode?.axisKey === "asset" ? assetMetaById.get(activeSelectedNode.value) ?? null : null;
@@ -1264,7 +1271,13 @@ export function IctSystemImpactAnalyser2Chart({
           } else {
             context.arc(x, y, nodeRadius, 0, Math.PI * 2);
           }
-          context.fillStyle = isSelected ? "#67e8f9" : "rgba(14, 165, 233, 0.72)";
+          const isNotModelledDependencyNode =
+            isDependenciesDiagramMode && axis.key === "relatedSystem" && value === "Not Modelled";
+          context.fillStyle = isNotModelledDependencyNode
+            ? "#ef4444"
+            : isSelected
+              ? "#67e8f9"
+              : "rgba(14, 165, 233, 0.72)";
           context.fill();
           if (isSelected) {
             context.strokeStyle = "#ecfeff";
@@ -1277,7 +1290,7 @@ export function IctSystemImpactAnalyser2Chart({
           context.font = `${isSelected ? "600" : "500"} 10px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
           context.fillText(truncateAxisLabel(displayNodeLabel(axis.key, value)), x, y + 22);
 
-          if (!isCiDiagramMode && isSelected && axis.key === "spi") {
+          if (!isRelationshipDiagramMode && isSelected && axis.key === "spi") {
             context.beginPath();
             context.arc(x + 13, y - 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1295,7 +1308,7 @@ export function IctSystemImpactAnalyser2Chart({
             context.lineTo(x + 13, y - 9.5);
             context.stroke();
           }
-          if (!isCiDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value)) {
+          if (!isRelationshipDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value)) {
             context.beginPath();
             context.arc(x + 13, y - 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1329,7 +1342,14 @@ export function IctSystemImpactAnalyser2Chart({
       });
 
     },
-    [assetShapeTypeForNode, canOpenAssetDetails, displayNodeLabel, isAssetFocusEligible, isCiDiagramMode]
+    [
+      assetShapeTypeForNode,
+      canOpenAssetDetails,
+      displayNodeLabel,
+      isAssetFocusEligible,
+      isDependenciesDiagramMode,
+      isRelationshipDiagramMode
+    ]
   );
 
   useEffect(() => {
@@ -1390,7 +1410,8 @@ export function IctSystemImpactAnalyser2Chart({
             };
           }
           const isSelectedActionBadge =
-            ((!isCiDiagramMode && axis.key === "spi") || (axis.key === "asset" && isAssetFocusEligible(value))) &&
+            ((!isRelationshipDiagramMode && axis.key === "spi") ||
+              (axis.key === "asset" && isAssetFocusEligible(value))) &&
             isSelected &&
             topRightBadgeDistance <= 11;
           if (isSelectedActionBadge) {
@@ -1406,7 +1427,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       return bestMatch;
     },
-    [canOpenAssetDetails, isAssetFocusEligible, isCiDiagramMode]
+    [canOpenAssetDetails, isAssetFocusEligible, isRelationshipDiagramMode]
   );
 
   const openSpiDrillThrough = useCallback(
@@ -1460,7 +1481,7 @@ export function IctSystemImpactAnalyser2Chart({
       const asset =
         node.axisKey === "asset"
           ? assetMetaById.get(node.value)
-          : isCiDiagramMode && node.axisKey === "relatedAsset"
+          : isRelationshipDiagramMode && node.axisKey === "relatedAsset"
             ? relatedAssetMetaById.get(node.value)
             : null;
       if (!asset) {
@@ -1472,7 +1493,7 @@ export function IctSystemImpactAnalyser2Chart({
           : asset.assetName || asset.assetHostname || node.value;
       openCmdbDrillThrough(node.value, assetName);
     },
-    [assetMetaById, isCiDiagramMode, openCmdbDrillThrough, relatedAssetMetaById]
+    [assetMetaById, isRelationshipDiagramMode, openCmdbDrillThrough, relatedAssetMetaById]
   );
 
   const handleOverlayClick = useCallback(
@@ -1485,7 +1506,7 @@ export function IctSystemImpactAnalyser2Chart({
         }
         return;
       }
-      if (!isCiDiagramMode && hit.action === "spi-findings") {
+      if (!isRelationshipDiagramMode && hit.action === "spi-findings") {
         const spiId = spiIdFromNodeValue(hit.node.value);
         if (spiId) {
           void openSpiDrillThrough(spiId);
@@ -1505,7 +1526,7 @@ export function IctSystemImpactAnalyser2Chart({
     [
       externalSelectedSearchOption,
       findNodeAtPoint,
-      isCiDiagramMode,
+      isRelationshipDiagramMode,
       onAssetFocus,
       openAssetDetails,
       openSpiDrillThrough,
@@ -1532,7 +1553,7 @@ export function IctSystemImpactAnalyser2Chart({
               ? `Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
             : hit.action === "asset-focus"
               ? `Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
-              : isCiDiagramMode
+              : isRelationshipDiagramMode
                 ? displayNodeLabel(hit.node.axisKey, hit.node.value)
                 : nodeHoverTitle(
                     hit.node.axisKey,
@@ -1543,7 +1564,7 @@ export function IctSystemImpactAnalyser2Chart({
         placement: hit.action !== "none" ? "left" : "default"
       });
     },
-    [displayNodeLabel, findNodeAtPoint, isCiDiagramMode, spiCounts, spiDefinitionById]
+    [displayNodeLabel, findNodeAtPoint, isRelationshipDiagramMode, spiCounts, spiDefinitionById]
   );
 
   const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
@@ -1604,18 +1625,30 @@ export function IctSystemImpactAnalyser2Chart({
 
   if (loadState === "error") {
     return (
-      <section className={chartSurfaceClass(embedded)}>
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+      <section className={chartSurfaceClass(embedded)} data-impact-analyser-mode={diagramMode}>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">{title}</h3>
+          {extraControls}
+        </div>
         <p className="mt-3 rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
           {loadError ?? `Unable to load ${analyserName}.`}
         </p>
+        {onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 w-fit rounded-md border border-rose-300/45 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-rose-100 hover:bg-rose-500/25"
+          >
+            Retry
+          </button>
+        ) : null}
       </section>
     );
   }
 
   return (
     <>
-      <section className={chartSurfaceClass(embedded)}>
+      <section className={chartSurfaceClass(embedded)} data-impact-analyser-mode={diagramMode}>
         <div className="flex min-w-0 shrink-0 flex-col gap-2">
           <div className="min-w-0">
             <h3
@@ -1627,12 +1660,12 @@ export function IctSystemImpactAnalyser2Chart({
           </div>
           <div className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible">
             <div className="relative flex h-8 shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
-              <label htmlFor="impact-analyser-2-search" className="whitespace-nowrap">
+              <label htmlFor={diagramSearchInputId} className="whitespace-nowrap">
                 Text Search
               </label>
               <div className="relative w-52 shrink-0">
                 <input
-                  id="impact-analyser-2-search"
+                  id={diagramSearchInputId}
                   type="search"
                   value={diagramSearch}
                   onChange={(event) => handleDiagramSearchChange(event.target.value)}
@@ -1740,7 +1773,7 @@ export function IctSystemImpactAnalyser2Chart({
                 widthClassName="w-40"
               />
             ) : null}
-            {!isCiDiagramMode ? (
+            {!isRelationshipDiagramMode ? (
               <>
                 <MultiSelectFilter
                   label="Findings Severity"
@@ -1770,15 +1803,23 @@ export function IctSystemImpactAnalyser2Chart({
           </div>
         </div>
 
-        <div className="mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
+        <div className="relative mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
+          {diagramOverlay ? (
+            <div
+              data-impact-analyser-diagram-overlay="true"
+              className="absolute inset-0 z-50 min-h-0 min-w-0 bg-slate-950"
+            >
+              {diagramOverlay}
+            </div>
+          ) : null}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] text-slate-300/75">
               {loadState === "loading" || !workerResult
                 ? "Loading analyser data..."
-                : isCiDiagramMode
-                  ? `${workerResult.filteredRowCount} CI relationship path${
+                : isRelationshipDiagramMode
+                  ? `${workerResult.filteredRowCount} ${isDependenciesDiagramMode ? "server dependency" : "CI relationship"} path${
                       workerResult.filteredRowCount === 1 ? "" : "s"
-                    } from selected asset${
+                    }${isDependenciesDiagramMode ? "" : " from selected asset"}${
                       activeSelectedNode
                         ? ` | ${workerResult.highlightedRowCount} highlighted via ${displayNodeLabel(activeSelectedNode.axisKey, activeSelectedNode.value)}`
                         : ""
@@ -1802,8 +1843,22 @@ export function IctSystemImpactAnalyser2Chart({
                   {severity}
                 </span>
               ))}
+              {isDependenciesDiagramMode ? (
+                <span
+                  data-not-modelled-node-legend="true"
+                  className="inline-flex items-center gap-1 text-rose-100"
+                >
+                  <span className="h-3 w-3 rounded-full bg-red-500" />
+                  Not Modelled
+                </span>
+              ) : null}
             </div>
           </div>
+          {isDependenciesDiagramMode && workerResult ? (
+            <p className="sr-only" data-dependency-axis-order={workerResult.axes.map((axis) => axis.label).join(" -> ")}>
+              {workerResult.axes.map((axis) => axis.label).join(" -> ")}
+            </p>
+          ) : null}
           <div
             ref={viewportRef}
             onScroll={handleScroll}
@@ -1827,8 +1882,10 @@ export function IctSystemImpactAnalyser2Chart({
                 />
                 {workerResult && workerResult.filteredRowCount === 0 ? (
                   <p className="pointer-events-none absolute left-3 top-3 z-20 max-w-sm rounded-md border border-sky-300/15 bg-slate-900/80 px-3 py-2 text-xs text-slate-300/80 shadow-lg">
-                    {isCiDiagramMode
-                      ? "No CI relationship paths match the selected filters."
+                    {isRelationshipDiagramMode
+                      ? isDependenciesDiagramMode
+                        ? "No server dependency paths match the selected filters."
+                        : "No CI relationship paths match the selected filters."
                       : `No ${analyserName} findings match the selected filters.`}
                   </p>
                 ) : null}
@@ -1863,7 +1920,7 @@ export function IctSystemImpactAnalyser2Chart({
                     message={`Building the ${analyserName} paths and node index.`}
                   />
                 ) : null}
-                {!isCiDiagramMode && isDrillThroughLoading ? (
+                {!isRelationshipDiagramMode && isDrillThroughLoading ? (
                   <ImpactAnalyserLoadingOverlay
                     title="Loading Risk Detail"
                     message="Preparing selected SPI findings for the Risk Detail slide-out."
@@ -1880,7 +1937,7 @@ export function IctSystemImpactAnalyser2Chart({
         </div>
       </section>
 
-      {!isCiDiagramMode && drillThroughData ? (
+      {!isRelationshipDiagramMode && drillThroughData ? (
         <RiskFindingsDrillThrough
           selection={{
             id: `${analyserSlug}-spi-${drillThroughData.selectedSpiId}`,

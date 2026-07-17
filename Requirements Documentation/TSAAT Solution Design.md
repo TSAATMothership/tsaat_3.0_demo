@@ -246,6 +246,12 @@ Major dependencies:
 - **System behaviour:** the analyser starts with no systems selected, does not request analyser data until Run is selected, and scopes its data and SPI drill-through requests to the applied ICT system selection.
 - **Outcome:** detailed ICT system impact paths can be investigated without occupying an Impact chart sub-tab.
 
+### Feature: ICT System Dependencies View
+- **What it does:** adds an `ICT System Dependencies` control at the far right of the Cyber COP ICT System Impact Analyser filters and opens an in-diagram overlay without replacing the applied Run scope.
+- **User perspective:** after the analyser is ready, the user opens a dependency view with the columns `ICT System`, `Environment`, `Server`, `Dependent Server`, `Dependent Environment`, and `Dependent ICT System`, then selects Close or presses Escape to return to the unchanged impact diagram.
+- **System behaviour:** dependency data loads only when the view opens and uses real directed server-to-server CI dependency records whose source server belongs to an applied ICT system model. The dependent endpoint retains its actual model and environment; targets outside a modelled ICT system environment terminate at one red circular `Not Modelled` node placed first in the final column. Self-links, dangling endpoints, non-server relationships, and duplicate dependency IDs are excluded.
+- **Outcome:** cross-system and unmodelled server dependencies can be traced without leaving the current Cyber COP analyser run.
+
 ### Feature: Network Impact Analyser Tab
 - **What it does:** provides a run-gated multi-network impact analyser immediately after `ICT System Impact Analyser`.
 - **User perspective:** the user selects one or more real networks in the current Cyber COP scope and explicitly selects Run to build the aggregate network report.
