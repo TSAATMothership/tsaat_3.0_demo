@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createAssetTypeRecord } from "@/lib/asset-taxonomy";
+import { ASSET_TYPES, assetTypeLabel, createAssetTypeRecord } from "@/lib/asset-taxonomy";
+import type { CanonicalAssetType } from "@/lib/asset-taxonomy";
 import type { DiscoveryToolSetting, DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { buildServerComplianceModel } from "@/lib/server-compliance";
+import { buildAssetComplianceModel, buildServerComplianceModel } from "@/lib/server-compliance";
 import type { SpiDefinition } from "@/lib/spi-definitions";
 import type { Asset, Dataset, Finding, ICTSystem, ManagedNetwork, ServerAsset } from "@/lib/types";
 
@@ -35,6 +36,26 @@ function workstationAsset(): Asset {
     operatingSystem: null,
     installedSoftware: []
   };
+}
+
+function canonicalAsset(assetType: CanonicalAssetType): Asset {
+  const base = {
+    id: `${assetType}-1`,
+    name: `${assetTypeLabel(assetType)} Asset`,
+    hostname: `${assetType}-01`,
+    type: assetType,
+    networkId: "network-1",
+    securityDomain: "Protected" as const,
+    lifecycle: { eolStatus: "Supported" as const, warrantyStatus: "InWarranty" as const },
+    vulnerabilities: []
+  };
+  if (assetType === "server" || assetType === "workstation") {
+    return { ...base, type: assetType, operatingSystem: null, installedSoftware: [] } as Asset;
+  }
+  if (assetType === "network-device") {
+    return { ...base, type: assetType, networkOs: null, patchState: null } as Asset;
+  }
+  return { ...base, type: assetType } as Asset;
 }
 
 function managedNetwork(): ManagedNetwork {
@@ -108,7 +129,7 @@ function finding(
 function discoveryTool(
   id: string,
   name: string,
-  serverScope: "required" | "na" = "required"
+  requiredAssetTypes: CanonicalAssetType[] = ["server"]
 ): DiscoveryToolSetting {
   return {
     id,
@@ -116,7 +137,9 @@ function discoveryTool(
     description: `${name} discovery coverage`,
     el2Owner: `${name} Owner`,
     el2OperationsManager: `${name} Operations`,
-    assetTypeScope: createAssetTypeRecord((assetType) => (assetType === "server" ? serverScope : "na"))
+    assetTypeScope: createAssetTypeRecord((assetType) =>
+      requiredAssetTypes.includes(assetType) ? "required" : "na"
+    )
   };
 }
 
@@ -127,7 +150,7 @@ function discoverySettings(): DiscoveryToolsSettings {
       discoveryTool("ucmdb", "UCMDB"),
       discoveryTool("tanium", "Tanium"),
       discoveryTool("tenable", "Tenable"),
-      discoveryTool("printer-only", "Printer Tool", "na")
+      discoveryTool("printer-only", "Printer Tool", [])
     ]
   };
 }
@@ -215,6 +238,8 @@ describe("buildServerComplianceModel", () => {
       name: "Application Server",
       hostname: "app-server-01",
       ipAddress: "10.20.30.40",
+      assetType: "server",
+      assetTypeLabel: "Server",
       environmentType: "Development",
       systemName: "Beta System",
       networkName: "Protected Network",
@@ -467,7 +492,79 @@ describe("buildServerComplianceModel", () => {
     ]);
   });
 
-  it("returns null for missing or non-server assets", () => {
+  it.each(ASSET_TYPES)("builds the same compliance contract and asset-scoped discovery tools for %s assets", (assetType) => {
+    const asset = canonicalAsset(assetType);
+    const dataset = baseDataset([asset]);
+    dataset.managedNetworks[0].assetIds = [asset.id];
+    for (const ictSystem of dataset.ictSystems) {
+      for (const environment of ictSystem.environments) {
+        environment.assetIds = [asset.id];
+      }
+    }
+    dataset.spiEvaluations = [
+      {
+        assetId: asset.id,
+        spiId: 1,
+        status: "Compliant",
+        reasons: [],
+        evidence: { source: "canonical-asset-test" }
+      }
+    ];
+    dataset.findings = [
+      finding(`${assetType}-finding`, 1, {
+        complianceStatus: "Compliant",
+        scope: {
+          networkId: "network-1",
+          systemId: "system-1",
+          environmentType: "Production",
+          assetId: asset.id
+        }
+      })
+    ];
+    const tools = ASSET_TYPES.map((toolAssetType) =>
+      discoveryTool(`${toolAssetType}-tool`, `${assetTypeLabel(toolAssetType)} Tool`, [toolAssetType])
+    );
+    dataset.discoveryCoverageEvaluations = [
+      {
+        assetId: asset.id,
+        toolValues: Object.fromEntries(tools.map((tool) => [tool.id, 1])) as Record<string, 1>,
+        missingToolIds: [],
+        missingToolNames: [],
+        coverageCompliance: true
+      }
+    ];
+    const options = {
+      dataset,
+      assetId: asset.id,
+      spiDefinitions: [spiDefinition(1, "Canonical asset compliance", 1)],
+      discoveryToolsSettings: { updatedAt: "2026-07-17T00:00:00.000Z", tools }
+    };
+
+    const model = buildAssetComplianceModel(options);
+
+    expect(model?.asset).toMatchObject({
+      id: asset.id,
+      assetType,
+      assetTypeLabel: assetTypeLabel(assetType)
+    });
+    expect(model?.complianceOverview).toMatchObject({ score: 100, total: 1, compliant: 1 });
+    expect(model?.complianceOverview.findings[0]).toMatchObject({
+      assetId: asset.id,
+      assetType: assetTypeLabel(assetType)
+    });
+    expect(model?.discoveryCompliance).toMatchObject({
+      score: 100,
+      covered: 1,
+      missing: 0,
+      notAvailable: 0,
+      total: 1,
+      coverageCompliance: true
+    });
+    expect(model?.discoveryCompliance.tools.map((tool) => tool.id)).toEqual([`${assetType}-tool`]);
+    expect(buildServerComplianceModel(options)).toEqual(model);
+  });
+
+  it("returns null only when the requested asset is missing", () => {
     const dataset = baseDataset([workstationAsset()]);
     const options = {
       dataset,
@@ -476,6 +573,7 @@ describe("buildServerComplianceModel", () => {
     };
 
     expect(buildServerComplianceModel({ ...options, assetId: "missing" })).toBeNull();
-    expect(buildServerComplianceModel({ ...options, assetId: "workstation-1" })).toBeNull();
+    expect(buildAssetComplianceModel({ ...options, assetId: "missing" })).toBeNull();
+    expect(buildAssetComplianceModel({ ...options, assetId: "workstation-1" })).not.toBeNull();
   });
 });

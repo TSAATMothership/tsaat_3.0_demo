@@ -1149,6 +1149,9 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(ictPanel).toContain('dataPath="/api/cyber-cop/impact-analyser-2/dependencies"');
     expect(ictPanel).toContain('diagramMode="dependencies"');
     expect(ictPanel).toContain("systemScopeIds={appliedSystemIds}");
+    expect(ictPanel).toContain('complianceActionScope="risk-servers"');
+    expect(ictPanel).toContain('complianceActionScope="dependency-servers"');
+    expect(networkPanel).toContain('complianceActionScope="risk-all-assets"');
     expect(networkPanel).not.toContain("ICT System Dependencies");
 
     expect(component).toContain('type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies"');
@@ -1197,27 +1200,25 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dependencyRoute).toContain("sourceAssetIds: eligibleSourceAssetIds");
   });
 
-  it("keeps the accessible Server Compliance action on the primary ICT analyser only", () => {
-    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+  it("generalizes the accessible Compliance action without retaining the F action", () => {
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
-    const complianceView = readRepoFile("components/server-compliance-view.tsx");
-    const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
-    const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
-    const ictPanel = dashboard.slice(ictPanelStart, networkPanelStart);
-    const primaryChartStart = ictPanel.indexOf("<IctSystemImpactAnalyser2Chart");
-    const dependencyChartStart = ictPanel.indexOf("<IctSystemImpactAnalyser2Chart", primaryChartStart + 1);
-    const primaryChart = ictPanel.slice(primaryChartStart, dependencyChartStart);
-    const dependencyChart = ictPanel.slice(dependencyChartStart);
 
-    expect(primaryChart).toContain("enableServerComplianceAction");
-    expect(dependencyChart).not.toContain("enableServerComplianceAction");
-    expect(ictPanel.match(/enableServerComplianceAction/g) ?? []).toHaveLength(1);
-    expect(component).toContain("enableServerComplianceAction = false");
-    expect(component).toContain("enableServerComplianceAction?: boolean");
-    expect(component).toContain("enableServerComplianceAction &&");
-    expect(component).toContain("!isRelationshipDiagramMode &&");
-    expect(component).toContain('axisKey === "asset" &&');
-    expect(component).toContain('assetMetaById.get(value)?.assetType === "server"');
+    expect(component).toContain("export type ImpactAnalyser2ComplianceActionScope");
+    expect(component).toContain('| "risk-servers"');
+    expect(component).toContain('| "risk-all-assets"');
+    expect(component).toContain('| "dependency-servers"');
+    expect(component).toContain("complianceActionScope?: ImpactAnalyser2ComplianceActionScope");
+    expect(component).toContain('if (diagramMode === "risk")');
+    expect(component).toContain('if (axisKey !== "asset")');
+    expect(component).toContain('complianceActionScope === "risk-all-assets"');
+    expect(component).toContain('complianceActionScope === "risk-servers" && assetType === "server"');
+    expect(component).toContain('diagramMode === "dependencies"');
+    expect(component).toContain('complianceActionScope === "dependency-servers"');
+    expect(component).toContain('(axisKey === "asset" || axisKey === "relatedAsset")');
+    expect(component).toContain('assetType === "server"');
+    expect(component).toContain('activeSelectedNode.axisKey === "relatedAsset"');
+    expect(component).toContain("relatedAssetMetaById.get(activeSelectedNode.value)?.relatedSystemId");
+    expect(component).toContain("assetMetaById.get(activeSelectedNode.value)?.systemId");
 
     expect(component).toContain(
       "const x = axisX(axisIndex, workerResult.axes.length, viewportSize.width) + 13;"
@@ -1226,10 +1227,10 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
       "const y = valueVirtualY(axis, valueIndex, workerResult.virtualHeight) - scrollTop - 13;"
     );
     expect(component).toContain(
-      "style={{ left: serverComplianceNodeAction.x, top: serverComplianceNodeAction.y }}"
+      "style={{ left: complianceNodeAction.x, top: complianceNodeAction.y }}"
     );
 
-    const actionMarker = 'data-impact-analyser-node-action="server-compliance"';
+    const actionMarker = 'data-impact-analyser-node-action="compliance"';
     const actionMarkerIndex = component.indexOf(actionMarker);
     const actionStart = component.lastIndexOf("<button", actionMarkerIndex);
     const actionEnd = component.indexOf("</button>", actionMarkerIndex);
@@ -1238,31 +1239,30 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(actionEnd).toBeGreaterThan(actionMarkerIndex);
     const actionButton = component.slice(actionStart, actionEnd + "</button>".length);
     expect(actionButton).toContain('<button');
+    expect(actionButton).toContain("ref={complianceTriggerRef}");
     expect(actionButton).toContain('type="button"');
     expect(actionButton).toContain(actionMarker);
     expect(actionButton).toContain(
-      'aria-label={`Open Server Compliance for ${serverComplianceNodeAction.assetName}`}'
+      'aria-label={`Open Compliance View for ${complianceNodeAction.assetName}`}'
     );
     expect(actionButton).toMatch(/>\s*C\s*<\/button>/);
 
+    expect(component).toContain('type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-details"');
+    expect(component).not.toContain('"asset-focus"');
+    expect(component).not.toContain("onAssetFocus");
+    expect(component).not.toContain("assetFocusEligibleAssetIds");
+    expect(component).not.toContain("isAssetFocusEligible");
+    expect(component).not.toContain('context.fillText("F"');
+    expect(component).not.toContain("Open CI Analyser for");
     expect(component).toContain("context.arc(x + 13, y + 13, 7, 0, Math.PI * 2);");
     expect(component).toContain('context.fillText("D", x + 13, y + 13.5);');
     expect(component).toContain(
       'compliancePath = "/api/cyber-cop/impact-analyser-2/compliance"'
     );
     expect(component).toContain("<ServerComplianceView");
+    expect(component).toContain("systemId={complianceAsset.systemId}");
     expect(component).toContain("dataPath={compliancePath}");
-
-    expect(complianceView).toContain(
-      'dataPath = "/api/cyber-cop/impact-analyser-2/compliance"'
-    );
-    expect(complianceView).toContain('data-server-compliance-view="true"');
-    expect(complianceView).toContain('data-server-compliance-section="overview"');
-    expect(complianceView).toContain('data-server-compliance-section="discovery"');
-    expect(complianceView).toContain('aria-label="Close Server Compliance"');
-    expect(complianceView).toContain('document.addEventListener("keydown", handleKeyDown, true)');
-    expect(complianceView).toContain("event.stopImmediatePropagation();");
-    expect(complianceView).toContain('document.removeEventListener("keydown", handleKeyDown, true)');
+    expect(component).toContain("onClose={closeComplianceView}");
   });
 
   it("keeps the resized Server Compliance tabs and SPI drill-through contract stable", () => {
@@ -1272,6 +1272,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
       'import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";'
     );
     expect(complianceView).toContain('data-server-compliance-dialog="fixed"');
+    expect(complianceView).toContain('data-asset-compliance-dialog="fixed"');
+    expect(complianceView).toContain('data-asset-compliance-view="true"');
+    expect(complianceView).toContain("z-[1500]");
+    expect(complianceView).toContain('params.set("systemId", systemId)');
+    expect(complianceView).toContain("{assetTypeLabel} Compliance View");
     expect(complianceView).toContain("h-[calc(100vh-2rem)]");
     expect(complianceView).toContain("max-h-[56rem]");
     expect(complianceView).toContain("w-[calc(100vw-2rem)]");
@@ -1504,18 +1509,28 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(detailedTopology).toContain("assetAxisLabel=\"Assets\"");
     expect(detailedTopology).toContain("assetSearchCategory=\"Assets\"");
     expect(detailedTopology).toContain("showAssetTypeFilter");
-    expect(detailedTopology).toContain("onAssetFocus={openCiFlowFocusForAssetId}");
-    expect(detailedTopology).toContain("const assetFocusEligibleAssetIds = useMemo");
-    expect(detailedTopology).toContain("for (const dependency of data.ciDependencies)");
-    expect(detailedTopology).toContain("eligibleAssetIds.add(dependency.sourceAssetId)");
-    expect(detailedTopology).toContain("eligibleAssetIds.add(dependency.targetAssetId)");
-    expect(detailedTopology).toContain("assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}");
-    expect(detailedTopology).toContain("const openCiFlowFocusForAsset = useCallback");
+    expect(detailedTopology).toContain(
+      'complianceActionScope={isSystemImpactAnalyser ? "risk-servers" : "risk-all-assets"}'
+    );
+    expect(detailedTopology).toContain("onLoadStateChange={setImpactAnalyserLoadState}");
+    expect(detailedTopology).toContain("hideFilterRow={isIctSystemDependenciesOpen}");
+    expect(detailedTopology).toContain('aria-controls="ict-system-drill-through-dependencies-overlay"');
+    expect(detailedTopology).toContain('dataPath="/api/cyber-cop/impact-analyser-2/dependencies"');
+    expect(detailedTopology).toContain('diagramMode="dependencies"');
+    expect(detailedTopology).toContain('complianceActionScope="dependency-servers"');
+    expect(detailedTopology).toContain("systemScopeIds={ictSystemDependencyScopeIds}");
+    expect(detailedTopology).toContain(
+      "const ictSystemDependencyScopeIds = useMemo(() => [topologyRootScope.id], [topologyRootScope.id])"
+    );
+    expect(detailedTopology).toContain('aria-label="Close ICT System Dependencies"');
+    expect(detailedTopology).toContain('document.addEventListener("keydown", handleEscape, true)');
+    expect(detailedTopology).toContain("event.stopImmediatePropagation()");
+    expect(detailedTopology).toContain('[data-asset-compliance-view], [data-cmdb-drill-through]');
+    expect(detailedTopology).not.toContain("onAssetFocus={openCiFlowFocusForAssetId}");
+    expect(detailedTopology).not.toContain("assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}");
+    expect(detailedTopology).not.toContain("openCiFlowFocusForAsset");
+    expect(detailedTopology).not.toContain('context.fillText("F"');
     expect(detailedTopology).toContain("const CI_ASSET_TYPES: CiAssetType[] = [...ASSET_TYPES]");
-    expect(detailedTopology).toContain('item.entityType === "ci" && item.ciAssetId === assetId');
-    expect(detailedTopology).toContain("if (!flowCiNodeByAssetId.has(assetId))");
-    expect(detailedTopology).toContain("openCiFlowFocusForAsset(assetId, fallbackOriginCenter)");
-    expect(detailedTopology).toContain("const fallbackOriginCenter = rootNode");
     expect(detailedTopology).toContain('title="CI Analyser"');
     expect(detailedTopology).toContain('diagramMode="ci"');
     expect(detailedTopology).toContain("includeNetworkAxis={!isSystemImpactAnalyser}\n                      showAssetTypeFilter");
@@ -1676,7 +1691,12 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
       detailedTopology.indexOf("/>", riskImpactAnalyserSectionStart)
     );
     expect(riskImpactAnalyserSection).not.toContain("showSelectedTileText");
-    expect(riskImpactAnalyserSection).toContain("assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}");
+    expect(riskImpactAnalyserSection).toContain(
+      'complianceActionScope={isSystemImpactAnalyser ? "risk-servers" : "risk-all-assets"}'
+    );
+    expect(riskImpactAnalyserSection).toContain("isSystemImpactAnalyser ? (");
+    expect(riskImpactAnalyserSection).toContain("ICT System Dependencies");
+    expect(riskImpactAnalyserSection).not.toContain("onAssetFocus=");
   });
 
   it("keeps V2 worker-side filtering and Canvas/WebGL rendering markers", () => {
@@ -1778,25 +1798,25 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).not.toContain("selectedRelatedAssetMeta.relatedAssetHasIctSystem");
     expect(component).not.toContain("Related Asset: ${selectedAssetMeta.relatedAssetName");
     expect(component).not.toContain("Related ICT System: ${selectedAssetMeta.relatedSystemName");
-    expect(component).toContain("onAssetFocus?: (assetId: string) => void");
-    expect(component).toContain("assetFocusEligibleAssetIds?: string[]");
-    expect(component).toContain("const assetFocusEligibleAssetIdSet = useMemo");
-    expect(component).toContain("const isAssetFocusEligible = useCallback");
-    expect(component).toContain('axis.key === "asset"');
+    expect(component).not.toContain("onAssetFocus");
+    expect(component).not.toContain("assetFocusEligibleAssetIds");
+    expect(component).not.toContain("assetFocusEligibleAssetIdSet");
+    expect(component).not.toContain("isAssetFocusEligible");
+    expect(component).toContain('axisKey === "asset"');
     expect(component).toContain("const assetShapeTypeForNode = useCallback");
     expect(component).toContain('if (axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.get(value)?.relatedAssetType");
     expect(component).toContain("const assetType = assetShapeTypeForNode(axis.key, value)");
-    expect(component).toContain("isAssetFocusEligible(value) &&");
-    expect(component).toContain("!canOpenServerCompliance(axis.key, value)");
+    expect(component).toContain("const canOpenCompliance = useCallback");
+    expect(component).toContain("complianceActionScope?: ImpactAnalyser2ComplianceActionScope");
     expect(component).toContain("const canOpenAssetDetails = useCallback");
     expect(component).toContain('if (isRelationshipDiagramMode && axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.has(value)");
     expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value))");
     expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11)");
-    expect(component).toContain('context.fillText("F"');
+    expect(component).not.toContain('context.fillText("F"');
     expect(component).toContain('context.fillText("D"');
-    expect(component).toContain("Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
+    expect(component).not.toContain("Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).toContain("Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).toContain('hit.action === "asset-details"');
     expect(component).toContain("openAssetDetails(hit.node)");

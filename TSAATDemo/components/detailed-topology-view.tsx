@@ -6,6 +6,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import {
   IctSystemImpactAnalyser2Chart,
+  type ImpactAnalyser2LoadState,
   type ImpactAnalyser2Row,
   type ImpactAnalyser2SelectedNode
 } from "@/components/ict-system-impact-analyser-2";
@@ -1250,6 +1251,9 @@ export function DetailedTopologyView({
   const [rendererInitError, setRendererInitError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [impactAnalyserLoadState, setImpactAnalyserLoadState] = useState<ImpactAnalyser2LoadState>("idle");
+  const [isIctSystemDependenciesOpen, setIsIctSystemDependenciesOpen] = useState(false);
+  const [ictSystemDependencyRequestId, setIctSystemDependencyRequestId] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1257,8 +1261,11 @@ export function DetailedTopologyView({
   const detailedTileSearchInputRef = useRef<HTMLInputElement | null>(null);
   const detailedScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const ciFlowScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const ictSystemDependenciesTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const ictSystemDependenciesCloseRef = useRef<HTMLButtonElement | null>(null);
   const topologyRootScope = data.rootScope ?? { type: "network" as const, id: data.networkId, name: data.networkName };
   const isSystemImpactAnalyser = topologyRootScope.type === "ict-system";
+  const ictSystemDependencyScopeIds = useMemo(() => [topologyRootScope.id], [topologyRootScope.id]);
   const impactAnalyserRootId = encodeURIComponent(topologyRootScope.id);
   const impactAnalyserDataPath = isSystemImpactAnalyser
     ? `/api/systems/${impactAnalyserRootId}/impact-analyser`
@@ -1270,6 +1277,17 @@ export function DetailedTopologyView({
   const impactAnalyserHeadingTooltip = isSystemImpactAnalyser
     ? "ICT system-scoped analyser for modelled assets across ICT system, environment, assets, severity, and SPI."
     : "Network-scoped analyser for modelled assets across network, ICT system, environment, assets, severity, and SPI.";
+  const openIctSystemDependencies = useCallback(() => {
+    if (!isSystemImpactAnalyser || impactAnalyserLoadState !== "ready") {
+      return;
+    }
+    setIctSystemDependencyRequestId((current) => current + 1);
+    setIsIctSystemDependenciesOpen(true);
+  }, [impactAnalyserLoadState, isSystemImpactAnalyser]);
+  const closeIctSystemDependencies = useCallback(() => {
+    setIsIctSystemDependenciesOpen(false);
+    window.requestAnimationFrame(() => ictSystemDependenciesTriggerRef.current?.focus());
+  }, []);
   const detailedViewportRef = useRef<HTMLDivElement | null>(null);
   const detailedCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const detailedCanvasFrameRef = useRef<number | null>(null);
@@ -1419,17 +1437,6 @@ export function DetailedTopologyView({
   const flowCiNodeByAssetId = useMemo(() => {
     return new Map(data.ciNodes.map((node) => [node.id, node]));
   }, [data.ciNodes]);
-  const assetFocusEligibleAssetIds = useMemo(() => {
-    const eligibleAssetIds = new Set<string>();
-    for (const dependency of data.ciDependencies) {
-      if (dependency.sourceAssetId === dependency.targetAssetId) {
-        continue;
-      }
-      eligibleAssetIds.add(dependency.sourceAssetId);
-      eligibleAssetIds.add(dependency.targetAssetId);
-    }
-    return Array.from(eligibleAssetIds).sort((left, right) => left.localeCompare(right));
-  }, [data.ciDependencies]);
   const modelAssetIdSet = useMemo(() => new Set(data.modelAssetIds), [data.modelAssetIds]);
   const networkNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -3483,6 +3490,41 @@ export function DetailedTopologyView({
   }, [detailedSelectedNodeId, isCiFlowFocusPanelOpen]);
 
   useEffect(() => {
+    setImpactAnalyserLoadState("idle");
+    setIsIctSystemDependenciesOpen(false);
+  }, [impactAnalyserDataPath]);
+
+  useEffect(() => {
+    if (!isOpen || !isSystemImpactAnalyser) {
+      setIsIctSystemDependenciesOpen(false);
+    }
+  }, [isOpen, isSystemImpactAnalyser]);
+
+  useEffect(() => {
+    if (!isOpen || !isSystemImpactAnalyser || !isIctSystemDependenciesOpen) {
+      return;
+    }
+    const focusFrame = window.requestAnimationFrame(() => ictSystemDependenciesCloseRef.current?.focus());
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (document.querySelector("[data-asset-compliance-view], [data-cmdb-drill-through]")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      closeIctSystemDependencies();
+    };
+    document.addEventListener("keydown", handleEscape, true);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleEscape, true);
+    };
+  }, [closeIctSystemDependencies, ictSystemDependencyRequestId, isIctSystemDependenciesOpen, isOpen, isSystemImpactAnalyser]);
+
+  useEffect(() => {
     if (!isOpen) {
       return;
     }
@@ -5126,22 +5168,6 @@ export function DetailedTopologyView({
           context.fillRect(topLeft.x + 13 * textScale + (progressWidth * (percentages.compliant + percentages.nonCompliant)) / 100, progressY, (progressWidth * percentages.other) / 100, 9 * textScale);
         }
 
-        if (node.entityType === "ci") {
-          const badgeCenter = worldToScreen(node.x + node.width - 16, node.y + 16);
-          const badgeRadius = Math.max(7, 10 * viewState.zoom);
-          context.beginPath();
-          context.arc(badgeCenter.x, badgeCenter.y, badgeRadius, 0, Math.PI * 2);
-          context.fillStyle = "#020617";
-          context.fill();
-          context.lineWidth = Math.max(1, 1.8 * viewState.zoom);
-          context.strokeStyle = "#0c4a6e";
-          context.stroke();
-          context.fillStyle = "#e0f2fe";
-          context.font = `${Math.max(10, Math.round(10 * viewState.zoom))}px sans-serif`;
-          context.textAlign = "center";
-          context.textBaseline = "middle";
-          context.fillText("F", badgeCenter.x, badgeCenter.y + 0.5);
-        }
       }
       context.globalAlpha = 1;
 
@@ -5204,25 +5230,6 @@ export function DetailedTopologyView({
       return null;
     };
 
-    const updateCiFlowFocusBadgeTooltip = (clientX: number, clientY: number) => {
-      if (isFlowMode) {
-        if (canvas.title) {
-          canvas.title = "";
-        }
-        return;
-      }
-      const world = clientToWorld(clientX, clientY);
-      const hitNode = hitTestNode(world.x, world.y);
-      let isOverCiFlowFocusBadge = false;
-      if (hitNode && hitNode.entityType === "ci") {
-        isOverCiFlowFocusBadge = pointInCircle(hitNode.x + hitNode.width - 16, hitNode.y + 16, 10, world.x, world.y);
-      }
-      const nextTitle = isOverCiFlowFocusBadge ? "Detailed Topology View - CI Flow Focus" : "";
-      if (canvas.title !== nextTitle) {
-        canvas.title = nextTitle;
-      }
-    };
-
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 && event.button !== 1 && event.button !== 2 && event.pointerType !== "touch") {
         return;
@@ -5266,18 +5273,6 @@ export function DetailedTopologyView({
 
       const world = clientToWorld(event.clientX, event.clientY);
       const hitNode = hitTestNode(world.x, world.y);
-      if (hitNode && !isFlowMode && hitNode.entityType === "ci") {
-        const badgeCenterX = hitNode.x + hitNode.width - 16;
-        const badgeCenterY = hitNode.y + 16;
-        if (pointInCircle(badgeCenterX, badgeCenterY, 10, world.x, world.y)) {
-          const detailedNode = detailedNodeById.get(hitNode.id);
-          if (detailedNode) {
-            openCiFlowFocusForNode(detailedNode);
-          }
-          event.preventDefault();
-          return;
-        }
-      }
       const preserveCiViewState =
         hitNode && !isFlowMode && hitNode.entityType === "ci"
           ? {
@@ -5339,7 +5334,6 @@ export function DetailedTopologyView({
 
     const onPointerMove = (event: PointerEvent) => {
       const interaction = detailedCanvasInteractionRef.current;
-      updateCiFlowFocusBadgeTooltip(event.clientX, event.clientY);
       if (isFlowMode) {
         if (!interaction || interaction.pointerId !== event.pointerId) {
           return;
@@ -5807,73 +5801,6 @@ export function DetailedTopologyView({
     ciFlowTweenFrameRef.current = window.requestAnimationFrame(tick);
   }, [stopCiFlowTween]);
 
-  const openCiFlowFocusForAsset = useCallback((assetId: string, originCenter: { x: number; y: number }) => {
-    if (!flowCiNodeByAssetId.has(assetId)) {
-      return;
-    }
-
-    ciFlow3DViewStateRef.current = createDefaultCiFlow3DViewState();
-    setFocusedCiFlowRootAssetId(assetId);
-    setSelectedCiFlowNodeId(ciFlowNodeIdForAsset(assetId));
-    setCiAnalyserSelectedAssetAxis(null);
-    setSelectedCiAnalyserRelatedAssetId(null);
-    setDraggingCiFlowNodeId(null);
-    setDraggingDetailedNodeId(null);
-    setCiFlowNodeDragOffsets({});
-    setDetailedSelectedTileFilterId("__all__");
-    setDetailedTileFilterSearchText("");
-    detailedPersistedCameraStateRef.current = null;
-    detailedPersistedNodePositionsRef.current = new Map();
-    detailedManualNodePositionsRef.current = new Map();
-    detailedZoomBeforeCiFlowRef.current = detailedZoom;
-    setDetailedZoom(CI_FLOW_3D_DEFAULT_ZOOM);
-    ciFlowAutoFitPendingRef.current = true;
-    ciFlowNodeDragStateRef.current = null;
-    ciFlowNodeDragOffsetsRef.current = {};
-    ciFlowPinnedRootScreenPositionRef.current = null;
-    setCiFlowOriginCenter(originCenter);
-    setCiFlowViewportCenter(null);
-    setCiFlowTweenProgress(0);
-    window.requestAnimationFrame(() => {
-      animateCiFlowTween(0, 1, 520);
-    });
-  }, [animateCiFlowTween, detailedZoom, flowCiNodeByAssetId]);
-
-  const openCiFlowFocusForNode = useCallback((node: DetailedTreeNode) => {
-    if (node.entityType !== "ci" || !node.ciAssetId) {
-      return;
-    }
-    openCiFlowFocusForAsset(node.ciAssetId, { x: node.x + node.width / 2, y: node.y + node.height / 2 });
-  }, [openCiFlowFocusForAsset]);
-
-  const openCiFlowFocusForAssetId = useCallback(
-    (assetId: string) => {
-      const node = detailedTree?.nodes.find((item) => item.entityType === "ci" && item.ciAssetId === assetId);
-      if (node) {
-        openCiFlowFocusForNode(node);
-        return;
-      }
-      if (!flowCiNodeByAssetId.has(assetId)) {
-        return;
-      }
-      const rootNode = detailedTree?.rootNodeId ? detailedNodeById.get(detailedTree.rootNodeId) ?? null : null;
-      const fallbackOriginCenter = rootNode
-        ? { x: rootNode.x + rootNode.width / 2, y: rootNode.y + rootNode.height / 2 }
-        : { x: (detailedTree?.width ?? 1) / 2, y: (detailedTree?.height ?? 1) / 2 };
-      openCiFlowFocusForAsset(assetId, fallbackOriginCenter);
-    },
-    [
-      detailedNodeById,
-      detailedTree?.height,
-      detailedTree?.nodes,
-      detailedTree?.rootNodeId,
-      detailedTree?.width,
-      flowCiNodeByAssetId,
-      openCiFlowFocusForAsset,
-      openCiFlowFocusForNode
-    ]
-  );
-
   const closeCiFlowFocus = () => {
     if (!focusedCiFlowRootAssetId) {
       return;
@@ -5957,6 +5884,7 @@ export function DetailedTopologyView({
     ciFlowNodeDragStateRef.current = null;
     ciFlowNodeDragOffsetsRef.current = {};
     ciFlowPinnedRootScreenPositionRef.current = null;
+    setIsIctSystemDependenciesOpen(false);
     setIsDetailedTopologyOpen(true);
   };
 
@@ -5998,6 +5926,7 @@ export function DetailedTopologyView({
     ciFlowNodeDragStateRef.current = null;
     ciFlowNodeDragOffsetsRef.current = {};
     ciFlowPinnedRootScreenPositionRef.current = null;
+    setIsIctSystemDependenciesOpen(false);
     onClose();
   };
 
@@ -7175,8 +7104,62 @@ export function DetailedTopologyView({
                   {...(!isSystemImpactAnalyser ? { includeNetworkAxis: true } : {})}
                   showAssetTypeFilter
                   spiDefinitions={spiDefinitions}
-                  onAssetFocus={openCiFlowFocusForAssetId}
-                  assetFocusEligibleAssetIds={assetFocusEligibleAssetIds}
+                  complianceActionScope={isSystemImpactAnalyser ? "risk-servers" : "risk-all-assets"}
+                  onLoadStateChange={setImpactAnalyserLoadState}
+                  hideFilterRow={isIctSystemDependenciesOpen}
+                  extraControls={
+                    isSystemImpactAnalyser ? (
+                      <button
+                        ref={ictSystemDependenciesTriggerRef}
+                        type="button"
+                        aria-expanded={isIctSystemDependenciesOpen}
+                        aria-controls="ict-system-drill-through-dependencies-overlay"
+                        disabled={impactAnalyserLoadState !== "ready"}
+                        onClick={openIctSystemDependencies}
+                        className="ml-auto h-8 shrink-0 rounded-md border border-violet-300/45 bg-violet-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-violet-100 transition hover:border-violet-200/65 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
+                      >
+                        ICT System Dependencies
+                      </button>
+                    ) : undefined
+                  }
+                  diagramOverlay={
+                    isSystemImpactAnalyser && isIctSystemDependenciesOpen ? (
+                      <div
+                        id="ict-system-drill-through-dependencies-overlay"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="ICT System Dependencies"
+                        className="h-full min-h-0 min-w-0 bg-slate-950 p-1"
+                      >
+                        <IctSystemImpactAnalyser2Chart
+                          key={`ict-system-drill-through-dependencies-${topologyRootScope.id}-${ictSystemDependencyRequestId}`}
+                          embedded
+                          systemScopeIds={ictSystemDependencyScopeIds}
+                          dataPath="/api/cyber-cop/impact-analyser-2/dependencies"
+                          diagramMode="dependencies"
+                          analyserName="ICT System Dependencies"
+                          analyserSlug="ict-system-drill-through-dependencies"
+                          title="ICT System Dependencies"
+                          headingTooltip="Directed server-to-server dependencies for this ICT system."
+                          assetAxisLabel="Server"
+                          assetSearchCategory="Server"
+                          complianceActionScope="dependency-servers"
+                          onRetry={() => setIctSystemDependencyRequestId((current) => current + 1)}
+                          extraControls={
+                            <button
+                              ref={ictSystemDependenciesCloseRef}
+                              type="button"
+                              aria-label="Close ICT System Dependencies"
+                              onClick={closeIctSystemDependencies}
+                              className="ml-auto h-8 shrink-0 rounded-md border border-rose-300/45 bg-rose-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-rose-100 hover:border-rose-200/65 hover:bg-rose-500/25"
+                            >
+                              Close
+                            </button>
+                          }
+                        />
+                      </div>
+                    ) : null
+                  }
                 />
               </div>
 

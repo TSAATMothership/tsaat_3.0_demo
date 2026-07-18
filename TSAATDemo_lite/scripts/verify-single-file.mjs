@@ -74,28 +74,29 @@ assert(
 );
 assert(
   html.includes("/api/cyber-cop/impact-analyser-2/compliance"),
-  "The server-compliance API bridge must be packaged."
+  "The asset-compliance API bridge must be packaged."
 );
 assert(
-  html.includes("data-impact-analyser-node-action") && html.includes("server-compliance"),
-  "The selected server-node Compliance action contract must be packaged."
+  html.includes('"data-impact-analyser-node-action":"compliance"') ||
+    html.includes('data-impact-analyser-node-action="compliance"'),
+  "The selected asset-node Compliance action contract must be packaged."
 );
 assert(
-  html.includes("data-server-compliance-view"),
-  "The centered server Compliance view must be packaged."
+  html.includes("risk-servers") && html.includes("risk-all-assets") && html.includes("dependency-servers"),
+  "The server, all-asset, and dependency-server Compliance action scopes must be packaged."
+);
+assert(
+  html.includes("data-server-compliance-view") && html.includes("data-asset-compliance-view"),
+  "The centered asset Compliance view must be packaged."
 );
 assert(
   html.includes("data-server-compliance-section"),
-  "The server Compliance Overview and Discovery Compliance sections must be packaged."
-);
-assert(
-  html.includes("Close Server Compliance"),
-  "The server Compliance view Close control must be packaged."
+  "The asset Compliance Overview and Discovery Compliance sections must be packaged."
 );
 assert(
   html.includes('"data-server-compliance-dialog":"fixed"') ||
     html.includes('data-server-compliance-dialog="fixed"'),
-  "The fixed responsive Server Compliance dialog contract must be packaged."
+  "The fixed responsive asset Compliance dialog contract must be packaged."
 );
 assert(
   html.includes("data-server-compliance-score-tiles"),
@@ -111,6 +112,9 @@ assert(
     html.includes("data-server-compliance-measure-detail"),
   "The clickable Server Compliance SPI breakdown and nested detail view must be packaged."
 );
+assert(!html.includes("asset-focus"), "The removed F asset-focus action must not be packaged.");
+assert(!html.includes("assetFocusEligibleAssetIds"), "The removed F eligibility prop must not be packaged.");
+assert(!html.includes("onAssetFocus"), "The removed F callback prop must not be packaged.");
 assert(html.includes("data-dependency-axis-order"), "The dependency axis-order contract marker must be packaged.");
 assert(html.includes("assetAxisLabel"), "The packaged analyser must retain the Server axis-label override.");
 assert.match(

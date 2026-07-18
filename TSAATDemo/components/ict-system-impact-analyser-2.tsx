@@ -20,6 +20,10 @@ import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@
 type ImpactAnalyser2EnvironmentOption = "Production" | "Development" | "UAT" | "Test" | "Unassigned";
 type ImpactAnalyser2FindingCriticalityOption = FindingSeverity;
 type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies";
+export type ImpactAnalyser2ComplianceActionScope =
+  | "risk-servers"
+  | "risk-all-assets"
+  | "dependency-servers";
 export type ImpactAnalyser2LoadState = "idle" | "loading" | "ready" | "error";
 
 export interface ImpactAnalyser2Row {
@@ -145,7 +149,7 @@ const chartLayout = {
   minHeight: 330
 };
 
-type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-focus" | "asset-details";
+type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-details";
 type ImpactAnalyser2PendingViewportAction =
   | { type: "reset" }
   | { type: "clamp" }
@@ -476,10 +480,8 @@ export function IctSystemImpactAnalyser2Chart({
   includeNetworkAxis = false,
   showAssetTypeFilter = false,
   showSelectedTileText = false,
-  enableServerComplianceAction = false,
+  complianceActionScope,
   spiDefinitions = [],
-  onAssetFocus,
-  assetFocusEligibleAssetIds,
   externalSelectedSearchOption,
   onSelectedNodeChange,
   onLoadStateChange,
@@ -506,10 +508,8 @@ export function IctSystemImpactAnalyser2Chart({
   includeNetworkAxis?: boolean;
   showAssetTypeFilter?: boolean;
   showSelectedTileText?: boolean;
-  enableServerComplianceAction?: boolean;
+  complianceActionScope?: ImpactAnalyser2ComplianceActionScope;
   spiDefinitions?: SpiDefinition[];
-  onAssetFocus?: (assetId: string) => void;
-  assetFocusEligibleAssetIds?: string[];
   externalSelectedSearchOption?: ImpactAnalyser2SelectedSearchOption | null;
   onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void;
   onLoadStateChange?: (loadState: ImpactAnalyser2LoadState) => void;
@@ -523,7 +523,7 @@ export function IctSystemImpactAnalyser2Chart({
   const scrollFrameRef = useRef<number | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const serverComplianceTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const complianceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const latestRequestIdRef = useRef(0);
   const latestWorkerInitRequestIdRef = useRef(0);
@@ -565,10 +565,14 @@ export function IctSystemImpactAnalyser2Chart({
   const [drillThroughError, setDrillThroughError] = useState<string | null>(null);
   const [isDrillThroughLoading, setIsDrillThroughLoading] = useState(false);
   const [selectedTileCopyFeedback, setSelectedTileCopyFeedback] = useState<"idle" | "copied" | "failed">("idle");
-  const [serverComplianceAsset, setServerComplianceAsset] = useState<{ assetId: string; assetName: string } | null>(null);
-  const closeServerComplianceView = useCallback(() => {
-    setServerComplianceAsset(null);
-    window.requestAnimationFrame(() => serverComplianceTriggerRef.current?.focus());
+  const [complianceAsset, setComplianceAsset] = useState<{
+    assetId: string;
+    assetName: string;
+    systemId?: string;
+  } | null>(null);
+  const closeComplianceView = useCallback(() => {
+    setComplianceAsset(null);
+    window.requestAnimationFrame(() => complianceTriggerRef.current?.focus());
   }, []);
   const hasSystemScope = Array.isArray(systemScopeIds);
   const systemScopeKey = hasSystemScope ? Array.from(new Set(systemScopeIds)).sort().join(",") : "";
@@ -653,16 +657,6 @@ export function IctSystemImpactAnalyser2Chart({
       .map((sourceRowIndex) => sourceRows[sourceRowIndex])
       .filter((row): row is ImpactAnalyser2Row => Boolean(row));
   }, [isDependenciesDiagramMode, sourceRows, workerResult]);
-  const assetFocusEligibleAssetIdSet = useMemo(
-    () => new Set(assetFocusEligibleAssetIds ?? []),
-    [assetFocusEligibleAssetIds]
-  );
-  const isAssetFocusEligible = useCallback(
-    (assetId: string) =>
-      Boolean(onAssetFocus) &&
-      (assetFocusEligibleAssetIds === undefined || assetFocusEligibleAssetIdSet.has(assetId)),
-    [assetFocusEligibleAssetIdSet, assetFocusEligibleAssetIds, onAssetFocus]
-  );
   const canOpenAssetDetails = useCallback(
     (axisKey: string, value: string) => {
       if (axisKey === "asset") {
@@ -674,14 +668,6 @@ export function IctSystemImpactAnalyser2Chart({
       return false;
     },
     [assetMetaById, isRelationshipDiagramMode, relatedAssetMetaById]
-  );
-  const canOpenServerCompliance = useCallback(
-    (axisKey: string, value: string) =>
-      enableServerComplianceAction &&
-      !isRelationshipDiagramMode &&
-      axisKey === "asset" &&
-      assetMetaById.get(value)?.assetType === "server",
-    [assetMetaById, enableServerComplianceAction, isRelationshipDiagramMode]
   );
   const selectedAssetMeta =
     activeSelectedNode?.axisKey === "asset" ? assetMetaById.get(activeSelectedNode.value) ?? null : null;
@@ -719,17 +705,41 @@ export function IctSystemImpactAnalyser2Chart({
   const assetShapeTypeForNode = useCallback(
     (axisKey: string, value: string): AssetType | null => {
       if (axisKey === "asset") {
-        return assetMetaById.get(value)?.assetType ?? "other";
+        return assetMetaById.get(value)?.assetType ?? null;
       }
       if (axisKey === "relatedAsset") {
-        return relatedAssetMetaById.get(value)?.relatedAssetType ?? "other";
+        return relatedAssetMetaById.get(value)?.relatedAssetType ?? null;
       }
       return null;
     },
     [assetMetaById, relatedAssetMetaById]
   );
-  const serverComplianceNodeAction = useMemo(() => {
-    if (!activeSelectedNode || !workerResult || !canOpenServerCompliance(activeSelectedNode.axisKey, activeSelectedNode.value)) {
+  const canOpenCompliance = useCallback(
+    (axisKey: string, value: string) => {
+      const assetType = assetShapeTypeForNode(axisKey, value);
+      if (!assetType) {
+        return false;
+      }
+      if (diagramMode === "risk") {
+        if (axisKey !== "asset") {
+          return false;
+        }
+        return (
+          complianceActionScope === "risk-all-assets" ||
+          (complianceActionScope === "risk-servers" && assetType === "server")
+        );
+      }
+      return (
+        diagramMode === "dependencies" &&
+        complianceActionScope === "dependency-servers" &&
+        (axisKey === "asset" || axisKey === "relatedAsset") &&
+        assetType === "server"
+      );
+    },
+    [assetShapeTypeForNode, complianceActionScope, diagramMode]
+  );
+  const complianceNodeAction = useMemo(() => {
+    if (!activeSelectedNode || !workerResult || !canOpenCompliance(activeSelectedNode.axisKey, activeSelectedNode.value)) {
       return null;
     }
     const axisIndex = workerResult.axes.findIndex((axis) => axis.key === activeSelectedNode.axisKey);
@@ -746,10 +756,14 @@ export function IctSystemImpactAnalyser2Chart({
     return {
       assetId: activeSelectedNode.value,
       assetName: displayNodeLabel(activeSelectedNode.axisKey, activeSelectedNode.value),
+      systemId:
+        activeSelectedNode.axisKey === "relatedAsset"
+          ? relatedAssetMetaById.get(activeSelectedNode.value)?.relatedSystemId ?? undefined
+          : assetMetaById.get(activeSelectedNode.value)?.systemId ?? undefined,
       x,
       y
     };
-  }, [activeSelectedNode, canOpenServerCompliance, displayNodeLabel, scrollTop, viewportSize.height, viewportSize.width, workerResult]);
+  }, [activeSelectedNode, assetMetaById, canOpenCompliance, displayNodeLabel, relatedAssetMetaById, scrollTop, viewportSize.height, viewportSize.width, workerResult]);
   const reconcileDiagramViewport = useCallback((mode: "reset" | "clamp", virtualHeight?: number) => {
     const viewport = viewportRef.current;
     const currentVirtualHeight = virtualHeight ?? workerResultRef.current?.virtualHeight ?? chartLayout.minHeight;
@@ -798,7 +812,7 @@ export function IctSystemImpactAnalyser2Chart({
     pendingViewportActionRef.current = action;
     setDrillThroughData(null);
     setDrillThroughError(null);
-    setServerComplianceAsset(null);
+    setComplianceAsset(null);
   }, []);
   const clearRenderedDiagram = useCallback(() => {
     workerResultRef.current = null;
@@ -1306,7 +1320,6 @@ export function IctSystemImpactAnalyser2Chart({
       context.font = "600 11px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
       result.axes.forEach((axis, axisIndex) => {
         const x = axisX(axisIndex, result.axes.length, size.width);
-
         context.textAlign = axisIndex === 0 ? "left" : axisIndex === result.axes.length - 1 ? "right" : "center";
         context.fillStyle = "rgba(241, 245, 249, 0.96)";
         context.fillText(`${axis.label} (${axis.values.length})`, axisIndex === 0 ? 8 : axisIndex === result.axes.length - 1 ? size.width - 8 : x, 24);
@@ -1399,27 +1412,6 @@ export function IctSystemImpactAnalyser2Chart({
             context.lineTo(x + 13, y - 9.5);
             context.stroke();
           }
-          if (
-            !isRelationshipDiagramMode &&
-            isSelected &&
-            axis.key === "asset" &&
-            isAssetFocusEligible(value) &&
-            !canOpenServerCompliance(axis.key, value)
-          ) {
-            context.beginPath();
-            context.arc(x + 13, y - 13, 7, 0, Math.PI * 2);
-            context.fillStyle = "#0f172a";
-            context.fill();
-            context.strokeStyle = "#ecfeff";
-            context.lineWidth = 1.4;
-            context.stroke();
-            context.fillStyle = "#ecfeff";
-            context.font = "700 9px ui-sans-serif, system-ui, sans-serif";
-            context.textAlign = "center";
-            context.textBaseline = "middle";
-            context.fillText("F", x + 13, y - 12.5);
-            context.textBaseline = "alphabetic";
-          }
           if (isSelected && canOpenAssetDetails(axis.key, value)) {
             context.beginPath();
             context.arc(x + 13, y + 13, 7, 0, Math.PI * 2);
@@ -1442,9 +1434,7 @@ export function IctSystemImpactAnalyser2Chart({
     [
       assetShapeTypeForNode,
       canOpenAssetDetails,
-      canOpenServerCompliance,
       displayNodeLabel,
-      isAssetFocusEligible,
       isDependenciesDiagramMode,
       isRelationshipDiagramMode
     ]
@@ -1508,14 +1498,14 @@ export function IctSystemImpactAnalyser2Chart({
             };
           }
           const isSelectedActionBadge =
-            ((!isRelationshipDiagramMode && axis.key === "spi") ||
-              (axis.key === "asset" && isAssetFocusEligible(value) && !canOpenServerCompliance(axis.key, value))) &&
+            !isRelationshipDiagramMode &&
+            axis.key === "spi" &&
             isSelected &&
             topRightBadgeDistance <= 11;
           if (isSelectedActionBadge) {
             return {
               node: { axisKey: axis.key, value },
-              action: axis.key === "asset" ? "asset-focus" : "spi-findings"
+              action: "spi-findings"
             };
           }
           if (distance <= 18 && (!bestMatch || distance < bestMatch.distance)) {
@@ -1525,7 +1515,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
       return bestMatch;
     },
-    [canOpenAssetDetails, canOpenServerCompliance, isAssetFocusEligible, isRelationshipDiagramMode]
+    [canOpenAssetDetails, isRelationshipDiagramMode]
   );
 
   const openSpiDrillThrough = useCallback(
@@ -1611,10 +1601,6 @@ export function IctSystemImpactAnalyser2Chart({
         }
         return;
       }
-      if (hit.action === "asset-focus") {
-        onAssetFocus?.(hit.node.value);
-        return;
-      }
       if (hit.action === "asset-details") {
         openAssetDetails(hit.node);
         return;
@@ -1625,7 +1611,6 @@ export function IctSystemImpactAnalyser2Chart({
       externalSelectedSearchOption,
       findNodeAtPoint,
       isRelationshipDiagramMode,
-      onAssetFocus,
       openAssetDetails,
       openSpiDrillThrough,
       selectedNode,
@@ -1649,8 +1634,6 @@ export function IctSystemImpactAnalyser2Chart({
             ? `Open findings for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
             : hit.action === "asset-details"
               ? `Open Asset Details for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
-            : hit.action === "asset-focus"
-              ? `Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}`
               : isRelationshipDiagramMode
                 ? displayNodeLabel(hit.node.axisKey, hit.node.value)
                 : nodeHoverTitle(
@@ -1778,7 +1761,6 @@ export function IctSystemImpactAnalyser2Chart({
                 />
                 {diagramSearch ? (
                   <button
-                    ref={serverComplianceTriggerRef}
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={clearDiagramSearch}
@@ -2011,21 +1993,23 @@ export function IctSystemImpactAnalyser2Chart({
                   onPointerMove={handleOverlayPointerMove}
                   onPointerLeave={() => setHoverInfo(null)}
                 />
-                {serverComplianceNodeAction ? (
+                {complianceNodeAction ? (
                   <button
+                    ref={complianceTriggerRef}
                     type="button"
-                    data-impact-analyser-node-action="server-compliance"
-                    data-asset-id={serverComplianceNodeAction.assetId}
-                    aria-label={`Open Server Compliance for ${serverComplianceNodeAction.assetName}`}
-                    title={`Open Compliance View for ${serverComplianceNodeAction.assetName}`}
+                    data-impact-analyser-node-action="compliance"
+                    data-asset-id={complianceNodeAction.assetId}
+                    aria-label={`Open Compliance View for ${complianceNodeAction.assetName}`}
+                    title={`Open Compliance View for ${complianceNodeAction.assetName}`}
                     onClick={() =>
-                      setServerComplianceAsset({
-                        assetId: serverComplianceNodeAction.assetId,
-                        assetName: serverComplianceNodeAction.assetName
+                      setComplianceAsset({
+                        assetId: complianceNodeAction.assetId,
+                        assetName: complianceNodeAction.assetName,
+                        systemId: complianceNodeAction.systemId
                       })
                     }
                     className="absolute z-40 flex h-[14px] w-[14px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-50 bg-slate-900 text-[9px] font-bold leading-none text-cyan-50 shadow-[0_2px_8px_rgba(0,0,0,0.6)] hover:bg-cyan-900 focus:outline-none focus:ring-2 focus:ring-cyan-200"
-                    style={{ left: serverComplianceNodeAction.x, top: serverComplianceNodeAction.y }}
+                    style={{ left: complianceNodeAction.x, top: complianceNodeAction.y }}
                   >
                     C
                   </button>
@@ -2104,13 +2088,14 @@ export function IctSystemImpactAnalyser2Chart({
           onClose={() => setDrillThroughData(null)}
         />
       ) : null}
-      {serverComplianceAsset ? (
+      {complianceAsset ? (
         <ServerComplianceView
-          assetId={serverComplianceAsset.assetId}
-          assetName={serverComplianceAsset.assetName}
+          assetId={complianceAsset.assetId}
+          assetName={complianceAsset.assetName}
+          systemId={complianceAsset.systemId}
           dataDate={dataDate}
           dataPath={compliancePath}
-          onClose={closeServerComplianceView}
+          onClose={closeComplianceView}
         />
       ) : null}
     </>

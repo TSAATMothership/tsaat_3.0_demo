@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
-import { buildServerComplianceModel } from "@/lib/server-compliance";
+import { buildAssetComplianceModel } from "@/lib/server-compliance";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const preferredSystemId = request.nextUrl.searchParams.get("systemId")?.trim() || null;
   const { dataset, spiDefinitions, discoveryToolsSettings } = await getCoreAppData(queryObject);
-  const model = buildServerComplianceModel({
+  const model = buildAssetComplianceModel({
     dataset,
     assetId,
     spiDefinitions,
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     preferredSystemId
   });
   if (!model) {
-    return json({ error: "Server asset not found in the selected snapshot." }, 404);
+    return json({ error: "Asset not found in the selected snapshot." }, 404);
   }
 
   return json(model);

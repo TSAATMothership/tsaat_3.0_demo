@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
-import type { ServerComplianceModel } from "@/lib/server-compliance";
+import type { AssetComplianceModel } from "@/lib/server-compliance";
 
 type ComplianceTab = "overview" | "discovery";
 type WorkflowFilter = "all" | "open" | "closed";
-type ServerComplianceMeasure = ServerComplianceModel["complianceOverview"]["measures"][number];
-type ServerComplianceFinding = ServerComplianceMeasure["findings"][number];
+type AssetComplianceMeasure = AssetComplianceModel["complianceOverview"]["measures"][number];
+type AssetComplianceFinding = AssetComplianceMeasure["findings"][number];
 
 const findingSeverityOptions = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
 
@@ -71,14 +71,14 @@ function formatTimestamp(value: string | null | undefined): string {
   })} UTC`;
 }
 
-function findingEvidencePreview(finding: ServerComplianceFinding): string {
+function findingEvidencePreview(finding: AssetComplianceFinding): string {
   if (!finding.evidence.length) {
     return "No evidence recorded.";
   }
   return finding.evidence.map((item) => `${item.key}: ${item.value}`).join(" | ");
 }
 
-function scoreCardsForModel(model: ServerComplianceModel): [OverviewScoreCard, OverviewScoreCard] {
+function scoreCardsForModel(model: AssetComplianceModel): [OverviewScoreCard, OverviewScoreCard] {
   const overview = model.complianceOverview;
   const discovery = model.discoveryCompliance;
   return [
@@ -86,7 +86,7 @@ function scoreCardsForModel(model: ServerComplianceModel): [OverviewScoreCard, O
       title: "Compliance Score",
       score: overview.score,
       total: overview.total,
-      contextLabel: `Selected server scope | ${overview.openFindingCount} open findings`,
+      contextLabel: `Selected ${model.asset.assetTypeLabel.toLowerCase()} scope | ${overview.openFindingCount} open findings`,
       segments: [
         {
           label: "Compliant",
@@ -146,35 +146,40 @@ function scoreCardsForModel(model: ServerComplianceModel): [OverviewScoreCard, O
 export function ServerComplianceView({
   assetId,
   assetName,
+  systemId,
   dataDate,
   dataPath = "/api/cyber-cop/impact-analyser-2/compliance",
   onClose
 }: {
   assetId: string;
   assetName: string;
+  systemId?: string | null;
   dataDate?: string;
   dataPath?: string;
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<ComplianceTab>("overview");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
-  const [model, setModel] = useState<ServerComplianceModel | null>(null);
+  const [model, setModel] = useState<AssetComplianceModel | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [retryKey, setRetryKey] = useState(0);
-  const [selectedMeasure, setSelectedMeasure] = useState<ServerComplianceMeasure | null>(null);
+  const [selectedMeasure, setSelectedMeasure] = useState<AssetComplianceMeasure | null>(null);
   const [workflowFilter, setWorkflowFilter] = useState<WorkflowFilter>("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [findingSearch, setFindingSearch] = useState("");
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const selectedMeasureRef = useRef<ServerComplianceMeasure | null>(null);
+  const selectedMeasureRef = useRef<AssetComplianceMeasure | null>(null);
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ assetId });
     if (dataDate) {
       params.set("dataDate", dataDate);
     }
+    if (systemId) {
+      params.set("systemId", systemId);
+    }
     return `${dataPath}?${params.toString()}`;
-  }, [assetId, dataDate, dataPath]);
+  }, [assetId, dataDate, dataPath, systemId]);
 
   const sortedMeasures = useMemo(
     () =>
@@ -226,7 +231,7 @@ export function ServerComplianceView({
           const payload = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(payload?.error || `Request failed with ${response.status}`);
         }
-        return response.json() as Promise<ServerComplianceModel>;
+        return response.json() as Promise<AssetComplianceModel>;
       })
       .then((payload) => {
         setModel(payload);
@@ -236,7 +241,7 @@ export function ServerComplianceView({
         if (abortController.signal.aborted) {
           return;
         }
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load server compliance.");
+        setErrorMessage(error instanceof Error ? error.message : "Unable to load asset compliance.");
         setLoadState("error");
       });
     return () => abortController.abort();
@@ -270,7 +275,7 @@ export function ServerComplianceView({
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [onClose]);
 
-  const openMeasureDetail = (measure: ServerComplianceMeasure) => {
+  const openMeasureDetail = (measure: AssetComplianceMeasure) => {
     setSelectedMeasure(measure);
     setWorkflowFilter(measure.findings.some((finding) => finding.status === "open") ? "open" : "all");
     setSeverityFilter("all");
@@ -290,16 +295,20 @@ export function ServerComplianceView({
   const overview = model?.complianceOverview;
   const discovery = model?.discoveryCompliance;
   const scoreCards = model ? scoreCardsForModel(model) : null;
+  const assetTypeLabel = model?.asset.assetTypeLabel ?? "Asset";
+  const assetTypeScopeLabel = assetTypeLabel.toLowerCase();
 
   return createPortal(
     <div
       data-server-compliance-view="true"
+      data-asset-compliance-view="true"
       data-asset-id={assetId}
       data-load-state={loadState}
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/78 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-950/78 p-4 backdrop-blur-[2px]"
     >
       <section
         data-server-compliance-dialog="fixed"
+        data-asset-compliance-dialog="fixed"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -307,7 +316,7 @@ export function ServerComplianceView({
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-sky-300/15 bg-slate-900/90 px-4 py-3">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">Server Compliance View</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">{assetTypeLabel} Compliance View</p>
             <h2 id={titleId} className="mt-1 truncate text-lg font-semibold text-slate-50">
               {model?.asset.name || assetName}
             </h2>
@@ -318,14 +327,14 @@ export function ServerComplianceView({
             </p>
             {model ? (
               <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                ICT System: {displayValue(model.asset.systemName)} | Network: {displayValue(model.asset.networkName)} | Security Domain: {displayValue(model.asset.securityDomain)}
+                Asset Type: {assetTypeLabel} | ICT System: {displayValue(model.asset.systemName)} | Network: {displayValue(model.asset.networkName)} | Security Domain: {displayValue(model.asset.securityDomain)}
               </p>
             ) : null}
           </div>
           <button
             ref={closeButtonRef}
             type="button"
-            aria-label="Close Server Compliance"
+            aria-label={`Close ${assetTypeLabel} Compliance`}
             onClick={onClose}
             className="shrink-0 rounded-md border border-rose-300/45 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-rose-100 hover:border-rose-200/70 hover:bg-rose-500/25"
           >
@@ -333,7 +342,7 @@ export function ServerComplianceView({
           </button>
         </header>
 
-        <div className="flex shrink-0 gap-1 border-b border-sky-300/15 bg-slate-950 px-4 pt-2" role="tablist" aria-label="Server compliance sections">
+        <div className="flex shrink-0 gap-1 border-b border-sky-300/15 bg-slate-950 px-4 pt-2" role="tablist" aria-label={`${assetTypeLabel} compliance sections`}>
           {([
             ["overview", "Compliance Overview"],
             ["discovery", "Discovery Compliance"]
@@ -436,7 +445,7 @@ export function ServerComplianceView({
                           })}
                           {!sortedMeasures.length ? (
                             <tr>
-                              <td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-300/80">No SPI data is available for this server.</td>
+                              <td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-300/80">No SPI data is available for this {assetTypeScopeLabel}.</td>
                             </tr>
                           ) : null}
                         </tbody>
@@ -449,7 +458,7 @@ export function ServerComplianceView({
                       <div className="flex items-end justify-between gap-3">
                         <div>
                           <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h3>
-                          <p className="mt-1 text-xs text-slate-300/75">Required discovery sources for the selected server.</p>
+                          <p className="mt-1 text-xs text-slate-300/75">Required discovery sources for the selected {assetTypeScopeLabel}.</p>
                         </div>
                         <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${complianceStatusClass(discovery.coverageCompliance ? "Compliant" : "Non-compliant")}`}>
                           {discovery.coverageCompliance ? "Coverage compliant" : "Coverage non-compliant"}
@@ -468,7 +477,7 @@ export function ServerComplianceView({
                                 <div className={`h-full ${tool.status === "Covered" ? "bg-emerald-400" : tool.status === "Missing" ? "bg-red-400" : "bg-slate-500"}`} style={{ width: tool.status === "Not available" ? "100%" : `${coveragePercent}%` }} />
                               </div>
                               <p className="mt-2 text-[11px] text-slate-300/75">
-                                {tool.status === "Not available" ? "No source value available" : `${coveragePercent}% covered for this server`}
+                                {tool.status === "Not available" ? "No source value available" : `${coveragePercent}% covered for this ${assetTypeScopeLabel}`}
                               </p>
                             </article>
                           );
@@ -509,7 +518,7 @@ export function ServerComplianceView({
                             </tbody>
                           </table>
                         </div>
-                      ) : <p className="px-3 py-8 text-center text-sm text-slate-400">No discovery tools apply to this server.</p>}
+                      ) : <p className="px-3 py-8 text-center text-sm text-slate-400">No discovery tools apply to this {assetTypeScopeLabel}.</p>}
                     </section>
                   </div>
                 )}
@@ -588,7 +597,7 @@ export function ServerComplianceView({
                             </tr>
                           ))}
                           {!filteredFindings.length ? (
-                            <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-300/80">{selectedMeasureFindings.length ? "No findings match the active filters." : "No findings were generated for this SPI in the selected server scope."}</td></tr>
+                            <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-300/80">{selectedMeasureFindings.length ? "No findings match the active filters." : `No findings were generated for this SPI in the selected ${assetTypeScopeLabel} scope.`}</td></tr>
                           ) : null}
                         </tbody>
                       </table>

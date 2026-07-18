@@ -1594,7 +1594,7 @@ function IctSystemImpactAnalyserRunPanel({
             systemScopeIds={appliedSystemIds}
             dataDate={dataDate}
             spiDefinitions={spiDefinitions}
-            enableServerComplianceAction
+            complianceActionScope="risk-servers"
             onLoadStateChange={handleLoadStateChange}
             hideFilterRow={isDependenciesOpen}
             extraControls={
@@ -1631,6 +1631,7 @@ function IctSystemImpactAnalyserRunPanel({
                     headingTooltip="Directed server-to-server dependencies for the applied ICT system scope."
                     assetAxisLabel="Server"
                     assetSearchCategory="Server"
+                    complianceActionScope="dependency-servers"
                     onRetry={() => setDependencyRequestId((current) => current + 1)}
                     extraControls={
                       <button
@@ -1839,6 +1840,7 @@ function NetworkImpactAnalyserRunPanel({
             includeNetworkAxis
             showAssetTypeFilter
             spiDefinitions={spiDefinitions}
+            complianceActionScope="risk-all-assets"
             onLoadStateChange={handleLoadStateChange}
           />
         ) : (

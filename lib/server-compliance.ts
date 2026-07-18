@@ -1,3 +1,4 @@
+import { assetTypeLabel } from "@/lib/asset-taxonomy";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import type { SpiDefinition } from "@/lib/spi-definitions";
 import type {
@@ -10,23 +11,25 @@ import type {
   SpiEvaluation
 } from "@/lib/types";
 
-export interface ServerComplianceAssetSummary {
+export interface AssetComplianceAssetSummary {
   id: string;
   name: string;
   hostname: string;
   ipAddress: string;
+  assetType: Asset["type"];
+  assetTypeLabel: string;
   environmentType: string;
   systemName: string;
   networkName: string;
   securityDomain: string;
 }
 
-export interface ServerComplianceEvidenceItem {
+export interface AssetComplianceEvidenceItem {
   key: string;
   value: string;
 }
 
-export interface ServerComplianceOpenFinding {
+export interface AssetComplianceOpenFinding {
   id: string;
   title: string;
   severity: string;
@@ -34,7 +37,7 @@ export interface ServerComplianceOpenFinding {
   recommendedAction: string;
 }
 
-export interface ServerComplianceFinding extends ServerComplianceOpenFinding {
+export interface AssetComplianceFinding extends AssetComplianceOpenFinding {
   assetId: string;
   assetName: string;
   assetType: string;
@@ -54,10 +57,10 @@ export interface ServerComplianceFinding extends ServerComplianceOpenFinding {
   scope: Finding["scope"];
   scopeLabel: string;
   evidencePreview: string;
-  evidence: ServerComplianceEvidenceItem[];
+  evidence: AssetComplianceEvidenceItem[];
 }
 
-export interface ServerComplianceMeasure {
+export interface AssetComplianceMeasure {
   spiId: number;
   label: string;
   status: ComplianceStatus;
@@ -69,52 +72,52 @@ export interface ServerComplianceMeasure {
   impactedAssets: number;
   topReasons: string[];
   reasons: string[];
-  evidence: ServerComplianceEvidenceItem[];
-  findings: ServerComplianceFinding[];
-  openFindings: ServerComplianceFinding[];
+  evidence: AssetComplianceEvidenceItem[];
+  findings: AssetComplianceFinding[];
+  openFindings: AssetComplianceFinding[];
 }
 
-export interface ServerComplianceOverview {
+export interface AssetComplianceOverview {
   score: number;
   total: number;
   compliant: number;
   nonCompliant: number;
   unknown: number;
   openFindingCount: number;
-  measures: ServerComplianceMeasure[];
-  findings: ServerComplianceFinding[];
+  measures: AssetComplianceMeasure[];
+  findings: AssetComplianceFinding[];
 }
 
-export type ServerDiscoveryComplianceToolStatus = "Covered" | "Missing" | "Not available";
+export type AssetDiscoveryComplianceToolStatus = "Covered" | "Missing" | "Not available";
 
-export interface ServerDiscoveryComplianceTool {
+export interface AssetDiscoveryComplianceTool {
   id: string;
   name: string;
   description: string;
   el2Owner: string;
   el2OperationsManager: string;
   value: DiscoveryCoverageValue;
-  status: ServerDiscoveryComplianceToolStatus;
+  status: AssetDiscoveryComplianceToolStatus;
 }
 
-export interface ServerDiscoveryCompliance {
+export interface AssetDiscoveryCompliance {
   score: number;
   coverageCompliance: boolean;
   covered: number;
   missing: number;
   notAvailable: number;
   total: number;
-  tools: ServerDiscoveryComplianceTool[];
+  tools: AssetDiscoveryComplianceTool[];
 }
 
-export interface ServerComplianceModel {
+export interface AssetComplianceModel {
   snapshotDate: string;
-  asset: ServerComplianceAssetSummary;
-  complianceOverview: ServerComplianceOverview;
-  discoveryCompliance: ServerDiscoveryCompliance;
+  asset: AssetComplianceAssetSummary;
+  complianceOverview: AssetComplianceOverview;
+  discoveryCompliance: AssetDiscoveryCompliance;
 }
 
-export interface BuildServerComplianceModelOptions {
+export interface BuildAssetComplianceModelOptions {
   dataset: Dataset;
   assetId: string;
   spiDefinitions: SpiDefinition[];
@@ -122,7 +125,19 @@ export interface BuildServerComplianceModelOptions {
   preferredSystemId?: string | null;
 }
 
-interface ServerSystemMembership {
+export type ServerComplianceAssetSummary = AssetComplianceAssetSummary;
+export type ServerComplianceEvidenceItem = AssetComplianceEvidenceItem;
+export type ServerComplianceOpenFinding = AssetComplianceOpenFinding;
+export type ServerComplianceFinding = AssetComplianceFinding;
+export type ServerComplianceMeasure = AssetComplianceMeasure;
+export type ServerComplianceOverview = AssetComplianceOverview;
+export type ServerDiscoveryComplianceToolStatus = AssetDiscoveryComplianceToolStatus;
+export type ServerDiscoveryComplianceTool = AssetDiscoveryComplianceTool;
+export type ServerDiscoveryCompliance = AssetDiscoveryCompliance;
+export type ServerComplianceModel = AssetComplianceModel;
+export type BuildServerComplianceModelOptions = BuildAssetComplianceModelOptions;
+
+interface AssetSystemMembership {
   systemId: string;
   systemName: string;
   environmentType: string;
@@ -146,12 +161,12 @@ function resolveAssetIpAddress(asset: Asset): string {
   );
 }
 
-function resolveServerSystemMembership(
+function resolveAssetSystemMembership(
   dataset: Dataset,
   asset: Asset,
   preferredSystemId?: string | null
-): ServerSystemMembership | null {
-  const memberships: ServerSystemMembership[] = [];
+): AssetSystemMembership | null {
+  const memberships: AssetSystemMembership[] = [];
   for (const system of dataset.ictSystems) {
     for (const environment of system.environments) {
       if (!environment.assetIds.includes(asset.id)) {
@@ -211,7 +226,7 @@ function evidenceValue(value: string | number | boolean | null): string {
   return String(value);
 }
 
-function evidenceItems(evidence: Record<string, string | number | boolean | null>): ServerComplianceEvidenceItem[] {
+function evidenceItems(evidence: Record<string, string | number | boolean | null>): AssetComplianceEvidenceItem[] {
   return Object.entries(evidence)
     .map(([key, value]) => ({ key, value: evidenceValue(value) }))
     .sort((left, right) => left.key.localeCompare(right.key) || left.value.localeCompare(right.value));
@@ -244,7 +259,7 @@ function aggregateComplianceStatus(evaluations: SpiEvaluation[]): ComplianceStat
 function aggregateEvidenceItems(
   evaluations: SpiEvaluation[],
   findings: Finding[]
-): ServerComplianceEvidenceItem[] {
+): AssetComplianceEvidenceItem[] {
   const entries = evaluations.flatMap((evaluation) => evidenceItems(evaluation.evidence));
   if (entries.length) {
     const uniqueEntries = new Map(entries.map((entry) => [`${entry.key}\u0000${entry.value}`, entry]));
@@ -278,7 +293,7 @@ function complianceScore(compliant: number, total: number): number {
   return Number(((compliant / total) * 100).toFixed(1));
 }
 
-function discoveryToolStatus(value: DiscoveryCoverageValue): ServerDiscoveryComplianceToolStatus {
+function discoveryToolStatus(value: DiscoveryCoverageValue): AssetDiscoveryComplianceToolStatus {
   if (value === 1) {
     return "Covered";
   }
@@ -331,7 +346,7 @@ function readEvidenceStringValue(
 function findingEvidence(
   finding: Finding,
   evaluations: SpiEvaluation[]
-): ServerComplianceEvidenceItem[] {
+): AssetComplianceEvidenceItem[] {
   const storedEvidence = evidenceItems(finding.evidence);
   if (storedEvidence.length) {
     return storedEvidence;
@@ -339,16 +354,16 @@ function findingEvidence(
   return aggregateEvidenceItems(evaluations, []);
 }
 
-export function buildServerComplianceModel({
+export function buildAssetComplianceModel({
   dataset,
   assetId,
   spiDefinitions,
   discoveryToolsSettings,
   preferredSystemId
-}: BuildServerComplianceModelOptions): ServerComplianceModel | null {
+}: BuildAssetComplianceModelOptions): AssetComplianceModel | null {
   const normalizedAssetId = assetId.trim();
   const asset = dataset.assets.find((candidate) => candidate.id === normalizedAssetId);
-  if (!asset || asset.type !== "server") {
+  if (!asset) {
     return null;
   }
 
@@ -361,13 +376,13 @@ export function buildServerComplianceModel({
     evaluationsBySpiId.set(evaluation.spiId, existing);
   }
 
-  const membership = resolveServerSystemMembership(dataset, asset, preferredSystemId);
+  const membership = resolveAssetSystemMembership(dataset, asset, preferredSystemId);
   const network = dataset.managedNetworks.find((candidate) => candidate.id === asset.networkId);
   const defaultSystem = dataset.ictSystems.find((system) => system.id === membership?.systemId);
   const rawAssetFindings = sortedFindings(
     (dataset.findings ?? []).filter((finding) => finding.scope.assetId === asset.id)
   );
-  const findingRows = rawAssetFindings.map<ServerComplianceFinding>((finding) => {
+  const findingRows = rawAssetFindings.map<AssetComplianceFinding>((finding) => {
     const evaluations = evaluationsBySpiId.get(finding.spiId) ?? [];
     const evidence = findingEvidence(finding, evaluations);
     const scopedSystem =
@@ -397,7 +412,7 @@ export function buildServerComplianceModel({
       recommendedAction: finding.recommendedAction,
       assetId: asset.id,
       assetName,
-      assetType: "Server",
+      assetType: assetTypeLabel(asset.type),
       assetIpAddress,
       assetChangeAssignmentGroup:
         readEvidenceStringValue(finding.evidence, [
@@ -439,7 +454,7 @@ export function buildServerComplianceModel({
       evidence
     };
   });
-  const findingsBySpiId = new Map<number, ServerComplianceFinding[]>();
+  const findingsBySpiId = new Map<number, AssetComplianceFinding[]>();
   for (const finding of findingRows) {
     const existing = findingsBySpiId.get(finding.spiId) ?? [];
     existing.push(finding);
@@ -464,7 +479,7 @@ export function buildServerComplianceModel({
     return leftOrder - rightOrder || left - right;
   });
 
-  const measures = spiIds.map<ServerComplianceMeasure>((spiId) => {
+  const measures = spiIds.map<AssetComplianceMeasure>((spiId) => {
     const definition = definitionBySpiId.get(spiId);
     const evaluations = evaluationsBySpiId.get(spiId) ?? [];
     const findings = findingsBySpiId.get(spiId) ?? [];
@@ -513,8 +528,8 @@ export function buildServerComplianceModel({
     (evaluation) => evaluation.assetId === asset.id
   );
   const tools = discoveryToolsSettings.tools
-    .filter((tool) => tool.assetTypeScope.server !== "na")
-    .map<ServerDiscoveryComplianceTool>((tool) => {
+    .filter((tool) => tool.assetTypeScope[asset.type] !== "na")
+    .map<AssetDiscoveryComplianceTool>((tool) => {
       const storedValue = coverageEvaluation?.toolValues[tool.id];
       const value: DiscoveryCoverageValue =
         storedValue === 1 || storedValue === 0 || storedValue === null ? storedValue : null;
@@ -538,6 +553,8 @@ export function buildServerComplianceModel({
       name: displayText(asset.name, asset.hostname || asset.id),
       hostname: displayText(asset.hostname, asset.name || asset.id),
       ipAddress: resolveAssetIpAddress(asset),
+      assetType: asset.type,
+      assetTypeLabel: assetTypeLabel(asset.type),
       environmentType: displayText(membership?.environmentType ?? asset.systemContext?.environmentType),
       systemName: displayText(membership?.systemName),
       networkName: displayText(network?.name, asset.networkId),
@@ -563,4 +580,10 @@ export function buildServerComplianceModel({
       tools
     }
   };
+}
+
+export function buildServerComplianceModel(
+  options: BuildServerComplianceModelOptions
+): ServerComplianceModel | null {
+  return buildAssetComplianceModel(options);
 }

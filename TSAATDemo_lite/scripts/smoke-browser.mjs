@@ -35,6 +35,47 @@ async function clearAndType(page, selector, value) {
   await page.type(selector, value);
 }
 
+async function selectImpactAnalyserAssetFromSearch(page, { containerSelector, assetId, assetName, category }) {
+  const inputSelector = `${containerSelector} input[placeholder="Search diagram"]`;
+  await clearAndType(page, inputSelector, assetName);
+  const selectHandle = await page.waitForFunction(
+    (container, expectedAssetId, expectedCategory) => {
+      const root = document.querySelector(container);
+      const matchingNames = Array.from(root?.querySelectorAll("[data-cmdb-asset-id]") ?? []).filter(
+        (element) => element.getAttribute("data-cmdb-asset-id") === expectedAssetId
+      );
+      for (const matchingName of matchingNames) {
+        const option = matchingName.parentElement;
+        if (!option?.textContent?.includes(`${expectedCategory} · Select in diagram`)) {
+          continue;
+        }
+        const selectButton = Array.from(option.querySelectorAll("button")).find((button) =>
+          button.getAttribute("aria-label")?.startsWith("Select ")
+        );
+        if (selectButton) {
+          return selectButton;
+        }
+      }
+      return null;
+    },
+    {},
+    containerSelector,
+    assetId,
+    category
+  );
+  const selectElement = selectHandle.asElement();
+  assert(selectElement, `${category} ${assetName} did not expose a diagram selection action.`);
+  await selectElement.click();
+  await page.waitForFunction(
+    (expectedAssetId) =>
+      document.querySelector(
+        `[data-impact-analyser-node-action="compliance"][data-asset-id="${CSS.escape(expectedAssetId)}"]`
+      ) instanceof HTMLButtonElement,
+    {},
+    assetId
+  );
+}
+
 async function navigateAndWait(page, href, expectedText) {
   await page.evaluate((target) => globalThis.__TSAAT_NAVIGATE__(target), href);
   await page.waitForFunction(
@@ -274,12 +315,108 @@ try {
     { authenticated: true, username: "demo" },
     "The drill-through tab did not inherit the active offline session."
   );
+
+  await drillThroughPage.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
+  const systemDrillThroughAnalyserOpened = await drillThroughPage.evaluate(() => {
+    const button = Array.from(document.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent?.trim() === "ICT System Impact Analyser"
+    );
+    button?.click();
+    return Boolean(button);
+  });
+  assert(systemDrillThroughAnalyserOpened, "The ICT-system drill-through analyser control was not found.");
+  await drillThroughPage.waitForFunction(
+    () =>
+      Boolean(document.querySelector('canvas[aria-label="ICT System Impact Analyser Canvas WebGL parallel coordinates"]')) &&
+      !document.body.innerText.includes("Loading analyser data...")
+  );
+  const systemDrillThroughAsset = await drillThroughPage.evaluate(async () => {
+    const systemId = window.location.hash.match(/^#\/systems\/([^?]+)/)?.[1] ?? "";
+    const response = await fetch(`/api/systems/${encodeURIComponent(systemId)}/impact-analyser`);
+    const payload = await response.json();
+    const row = (payload.rows ?? []).find((candidate) => candidate.assetType === "server") ?? null;
+    return row ? { assetId: row.assetId, assetName: row.assetName } : null;
+  });
+  assert(systemDrillThroughAsset?.assetId, "No server was available in the ICT-system drill-through analyser.");
+  await selectImpactAnalyserAssetFromSearch(drillThroughPage, {
+    containerSelector: "body",
+    ...systemDrillThroughAsset,
+    category: "Assets"
+  });
+  assert.equal(
+    await drillThroughPage.$eval(
+      `[data-impact-analyser-node-action="compliance"][data-asset-id="${systemDrillThroughAsset.assetId}"]`,
+      (button) => button.textContent?.trim()
+    ),
+    "C",
+    "The ICT-system drill-through server did not replace F with C."
+  );
+  await drillThroughPage.waitForSelector(
+    'button[aria-controls="ict-system-drill-through-dependencies-overlay"]:not([disabled])'
+  );
+  await drillThroughPage.click('button[aria-controls="ict-system-drill-through-dependencies-overlay"]');
+  await drillThroughPage.waitForFunction(
+    (expectedOrder) => {
+      const overlay = document.querySelector("#ict-system-drill-through-dependencies-overlay");
+      return (
+        overlay?.querySelector("[data-dependency-axis-order]")?.getAttribute("data-dependency-axis-order") ===
+          expectedOrder &&
+        Boolean(overlay.querySelector('[data-impact-analyser-filter-row="dependencies"]')) &&
+        !document.querySelector('[data-impact-analyser-mode="risk"] [data-impact-analyser-filter-row="risk"]')
+      );
+    },
+    {},
+    dependencyAxisContract
+  );
+  await drillThroughPage.click(
+    '#ict-system-drill-through-dependencies-overlay button[aria-label="Close ICT System Dependencies"]'
+  );
+  await drillThroughPage.waitForFunction(
+    () =>
+      !document.querySelector("#ict-system-drill-through-dependencies-overlay") &&
+      Boolean(document.querySelector('[data-impact-analyser-mode="risk"] [data-impact-analyser-filter-row="risk"]'))
+  );
+
+  await page.bringToFront();
+  const networkDrillThroughAnalyserOpened = await page.evaluate(() => {
+    const button = Array.from(document.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent?.trim() === "Network Impact Analyser"
+    );
+    button?.click();
+    return Boolean(button);
+  });
+  assert(networkDrillThroughAnalyserOpened, "The network drill-through analyser control was not found.");
+  await page.waitForFunction(
+    () =>
+      Boolean(document.querySelector('canvas[aria-label="Network Impact Analyser Canvas WebGL parallel coordinates"]')) &&
+      !document.body.innerText.includes("Loading analyser data...")
+  );
+  const networkDrillThroughAsset = await page.evaluate(async () => {
+    const networkId = window.location.hash.match(/^#\/networks\/([^?]+)/)?.[1] ?? "";
+    const response = await fetch(`/api/networks/${encodeURIComponent(networkId)}/impact-analyser`);
+    const payload = await response.json();
+    const row = (payload.rows ?? []).find((candidate) => candidate.assetType !== "server") ?? null;
+    return row ? { assetId: row.assetId, assetName: row.assetName } : null;
+  });
+  assert(networkDrillThroughAsset?.assetId, "No non-server asset was available in the network drill-through analyser.");
+  await selectImpactAnalyserAssetFromSearch(page, {
+    containerSelector: "body",
+    ...networkDrillThroughAsset,
+    category: "Assets"
+  });
+  assert.equal(
+    await page.$eval(
+      `[data-impact-analyser-node-action="compliance"][data-asset-id="${networkDrillThroughAsset.assetId}"]`,
+      (button) => button.textContent?.trim()
+    ),
+    "C",
+    "The network drill-through non-server asset did not replace F with C."
+  );
   assert.equal(
     await page.evaluate(() => window.location.hash),
     "#/networks/net-1",
     "Opening the drill-through tab must not navigate the source tab."
   );
-  await page.bringToFront();
 
   // Exercise the menu's router.replace path under file://. Chromium treats
   // local files as opaque origins, so this catches regressions where a full
@@ -740,6 +877,7 @@ try {
     const response = await fetch(requestUrl);
     const payload = await response.json();
     const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const complianceSample = rows.find((row) => Boolean(row.relatedSystemId)) ?? rows[0] ?? null;
     const parsedRequest = new URL(requestUrl, window.location.href);
     const scope = parsedRequest.searchParams.get("diagramSystemIds")?.split(",").filter(Boolean) ?? [];
     return {
@@ -763,7 +901,21 @@ try {
       notModelledRowCount: rows.filter((row) => row.relatedSystemName === "Not Modelled").length,
       hasNotModelled: rows.some(
         (row) => row.relatedSystemName === "Not Modelled" && row.relatedSystemId === null
-      )
+      ),
+      complianceSample: complianceSample
+        ? {
+            source: {
+              assetId: complianceSample.assetId,
+              assetName: complianceSample.assetName,
+              systemId: complianceSample.systemId
+            },
+            dependent: {
+              assetId: complianceSample.relatedAssetId,
+              assetName: complianceSample.relatedAssetName,
+              systemId: complianceSample.relatedSystemId
+            }
+          }
+        : null
     };
   });
   assert(dependencyApiResult.requestUrl, "Opening ICT System Dependencies did not call its dependency endpoint.");
@@ -781,6 +933,8 @@ try {
   assert(dependencyApiResult.allRowsUseAppliedScope, "A dependency endpoint row escaped the applied ICT system scope.");
   assert(dependencyApiResult.hasNotModelled, "The dependency endpoint returned no Not Modelled dependent system.");
   assert(dependencyApiResult.notModelledRowCount > 0, "No Not Modelled rows were available to verify the new filter.");
+  assert(dependencyApiResult.complianceSample?.source?.assetId, "No source server was available to verify dependency Compliance.");
+  assert(dependencyApiResult.complianceSample?.dependent?.assetId, "No dependent server was available to verify dependency Compliance.");
 
   const dependencyDiagramResult = await page.evaluate((expectedOrder) => {
     const dialog = document.querySelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
@@ -953,6 +1107,70 @@ try {
     dependencyApiResult.rowCount
   );
 
+  const dependencyComplianceContainer = "#cyber-cop-ict-system-dependencies-overlay";
+  await selectImpactAnalyserAssetFromSearch(page, {
+    containerSelector: dependencyComplianceContainer,
+    ...dependencyApiResult.complianceSample.source,
+    category: "Server"
+  });
+  const sourceDependencyComplianceAction = await page.$eval(
+    `[data-impact-analyser-node-action="compliance"][data-asset-id="${dependencyApiResult.complianceSample.source.assetId}"]`,
+    (button) => ({ label: button.textContent?.trim(), ariaLabel: button.getAttribute("aria-label") })
+  );
+  assert.equal(sourceDependencyComplianceAction.label, "C", "The dependency source Server action was not C.");
+  assert(
+    sourceDependencyComplianceAction.ariaLabel?.includes(dependencyApiResult.complianceSample.source.assetName),
+    "The dependency source Server C action did not name its asset."
+  );
+
+  await selectImpactAnalyserAssetFromSearch(page, {
+    containerSelector: dependencyComplianceContainer,
+    ...dependencyApiResult.complianceSample.dependent,
+    category: "Dependent Server"
+  });
+  const dependentComplianceSelector =
+    `[data-impact-analyser-node-action="compliance"][data-asset-id="${dependencyApiResult.complianceSample.dependent.assetId}"]`;
+  assert.equal(
+    await page.$eval(dependentComplianceSelector, (button) => button.textContent?.trim()),
+    "C",
+    "The dependency Dependent Server action was not C."
+  );
+  await page.click(dependentComplianceSelector);
+  await page.waitForSelector('[data-asset-compliance-view][data-load-state="ready"]');
+  const dependencyComplianceState = await page.evaluate((expectedAssetId) => {
+    const view = document.querySelector("[data-asset-compliance-view]");
+    const requestUrl = [...globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__]
+      .reverse()
+      .find((url) => new URL(url, window.location.href).searchParams.get("assetId") === expectedAssetId);
+    const parsedRequest = requestUrl ? new URL(requestUrl, window.location.href) : null;
+    return {
+      assetId: view?.getAttribute("data-asset-id") ?? null,
+      systemId: parsedRequest?.searchParams.get("systemId") ?? null,
+      zIndex: Number.parseInt(view ? getComputedStyle(view).zIndex : "0", 10),
+      dependenciesRemainOpen: Boolean(document.querySelector("#cyber-cop-ict-system-dependencies-overlay")),
+      isServerView: view?.textContent?.includes("Server Compliance View") ?? false
+    };
+  }, dependencyApiResult.complianceSample.dependent.assetId);
+  assert.equal(
+    dependencyComplianceState.assetId,
+    dependencyApiResult.complianceSample.dependent.assetId,
+    "Dependency C opened Compliance for the wrong dependent server."
+  );
+  assert.equal(
+    dependencyComplianceState.systemId,
+    dependencyApiResult.complianceSample.dependent.systemId,
+    "Dependency C did not preserve the dependent server's ICT system context."
+  );
+  assert(dependencyComplianceState.zIndex > 1200, "The Compliance View did not render above the drill-through layer.");
+  assert(dependencyComplianceState.dependenciesRemainOpen, "Opening Compliance unexpectedly closed dependencies.");
+  assert(dependencyComplianceState.isServerView, "Dependency C did not open the Server Compliance View.");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    () =>
+      !document.querySelector("[data-asset-compliance-view]") &&
+      Boolean(document.querySelector("#cyber-cop-ict-system-dependencies-overlay"))
+  );
+
   await page.click('button[aria-label="Close ICT System Dependencies"]');
   await page.waitForFunction(
     () =>
@@ -1031,7 +1249,7 @@ try {
   await analyserSearchSelectElement.click();
   await page.waitForFunction(
     (assetId) => {
-      const action = document.querySelector('[data-impact-analyser-node-action="server-compliance"]');
+      const action = document.querySelector('[data-impact-analyser-node-action="compliance"]');
       return action instanceof HTMLButtonElement && action.dataset.assetId === assetId;
     },
     {},
@@ -1039,7 +1257,7 @@ try {
   );
   const serverComplianceActionGeometry = await page.evaluate((assetId) => {
     const action = document.querySelector(
-      `[data-impact-analyser-node-action="server-compliance"][data-asset-id="${CSS.escape(assetId)}"]`
+      `[data-impact-analyser-node-action="compliance"][data-asset-id="${CSS.escape(assetId)}"]`
     );
     const rect = action?.getBoundingClientRect();
     const style = action ? getComputedStyle(action) : null;
@@ -1061,13 +1279,19 @@ try {
   assert(serverComplianceActionGeometry.isRound, "The selected server Compliance action was not circular.");
 
   await page.click(
-    `[data-impact-analyser-node-action="server-compliance"][data-asset-id="${ictSearchAsset.assetId}"]`
+    `[data-impact-analyser-node-action="compliance"][data-asset-id="${ictSearchAsset.assetId}"]`
   );
   await page.waitForSelector('[data-server-compliance-view][data-load-state="ready"]');
   await page.waitForFunction(() => globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__.length > 0);
   const serverComplianceResult = await page.evaluate(async (expectedAssetId) => {
     const requests = globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__.slice();
-    const requestUrl = requests.find((url) => url.includes("/api/cyber-cop/impact-analyser-2/compliance"));
+    const requestUrl = requests.find((url) => {
+      const parsed = new URL(url, window.location.href);
+      return (
+        parsed.pathname.includes("/api/cyber-cop/impact-analyser-2/compliance") &&
+        parsed.searchParams.get("assetId") === expectedAssetId
+      );
+    });
     const parsedRequest = requestUrl ? new URL(requestUrl, window.location.href) : null;
     const response = requestUrl ? await fetch(requestUrl) : null;
     const payload = response ? await response.json() : null;
@@ -1189,7 +1413,7 @@ try {
   await page.click('button[aria-label="Close Server Compliance"]');
   await page.waitForFunction(() =>
     !document.querySelector("[data-server-compliance-view]") &&
-    Boolean(document.querySelector('[data-impact-analyser-node-action="server-compliance"]'))
+    Boolean(document.querySelector('[data-impact-analyser-node-action="compliance"]'))
   );
 
   await page.evaluate(() => {
@@ -1197,7 +1421,11 @@ try {
     globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__ = [];
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes("/api/cyber-cop/impact-analyser-2")) {
+      const pathname = new URL(url, window.location.href).pathname;
+      if (
+        pathname.endsWith("/api/cyber-cop/impact-analyser-2") ||
+        pathname.endsWith("/api/cyber-cop/impact-analyser-2/findings")
+      ) {
         globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.push(url);
       }
       return originalFetch(input, init);
@@ -1293,9 +1521,13 @@ try {
     false,
     "The mounted Network Impact Analyser unexpectedly exposed ICT System Dependencies."
   );
-  const networkImpactResult = await page.evaluate(() => {
+  const networkImpactResult = await page.evaluate(async () => {
+    const requestsBeforeVerification = globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.slice();
+    const dataRequest = requestsBeforeVerification.find((url) => !url.includes("/findings"));
+    const dataResponse = dataRequest ? await fetch(dataRequest) : null;
+    const dataPayload = dataResponse ? await dataResponse.json() : null;
+    const nonServerRow = (dataPayload?.rows ?? []).find((row) => row.assetType !== "server") ?? null;
     const requests = globalThis.__TSAAT_NETWORK_IMPACT_REQUESTS__.slice();
-    const dataRequest = requests.find((url) => !url.includes("/findings"));
     const scope = dataRequest
       ? new URL(dataRequest, window.location.href).searchParams.get("diagramNetworkIds")?.split(",").filter(Boolean) ?? []
       : [];
@@ -1306,6 +1538,13 @@ try {
       requests,
       scope,
       requestDataDate,
+      nonServerAsset: nonServerRow
+        ? {
+            assetId: nonServerRow.assetId,
+            assetName: nonServerRow.assetName,
+            assetType: nonServerRow.assetType
+          }
+        : null,
       hasNetworkCanvas: Boolean(
         document.querySelector('canvas[aria-label="Network Impact Analyser Canvas WebGL parallel coordinates"]')
       ),
@@ -1325,6 +1564,71 @@ try {
   );
   assert(networkImpactResult.hasNetworkCanvas, "Network Impact Analyser canvas was not rendered.");
   assert(networkImpactResult.hasAssetTypeFilter, "Network Impact Analyser Asset Type filter was not rendered.");
+  assert(networkImpactResult.nonServerAsset?.assetId, "No non-server network asset was available to verify all-asset Compliance.");
+
+  await selectImpactAnalyserAssetFromSearch(page, {
+    containerSelector: "#cyber-cop-tabpanel-network-impact-analyser",
+    ...networkImpactResult.nonServerAsset,
+    category: "Assets"
+  });
+  const networkComplianceSelector =
+    `[data-impact-analyser-node-action="compliance"][data-asset-id="${networkImpactResult.nonServerAsset.assetId}"]`;
+  assert.equal(
+    await page.$eval(networkComplianceSelector, (button) => button.textContent?.trim()),
+    "C",
+    "The selected non-server Network Impact asset action was not C."
+  );
+  await page.click(networkComplianceSelector);
+  await page.waitForSelector('[data-asset-compliance-view][data-load-state="ready"]');
+  const networkAssetComplianceState = await page.evaluate(async (expectedAssetId) => {
+    const requestUrl = [...globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__]
+      .reverse()
+      .find((url) => new URL(url, window.location.href).searchParams.get("assetId") === expectedAssetId);
+    const response = requestUrl ? await fetch(requestUrl) : null;
+    const payload = response ? await response.json() : null;
+    const view = document.querySelector("[data-asset-compliance-view]");
+    return {
+      assetId: view?.getAttribute("data-asset-id") ?? null,
+      assetType: payload?.asset?.assetType ?? null,
+      assetTypeLabel: payload?.asset?.assetTypeLabel ?? null,
+      title: view?.querySelector("header p")?.textContent?.trim() ?? "",
+      hasOverview: Boolean(view?.querySelector('[data-server-compliance-section="overview"]')),
+      applicableDiscoveryTools: payload?.discoveryCompliance?.tools?.length ?? 0
+    };
+  }, networkImpactResult.nonServerAsset.assetId);
+  assert.equal(
+    networkAssetComplianceState.assetId,
+    networkImpactResult.nonServerAsset.assetId,
+    "Network Impact C opened Compliance for the wrong asset."
+  );
+  assert.equal(
+    networkAssetComplianceState.assetType,
+    networkImpactResult.nonServerAsset.assetType,
+    "Network Impact Compliance changed the selected asset type."
+  );
+  assert.equal(
+    networkAssetComplianceState.title,
+    `${networkAssetComplianceState.assetTypeLabel} Compliance View`,
+    "The non-server Compliance View title did not reflect its asset type."
+  );
+  assert(networkAssetComplianceState.hasOverview, "The non-server Compliance View did not render Compliance Overview.");
+  assert(
+    networkAssetComplianceState.applicableDiscoveryTools > 0,
+    "The non-server Compliance View returned no asset-type applicable discovery tools."
+  );
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    (assetId) =>
+      !document.querySelector("[data-asset-compliance-view]") &&
+      Boolean(
+        document.querySelector(
+          `[data-impact-analyser-node-action="compliance"][data-asset-id="${CSS.escape(assetId)}"]`
+        )
+      ),
+    {},
+    networkImpactResult.nonServerAsset.assetId
+  );
+
   await page.click('button[aria-label="Select networks for the Network Impact Analyser"]');
   await page.waitForSelector('[role="group"][aria-label="Networks"]');
   const clearedNetworkSelection = await page.evaluate(() => {
