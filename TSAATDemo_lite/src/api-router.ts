@@ -1,4 +1,5 @@
 import * as cyberImpact from "@/app/api/cyber-cop/impact-analyser-2/route";
+import * as cyberImpactCompliance from "@/app/api/cyber-cop/impact-analyser-2/compliance/route";
 import * as cyberImpactDependencies from "@/app/api/cyber-cop/impact-analyser-2/dependencies/route";
 import * as cyberImpactFindings from "@/app/api/cyber-cop/impact-analyser-2/findings/route";
 import * as cmdbAssetDetails from "@/app/api/assets/cmdb-details/route";
@@ -35,6 +36,7 @@ type RouteModule = Partial<Record<"GET" | "POST" | "PUT" | "PATCH" | "DELETE", (
 const staticRoutes = new Map<string, RouteModule>([
   ["/api/assets/cmdb-details", cmdbAssetDetails],
   ["/api/cyber-cop/impact-analyser-2", cyberImpact],
+  ["/api/cyber-cop/impact-analyser-2/compliance", cyberImpactCompliance],
   ["/api/cyber-cop/impact-analyser-2/dependencies", cyberImpactDependencies],
   ["/api/cyber-cop/impact-analyser-2/findings", cyberImpactFindings],
   ["/api/discovery-coverage/network-report", discoveryNetworkReport],

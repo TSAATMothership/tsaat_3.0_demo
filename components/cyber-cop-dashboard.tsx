@@ -1594,6 +1594,7 @@ function IctSystemImpactAnalyserRunPanel({
             systemScopeIds={appliedSystemIds}
             dataDate={dataDate}
             spiDefinitions={spiDefinitions}
+            enableServerComplianceAction
             onLoadStateChange={handleLoadStateChange}
             hideFilterRow={isDependenciesOpen}
             extraControls={

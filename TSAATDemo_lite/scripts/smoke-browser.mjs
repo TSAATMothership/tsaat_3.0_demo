@@ -599,10 +599,14 @@ try {
   await page.evaluate(() => {
     const originalFetch = window.fetch.bind(window);
     globalThis.__TSAAT_ICT_DEPENDENCY_REQUESTS__ = [];
+    globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__ = [];
     window.fetch = (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/api/cyber-cop/impact-analyser-2/dependencies")) {
         globalThis.__TSAAT_ICT_DEPENDENCY_REQUESTS__.push(url);
+      }
+      if (url.includes("/api/cyber-cop/impact-analyser-2/compliance")) {
+        globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__.push(url);
       }
       return originalFetch(input, init);
     };
@@ -1012,6 +1016,181 @@ try {
   );
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.querySelector("[data-cmdb-drill-through]"));
+
+  await clearAndType(page, 'input[placeholder="Search diagram"]', ictSearchAsset.assetName);
+  const analyserSearchSelectTrigger = await page.waitForFunction((assetId) => {
+    const cmdbTrigger = Array.from(document.querySelectorAll("[data-cmdb-asset-id]")).find(
+      (element) => element.getAttribute("data-cmdb-asset-id") === assetId
+    );
+    return Array.from(cmdbTrigger?.parentElement?.querySelectorAll("button") ?? []).find(
+      (button) => button.getAttribute("aria-label")?.startsWith("Select ")
+    );
+  }, {}, ictSearchAsset.assetId);
+  const analyserSearchSelectElement = analyserSearchSelectTrigger.asElement();
+  assert(analyserSearchSelectElement, "The analyser search result did not expose its diagram selection action.");
+  await analyserSearchSelectElement.click();
+  await page.waitForFunction(
+    (assetId) => {
+      const action = document.querySelector('[data-impact-analyser-node-action="server-compliance"]');
+      return action instanceof HTMLButtonElement && action.dataset.assetId === assetId;
+    },
+    {},
+    ictSearchAsset.assetId
+  );
+  const serverComplianceActionGeometry = await page.evaluate((assetId) => {
+    const action = document.querySelector(
+      `[data-impact-analyser-node-action="server-compliance"][data-asset-id="${CSS.escape(assetId)}"]`
+    );
+    const rect = action?.getBoundingClientRect();
+    const style = action ? getComputedStyle(action) : null;
+    return {
+      label: action?.textContent?.trim() ?? "",
+      ariaLabel: action?.getAttribute("aria-label") ?? "",
+      width: rect?.width ?? 0,
+      height: rect?.height ?? 0,
+      isRound: Boolean(rect && style && Number.parseFloat(style.borderRadius) >= rect.width / 2)
+    };
+  }, ictSearchAsset.assetId);
+  assert.equal(serverComplianceActionGeometry.label, "C", "The selected server Compliance action was not labelled C.");
+  assert(
+    serverComplianceActionGeometry.ariaLabel.includes(ictSearchAsset.assetName),
+    "The selected server Compliance action did not name its server."
+  );
+  assert.equal(serverComplianceActionGeometry.width, 14, "The selected server Compliance action width changed.");
+  assert.equal(serverComplianceActionGeometry.height, 14, "The selected server Compliance action height changed.");
+  assert(serverComplianceActionGeometry.isRound, "The selected server Compliance action was not circular.");
+
+  await page.click(
+    `[data-impact-analyser-node-action="server-compliance"][data-asset-id="${ictSearchAsset.assetId}"]`
+  );
+  await page.waitForSelector('[data-server-compliance-view][data-load-state="ready"]');
+  await page.waitForFunction(() => globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__.length > 0);
+  const serverComplianceResult = await page.evaluate(async (expectedAssetId) => {
+    const requests = globalThis.__TSAAT_SERVER_COMPLIANCE_REQUESTS__.slice();
+    const requestUrl = requests.find((url) => url.includes("/api/cyber-cop/impact-analyser-2/compliance"));
+    const parsedRequest = requestUrl ? new URL(requestUrl, window.location.href) : null;
+    const response = requestUrl ? await fetch(requestUrl) : null;
+    const payload = response ? await response.json() : null;
+    const backdrop = document.querySelector("[data-server-compliance-view]");
+    const dialog = backdrop?.querySelector('[role="dialog"][aria-modal="true"]');
+    const backdropRect = backdrop?.getBoundingClientRect();
+    const dialogRect = dialog?.getBoundingClientRect();
+    const overview = dialog?.querySelector('[data-server-compliance-section="overview"]');
+    const scoreTiles = dialog?.querySelector('[data-server-compliance-score-tiles]');
+    const measures = payload?.complianceOverview?.measures ?? [];
+    const detailMeasure = measures.find((measure) => measure.findings?.length) ?? measures[0] ?? null;
+    return {
+      requestUrl,
+      requestAssetId: parsedRequest?.searchParams.get("assetId") ?? null,
+      requestDataDate: parsedRequest?.searchParams.get("dataDate") ?? null,
+      status: response?.status ?? 0,
+      payloadAssetId: payload?.asset?.id ?? null,
+      complianceMeasureCount: payload?.complianceOverview?.measures?.length ?? 0,
+      discoveryToolCount: payload?.discoveryCompliance?.tools?.length ?? 0,
+      detailMeasureSpiId: detailMeasure?.spiId ?? null,
+      detailMeasureFindingCount: detailMeasure?.findings?.length ?? 0,
+      allMeasureLabelsUseSpiContract: measures.every((measure) => /^SPI \d+ - .+/.test(measure.label)),
+      viewAssetId: backdrop?.getAttribute("data-asset-id") ?? null,
+      fixedDialog: dialog?.getAttribute("data-server-compliance-dialog") === "fixed",
+      dialogWidth: dialogRect?.width ?? 0,
+      dialogHeight: dialogRect?.height ?? 0,
+      overviewVisible: Boolean(overview),
+      hasDrillThroughScoreTiles:
+        scoreTiles?.textContent?.includes("Compliance Score") === true &&
+        scoreTiles?.textContent?.includes("Discovery Compliance Score") === true,
+      overviewHasSpiBreakdown: overview?.textContent?.includes("Security Posture Indicator breakdown") ?? false,
+      overviewHasParityColumns:
+        overview?.textContent?.includes("Score") === true &&
+        overview?.textContent?.includes("Status Mix") === true &&
+        overview?.textContent?.includes("Impacted Assets") === true &&
+        overview?.textContent?.includes("Top Non-Compliance Reason") === true,
+      centered: Boolean(
+        backdropRect &&
+          dialogRect &&
+          Math.abs((backdropRect.left + backdropRect.right) / 2 - (dialogRect.left + dialogRect.right) / 2) <= 2 &&
+          Math.abs((backdropRect.top + backdropRect.bottom) / 2 - (dialogRect.top + dialogRect.bottom) / 2) <= 2
+      ),
+      expectedAssetId
+    };
+  }, ictSearchAsset.assetId);
+  assert(serverComplianceResult.requestUrl, "Selecting C did not request the server Compliance endpoint.");
+  assert.equal(serverComplianceResult.status, 200, "The server Compliance endpoint did not return HTTP 200.");
+  assert.equal(serverComplianceResult.requestAssetId, ictSearchAsset.assetId, "The Compliance request used the wrong server.");
+  assert.equal(
+    serverComplianceResult.requestDataDate,
+    apiResults.snapshotDate,
+    "The Compliance request did not preserve the Cyber COP snapshot date."
+  );
+  assert.equal(serverComplianceResult.payloadAssetId, ictSearchAsset.assetId, "The Compliance response used the wrong server.");
+  assert.equal(serverComplianceResult.viewAssetId, ictSearchAsset.assetId, "The centered Compliance view used the wrong server.");
+  assert(serverComplianceResult.centered, "The server Compliance view was not centered in its backdrop.");
+  assert(serverComplianceResult.fixedDialog, "The resized server Compliance dialog did not expose its fixed-size contract.");
+  assert(serverComplianceResult.dialogWidth > 1200, "The resized server Compliance dialog was not wide enough for its SPI table.");
+  assert(serverComplianceResult.dialogHeight > 800, "The resized server Compliance dialog was not tall enough for its tab content.");
+  assert(serverComplianceResult.overviewVisible, "Compliance Overview was not the initial Compliance view.");
+  assert(serverComplianceResult.hasDrillThroughScoreTiles, "The drill-through-style Compliance score tiles were not rendered.");
+  assert(serverComplianceResult.overviewHasSpiBreakdown, "Compliance Overview did not expose its SPI breakdown.");
+  assert(serverComplianceResult.overviewHasParityColumns, "The SPI breakdown did not match the ICT-system measure columns.");
+  assert(serverComplianceResult.allMeasureLabelsUseSpiContract, "A server measure did not use the SPI label contract.");
+  assert(serverComplianceResult.complianceMeasureCount > 0, "The selected server returned no compliance measures.");
+  assert(serverComplianceResult.discoveryToolCount > 0, "The selected server returned no discovery tools.");
+
+  assert(serverComplianceResult.detailMeasureSpiId, "No SPI row was available for the nested Findings and Evidence view.");
+  await page.click(
+    `[data-server-compliance-measure-action="${serverComplianceResult.detailMeasureSpiId}"]`
+  );
+  await page.waitForSelector('[data-server-compliance-measure-detail="true"]');
+  const serverMeasureDetailState = await page.$eval('[data-server-compliance-measure-detail="true"]', (detail) => ({
+    hasTitle: detail.textContent?.includes("Findings and Evidence") ?? false,
+    hasWorkflowFilter: Boolean(detail.querySelector("#server-spi-workflow-filter")),
+    hasSeverityFilter: Boolean(detail.querySelector("#server-spi-severity-filter")),
+    hasSearch: Boolean(detail.querySelector("#server-spi-findings-search")),
+    findingRows: detail.querySelectorAll("tbody tr").length
+  }));
+  assert(serverMeasureDetailState.hasTitle, "Selecting an SPI did not open Findings and Evidence.");
+  assert(serverMeasureDetailState.hasWorkflowFilter, "The SPI detail did not expose Workflow Status filtering.");
+  assert(serverMeasureDetailState.hasSeverityFilter, "The SPI detail did not expose Findings Severity filtering.");
+  assert(serverMeasureDetailState.hasSearch, "The SPI detail did not expose Text Search.");
+  assert(serverMeasureDetailState.findingRows > 0, "The SPI detail did not render its findings/evidence table state.");
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() =>
+    !document.querySelector('[data-server-compliance-measure-detail="true"]') &&
+    Boolean(document.querySelector("[data-server-compliance-view]"))
+  );
+
+  const discoveryComplianceSelected = await page.evaluate(() => {
+    const button = Array.from(document.querySelectorAll('[data-server-compliance-view] button')).find(
+      (candidate) => candidate.textContent?.trim() === "Discovery Compliance"
+    );
+    button?.click();
+    return Boolean(button);
+  });
+  assert(discoveryComplianceSelected, "The Discovery Compliance tab was not found.");
+  await page.waitForSelector('[data-server-compliance-section="discovery"]');
+  const discoveryComplianceState = await page.$eval('[data-server-compliance-section="discovery"]', (section) => {
+    const dialog = section.closest('[data-server-compliance-dialog="fixed"]');
+    const dialogRect = dialog?.getBoundingClientRect();
+    return {
+      hasScore: dialog?.querySelector('[data-server-compliance-score-tiles]')?.textContent?.includes("Discovery Compliance Score") ?? false,
+      hasToolCoverage: section.textContent?.includes("Discovery Tool Coverage") ?? false,
+      toolCards: section.querySelectorAll('article[class*="border-sky-300"]').length,
+      toolRows: section.querySelectorAll("tbody tr").length,
+      dialogWidth: dialogRect?.width ?? 0,
+      dialogHeight: dialogRect?.height ?? 0
+    };
+  });
+  assert(discoveryComplianceState.hasScore, "Discovery Compliance did not retain its drill-through score tile.");
+  assert(discoveryComplianceState.hasToolCoverage, "Discovery Compliance did not expose tool coverage.");
+  assert(discoveryComplianceState.toolCards > 0, "Discovery Compliance did not use the resized space for tool cards.");
+  assert(discoveryComplianceState.toolRows > 0, "Discovery Compliance did not render its tool rows.");
+  assert.equal(discoveryComplianceState.dialogWidth, serverComplianceResult.dialogWidth, "Switching tabs changed the server Compliance dialog width.");
+  assert.equal(discoveryComplianceState.dialogHeight, serverComplianceResult.dialogHeight, "Switching tabs changed the server Compliance dialog height.");
+
+  await page.click('button[aria-label="Close Server Compliance"]');
+  await page.waitForFunction(() =>
+    !document.querySelector("[data-server-compliance-view]") &&
+    Boolean(document.querySelector('[data-impact-analyser-node-action="server-compliance"]'))
+  );
 
   await page.evaluate(() => {
     const originalFetch = window.fetch.bind(window);

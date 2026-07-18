@@ -1197,6 +1197,116 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dependencyRoute).toContain("sourceAssetIds: eligibleSourceAssetIds");
   });
 
+  it("keeps the accessible Server Compliance action on the primary ICT analyser only", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+    const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
+    const complianceView = readRepoFile("components/server-compliance-view.tsx");
+    const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
+    const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
+    const ictPanel = dashboard.slice(ictPanelStart, networkPanelStart);
+    const primaryChartStart = ictPanel.indexOf("<IctSystemImpactAnalyser2Chart");
+    const dependencyChartStart = ictPanel.indexOf("<IctSystemImpactAnalyser2Chart", primaryChartStart + 1);
+    const primaryChart = ictPanel.slice(primaryChartStart, dependencyChartStart);
+    const dependencyChart = ictPanel.slice(dependencyChartStart);
+
+    expect(primaryChart).toContain("enableServerComplianceAction");
+    expect(dependencyChart).not.toContain("enableServerComplianceAction");
+    expect(ictPanel.match(/enableServerComplianceAction/g) ?? []).toHaveLength(1);
+    expect(component).toContain("enableServerComplianceAction = false");
+    expect(component).toContain("enableServerComplianceAction?: boolean");
+    expect(component).toContain("enableServerComplianceAction &&");
+    expect(component).toContain("!isRelationshipDiagramMode &&");
+    expect(component).toContain('axisKey === "asset" &&');
+    expect(component).toContain('assetMetaById.get(value)?.assetType === "server"');
+
+    expect(component).toContain(
+      "const x = axisX(axisIndex, workerResult.axes.length, viewportSize.width) + 13;"
+    );
+    expect(component).toContain(
+      "const y = valueVirtualY(axis, valueIndex, workerResult.virtualHeight) - scrollTop - 13;"
+    );
+    expect(component).toContain(
+      "style={{ left: serverComplianceNodeAction.x, top: serverComplianceNodeAction.y }}"
+    );
+
+    const actionMarker = 'data-impact-analyser-node-action="server-compliance"';
+    const actionMarkerIndex = component.indexOf(actionMarker);
+    const actionStart = component.lastIndexOf("<button", actionMarkerIndex);
+    const actionEnd = component.indexOf("</button>", actionMarkerIndex);
+    expect(actionMarkerIndex).toBeGreaterThanOrEqual(0);
+    expect(actionStart).toBeGreaterThanOrEqual(0);
+    expect(actionEnd).toBeGreaterThan(actionMarkerIndex);
+    const actionButton = component.slice(actionStart, actionEnd + "</button>".length);
+    expect(actionButton).toContain('<button');
+    expect(actionButton).toContain('type="button"');
+    expect(actionButton).toContain(actionMarker);
+    expect(actionButton).toContain(
+      'aria-label={`Open Server Compliance for ${serverComplianceNodeAction.assetName}`}'
+    );
+    expect(actionButton).toMatch(/>\s*C\s*<\/button>/);
+
+    expect(component).toContain("context.arc(x + 13, y + 13, 7, 0, Math.PI * 2);");
+    expect(component).toContain('context.fillText("D", x + 13, y + 13.5);');
+    expect(component).toContain(
+      'compliancePath = "/api/cyber-cop/impact-analyser-2/compliance"'
+    );
+    expect(component).toContain("<ServerComplianceView");
+    expect(component).toContain("dataPath={compliancePath}");
+
+    expect(complianceView).toContain(
+      'dataPath = "/api/cyber-cop/impact-analyser-2/compliance"'
+    );
+    expect(complianceView).toContain('data-server-compliance-view="true"');
+    expect(complianceView).toContain('data-server-compliance-section="overview"');
+    expect(complianceView).toContain('data-server-compliance-section="discovery"');
+    expect(complianceView).toContain('aria-label="Close Server Compliance"');
+    expect(complianceView).toContain('document.addEventListener("keydown", handleKeyDown, true)');
+    expect(complianceView).toContain("event.stopImmediatePropagation();");
+    expect(complianceView).toContain('document.removeEventListener("keydown", handleKeyDown, true)');
+  });
+
+  it("keeps the resized Server Compliance tabs and SPI drill-through contract stable", () => {
+    const complianceView = readRepoFile("components/server-compliance-view.tsx");
+
+    expect(complianceView).toContain(
+      'import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";'
+    );
+    expect(complianceView).toContain('data-server-compliance-dialog="fixed"');
+    expect(complianceView).toContain("h-[calc(100vh-2rem)]");
+    expect(complianceView).toContain("max-h-[56rem]");
+    expect(complianceView).toContain("w-[calc(100vw-2rem)]");
+    expect(complianceView).toContain("max-w-[90rem]");
+    expect(complianceView).toContain("data-server-compliance-score-tiles");
+    expect(complianceView).toContain("Security Posture Indicator breakdown");
+    expect(complianceView).toContain("data-server-compliance-spi-breakdown");
+    expect(complianceView).toContain("data-server-compliance-measure-detail");
+
+    const measureActionMarker = "data-server-compliance-measure-action";
+    const measureActionIndex = complianceView.indexOf(measureActionMarker);
+    const measureActionStart = complianceView.lastIndexOf("<button", measureActionIndex);
+    const measureActionEnd = complianceView.indexOf("</button>", measureActionIndex);
+    expect(measureActionIndex).toBeGreaterThanOrEqual(0);
+    expect(measureActionStart).toBeGreaterThanOrEqual(0);
+    expect(measureActionEnd).toBeGreaterThan(measureActionIndex);
+    const measureAction = complianceView.slice(measureActionStart, measureActionEnd + "</button>".length);
+    expect(measureAction).toContain('type="button"');
+    expect(measureAction).toContain("onClick=");
+
+    const escapeHandlerStart = complianceView.indexOf("const handleKeyDown =");
+    const escapeHandlerEnd = complianceView.indexOf(
+      'document.addEventListener("keydown", handleKeyDown, true)',
+      escapeHandlerStart
+    );
+    const escapeHandler = complianceView.slice(escapeHandlerStart, escapeHandlerEnd);
+    const nestedDetailClearIndex = escapeHandler.search(/set[A-Za-z0-9]*Measure[A-Za-z0-9]*\(null\)/);
+    const parentCloseIndex = escapeHandler.indexOf("onClose()");
+    expect(escapeHandlerStart).toBeGreaterThanOrEqual(0);
+    expect(escapeHandlerEnd).toBeGreaterThan(escapeHandlerStart);
+    expect(nestedDetailClearIndex).toBeGreaterThanOrEqual(0);
+    expect(parentCloseIndex).toBeGreaterThan(nestedDetailClearIndex);
+    expect(escapeHandler.slice(nestedDetailClearIndex, parentCloseIndex)).toContain("return;");
+  });
+
   it("combines business and mission impact scopes into one tabbed left panel", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
 
@@ -1677,9 +1787,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain('if (axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.get(value)?.relatedAssetType");
     expect(component).toContain("const assetType = assetShapeTypeForNode(axis.key, value)");
-    expect(component).toContain(
-      'if (!isRelationshipDiagramMode && isSelected && axis.key === "asset" && isAssetFocusEligible(value))'
-    );
+    expect(component).toContain("isAssetFocusEligible(value) &&");
+    expect(component).toContain("!canOpenServerCompliance(axis.key, value)");
     expect(component).toContain("const canOpenAssetDetails = useCallback");
     expect(component).toContain('if (isRelationshipDiagramMode && axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.has(value)");

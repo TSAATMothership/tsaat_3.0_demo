@@ -72,6 +72,45 @@ assert(
   html.includes("/api/cyber-cop/impact-analyser-2/dependencies"),
   "The ICT System Dependencies API bridge must be packaged."
 );
+assert(
+  html.includes("/api/cyber-cop/impact-analyser-2/compliance"),
+  "The server-compliance API bridge must be packaged."
+);
+assert(
+  html.includes("data-impact-analyser-node-action") && html.includes("server-compliance"),
+  "The selected server-node Compliance action contract must be packaged."
+);
+assert(
+  html.includes("data-server-compliance-view"),
+  "The centered server Compliance view must be packaged."
+);
+assert(
+  html.includes("data-server-compliance-section"),
+  "The server Compliance Overview and Discovery Compliance sections must be packaged."
+);
+assert(
+  html.includes("Close Server Compliance"),
+  "The server Compliance view Close control must be packaged."
+);
+assert(
+  html.includes('"data-server-compliance-dialog":"fixed"') ||
+    html.includes('data-server-compliance-dialog="fixed"'),
+  "The fixed responsive Server Compliance dialog contract must be packaged."
+);
+assert(
+  html.includes("data-server-compliance-score-tiles"),
+  "The drill-through-style Server Compliance score tiles must be packaged."
+);
+assert(
+  html.includes("Security Posture Indicator breakdown"),
+  "The Server Compliance SPI breakdown title must be packaged."
+);
+assert(
+  html.includes("data-server-compliance-spi-breakdown") &&
+    html.includes("data-server-compliance-measure-action") &&
+    html.includes("data-server-compliance-measure-detail"),
+  "The clickable Server Compliance SPI breakdown and nested detail view must be packaged."
+);
 assert(html.includes("data-dependency-axis-order"), "The dependency axis-order contract marker must be packaged.");
 assert(html.includes("assetAxisLabel"), "The packaged analyser must retain the Server axis-label override.");
 assert.match(
