@@ -615,7 +615,31 @@ try {
     (label) => label.textContent?.trim() ?? ""
   );
   assert(selectedIctSystemName, "The selected ICT system option had no name.");
-  await page.click('[role="listbox"] input[type="checkbox"]');
+  const ictSystemOptionSelector = '[data-impact-analyser-selection-option="ict-system"]';
+  await page.click(`${ictSystemOptionSelector} span[title]`);
+  await page.waitForFunction(
+    (selector) => {
+      const option = document.querySelector(selector);
+      const checkbox = option?.querySelector('input[type="checkbox"]');
+      const trigger = document.querySelector('button[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
+      return checkbox?.checked && option?.getAttribute("aria-selected") === "true" && trigger?.getAttribute("aria-expanded") === "true";
+    },
+    {},
+    ictSystemOptionSelector
+  );
+  await page.click(`${ictSystemOptionSelector} input[type="checkbox"]`);
+  await page.waitForFunction(
+    (selector) => !document.querySelector(selector)?.querySelector('input[type="checkbox"]')?.checked,
+    {},
+    ictSystemOptionSelector
+  );
+  await page.focus(`${ictSystemOptionSelector} input[type="checkbox"]`);
+  await page.keyboard.press("Space");
+  await page.waitForFunction(
+    (selector) => document.querySelector(selector)?.querySelector('input[type="checkbox"]')?.checked,
+    {},
+    ictSystemOptionSelector
+  );
   const runSelected = await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.trim() === "Run" && !candidate.disabled
@@ -649,17 +673,20 @@ try {
   assert(dependencyTriggerPlacement.hasExpectedLabel, "The ICT dependency trigger did not use its exact label.");
   assert(dependencyTriggerPlacement.isLastControl, "The ICT dependency trigger was not the final analyser filter control.");
   assert(dependencyTriggerPlacement.isRightAligned, "The ICT dependency trigger was not aligned to the filter row's far right.");
+  assert(
+    await page.$('[data-impact-analyser-filter-row="risk"]'),
+    "The parent ICT System Impact Analyser filter row was not visible before dependencies opened."
+  );
 
   await page.click('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
   await page.waitForSelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
   const dependencyOverlayGeometry = await page.evaluate(() => {
-    const trigger = document.querySelector('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
-    const filterRow = trigger?.parentElement;
     const overlay = document.querySelector('[data-impact-analyser-diagram-overlay="true"]');
     const diagramPane = overlay?.parentElement;
+    const parentChart = diagramPane?.closest('[data-impact-analyser-mode="risk"]');
+    const dialog = document.querySelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
     const overlayRect = overlay?.getBoundingClientRect();
     const diagramPaneRect = diagramPane?.getBoundingClientRect();
-    const filterRowRect = filterRow?.getBoundingClientRect();
     const coversDiagramPane = Boolean(
       overlayRect &&
         diagramPaneRect &&
@@ -668,16 +695,23 @@ try {
         Math.abs(overlayRect.right - diagramPaneRect.right) <= 1 &&
         Math.abs(overlayRect.bottom - diagramPaneRect.bottom) <= 1
     );
-    const leavesFilterRowVisible = Boolean(
-      overlayRect && filterRowRect && overlayRect.top >= filterRowRect.bottom - 1
-    );
-    return { coversDiagramPane, leavesFilterRowVisible };
+    return {
+      coversDiagramPane,
+      parentFilterHidden: !parentChart?.querySelector('[data-impact-analyser-filter-row="risk"]'),
+      parentTriggerHidden: !parentChart?.querySelector(
+        'button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]'
+      ),
+      dependencyFilterVisible: Boolean(dialog?.querySelector('[data-impact-analyser-filter-row="dependencies"]')),
+      closeVisible: Boolean(dialog?.querySelector('button[aria-label="Close ICT System Dependencies"]')),
+      exportVisible: Boolean(dialog?.querySelector('button[aria-label="Export ICT System Dependencies to Excel"]'))
+    };
   });
   assert(dependencyOverlayGeometry.coversDiagramPane, "The dependency overlay did not cover the base diagram pane.");
-  assert(
-    dependencyOverlayGeometry.leavesFilterRowVisible,
-    "The dependency overlay incorrectly covered the parent analyser filter row."
-  );
+  assert(dependencyOverlayGeometry.parentFilterHidden, "Opening dependencies did not hide the parent analyser filters.");
+  assert(dependencyOverlayGeometry.parentTriggerHidden, "Opening dependencies did not hide the parent dependency trigger.");
+  assert(dependencyOverlayGeometry.dependencyFilterVisible, "The dependency view's own filter row was hidden.");
+  assert(dependencyOverlayGeometry.closeVisible, "The dependency Close control was not visible.");
+  assert(dependencyOverlayGeometry.exportVisible, "The dependency Excel export control was not visible.");
 
   await page.waitForFunction(
     (expectedOrder) => {
@@ -722,6 +756,7 @@ try {
       ),
       allRowsHaveDependencyIds: rows.every((row) => Boolean(row.dependencyId)),
       allRowsUseAppliedScope: rows.every((row) => scope.includes(row.systemId)),
+      notModelledRowCount: rows.filter((row) => row.relatedSystemName === "Not Modelled").length,
       hasNotModelled: rows.some(
         (row) => row.relatedSystemName === "Not Modelled" && row.relatedSystemId === null
       )
@@ -741,6 +776,7 @@ try {
   assert(dependencyApiResult.allRowsHaveDependencyIds, "A dependency endpoint row did not retain its dependency ID.");
   assert(dependencyApiResult.allRowsUseAppliedScope, "A dependency endpoint row escaped the applied ICT system scope.");
   assert(dependencyApiResult.hasNotModelled, "The dependency endpoint returned no Not Modelled dependent system.");
+  assert(dependencyApiResult.notModelledRowCount > 0, "No Not Modelled rows were available to verify the new filter.");
 
   const dependencyDiagramResult = await page.evaluate((expectedOrder) => {
     const dialog = document.querySelector('#cyber-cop-ict-system-dependencies-overlay[role="dialog"]');
@@ -768,6 +804,151 @@ try {
   assert(dependencyDiagramResult.circleIsRed, "The Not Modelled terminal-node legend was not red.");
   assert(dependencyDiagramResult.circleIsRound, "The Not Modelled terminal-node legend was not circular.");
 
+  const dependentSystemFilterSelector =
+    '[data-impact-analyser-multi-filter="Dependent ICT Systems"]';
+  const dependentSystemFilterIsOpen = await page.$eval(
+    `${dependentSystemFilterSelector} > button`,
+    (button) => button.getAttribute("aria-expanded") === "true"
+  );
+  if (!dependentSystemFilterIsOpen) {
+    await page.click(`${dependentSystemFilterSelector} > button`);
+  }
+  const dependentSystemFilterOptions = await page.$eval(dependentSystemFilterSelector, (filter) =>
+    Array.from(filter.querySelectorAll("label"), (label) => label.textContent?.trim() ?? "")
+  );
+  assert.equal(
+    dependentSystemFilterOptions[0],
+    "Not Modelled",
+    "Not Modelled was not the first Dependent ICT Systems option."
+  );
+  const selectedNotModelled = await page.$eval(dependentSystemFilterSelector, (filter) => {
+    const option = Array.from(filter.querySelectorAll("label")).find(
+      (label) => label.textContent?.trim() === "Not Modelled"
+    );
+    const checkbox = option?.querySelector('input[type="checkbox"]');
+    checkbox?.click();
+    return Boolean(checkbox);
+  });
+  assert(selectedNotModelled, "The Not Modelled dependent ICT system option was not selectable.");
+  await page.waitForFunction(
+    (selector, expectedCount) => {
+      const filter = document.querySelector(selector);
+      const count = document
+        .querySelector('#cyber-cop-ict-system-dependencies-overlay [data-impact-analyser-filtered-row-count]')
+        ?.getAttribute("data-impact-analyser-filtered-row-count");
+      return filter?.querySelector(":scope > button span")?.textContent?.trim() === "Not Modelled" &&
+        Number(count) === expectedCount;
+    },
+    {},
+    dependentSystemFilterSelector,
+    dependencyApiResult.notModelledRowCount
+  );
+
+  await page.evaluate(() => {
+    globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__ = {
+      fileName: "",
+      mimeType: "",
+      workbookXml: ""
+    };
+    globalThis.__TSAAT_ORIGINAL_CREATE_OBJECT_URL__ = URL.createObjectURL.bind(URL);
+    globalThis.__TSAAT_ORIGINAL_ANCHOR_CLICK__ = HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = (blob) => {
+      const objectUrl = globalThis.__TSAAT_ORIGINAL_CREATE_OBJECT_URL__(blob);
+      if (blob.type.startsWith("application/vnd.ms-excel")) {
+        globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__.mimeType = blob.type;
+        blob.text().then((workbookXml) => {
+          globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__.workbookXml = workbookXml;
+        });
+      }
+      return objectUrl;
+    };
+    HTMLAnchorElement.prototype.click = function captureDependencyExcelDownload() {
+      if (this.download.startsWith("ict-system-dependencies-")) {
+        globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__.fileName = this.download;
+        return;
+      }
+      return globalThis.__TSAAT_ORIGINAL_ANCHOR_CLICK__.call(this);
+    };
+  });
+  await page.click('button[aria-label="Export ICT System Dependencies to Excel"]');
+  await page.waitForFunction(
+    () =>
+      Boolean(globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__?.fileName) &&
+      Boolean(globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__?.workbookXml)
+  );
+  const dependencyExcelExport = await page.evaluate(() => {
+    const capture = globalThis.__TSAAT_DEPENDENCY_EXCEL_CAPTURE__;
+    const workbook = new DOMParser().parseFromString(capture.workbookXml, "application/xml");
+    const parserError = workbook.querySelector("parsererror")?.textContent ?? "";
+    const rows = Array.from(workbook.getElementsByTagName("Row"), (row) =>
+      Array.from(row.getElementsByTagName("Data"), (cell) => cell.textContent ?? "")
+    );
+    URL.createObjectURL = globalThis.__TSAAT_ORIGINAL_CREATE_OBJECT_URL__;
+    HTMLAnchorElement.prototype.click = globalThis.__TSAAT_ORIGINAL_ANCHOR_CLICK__;
+    return {
+      fileName: capture.fileName,
+      mimeType: capture.mimeType,
+      workbookXml: capture.workbookXml,
+      parserError,
+      rows
+    };
+  });
+  assert.equal(
+    dependencyExcelExport.fileName,
+    `ict-system-dependencies-${apiResults.snapshotDate}.xls`,
+    "The dependency Excel filename did not retain the snapshot date."
+  );
+  assert(
+    dependencyExcelExport.mimeType.startsWith("application/vnd.ms-excel"),
+    "The dependency export did not use an Excel MIME type."
+  );
+  assert.equal(dependencyExcelExport.parserError, "", "The dependency SpreadsheetML export was invalid XML.");
+  assert(dependencyExcelExport.workbookXml.includes("Excel.Sheet"), "The export was not an Excel workbook.");
+  assert.deepEqual(
+    dependencyExcelExport.rows[0],
+    dependencyAxisContract.split(" -> "),
+    "The dependency workbook columns did not match the diagram."
+  );
+  const dependencyExcelDataRows = dependencyExcelExport.rows.slice(1);
+  assert.equal(
+    dependencyExcelDataRows.length,
+    dependencyApiResult.notModelledRowCount,
+    "The dependency workbook did not export the currently filtered diagram rows."
+  );
+  assert(
+    dependencyExcelDataRows.every((row) => row.length === 6 && row[5] === "Not Modelled"),
+    "The Not Modelled export contained a row outside the selected dependent ICT system."
+  );
+
+  const dependentSystemFilterIsStillOpen = await page.$eval(
+    `${dependentSystemFilterSelector} > button`,
+    (button) => button.getAttribute("aria-expanded") === "true"
+  );
+  if (!dependentSystemFilterIsStillOpen) {
+    await page.click(`${dependentSystemFilterSelector} > button`);
+  }
+  const clearedDependentSystemFilter = await page.$eval(dependentSystemFilterSelector, (filter) => {
+    const allButton = Array.from(filter.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "All"
+    );
+    allButton?.click();
+    return Boolean(allButton);
+  });
+  assert(clearedDependentSystemFilter, "The Dependent ICT Systems filter could not be cleared.");
+  await page.waitForFunction(
+    (selector, expectedCount) => {
+      const filter = document.querySelector(selector);
+      const count = document
+        .querySelector('#cyber-cop-ict-system-dependencies-overlay [data-impact-analyser-filtered-row-count]')
+        ?.getAttribute("data-impact-analyser-filtered-row-count");
+      return filter?.querySelector(":scope > button span")?.textContent?.trim() === "All" &&
+        Number(count) === expectedCount;
+    },
+    {},
+    dependentSystemFilterSelector,
+    dependencyApiResult.rowCount
+  );
+
   await page.click('button[aria-label="Close ICT System Dependencies"]');
   await page.waitForFunction(
     () =>
@@ -780,12 +961,14 @@ try {
     ),
     focusReturned:
       document.activeElement?.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay",
+    parentFilterRestored: Boolean(document.querySelector('[data-impact-analyser-filter-row="risk"]')),
     expanded: document
       .querySelector('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]')
       ?.getAttribute("aria-expanded")
   }));
   assert(dependencyCloseState.baseCanvasRestored, "Closing dependencies did not restore the base ICT analyser diagram.");
   assert(dependencyCloseState.focusReturned, "Closing dependencies did not return focus to its trigger.");
+  assert(dependencyCloseState.parentFilterRestored, "Closing dependencies did not restore the parent analyser filters.");
   assert.equal(dependencyCloseState.expanded, "false", "The dependency trigger remained expanded after Close.");
 
   await page.click('button[aria-controls="cyber-cop-ict-system-dependencies-overlay"]');
@@ -794,6 +977,7 @@ try {
   await page.waitForFunction(
     () =>
       !document.querySelector("#cyber-cop-ict-system-dependencies-overlay") &&
+      Boolean(document.querySelector('[data-impact-analyser-filter-row="risk"]')) &&
       document.activeElement?.getAttribute("aria-controls") === "cyber-cop-ict-system-dependencies-overlay"
   );
   const ictSearchAsset = await page.evaluate(async (systemName) => {
@@ -871,19 +1055,26 @@ try {
   await page.click('button[aria-label="Select networks for the Network Impact Analyser"]');
   await page.waitForSelector('[role="group"][aria-label="Networks"] input[type="checkbox"]');
   const networkOptionCount = await page.$$eval(
-    '[role="group"][aria-label="Networks"] input[type="checkbox"]',
-    (checkboxes) => checkboxes.length
+    '[data-impact-analyser-selection-option="network"]',
+    (options) => options.length
   );
   assert(networkOptionCount >= 2, "Network Impact Analyser requires at least two demo network options.");
-  const networkCheckboxes = await page.$$('[role="group"][aria-label="Networks"] input[type="checkbox"]');
-  await networkCheckboxes[0].click();
+  const networkOptionSelector = '[data-impact-analyser-selection-option="network"]';
+  const networkOptions = await page.$$(networkOptionSelector);
+  await networkOptions[0].click({ offset: { x: 200, y: 12 } });
   await new Promise((resolve) => setTimeout(resolve, 300));
-  const networkSelectorStayedOpen = await page.evaluate(() => {
-    const selector = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
-    return selector?.getAttribute("aria-expanded") === "true" &&
-      Boolean(document.querySelector('[role="group"][aria-label="Networks"]'));
-  });
-  assert(networkSelectorStayedOpen, "The network selector closed after the first checkbox selection.");
+  const firstNetworkRowSelection = await page.evaluate((optionSelector) => {
+    const trigger = document.querySelector('button[aria-label="Select networks for the Network Impact Analyser"]');
+    const firstOption = document.querySelector(optionSelector);
+    return {
+      stayedOpen:
+        trigger?.getAttribute("aria-expanded") === "true" &&
+        Boolean(document.querySelector('[role="group"][aria-label="Networks"]')),
+      checked: firstOption?.querySelector('input[type="checkbox"]')?.checked ?? false
+    };
+  }, networkOptionSelector);
+  assert(firstNetworkRowSelection.stayedOpen, "The network selector closed after the first option-row selection.");
+  assert(firstNetworkRowSelection.checked, "Selecting the network option row did not tick its checkbox.");
   const remainingNetworkCheckboxes = await page.$$(
     '[role="group"][aria-label="Networks"] input[type="checkbox"]'
   );

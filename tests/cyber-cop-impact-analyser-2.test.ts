@@ -1131,6 +1131,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
     const worker = readRepoFile("components/ict-system-impact-analyser-2-worker.ts");
+    const dependencyExport = readRepoFile("lib/ict-system-dependencies-export.ts");
     const dependencyRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/dependencies/route.ts");
     const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
     const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
@@ -1141,6 +1142,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(ictPanel).toContain('disabled={loadState !== "ready"}');
     expect(ictPanel).toContain('aria-controls="cyber-cop-ict-system-dependencies-overlay"');
     expect(ictPanel).toContain("diagramOverlay={");
+    expect(ictPanel).toContain("hideFilterRow={isDependenciesOpen}");
     expect(ictPanel).toContain('role="dialog"');
     expect(ictPanel).toContain('event.key === "Escape"');
     expect(ictPanel).toContain('aria-label="Close ICT System Dependencies"');
@@ -1151,6 +1153,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
 
     expect(component).toContain('type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies"');
     expect(component).toContain('data-impact-analyser-diagram-overlay="true"');
+    expect(component).toContain("data-impact-analyser-filter-row={diagramMode}");
+    expect(component).toContain("!hideFilterRow");
+    expect(component).toContain('label="Dependent ICT Systems"');
+    expect(component).toContain('aria-label="Export ICT System Dependencies to Excel"');
+    expect(component).toContain("buildIctSystemDependenciesWorkbookXml(filteredDependencyRows)");
     expect(component).toContain('axis.key === "relatedSystem" && value === "Not Modelled"');
     expect(component).toContain('? "#ef4444"');
     expect(component).toContain('data-not-modelled-node-legend="true"');
@@ -1174,6 +1181,15 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(worker).toContain('assetAxis.label = request.layout.assetAxisLabel');
     expect(worker).toContain('keys.push("relatedEnvironment")');
     expect(worker).toContain('left === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL');
+    expect(worker).toContain("dependentIctSystem: string[]");
+    expect(worker).toContain("dependentIctSystemOptions");
+    expect(worker).toContain("filters.dependentIctSystem");
+    expect(worker).toContain("filteredSourceRowIndexes");
+
+    expect(dependencyExport).toContain('"ICT System"');
+    expect(dependencyExport).toContain('"Dependent ICT System"');
+    expect(dependencyExport).toContain('ss:Name="ICT System Dependencies"');
+    expect(dependencyExport).toContain("application/vnd.ms-excel");
 
     expect(dependencyRoute).toContain('export const dynamic = "force-dynamic"');
     expect(dependencyRoute).toContain('request.nextUrl.searchParams.get("diagramSystemIds")');
@@ -1291,6 +1307,23 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(findingsRoute).toContain(
       "totalCount: isNetworkScope ? selectedRows.filter((row) => row.findingId).length : selectedRows.length"
     );
+  });
+
+  it("toggles ICT system and network selections from the full option row", () => {
+    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
+    const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
+    const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
+    const ictPanel = dashboard.slice(ictPanelStart, networkPanelStart);
+    const networkPanel = dashboard.slice(networkPanelStart);
+
+    expect(ictPanel).toContain('data-impact-analyser-selection-option="ict-system"');
+    expect(ictPanel).toContain("if (!(event.target instanceof HTMLInputElement))");
+    expect(ictPanel).toContain("event.preventDefault()");
+    expect(ictPanel).toContain("onChange={() => toggleSelectedSystem(system.id)}");
+    expect(networkPanel).toContain('data-impact-analyser-selection-option="network"');
+    expect(networkPanel).toContain("if (!(event.target instanceof HTMLInputElement))");
+    expect(networkPanel).toContain("event.preventDefault()");
+    expect(networkPanel).toContain("onChange={() => toggleSelectedNetwork(network.id)}");
   });
 
 

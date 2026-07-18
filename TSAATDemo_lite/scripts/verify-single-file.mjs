@@ -47,7 +47,27 @@ assert.doesNotMatch(
 assert(html.includes("demo123"), "The hard-coded demo credential must be packaged.");
 assert(html.includes("Network Impact Analyser"), "The Network Impact Analyser tab must be packaged.");
 assert(html.includes("diagramNetworkIds"), "The multi-network analyser request contract must be packaged.");
+assert(
+  html.includes("data-impact-analyser-selection-option"),
+  "The ICT-system and network option-row selection contract must be packaged."
+);
 assert(html.includes("ICT System Dependencies"), "The ICT System Dependencies control and overlay must be packaged.");
+assert(
+  html.includes("Dependent ICT Systems"),
+  "The dependency-view Dependent ICT Systems filter must be packaged."
+);
+assert(
+  html.includes("Export ICT System Dependencies to Excel"),
+  "The dependency-view Excel export control must be packaged."
+);
+assert(
+  html.includes("application/vnd.ms-excel"),
+  "The dependency SpreadsheetML Excel export must be packaged."
+);
+assert(
+  html.includes("data-impact-analyser-filter-row"),
+  "The parent/dependency analyser filter-row visibility contract must be packaged."
+);
 assert(
   html.includes("/api/cyber-cop/impact-analyser-2/dependencies"),
   "The ICT System Dependencies API bridge must be packaged."

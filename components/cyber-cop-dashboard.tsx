@@ -1543,6 +1543,12 @@ function IctSystemImpactAnalyserRunPanel({
                       key={`impact-analyser-system-option-${system.id}`}
                       role="option"
                       aria-selected={checked}
+                      data-impact-analyser-selection-option="ict-system"
+                      onMouseDown={(event) => {
+                        if (!(event.target instanceof HTMLInputElement)) {
+                          event.preventDefault();
+                        }
+                      }}
                       className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs normal-case tracking-normal ${
                         checked
                           ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
@@ -1589,6 +1595,7 @@ function IctSystemImpactAnalyserRunPanel({
             dataDate={dataDate}
             spiDefinitions={spiDefinitions}
             onLoadStateChange={handleLoadStateChange}
+            hideFilterRow={isDependenciesOpen}
             extraControls={
               <button
                 ref={dependenciesTriggerRef}
@@ -1772,6 +1779,12 @@ function NetworkImpactAnalyserRunPanel({
                   return (
                     <label
                       key={`impact-analyser-network-option-${network.id}`}
+                      data-impact-analyser-selection-option="network"
+                      onMouseDown={(event) => {
+                        if (!(event.target instanceof HTMLInputElement)) {
+                          event.preventDefault();
+                        }
+                      }}
                       className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs normal-case tracking-normal ${
                         checked
                           ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"

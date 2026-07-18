@@ -8,6 +8,11 @@ import {
 } from "@/components/network-detail-risk-charts";
 import { CmdbDeviceName, useCmdbDrillThrough } from "@/components/cmdb-drill-through";
 import { ASSET_TYPES, assetTypeLabel, formatAssetTypeLabel, type CanonicalAssetType } from "@/lib/asset-taxonomy";
+import {
+  ICT_SYSTEM_DEPENDENCIES_EXCEL_MIME_TYPE,
+  buildIctSystemDependenciesExportFileName,
+  buildIctSystemDependenciesWorkbookXml
+} from "@/lib/ict-system-dependencies-export";
 import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
 
@@ -111,6 +116,7 @@ interface ImpactAnalyser2WorkerResult {
   highlightColors: Float32Array;
   spiCounts: Array<[number, number]>;
   searchOptions: ImpactAnalyser2SearchOption[];
+  filteredSourceRowIndexes: Uint32Array;
 }
 
 interface ImpactAnalyser2FindingsResponse {
@@ -252,6 +258,7 @@ function MultiSelectFilter<T extends string>({
 
   return (
     <div
+      data-impact-analyser-multi-filter={label}
       className="relative flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
       onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
     >
@@ -475,6 +482,7 @@ export function IctSystemImpactAnalyser2Chart({
   onLoadStateChange,
   extraControls,
   diagramOverlay,
+  hideFilterRow = false,
   onRetry
 }: {
   embedded?: boolean;
@@ -502,6 +510,7 @@ export function IctSystemImpactAnalyser2Chart({
   onLoadStateChange?: (loadState: ImpactAnalyser2LoadState) => void;
   extraControls?: ReactNode;
   diagramOverlay?: ReactNode;
+  hideFilterRow?: boolean;
   onRetry?: () => void;
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
@@ -532,9 +541,11 @@ export function IctSystemImpactAnalyser2Chart({
   const [environmentOptions, setEnvironmentOptions] = useState<ImpactAnalyser2EnvironmentOption[]>([]);
   const [securityDomainOptions, setSecurityDomainOptions] = useState<SecurityDomain[]>([]);
   const [assetTypeOptions, setAssetTypeOptions] = useState<CanonicalAssetType[]>([]);
+  const [dependentIctSystemOptions, setDependentIctSystemOptions] = useState<string[]>([]);
   const [selectedEnvironments, setSelectedEnvironments] = useState<ImpactAnalyser2EnvironmentOption[]>([]);
   const [selectedSecurityDomains, setSelectedSecurityDomains] = useState<SecurityDomain[]>([]);
   const [selectedAssetTypes, setSelectedAssetTypes] = useState<CanonicalAssetType[]>([]);
+  const [selectedDependentIctSystems, setSelectedDependentIctSystems] = useState<string[]>([]);
   const [selectedFindingCriticalities, setSelectedFindingCriticalities] = useState<ImpactAnalyser2FindingCriticalityOption[]>([]);
   const [diagramSearch, setDiagramSearch] = useState("");
   const [selectedSearchOption, setSelectedSearchOption] = useState<ImpactAnalyser2SelectedSearchOption | null>(null);
@@ -559,6 +570,7 @@ export function IctSystemImpactAnalyser2Chart({
   const selectedEnvironmentKey = joinMultiFilterParam(selectedEnvironments);
   const selectedSecurityDomainKey = joinMultiFilterParam(selectedSecurityDomains);
   const selectedAssetTypeKey = joinMultiFilterParam(selectedAssetTypes);
+  const selectedDependentIctSystemKey = JSON.stringify(selectedDependentIctSystems);
   const selectedFindingCriticalityKey = joinMultiFilterParam(selectedFindingCriticalities);
   const diagramSearchInputId = `${analyserSlug}-search`;
   const isCiDiagramMode = diagramMode === "ci";
@@ -622,6 +634,14 @@ export function IctSystemImpactAnalyser2Chart({
     }
     return map;
   }, [sourceRows]);
+  const filteredDependencyRows = useMemo(() => {
+    if (!isDependenciesDiagramMode || !workerResult) {
+      return [];
+    }
+    return Array.from(workerResult.filteredSourceRowIndexes)
+      .map((sourceRowIndex) => sourceRows[sourceRowIndex])
+      .filter((row): row is ImpactAnalyser2Row => Boolean(row));
+  }, [isDependenciesDiagramMode, sourceRows, workerResult]);
   const assetFocusEligibleAssetIdSet = useMemo(
     () => new Set(assetFocusEligibleAssetIds ?? []),
     [assetFocusEligibleAssetIds]
@@ -824,6 +844,23 @@ export function IctSystemImpactAnalyser2Chart({
     }
   }, [selectedAssetTileText]);
 
+  const exportDependencyRowsToExcel = useCallback(() => {
+    if (!filteredDependencyRows.length) {
+      return;
+    }
+    const workbookXml = buildIctSystemDependenciesWorkbookXml(filteredDependencyRows);
+    const blob = new Blob([workbookXml], { type: ICT_SYSTEM_DEPENDENCIES_EXCEL_MIME_TYPE });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = buildIctSystemDependenciesExportFileName(dataDate);
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+  }, [dataDate, filteredDependencyRows]);
+
   useEffect(() => {
     selectedNodeRef.current = activeSelectedNode;
     setSelectedTileCopyFeedback("idle");
@@ -869,6 +906,7 @@ export function IctSystemImpactAnalyser2Chart({
             environmentOptions: ImpactAnalyser2EnvironmentOption[];
             assetTypeOptions: CanonicalAssetType[];
             securityDomainOptions: SecurityDomain[];
+            dependentIctSystemOptions: string[];
           }
         | ({ type: "filtered"; initRequestId: number; requestId: number } & ImpactAnalyser2WorkerResult)
       >
@@ -880,6 +918,7 @@ export function IctSystemImpactAnalyser2Chart({
         setEnvironmentOptions(event.data.environmentOptions.sort(sortEnvironmentLabel) as ImpactAnalyser2EnvironmentOption[]);
         setAssetTypeOptions(event.data.assetTypeOptions.sort(sortAssetTypeLabel) as CanonicalAssetType[]);
         setSecurityDomainOptions(event.data.securityDomainOptions);
+        setDependentIctSystemOptions(event.data.dependentIctSystemOptions);
         setAcknowledgedWorkerInitRequestId(event.data.initRequestId);
         setWorkerReady(true);
         setLoadState("ready");
@@ -907,7 +946,8 @@ export function IctSystemImpactAnalyser2Chart({
         highlightPositions: event.data.highlightPositions,
         highlightColors: event.data.highlightColors,
         spiCounts: event.data.spiCounts,
-        searchOptions: event.data.searchOptions
+        searchOptions: event.data.searchOptions,
+        filteredSourceRowIndexes: event.data.filteredSourceRowIndexes
       });
     };
     worker.onerror = () => {
@@ -1015,6 +1055,7 @@ export function IctSystemImpactAnalyser2Chart({
         securityDomain: selectedSecurityDomainKey ? selectedSecurityDomainKey.split(",") : [],
         findingCriticality: selectedFindingCriticalityKey ? selectedFindingCriticalityKey.split(",") : [],
         assetType: selectedAssetTypeKey ? selectedAssetTypeKey.split(",") : [],
+        dependentIctSystem: selectedDependentIctSystems,
         search: diagramSearch,
         selectedSearchOption: activeSelectedSearchOption,
         systemIds: normalizedSystemScopeIds
@@ -1040,6 +1081,7 @@ export function IctSystemImpactAnalyser2Chart({
     activeSelectedSearchOption,
     selectedEnvironmentKey,
     selectedAssetTypeKey,
+    selectedDependentIctSystems,
     selectedFindingCriticalityKey,
     normalizedSystemScopeIds,
     activeSelectedNode,
@@ -1058,6 +1100,7 @@ export function IctSystemImpactAnalyser2Chart({
   }, [
     selectedEnvironmentKey,
     selectedAssetTypeKey,
+    selectedDependentIctSystemKey,
     selectedFindingCriticalityKey,
     selectedSecurityDomainKey,
     systemScopeKey,
@@ -1083,6 +1126,12 @@ export function IctSystemImpactAnalyser2Chart({
   useEffect(() => {
     setSelectedAssetTypes((current) => current.filter((assetType) => assetTypeOptions.includes(assetType)));
   }, [assetTypeOptions]);
+
+  useEffect(() => {
+    setSelectedDependentIctSystems((current) =>
+      current.filter((systemName) => dependentIctSystemOptions.includes(systemName))
+    );
+  }, [dependentIctSystemOptions]);
 
   useEffect(() => {
     const width = viewportSize.width;
@@ -1658,7 +1707,11 @@ export function IctSystemImpactAnalyser2Chart({
               {title}
             </h3>
           </div>
-          <div className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible">
+          {!hideFilterRow ? (
+            <div
+              data-impact-analyser-filter-row={diagramMode}
+              className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible"
+            >
             <div className="relative flex h-8 shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
               <label htmlFor={diagramSearchInputId} className="whitespace-nowrap">
                 Text Search
@@ -1760,6 +1813,19 @@ export function IctSystemImpactAnalyser2Chart({
               formatOption={(environment) => environment}
               widthClassName="w-36"
             />
+            {isDependenciesDiagramMode ? (
+              <MultiSelectFilter
+                label="Dependent ICT Systems"
+                options={dependentIctSystemOptions}
+                selectedValues={selectedDependentIctSystems}
+                onChange={(values) => {
+                  setSelectedDependentIctSystems(values);
+                  resetDiagramViewportForFilterChange();
+                }}
+                formatOption={(systemName) => systemName}
+                widthClassName="w-48"
+              />
+            ) : null}
             {showAssetTypeFilter ? (
               <MultiSelectFilter
                 label="Asset Type"
@@ -1799,8 +1865,20 @@ export function IctSystemImpactAnalyser2Chart({
                 />
               </>
             ) : null}
+            {isDependenciesDiagramMode ? (
+              <button
+                type="button"
+                aria-label="Export ICT System Dependencies to Excel"
+                disabled={!filteredDependencyRows.length}
+                onClick={exportDependencyRowsToExcel}
+                className="h-8 shrink-0 rounded-md border border-emerald-300/45 bg-emerald-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-emerald-100 transition hover:border-emerald-200/65 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
+              >
+                Export Excel
+              </button>
+            ) : null}
             {extraControls}
-          </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="relative mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
@@ -1813,7 +1891,10 @@ export function IctSystemImpactAnalyser2Chart({
             </div>
           ) : null}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] text-slate-300/75">
+            <p
+              data-impact-analyser-filtered-row-count={workerResult?.filteredRowCount ?? ""}
+              className="text-[11px] text-slate-300/75"
+            >
               {loadState === "loading" || !workerResult
                 ? "Loading analyser data..."
                 : isRelationshipDiagramMode

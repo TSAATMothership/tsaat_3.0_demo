@@ -53,6 +53,7 @@ interface ImpactAnalyser2Filters {
   securityDomain: string[];
   findingCriticality: string[];
   assetType: string[];
+  dependentIctSystem: string[];
   search: string;
   selectedSearchOption: ImpactAnalyser2SelectedSearchOption | null;
   systemIds: string[] | null;
@@ -140,6 +141,16 @@ function sortEnvironmentLabel(left: string, right: string): number {
 
 function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
+}
+
+function sortDependentIctSystemLabel(left: string, right: string): number {
+  if (left === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL) {
+    return -1;
+  }
+  if (right === NOT_MODELLED_DEPENDENT_SYSTEM_LABEL) {
+    return 1;
+  }
+  return left.localeCompare(right);
 }
 
 function rowAxisValue(row: ImpactAnalyser2Row, axisKey: string): string {
@@ -291,10 +302,11 @@ function filterRows(
   rows: ImpactAnalyser2Row[],
   filters: ImpactAnalyser2Filters,
   diagramMode: ImpactAnalyser2DiagramMode
-): ImpactAnalyser2Row[] {
+): { rows: ImpactAnalyser2Row[]; sourceRowIndexes: Uint32Array } {
   const normalizedSearch = filters.search.trim().toLowerCase();
   const systemIdFilter = filters.systemIds ? new Set(filters.systemIds) : null;
-  return rows.filter((row) => {
+  const matchingSourceRowIndexes: number[] = [];
+  const filteredRows = rows.filter((row, sourceRowIndex) => {
     if (systemIdFilter && (!row.systemId || !systemIdFilter.has(row.systemId))) {
       return false;
     }
@@ -311,17 +323,34 @@ function filterRows(
     if (!matchesMultiFilter(filters.findingCriticality, row.severity)) {
       return false;
     }
-    if (filters.selectedSearchOption && diagramMode === "risk") {
-      return rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value;
-    }
-    if (filters.selectedSearchOption && diagramMode !== "risk") {
-      return true;
-    }
-    if (!rowMatchesSearch(row, normalizedSearch)) {
+    if (
+      diagramMode === "dependencies" &&
+      !matchesMultiFilter(
+        filters.dependentIctSystem,
+        row.relatedSystemName ?? NOT_MODELLED_DEPENDENT_SYSTEM_LABEL
+      )
+    ) {
       return false;
     }
+    if (filters.selectedSearchOption && diagramMode === "risk") {
+      const matchesSelectedSearchOption =
+        rowAxisValue(row, filters.selectedSearchOption.axisKey) === filters.selectedSearchOption.value;
+      if (!matchesSelectedSearchOption) {
+        return false;
+      }
+    }
+    if (!filters.selectedSearchOption) {
+      if (!rowMatchesSearch(row, normalizedSearch)) {
+        return false;
+      }
+    }
+    matchingSourceRowIndexes.push(sourceRowIndex);
     return true;
   });
+  return {
+    rows: filteredRows,
+    sourceRowIndexes: Uint32Array.from(matchingSourceRowIndexes)
+  };
 }
 
 function buildAxes(
@@ -653,7 +682,10 @@ function buildSearchOptions(
 }
 
 function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>) {
-  const filteredRows = filterRows(sourceRows, request.filters, request.layout.diagramMode);
+  const filtered = filterRows(sourceRows, request.filters, request.layout.diagramMode);
+  const filteredRows = filtered.rows;
+  const filteredSourceRowIndexes =
+    request.layout.diagramMode === "dependencies" ? filtered.sourceRowIndexes : new Uint32Array(0);
   const normalizedSearch = request.filters.search.trim().toLowerCase();
   const axes = buildAxes(filteredRows, request.layout.includeNetworkAxis, request.layout.diagramMode);
   const assetAxis = axes.find((axis) => axis.key === "asset");
@@ -729,13 +761,15 @@ function handleFilterRequest(request: Extract<WorkerRequest, { type: "filter" }>
       highlightPositions: highlightBuffers.positions,
       highlightColors: highlightBuffers.colors,
       spiCounts,
-      searchOptions
+      searchOptions,
+      filteredSourceRowIndexes
     },
     [
       baseBuffers.positions.buffer,
       baseBuffers.colors.buffer,
       highlightBuffers.positions.buffer,
-      highlightBuffers.colors.buffer
+      highlightBuffers.colors.buffer,
+      filteredSourceRowIndexes.buffer
     ]
   );
 }
@@ -754,7 +788,13 @@ workerScope.onmessage = (event: MessageEvent<WorkerRequest>) => {
       ),
       securityDomainOptions: Array.from(new Set(sourceRows.map((row) => row.securityDomain))).sort(
         (left, right) => securityDomainOrder.indexOf(left) - securityDomainOrder.indexOf(right)
-      )
+      ),
+      dependentIctSystemOptions:
+        request.diagramMode === "dependencies"
+          ? uniqueSorted(
+              sourceRows.map((row) => row.relatedSystemName ?? NOT_MODELLED_DEPENDENT_SYSTEM_LABEL)
+            ).sort(sortDependentIctSystemLabel)
+          : []
     });
     return;
   }
