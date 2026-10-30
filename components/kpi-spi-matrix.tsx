@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { scopeIds } from "@/lib/workspace-navigation";
 import { buildKpiReportModels } from "@/lib/kpi-report-model";
 import type { KpiRow } from "@/lib/measures";
 import { buildSpiReportModels } from "@/lib/spi-report-model";
@@ -23,7 +24,7 @@ function resolveOption(options: Option[], id: string | undefined): string {
   if (!id) {
     return "All";
   }
-  return options.find((option) => option.id === id)?.label ?? id;
+  return scopeIds(id).map((selected) => options.find((option) => option.id === selected)?.label ?? selected).join(", ");
 }
 
 function summarizeFilterScope(filters: Filters, options: FilterOptions): string {

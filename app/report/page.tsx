@@ -1,3 +1,4 @@
+import { hasWorkspaceScope } from "@/lib/workspace-navigation";
 import { FilterBar } from "@/components/filter-bar";
 import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { getCoreAppData } from "@/lib/app-data";
@@ -39,6 +40,8 @@ export default async function ReportPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/report" searchParams={searchParams} />;
+
   const { dataset, filters, filterOptions, spiDefinitions } = await getCoreAppData(searchParams);
   const queryEntries = toFilterQueryEntries(filters);
   const selectedReportSearch = firstParam(searchParams.reportSearch)?.trim() ?? "";
@@ -113,7 +116,7 @@ export default async function ReportPage({
   })();
 
   return (
-    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+    <div className="workspace-page">
       <RouteReadyMarker pathname="/report" searchParams={searchParams} />
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Briefs & Reports</p>

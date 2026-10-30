@@ -73,6 +73,8 @@ export function extractHrefPathname(href: string): string {
 
 export function isDataDateScopedPath(pathname: string): boolean {
   return (
+    pathname === "/" ||
+    pathname === "/findings" ||
     pathname === "/cyber-cop" ||
     pathname === "/discovery-coverage" ||
     pathname === "/measures" ||

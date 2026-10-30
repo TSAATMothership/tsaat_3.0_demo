@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const filters = parseFilters(queryObject);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
-  const networks = filterNetworks(dataset.managedNetworks, filters);
+  const networks = filterNetworks(dataset.managedNetworks, filters, dataset.ictSystems);
   const systems = filterSystems(dataset.ictSystems, filters);
   const kpiRowsByMatrixRowId = await buildPerformanceKpiRowsByMatrixRowId({
     scopeType: "network",

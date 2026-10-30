@@ -9,6 +9,6 @@ describe("Discovery summary layout", () => {
     expect(pageSource).not.toContain("Generate Remediation Report");
     expect(pageSource).not.toContain("remediationReportHref");
     expect(pageSource).not.toContain("toQueryEntries");
-    expect(pageSource).toContain("grid-rows-[auto_minmax(0,1fr)]");
+    expect(pageSource).toContain("DiscoveryCoverageByToolSection");
   });
 });

@@ -7,16 +7,16 @@ import { LoadingOverlay, nextLoadingProgressValue } from "@/components/loading-o
 
 function resolveNextPath(rawValue: string | null): string {
   if (!rawValue) {
-    return "/cyber-cop";
+    return "/";
   }
 
   const trimmed = rawValue.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return "/cyber-cop";
+    return "/";
   }
 
   if (trimmed.startsWith("/login")) {
-    return "/cyber-cop";
+    return "/";
   }
 
   return trimmed;

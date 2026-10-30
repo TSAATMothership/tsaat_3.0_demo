@@ -23,7 +23,7 @@ import type { TopologyCiDependency, TopologyCiNode } from "@/lib/network-topolog
 import { Asset, CiDependency, Finding, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 function readRepoFile(relativePath: string): string {
-  return readFileSync(path.join(process.cwd(), relativePath), "utf8");
+  return readFileSync(path.join(process.cwd(), relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 const systems: ICTSystem[] = [
@@ -1093,20 +1093,16 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
 });
 
 describe("Cyber COP ICT System Impact Analyser source wiring", () => {
-  it("promotes the scalable analyser to a main Cyber COP tab after the ICT System SPI heatmap", () => {
+  it("opens the scalable analyser as a standalone workspace view", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const page = readRepoFile("app/cyber-cop/page.tsx");
-    const dashboardTabsStart = dashboard.indexOf("const cyberCopTabs");
-    const dashboardTabsEnd = dashboard.indexOf("];", dashboardTabsStart);
-    const dashboardTabs = dashboard.slice(dashboardTabsStart, dashboardTabsEnd);
+    const navigation = readRepoFile("lib/workspace-navigation.ts");
     const impactTabsStart = dashboard.indexOf("const impactChartTabs");
     const impactTabsEnd = dashboard.indexOf("];", impactTabsStart);
     const impactTabs = dashboard.slice(impactTabsStart, impactTabsEnd);
 
-    expect(dashboard).toContain('{ id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" }');
-    expect(dashboardTabs.indexOf('{ id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" }')).toBeGreaterThan(
-      dashboardTabs.indexOf('{ id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }')
-    );
+    expect(navigation).toContain('href: "/cyber-cop?copView=ict-system-impact-analyser"');
+    expect(page).toContain("activeTab={resolveCopView(searchParams.copView)}");
     expect(impactTabs).not.toContain("ICT System Impact Analyser");
     expect(dashboard).toContain('activeTab === "ict-system-impact-analyser"');
     expect(dashboard).toContain('id="cyber-cop-tabpanel-ict-system-impact-analyser"');
@@ -1357,25 +1353,16 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toContain("key={`cyber-cop-impact-analyser-run-${runRequestId}`}");
   });
 
-  it("adds a run-gated Network Impact Analyser immediately after the ICT System analyser", () => {
+  it("opens a run-gated Network Impact Analyser from the sidebar", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const page = readRepoFile("app/cyber-cop/page.tsx");
     const dataRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/route.ts");
     const findingsRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/findings/route.ts");
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
-    const dashboardTabsStart = dashboard.indexOf("const cyberCopTabs");
-    const dashboardTabsEnd = dashboard.indexOf("];", dashboardTabsStart);
-    const dashboardTabs = dashboard.slice(dashboardTabsStart, dashboardTabsEnd);
-    const ictTab = '{ id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" }';
-    const networkTab = '{ id: "network-impact-analyser", label: "Network Impact Analyser" }';
-    const actionTab = '{ id: "action", label: "Action" }';
-
-    expect(dashboardTabs.indexOf(networkTab)).toBeGreaterThan(dashboardTabs.indexOf(ictTab));
-    expect(dashboardTabs.indexOf(actionTab)).toBeGreaterThan(dashboardTabs.indexOf(networkTab));
-    expect(dashboardTabs).toContain(`${ictTab},
-  ${networkTab},
-  ${actionTab}`);
-    expect(dashboard).toContain("xl:grid-cols-7");
+    const navigation = readRepoFile("lib/workspace-navigation.ts");
+    expect(navigation).toContain('href: "/cyber-cop?copView=network-impact-analyser"');
+    expect(navigation.indexOf('label: "Network Impact Analyser"')).toBeLessThan(navigation.indexOf('label: "ICT System Impact Analyser"'));
+    expect(dashboard).not.toContain('aria-label="Cyber COP dashboard tabs"');
     expect(dashboard).toContain('activeTab === "network-impact-analyser"');
     expect(dashboard).toContain('id="cyber-cop-tabpanel-network-impact-analyser"');
     expect(dashboard).toContain("function NetworkImpactAnalyserRunPanel");

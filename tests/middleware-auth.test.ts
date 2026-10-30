@@ -69,6 +69,6 @@ describe("auth middleware", () => {
     const response = await middleware(request);
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("http://localhost/cyber-cop");
+    expect(response.headers.get("location")).toBe("http://localhost/");
   });
 });

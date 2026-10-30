@@ -19,6 +19,7 @@ describe("route loading readiness", () => {
 
     const routeLoadingComponents = [
       "components/menu-navigation.tsx",
+      "components/workspace-shell.tsx",
       "components/filter-bar.tsx",
       "components/discovery-coverage-tabs.tsx",
       "components/discovery-coverage-search-form.tsx",
@@ -32,7 +33,6 @@ describe("route loading readiness", () => {
       "components/measures-tabs.tsx",
       "components/network-detail-tabs.tsx",
       "components/networks-tabs.tsx",
-      "components/settings-tabs.tsx",
       "components/system-detail-tabs.tsx",
       "components/systems-tabs.tsx"
     ];

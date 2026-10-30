@@ -1,8 +1,5 @@
 ﻿"use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { startRouteLoading } from "@/lib/route-loading";
-
 export type SettingsTabId = "database-settings" | "password-settings" | "placeholder-2";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
@@ -11,43 +8,36 @@ const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: "placeholder-2", label: "placeholder 2" }
 ];
 
-function tabLabel(tabId: SettingsTabId | null): string {
-  if (!tabId) {
-    return "Settings";
-  }
-
-  const match = SETTINGS_TABS.find((tab) => tab.id === tabId);
-  return match?.label ?? "Settings";
-}
-
-export function SettingsTabs({ activeTab }: { activeTab: SettingsTabId }) {
-  const searchParams = useSearchParams();
-  const pathname = usePathname() ?? "/settings";
-  const router = useRouter();
-
-  const onSelectTab = (tab: SettingsTabId) => {
-    if (tab === activeTab) {
-      return;
-    }
-
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    params.set("settingsTab", tab);
-    const query = params.toString();
-    const href = query ? `${pathname}?${query}` : pathname;
-    startRouteLoading({ href, message: `Opening ${tabLabel(tab)}...` });
-    router.replace(href);
-  };
+export function SettingsTabs({ activeTab, onSelect }: {
+  activeTab: SettingsTabId;
+  onSelect: (tab: SettingsTabId) => void;
+}) {
 
   return (
     <>
       <section className="panel overflow-hidden">
         <div className="border-b border-sky-400/15 px-4 py-3">
-          <div className="flex flex-wrap gap-2">
+          <div role="tablist" aria-label="Settings sections" className="flex flex-wrap gap-2">
             {SETTINGS_TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => onSelectTab(tab.id)}
+                role="tab"
+                id={`settings-tab-${tab.id}`}
+                aria-controls={`settings-panel-${tab.id}`}
+                aria-selected={activeTab === tab.id}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                onClick={() => onSelect(tab.id)}
+                onKeyDown={(event) => {
+                  const index = SETTINGS_TABS.findIndex((item) => item.id === tab.id);
+                  const next = event.key === "ArrowRight" ? (index + 1) % SETTINGS_TABS.length
+                    : event.key === "ArrowLeft" ? (index + SETTINGS_TABS.length - 1) % SETTINGS_TABS.length
+                    : event.key === "Home" ? 0 : event.key === "End" ? SETTINGS_TABS.length - 1 : -1;
+                  if (next < 0) return;
+                  event.preventDefault();
+                  onSelect(SETTINGS_TABS[next].id);
+                  document.getElementById(`settings-tab-${SETTINGS_TABS[next].id}`)?.focus();
+                }}
                 className={`rounded-md border px-3 py-2 text-xs font-semibold uppercase tracking-[0.13em] transition ${
                   activeTab === tab.id
                     ? "border-sky-200/60 bg-sky-500/20 text-sky-100"

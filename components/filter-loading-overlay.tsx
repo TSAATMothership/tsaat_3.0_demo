@@ -8,6 +8,7 @@ import { DEFAULT_LOADING_INITIAL_PROGRESS, DEFAULT_LOADING_MESSAGE, LoadingOverl
 import {
   ROUTE_LOADING_COMPLETE_EVENT,
   ROUTE_LOADING_START_EVENT,
+  cancelRouteNavigation,
   type RouteLoadingStartDetail
 } from "@/lib/route-loading";
 
@@ -50,6 +51,8 @@ export function FilterLoadingOverlay() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState(DEFAULT_LOADING_MESSAGE);
+  const [cancelHref, setCancelHref] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failsafeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,6 +86,8 @@ export function FilterLoadingOverlay() {
     setIsLoading(false);
     setProgress(0);
     setMessage(DEFAULT_LOADING_MESSAGE);
+    setCancelHref(null);
+    setIsCancelling(false);
     startLocationKeyRef.current = null;
     targetLocationKeyRef.current = null;
     waitForReadyMarkerRef.current = true;
@@ -94,6 +99,7 @@ export function FilterLoadingOverlay() {
     targetLocationKey?: string;
     waitForReadyMarker?: boolean;
     documentTransition?: boolean;
+    cancelHref?: string;
   };
 
   const startOverlay = useCallback(
@@ -102,6 +108,8 @@ export function FilterLoadingOverlay() {
       setIsLoading(true);
       setProgress(DEFAULT_LOADING_INITIAL_PROGRESS);
       setMessage(options.message || DEFAULT_LOADING_MESSAGE);
+      setCancelHref(options.cancelHref ?? null);
+      setIsCancelling(false);
       startLocationKeyRef.current = currentLocationKey;
       targetLocationKeyRef.current = options.targetLocationKey ?? null;
       waitForReadyMarkerRef.current = options.waitForReadyMarker ?? true;
@@ -112,12 +120,14 @@ export function FilterLoadingOverlay() {
       }, 85);
 
       // Guard against stale overlays when navigation does not occur.
-      failsafeTimeoutRef.current = setTimeout(() => {
-        const liveLocationKey = buildLocationKey(window.location.pathname, window.location.search);
-        if (startLocationKeyRef.current && startLocationKeyRef.current === liveLocationKey) {
-          closeOverlay();
-        }
-      }, STALE_OVERLAY_TIMEOUT_MS);
+      // Cancellable navigation stays blocked until ready or explicitly cancelled,
+      // even when a database request takes longer than the old timeout.
+      if (!options.cancelHref) {
+        failsafeTimeoutRef.current = setTimeout(() => {
+          const liveLocationKey = buildLocationKey(window.location.pathname, window.location.search);
+          if (startLocationKeyRef.current && startLocationKeyRef.current === liveLocationKey) closeOverlay();
+        }, STALE_OVERLAY_TIMEOUT_MS);
+      }
     },
     [clearTimers, closeOverlay, currentLocationKey]
   );
@@ -139,12 +149,18 @@ export function FilterLoadingOverlay() {
         message: detail.message,
         targetLocationKey: detail.targetLocationKey,
         waitForReadyMarker: detail.waitForRouteReady,
-        documentTransition: detail.documentTransition
+        documentTransition: detail.documentTransition,
+        cancelHref: detail.cancelHref
       });
     };
 
     const onRouteLoadingComplete = () => {
-      if (!isLoading) {
+      if (!isLoading || isCancelling) {
+        return;
+      }
+      if (cancelHref && targetLocationKeyRef.current && (
+        currentLocationKey !== targetLocationKeyRef.current || !hasRouteReadyMarker(targetLocationKeyRef.current)
+      )) {
         return;
       }
       if (intervalRef.current) {
@@ -164,7 +180,7 @@ export function FilterLoadingOverlay() {
       window.removeEventListener(ROUTE_LOADING_START_EVENT, onRouteLoadingStart);
       window.removeEventListener(ROUTE_LOADING_COMPLETE_EVENT, onRouteLoadingComplete);
     };
-  }, [closeOverlay, isLoading, startOverlay]);
+  }, [closeOverlay, isLoading, isCancelling, cancelHref, currentLocationKey, startOverlay]);
 
   useEffect(() => {
     if (!isMounted || !isLoading) {
@@ -179,7 +195,7 @@ export function FilterLoadingOverlay() {
   }, [isLoading, isMounted]);
 
   useEffect(() => {
-    if (!isLoading || !startLocationKeyRef.current) {
+    if (!isLoading || isCancelling || !startLocationKeyRef.current) {
       return;
     }
 
@@ -239,7 +255,7 @@ export function FilterLoadingOverlay() {
         readyCheckTimeoutRef.current = null;
       }
     };
-  }, [closeOverlay, currentLocationKey, isLoading]);
+  }, [closeOverlay, currentLocationKey, isLoading, isCancelling]);
 
   useEffect(() => {
     const onFilterLinkClick = (event: MouseEvent) => {
@@ -313,7 +329,14 @@ export function FilterLoadingOverlay() {
   }
 
   return createPortal(
-    <LoadingOverlay progress={progress} message={message} />,
+    <LoadingOverlay progress={progress} message={message} blocking cancelling={isCancelling}
+      onCancel={cancelHref ? () => {
+        if (isCancelling) return;
+        clearTimers();
+        setIsCancelling(true);
+        setMessage("Cancelling navigation. Returning to the previous view...");
+        cancelRouteNavigation(cancelHref);
+      } : undefined} />,
     document.body
   );
 }

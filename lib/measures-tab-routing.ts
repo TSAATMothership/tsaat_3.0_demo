@@ -6,9 +6,9 @@ export type MeasuresTabId =
 
 export const MEASURES_TABS: Array<{ id: MeasuresTabId; label: string }> = [
   { id: "summary", label: "Measures Summary" },
-  { id: "measures-kpi", label: "Performance Measures-KPIs" },
-  { id: "measures-spi", label: "Findings Measures-SPIs" },
-  { id: "spi-settings", label: "SPI Risk Severity Settings" }
+  { id: "measures-kpi", label: "Key Performance Indicators (KPIs)" },
+  { id: "measures-spi", label: "Security Posture Indicators (SPIs)" },
+  { id: "spi-settings", label: "SPI Risk Matrix" }
 ];
 
 export function resolveMeasuresTab(requestedTab: string | undefined): MeasuresTabId {
@@ -28,13 +28,13 @@ export function resolveMeasuresTab(requestedTab: string | undefined): MeasuresTa
 
 export function measuresTabLoadingLabel(tab: MeasuresTabId | null): string {
   if (tab === "measures-kpi") {
-    return "Performance Measures-KPIs";
+    return "Key Performance Indicators (KPIs)";
   }
   if (tab === "measures-spi") {
-    return "Findings Measures-SPIs";
+    return "Security Posture Indicators (SPIs)";
   }
   if (tab === "spi-settings") {
-    return "SPI Risk Severity Settings";
+    return "SPI Risk Matrix";
   }
   return "Measures Summary";
 }

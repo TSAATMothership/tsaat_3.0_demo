@@ -12,11 +12,9 @@ describe("Discovery Unassigned Systems scope wiring", () => {
   it("excludes Unassigned Systems from Discovery page network and asset calculations", () => {
     const page = readRepoFile("app/discovery-coverage/page.tsx");
 
-    expect(page).toContain("filterDiscoveryNetworks(networks)");
+    expect(page).toContain("removeUnassignedNetworkOption(filterOptions)");
     expect(page).toContain("filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)))");
-    expect(page).toContain("filterDiscoveryNetworksByStatus(discoveryNetworks");
-    expect(page).toMatch(/buildNetworkTargetStateSummary\(\s*targetStateNetworks,/);
-    expect(page).toContain("networks: discoveryNetworks");
+    expect(page).toContain("sanitizeDiscoverySearchParams(searchParams)");
   });
 
   it("excludes Unassigned Systems from Discovery API calculations and network reports", () => {

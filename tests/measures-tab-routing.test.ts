@@ -11,12 +11,12 @@ describe("Measures tab routing", () => {
     ]);
     expect(MEASURES_TABS.map((tab) => tab.label)).not.toContain("Networks - SPI Heatmap");
     expect(MEASURES_TABS.map((tab) => tab.label)).not.toContain("ICT Systems - SPI Heatmap");
-    expect(MEASURES_TABS.find((tab) => tab.id === "measures-kpi")?.label).toBe("Performance Measures-KPIs");
-    expect(MEASURES_TABS.find((tab) => tab.id === "measures-spi")?.label).toBe("Findings Measures-SPIs");
-    expect(MEASURES_TABS.find((tab) => tab.id === "spi-settings")?.label).toBe("SPI Risk Severity Settings");
-    expect(measuresTabLoadingLabel("measures-kpi")).toBe("Performance Measures-KPIs");
-    expect(measuresTabLoadingLabel("measures-spi")).toBe("Findings Measures-SPIs");
-    expect(measuresTabLoadingLabel("spi-settings")).toBe("SPI Risk Severity Settings");
+    expect(MEASURES_TABS.find((tab) => tab.id === "measures-kpi")?.label).toBe("Key Performance Indicators (KPIs)");
+    expect(MEASURES_TABS.find((tab) => tab.id === "measures-spi")?.label).toBe("Security Posture Indicators (SPIs)");
+    expect(MEASURES_TABS.find((tab) => tab.id === "spi-settings")?.label).toBe("SPI Risk Matrix");
+    expect(measuresTabLoadingLabel("measures-kpi")).toBe("Key Performance Indicators (KPIs)");
+    expect(measuresTabLoadingLabel("measures-spi")).toBe("Security Posture Indicators (SPIs)");
+    expect(measuresTabLoadingLabel("spi-settings")).toBe("SPI Risk Matrix");
     expect(resolveMeasuresTab("kpi-settings")).toBe("summary");
   });
 

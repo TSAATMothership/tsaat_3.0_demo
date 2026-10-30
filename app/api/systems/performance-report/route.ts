@@ -26,7 +26,7 @@ function reportFileName(snapshotDate: string): string {
 
 export async function GET(request: NextRequest) {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
-  const { network: _ignoredNetwork, ...systemsOnlyQueryObject } = queryObject;
+  const systemsOnlyQueryObject = queryObject;
   const selectedDataDate = extractDataDateParam(systemsOnlyQueryObject);
   const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
     loadDatasetForDate(selectedDataDate, { profile: "risk-summary" }),
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
   const filters = parseFilters(systemsOnlyQueryObject);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
-  const networks = filterNetworks(dataset.managedNetworks, filters);
+  const networks = filterNetworks(dataset.managedNetworks, filters, dataset.ictSystems);
   const systems = filterSystems(dataset.ictSystems, filters);
   const kpiRowsByMatrixRowId = await buildPerformanceKpiRowsByMatrixRowId({
     scopeType: "system",

@@ -1538,7 +1538,7 @@ export default async function SystemDetailPage({
   const nonCompliantDiscoveryCoverageTrend = trendPointsFor("nonCompliantDiscoveryCoverage");
   return (
     <div
-      className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]"
+      className="workspace-page"
     >
       <RouteReadyMarker pathname={`/systems/${system.id}`} searchParams={requestParams} />
       <section className="panel shrink-0 p-5">

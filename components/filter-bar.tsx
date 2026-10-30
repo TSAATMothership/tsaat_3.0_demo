@@ -227,7 +227,8 @@ export function FilterBar({
   const searchParams = useSearchParams();
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const hidden = useMemo(() => new Set(hiddenFields), [hiddenFields]);
+  // Network/system selection belongs to the shared workspace header.
+  const hidden = useMemo(() => new Set<FilterField>([...hiddenFields, "managedNetwork", "ictSystem"]), [hiddenFields]);
 
   const params = useMemo(() => new URLSearchParams((searchParams?.toString() ?? "")), [searchParams]);
 

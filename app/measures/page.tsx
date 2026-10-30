@@ -1,8 +1,8 @@
+import { hasWorkspaceScope } from "@/lib/workspace-navigation";
 import { FilterBar } from "@/components/filter-bar";
 import { KpiSpiMatrix } from "@/components/kpi-spi-matrix";
 import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { MeasuresSpiFilters } from "@/components/measures-spi-filters";
-import { MeasuresTabs } from "@/components/measures-tabs";
 import { RouteReadyMarker } from "@/components/route-ready-marker";
 import {
   KpiComplianceChart,
@@ -11,7 +11,7 @@ import {
 import { buildKpiRows } from "@/lib/measures";
 import { getCoreAppData } from "@/lib/app-data";
 import { loadSnapshotKpiEvaluationsForAnalyticsScope } from "@/lib/data-loader";
-import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
+import { MEASURES_TABS, resolveMeasuresTab } from "@/lib/measures-tab-routing";
 import { FindingSeverity, type SpiId } from "@/lib/types";
 import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 
@@ -43,6 +43,8 @@ export default async function MeasuresPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/measures" searchParams={searchParams} />;
+
   const requestedTab = firstParam(searchParams.measuresTab)?.trim().toLowerCase();
   const activeTab = resolveMeasuresTab(requestedTab);
   const measureSearch = readMeasureSearch(searchParams);
@@ -112,18 +114,18 @@ export default async function MeasuresPage({
   });
 
   return (
-    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+    <div className="workspace-page">
       <RouteReadyMarker pathname="/measures" searchParams={searchParams} />
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Measures View</p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-100">KPI and SPI Measures</h1>
-        <p className="mt-1 max-w-none whitespace-nowrap text-sm text-slate-300/85">
+        <h1 className="mt-1 text-2xl font-semibold text-slate-100">{MEASURES_TABS.find((tab) => tab.id === activeTab)?.label}</h1>
+        <p className="mt-1 max-w-none text-sm text-slate-300/85">
           Performance and compliance measures for TSAAT posture. Snapshot date {dataset.snapshotDate}.
           All charts and scores are recalculated from the active filter scope.
         </p>
       </section>
 
-      <MeasuresTabs activeTab={activeTab} />
+
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "summary" ? (

@@ -1,5 +1,6 @@
 import { Asset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
 import { filterRealNetworks, normalizeManagedNetworkFilter } from "@/lib/network-scope";
+import { scopeIds } from "@/lib/workspace-navigation";
 
 export function parseFilters(searchParams: Record<string, string | string[] | undefined>): Filters {
   const getValue = (key: string): string | undefined => {
@@ -11,8 +12,8 @@ export function parseFilters(searchParams: Record<string, string | string[] | un
   };
 
   return {
-    managedNetwork: normalizeManagedNetworkFilter(getValue("network")),
-    ictSystem: getValue("system") || undefined,
+    managedNetwork: scopeIds(searchParams.network).filter((id) => normalizeManagedNetworkFilter(id)).join(",") || undefined,
+    ictSystem: scopeIds(searchParams.system).join(",") || undefined,
     systemCriticality: (getValue("criticality") as Filters["systemCriticality"]) || undefined,
     securityDomain: (getValue("securityDomain") as Filters["securityDomain"]) || undefined,
     environment: (getValue("environment") as Filters["environment"]) || undefined,
@@ -29,10 +30,11 @@ export function applyAssetFilters(
   filters: Filters
 ): Asset[] {
   const systemById = new Map(systems.map((system) => [system.id, system]));
-  const managedNetwork = normalizeManagedNetworkFilter(filters.managedNetwork);
+  const networkIds = scopeIds(filters.managedNetwork).filter((id) => normalizeManagedNetworkFilter(id));
+  const systemIds = scopeIds(filters.ictSystem);
 
   return assets.filter((asset) => {
-    if (managedNetwork && asset.networkId !== managedNetwork) {
+    if (networkIds.length && !networkIds.includes(asset.networkId)) {
       return false;
     }
 
@@ -47,7 +49,7 @@ export function applyAssetFilters(
     const systemId = asset.systemContext?.systemId;
     const system = systemId ? systemById.get(systemId) : undefined;
 
-    if (filters.ictSystem && systemId !== filters.ictSystem) {
+    if (systemIds.length && (!systemId || !systemIds.includes(systemId))) {
       return false;
     }
 
@@ -77,22 +79,22 @@ export function applyAssetFilters(
   });
 }
 
-export function filterNetworks(networks: ManagedNetwork[], filters: Filters): ManagedNetwork[] {
+export function filterNetworks(networks: ManagedNetwork[], filters: Filters, systems: ICTSystem[] = []): ManagedNetwork[] {
   const realNetworks = filterRealNetworks(networks);
-  const managedNetwork = normalizeManagedNetworkFilter(filters.managedNetwork);
-  if (!managedNetwork) {
-    return realNetworks;
-  }
-  return realNetworks.filter((network) => network.id === managedNetwork);
+  const networkIds = scopeIds(filters.managedNetwork).filter((id) => normalizeManagedNetworkFilter(id));
+  const systemIds = scopeIds(filters.ictSystem);
+  const systemNetworkIds = new Set(systems.filter((system) => systemIds.includes(system.id)).map((system) => system.networkId));
+  return realNetworks.filter((network) => (!networkIds.length || networkIds.includes(network.id)) && (!systemIds.length || systemNetworkIds.has(network.id)));
 }
 
 export function filterSystems(systems: ICTSystem[], filters: Filters): ICTSystem[] {
-  const managedNetwork = normalizeManagedNetworkFilter(filters.managedNetwork);
+  const networkIds = scopeIds(filters.managedNetwork).filter((id) => normalizeManagedNetworkFilter(id));
+  const systemIds = scopeIds(filters.ictSystem);
   return systems.filter((system) => {
-    if (managedNetwork && system.networkId !== managedNetwork) {
+    if (networkIds.length && !networkIds.includes(system.networkId)) {
       return false;
     }
-    if (filters.ictSystem && system.id !== filters.ictSystem) {
+    if (systemIds.length && !systemIds.includes(system.id)) {
       return false;
     }
     if (filters.systemCriticality && system.criticality !== filters.systemCriticality) {

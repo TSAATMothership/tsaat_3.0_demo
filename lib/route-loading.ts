@@ -11,6 +11,7 @@ export interface RouteLoadingStartDetail {
   targetLocationKey?: string;
   waitForRouteReady?: boolean;
   documentTransition?: boolean;
+  cancelHref?: string;
 }
 
 export function locationKeyForHref(href: string, baseHref?: string): string | null {
@@ -45,4 +46,13 @@ export function completeRouteLoading(): void {
   }
 
   window.dispatchEvent(new CustomEvent(ROUTE_LOADING_COMPLETE_EVENT));
+}
+
+export function cancelRouteNavigation(returnHref: string): void {
+  const target = new URL(returnHref, window.location.href);
+  if (target.origin !== window.location.origin) return;
+  // App Router has no public abort API. A document replacement abandons the
+  // pending navigation, so a late server response cannot open the cancelled view.
+  window.stop();
+  window.location.replace(target.pathname + target.search + target.hash);
 }

@@ -947,7 +947,7 @@ export async function GET(request: NextRequest) {
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);
   const scopedSystems = filterSystems(dataset.ictSystems, filters);
-  const scopedNetworks = filterNetworks(dataset.managedNetworks, filters);
+  const scopedNetworks = filterNetworks(dataset.managedNetworks, filters, dataset.ictSystems);
   const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
   const kpiRows = buildKpiRows(
     kpiDefinitions,
@@ -1071,7 +1071,7 @@ export async function GET(request: NextRequest) {
           discoveryToolsSettings
         );
         const trendSystems = filterSystems(trendDataset.ictSystems, filters);
-        const trendNetworks = filterNetworks(trendDataset.managedNetworks, filters);
+        const trendNetworks = filterNetworks(trendDataset.managedNetworks, filters, trendDataset.ictSystems);
         const trendKpiRows = buildKpiRows(
           kpiDefinitions,
           await loadSnapshotKpiEvaluationsForAnalyticsScope({

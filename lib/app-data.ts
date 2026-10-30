@@ -79,7 +79,7 @@ export async function getCoreAppData(
       measuresSettings,
       discoveryToolsSettings
     ));
-    const networks = filterNetworks(dataset.managedNetworks, filters);
+    const networks = filterNetworks(dataset.managedNetworks, filters, dataset.ictSystems);
     const systems = filterSystems(dataset.ictSystems, filters);
     const filterOptions = buildFilterOptions(dataset.managedNetworks, dataset.ictSystems);
 

@@ -18,6 +18,6 @@ describe("auth redirect helpers", () => {
     expect(buildLoginRedirectPath("/networks?dataDate=2026-04-29")).toBe(
       "/login?next=%2Fnetworks%3FdataDate%3D2026-04-29"
     );
-    expect(buildLoginRedirectPath("//example.com")).toBe("/login?next=%2Fcyber-cop");
+    expect(buildLoginRedirectPath("//example.com")).toBe("/login?next=%2F");
   });
 });

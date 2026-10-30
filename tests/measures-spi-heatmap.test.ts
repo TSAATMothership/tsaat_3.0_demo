@@ -12,16 +12,16 @@ describe("SPI heatmap tabs", () => {
     const cyberCopDashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const measuresPage = readRepoFile("app/measures/page.tsx");
 
-    expect(cyberCopDashboard).toContain('{ id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" }');
-    expect(cyberCopDashboard).toContain('{ id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }');
+    expect(readRepoFile("lib/workspace-navigation.ts")).toContain('href: "/cyber-cop?copView=networks-spi-heatmap"');
+    expect(readRepoFile("lib/workspace-navigation.ts")).toContain('href: "/cyber-cop?copView=systems-spi-heatmap"');
     expect(cyberCopDashboard).toContain('activeTab === "networks-spi-heatmap"');
     expect(cyberCopDashboard).toContain('activeTab === "systems-spi-heatmap"');
     expect(cyberCopDashboard).toContain("MeasuresSpiHeatmapSection");
     expect(cyberCopDashboard).toContain("localSpiFilter");
     expect(cyberCopPage).toContain("buildNetworkPerformanceReportModel");
     expect(cyberCopPage).toContain("buildSystemPerformanceReportModel");
-    expect(cyberCopPage).toContain('omitSearchParams(searchParams, ["system", "criticality", "environment"])');
-    expect(cyberCopPage).toContain('omitSearchParams(searchParams, ["network"])');
+    expect(cyberCopPage).toContain('omitSearchParams(searchParams, ["criticality", "environment"])');
+    expect(cyberCopPage).toContain('const systemHeatmapSearchParams = searchParams');
     expect(cyberCopPage).toContain("networkSpiHeatmapFilterSlot");
     expect(cyberCopPage).toContain("systemSpiHeatmapFilterSlot");
     expect(measuresPage).not.toContain('activeTab === "networks-spi-heatmap"');

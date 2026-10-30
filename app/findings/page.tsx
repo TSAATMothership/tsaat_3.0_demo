@@ -1,3 +1,4 @@
+import { hasWorkspaceScope } from "@/lib/workspace-navigation";
 import { FilterBar } from "@/components/filter-bar";
 import { FindingsHistoryDrillthrough } from "@/components/findings-history-drillthrough";
 import { FindingsStatusTabs } from "@/components/findings-status-tabs";
@@ -91,6 +92,8 @@ export default async function FindingsPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/findings" searchParams={searchParams} />;
+
   const requestedViewTab = firstParam(searchParams.findingsViewTab)?.trim().toLowerCase();
   const activeViewTab: FindingsViewTabId = requestedViewTab === "register" ? "register" : "overview";
   const effectiveSearchParams =
@@ -368,7 +371,7 @@ export default async function FindingsPage({
   const cvesByAssetId = buildCveVulnerabilityIndexByAssetId(dataset.assets);
 
   return (
-    <div className="relative left-1/2 -my-5 flex h-[calc(100vh-11rem)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem)] md:w-[min(2100px,calc(100vw-3rem))]">
+    <div className="workspace-page">
       <RouteReadyMarker pathname="/findings" searchParams={searchParams} />
       <section className="panel shrink-0 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-slate-300/70">Findings Register</p>

@@ -7,7 +7,7 @@ import { AuthenticatedSessionGuard } from "@/components/authenticated-session-gu
 import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
-import { SiteFooter } from "@/components/site-footer";
+import { WorkspaceShell } from "@/components/workspace-shell";
 import { APP_NAME } from "@/lib/constants";
 
 const bodyFontClass = "font-['Segoe_UI','Trebuchet_MS','Arial',sans-serif]";
@@ -17,12 +17,6 @@ export const metadata: Metadata = {
   title: APP_NAME,
   description: "Cyberspace situational awareness dashboard for TSAAT posture and risk reporting."
 };
-
-const navigation = [
-  { href: "/cyber-cop", label: "Cyber COP" },
-  { href: "/networks", label: "Networks" },
-  { href: "/systems", label: "ICT Systems" }
-];
 
 export default function RootLayout({
   children
@@ -51,28 +45,30 @@ export default function RootLayout({
       <body className={`${bodyFontClass} antialiased`}>
         <div className="app-bg" />
         <div className="topography-overlay" />
-        <header className="no-print border-b border-sky-300/15 bg-slate-950/50 backdrop-blur-md">
-          <div className="relative left-1/2 w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 py-4 md:w-[min(2100px,calc(100vw-3rem))]">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex shrink-0 items-center gap-3">
-                <Image src="/dct-mark.svg" alt="TSAAT mark" width={40} height={40} />
-                <div>
-                  <p className={`${headingFontClass} text-xl uppercase tracking-[0.14em] text-slate-100`}>TSAAT</p>
-                  <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
+        <div className="app-workspace-shell">
+          <header className="workspace-header no-print">
+            <div className="w-full px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex shrink-0 items-center gap-3">
+                  <Image src="/dct-mark.svg" alt="TSAAT mark" width={40} height={40} />
+                  <div>
+                    <p className={`${headingFontClass} text-xl uppercase tracking-[0.14em] text-slate-100`}>TSAAT</p>
+                    <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <Suspense fallback={<div className="h-[38px]" />}>
+                    <MenuNavigation authenticatedUsername={authenticatedUsername} />
+                  </Suspense>
                 </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <Suspense fallback={<div className="h-[38px]" />}>
-                  <MenuNavigation items={navigation} authenticatedUsername={authenticatedUsername} />
-                </Suspense>
-              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">
-          <CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider>
-        </main>
+          <Suspense fallback={null}>
+            <WorkspaceShell><CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider></WorkspaceShell>
+          </Suspense>
+        </div>
         <Suspense fallback={null}>
           <AuthenticatedSessionGuard />
         </Suspense>
@@ -80,7 +76,6 @@ export default function RootLayout({
           <FilterLoadingOverlay />
         </Suspense>
 
-        <SiteFooter />
       </body>
     </html>
   );

@@ -10,7 +10,6 @@ const tableSource = readFileSync(
 
 describe("Discovery network status table layout", () => {
   it("renders modelling status before discovery enabled", () => {
-    expect(pageSource).toContain("modellingStatus: network.modellingStatus");
     expect(tableSource).toContain('modellingStatus: "Modelled" | "Not Modelled"');
     expect(tableSource).toMatch(/Modelling Status[\s\S]*Discovery Enabled/);
     expect(tableSource).toContain("row.modellingStatus === \"Modelled\"");
@@ -43,11 +42,10 @@ describe("Discovery network status table layout", () => {
     expect(tableSource).toContain("bg-amber-500/15");
   });
 
-  it("adds modelling and discovery-enabled filters to the Network Discovery Status tab", () => {
-    expect(pageSource).toContain('key: "modellingStatus"');
-    expect(pageSource).toContain('label: "Modelling Status"');
-    expect(pageSource).toContain('key: "discoveryEnabled"');
-    expect(pageSource).toContain('label: "Discovery Enabled"');
-    expect(pageSource).toContain("targetStateNetworks");
+  it("removes the obsolete network status and settings tabs from Discovery", () => {
+    expect(pageSource).not.toContain("NetworkDiscoverySummaryTableClient");
+    expect(pageSource).not.toContain("DiscoveryToolsSettingsPanel");
+    expect(pageSource).not.toContain("DiscoveryCoverageByNetworkSection");
+    expect(pageSource).toContain("DiscoveryEndpoints");
   });
 });

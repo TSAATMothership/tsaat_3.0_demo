@@ -1,3 +1,4 @@
+import { hasWorkspaceScope, resolveCopView, WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
 import {
   CyberCopDashboard,
   type CyberCopActionQuickWinRow,
@@ -1063,9 +1064,11 @@ export default async function CyberCopPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />;
+
   const measureSearch = readMeasureSearch(searchParams);
-  const networkHeatmapSearchParams = omitSearchParams(searchParams, ["system", "criticality", "environment"]);
-  const systemHeatmapSearchParams = omitSearchParams(searchParams, ["network"]);
+  const networkHeatmapSearchParams = omitSearchParams(searchParams, ["criticality", "environment"]);
+  const systemHeatmapSearchParams = searchParams;
   const [
     { analytics, filterOptions, filters, dataset, systems, networks, spiDefinitions, severityDefinitions },
     networkHeatmapData,
@@ -1343,10 +1346,13 @@ export default async function CyberCopPage({
   return (
     <div
       data-cyber-cop-page="true"
-      className="relative left-1/2 -my-5 h-[calc(100vh-11rem+100px)] w-[min(2100px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden md:-my-8 md:h-[calc(100vh-12rem+100px)] md:w-[min(2100px,calc(100vw-3rem))]"
+      className="workspace-page"
     >
       <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />
+      <h1 className="workspace-view-title">{WORKSPACE_GROUPS[0].items.find((item) => item.href === (resolveCopView(searchParams.copView) === "overview" ? "/cyber-cop" : `/cyber-cop?copView=${resolveCopView(searchParams.copView)}`))?.label}</h1>
       <CyberCopDashboard
+        key={`${resolveCopView(searchParams.copView)}:${filters.managedNetwork ?? ""}:${filters.ictSystem ?? ""}:${dataset.snapshotDate}`}
+        activeTab={resolveCopView(searchParams.copView)}
         snapshotDate={dataset.snapshotDate}
         filtersSlot={
           <div className="-mt-2">

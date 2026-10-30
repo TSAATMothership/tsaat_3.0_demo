@@ -4,6 +4,8 @@ A Next.js + TypeScript reporting web app for TSAAT posture analytics.
 
 ## Features
 
+- Collapsible workspace sidebar with Cyber Security, Discovery, Observed Measures, Findings Register, and Briefs & Reports
+- Searchable, mutually exclusive multi-select Managed Network / ICT System header filters shared with the data date
 - Executive Dashboard with posture KPIs, top risks, and 8-week trend charts
 - Measures page with KPI/SPI cards, trends, report tiles, and scoped PDF report launchers
 - Managed Network roll-up page + per-network drill-down
@@ -149,6 +151,12 @@ Dependencies\runtime\nodejs\win-x64\npm.cmd run dev
 ```
 
 Open `http://localhost:3000`. First access redirects to `/login`; use the credentials that created `logindetails`. Direct page URLs and protected APIs require a valid signed `tsaat_session` cookie; unauthenticated page requests redirect to `/login`, while unauthenticated API requests return `401`.
+
+After sign-in, the workspace starts empty with the sidebar visible and its sections collapsed. Select one or more managed networks or ICT systems in the header to load a view. Selecting a scope clears the other type; clearing the active selection returns the workspace to empty. Sidebar navigation preserves the selection and data date. Use the sidebar arrow to hide or show it; application settings remain under the header's Menu.
+
+Settings opens in a modal popup over the current workspace, with local tabs and Close/Escape controls. A network selection hides the three ICT-system-specific sidebar views; an ICT system selection hides the three network-specific views. Switching scope from a now-hidden view returns to Cyber COP. Sidebar navigation displays a translucent, full-page loading modal that blocks mouse and keyboard interaction until the destination is ready. Cancel (or Escape) abandons the pending navigation and reloads the previous URL, preserving its scope and date.
+
+Cyber COP heatmaps and analysers now open as individual sidebar views. Discovery provides Overview, Discovery Compliance, Discovery Tool Coverage, and End Point Explorer; its obsolete network coverage, tool settings, and network status tabs are removed. Measures Summary, KPIs, SPIs, and SPI Risk Matrix are separate sidebar destinations. The Cyber COP Action tab is removed.
 
 After sign-in, the app monitors session validity while pages are open and returns to `/login` if the session expires, is cleared, or is invalidated by password rotation/logout in another tab. Rotate the app password from `/settings` -> `Password Settings`.
 

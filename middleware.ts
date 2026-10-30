@@ -103,7 +103,7 @@ export async function middleware(request: NextRequest) {
     const requestedNext = request.nextUrl.searchParams.get("next");
     const redirectTarget = requestedNext && isSafeRelativePath(requestedNext) && requestedNext !== "/login"
       ? requestedNext
-      : "/cyber-cop";
+      : "/";
     return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 

@@ -9,59 +9,12 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe("Cyber COP action plan summary", () => {
-  it("places the Action tab at the far right of the Cyber COP tab bar", () => {
+  it("removes the Action tab from the workspace", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
-    const tabsStart = dashboard.indexOf("const cyberCopTabs");
-    const tabsEnd = dashboard.indexOf("];", tabsStart);
-    const tabsBlock = dashboard.slice(tabsStart, tabsEnd);
-
-    expect(tabsBlock.indexOf('{ id: "action", label: "Action" }')).toBeGreaterThan(
-      tabsBlock.indexOf('{ id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" }')
-    );
-  });
-
-  it("renders three accessible plan tabs with their own matrix data", () => {
-    const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
-
-    expect(dashboard).toContain("Threat Surface Area Action Plan");
-    expect(dashboard).toContain("Discovery Action Plan");
-    expect(dashboard).toContain("ICT System Modelling Action Plan");
-
-    expect(dashboard).toContain("Immediate action (critical and High-risk findings)");
-    expect(dashboard).toContain("Critical/High Open Findings > 60 days old");
-    expect(dashboard).toContain("Open Critical Exposure and High Risk findings older than 60 whole days");
-    expect(dashboard).toContain("Total Non-Compliant OS");
-    expect(dashboard).toContain("Assets out of Warranty/EOL");
-    expect(dashboard).toContain("Servers with Critical findings");
-    expect(dashboard).toContain("Networks without discovery enabled");
-    expect(dashboard).toContain("Networks Discovery non-compliant");
-    expect(dashboard).toContain("Networks with no target state");
-    expect(dashboard).toContain("DIIS ICT Systems defined");
-    expect(dashboard).toContain("ICT Systems not modelled");
-    expect(dashboard).toContain("ICT System Modelled and Discovery non-compliant");
-
-    expect(dashboard).toContain("function ActionPlanMatrix");
-    expect(dashboard).toContain('type ActionPlanTabId = "threat-surface" | "discovery" | "ict-system-modelling"');
-    expect(dashboard).toContain('aria-label="Cyber COP action plan tabs"');
-    expect(dashboard).toContain('useState<ActionPlanTabId>("threat-surface")');
-    expect(dashboard).toContain("function actionPlanTabTarget");
-    expect(dashboard).toContain('key === "ArrowRight"');
-    expect(dashboard).toContain('key === "ArrowLeft"');
-    expect(dashboard).toContain('key === "Home"');
-    expect(dashboard).toContain('key === "End"');
-    expect(dashboard).toContain("tabIndex={isActive ? 0 : -1}");
-    expect(dashboard).toContain("actionPlanModels[tab.id]");
-    expect(dashboard).toContain("<ActionPlanMatrix title={plan.title} rows={plan.rows} />");
-    expect(dashboard).toContain("<ActionQuickWinsTable planTitle={plan.title} rows={plan.quickWins} />");
-    expect(dashboard).toContain(">Action</th>");
-    expect(dashboard).toContain(">Count</th>");
-    expect(dashboard).toContain(">Scope</th>");
-    expect(dashboard).toContain(">Rate</th>");
-    expect(dashboard).toContain(">Status</th>");
-    expect(dashboard).toContain("table-fixed");
-    expect(dashboard).toContain("md:grid-cols-3");
-    expect(dashboard).not.toContain("function ActionPlanSummaryTile");
-    expect(dashboard).not.toContain("function ActionPlanSection");
+    const navigation = readRepoFile("lib/workspace-navigation.ts");
+    expect(dashboard).not.toContain('activeTab === "action"');
+    expect(dashboard).not.toContain('aria-label="Cyber COP action plan tabs"');
+    expect(navigation).not.toContain('label: "Action"');
   });
 
   it("uses plan-specific recommended actions and removes the oldest-findings table", () => {

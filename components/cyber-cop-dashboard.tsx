@@ -1,5 +1,6 @@
 "use client";
 
+import { type CopView } from "@/lib/workspace-navigation";
 import { ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Bar,
@@ -131,6 +132,7 @@ type ServerHeatmapEnvironmentOption = EnvironmentType | "Unassigned";
 type ServerHeatmapSecurityDomainOption = SecurityDomain;
 
 export interface CyberCopDashboardProps {
+  activeTab: CopView;
   snapshotDate: string;
   filtersSlot?: ReactNode;
   networkSpiHeatmapFilterSlot?: ReactNode;
@@ -189,27 +191,9 @@ export interface CyberCopDashboardProps {
   dailyCriticalExposure: CyberCopDailyTrendPoint[];
 }
 
-type CyberCopTabId =
-  | "overview"
-  | "impact"
-  | "action"
-  | "networks-spi-heatmap"
-  | "systems-spi-heatmap"
-  | "ict-system-impact-analyser"
-  | "network-impact-analyser";
 type ImpactScopeTabId = "business-services" | "mission-capabilities";
 type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
 type ActionPlanTabId = "threat-surface" | "discovery" | "ict-system-modelling";
-
-const cyberCopTabs: Array<{ id: CyberCopTabId; label: string }> = [
-  { id: "overview", label: "Overview" },
-  { id: "impact", label: "Impact" },
-  { id: "networks-spi-heatmap", label: "Networks - SPI Heatmap" },
-  { id: "systems-spi-heatmap", label: "ICT System - SPI Heatmap" },
-  { id: "ict-system-impact-analyser", label: "ICT System Impact Analyser" },
-  { id: "network-impact-analyser", label: "Network Impact Analyser" },
-  { id: "action", label: "Action" }
-];
 
 const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "spi", label: "SPI Barchart" },
@@ -2031,6 +2015,7 @@ function CyberCopTabFooter() {
 }
 
 export function CyberCopDashboard({
+  activeTab,
   snapshotDate,
   filtersSlot,
   networkSpiHeatmapFilterSlot,
@@ -2058,7 +2043,6 @@ export function CyberCopDashboard({
   dailyHighRisk,
   dailyCriticalExposure
 }: CyberCopDashboardProps) {
-  const [activeTab, setActiveTab] = useState<CyberCopTabId>("overview");
   const [activeActionPlanTab, setActiveActionPlanTab] = useState<ActionPlanTabId>("threat-surface");
   const [activeImpactScopeTab, setActiveImpactScopeTab] = useState<ImpactScopeTabId>("business-services");
   const [selectedBusinessServiceId, setSelectedBusinessServiceId] = useState<string | null>(null);
@@ -2506,43 +2490,15 @@ export function CyberCopDashboard({
     }
   };
 
-  const tabButtonClass = (isActive: boolean): string =>
-    `rounded-lg border px-3 py-2.5 text-left text-xs uppercase tracking-[0.14em] transition ${
-      isActive
-        ? "border-cyan-300/50 bg-cyan-500/15 text-cyan-100"
-        : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
-    }`;
-  const tabPanelClass = "h-[min(calc(100vh-19rem+100px),1228px)] overflow-hidden";
+  const tabPanelClass = "min-h-0 flex-1 overflow-auto";
 
   return (
-    <div className="space-y-2">
-      <section className="panel p-2">
-        <div role="tablist" aria-label="Cyber COP dashboard tabs" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
-          {cyberCopTabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                id={`cyber-cop-tab-${tab.id}`}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`cyber-cop-tabpanel-${tab.id}`}
-                className={tabButtonClass(isActive)}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       {activeTab === "overview" ? (
         <div
           id="cyber-cop-tabpanel-overview"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-overview"
+          role="region"
+          aria-label="cyber-cop-overview"
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
@@ -2601,8 +2557,8 @@ export function CyberCopDashboard({
       {activeTab === "impact" ? (
         <div
           id="cyber-cop-tabpanel-impact"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-impact"
+          role="region"
+          aria-label="cyber-cop-impact"
           className={tabPanelClass}
         >
           <div className="flex h-full flex-col">
@@ -2763,88 +2719,11 @@ export function CyberCopDashboard({
         </div>
       ) : null}
 
-      {activeTab === "action" ? (
-        <div
-          id="cyber-cop-tabpanel-action"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-action"
-          className={tabPanelClass}
-        >
-          <div className="flex h-full flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-              <section className="panel cyber-cop-pulse-border shrink-0 p-3">
-                <h2 className="text-sm uppercase tracking-[0.14em] text-slate-100">Action Plan Summary</h2>
-                <p className="mt-1 text-xs text-slate-300/80">
-                  Select a plan to review its current action data and plan-specific recommended quick wins.
-                </p>
-                <div
-                  role="tablist"
-                  aria-label="Cyber COP action plan tabs"
-                  className="mt-2.5 grid gap-1.5 md:grid-cols-3"
-                >
-                  {actionPlanTabs.map((tab) => {
-                    const isActive = activeActionPlanTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        id={`cyber-cop-action-plan-tab-${tab.id}`}
-                        type="button"
-                        role="tab"
-                        aria-selected={isActive}
-                        aria-controls={`cyber-cop-action-plan-panel-${tab.id}`}
-                        tabIndex={isActive ? 0 : -1}
-                        onClick={() => setActiveActionPlanTab(tab.id)}
-                        onKeyDown={(event) => {
-                          const targetTabId = actionPlanTabTarget(tab.id, event.key);
-                          if (!targetTabId) {
-                            return;
-                          }
-                          event.preventDefault();
-                          setActiveActionPlanTab(targetTabId);
-                          document.getElementById(`cyber-cop-action-plan-tab-${targetTabId}`)?.focus();
-                        }}
-                        className={`rounded-md border px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.12em] transition ${
-                          isActive
-                            ? "border-cyan-300/55 bg-cyan-500/15 text-cyan-100"
-                            : "border-sky-300/20 bg-slate-900/55 text-slate-300 hover:border-sky-300/40 hover:text-slate-100"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {actionPlanTabs.map((tab) => {
-                  const plan = actionPlanModels[tab.id];
-                  const isActive = activeActionPlanTab === tab.id;
-                  return (
-                    <div
-                      key={tab.id}
-                      id={`cyber-cop-action-plan-panel-${tab.id}`}
-                      role="tabpanel"
-                      aria-labelledby={`cyber-cop-action-plan-tab-${tab.id}`}
-                      className={isActive ? "grid h-full min-h-0 grid-rows-2 gap-2 lg:grid-cols-2 lg:grid-rows-1" : "hidden"}
-                    >
-                      <ActionPlanMatrix title={plan.title} rows={plan.rows} />
-                      <ActionQuickWinsTable planTitle={plan.title} rows={plan.quickWins} />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <CyberCopTabFooter />
-          </div>
-        </div>
-      ) : null}
-
       {activeTab === "networks-spi-heatmap" ? (
         <div
           id="cyber-cop-tabpanel-networks-spi-heatmap"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-networks-spi-heatmap"
+          role="region"
+          aria-label="cyber-cop-networks-spi-heatmap"
           className={tabPanelClass}
         >
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
@@ -2867,8 +2746,8 @@ export function CyberCopDashboard({
       {activeTab === "systems-spi-heatmap" ? (
         <div
           id="cyber-cop-tabpanel-systems-spi-heatmap"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-systems-spi-heatmap"
+          role="region"
+          aria-label="cyber-cop-systems-spi-heatmap"
           className={tabPanelClass}
         >
           <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
@@ -2891,8 +2770,8 @@ export function CyberCopDashboard({
       {activeTab === "ict-system-impact-analyser" ? (
         <div
           id="cyber-cop-tabpanel-ict-system-impact-analyser"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-ict-system-impact-analyser"
+          role="region"
+          aria-label="cyber-cop-ict-system-impact-analyser"
           className={tabPanelClass}
         >
           <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
@@ -2911,8 +2790,8 @@ export function CyberCopDashboard({
       {activeTab === "network-impact-analyser" ? (
         <div
           id="cyber-cop-tabpanel-network-impact-analyser"
-          role="tabpanel"
-          aria-labelledby="cyber-cop-tab-network-impact-analyser"
+          role="region"
+          aria-label="cyber-cop-network-impact-analyser"
           className={tabPanelClass}
         >
           <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
