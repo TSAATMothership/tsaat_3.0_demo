@@ -9,7 +9,7 @@
 - **Primary user roles:** application administrators, support teams, deployment engineers, maintainers.
 
 ## 2. Page Summary
-This page provides `database-settings`, `password-settings`, and `placeholder-2` tabs.
+This page provides `database-settings`, `password-settings`, and `discovery-tools-settings` tabs. The legacy `placeholder-2` query value opens Discovery Tools Settings.
 
 Major dependencies:
 
@@ -42,14 +42,20 @@ Important hidden behaviour:
 - runtime and offline scripts decrypt/read confirmed settings from `DB_config` and apply SQL auth plus `sqlcmd` security flags (`-N`, `-C`) consistently; offline scripts stage bundled `sqlcmd` from `Dependencies/offline-artifacts/sqlcmd/sqlcmd-windows-amd64-1.10.0.zip` to `Dependencies/external/sqlcmd/win-x64/sqlcmd.exe` and normalize local named-instance server targets to `lpc:` when no protocol prefix is supplied.
 - password changes are written to encrypted local `logindetails` as salted PBKDF2-HMAC-SHA256 hash material and session version is incremented.
 - a successful password change clears the current session and requires sign-in again.
-- `placeholder-2` remains routable but intentionally has no operational settings.
+- Discovery Tools Settings persists the tool-to-CI-type matrix to SQL. Save invalidates cached discovery evaluations and refreshes the current page; Cancel restores the last saved matrix.
 
 ## 3. Feature Breakdown
 ### Feature: Settings Tab Routing
-- **What it does:** switches between database settings, password settings, and one placeholder tab.
-- **User perspective:** the user can navigate to both active settings surfaces and one reserved future tab.
+- **What it does:** switches between Database Settings, Password Settings, and Discovery Tools Settings.
+- **User perspective:** the user can navigate to the three active settings panels.
 - **System behaviour:** `settingsTab` in the query string controls which panel is rendered.
-- **Outcome:** database and password settings are both active configuration surfaces.
+- **Outcome:** database, password, and discovery coverage settings are active configuration surfaces.
+
+### Feature: Discovery Tools Settings
+- **What it does:** maps discovery tools (rows) to all seven canonical CI types (columns) using Yes/No cells.
+- **User perspective:** change any cells, then Save the whole matrix or Cancel to discard unsaved edits. Filtering tools does not discard or omit hidden edits.
+- **System behaviour:** Yes persists as `required`; No persists as `na` through `/api/discovery-tools/settings`. The API validates every tool and CI-type cell and preserves tool metadata. Failed saves retain the draft. Successful saves invalidate settings-dependent caches and refresh the current page.
+- **Outcome:** Discovery Tool Coverage uses mapped CIs in the filtered data as each tool's denominator, and SQL detection evidence as its covered numerator. Tools with no mapped CIs are absent from the table and radar chart. Mapping and scope changes also update gap drill-through and CSV results.
 
 ### Feature: Database Settings Form
 - **What it does:** captures server, database, authentication mode, user ID, password, SSL enabled flag, and SSL type.
@@ -96,7 +102,7 @@ Important hidden behaviour:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Settings | Tab routing | Switches among database settings, password settings, and one placeholder | Click tab | Updates `settingsTab` query parameter | `settingsTab` | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs` | Bookmarkable tab state | `placeholder-2` has no operational logic |
+| Settings | Tab routing | Switches among Database Settings, Password Settings, and Discovery Tools Settings | Click tab | Selects a panel within the Settings modal | `settingsTab` for direct links | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs`, `SettingsPopup` | Active configuration panels | legacy `placeholder-2` links open Discovery Tools Settings |
 | Settings | Database settings form | Edit connection and SSL definition | Change fields | Marks form dirty and clears prior validation results | server, database, auth mode, credentials, `sslEnabled`, `sslType` | Draft settings | save requires passing validation first | client checks auth mode completeness and valid SSL type | `DatabaseSettingsPanel`, defaults loader | Prepared connection definition | initial values can come from fallback resolution |
 | Settings | Connection test | Validate connectivity | Click `Test Connection` | POSTs draft settings and stores result and diagnostics | current draft settings | connection status and diagnostics | connection test must pass before SSL test or schema test | endpoint returns success summary and diagnostics | `/api/settings/database/test-connection` | Verified connectivity | |
 | Settings | SSL test | Validate SSL transport for selected SSL type | Click `Test SSL` | POSTs draft settings, checks connection precondition, validates encrypted transport | current draft settings | SSL status and diagnostics | required only when SSL is enabled | endpoint returns success summary and diagnostics | `/api/settings/database/test-ssl` | Verified SSL mode | skipped when SSL disabled |
@@ -140,7 +146,7 @@ Primary dependencies:
 ## 8. Non-Database Calculations
 - Status badges, dirty-state detection, copy-to-clipboard status, and diagnostics aggregation are client-side only.
 - Timestamped diagnostics text is session-local and not persisted.
-- `placeholder-2` is a runtime route state with static placeholder content.
+- `discovery-tools-settings` opens the database-backed CI-type mapping matrix; `placeholder-2` is a backward-compatible alias.
 
 ## 9. Rules, Assumptions, and Constraints
 - Settings persist to local ignored `DB_config`, not to the database.
@@ -157,7 +163,7 @@ Primary dependencies:
 - Password writes are one-way salted hashes in encrypted `logindetails`; plaintext is not persisted.
 - Undecryptable copied `logindetails` files are not migrated; compile-time recreation creates a new credential.
 - Successful password changes increment file-backed session version and force re-authentication.
-- `placeholder-2` remains visible in navigation but has no settings logic.
+- Discovery Tools Settings replaces the former placeholder tab and controls applicability for discovery coverage.
 - The settings page handles credentials, so operational documentation should avoid exposing actual values.
 
 ## 10. Open Questions / Gaps

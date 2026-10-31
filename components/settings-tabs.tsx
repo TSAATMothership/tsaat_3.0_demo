@@ -1,11 +1,11 @@
 ﻿"use client";
 
-export type SettingsTabId = "database-settings" | "password-settings" | "placeholder-2";
+export type SettingsTabId = "database-settings" | "password-settings" | "discovery-tools-settings";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: "database-settings", label: "Database Settings" },
   { id: "password-settings", label: "Password Settings" },
-  { id: "placeholder-2", label: "placeholder 2" }
+  { id: "discovery-tools-settings", label: "Discovery Tools Settings" }
 ];
 
 export function SettingsTabs({ activeTab, onSelect }: {

@@ -1,16 +1,19 @@
+import { ASSET_TYPES, ASSET_TYPE_LABELS, type CanonicalAssetType } from "@/lib/asset-taxonomy";
+
 export interface CoverageToolStat {
   id: string;
   label: string;
   covered: number;
   missing: number;
   applicable: number;
+  applicableByCiType?: Record<CanonicalAssetType, number>;
   coveragePercent: number;
 }
 
 export const COVERAGE_TOOL_COLUMNS = [
   { key: "label", label: "Discovery tool" },
   { key: "status", label: "Status" },
-  { key: "applicable", label: "Applicable assets" },
+  { key: "applicable", label: "Applicable CIs" },
   { key: "covered", label: "Covered assets" },
   { key: "missing", label: "Missing coverage" },
   { key: "coveragePercent", label: "Coverage" }
@@ -44,7 +47,8 @@ export function sortCoverageTools(tools: CoverageToolStat[], sort: CoverageToolS
 
 export function coverageToolsCsv(tools: CoverageToolStat[]): string {
   const cell = (value: string) => `"${(/^[=+\-@\t\r]/.test(value) ? "'" : "") + value.replace(/"/g, '""')}"`;
-  return [COVERAGE_TOOL_COLUMNS.map(({ label }) => label),
-    ...tools.map((tool) => COVERAGE_TOOL_COLUMNS.map(({ key }) => coverageToolValue(tool, key)))]
+  return [[...COVERAGE_TOOL_COLUMNS.map(({ label }) => label), ...ASSET_TYPES.map((type) => `${ASSET_TYPE_LABELS[type]} CIs used`)],
+    ...tools.map((tool) => [...COVERAGE_TOOL_COLUMNS.map(({ key }) => coverageToolValue(tool, key)),
+      ...ASSET_TYPES.map((type) => tool.applicableByCiType ? String(tool.applicableByCiType[type]) : "")])]
     .map((row) => row.map(cell).join(",")).join("\r\n");
 }

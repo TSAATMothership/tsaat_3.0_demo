@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/discovery-coverage/tool-assets/route";
 import { filterToolAssets, readToolAssetFilters, toolAssetFacets, type CoverageToolAsset } from "@/lib/coverage-tool-assets";
@@ -22,7 +23,7 @@ beforeEach(() => {
       discoveryCoverageEvaluations: rows.map((row) => ({ assetId: row.assetId, toolValues: { scanner: 0 }, coverageCompliance: false, missingToolIds: ["scanner"], missingToolNames: ["Scanner"] }))
     },
     analytics: { evaluations: rows.map((row) => ({ assetId: row.assetId })) },
-    discoveryToolsSettings: { tools: [{ id: "scanner", name: "Scanner" }] }
+    discoveryToolsSettings: { tools: [{ id: "scanner", name: "Scanner", assetTypeScope: createAssetTypeRecord(() => "required") }] }
   });
 });
 

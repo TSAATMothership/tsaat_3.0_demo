@@ -17,14 +17,14 @@ describe("discovery tools settings panel helpers", () => {
   it("maps required scope to green tick status", () => {
     const status = scopeStatusPresentation("required");
     expect(status.symbol).toBe("✓");
-    expect(status.label).toBe("Required");
+    expect(status.label).toBe("Yes");
     expect(status.className).toContain("emerald");
   });
 
   it("maps na scope to red cross status", () => {
     const status = scopeStatusPresentation("na");
     expect(status.symbol).toBe("✕");
-    expect(status.label).toBe("N/A");
+    expect(status.label).toBe("No");
     expect(status.className).toContain("red");
   });
 

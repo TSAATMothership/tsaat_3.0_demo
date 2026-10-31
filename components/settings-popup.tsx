@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { DatabaseSettingsPanel } from "@/components/database-settings-panel";
 import { PasswordSettingsPanel } from "@/components/password-settings-panel";
 import { SettingsTabs, type SettingsTabId } from "@/components/settings-tabs";
+import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
+import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 
 type DatabaseSettings = ComponentProps<typeof DatabaseSettingsPanel>["initialSettings"];
 
@@ -16,6 +18,9 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [settings, setSettings] = useState<DatabaseSettings | null>(null);
+  const [discoverySettings, setDiscoverySettings] = useState<DiscoveryToolsSettings | null>(null);
+  const [discoveryError, setDiscoveryError] = useState("");
+  const [discoveryRetry, setDiscoveryRetry] = useState(0);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
 
@@ -46,6 +51,20 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
     return () => controller.abort();
   }, [retry]);
 
+  useEffect(() => {
+    if (activeTab !== "discovery-tools-settings" || discoverySettings) return;
+    const controller = new AbortController();
+    setDiscoveryError("");
+    fetch("/api/discovery-tools/settings", { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load discovery tools settings.");
+        const payload = await response.json() as { settings: DiscoveryToolsSettings };
+        if (!controller.signal.aborted) setDiscoverySettings(payload.settings);
+      })
+      .catch((reason: Error) => { if (!controller.signal.aborted) setDiscoveryError(reason.message); });
+    return () => controller.abort();
+  }, [activeTab, discoverySettings, discoveryRetry]);
+
   if (!mounted) return null;
   return createPortal(
     <dialog ref={dialogRef} className="settings-popup" aria-labelledby="settings-popup-title"
@@ -68,8 +87,10 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
           <div role="tabpanel" id="settings-panel-password-settings" aria-labelledby="settings-tab-password-settings" hidden={activeTab !== "password-settings"}>
             <PasswordSettingsPanel />
           </div>
-          <div role="tabpanel" id="settings-panel-placeholder-2" aria-labelledby="settings-tab-placeholder-2" hidden={activeTab !== "placeholder-2"}>
-            <section className="panel p-4"><p className="text-sm text-slate-300">Reserved for future settings.</p></section>
+          <div role="tabpanel" id="settings-panel-discovery-tools-settings" aria-labelledby="settings-tab-discovery-tools-settings" hidden={activeTab !== "discovery-tools-settings"} className="h-full min-h-[420px]">
+            {discoverySettings ? <DiscoveryToolsSettingsPanel initialSettings={discoverySettings} /> : discoveryError ? (
+              <div className="panel p-5"><p role="alert">{discoveryError}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setDiscoveryRetry((value) => value + 1)}>Retry</button></div>
+            ) : <p role="status" className="p-5">Loading discovery tools settings...</p>}
           </div>
         </div>
       </div>

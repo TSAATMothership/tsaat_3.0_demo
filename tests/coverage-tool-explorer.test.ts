@@ -1,3 +1,4 @@
+import { createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { describe, expect, it } from "vitest";
 import { coverageToolStatus, coverageToolValue, coverageToolsCsv, filterCoverageTools, sortCoverageTools, type CoverageToolStat } from "@/lib/coverage-tool-explorer";
 
@@ -29,6 +30,12 @@ describe("coverage tool explorer", () => {
     expect(sortCoverageTools(tools, "gaps").map((tool) => tool.id)).toEqual(["monitor", "scanner", "agent", "inventory"]);
     expect(sortCoverageTools(tools, "coverage").map((tool) => tool.id)).toEqual(["scanner", "monitor", "inventory", "agent"]);
     expect(tools[0].id).toBe("scanner");
+  });
+  it("includes each tool's denominator breakdown in the CSV", () => {
+    const csv = coverageToolsCsv([{ ...tools[0], applicableByCiType: createAssetTypeRecord((type) => type === "server" ? 7 : type === "workstation" ? 3 : 0) }]);
+    const [header, row] = csv.split("\r\n");
+    expect(header).toContain('"Server CIs used","Workstation CIs used","Network Device CIs used","Storage Device CIs used","Printer Device CIs used","Other CIs used","IP Node CIs used"');
+    expect(row).toBe('"Scanner","Coverage gaps","10","6","4","60%","7","3","0","0","0","0","0"');
   });
   it("exports the full filtered selection, escapes CSV and neutralises formula-like names", () => {
     const selected = filterCoverageTools(tools, "", { status: ["Coverage gaps"] });

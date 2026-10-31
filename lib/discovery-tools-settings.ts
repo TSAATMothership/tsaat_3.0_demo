@@ -225,9 +225,15 @@ function parseScopeUpdates(input: unknown): DiscoveryToolScopeUpdate[] {
       throw new Error("Each discovery tool scope update must include a tool id.");
     }
 
+    const scope = tool.assetTypeScope as Record<string, unknown> | null | undefined;
+    for (const assetType of ASSET_TYPES) {
+      if (!scope || !isAssetSetting(scope[assetType])) {
+        throw new Error(`Invalid or missing CI type mapping for ${id}: ${assetType}.`);
+      }
+    }
     updates.push({
       id,
-      assetTypeScope: normalizeScope(tool.assetTypeScope, FALLBACK_SCOPE)
+      assetTypeScope: normalizeScope(scope, FALLBACK_SCOPE)
     });
   }
 

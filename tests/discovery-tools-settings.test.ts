@@ -87,3 +87,13 @@ describe("discovery tools scope update normalization", () => {
     }
   });
 });
+
+describe("discovery mapping validation", () => {
+  it.each([undefined, null, "yes", "no", true, 1])("rejects incomplete or invalid cell values (%s) without replacing saved mappings", (value) => {
+    const existing = defaultDiscoveryToolsSettings();
+    const tools = existing.tools.map((tool) => ({ id: tool.id, assetTypeScope: { ...tool.assetTypeScope } }));
+    (tools[0].assetTypeScope as Record<string, unknown>).server = value;
+    expect(() => normalizeDiscoveryToolsScopeUpdate({ tools }, existing)).toThrow("Invalid or missing CI type mapping");
+    expect(existing.tools[0].assetTypeScope.server).toBe("required");
+  });
+});

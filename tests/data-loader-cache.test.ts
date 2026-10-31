@@ -11,7 +11,9 @@ import {
   loadSnapshotKpiEvaluationsForScopes,
   loadMeasuresSettings,
   loadReferenceVersions,
-  saveMeasuresSettings
+  saveMeasuresSettings,
+  loadDiscoveryToolsSettings,
+  saveDiscoveryToolsSettings
 } from "@/lib/data-loader";
 import {
   testMeasuresSettings,
@@ -479,6 +481,20 @@ describe("data loader caches", () => {
     expect(sqlCallsContaining("FROM [tsaat].[measures_settings_version]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[measures_severity_matrix]")).toBe(1);
     expect(sqlCallsContaining("FROM [tsaat].[measures_priority_matrix]")).toBe(1);
+  });
+
+  it("invalidates saved discovery mappings and snapshot coverage after a successful save", async () => {
+    await loadDatasetForDate();
+    const settings = await loadDiscoveryToolsSettings();
+    const tools = settings.tools.map((tool) => ({ id: tool.id, assetTypeScope: { ...tool.assetTypeScope, server: "na" } }));
+    const saved = await saveDiscoveryToolsSettings({ tools });
+    expect(saved.tools.every((tool) => tool.assetTypeScope.server === "na")).toBe(true);
+    expect(executeSqlTextMock).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO [tsaat].[discovery_tool_asset_scope]"));
+    executeSqlJsonMock.mockClear();
+    await loadDatasetForDate();
+    await loadDiscoveryToolsSettings();
+    expect(sqlCallsContaining("FROM [tsaat].[discovery_tools_settings_version]")).toBe(1);
+    expect(sqlCallsContaining("usp_evaluate_discovery_coverage_snapshot")).toBe(1);
   });
 
   it("caches reference versions for repeated reads", async () => {

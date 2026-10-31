@@ -135,10 +135,28 @@
 @media (max-width: 480px) { .endpoint-charts { grid-template-columns: 1fr; }.endpoint-total { display: none; } }
 @media (prefers-reduced-motion: reduce) { .endpoint-chart-track > span { transition: none; } }
 
-.coverage-explorer { gap: 1rem; min-height: 45rem; color: #d9e8f2; }
+.coverage-explorer { gap: 1rem; min-height: 54rem; color: #d9e8f2; }
 .coverage-snapshot .panel { border: 1px solid #294454; border-radius: .65rem; background: linear-gradient(140deg, #102536, #0b1b29); box-shadow: none; padding: .9rem 1rem; }
 .coverage-snapshot .panel:nth-child(2) > p:last-child { color: #8ee1c1; }
 .coverage-snapshot .panel:nth-child(3) > p:last-child { color: #f7bd8a; }
+.coverage-ci-totals { flex: none; border: 1px solid #294454; border-radius: .65rem; background: #0b1b29; padding: .8rem 1rem; }
+.coverage-ci-totals-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .35rem 1rem; }
+.coverage-ci-totals-heading h2 { font-size: .8rem; font-weight: 600; color: #cde5f2; }
+.coverage-ci-totals-heading p { color: #8faaba; font-size: .7rem; }
+.coverage-ci-totals-heading strong { color: #b1edf5; }
+.coverage-ci-type-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .65rem; margin-top: .7rem; }
+.coverage-ci-type-grid dt { color: #9eb8c9; font-size: .65rem; }
+.coverage-ci-type-grid dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .45rem; font-variant-numeric: tabular-nums; }
+.coverage-ci-type-grid strong { font-size: 1.2rem; color: #b1edf5; font-weight: 600; }
+.coverage-ci-type-grid span { color: #8faaba; font-size: .6rem; }
+.coverage-ci-totals-note { margin-top: .6rem; color: #8faaba; font-size: .65rem; }
+.coverage-ci-breakdown { margin-top: .3rem; font-size: .65rem; color: #9eb8c9; }
+.coverage-ci-breakdown summary { cursor: pointer; color: #b1e7f3; white-space: nowrap; }
+.coverage-ci-breakdown dl { margin-top: .4rem; min-width: 9rem; }
+.coverage-ci-breakdown dl > div { display: flex; justify-content: space-between; gap: .75rem; padding: .15rem 0; }
+.coverage-ci-breakdown dd { color: #cde5f2; }
+@media (max-width: 1100px) { .coverage-ci-type-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .coverage-ci-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .coverage-tool-layout { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); gap: 1rem; flex: 1; min-height: 0; min-width: 0; }
 .coverage-tool-results { min-height: 20rem; min-width: 0; }
 .coverage-tool-results .endpoint-pagination { flex-wrap: wrap; }

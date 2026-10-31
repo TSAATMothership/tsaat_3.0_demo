@@ -17,8 +17,8 @@ function resolveActiveTab(value: string | undefined): SettingsTabId {
   if (normalized === "password-settings") {
     return "password-settings";
   }
-  if (normalized === "placeholder-2") {
-    return "placeholder-2";
+  if (normalized === "discovery-tools-settings" || normalized === "placeholder-2") {
+    return "discovery-tools-settings";
   }
 
   return "database-settings";

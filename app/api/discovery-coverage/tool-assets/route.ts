@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
-import {
-  discoveryCoverageByAssetId,
-  discoveryCoverageForAssetId,
-  DiscoveryCoverageValue
-} from "@/lib/discovery-coverage";
+import type { DiscoveryCoverageValue } from "@/lib/discovery-coverage";
+import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-coverage";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { Asset } from "@/lib/types";
 import { filterToolAssets, readToolAssetFilters, toolAssetFacets, TOOL_ASSET_COLUMNS } from "@/lib/coverage-tool-assets";
@@ -87,8 +84,10 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams,
     new Set(["toolId", "toolSearch", "toolAssetType", "toolFacets", "page", "pageSize", ...TOOL_ASSET_COLUMNS.map(({ key }) => `toolColumn.${key}`)])
   );
+  const discoveryParams = sanitizeDiscoverySearchParams(requestParams);
+  delete discoveryParams.criticality;
   const { dataset, analytics, discoveryToolsSettings } = await getCoreAppData(
-    sanitizeDiscoverySearchParams(requestParams),
+    discoveryParams,
     { profile: "summary" }
   );
   const allowedToolIds = new Set(discoveryToolsSettings.tools.map((tool) => tool.id));
@@ -98,13 +97,13 @@ export async function GET(request: NextRequest) {
 
   const scopedAssetIds = new Set(analytics.evaluations.map((evaluation) => evaluation.assetId));
   const scopedAssets = filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)));
-  const storedDiscoveryCoverageByAsset = discoveryCoverageByAssetId(dataset.discoveryCoverageEvaluations);
+  const coverageModel = buildScopedDiscoveryToolCoverage(scopedAssets, discoveryToolsSettings, dataset.discoveryCoverageEvaluations);
   const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
   const systemNameById = new Map(dataset.ictSystems.map((system) => [system.id, system.name]));
 
   const toolRows: ToolAssetRow[] = [];
   for (const asset of scopedAssets) {
-    const coverage = discoveryCoverageForAssetId(asset.id, storedDiscoveryCoverageByAsset);
+    const coverage = coverageModel.assetCoverageById.get(asset.id)!;
     const toolValue = coverage.toolValues[toolId];
     if (toolValue !== 0) {
       continue;

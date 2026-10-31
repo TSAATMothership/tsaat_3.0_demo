@@ -1,6 +1,7 @@
-import { discoveryCoverageByAssetId, discoveryCoverageForAssetId, type DiscoveryCoverageValue } from "@/lib/discovery-coverage";
+import { ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
+import { discoveryCoverageByAssetId, discoveryCoverageForAssetId, type DiscoveryCoverageValue, type DiscoveryCoverageResult } from "@/lib/discovery-coverage";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import type { Asset, StoredDiscoveryCoverageEvaluation } from "@/lib/types";
+import type { Asset, AssetType, StoredDiscoveryCoverageEvaluation } from "@/lib/types";
 
 export interface ScopedDiscoveryToolColumn {
   id: string;
@@ -11,17 +12,23 @@ export interface ScopedDiscoveryToolCard extends ScopedDiscoveryToolColumn {
   covered: number;
   missing: number;
   applicable: number;
+  applicableByCiType: Record<AssetType, number>;
   coveragePercent: number;
   chartBackground: string;
 }
 
-export interface ScopedDiscoveryAssetCoverage {
+export interface ScopedDiscoveryAssetCoverage extends DiscoveryCoverageResult {
   assetId: string;
-  toolValues: Record<string, DiscoveryCoverageValue>;
-  coverageCompliance: boolean;
+}
+
+export interface DiscoveryCoverageCiTypeTotal {
+  type: AssetType;
+  inScope: number;
+  usedInCalculations: number;
 }
 
 export interface ScopedDiscoveryToolCoverageModel {
+  ciTypeTotals: DiscoveryCoverageCiTypeTotal[];
   toolColumns: ScopedDiscoveryToolColumn[];
   toolCards: ScopedDiscoveryToolCard[];
   assetCoverages: ScopedDiscoveryAssetCoverage[];
@@ -55,39 +62,65 @@ export function buildScopedDiscoveryToolCoverage(
   settings: DiscoveryToolsSettings,
   discoveryCoverageEvaluations: StoredDiscoveryCoverageEvaluation[] = []
 ): ScopedDiscoveryToolCoverageModel {
-  const assetTypes = new Set(assets.map((asset) => asset.type));
+  const countsByType = createAssetTypeRecord(() => 0);
+  for (const asset of assets) countsByType[asset.type] += 1;
+  const ciTypeTotals = ASSET_TYPES.map((type) => ({
+    type,
+    inScope: countsByType[type],
+    usedInCalculations: settings.tools.some((tool) => tool.assetTypeScope[type] === "required") ? countsByType[type] : 0
+  }));
+  const assetTypes = ASSET_TYPES.filter((type) => countsByType[type] > 0);
   const coverageByAsset = discoveryCoverageByAssetId(discoveryCoverageEvaluations);
-  const toolColumns = settings.tools
-    .filter((tool) => Array.from(assetTypes).some((assetType) => tool.assetTypeScope[assetType] !== "na"))
-    .map((tool) => ({ id: tool.id, label: tool.name }));
+  const applicableTools = settings.tools.filter((tool) => assetTypes.some((assetType) => tool.assetTypeScope[assetType] === "required"));
+  const toolColumns = applicableTools.map((tool) => ({ id: tool.id, label: tool.name }));
 
   const assetCoverages = assets.map((asset) => {
     const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
+    const toolValues: Record<string, DiscoveryCoverageValue> = {};
+    const missingToolIds: string[] = [];
+    const missingToolNames: string[] = [];
+    for (const tool of settings.tools) {
+      // The saved CI-type mapping defines applicability. SQL provides detection evidence.
+      const value = tool.assetTypeScope[asset.type] === "required"
+        ? (coverage.toolValues[tool.id] === 1 ? 1 : 0)
+        : null;
+      toolValues[tool.id] = value;
+      if (value === 0) {
+        missingToolIds.push(tool.id);
+        missingToolNames.push(tool.name);
+      }
+    }
     return {
       assetId: asset.id,
-      toolValues: coverage.toolValues,
-      coverageCompliance: coverage.coverageCompliance
+      toolValues,
+      missingToolIds,
+      missingToolNames,
+      coverageCompliance: missingToolIds.length === 0
     };
   });
   const assetCoverageById = new Map(assetCoverages.map((coverage) => [coverage.assetId, coverage]));
 
-  const toolCards = toolColumns.map((tool) => {
+  const toolCards = applicableTools.map((tool) => {
     const values = assetCoverages.map((coverage) => coverage.toolValues[tool.id]);
-    const applicable = values.filter((value) => value !== null && typeof value !== "undefined").length;
+    const applicableByCiType = createAssetTypeRecord((type) => tool.assetTypeScope[type] === "required" ? countsByType[type] : 0);
+    const applicable = Object.values(applicableByCiType).reduce((sum, count) => sum + count, 0);
     const covered = values.filter((value) => value === 1).length;
     const missing = values.filter((value) => value === 0).length;
 
     return {
-      ...tool,
+      id: tool.id,
+      label: tool.name,
       covered,
       missing,
       applicable,
+      applicableByCiType,
       coveragePercent: toPercent(covered, applicable),
       chartBackground: cardBackground(covered, applicable)
     };
   });
 
   return {
+    ciTypeTotals,
     toolColumns,
     toolCards,
     assetCoverages,

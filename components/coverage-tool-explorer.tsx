@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ASSET_TYPES, ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { FilterHeader } from "@/components/inventory-explorer-controls";
 import { CoverageByToolRadar } from "@/components/coverage-by-tool-radar";
 import {
@@ -72,26 +73,34 @@ export function CoverageToolExplorer({ tools, onOpenTool }: {
       <tbody>{filtered.slice(start, start + pageSize).map((tool) => <tr key={tool.id}>
         <td className="endpoint-name"><button type="button" className="coverage-tool-link" onClick={() => onOpenTool(tool.id, tool.label)}>{tool.label}</button><small>{tool.id}</small></td>
         <td><span className={`coverage-status ${!tool.applicable ? "is-neutral" : tool.missing ? "has-gaps" : "is-covered"}`}>{coverageToolStatus(tool)}</span></td>
-        <td className="coverage-number">{number(tool.applicable)}</td>
+        <td className="coverage-number">
+          {number(tool.applicable)}
+          {tool.applicableByCiType && <details className="coverage-ci-breakdown">
+            <summary aria-label={`CI type totals used for ${tool.label}`}>By CI type</summary>
+            <dl>{ASSET_TYPES.filter((type) => tool.applicableByCiType![type] > 0).map((type) => <div key={type}>
+              <dt>{ASSET_TYPE_LABELS[type]}</dt><dd>{number(tool.applicableByCiType![type])}</dd>
+            </div>)}</dl>
+          </details>}
+        </td>
         <td className="coverage-number text-emerald-200">{number(tool.covered)}</td>
         <td className="coverage-number"><button type="button" className={tool.missing ? "coverage-gap-link" : "coverage-tool-link"}
           aria-label={`View ${number(tool.missing)} coverage gaps for ${tool.label}`} onClick={() => onOpenTool(tool.id, tool.label)}>{number(tool.missing)} <span aria-hidden="true">↗</span></button></td>
         <td><div className="coverage-percent"><span>{coverageToolValue(tool, "coveragePercent")}</span>
           {tool.applicable > 0 && <progress aria-label={`${tool.label} coverage`} value={tool.coveragePercent} max={100} />}</div></td>
-      </tr>)}{!filtered.length && <tr><td colSpan={COVERAGE_TOOL_COLUMNS.length}><div className="endpoint-empty"><strong>{tools.length ? "No matching tools" : "No discovery tools configured"}</strong>
-        <p>{tools.length ? "Clear or adjust your filters to see more tools." : "Configured discovery tools will appear here for the selected scope."}</p></div></td></tr>}</tbody>
+      </tr>)}{!filtered.length && <tr><td colSpan={COVERAGE_TOOL_COLUMNS.length}><div className="endpoint-empty"><strong>{tools.length ? "No matching tools" : "No applicable discovery tools"}</strong>
+        <p>{tools.length ? "Clear or adjust your filters to see more tools." : "No tools map to the CI types in the current filtered data. Adjust the scope or Discovery Tools Settings."}</p></div></td></tr>}</tbody>
     </table></div>
     <footer className="endpoint-pagination"><span>{filtered.length ? `${number(start + 1)}–${number(Math.min(start + pageSize, filtered.length))}` : "0"} of {number(filtered.length)} tools</span>
       <div><label>Rows per page <select aria-label="Tools per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>{[10, 25, 50, 100].map((size) => <option key={size}>{size}</option>)}</select></label>
         <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>{currentPage} / {pages}</span>
         <button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
     </footer>
-    <p className="endpoint-export-note">CSV includes all matching tools. Coverage is covered assets divided by applicable assets; N/A means no applicable assets.</p>
+    <p className="endpoint-export-note">CSV includes all matching tools and their CI-type totals. Coverage is covered CIs divided by CIs mapped to each tool in Discovery Tools Settings.</p>
   </section>
     <aside className="coverage-explorer-radar" aria-label="Tool coverage percentages radar chart">
       <CoverageByToolRadar data={filtered.map((tool) => ({ label: tool.label, coveragePercent: tool.coveragePercent }))}
         chartHeightClassName="coverage-radar-plot" />
-      <p>Chart follows the table filters. Tools with no applicable assets plot at 0%.</p>
+      <p>Chart follows the table filters. Tools with no mapped CIs in the filtered data are hidden.</p>
     </aside>
   </div>;
 }
