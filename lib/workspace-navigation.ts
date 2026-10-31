@@ -99,7 +99,10 @@ export function activeWorkspaceItem(pathname: string, params: URLSearchParams): 
       : pathname === "/measures" ? "measuresTab" : null;
     if (!key) return true;
     const defaults = { copView: "overview", discoveryView: "tools", measuresTab: "summary" };
-    return (params.get(key) || defaults[key]) === (target.searchParams.get(key) || defaults[key]);
+    const selectedView = params.get(key) || defaults[key];
+    // Keep links to the former replacement view on the consolidated coverage page.
+    const canonicalView = key === "discoveryView" && selectedView === "tools-2" ? "tools" : selectedView;
+    return canonicalView === (target.searchParams.get(key) || defaults[key]);
   });
 }
 

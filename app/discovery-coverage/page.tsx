@@ -90,14 +90,19 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
     system: systemNames.get(asset.systemContext?.systemId ?? "") ?? "Unassigned",
     environment: asset.systemContext?.environmentType ?? "—", compliant: coverage.coverageCompliance, missingTools: coverage.missingToolNames
   })).sort((a, b) => a.hostname.localeCompare(b.hostname));
-  return <div className="workspace-page">
+  return <div className={view === "tools" ? "workspace-page coverage-explorer" : "workspace-page"}>
     <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
-    <section className="panel shrink-0 p-3"><p className="text-xs uppercase tracking-[0.14em] text-slate-400">Discovery · {dataset.snapshotDate}</p><h1 className="mt-1 text-2xl font-semibold">{title}</h1></section>
+    {view === "tools" ? <header className="endpoint-hero">
+      <div><p className="endpoint-eyebrow">Discovery / Tool coverage</p><h1>{title}</h1><p className="endpoint-description">Compare discovery tools and investigate assets with missing coverage.</p></div>
+      <div className="endpoint-total"><span>Discovery tools</span><strong>{toolStats.length}</strong><small>Snapshot · {dataset.snapshotDate}</small></div>
+    </header> : <section className="panel shrink-0 p-3"><p className="text-xs uppercase tracking-[0.14em] text-slate-400">Discovery · {dataset.snapshotDate}</p><h1 className="mt-1 text-2xl font-semibold">{title}</h1></section>}
     <FilterBar options={discoveryFilterOptions} filters={filters} hiddenFields={["systemCriticality"]} enableLoadingOverlay className="panel no-print flex shrink-0 flex-wrap gap-3 p-3" />
     <div id="discovery-coverage-summary-slideout-scope" className="relative flex min-h-0 flex-1 flex-col gap-3">
-      {view !== "endpoints" && <section className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Coverage Snapshot">
+      {view !== "endpoints" && <section className={view === "tools" ? "coverage-snapshot grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-4" : "grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-4"} aria-label="Coverage Snapshot">
         {[{ label: "Total Assets In Scope", value: coverageRows.length }, { label: "Coverage Compliant Assets", value: compliantCount }, { label: "Assets With Coverage Gaps", value: coverageRows.length - compliantCount }, { label: "Overall Tool Coverage", value: `${overallToolCoveragePercent}%` }].map((card) => <div className="panel p-4" key={card.label}><p className="text-[11px] uppercase tracking-wider text-slate-400">{card.label}</p><p className="mt-2 text-2xl font-semibold text-sky-100">{card.value}</p></div>)}</section>}
-      {view === "tools" ? <DiscoveryCoverageByToolSection toolStats={toolStats} slideoutScopeId="discovery-coverage-summary-slideout-scope" className="min-h-0 flex-1" />
+      {view === "tools" ? <DiscoveryCoverageByToolSection
+        key={`${view}:${JSON.stringify(discoveryDataSearchParams)}`} variant="explorer"
+        toolStats={toolStats} slideoutScopeId="discovery-coverage-summary-slideout-scope" className="min-h-0 flex-1" />
         : view === "overview" ? <section className="panel min-h-0 flex-1 overflow-auto p-4"><h2 className="mb-4 text-sm font-semibold">Discovery tools in the selected scope</h2><div className="grid gap-4 md:grid-cols-2">{toolStats.map((tool) => <div className="panel-alt p-4" key={tool.id}><div className="flex justify-between gap-3"><span>{tool.label}</span><span className="text-cyan-200">{tool.coveragePercent}%</span></div><progress aria-label={`${tool.label} coverage`} value={tool.coveragePercent} max={100} className="my-3 h-2 w-full accent-cyan-300" /><p className="text-xs text-slate-400">{tool.covered} covered · {tool.missing} missing · {tool.applicable} applicable</p></div>)}</div>{!toolStats.length && <p>No discovery tools are configured.</p>}</section>
         : <DiscoveryEndpoints key={`${view}:${filters.managedNetwork ?? ""}:${filters.ictSystem ?? ""}:${dataset.snapshotDate}`} rows={endpointRows} compliance={view === "compliance"} />}
     </div>

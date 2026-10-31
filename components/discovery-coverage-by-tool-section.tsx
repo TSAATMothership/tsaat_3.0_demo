@@ -8,6 +8,10 @@ import { CoverageByToolRadar } from "@/components/coverage-by-tool-radar";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { LoadingOverlay, nextLoadingProgressValue } from "@/components/loading-overlay";
 import { DiscoveryCoverageValue } from "@/lib/discovery-coverage";
+import { CoverageToolExplorer } from "@/components/coverage-tool-explorer";
+import { type CoverageToolStat } from "@/lib/coverage-tool-explorer";
+import { FilterHeader } from "@/components/inventory-explorer-controls";
+import { TOOL_ASSET_COLUMNS, type ToolAssetColumn, type ToolAssetFilters, type ToolAssetFacets } from "@/lib/coverage-tool-assets";
 
 const PANEL_TWEEN_MS = 260;
 const TOOL_ROWS_PAGE_SIZE = 200;
@@ -19,15 +23,6 @@ function csvCell(value: string | number | boolean): string {
     return text;
   }
   return `"${text.replace(/"/g, "\"\"")}"`;
-}
-
-interface CoverageToolStat {
-  id: string;
-  label: string;
-  covered: number;
-  missing: number;
-  applicable: number;
-  coveragePercent: number;
 }
 
 interface CoverageByToolAssetRow {
@@ -47,6 +42,7 @@ interface ToolAssetResponse {
   scopeTotal: number;
   selectedToolTotal: number;
   assetTypeOptions: string[];
+  columnFacets?: ToolAssetFacets;
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -89,11 +85,13 @@ function responseErrorMessage(status: number): string {
 export function DiscoveryCoverageByToolSection({
   toolStats,
   slideoutScopeId,
-  className
+  className,
+  variant = "classic"
 }: {
   toolStats: CoverageToolStat[];
   slideoutScopeId?: string;
   className?: string;
+  variant?: "classic" | "explorer";
 }) {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
@@ -114,11 +112,24 @@ export function DiscoveryCoverageByToolSection({
     totalItems: 0
   });
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [toolRowsPageSize, setToolRowsPageSize] = useState(variant === "explorer" ? 50 : TOOL_ROWS_PAGE_SIZE);
   const [panelProgress, setPanelProgress] = useState(0);
   const [pendingToolLabel, setPendingToolLabel] = useState<string | null>(null);
   const [selectedToolSearchTerm, setSelectedToolSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedToolAssetType, setSelectedToolAssetType] = useState("");
+  const [columnFilters, setColumnFilters] = useState<ToolAssetFilters>({});
+  const [columnFacets, setColumnFacets] = useState<ToolAssetFacets>({});
+  const [openColumn, setOpenColumn] = useState<ToolAssetColumn | null>(null);
+  const activeColumns = TOOL_ASSET_COLUMNS.filter(({ key }) => columnFilters[key]?.length);
+  const changeColumn = (key: ToolAssetColumn, values: string[]) => {
+    setColumnFilters((current) => ({ ...current, [key]: values }));
+    setSelectedToolPage(1);
+  };
+  const clearAssetFilters = () => {
+    setColumnFilters({}); setSelectedToolSearchTerm(""); setDebouncedSearchTerm(""); setSelectedToolAssetType(""); setSelectedToolPage(1);
+  };
   const [slideoutScopeElement, setSlideoutScopeElement] = useState<HTMLElement | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closePanelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -199,7 +210,7 @@ export function DiscoveryCoverageByToolSection({
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !event.defaultPrevented && !openColumn) {
         setIsPanelOpen(false);
         if (closePanelTimeoutRef.current) {
           clearTimeout(closePanelTimeoutRef.current);
@@ -215,7 +226,7 @@ export function DiscoveryCoverageByToolSection({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [selectedToolId]);
+  }, [selectedToolId, openColumn]);
 
   const buildQueryParams = useCallback(
     (toolId: string, page: number, pageSize: number, search: string, toolAssetType: string) => {
@@ -223,6 +234,12 @@ export function DiscoveryCoverageByToolSection({
       params.set("toolId", toolId);
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
+      for (const { key } of TOOL_ASSET_COLUMNS) {
+        params.delete(`toolColumn.${key}`);
+        if (variant === "explorer") for (const value of columnFilters[key] ?? []) params.append(`toolColumn.${key}`, value);
+      }
+      params.delete("toolFacets");
+      if (variant === "explorer" && pageSize !== CSV_EXPORT_PAGE_SIZE) params.set("toolFacets", "1");
       if (search) {
         params.set("toolSearch", search);
       } else {
@@ -235,7 +252,7 @@ export function DiscoveryCoverageByToolSection({
       }
       return params;
     },
-    [searchParams]
+    [searchParams, columnFilters, variant]
   );
 
   useEffect(() => {
@@ -249,7 +266,7 @@ export function DiscoveryCoverageByToolSection({
     const params = buildQueryParams(
       selectedToolId,
       selectedToolPage,
-      TOOL_ROWS_PAGE_SIZE,
+      toolRowsPageSize,
       debouncedSearchTerm,
       selectedToolAssetType
     );
@@ -275,6 +292,7 @@ export function DiscoveryCoverageByToolSection({
         setScopeTotal(payload.scopeTotal);
         setSelectedToolTotal(payload.selectedToolTotal);
         setSelectedToolAssetTypeOptions(payload.assetTypeOptions);
+        setColumnFacets(payload.columnFacets ?? {});
         setSelectedToolPagination(payload.pagination);
       })
       .catch((error: unknown) => {
@@ -307,7 +325,7 @@ export function DiscoveryCoverageByToolSection({
         toolRowsAbortRef.current = null;
       }
     };
-  }, [buildQueryParams, debouncedSearchTerm, selectedToolAssetType, selectedToolId, selectedToolPage]);
+  }, [buildQueryParams, debouncedSearchTerm, selectedToolAssetType, selectedToolId, selectedToolPage, toolRowsPageSize]);
 
   useEffect(() => {
     if (!isPanelLoading || !selectedToolId || isToolRowsLoading) {
@@ -352,6 +370,9 @@ export function DiscoveryCoverageByToolSection({
     }
 
     setPendingToolLabel(toolLabel);
+    setColumnFilters({});
+    setColumnFacets({});
+    setOpenColumn(null);
     setSelectedToolSearchTerm("");
     setDebouncedSearchTerm("");
     setSelectedToolAssetType("");
@@ -367,6 +388,7 @@ export function DiscoveryCoverageByToolSection({
       totalItems: 0
     });
     setToolRowsError(null);
+    setCsvError(null);
     setIsPanelLoading(true);
     setPanelProgress(0);
     setIsPanelOpen(false);
@@ -378,6 +400,7 @@ export function DiscoveryCoverageByToolSection({
   };
 
   const closePanel = () => {
+    setOpenColumn(null);
     if (toolRowsAbortRef.current) {
       toolRowsAbortRef.current.abort();
       toolRowsAbortRef.current = null;
@@ -402,6 +425,7 @@ export function DiscoveryCoverageByToolSection({
     }
 
     setIsExportingCsv(true);
+    setCsvError(null);
     try {
       const allRows: CoverageByToolAssetRow[] = [];
       const firstPageParams = buildQueryParams(
@@ -480,13 +504,15 @@ export function DiscoveryCoverageByToolSection({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
+    } catch (error) {
+      setCsvError(error instanceof Error ? error.message : "Unable to export tool asset details.");
     } finally {
       setIsExportingCsv(false);
     }
   }, [buildQueryParams, debouncedSearchTerm, isExportingCsv, selectedTool, selectedToolAssetType]);
 
   const panel = selectedTool ? (
-    <div className="absolute inset-0 z-20 overflow-hidden">
+    <div className={clsx("absolute inset-0 z-20 overflow-hidden", variant === "explorer" && "coverage-explorer-drawer")}>
       <div
         className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
           isPanelOpen ? "opacity-100" : "opacity-0"
@@ -520,7 +546,17 @@ export function DiscoveryCoverageByToolSection({
             </p>
           </div>
 
-          <div className="mt-4 panel-alt border-sky-300/25 p-3">
+          {variant === "explorer" ? <div className="endpoint-toolbar coverage-assets-toolbar">
+            <div><h2>Assets with coverage gaps <span>{selectedToolPagination.totalItems.toLocaleString("en-AU")}</span></h2>
+              <p role="status">{selectedToolPagination.totalItems.toLocaleString("en-AU")} matching records · {selectedToolTotal.toLocaleString("en-AU")} missing coverage · {scopeTotal.toLocaleString("en-AU")} assets in scope</p></div>
+            <div className="endpoint-toolbar-actions"><input type="search" maxLength={500} aria-label="Search all tool asset fields"
+              placeholder="Search all asset fields..." value={selectedToolSearchTerm}
+              onChange={(event) => { setSelectedToolSearchTerm(event.target.value); setSelectedToolPage(1); }} />
+              <button type="button" className="endpoint-export" onClick={downloadSelectedToolCsv}
+                disabled={!selectedToolPagination.totalItems || isExportingCsv || isToolRowsLoading || selectedToolSearchTerm.trim() !== debouncedSearchTerm}>
+                {isExportingCsv ? "Exporting..." : "Export CSV"}</button>
+            </div>
+          </div> : <div className="mt-4 panel-alt border-sky-300/25 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-slate-200">
                 Non-compliant assets for {selectedTool.label}:{" "}
@@ -537,9 +573,15 @@ export function DiscoveryCoverageByToolSection({
                 {isExportingCsv ? "Exporting..." : "Export to CSV"}
               </button>
             </div>
-          </div>
+          </div>}
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {csvError && <p role="alert" className="endpoint-export-error">{csvError}</p>}
+          {variant === "explorer" ? (selectedToolSearchTerm || activeColumns.length > 0) && <div className="endpoint-active-filters" aria-label="Active tool asset filters">
+            <span>Filtered by</span>{selectedToolSearchTerm && <button type="button" onClick={() => { setSelectedToolSearchTerm(""); setDebouncedSearchTerm(""); setSelectedToolPage(1); }}>Search: {selectedToolSearchTerm} ×</button>}
+            {activeColumns.map(({ key, label }) => <button type="button" key={key} aria-label={`Clear ${label} filter`} onClick={() => changeColumn(key, [])}>
+              {key === "toolValue" ? selectedTool.label : label}: {columnFilters[key]!.length === 1 ? columnFilters[key]![0] : `${columnFilters[key]!.length} selected`} ×</button>)}
+            <button type="button" className="endpoint-clear-all" onClick={clearAssetFilters}>Clear all filters</button>
+          </div> : <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <div>
               <label htmlFor="coverage-by-tool-asset-type-filter" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
                 Asset Type
@@ -571,30 +613,35 @@ export function DiscoveryCoverageByToolSection({
                 className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
               />
             </div>
-          </div>
+          </div>}
 
-          <div className="mt-4 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
-            <table className="min-w-full text-sm">
+          <div className={variant === "explorer" ? "endpoint-table-scroll coverage-assets-scroll" : "mt-4 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15"} aria-busy={isToolRowsLoading}>
+            <table className={variant === "explorer" ? "endpoint-table coverage-assets-table" : "min-w-full text-sm"}>
               <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
                 <tr>
-                  <th className="px-3 py-2">Asset</th>
+                  {variant === "explorer" ? TOOL_ASSET_COLUMNS.map((column) => <th scope="col" key={column.key}>
+                    <FilterHeader column={{ ...column, label: column.key === "toolValue" ? selectedTool.label : column.label }}
+                      selected={columnFilters[column.key] ?? []} options={columnFacets[column.key] ?? []} open={openColumn === column.key}
+                      onOpen={(open) => setOpenColumn(open ? column.key : null)} onChange={(values) => changeColumn(column.key, values)} />
+                  </th>) : <><th className="px-3 py-2">Asset</th>
                   <th className="px-3 py-2">IP Address</th>
                   <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Network</th>
                   <th className="px-3 py-2">ICT System</th>
                   <th className="px-3 py-2">Environment</th>
                   <th className="px-3 py-2">{selectedTool.label}</th>
-                  <th className="px-3 py-2">Coverage Compliance</th>
+                  <th className="px-3 py-2">Coverage Compliance</th></>}
                 </tr>
               </thead>
               <tbody>
-                {selectedToolRows.map((row) => (
+                {!isToolRowsLoading && !toolRowsError && selectedToolRows.map((row) => (
                   <tr key={`${selectedTool.id}:${row.assetId}`} className="border-t border-sky-400/10">
-                    <td className="px-3 py-2 text-slate-100">
+                    <td className={variant === "explorer" ? "endpoint-name" : "px-3 py-2 text-slate-100"}>
                       <CmdbDeviceName assetId={row.assetId} name={row.hostname} />
+                      {variant === "explorer" && <small>{row.assetId}</small>}
                     </td>
-                    <td className="px-3 py-2 text-slate-300">{row.ipAddress}</td>
-                    <td className="px-3 py-2 text-slate-300">{row.assetType}</td>
+                    <td className={variant === "explorer" ? "endpoint-address" : "px-3 py-2 text-slate-300"}>{row.ipAddress}</td>
+                    <td className="px-3 py-2 text-slate-300">{variant === "explorer" ? <span className="endpoint-type-badge">{row.assetType}</span> : row.assetType}</td>
                     <td className="px-3 py-2 text-slate-300">{row.network}</td>
                     <td className="px-3 py-2 text-slate-300">{row.ictSystem}</td>
                     <td className="px-3 py-2 text-slate-300">{row.environment}</td>
@@ -617,7 +664,7 @@ export function DiscoveryCoverageByToolSection({
                 {!isToolRowsLoading && !toolRowsError && selectedToolRows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                      {debouncedSearchTerm || selectedToolAssetType
+                      {debouncedSearchTerm || selectedToolAssetType || activeColumns.length
                         ? `No assets match this search for ${selectedTool.label}.`
                         : `No non-compliant assets for ${selectedTool.label} in the current scope.`}
                     </td>
@@ -641,10 +688,10 @@ export function DiscoveryCoverageByToolSection({
             </table>
           </div>
 
-          {selectedToolPagination.totalPages > 1 ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300/85">
+          {selectedToolPagination.totalPages > 1 || variant === "explorer" ? (
+            <div className={variant === "explorer" ? "endpoint-pagination" : "mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300/85"}>
               <p>
-                Showing {(selectedToolPagination.currentPage - 1) * selectedToolPagination.pageSize + 1}-
+                Showing {selectedToolPagination.totalItems ? (selectedToolPagination.currentPage - 1) * selectedToolPagination.pageSize + 1 : 0}-
                 {Math.min(
                   selectedToolPagination.currentPage * selectedToolPagination.pageSize,
                   selectedToolPagination.totalItems
@@ -652,6 +699,10 @@ export function DiscoveryCoverageByToolSection({
                 of {selectedToolPagination.totalItems}
               </p>
               <div className="flex items-center gap-2">
+                {variant === "explorer" && <label>Rows per page <select aria-label="Assets per page" value={toolRowsPageSize}
+                  disabled={isToolRowsLoading} onChange={(event) => { setToolRowsPageSize(Number(event.target.value)); setSelectedToolPage(1); }}>
+                  {[25, 50, 100, 250].map((size) => <option key={size}>{size}</option>)}
+                </select></label>}
                 <button
                   type="button"
                   disabled={selectedToolPagination.currentPage <= 1 || isToolRowsLoading}
@@ -678,14 +729,15 @@ export function DiscoveryCoverageByToolSection({
               </div>
             </div>
           ) : null}
+          {variant === "explorer" && <p className="endpoint-export-note">CSV exports include every matching asset across all pages and respect the active search and column filters.</p>}
         </div>
       </aside>
     </div>
   ) : null;
 
   return (
-    <section className={clsx("panel relative flex h-full min-h-0 flex-col overflow-hidden", className)}>
-      <h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
+    <section className={clsx("relative flex h-full min-h-0 flex-col overflow-hidden", variant === "classic" && "panel", className)}>
+      {variant === "explorer" ? <CoverageToolExplorer tools={toolStats} onOpenTool={openPanel} /> : <><h2 className="border-b border-sky-400/15 px-4 py-3 text-sm uppercase tracking-[0.14em] text-slate-200/85">
         Coverage By Tool
       </h2>
       <div className="grid min-h-0 flex-1 gap-4 p-4 xl:grid-cols-2">
@@ -727,7 +779,7 @@ export function DiscoveryCoverageByToolSection({
             coveragePercent: tool.coveragePercent
           }))}
         />
-      </div>
+      </div></>}
 
       {panel ? (slideoutScopeElement ? createPortal(panel, slideoutScopeElement) : panel) : null}
 

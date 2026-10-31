@@ -135,6 +135,57 @@
 @media (max-width: 480px) { .endpoint-charts { grid-template-columns: 1fr; }.endpoint-total { display: none; } }
 @media (prefers-reduced-motion: reduce) { .endpoint-chart-track > span { transition: none; } }
 
+.coverage-explorer { gap: 1rem; min-height: 45rem; color: #d9e8f2; }
+.coverage-snapshot .panel { border: 1px solid #294454; border-radius: .65rem; background: linear-gradient(140deg, #102536, #0b1b29); box-shadow: none; padding: .9rem 1rem; }
+.coverage-snapshot .panel:nth-child(2) > p:last-child { color: #8ee1c1; }
+.coverage-snapshot .panel:nth-child(3) > p:last-child { color: #f7bd8a; }
+.coverage-tool-layout { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); gap: 1rem; flex: 1; min-height: 0; min-width: 0; }
+.coverage-tool-results { min-height: 20rem; min-width: 0; }
+.coverage-tool-results .endpoint-pagination { flex-wrap: wrap; }
+.coverage-tool-results .endpoint-pagination > div { flex-wrap: wrap; }
+.coverage-tool-results .endpoint-toolbar { flex-wrap: wrap; }
+.coverage-table-options { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .65rem; padding: 0 1rem .8rem; color: #8faaba; font-size: .7rem; }
+.coverage-table-options > div { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.coverage-table-options select, .coverage-table-options button { border: 1px solid #355468; border-radius: .3rem; background: #132c3e; padding: .35rem .5rem; color: #c9e0ed; }
+.coverage-table-options select { margin-left: .4rem; }
+.endpoint-table.coverage-tools-table { min-width: 850px; }
+.coverage-number { font-variant-numeric: tabular-nums; }
+.coverage-tool-link { color: #b1e7f3; text-align: left; }
+.coverage-tool-link:hover, .coverage-gap-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.coverage-gap-link { color: #f7bd8a; font-weight: 600; }
+.coverage-gap-link > span { margin-left: .3rem; opacity: .7; }
+.coverage-status { display: inline-block; white-space: nowrap; border: 1px solid; border-radius: 1rem; padding: .25rem .6rem; font-size: .65rem; }
+.coverage-status.has-gaps { color: #f7bd8a; background: #422d22; border-color: #795238; }
+.coverage-status.is-covered { color: #8ee1c1; background: #13392f; border-color: #2e6655; }
+.coverage-status.is-neutral { color: #a0b5c3; background: #20313d; border-color: #405460; }
+.coverage-percent { display: flex; flex-direction: column; gap: .4rem; min-width: 7rem; color: #b1edf5; font-variant-numeric: tabular-nums; }
+.coverage-percent progress { display: block; width: 100%; height: .3rem; border: none; border-radius: 1rem; overflow: hidden; background: #284050; accent-color: #5ccde0; }
+.coverage-percent progress::-webkit-progress-bar { background: #284050; }
+.coverage-percent progress::-webkit-progress-value { background: #5ccde0; }
+.coverage-percent progress::-moz-progress-bar { background: #5ccde0; }
+.coverage-explorer-radar { min-width: 0; min-height: 0; overflow: auto; border: 1px solid #294454; border-radius: .65rem; background: #091a28; padding: .75rem; }
+.coverage-explorer-radar > .panel-alt { border: 0; background: transparent; box-shadow: none; padding: 0; }
+.coverage-radar-plot { height: clamp(18rem, 28vw, 32rem); }
+.coverage-explorer-radar > p { text-align: center; color: #8faaba; font-size: .65rem; }
+.coverage-explorer-drawer aside { background: #091a28; border: 1px solid #355468; border-radius: .65rem; }
+.coverage-explorer-drawer .panel-alt { background: #102536; border: 1px solid #294454; border-radius: .5rem; }
+.endpoint-table.coverage-assets-table { min-width: 1100px; }
+.coverage-assets-table th { padding: 0; text-transform: none; letter-spacing: normal; font-size: .72rem; }
+.coverage-assets-toolbar { flex-wrap: wrap; margin-top: 1rem; padding-left: 0; padding-right: 0; }
+.coverage-assets-scroll { border: 1px solid #294454; border-radius: .5rem .5rem 0 0; background: #091a28; }
+.coverage-explorer-drawer .endpoint-active-filters { flex-shrink: 0; }
+.coverage-explorer-drawer .endpoint-table-scroll { max-height: none; }
+.coverage-explorer-drawer .endpoint-pagination { padding-left: 0; padding-right: 0; }
+.coverage-explorer :focus-visible, .coverage-explorer-drawer :focus-visible { outline: 2px solid #67e8f9; outline-offset: 3px; }
+@media (max-width: 1250px) {
+  .coverage-explorer { height: auto; overflow: visible; }
+  .coverage-tool-results { flex: 1; }
+}
+@media (max-width: 900px) {
+  .coverage-tool-layout { grid-template-columns: minmax(0, 1fr); }
+  .coverage-radar-plot { height: 22rem; }
+}
+
 :root {
   --bg-0: #040b14;
   --bg-1: #0b1a2b;

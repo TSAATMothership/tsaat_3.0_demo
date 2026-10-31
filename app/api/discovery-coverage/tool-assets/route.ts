@@ -7,6 +7,7 @@ import {
 } from "@/lib/discovery-coverage";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { Asset } from "@/lib/types";
+import { filterToolAssets, readToolAssetFilters, toolAssetFacets, TOOL_ASSET_COLUMNS } from "@/lib/coverage-tool-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -70,16 +71,6 @@ function toPositiveInt(rawValue: string | null, fallback: number, max: number): 
   return Math.min(Math.floor(parsed), max);
 }
 
-function matchesSearch(row: ToolAssetRow, searchTerm: string): boolean {
-  if (!searchTerm) {
-    return true;
-  }
-  const haystack = [row.hostname, row.assetId, row.ipAddress, row.assetType, row.network, row.ictSystem, row.environment]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(searchTerm);
-}
-
 export async function GET(request: NextRequest) {
   const toolId = request.nextUrl.searchParams.get("toolId")?.trim();
   if (!toolId) {
@@ -88,12 +79,13 @@ export async function GET(request: NextRequest) {
 
   const searchTerm = request.nextUrl.searchParams.get("toolSearch")?.trim().toLowerCase() ?? "";
   const assetType = request.nextUrl.searchParams.get("toolAssetType")?.trim() ?? "";
+  const columnFilters = readToolAssetFilters(request.nextUrl.searchParams);
   const page = toPositiveInt(request.nextUrl.searchParams.get("page"), 1, 100000);
   const pageSize = toPositiveInt(request.nextUrl.searchParams.get("pageSize"), 200, 5000);
 
   const requestParams = toSearchParamsRecord(
     request.nextUrl.searchParams,
-    new Set(["toolId", "toolSearch", "toolAssetType", "page", "pageSize"])
+    new Set(["toolId", "toolSearch", "toolAssetType", "toolFacets", "page", "pageSize", ...TOOL_ASSET_COLUMNS.map(({ key }) => `toolColumn.${key}`)])
   );
   const { dataset, analytics, discoveryToolsSettings } = await getCoreAppData(
     sanitizeDiscoverySearchParams(requestParams),
@@ -134,13 +126,8 @@ export async function GET(request: NextRequest) {
   }
 
   const assetTypeOptions = Array.from(new Set(toolRows.map((row) => row.assetType))).sort((a, b) => a.localeCompare(b));
-  const filteredRows = toolRows
-    .filter((row) => {
-      if (assetType && row.assetType !== assetType) {
-        return false;
-      }
-      return matchesSearch(row, searchTerm);
-    })
+  const typeRows = assetType ? toolRows.filter((row) => row.assetType === assetType) : toolRows;
+  const filteredRows = filterToolAssets(typeRows, searchTerm, columnFilters)
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
 
   const totalItems = filteredRows.length;
@@ -154,6 +141,7 @@ export async function GET(request: NextRequest) {
     scopeTotal: scopedAssets.length,
     selectedToolTotal: toolRows.length,
     assetTypeOptions,
+    ...(request.nextUrl.searchParams.get("toolFacets") === "1" ? { columnFacets: toolAssetFacets(typeRows, searchTerm, columnFilters) } : {}),
     pagination: {
       currentPage,
       totalPages,
