@@ -48,6 +48,14 @@ Important hidden behaviour:
 - **System behaviour:** the page builds in-scope asset rows and consumes SQL-produced compliant, non-compliant, and tool coverage counts. The coverage-by-tool panel expands into the remaining tab height.
 - **Outcome:** the summary tab acts as the operational view of current discovery coverage. Discovery Tool Coverage also shows totals for all seven CI types, with counts used in calculations and counts in the filtered scope. A CI mapped to multiple tools is counted once in this summary; each tool has an expandable breakdown of its own applicable CI total, also included in CSV exports.
 
+### Feature: Discovery Compliance Explorer
+- **Location:** Discovery sidebar, immediately below Discovery Tool Coverage. Existing `discoveryView=compliance` links remain valid.
+- **What it does:** presents CI discovery compliance with the same table, header filters, toolbar, and pagination controls as End Point Explorer.
+- **User perspective:** search all fields, open searchable multi-select filters on each column, clear individual filters or all filters, select 25/50/100/250 rows per page, open CMDB details from CI names, and export all matching rows to Excel.
+- **Summary tiles:** Total Assets In Scope clears the Compliance filter; Coverage Compliant Assets and Assets With Coverage Gaps toggle the matching status filter. Tile selection and the Compliance column stay synchronized. Tile counts respect search and other columns; Overall Tool Coverage recalculates across matching rows. Existing search, other column selections, and page scope are preserved.
+- **Columns:** Name, CI Type, IP Address, Last Discovered Date, Discovered By, Managed Network, ICT System, Environment, Compliance, Missing Tools. Discovery dates and sources use the recorded CMDB fields, with missing values shown as `Not recorded`. Dates display/filter by UTC date, while Excel preserves the recorded timestamp. Missing-tool filters match individual tools even when a CI is missing several tools.
+- **System behaviour:** facets respect search and other column selections; export preserves the page scope/date and table filters, uses current saved mappings, and includes an export timestamp in UTC.
+
 ### Feature: Coverage-by-Tool Drillthrough
 - **What it does:** shows tool-level coverage statistics, a radar chart, and a slideout of asset rows for one selected tool.
 - **User perspective:** the user can click a tool, inspect assets missing that tool, filter within the slideout, and export CSV.

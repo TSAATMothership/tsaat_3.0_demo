@@ -46,6 +46,6 @@ describe("Discovery network status table layout", () => {
     expect(pageSource).not.toContain("NetworkDiscoverySummaryTableClient");
     expect(pageSource).not.toContain("DiscoveryToolsSettingsPanel");
     expect(pageSource).not.toContain("DiscoveryCoverageByNetworkSection");
-    expect(pageSource).toContain("DiscoveryEndpoints");
+    expect(pageSource).toContain("DiscoveryComplianceExplorer");
   });
 });

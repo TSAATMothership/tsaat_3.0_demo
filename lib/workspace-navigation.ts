@@ -54,8 +54,8 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   ] },
   { label: "Discovery", items: [
     { label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
-    { label: "Discovery Compliance", href: "/discovery-coverage?discoveryView=compliance" },
     { label: "Discovery Tool Coverage", href: "/discovery-coverage" },
+    { label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
     { label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
     { label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
     { label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" },

@@ -135,8 +135,17 @@
 @media (max-width: 480px) { .endpoint-charts { grid-template-columns: 1fr; }.endpoint-total { display: none; } }
 @media (prefers-reduced-motion: reduce) { .endpoint-chart-track > span { transition: none; } }
 
+.discovery-compliance-results { min-height: 20rem; flex: 1; }
+.discovery-compliance-results .endpoint-toolbar, .discovery-compliance-results .endpoint-pagination, .discovery-compliance-results .endpoint-pagination > div { flex-wrap: wrap; }
+.endpoint-table.discovery-compliance-table { min-width: 1600px; }
+@media (max-width: 1250px) { .discovery-compliance-page { overflow: visible; } }
+
 .coverage-explorer { gap: 1rem; min-height: 54rem; color: #d9e8f2; }
 .coverage-snapshot .panel { border: 1px solid #294454; border-radius: .65rem; background: linear-gradient(140deg, #102536, #0b1b29); box-shadow: none; padding: .9rem 1rem; }
+.coverage-snapshot button.panel { cursor: pointer; transition: border-color 150ms ease, background 150ms ease; }
+.coverage-snapshot button.panel:hover { border-color: #528fa3; }
+.coverage-snapshot button.panel[aria-pressed="true"] { border-color: #67d9e9; background: #123344; box-shadow: inset 0 0 0 1px #67d9e9; }
+.coverage-snapshot button.panel:focus-visible { outline: 2px solid #67e8f9; outline-offset: 3px; }
 .coverage-snapshot .panel:nth-child(2) > p:last-child { color: #8ee1c1; }
 .coverage-snapshot .panel:nth-child(3) > p:last-child { color: #f7bd8a; }
 .coverage-ci-totals { flex: none; border: 1px solid #294454; border-radius: .65rem; background: #0b1b29; padding: .8rem 1rem; }
