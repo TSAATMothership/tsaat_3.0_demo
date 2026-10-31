@@ -31,7 +31,7 @@ Major dependencies include the scoped inventory loaders, `buildScopedDiscoveryTo
 - **Discovery age:** all sources use the actual selected snapshot; more than 30 days combines the 31-90 and over-90-day buckets. Missing/invalid dates and future dates are separate. Age prompts do not change coverage compliance.
 - **Drill-through:** finding links retain network/system selections and pin the actual snapshot date, with validated `discoveryFilters` to initialise the destination explorer's existing columns/age filters. Active filters can be cleared, refined and exported normally. Malformed filter payloads open the unfiltered explorer.
 - **Scope:** coverage and endpoint/software records follow the selected networks and systems; Shadow IT keeps its explorer's existing rule that ARP nodes may be associated with a selected system through their owner. Counts from different checks can overlap and are not summed into a single finding total. Inventory queries are loaded only for Overview or their own explorer.
-- **Layout:** responsive metric tiles, coverage table, action queue and three explorer summaries; all links are keyboard accessible and long content remains scrollable.
+- **Layout:** compact horizontal metric tiles, combined title/scope header, dense coverage and action rows, and three explorer summaries. Container-based breakpoints keep coverage and actions side by side where the content width permits. Calculation explanations are available in an expandable note. All findings and drill-through links remain visible, keyboard accessible and scrollable.
 
 ### Feature: Shared Discovery Filter Scope
 - **What it does:** filters the page by network, system, security domain, environment, asset type, mission capability, business service, and date.
