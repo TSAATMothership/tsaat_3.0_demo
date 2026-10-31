@@ -152,11 +152,11 @@ Dependencies\runtime\nodejs\win-x64\npm.cmd run dev
 
 Open `http://localhost:3000`. First access redirects to `/login`; use the credentials that created `logindetails`. Direct page URLs and protected APIs require a valid signed `tsaat_session` cookie; unauthenticated page requests redirect to `/login`, while unauthenticated API requests return `401`.
 
-After sign-in, the workspace starts empty with the sidebar visible and its sections collapsed. Select one or more managed networks or ICT systems in the header to load a view. Selecting a scope clears the other type; clearing the active selection returns the workspace to empty. Sidebar navigation preserves the selection and data date. Use the sidebar arrow to hide or show it; application settings remain under the header's Menu.
+After sign-in, the workspace starts empty with the sidebar visible and its sections collapsed. Select one or more managed networks or ICT systems in the header, then choose a sidebar view to load data. Once a sidebar view is open, header scope changes remain pending: the dropdown shows an Update text action, and the workspace and selected sidebar item remain unchanged until Update is selected. Update applies the pending selection to the same view using the current date. Selecting a scope clears the other type; applying an empty scope empties the view without deselecting its sidebar item. Navigating away discards unapplied edits. Sidebar navigation preserves the applied selection and data date. Use the sidebar arrow to hide or show it; application settings remain under the header's Menu.
 
-Settings opens in a modal popup over the current workspace, with local tabs and Close/Escape controls. A network selection hides the three ICT-system-specific sidebar views; an ICT system selection hides the three network-specific views. Switching scope from a now-hidden view returns to Cyber COP. Sidebar navigation displays a translucent, full-page loading modal that blocks mouse and keyboard interaction until the destination is ready. Cancel (or Escape) abandons the pending navigation and reloads the previous URL, preserving its scope and date.
+Settings opens in a modal popup over the current workspace, with local tabs and Close/Escape controls. An applied network selection hides the ICT-system-specific sidebar views; an applied ICT system selection hides the network-specific views. The current sidebar item stays visible and selected when Update changes its scope. Sidebar navigation and filter updates display a translucent, full-page loading modal that blocks mouse and keyboard interaction until the destination is ready. Cancel (or Escape) abandons the pending navigation and reloads the previous URL, preserving its scope and date.
 
-Cyber COP heatmaps and analysers now open as individual sidebar views. Discovery provides Overview, Discovery Compliance, Discovery Tool Coverage, and End Point Explorer; its obsolete network coverage, tool settings, and network status tabs are removed. Measures Summary, KPIs, SPIs, and SPI Risk Matrix are separate sidebar destinations. The Cyber COP Action tab is removed.
+Cyber COP heatmaps and analysers now open as individual sidebar views. Discovery provides Overview, Discovery Compliance, Discovery Tool Coverage, and End Point Explorer, followed by workspace placeholders for Installed Software Explorer, Shadow IT Explorer, and Target State Analyser. Its obsolete network coverage, tool settings, and network status tabs are removed. Measures Summary, KPIs, SPIs, and SPI Risk Matrix are separate sidebar destinations. The Cyber COP Action tab is removed.
 
 After sign-in, the app monitors session validity while pages are open and returns to `/login` if the session expires, is cleared, or is invalidated by password rotation/logout in another tab. Rotate the app password from `/settings` -> `Password Settings`.
 
@@ -285,6 +285,20 @@ npm test
 
 ## SPI and Roll-up Logic (Short)
 
+SQL loading performance changes verified locally on 31 October 2026:
+
+- Each SQL call resolves connection settings from one file read. Concurrent calls reuse one DPAPI decryption of unchanged encrypted contents; config edits, saves, deletions and decryption failures invalidate that reuse. The file remains encrypted on disk.
+- Header network/system options read only names and IDs for the selected snapshot, with the same date selection and unassigned-network rules as the workspace. They no longer load assets, SPI evaluations or findings. Option caches expire after 60 seconds and are cleared with the other data caches.
+- Networks and ICT Systems pages load the current snapshot without fetching 12 unused historical snapshots. Their displayed trend series continue to use the current dataset's dated findings.
+
+| Data-loading operation | Before | After | SQL calls before / after |
+| --- | ---: | ---: | ---: |
+| Header options | 13.094 s | 0.400 s | 28 / 2 |
+| Core summary data | 17.930 s | 8.497 s | 41 / 41 |
+| Core full data | 17.956 s | 5.062 s | 41 / 41 |
+
+These are single local measurements with application data caches cleared, using `dataDate=2026-10-31` and `network=net-1` for core data. SQL Server buffers and connection-setting reuse were warm; compilation, browser rendering and network transfer are excluded. Before/after SHA-256 hashes matched for dropdown options and both core dataset/analytics results. Warm repeat data loads made no SQL calls. Timings vary with machine load and database size.
+
 - SPI catalogue metadata, applicability, enabled/report flags, rule parameters, tasking metadata, and severity options are loaded from SQL Server seed tables.
 - Current seed data preserves SPIs 1-10 and evaluates them per applicable asset.
 - SPI score execution is SQL-driven through database calculation rows evaluated by `tsaat.usp_evaluate_spi_snapshot`.
@@ -301,6 +315,44 @@ npm test
   3. Else -> `Compliant`
 
 ## Export Endpoints
+
+### End Point Explorer
+
+Select an applied Managed Network or ICT System scope and open **Discovery → End Point Explorer**. The page reads only the selected snapshot's CMDB endpoint fields from SQL Server; it does not load SPI evaluations, findings or historical analytics. Scoped results are cached for 60 seconds and invalidated with the other data caches.
+
+The eight column headers have searchable, multi-select filters. Selections within a column are combined with OR; different columns, global search and the discovery-age chart are combined with AND. The four summary charts filter the same table, and their counts respect the other active filters. The page shows both the matching count and the total in the applied scope. Selecting a device name opens the existing CMDB slideout. Header scope changes remain staged until **Update** is selected.
+
+**Export Excel** downloads every matching record across all table pages, with an **Export Timestamp (UTC)** column on every row. Dates are native Excel dates, addresses and device names remain text, and the header row is frozen and filterable. Missing source values display as **Not recorded** in the explorer and remain blank in the workbook.
+
+Existing databases need the additive `Database Schema/migrations/020_add_endpoint_discovery_fields.sql` migration. Fresh schema creation and the JSON loader also include nullable `macAddress`, `deviceModel`, `lastDiscoveredDate` and `discoveredBy` asset fields. Supply `lastDiscoveredDate` in UTC. These fields are not synthesized from the snapshot date or discovery-compliance calculations; older source records will show missing values until their real CMDB data is imported. The migration preserves existing records.
+
+The authenticated `POST /api/discovery-coverage/endpoints/export` route uses the same scoped query and filter functions as the table.
+
+### Installed Software Explorer
+
+Open **Discovery → Installed Software Explorer** after selecting an applied network or ICT system scope. Each record is one software installation on an endpoint, identified by the endpoint ID and installation ordinal, so separate installations of the same product remain separate records. The page uses a scoped SQL join of software, endpoints and OS details, with a 60-second cache, without loading analytics or historical snapshots.
+
+All ten column headers have searchable multi-select filters. Software product, endpoint OS, discovery source and discovery age charts filter the same records. Counts show matching and total installations, plus the matching unique products and endpoints. Device-name links open the CMDB slideout. Pending header changes do not alter the workspace until **Update** is selected.
+
+The authenticated `POST /api/discovery-coverage/installed-software/export` route exports every matching installation to Excel with the ten displayed fields and **Export Timestamp (UTC)** on every row. Versions and file paths remain text. Discovery and export timestamps are native Excel dates; missing values remain blank.
+
+After migration 020, existing databases need the additive `Database Schema/migrations/021_add_software_inventory_fields.sql` migration. The fresh schema and JSON loader support optional `installedSoftware[].filePath`, `installedSoftware[].lastDiscoveredDate`, `installedSoftware[].discoveredBy`, `operatingSystem.patchLevel` and `networkOs.patchLevel`. Software discovery timestamps with offsets are normalized to UTC. Endpoint OS Name uses the CMDB OS family, with network OS used when no endpoint OS record exists. Patch level is the recorded patch identifier, never inferred from latest-patch status. Software discovery values are not copied from endpoint discovery dates or sources. Missing fields show **Not recorded** until supplied by the CMDB import.
+
+For demonstration databases, [the explorer demo-data scripts](Database%20Schema/demo/README.md) fill missing inventory attributes after a seed import while preserving populated values. The audit checks all 18 explorer columns. This enrichment is an explicit demo-only operation, separate from production migrations and imports; discovery sources and patch baselines identify synthetic data.
+
+### Shadow IT Explorer
+
+**Discovery → Shadow IT Explorer** lists only CIs with type **IP Node**, representing network addresses whose endpoint type has not been identified. All twelve headers are searchable multi-select filters. Discovery approach, discovery source, ARP-owner CI type and node discovery-age charts filter the same rows; total/matching counts and pagination are included. Export Excel includes all matching rows and a UTC export timestamp per row.
+
+The first four columns describe the detected IP Node. **IP Scan** has no owning endpoint, so all eight endpoint columns display and export **N/A**. **ARP Table** links to the endpoint whose ARP table contains the observed address, using owner details from the same snapshot. Its name opens that owner's CMDB slideout. Node and owner IP addresses and discovery dates remain separate.
+
+Network scope applies to the IP Node's network. ICT System scope includes explicitly assigned nodes and nodes observed through an ARP owner in the selected system. Scan nodes without a system association are therefore absent from system-only results. Staged header filters retain the existing **Update** behaviour.
+
+Migration `022_add_ip_node_discovery.sql` extends CI taxonomy and adds `asset.discovery_approach` and `asset.arp_owner_asset_id`, with approach/owner checks, a same-snapshot/network foreign key and a guard against unidentified ARP owners. JSON imports accept asset type `ip-node`, `discoveryApproach` (`IP Scan` or `ARP Table`) and `arpOwnerAssetId` (required only for ARP). The endpoint's own MAC, device model, OS and software remain unknown until identified. The scoped SQL query has a 60-second cache and avoids loading analytics/history.
+
+The explicit demo script `Database Schema/demo/populate-shadow-it-demo-data.sql` adds 240 distinct nodes across the eight loaded snapshots (1,920 rows): 144 scans and 96 ARP observations per snapshot. It preserves known CIs, creates no assumed system memberships, and is safe to rerun. Demo discovery dates span the four age bands. Backups and verification reports are in `.local/cmdb-demo/`.
+
+### Findings exports
 
 - JSON: `/api/findings/export?format=json`
 - CSV: `/api/findings/export?format=csv`

@@ -64,6 +64,14 @@ const DB_CONFIG_DPAPI_SCOPE_ENV_KEY = "TSAAT_DB_CONFIG_DPAPI_SCOPE";
 const DB_CONFIG_ALLOW_LEGACY_PLAINTEXT_ENV_KEY = "TSAAT_DB_CONFIG_ALLOW_LEGACY_PLAINTEXT";
 const DPAPI_HELPER_SCRIPT_RELATIVE_PATH = path.join("scripts", "invoke-dpapi.ps1");
 
+// Only the current encrypted file is cached. Read its contents on every call so
+// saves, external replacements and deletions take effect without a TTL delay.
+let decryptedConfigCache: {
+  filePath: string;
+  raw: string;
+  settings: Promise<ParsedDatabaseConnectionSettings>;
+} | undefined;
+
 type DpapiScope = "CurrentUser" | "LocalMachine";
 
 export function resolveDbConfigFilePath(): string {
@@ -609,15 +617,30 @@ export async function loadDatabaseConnectionSettingsFromFile(): Promise<ParsedDa
   const filePath = resolveDbConfigFilePath();
   const raw = await readDbConfigRawFile(filePath);
   if (!raw || !raw.trim()) {
+    decryptedConfigCache = undefined;
     return null;
   }
 
   const envelope = parseEnvelopeFromRawContent(raw);
   if (envelope) {
-    const decrypted = await decryptPayloadWithDpapi(envelope);
-    return toParsedSettings(decrypted, envelope.keyProvider);
+    if (decryptedConfigCache?.filePath !== filePath || decryptedConfigCache.raw !== raw) {
+      decryptedConfigCache = {
+        filePath,
+        raw,
+        settings: decryptPayloadWithDpapi(envelope).then((decrypted) => toParsedSettings(decrypted, envelope.keyProvider))
+      };
+    }
+    const cached = decryptedConfigCache;
+    try {
+      // Concurrent queries share the decryption; callers cannot mutate the cache.
+      return { ...(await cached.settings) };
+    } catch (error) {
+      if (decryptedConfigCache === cached) decryptedConfigCache = undefined;
+      throw error;
+    }
   }
 
+  decryptedConfigCache = undefined;
   const legacyLine = resolveFirstNonCommentLine(raw);
   if (!legacyLine) {
     return null;
@@ -637,4 +660,5 @@ export async function saveDatabaseConnectionSettingsToFile(input: EditableDataba
   const keyProvider = resolvePreferredKeyProvider();
 
   await writeEncryptedEnvelopeToFile(normalized, keyProvider, filePath);
+  decryptedConfigCache = undefined;
 }

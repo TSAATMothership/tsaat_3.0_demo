@@ -280,8 +280,10 @@ function resolveSqlcmdServerTarget(server: string): string {
 
 async function resolveEffectiveConnection(databaseName?: string): Promise<ResolvedSqlConnection> {
   const dbConfig = await loadDatabaseConnectionSettingsFromFile();
-  const server = (await resolveSqlServerName()).trim();
-  const database = (databaseName?.trim() || (await resolveAppDatabaseName())).trim();
+  // Resolve all fields from one config read, including credentials and SSL.
+  const server = (envValue("TSAAT_SQL_SERVER", "SQL_SERVER") || dbConfig?.server.trim() || DEFAULT_SQL_SERVER).trim();
+  const database = (databaseName?.trim() || envValue("TSAAT_APP_DATABASE", "APP_DATABASE_NAME", "SQL_APP_DATABASE") ||
+    dbConfig?.database.trim() || await readManifestDatabaseName() || DEFAULT_APP_DATABASE).trim();
 
   if (!server) {
     throw new Error("Unable to resolve SQL Server name.");

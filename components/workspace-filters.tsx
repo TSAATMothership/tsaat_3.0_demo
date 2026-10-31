@@ -2,14 +2,19 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { scopeIds, updateWorkspaceScope, workspaceLocationForScope } from "@/lib/workspace-navigation";
+import { activeWorkspaceItem, sameWorkspaceScope, scopeIds, updateWorkspaceScope, workspaceHref, workspaceScopeUpdateHref } from "@/lib/workspace-navigation";
+import { buildLocationKey } from "@/lib/location-key";
+import { startRouteLoading } from "@/lib/route-loading";
 
 interface Option { id: string; label: string }
 interface Options { networks: Option[]; systems: Option[] }
+type ScopeKind = "network" | "system";
+interface ScopeDraft { locationKey: string; query: string; edited: ScopeKind }
 
-function ScopeSelect({ label, options, selected, pending, loading, error, onChange, allowSelectAll = false }: {
+function ScopeSelect({ label, options, selected, pending, loading, error, onChange, onUpdate, allowSelectAll = false }: {
   label: string; options: Option[]; selected: string[]; pending: boolean; loading: boolean; error: string;
   onChange: (ids: string[]) => void;
+  onUpdate?: () => void;
   allowSelectAll?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -52,6 +57,15 @@ function ScopeSelect({ label, options, selected, pending, loading, error, onChan
           <span>{option.label}</span>
         </label>)}
       </div>
+      {onUpdate && <div className="workspace-scope-update-row">
+        <span role="status">Changes not applied</span>
+        <button type="button" className="workspace-scope-update" disabled={pending}
+          aria-label={`Update ${label} filter`} onClick={() => {
+            onUpdate();
+            setOpen(false);
+            trigger.current?.focus();
+          }}>Update</button>
+      </div>}
       <p className="workspace-scope-help">Select multiple. Choosing this scope clears the other filter.</p>
     </div>}
   </div>;
@@ -61,6 +75,14 @@ export function WorkspaceFilters({ dataDate }: { dataDate: string }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
+  const query = searchParams?.toString() ?? "";
+  const locationKey = buildLocationKey(pathname, query);
+  const appliedParams = new URLSearchParams(query);
+  const [draft, setDraft] = useState<ScopeDraft | null>(null);
+  // Discard unapplied edits after navigation, Back/Forward, or a date change.
+  if (draft && draft.locationKey !== locationKey) setDraft(null);
+  const currentDraft = draft?.locationKey === locationKey ? draft : null;
+  const selectedParams = new URLSearchParams(currentDraft?.query ?? query);
   const [pending, startTransition] = useTransition();
   const [options, setOptions] = useState<Options>({ networks: [], systems: [] });
   const [loading, setLoading] = useState(true);
@@ -70,20 +92,32 @@ export function WorkspaceFilters({ dataDate }: { dataDate: string }) {
     setLoading(true); setError("");
     fetch(`/api/workspace-options?dataDate=${encodeURIComponent(dataDate)}`, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => { if (!response.ok) throw new Error("Unable to load options. Try another date or check database settings."); return response.json() as Promise<Options>; })
-      .then(setOptions)
+      .then((nextOptions) => { if (!controller.signal.aborted) setOptions(nextOptions); })
       .catch((reason: Error) => { if (!controller.signal.aborted) setError(reason.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [dataDate]);
-  const change = (kind: "network" | "system", ids: string[]) => {
-    const params = updateWorkspaceScope(new URLSearchParams(searchParams?.toString()), kind, ids);
+  const change = (kind: ScopeKind, ids: string[]) => {
+    const params = updateWorkspaceScope(selectedParams, kind, ids);
+    if (sameWorkspaceScope(params, selectedParams)) return;
     params.set("dataDate", dataDate);
-    const href = workspaceLocationForScope(pathname, params);
+    if (activeWorkspaceItem(pathname, appliedParams)) {
+      setDraft(sameWorkspaceScope(params, appliedParams) ? null : { locationKey, query: params.toString(), edited: kind });
+      return;
+    }
+    // Before a sidebar view is selected, keep the workspace empty.
+    startTransition(() => router.replace(workspaceHref("/", params), { scroll: false }));
+  };
+  const applyDraft = () => {
+    if (!currentDraft || pending) return;
+    const href = workspaceScopeUpdateHref(pathname, selectedParams);
+    const cancelHref = window.location.pathname + window.location.search + window.location.hash;
+    startRouteLoading({ href, cancelHref, message: "Updating workspace filters..." });
     startTransition(() => router.replace(href, { scroll: false }));
   };
   return <div className="flex min-w-0 flex-wrap gap-2" aria-busy={pending}>
-    <ScopeSelect label="Managed Network" options={options.networks} selected={scopeIds(searchParams?.getAll("network"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("network", ids)} allowSelectAll />
-    <ScopeSelect label="ICT System" options={options.systems} selected={scopeIds(searchParams?.getAll("system"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("system", ids)} />
+    <ScopeSelect label="Managed Network" options={options.networks} selected={scopeIds(selectedParams.getAll("network"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("network", ids)} onUpdate={currentDraft?.edited === "network" ? applyDraft : undefined} allowSelectAll />
+    <ScopeSelect label="ICT System" options={options.systems} selected={scopeIds(selectedParams.getAll("system"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("system", ids)} onUpdate={currentDraft?.edited === "system" ? applyDraft : undefined} />
     <span className="sr-only" role="status">{pending ? "Updating workspace" : ""}</span>
   </div>;
 }

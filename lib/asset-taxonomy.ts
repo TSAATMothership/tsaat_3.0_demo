@@ -4,7 +4,8 @@ export const ASSET_TYPES = [
   "network-device",
   "storage-device",
   "printer-device",
-  "other"
+  "other",
+  "ip-node"
 ] as const;
 
 export type CanonicalAssetType = (typeof ASSET_TYPES)[number];
@@ -15,7 +16,8 @@ export const ASSET_TYPE_LABELS: Record<CanonicalAssetType, string> = {
   "network-device": "Network Device",
   "storage-device": "Storage Device",
   "printer-device": "Printer Device",
-  other: "Other"
+  other: "Other",
+  "ip-node": "IP Node"
 };
 
 export function isAssetType(value: unknown): value is CanonicalAssetType {

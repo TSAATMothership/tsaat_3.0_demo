@@ -23,6 +23,21 @@ export function updateWorkspaceScope(params: URLSearchParams, kind: "network" | 
   return next;
 }
 
+export function sameWorkspaceScope(left: URLSearchParams, right: URLSearchParams): boolean {
+  return ["network", "system"].every((kind) =>
+    JSON.stringify(scopeIds(left.getAll(kind))) === JSON.stringify(scopeIds(right.getAll(kind))));
+}
+
+function workspaceViewPathname(pathname: string): string {
+  return pathname.startsWith("/networks/") ? "/networks"
+    : pathname.startsWith("/systems/") ? "/systems" : pathname;
+}
+
+/** Apply a pending selection to the current sidebar view, preserving its local tab and date. */
+export function workspaceScopeUpdateHref(pathname: string, params: URLSearchParams): string {
+  return workspaceViewPathname(pathname) + (params.size ? `?${params}` : "");
+}
+
 export interface WorkspaceItem { label: string; href: string; scope?: "network" | "system" }
 export interface WorkspaceGroup { label: string; items: WorkspaceItem[] }
 
@@ -41,7 +56,10 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
     { label: "Discovery Compliance", href: "/discovery-coverage?discoveryView=compliance" },
     { label: "Discovery Tool Coverage", href: "/discovery-coverage" },
-    { label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" }
+    { label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
+    { label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
+    { label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" },
+    { label: "Target State Analyser", href: "/discovery-coverage?discoveryView=target-state" }
   ] },
   { label: "Observed Measures", items: [
     { label: "Measures Summary", href: "/measures" },
@@ -72,6 +90,7 @@ export function workspaceHref(href: string, current: URLSearchParams): string {
 }
 
 export function activeWorkspaceItem(pathname: string, params: URLSearchParams): WorkspaceItem | undefined {
+  pathname = workspaceViewPathname(pathname);
   const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
   return items.find((item) => {
     const target = new URL(item.href, "http://localhost");
@@ -84,20 +103,10 @@ export function activeWorkspaceItem(pathname: string, params: URLSearchParams): 
   });
 }
 
-export function isWorkspaceItemVisible(item: WorkspaceItem, params: URLSearchParams): boolean {
+export function isWorkspaceItemVisible(item: WorkspaceItem, params: URLSearchParams, activeHref?: string): boolean {
+  // Applying another scope must not hide or deselect the view the user is updating.
+  if (item.href === activeHref) return true;
   if (scopeIds(params.getAll("network")).length) return item.scope !== "system";
   if (scopeIds(params.getAll("system")).length) return item.scope !== "network";
   return true;
-}
-
-/** Leave a view that no longer belongs to the selected header scope. */
-export function workspaceLocationForScope(pathname: string, params: URLSearchParams): string {
-  const path = pathname.startsWith("/networks/") ? "/networks"
-    : pathname.startsWith("/systems/") ? "/systems" : pathname;
-  const item = activeWorkspaceItem(path, params);
-  if ((item && !isWorkspaceItemVisible(item, params)) ||
-      (path === "/" && hasWorkspaceScope(Object.fromEntries(params)))) {
-    return workspaceHref("/cyber-cop", params);
-  }
-  return `${path}${params.size ? `?${params}` : ""}`;
 }

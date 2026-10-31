@@ -7,7 +7,7 @@ import {
 import { SystemsTable } from "@/components/systems-table";
 import { SystemsTabs } from "@/components/systems-tabs";
 import { RouteReadyMarker } from "@/components/route-ready-marker";
-import { getTrendAppData } from "@/lib/app-data";
+import { getCoreAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { deriveOverallStatus } from "@/lib/posture";
@@ -271,9 +271,8 @@ export default async function SystemsPage({
     systems,
     networks,
     dataset
-  } = await getTrendAppData(
+  } = await getCoreAppData(
     systemsOnlySearchParams,
-    12,
     { profile: "risk-summary" }
   );
 

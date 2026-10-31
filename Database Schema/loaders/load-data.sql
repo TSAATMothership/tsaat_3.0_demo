@@ -1328,6 +1328,11 @@ FROM OPENJSON(@Json, '$.tools') WITH (
 ) AS tool
 CROSS APPLY OPENJSON(tool.[asset_type_scope]) AS scope_map;
 
+INSERT INTO [tsaat].[discovery_tool_asset_scope] ([settings_version_id], [tool_id], [asset_type], [scope_setting])
+SELECT t.[settings_version_id], t.[tool_id], N'ip-node', N'na' FROM [tsaat].[discovery_tool] t
+WHERE NOT EXISTS (SELECT 1 FROM [tsaat].[discovery_tool_asset_scope] s
+  WHERE s.[settings_version_id] = t.[settings_version_id] AND s.[tool_id] = t.[tool_id] AND s.[asset_type] = N'ip-node');
+
 SET @FilePath = @PackageDataRoot + N'\discovery-coverage-rules.json';
 SET @Json = NULL;
 IF @DataLoadMode = N'ClientPayload'
@@ -1992,6 +1997,12 @@ BEGIN
     [name],
     [hostname],
     [ip_address],
+    [mac_address],
+    [device_model],
+    [last_discovered_date],
+    [discovered_by],
+    [discovery_approach],
+    [arp_owner_asset_id],
     [cmdb_record_url],
     [asset_type],
     [network_id],
@@ -2007,6 +2018,12 @@ BEGIN
     a.[name],
     a.[hostname],
     a.[ip_address],
+    a.[mac_address],
+    a.[device_model],
+    a.[last_discovered_date],
+    a.[discovered_by],
+    a.[discovery_approach],
+    a.[arp_owner_asset_id],
     a.[cmdb_record_url],
     a.[asset_type],
     a.[network_id],
@@ -2020,6 +2037,12 @@ BEGIN
     [name] NVARCHAR(255) '$.name',
     [hostname] NVARCHAR(255) '$.hostname',
     [ip_address] NVARCHAR(64) '$.ipAddress',
+    [mac_address] NVARCHAR(64) '$.macAddress',
+    [device_model] NVARCHAR(255) '$.deviceModel',
+    [last_discovered_date] DATETIME2(3) '$.lastDiscoveredDate',
+    [discovered_by] NVARCHAR(255) '$.discoveredBy',
+    [discovery_approach] NVARCHAR(20) '$.discoveryApproach',
+    [arp_owner_asset_id] NVARCHAR(255) '$.arpOwnerAssetId',
     [cmdb_record_url] NVARCHAR(1024) '$.cmdbRecordUrl',
     [asset_type] NVARCHAR(20) '$.type',
     [network_id] NVARCHAR(255) '$.networkId',
@@ -2095,6 +2118,7 @@ BEGIN
     [vendor],
     [major_version],
     [version],
+    [patch_level],
     [support_status],
     [current_supported_major],
     [n_minus]
@@ -2106,6 +2130,7 @@ BEGIN
     os.[vendor],
     os.[major_version],
     os.[version],
+    os.[patch_level],
     os.[support_status],
     os.[current_supported_major],
     os.[n_minus]
@@ -2118,6 +2143,7 @@ BEGIN
     [vendor] NVARCHAR(255) '$.vendor',
     [major_version] INT '$.majorVersion',
     [version] NVARCHAR(255) '$.version',
+    [patch_level] NVARCHAR(255) '$.patchLevel',
     [support_status] NVARCHAR(20) '$.supportStatus',
     [current_supported_major] INT '$.currentSupportedMajor',
     [n_minus] INT '$.nMinus'
@@ -2130,6 +2156,7 @@ BEGIN
     [vendor],
     [major_version],
     [version],
+    [patch_level],
     [support_status],
     [current_supported_major],
     [n_minus]
@@ -2141,6 +2168,7 @@ BEGIN
     nos.[vendor],
     nos.[major_version],
     nos.[version],
+    nos.[patch_level],
     nos.[support_status],
     nos.[current_supported_major],
     nos.[n_minus]
@@ -2153,6 +2181,7 @@ BEGIN
     [vendor] NVARCHAR(255) '$.vendor',
     [major_version] INT '$.majorVersion',
     [version] NVARCHAR(255) '$.version',
+    [patch_level] NVARCHAR(255) '$.patchLevel',
     [support_status] NVARCHAR(20) '$.supportStatus',
     [current_supported_major] INT '$.currentSupportedMajor',
     [n_minus] INT '$.nMinus'
@@ -2184,6 +2213,9 @@ BEGIN
     [software_ordinal],
     [name],
     [version],
+    [file_path],
+    [last_discovered_date],
+    [discovered_by],
     [support_status]
   )
   SELECT
@@ -2192,6 +2224,9 @@ BEGIN
     TRY_CONVERT(INT, sw.[key]) + 1,
     JSON_VALUE(sw.[value], '$.name'),
     JSON_VALUE(sw.[value], '$.version'),
+    JSON_VALUE(sw.[value], '$.filePath'),
+    CAST(SWITCHOFFSET(TRY_CONVERT(DATETIMEOFFSET(3), JSON_VALUE(sw.[value], '$.lastDiscoveredDate'), 127), '+00:00') AS DATETIME2(3)),
+    JSON_VALUE(sw.[value], '$.discoveredBy'),
     JSON_VALUE(sw.[value], '$.supportStatus')
   FROM OPENJSON(@Json, '$.assets') WITH (
     [asset_id] NVARCHAR(255) '$.id',

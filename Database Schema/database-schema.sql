@@ -491,7 +491,7 @@ CREATE TABLE [tsaat].[spi_applicable_asset_type] (
   CONSTRAINT [FK_spi_applicable_asset_type_spi]
     FOREIGN KEY ([spi_id]) REFERENCES [tsaat].[spi_definition]([spi_id]),
   CONSTRAINT [CK_spi_applicable_asset_type_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node'))
 );
 GO
 
@@ -840,6 +840,12 @@ CREATE TABLE [tsaat].[asset] (
   [name] NVARCHAR(255) NOT NULL,
   [hostname] NVARCHAR(255) NOT NULL,
   [ip_address] NVARCHAR(64) NULL,
+  [mac_address] NVARCHAR(64) NULL,
+  [device_model] NVARCHAR(255) NULL,
+  [last_discovered_date] DATETIME2(3) NULL,
+  [discovered_by] NVARCHAR(255) NULL,
+  [discovery_approach] NVARCHAR(20) NULL,
+  [arp_owner_asset_id] NVARCHAR(255) NULL,
   [cmdb_record_url] NVARCHAR(1024) NULL,
   [asset_type] NVARCHAR(20) NOT NULL,
   [network_id] NVARCHAR(255) NOT NULL,
@@ -857,6 +863,14 @@ CREATE TABLE [tsaat].[asset] (
   CONSTRAINT [UQ_asset_snapshot_network_asset] UNIQUE ([snapshot_id], [network_id], [asset_id]),
   CONSTRAINT [UQ_asset_snapshot_system_asset] UNIQUE ([snapshot_id], [system_id], [asset_id]),
   CONSTRAINT [UQ_asset_snapshot_system_env_asset] UNIQUE ([snapshot_id], [system_id], [environment_type], [asset_id]),
+  CONSTRAINT [FK_asset_arp_owner] FOREIGN KEY ([snapshot_id], [network_id], [arp_owner_asset_id])
+    REFERENCES [tsaat].[asset]([snapshot_id], [network_id], [asset_id]),
+  CONSTRAINT [CK_asset_ip_node_discovery] CHECK (
+    ([asset_type] = N'ip-node' AND [discovery_approach] IS NOT NULL AND [ip_address] IS NOT NULL AND LTRIM(RTRIM([ip_address])) <> N'' AND
+      (([discovery_approach] = N'IP Scan' AND [arp_owner_asset_id] IS NULL) OR
+       ([discovery_approach] = N'ARP Table' AND [arp_owner_asset_id] IS NOT NULL AND [arp_owner_asset_id] <> [asset_id])))
+    OR ([asset_type] <> N'ip-node' AND [discovery_approach] IS NULL AND [arp_owner_asset_id] IS NULL)
+  ),
   CONSTRAINT [FK_asset_snapshot]
     FOREIGN KEY ([snapshot_id]) REFERENCES [tsaat].[dataset_snapshot]([snapshot_id]),
   CONSTRAINT [FK_asset_network]
@@ -868,7 +882,7 @@ CREATE TABLE [tsaat].[asset] (
   CONSTRAINT [FK_asset_system_environment]
     FOREIGN KEY ([snapshot_id], [system_id], [environment_type]) REFERENCES [tsaat].[system_environment]([snapshot_id], [system_id], [environment_type]),
   CONSTRAINT [CK_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other')),
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node')),
   CONSTRAINT [CK_asset_security_domain]
     CHECK ([security_domain] IN (N'Secret', N'Protected', N'Unclassified')),
   CONSTRAINT [CK_asset_environment_type]
@@ -906,7 +920,7 @@ CREATE TABLE [tsaat].[network_target_state_asset] (
   CONSTRAINT [FK_network_target_state_asset_network]
     FOREIGN KEY ([snapshot_id], [network_id]) REFERENCES [tsaat].[managed_network]([snapshot_id], [network_id]),
   CONSTRAINT [CK_network_target_state_asset_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node'))
 );
 GO
 
@@ -968,6 +982,7 @@ CREATE TABLE [tsaat].[asset_operating_system] (
   [vendor] NVARCHAR(255) NOT NULL,
   [major_version] INT NULL,
   [version] NVARCHAR(255) NOT NULL,
+  [patch_level] NVARCHAR(255) NULL,
   [support_status] NVARCHAR(20) NOT NULL,
   [current_supported_major] INT NULL,
   [n_minus] INT NULL,
@@ -986,6 +1001,7 @@ CREATE TABLE [tsaat].[asset_network_os] (
   [vendor] NVARCHAR(255) NOT NULL,
   [major_version] INT NULL,
   [version] NVARCHAR(255) NOT NULL,
+  [patch_level] NVARCHAR(255) NULL,
   [support_status] NVARCHAR(20) NOT NULL,
   [current_supported_major] INT NULL,
   [n_minus] INT NULL,
@@ -1014,6 +1030,9 @@ CREATE TABLE [tsaat].[asset_installed_software] (
   [software_ordinal] INT NOT NULL,
   [name] NVARCHAR(255) NOT NULL,
   [version] NVARCHAR(255) NOT NULL,
+  [file_path] NVARCHAR(2048) NULL,
+  [last_discovered_date] DATETIME2(3) NULL,
+  [discovered_by] NVARCHAR(255) NULL,
   [support_status] NVARCHAR(20) NOT NULL,
   CONSTRAINT [PK_asset_installed_software] PRIMARY KEY CLUSTERED ([snapshot_id], [asset_id], [software_ordinal]),
   CONSTRAINT [FK_asset_installed_software_asset]
@@ -1190,7 +1209,7 @@ CREATE TABLE [tsaat].[discovery_tool_asset_scope] (
   CONSTRAINT [FK_discovery_tool_asset_scope_tool]
     FOREIGN KEY ([settings_version_id], [tool_id]) REFERENCES [tsaat].[discovery_tool]([settings_version_id], [tool_id]),
   CONSTRAINT [CK_discovery_tool_asset_scope_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other')),
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node')),
   CONSTRAINT [CK_discovery_tool_asset_scope_setting]
     CHECK ([scope_setting] IN (N'required', N'na'))
 );
@@ -1279,7 +1298,7 @@ CREATE TABLE [tsaat].[measures_severity_matrix] (
   CONSTRAINT [FK_measures_severity_matrix_severity]
     FOREIGN KEY ([severity]) REFERENCES [tsaat].[finding_severity_definition]([severity_key]),
   CONSTRAINT [CK_measures_severity_matrix_asset_type]
-    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other'))
+    CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node'))
 );
 GO
 

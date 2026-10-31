@@ -12,5 +12,6 @@ coverage
 *.log
 .DS_Store
 *.tsbuildinfo
+.local/cmdb-demo/
 Dependencies/external/*
 !Dependencies/external/.gitkeep

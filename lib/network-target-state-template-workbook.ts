@@ -111,7 +111,7 @@ export function readXlsxEntries(buffer: Buffer): Map<string, Buffer> {
   return entries;
 }
 
-function writeZip(entries: Map<string, Buffer>): Buffer {
+export function writeXlsxEntries(entries: Map<string, Buffer>): Buffer {
   const timestamp = dosTimestamp();
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
@@ -269,5 +269,5 @@ export async function buildNetworkTargetStateTemplateWorkbook(network: ManagedNe
   );
   entries.set("xl/worksheets/sheet2.xml", Buffer.from(updatedAssetsSheet, "utf8"));
 
-  return writeZip(entries);
+  return writeXlsxEntries(entries);
 }

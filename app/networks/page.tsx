@@ -7,7 +7,7 @@ import {
 import { NetworksTable } from "@/components/networks-table";
 import { NetworksTabs } from "@/components/networks-tabs";
 import { RouteReadyMarker } from "@/components/route-ready-marker";
-import { getTrendAppData } from "@/lib/app-data";
+import { getCoreAppData } from "@/lib/app-data";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { filterRealNetworkEvaluations, filterRealNetworkFindings, filterRealNetworks } from "@/lib/network-scope";
@@ -270,9 +270,8 @@ export default async function NetworksPage({
     networks,
     dataset,
     systems
-  } = await getTrendAppData(
+  } = await getCoreAppData(
     searchParams,
-    12,
     { profile: "risk-summary" }
   );
 

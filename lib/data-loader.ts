@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord } from "@/lib/asset-taxonomy";
+import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { normalizeDataDate, subtractCalendarMonthsDateKey, todayDateKey } from "@/lib/data-date";
 import {
   defaultDiscoveryToolsSettings,
@@ -51,6 +51,11 @@ import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
 import { timeAsync } from "@/lib/perf";
 import { ServerMemoryCache } from "@/lib/server-cache";
+import { filterRealNetworks } from "@/lib/network-scope";
+import type { EndpointRecord } from "@/lib/endpoint-explorer";
+import type { InstalledSoftwareRecord } from "@/lib/installed-software-explorer";
+import type { ShadowItRecord } from "@/lib/shadow-it-explorer";
+import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import {
   Asset,
   AssetType,
@@ -81,6 +86,15 @@ export type DatasetLoadProfile = "summary" | "risk-summary" | "full";
 type DatasetLoadOptions = {
   profile?: DatasetLoadProfile;
 };
+
+export interface WorkspaceFilterOptions {
+  networks: Array<{ id: string; label: string }>;
+  systems: Array<{ id: string; label: string }>;
+}
+
+export interface EndpointExplorerData { snapshotDate: string; rows: EndpointRecord[] }
+export interface InstalledSoftwareExplorerData { snapshotDate: string; rows: InstalledSoftwareRecord[] }
+export interface ShadowItExplorerData { snapshotDate: string; rows: ShadowItRecord[] }
 
 type SettingsVersionRow = {
   settingsVersionId: number;
@@ -186,6 +200,12 @@ type AssetRow = {
   name: string;
   hostname: string;
   ipAddress: string | null;
+  macAddress: string | null;
+  deviceModel: string | null;
+  lastDiscoveredDate: string | null;
+  discoveredBy: string | null;
+  discoveryApproach: "IP Scan" | "ARP Table" | null;
+  arpOwnerAssetId: string | null;
   cmdbRecordUrl: string | null;
   type: AssetType;
   networkId: string;
@@ -530,6 +550,28 @@ const datasetBySnapshotIdCache = new ServerMemoryCache<Dataset>({
   ttlMs: DATASET_CACHE_TTL_MS,
   maxEntries: 36,
   sliding: true
+});
+
+const workspaceFilterOptionsCache = new ServerMemoryCache<WorkspaceFilterOptions>({
+  namespace: "data:workspace-options",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 36
+});
+
+const endpointExplorerCache = new ServerMemoryCache<EndpointExplorerData>({
+  namespace: "data:endpoint-explorer",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 36
+});
+
+const installedSoftwareExplorerCache = new ServerMemoryCache<InstalledSoftwareExplorerData>({
+  namespace: "data:installed-software-explorer",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 36
+});
+
+const shadowItExplorerCache = new ServerMemoryCache<ShadowItExplorerData>({
+  namespace: "data:shadow-it-explorer", ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS, maxEntries: 36
 });
 
 const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
@@ -1012,6 +1054,9 @@ SELECT
       a.[name] AS [name],
       a.[hostname] AS [hostname],
       a.[ip_address] AS [ipAddress],
+      a.[mac_address] AS [macAddress], a.[device_model] AS [deviceModel],
+      CASE WHEN a.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), a.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+      a.[discovered_by] AS [discoveredBy], a.[discovery_approach] AS [discoveryApproach], a.[arp_owner_asset_id] AS [arpOwnerAssetId],
       a.[cmdb_record_url] AS [cmdbRecordUrl],
       a.[asset_type] AS [type],
       a.[network_id] AS [networkId],
@@ -1452,6 +1497,10 @@ function buildDatasetFromSnapshotRow(
       id: assetRow.id,
       name: assetRow.name,
       hostname: assetRow.hostname,
+      macAddress: assetRow.macAddress ?? null,
+      deviceModel: assetRow.deviceModel ?? null,
+      lastDiscoveredDate: assetRow.lastDiscoveredDate ?? null,
+      discoveredBy: assetRow.discoveredBy ?? null,
       cmdbRecordUrl: assetRow.cmdbRecordUrl ?? null,
       networkId: assetRow.networkId,
       securityDomain: assetRow.securityDomain,
@@ -1473,6 +1522,9 @@ function buildDatasetFromSnapshotRow(
     const withIpAddress = common as Asset & { ipAddress?: string | null };
     withIpAddress.ipAddress = assetRow.ipAddress;
 
+    if (assetRow.type === "ip-node") {
+      return { ...withIpAddress, type: "ip-node", discoveryApproach: assetRow.discoveryApproach, arpOwnerAssetId: assetRow.arpOwnerAssetId } as Asset;
+    }
     if (assetRow.type === "network-device") {
       const networkOs = networkOperatingSystemsByAssetId.get(assetRow.id) ?? null;
       const patchState = patchStateByAssetId.get(assetRow.id) ?? null;
@@ -1627,6 +1679,147 @@ export async function loadDatasetForDate(
   const snapshots = await loadSnapshotRows();
   const selected = selectSnapshotRowForDate(snapshots, requestedDate);
   return loadDatasetBySnapshotId(selected.snapshotId, snapshots, options);
+}
+
+/** Header choices need snapshot names only, never assets, findings or evaluations. */
+export async function loadWorkspaceFilterOptionsForDate(requestedDate?: string): Promise<WorkspaceFilterOptions> {
+  const snapshots = await loadSnapshotRows();
+  const snapshot = selectSnapshotRowForDate(snapshots, requestedDate);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return workspaceFilterOptionsCache.getOrSet(`${snapshotId}:${snapshot.generatedAt}`, async () => {
+    const options = await executeSqlJson<WorkspaceFilterOptions>(`
+DECLARE @workspaceSnapshotId BIGINT = ${snapshotId};
+SELECT
+  JSON_QUERY((
+    SELECT n.[network_id] AS [id], n.[name] AS [label]
+    FROM [${DATA_SCHEMA}].[managed_network] n
+    WHERE n.[snapshot_id] = @workspaceSnapshotId
+    ORDER BY n.[network_id]
+    FOR JSON PATH
+  )) AS [networks],
+  JSON_QUERY((
+    SELECT s.[system_id] AS [id], s.[name] AS [label]
+    FROM [${DATA_SCHEMA}].[ict_system] s
+    WHERE s.[snapshot_id] = @workspaceSnapshotId
+    ORDER BY s.[system_id]
+    FOR JSON PATH
+  )) AS [systems]
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`);
+    const byLabel = (left: { label: string }, right: { label: string }) => left.label.localeCompare(right.label);
+    return {
+      networks: filterRealNetworks(options.networks ?? []).sort(byLabel),
+      systems: [...(options.systems ?? [])].sort(byLabel)
+    };
+  });
+}
+
+/** Read only the CMDB fields displayed by the explorer, scoped in SQL. */
+export async function loadEndpointExplorerData(searchParams: WorkspaceSearchParams): Promise<EndpointExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network);
+  const systems = scopeIds(searchParams.system);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  const key = JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems]);
+  return endpointExplorerCache.getOrSet(key, async () => {
+    const rows = await executeSqlJson<EndpointRecord[]>(`
+DECLARE @endpointSnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+SELECT
+  a.[asset_id] AS [assetId],
+  COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [name],
+  a.[asset_type] AS [ciType], a.[ip_address] AS [ipAddress],
+  a.[mac_address] AS [macAddress], a.[device_model] AS [deviceModel],
+  CASE WHEN a.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), a.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+  a.[discovered_by] AS [discoveredBy],
+  COALESCE(n.[name], a.[network_id]) AS [managedNetwork]
+FROM [${DATA_SCHEMA}].[asset] a
+LEFT JOIN [${DATA_SCHEMA}].[managed_network] n ON n.[snapshot_id] = a.[snapshot_id] AND n.[network_id] = a.[network_id]
+WHERE a.[snapshot_id] = @endpointSnapshotId
+  AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
+  AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+ORDER BY a.[name], a.[asset_id]
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows: rows.map((row) => ({ ...row, ciType: formatAssetTypeLabel(row.ciType) })) };
+  });
+}
+
+/** One scoped inventory query; no analytics, vulnerability or history payloads. */
+export async function loadInstalledSoftwareExplorerData(searchParams: WorkspaceSearchParams): Promise<InstalledSoftwareExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network);
+  const systems = scopeIds(searchParams.system);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return installedSoftwareExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems]), async () => {
+    const rows = await executeSqlJson<InstalledSoftwareRecord[]>(`
+DECLARE @softwareSnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+SELECT sw.[asset_id] AS [assetId], sw.[software_ordinal] AS [softwareOrdinal],
+  sw.[name] AS [softwareName], sw.[version] AS [softwareVersion], sw.[file_path] AS [filePath],
+  CASE WHEN sw.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), sw.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+  sw.[discovered_by] AS [discoveredBy],
+  COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [deviceName],
+  a.[device_model] AS [deviceModel],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[family] ELSE nos.[family] END AS [osName],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[version] ELSE nos.[version] END AS [osVersion],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[patch_level] ELSE nos.[patch_level] END AS [osPatchLevel]
+FROM [${DATA_SCHEMA}].[asset_installed_software] sw
+JOIN [${DATA_SCHEMA}].[asset] a ON a.[snapshot_id] = sw.[snapshot_id] AND a.[asset_id] = sw.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_operating_system] os ON os.[snapshot_id] = a.[snapshot_id] AND os.[asset_id] = a.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_network_os] nos ON nos.[snapshot_id] = a.[snapshot_id] AND nos.[asset_id] = a.[asset_id]
+WHERE sw.[snapshot_id] = @softwareSnapshotId
+  AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
+  AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+ORDER BY sw.[name], sw.[version], a.[name], sw.[asset_id], sw.[software_ordinal]
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows };
+  });
+}
+
+/** IP Node observations; owner details always come from the same snapshot. */
+export async function loadShadowItExplorerData(searchParams: WorkspaceSearchParams): Promise<ShadowItExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network);
+  const systems = scopeIds(searchParams.system);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return shadowItExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems]), async () => {
+    const rows = await executeSqlJson<ShadowItRecord[]>(`
+DECLARE @shadowSnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+SELECT node.[asset_id] AS [assetId], owner.[asset_id] AS [ownerAssetId],
+  node.[ip_address] AS [ipAddress], node.[discovery_approach] AS [discoveryApproach],
+  CASE WHEN node.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), node.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+  node.[discovered_by] AS [discoveredBy], owner.[name] AS [endpointName], owner.[asset_type] AS [endpointCiType],
+  owner.[ip_address] AS [endpointIpAddress], owner.[mac_address] AS [endpointMacAddress], owner.[device_model] AS [endpointDeviceModel],
+  CASE WHEN owner.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), owner.[last_discovered_date], 126) + N'Z' END AS [endpointLastDiscoveredDate],
+  owner.[discovered_by] AS [endpointDiscoveredBy], network.[name] AS [endpointManagedNetwork]
+FROM [${DATA_SCHEMA}].[asset] node
+LEFT JOIN [${DATA_SCHEMA}].[asset] owner ON node.[discovery_approach] = N'ARP Table'
+  AND owner.[snapshot_id] = node.[snapshot_id] AND owner.[asset_id] = node.[arp_owner_asset_id] AND owner.[network_id] = node.[network_id]
+LEFT JOIN [${DATA_SCHEMA}].[managed_network] network ON network.[snapshot_id] = owner.[snapshot_id] AND network.[network_id] = owner.[network_id]
+WHERE node.[snapshot_id] = @shadowSnapshotId AND node.[asset_type] = N'ip-node'
+  AND node.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(node.[network_id])) <> N''
+  AND (@networks IS NULL OR node.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR node.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)) OR owner.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+ORDER BY node.[ip_address], node.[asset_id]
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows: rows.map((row) => ({ ...row,
+      endpointCiType: row.endpointCiType ? formatAssetTypeLabel(row.endpointCiType) : null })) };
+  });
 }
 
 export async function loadLatestSnapshotsForDate(
@@ -2683,7 +2876,7 @@ FOR JSON PATH;
       const scopeByTool = toArrayMap(scopeRows, (row) => row.toolId);
       const tools = toolRows.map((tool) => {
         const toolScopes = scopeByTool.get(tool.id) ?? [];
-        const assetTypeScope: Record<AssetType, "required" | "na"> = createAssetTypeRecord(() => "required");
+        const assetTypeScope: Record<AssetType, "required" | "na"> = createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required");
 
         for (const scope of toolScopes) {
           assetTypeScope[scope.assetType] = scope.scopeSetting;
@@ -2778,6 +2971,10 @@ COMMIT TRANSACTION;
 export function clearDataLoaderCaches(): void {
   snapshotRowsCache.clear();
   datasetBySnapshotIdCache.clear();
+  workspaceFilterOptionsCache.clear();
+  endpointExplorerCache.clear();
+  installedSoftwareExplorerCache.clear();
+  shadowItExplorerCache.clear();
   referenceVersionsCache.clear();
   kpiDefinitionsCache.clear();
   kpiEvaluationsCache.clear();
@@ -2797,6 +2994,10 @@ export function __resetDataLoaderCachesForTest(): void {
   clearDataLoaderCaches();
   snapshotRowsCache.resetStats();
   datasetBySnapshotIdCache.resetStats();
+  workspaceFilterOptionsCache.resetStats();
+  endpointExplorerCache.resetStats();
+  installedSoftwareExplorerCache.resetStats();
+  shadowItExplorerCache.resetStats();
   referenceVersionsCache.resetStats();
   kpiDefinitionsCache.resetStats();
   kpiEvaluationsCache.resetStats();

@@ -9,7 +9,7 @@ describe("asset taxonomy settings integration", () => {
     const settings = defaultDiscoveryToolsSettings();
     for (const tool of settings.tools) {
       for (const assetType of ASSET_TYPES) {
-        expect(tool.assetTypeScope[assetType]).toBe("required");
+        expect(tool.assetTypeScope[assetType]).toBe(assetType === "ip-node" ? "na" : "required");
       }
     }
   });

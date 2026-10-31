@@ -7,6 +7,15 @@ import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/d
 import { filterDiscoveryAssets, removeUnassignedNetworkOption, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { hasWorkspaceScope, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { type Asset } from "@/lib/types";
+import { EndpointExplorer } from "@/components/endpoint-explorer";
+import { InstalledSoftwareExplorer } from "@/components/installed-software-explorer";
+import { ShadowItExplorer } from "@/components/shadow-it-explorer";
+import { loadEndpointExplorerData, loadInstalledSoftwareExplorerData, loadShadowItExplorerData } from "@/lib/data-loader";
+import { scopeIds } from "@/lib/workspace-navigation";
+
+const pendingDiscoveryViews: Record<string, string> = {
+  "target-state": "Target State Analyser"
+};
 
 function endpointIpAddress(asset: Asset): string {
   const source = asset as Asset & { ipAddress?: string; ip?: string; ipv4?: string; ipv4Address?: string; primaryIp?: string };
@@ -16,6 +25,43 @@ function endpointIpAddress(asset: Asset): string {
 export default async function DiscoveryCoveragePage({ searchParams }: { searchParams: WorkspaceSearchParams }) {
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
   const requestedView = Array.isArray(searchParams.discoveryView) ? searchParams.discoveryView[0] : searchParams.discoveryView;
+  if (requestedView === "shadow-it") {
+    const data = await loadShadowItExplorerData(searchParams);
+    const selectedDate = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+    return <>
+      <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
+      <ShadowItExplorer key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system)])}
+        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: selectedDate ?? data.snapshotDate }} />
+    </>;
+  }
+  if (requestedView === "installed-software") {
+    const data = await loadInstalledSoftwareExplorerData(searchParams);
+    const selectedDate = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+    return <>
+      <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
+      <InstalledSoftwareExplorer key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system)])}
+        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: selectedDate ?? data.snapshotDate }} />
+    </>;
+  }
+  if (requestedView === "endpoints") {
+    const data = await loadEndpointExplorerData(searchParams);
+    const selectedDate = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+    return <>
+      <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
+      <EndpointExplorer key={`${data.snapshotDate}:${scopeIds(searchParams.network)}:${scopeIds(searchParams.system)}`}
+        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: selectedDate ?? data.snapshotDate }} />
+    </>;
+  }
+  if (requestedView && Object.hasOwn(pendingDiscoveryViews, requestedView)) {
+    return <div className="workspace-page">
+      <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
+      <section className="panel shrink-0 p-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Discovery</p>
+        <h1 className="mt-1 text-2xl font-semibold">{pendingDiscoveryViews[requestedView]}</h1>
+      </section>
+      <section className="panel p-5"><p className="text-sm text-slate-300">This view is not available yet.</p></section>
+    </div>;
+  }
   const view = ["overview", "compliance", "endpoints"].includes(requestedView ?? "") ? requestedView! : "tools";
   const title = { overview: "Discovery Overview", compliance: "Discovery Compliance", endpoints: "End Point Explorer", tools: "Discovery Tool Coverage" }[view];
   const discoveryDataSearchParams = sanitizeDiscoverySearchParams(searchParams);

@@ -3,6 +3,7 @@ import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import {
   __resetDataLoaderCachesForTest,
   loadDatasetForDate,
+  loadWorkspaceFilterOptionsForDate,
   loadFindingDisplayConfiguration,
   loadFindingPriorityDefinitions,
   loadKpiDefinitions,
@@ -400,6 +401,36 @@ describe("data loader caches", () => {
     __resetDataLoaderCachesForTest();
     installSqlMock();
     executeSqlTextMock.mockResolvedValue("");
+  });
+
+  it("loads header options without assets, findings or security evaluations and shares concurrent requests", async () => {
+    executeSqlJsonMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("ds.[snapshot_id] AS [snapshotId]")) {
+        return [
+          { snapshotId: 1, snapshotDate: "2026-04-30", generatedAt: "2026-04-30T00:00:00Z" },
+          { snapshotId: 2, snapshotDate: "2026-05-31", generatedAt: "2026-05-31T00:00:00Z" }
+        ];
+      }
+      if (sql.includes("DECLARE @workspaceSnapshotId BIGINT")) {
+        return { networks: [{ id: "net-z", label: "Zulu" }, { id: "net-unassigned", label: "Unassigned" }, { id: "net-a", label: "Alpha" }],
+          systems: [{ id: "sys-z", label: "Zulu" }, { id: "sys-a", label: "Alpha" }] };
+      }
+      throw new Error("Header options must not load other SQL data");
+    });
+    const [first, concurrent] = await Promise.all([
+      loadWorkspaceFilterOptionsForDate("2026-05-01"), loadWorkspaceFilterOptionsForDate("2026-05-01")
+    ]);
+    expect(first).toEqual({ networks: [{ id: "net-a", label: "Alpha" }, { id: "net-z", label: "Zulu" }],
+      systems: [{ id: "sys-a", label: "Alpha" }, { id: "sys-z", label: "Zulu" }] });
+    expect(concurrent).toBe(first);
+    expect(await loadWorkspaceFilterOptionsForDate("2026-05-15")).toBe(first);
+    expect(executeSqlJsonMock).toHaveBeenCalledTimes(2);
+    expect(executeSqlJsonMock.mock.calls[1][0]).toContain("DECLARE @workspaceSnapshotId BIGINT = 1;");
+    await loadWorkspaceFilterOptionsForDate("2026-06-01");
+    expect(executeSqlJsonMock.mock.calls[2][0]).toContain("DECLARE @workspaceSnapshotId BIGINT = 2;");
+    __resetDataLoaderCachesForTest();
+    await loadWorkspaceFilterOptionsForDate("2026-06-01");
+    expect(executeSqlJsonMock).toHaveBeenCalledTimes(5);
   });
 
   it("reuses snapshot metadata and snapshot datasets within the cache window", async () => {

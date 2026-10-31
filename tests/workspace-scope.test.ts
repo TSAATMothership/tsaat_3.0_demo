@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAssetFilters, filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
 import { filtersCacheKey } from "@/lib/analytics-cache";
-import { activeWorkspaceItem, hasWorkspaceScope, isWorkspaceItemVisible, resolveCopView, scopeIds, updateWorkspaceScope, workspaceHref, workspaceLocationForScope, WORKSPACE_GROUPS, WORKSPACE_LINKS } from "@/lib/workspace-navigation";
+import { activeWorkspaceItem, hasWorkspaceScope, isWorkspaceItemVisible, resolveCopView, sameWorkspaceScope, scopeIds, updateWorkspaceScope, workspaceHref, workspaceScopeUpdateHref, WORKSPACE_GROUPS, WORKSPACE_LINKS } from "@/lib/workspace-navigation";
 import type { Asset, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 const systems = ["a", "b", "c"].map((id) => ({
@@ -24,21 +24,67 @@ describe("workspace scope", () => {
     ]);
     expect(hiddenHrefs("")).toEqual([]);
   });
-  it("returns a now-hidden view to Cyber COP without losing scope or date", () => {
-    const next = new URLSearchParams("network=net-a,net-b&copView=systems-spi-heatmap&dataDate=2026-10-30");
-    const target = new URL(workspaceLocationForScope("/cyber-cop", next), "http://localhost");
-    expect(target.pathname).toBe("/cyber-cop");
+  it("keeps header selections on the empty workspace until a sidebar view is chosen", () => {
+    const current = new URLSearchParams("system=sys-a&copView=systems-spi-heatmap&dataDate=2026-10-30&page=3");
+    const next = updateWorkspaceScope(current, "network", ["net-a", "net-b"]);
+    const target = new URL(workspaceHref("/", next), "http://localhost");
+    expect(target.pathname).toBe("/");
+    expect(activeWorkspaceItem(target.pathname, target.searchParams)).toBeUndefined();
     expect(target.searchParams.has("copView")).toBe(false);
+    expect(target.searchParams.has("system")).toBe(false);
+    expect(target.searchParams.has("page")).toBe(false);
     expect(target.searchParams.get("network")).toBe("net-a,net-b");
     expect(target.searchParams.get("dataDate")).toBe("2026-10-30");
-    expect(workspaceLocationForScope("/systems/sys-a", new URLSearchParams("network=net-a"))).toBe("/cyber-cop?network=net-a");
-    expect(workspaceLocationForScope("/networks", new URLSearchParams("system=sys-a"))).toBe("/cyber-cop?system=sys-a");
-    expect(workspaceLocationForScope("/measures", new URLSearchParams("system=sys-a&measuresTab=measures-spi"))).toBe("/measures?system=sys-a&measuresTab=measures-spi");
+    const destination = new URL(workspaceHref("/measures?measuresTab=measures-spi", target.searchParams), "http://localhost");
+    expect(activeWorkspaceItem(destination.pathname, destination.searchParams)?.label).toBe("Security Posture Indicators (SPIs)");
+    expect(destination.searchParams.get("network")).toBe("net-a,net-b");
+    expect(destination.searchParams.get("dataDate")).toBe("2026-10-30");
+    const systemSelection = updateWorkspaceScope(target.searchParams, "system", ["sys-b", "sys-c"]);
+    expect(workspaceHref("/", systemSelection)).toBe("/?system=sys-b%2Csys-c&dataDate=2026-10-30");
+    expect(workspaceHref("/", updateWorkspaceScope(systemSelection, "system", []))).toBe("/?dataDate=2026-10-30");
   });
   it("starts empty and accepts multiple repeated or comma-separated selections", () => {
     expect(hasWorkspaceScope({})).toBe(false);
     expect(scopeIds(["net-b,net-a", "net-b", ""])).toEqual(["net-a", "net-b"]);
     expect(parseFilters({ network: ["net-b", "net-a"] }).managedNetwork).toBe("net-a,net-b");
+  });
+  it("stages multiple edits without changing the applied scope and recognises a reverted edit", () => {
+    const applied = new URLSearchParams("network=net-a&dataDate=2026-10-31&copView=impact&page=3");
+    const draft = updateWorkspaceScope(applied, "network", ["net-a", "net-b"]);
+    expect(applied.get("network")).toBe("net-a");
+    expect(applied.get("page")).toBe("3");
+    expect(sameWorkspaceScope(applied, draft)).toBe(false);
+    const reordered = new URLSearchParams("network=net-b&network=net-a");
+    expect(sameWorkspaceScope(draft, reordered)).toBe(true);
+    expect(sameWorkspaceScope(applied, updateWorkspaceScope(draft, "network", ["net-a"]))).toBe(true);
+    const switched = updateWorkspaceScope(draft, "system", ["sys-a", "sys-b"]);
+    expect(switched.has("network")).toBe(false);
+    expect(applied.get("network")).toBe("net-a");
+    expect(sameWorkspaceScope(applied, switched)).toBe(false);
+  });
+  it("applies pending filters to every current sidebar view without deselecting it", () => {
+    for (const item of [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS]) {
+      const current = new URL(workspaceHref(item.href, new URLSearchParams("network=net-a&dataDate=2026-10-31")), "http://localhost");
+      current.searchParams.set("page", "3");
+      const draft = updateWorkspaceScope(current.searchParams, "system", ["sys-a", "sys-b"]);
+      const updated = new URL(workspaceScopeUpdateHref(current.pathname, draft), current.origin);
+      expect(activeWorkspaceItem(updated.pathname, updated.searchParams)?.href).toBe(item.href);
+      expect(updated.searchParams.get("dataDate")).toBe("2026-10-31");
+      expect(updated.searchParams.get("system")).toBe("sys-a,sys-b");
+      expect(updated.searchParams.has("network")).toBe(false);
+      expect(updated.searchParams.has("page")).toBe(false);
+      expect(isWorkspaceItemVisible(item, updated.searchParams, item.href)).toBe(true);
+      const cleared = updateWorkspaceScope(draft, "system", []);
+      expect(activeWorkspaceItem(updated.pathname, cleared)?.href).toBe(item.href);
+      expect(hasWorkspaceScope(Object.fromEntries(cleared))).toBe(false);
+    }
+  });
+  it("keeps the posture sidebar view selected when updating from an entity detail page", () => {
+    const params = new URLSearchParams("network=net-b&dataDate=2026-10-31");
+    expect(activeWorkspaceItem("/networks/net-a", params)?.href).toBe("/networks");
+    expect(workspaceScopeUpdateHref("/networks/net-a", params)).toBe("/networks?network=net-b&dataDate=2026-10-31");
+    expect(activeWorkspaceItem("/systems/sys-a", params)?.href).toBe("/systems");
+    expect(workspaceScopeUpdateHref("/systems/sys-a", params)).toBe("/systems?network=net-b&dataDate=2026-10-31");
   });
   it("switches scope exclusively while preserving the date and selected view", () => {
     const params = new URLSearchParams("network=net-a,net-b&dataDate=2026-10-30&copView=impact&page=3");

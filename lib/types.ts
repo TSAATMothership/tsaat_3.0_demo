@@ -98,6 +98,7 @@ export interface ICTSystem {
 export interface OperatingSystem {
   family: string;
   vendor: string;
+  patchLevel?: string | null;
   majorVersion: number | null;
   version: string;
   supportStatus: SupportStatus;
@@ -108,6 +109,9 @@ export interface OperatingSystem {
 export interface InstalledSoftware {
   name: string;
   version: string;
+  filePath?: string | null;
+  lastDiscoveredDate?: string | null;
+  discoveredBy?: string | null;
   supportStatus: SupportStatus;
 }
 
@@ -155,6 +159,11 @@ interface BaseAsset {
   id: string;
   name: string;
   hostname: string;
+  ipAddress?: string | null;
+  macAddress?: string | null;
+  deviceModel?: string | null;
+  lastDiscoveredDate?: string | null;
+  discoveredBy?: string | null;
   cmdbRecordUrl?: string | null;
   networkId: string;
   securityDomain: SecurityDomain;
@@ -193,13 +202,20 @@ export interface OtherAsset extends BaseAsset {
   type: "other";
 }
 
+export interface IpNodeAsset extends BaseAsset {
+  type: "ip-node";
+  discoveryApproach: "IP Scan" | "ARP Table";
+  arpOwnerAssetId: string | null;
+}
+
 export type Asset =
   | ServerAsset
   | WorkstationAsset
   | NetworkDeviceAsset
   | StorageDeviceAsset
   | PrinterDeviceAsset
-  | OtherAsset;
+  | OtherAsset
+  | IpNodeAsset;
 
 export interface ReferenceVersions {
   osCurrentMajor: Record<string, number>;

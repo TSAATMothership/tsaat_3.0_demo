@@ -36,7 +36,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Authoritative CMDB records for managed assets and relationships.",
     el2Owner: "EL2 Configuration Management",
     el2OperationsManager: "EL2 CMDB Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   },
   {
     id: "tanium",
@@ -44,7 +44,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Endpoint visibility and management telemetry for server and workstation assets.",
     el2Owner: "EL2 Endpoint Security",
     el2OperationsManager: "EL2 Endpoint Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   },
   {
     id: "tenable",
@@ -52,7 +52,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Vulnerability scanner coverage and findings for in-scope assets.",
     el2Owner: "EL2 Vulnerability Management",
     el2OperationsManager: "EL2 Vulnerability Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   },
   {
     id: "snow",
@@ -60,7 +60,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "ServiceNow asset lifecycle and warranty coverage data.",
     el2Owner: "EL2 Service Management",
     el2OperationsManager: "EL2 ITSM Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   },
   {
     id: "servicenow",
@@ -68,7 +68,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Service catalogue and lifecycle state integration.",
     el2Owner: "EL2 Service Management",
     el2OperationsManager: "EL2 ITSM Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   },
   {
     id: "dsoc-siem",
@@ -76,7 +76,7 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Security event telemetry and correlation coverage.",
     el2Owner: "EL2 SOC Services",
     el2OperationsManager: "EL2 SIEM Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   },
   {
     id: "elastic",
@@ -84,11 +84,11 @@ const DEFAULT_TOOL_DEFINITIONS: Array<{
     description: "Endpoint and system telemetry indexing and observability coverage.",
     el2Owner: "EL2 SOC Services",
     el2OperationsManager: "EL2 Elastic Operations",
-    assetTypeScope: createAssetTypeRecord(() => "required")
+    assetTypeScope: createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required")
   }
 ];
 
-const FALLBACK_SCOPE: Record<AssetType, DiscoveryToolAssetSetting> = createAssetTypeRecord(() => "required");
+const FALLBACK_SCOPE: Record<AssetType, DiscoveryToolAssetSetting> = createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required");
 
 function sanitizeText(value: unknown, fallback = ""): string {
   if (typeof value !== "string") {
