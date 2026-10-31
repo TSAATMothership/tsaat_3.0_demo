@@ -13,10 +13,11 @@ import type { WorkspaceSearchParams } from "@/lib/workspace-navigation";
 
 const number = (value: number) => value.toLocaleString("en-AU");
 
-export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope }: {
+export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope, initialFilters }: {
   rows: DiscoveryComplianceRecord[]; snapshotDate: string; scope: WorkspaceSearchParams;
+  initialFilters?: DiscoveryComplianceFilters;
 }) {
-  const [filters, setFilters] = useState<DiscoveryComplianceFilters>(emptyDiscoveryComplianceFilters);
+  const [filters, setFilters] = useState<DiscoveryComplianceFilters>(() => initialFilters ?? emptyDiscoveryComplianceFilters());
   const [openColumn, setOpenColumn] = useState<DiscoveryComplianceColumn | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);

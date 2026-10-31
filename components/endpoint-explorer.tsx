@@ -13,10 +13,11 @@ type Count = { value: string; count: number };
 const number = (value: number) => value.toLocaleString("en-AU");
 const toggle = <T extends string,>(values: T[], value: T): T[] => values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 
-export function EndpointExplorer({ rows, snapshotDate, scope }: {
+export function EndpointExplorer({ rows, snapshotDate, scope, initialFilters }: {
   rows: EndpointRecord[]; snapshotDate: string; scope: { network: string[]; system: string[]; dataDate: string };
+  initialFilters?: EndpointFilters;
 }) {
-  const [filters, setFilters] = useState<EndpointFilters>(emptyEndpointFilters);
+  const [filters, setFilters] = useState<EndpointFilters>(() => initialFilters ?? emptyEndpointFilters());
   const [openColumn, setOpenColumn] = useState<EndpointColumn | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);

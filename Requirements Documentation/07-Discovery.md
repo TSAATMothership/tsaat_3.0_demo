@@ -9,33 +9,30 @@
 - **Primary user roles:** discovery tool owners, CMDB and asset inventory teams, cyber analysts, architecture teams, platform governance teams.
 
 ## 2. Page Summary
-This page is the discovery-coverage workspace. It provides `summary`, `coverage-by-network`, `tool-settings`, and `target-state` route states. In UI labels this appears as:
+The Discovery sidebar routes through `/discovery-coverage` using `discoveryView`:
 
-- `Discovery Tool Coverage`
-- `Discovery Tool Coverage - by Network`
-- `Discovery Tools Setting`
-- `Network Discovery Status` (route value remains `target-state`)
+- `overview`: Discovery Overview
+- `tools` (default): Discovery Tool Coverage
+- `compliance`: Discovery Compliance Explorer
+- `endpoints`: End Point Explorer
+- `installed-software`: Installed Software Explorer
+- `shadow-it`: Shadow IT Explorer
+- `target-state`: Target State Analyser (placeholder; excluded from Overview)
 
-Major dependencies:
+The workspace network, ICT system and data date selection scopes these views. Overview uses only that shared scope, so its findings agree with the corresponding explorers; coverage and compliance also support their existing page filters. Discovery Tools Settings is available from Main menu > Settings.
 
-- `getCoreAppData()`
-- `DiscoveryCoverageTabs`
-- `DiscoveryCoverageByToolSection`
-- `DiscoveryCoverageByNetworkSection`
-- `NetworkDiscoverySummaryTableClient`
-- `DiscoveryToolsSettingsPanel`
-- `/api/discovery-coverage/target-state-template`
-- `/api/discovery-coverage/network-report`
-- `/api/discovery-coverage/tool-assets`
-- `/api/discovery-tools/settings`
-
-Important hidden behaviour:
-
-- the page always removes `criticality` before loading analytics.
-- when `discoveryCoverageTab=target-state`, the page also removes `system` and `environment` before loading analytics.
-- network-discovery target-state comparisons are calculated from DB-backed target-state asset-name records using name + asset-type matching.
+Major dependencies include the scoped inventory loaders, `buildScopedDiscoveryToolCoverage()`, `buildDiscoveryOverview()`, `DiscoveryOverview`, the individual explorer components and `/api/discovery-tools/settings`.
 
 ## 3. Feature Breakdown
+### Feature: Discovery Overview
+- **What it does:** combines the findings from Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer and Shadow IT Explorer into an operational dashboard. Target State Analyser is excluded.
+- **User perspective:** four linked summary tiles highlight CIs with coverage gaps, endpoints last discovered more than 30 days ago, software installations without versions and unidentified IP nodes. An investigation queue suggests actions for findings with non-zero counts. Detailed panels show ranked tool gaps, required tool coverage, compliance totals, CI type calculation totals, endpoint discovery age and source completeness, software evidence quality, and IP Scan/ARP observations.
+- **Calculations:** tool coverage is covered tool-to-CI checks divided by applicable checks using saved settings, rather than an average of tool percentages. Each CI with gaps is counted once. Unmapped CIs are disclosed separately, excluded from the coverage percentage and follow the compliance explorer's existing rule of no missing required tools. No applicable checks displays `N/A`. Software counts distinguish installations, product names and unique endpoints. ARP owner counts are unique reporting endpoints, not identified IP nodes.
+- **Discovery age:** all sources use the actual selected snapshot; more than 30 days combines the 31-90 and over-90-day buckets. Missing/invalid dates and future dates are separate. Age prompts do not change coverage compliance.
+- **Drill-through:** finding links retain network/system selections and pin the actual snapshot date, with validated `discoveryFilters` to initialise the destination explorer's existing columns/age filters. Active filters can be cleared, refined and exported normally. Malformed filter payloads open the unfiltered explorer.
+- **Scope:** coverage and endpoint/software records follow the selected networks and systems; Shadow IT keeps its explorer's existing rule that ARP nodes may be associated with a selected system through their owner. Counts from different checks can overlap and are not summed into a single finding total. Inventory queries are loaded only for Overview or their own explorer.
+- **Layout:** responsive metric tiles, coverage table, action queue and three explorer summaries; all links are keyboard accessible and long content remains scrollable.
+
 ### Feature: Shared Discovery Filter Scope
 - **What it does:** filters the page by network, system, security domain, environment, asset type, mission capability, business service, and date.
 - **User perspective:** the user scopes the discovery view to a subset of the estate.

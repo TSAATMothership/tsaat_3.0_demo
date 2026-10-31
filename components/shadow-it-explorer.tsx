@@ -13,10 +13,11 @@ type Count = { value: string; count: number };
 const number = (value: number) => value.toLocaleString("en-AU");
 const toggle = <T extends string,>(values: T[], value: T): T[] => values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 
-export function ShadowItExplorer({ rows, snapshotDate, scope }: {
+export function ShadowItExplorer({ rows, snapshotDate, scope, initialFilters }: {
   rows: ShadowItRecord[]; snapshotDate: string; scope: { network: string[]; system: string[]; dataDate: string };
+  initialFilters?: ShadowFilters;
 }) {
-  const [filters, setFilters] = useState<ShadowFilters>(emptyShadowFilters);
+  const [filters, setFilters] = useState<ShadowFilters>(() => initialFilters ?? emptyShadowFilters());
   const [openColumn, setOpenColumn] = useState<ShadowColumn | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
