@@ -74,7 +74,7 @@ export interface SpiTrendReportModel {
   trendPoints: SpiTrendReportPoint[];
 }
 
-const ASSET_TYPE_GROUPS: Array<{ id: SpiReportAssetTypeGroupId; label: string }> = [
+export const SPI_REPORT_ASSET_TYPE_GROUPS: Array<{ id: SpiReportAssetTypeGroupId; label: string }> = [
   { id: "server", label: "Servers" },
   { id: "workstation", label: "Workstations" },
   { id: "network-device", label: "Network Devices" },
@@ -131,7 +131,7 @@ function buildModelFromRow(
 ): SpiReportModel {
   const assetById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
   const breakdownByGroup = new Map<SpiReportAssetTypeGroupId, SpiReportAssetTypeBreakdown>(
-    ASSET_TYPE_GROUPS.map((group) => [
+    SPI_REPORT_ASSET_TYPE_GROUPS.map((group) => [
       group.id,
       {
         id: group.id,
@@ -191,7 +191,7 @@ function buildModelFromRow(
     nonCompliant: row.nonCompliant,
     unknown: row.unknown,
     total: row.total,
-    assetTypeBreakdown: ASSET_TYPE_GROUPS.map((group) => breakdownByGroup.get(group.id)).filter(
+    assetTypeBreakdown: SPI_REPORT_ASSET_TYPE_GROUPS.map((group) => breakdownByGroup.get(group.id)).filter(
       (group): group is SpiReportAssetTypeBreakdown => Boolean(group)
     ),
     reportAvailable: row.reportAvailable,

@@ -4,18 +4,20 @@
 
 ## 1. Page Overview
 - **Page name:** Settings
-- **Purpose:** provide application-level configuration controls for database connectivity and file-backed authentication password lifecycle.
+- **Purpose:** provide application-level configuration controls for database connectivity, file-backed authentication, discovery coverage mappings, and SPI severity/priority mappings.
 - **User outcome:** the user can validate and save database connectivity/SSL settings, and can change the current `logindetails` application password from the dedicated password settings tab.
 - **Primary user roles:** application administrators, support teams, deployment engineers, maintainers.
 
 ## 2. Page Summary
-This page provides `database-settings`, `password-settings`, and `discovery-tools-settings` tabs. The legacy `placeholder-2` query value opens Discovery Tools Settings.
+This page provides `database-settings`, `password-settings`, `discovery-tools-settings`, and `spi-risk-matrix` tabs in the Menu Settings popup. The legacy `placeholder-2` query value opens Discovery Tools Settings.
 
 Major dependencies:
 
 - `loadDatabaseSettingsDefaults()`
 - `DatabaseSettingsPanel`
-- `SettingsTabs`
+- `SettingsTabs` / `SettingsPopup`
+- `MeasuresSettingsMatrix`
+- `/api/measures/settings`
 - `/api/settings/database/test-connection`
 - `/api/settings/database/test-ssl`
 - `/api/settings/database/test-schema`
@@ -46,16 +48,23 @@ Important hidden behaviour:
 
 ## 3. Feature Breakdown
 ### Feature: Settings Tab Routing
-- **What it does:** switches between Database Settings, Password Settings, and Discovery Tools Settings.
-- **User perspective:** the user can navigate to the three active settings panels.
-- **System behaviour:** `settingsTab` in the query string controls which panel is rendered.
-- **Outcome:** database, password, and discovery coverage settings are active configuration surfaces.
+- **What it does:** switches between Database Settings, Password Settings, Discovery Tools Settings, and SPI Risk Matrix.
+- **User perspective:** the user can navigate the four settings panels within a modal, using the mouse or arrow/Home/End keys.
+- **System behaviour:** `settingsTab` selects the initial panel for direct links; subsequent tab changes use local state and retain mounted drafts. The popup leaves 150 pixels on all four sides of the browser viewport. Windows at most 600 pixels wide or 500 pixels high use 16-pixel margins so controls remain usable; panel contents scroll within the popup.
+- **Outcome:** global configuration is available without leaving the current workspace. Closing restores focus to the opening control.
 
 ### Feature: Discovery Tools Settings
 - **What it does:** maps discovery tools (rows) to all seven canonical CI types (columns) using Yes/No cells.
 - **User perspective:** change any cells, then Save the whole matrix or Cancel to discard unsaved edits. Filtering tools does not discard or omit hidden edits.
 - **System behaviour:** Yes persists as `required`; No persists as `na` through `/api/discovery-tools/settings`. The API validates every tool and CI-type cell and preserves tool metadata. Failed saves retain the draft. Successful saves invalidate settings-dependent caches and refresh the current page.
 - **Outcome:** Discovery Tool Coverage uses mapped CIs in the filtered data as each tool's denominator, and SQL detection evidence as its covered numerator. Tools with no mapped CIs are absent from the table and radar chart. Mapping and scope changes also update gap drill-through and CSV results.
+
+### Feature: SPI Risk Matrix
+- **What it does:** relocates the SPI severity and priority matrices from Observed Measures into a dedicated Settings tab.
+- **User perspective:** edit severity by SPI and CI type, or priority by SPI, then Save both matrices or Reset to the last saved values. Switching Settings tabs retains the draft. Save failures retain edits for retry.
+- **System behaviour:** first opening the tab loads global settings and the display catalogs from GET `/api/measures/settings`, independently of workspace scope or snapshot analytics. Load failures offer Retry. PUT validates and persists both matrices using the existing settings API; a successful save refreshes the current page.
+- **Navigation:** the Measures Summary priority action opens this tab in place. Legacy `/measures?measuresTab=spi-settings` and `settings` links redirect to `/settings?settingsTab=spi-risk-matrix`, preserving network, system, and snapshot selection.
+- **Outcome:** findings and observed measures continue using the configured severity and priority mappings. Unknown/Data Gap findings remain P90.
 
 ### Feature: Database Settings Form
 - **What it does:** captures server, database, authentication mode, user ID, password, SSL enabled flag, and SSL type.
@@ -102,7 +111,7 @@ Important hidden behaviour:
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Settings | Tab routing | Switches among Database Settings, Password Settings, and Discovery Tools Settings | Click tab | Selects a panel within the Settings modal | `settingsTab` for direct links | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs`, `SettingsPopup` | Active configuration panels | legacy `placeholder-2` links open Discovery Tools Settings |
+| Settings | Tab routing | Switches among Database Settings, Password Settings, Discovery Tools Settings, and SPI Risk Matrix | Click tab | Selects a panel within the Settings modal | `settingsTab` for direct links | Different settings panel | `database-settings` is default | unsupported values fall back to database settings | `SettingsTabs`, `SettingsPopup` | Active configuration panels | legacy `placeholder-2` links open Discovery Tools Settings |
 | Settings | Database settings form | Edit connection and SSL definition | Change fields | Marks form dirty and clears prior validation results | server, database, auth mode, credentials, `sslEnabled`, `sslType` | Draft settings | save requires passing validation first | client checks auth mode completeness and valid SSL type | `DatabaseSettingsPanel`, defaults loader | Prepared connection definition | initial values can come from fallback resolution |
 | Settings | Connection test | Validate connectivity | Click `Test Connection` | POSTs draft settings and stores result and diagnostics | current draft settings | connection status and diagnostics | connection test must pass before SSL test or schema test | endpoint returns success summary and diagnostics | `/api/settings/database/test-connection` | Verified connectivity | |
 | Settings | SSL test | Validate SSL transport for selected SSL type | Click `Test SSL` | POSTs draft settings, checks connection precondition, validates encrypted transport | current draft settings | SSL status and diagnostics | required only when SSL is enabled | endpoint returns success summary and diagnostics | `/api/settings/database/test-ssl` | Verified SSL mode | skipped when SSL disabled |
@@ -112,7 +121,7 @@ Important hidden behaviour:
 | Settings | Diagnostics log | Review and copy technical diagnostics | Read log or click copy | Appends timestamped messages and copies log text to clipboard | test and save results | local diagnostics text | diagnostics are local to the browser session | copy fails gracefully | browser clipboard API | Support-friendly troubleshooting | not persisted |
 
 ## 5. Database Mapping
-This page is file-backed for persisted settings. Database connection settings are stored in encrypted `DB_config`, while application login credentials are stored in encrypted `logindetails`. Both files are local generated artefacts and are not portable between Windows identities when encrypted with DPAPI `CurrentUser` scope; compile-time setup can recreate an undecryptable `logindetails` with new credentials.
+Connection and authentication settings are file-backed. Discovery tool mappings and SPI risk settings are persisted in SQL Server. Database connection settings are stored in encrypted `DB_config`, while application login credentials are stored in encrypted `logindetails`. Both files are local generated artefacts and are not portable between Windows identities when encrypted with DPAPI `CurrentUser` scope; compile-time setup can recreate an undecryptable `logindetails` with new credentials.
 
 Primary dependencies:
 
@@ -149,7 +158,7 @@ Primary dependencies:
 - `discovery-tools-settings` opens the database-backed CI-type mapping matrix; `placeholder-2` is a backward-compatible alias.
 
 ## 9. Rules, Assumptions, and Constraints
-- Settings persist to local ignored `DB_config`, not to the database.
+- Database connection settings persist to local ignored `DB_config`; discovery coverage and SPI risk mappings persist to SQL Server.
 - `CreateDB.cmd` and `compileApp.cmd` must confirm, create, or recreate encrypted `DB_config` before using database settings.
 - The page is marked `force-dynamic`, so it does not rely on static generation.
 - Connection test must pass before schema test can run.
@@ -164,6 +173,7 @@ Primary dependencies:
 - Undecryptable copied `logindetails` files are not migrated; compile-time recreation creates a new credential.
 - Successful password changes increment file-backed session version and force re-authentication.
 - Discovery Tools Settings replaces the former placeholder tab and controls applicability for discovery coverage.
+- SPI Risk Matrix replaces its former Observed Measures navigation entry. Its saved mappings remain global and are independent of the current network/system/snapshot.
 - The settings page handles credentials, so operational documentation should avoid exposing actual values.
 
 ## 10. Open Questions / Gaps

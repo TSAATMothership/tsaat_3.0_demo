@@ -1,5 +1,8 @@
 "use client";
 
+import Papa from "papaparse";
+import { FindingsDataTable } from "@/components/findings-data-table";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
@@ -160,7 +163,6 @@ export function FindingsTable({
   findingDisplayConfiguration: FindingDisplayConfiguration;
   assetCvesByAssetId?: Record<string, AssetCveEntry[]>;
 }) {
-  void selectedAsOf;
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
   const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
   const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
@@ -244,33 +246,28 @@ export function FindingsTable({
       params.append(param.key, param.value);
     }
     params.set("findingsViewTab", "register");
+    if (selectedStatus) params.set("findingsTab", selectedStatus);
     return params;
-  }, [preservedParams]);
+  }, [preservedParams, selectedStatus]);
 
   const clearFiltersHref = (() => {
     const query = registerParams.toString();
     return query ? `/findings?${query}` : "/findings";
   })();
 
-  const exportHref = (format: "json" | "csv") => {
-    const params = new URLSearchParams(registerParams);
-    if (selectedSpi) {
-      params.set("spi", String(selectedSpi));
-    }
-    if (selectedPriority) {
-      params.set("priority", String(selectedPriority));
-    }
-    if (selectedSeverity) {
-      params.set("severity", selectedSeverity);
-    }
-    if (selectedStatus) {
-      params.set("status", selectedStatus);
-    }
-    if (selectedSearchTerm) {
-      params.set("search", selectedSearchTerm);
-    }
-    params.set("format", format);
-    return `/api/findings/export?${params.toString()}`;
+  const downloadFindings = (matchingRows: Finding[], format: "json" | "csv") => {
+    const content = format === "json" ? JSON.stringify({ findings: matchingRows, generatedAt: new Date().toISOString() }, null, 2)
+      : Papa.unparse(matchingRows.map((finding) => ({
+        id: finding.id, priorityRank: finding.priorityRank, spiId: finding.spiId, severity: finding.severity,
+        status: finding.status, complianceStatus: finding.complianceStatus, timestamp: finding.timestamp,
+        networkId: finding.scope.networkId, systemId: finding.scope.systemId ?? "", environment: finding.scope.environmentType ?? "",
+        assetId: finding.scope.assetId, title: finding.title, evidence: JSON.stringify(finding.evidence), recommendedAction: finding.recommendedAction
+      })));
+    const url = URL.createObjectURL(new Blob([content], { type: format === "json" ? "application/json" : "text/csv;charset=utf-8;" }));
+    const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = `dct-findings-${selectedAsOf}.${format}`;
+    document.body.append(anchor); anchor.click(); anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
@@ -383,8 +380,8 @@ export function FindingsTable({
     }, PANEL_TWEEN_MS);
   };
 
-  const downloadAssetDetailsCsv = () => {
-    if (!selectedFindingForAssets || !assetDetailsRows.length || typeof window === "undefined") {
+  const downloadAssetDetailsCsv = (matchingRows: typeof assetDetailsRows) => {
+    if (!selectedFindingForAssets || !matchingRows.length || typeof window === "undefined") {
       return;
     }
 
@@ -397,7 +394,7 @@ export function FindingsTable({
       "Asset Incident Assignment Group",
       "Owner"
     ];
-    const rows = assetDetailsRows.map((row) => [
+    const rows = matchingRows.map((row) => [
       row.assetName,
       row.assetIpAddress,
       row.assetType,
@@ -418,13 +415,13 @@ export function FindingsTable({
     URL.revokeObjectURL(url);
   };
 
-  const downloadCvesCsv = () => {
-    if (!selectedAssetForCveDetails || !filteredAssetCves.length || typeof window === "undefined") {
+  const downloadCvesCsv = (matchingRows: typeof filteredAssetCves) => {
+    if (!selectedAssetForCveDetails || !matchingRows.length || typeof window === "undefined") {
       return;
     }
 
     const headers = ["Asset Name", "Asset ID", "CVE", "Description", "Remediation Guidance", "Criticality", "Timestamp"];
-    const rows = filteredAssetCves.map((entry) => [
+    const rows = matchingRows.map((entry) => [
       selectedAssetForCveDetails.assetName,
       selectedAssetForCveDetails.assetId,
       entry.cve,
@@ -493,14 +490,7 @@ export function FindingsTable({
                       CVEs in scope: {filteredAssetCves.length} of {selectedAssetCves.length}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={downloadCvesCsv}
-                    disabled={!filteredAssetCves.length}
-                    className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-                  >
-                    Export CSV
-                  </button>
+
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem]">
@@ -543,19 +533,17 @@ export function FindingsTable({
                   </div>
                 </div>
 
-                <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                      <tr>
-                        <th className="px-3 py-2">CVE Code</th>
-                        <th className="px-3 py-2">Description</th>
-                        <th className="px-3 py-2">Remediation Guidance</th>
-                        <th className="px-3 py-2">Criticality</th>
-                        <th className="px-3 py-2">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAssetCves.map((entry, index) => (
+                <div className="findings-table-host mt-3"><FindingsDataTable title="CVE vulnerabilities" rows={filteredAssetCves} searchable={false}
+columns={[{ key: "cve-code", label: "CVE Code", value: (entry) => entry.cve },
+{ key: "description", label: "Description", value: (entry) => entry.description },
+{ key: "remediation-guidance", label: "Remediation Guidance", value: (entry) => entry.remediationGuidance },
+{ key: "criticality", label: "Criticality", value: (entry) => entry.criticality },
+{ key: "timestamp", label: "Timestamp", value: (entry) => formatCapturedTimestamp(entry.capturedAt) }]}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadCvesCsv(matching)}>Export CSV</button>}
+emptyMessage={<>{selectedAssetCves.length === 0
+                              ? "No CVE vulnerabilities for this asset."
+                              : "No CVE records match the active filters."}</>}
+renderRow={(entry, index) => (
                         <tr
                           key={`${selectedAssetForCveDetails.assetId}-${entry.cve}-${entry.capturedAt}-${index}`}
                           className="border-t border-sky-400/10 align-top"
@@ -570,19 +558,7 @@ export function FindingsTable({
                             {formatCapturedTimestamp(entry.capturedAt)}
                           </td>
                         </tr>
-                      ))}
-                      {filteredAssetCves.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                            {selectedAssetCves.length === 0
-                              ? "No CVE vulnerabilities for this asset."
-                              : "No CVE records match the active filters."}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
+                      )} /></div>
               </section>
             </div>
           </div>,
@@ -592,31 +568,8 @@ export function FindingsTable({
 
   return (
     <>
-      <div className="panel relative flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-400/15 px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Findings Register</h3>
-            <p className="mt-1 text-xs text-slate-300/75">
-              Compliance detail-style worklist for {findings.length.toLocaleString("en-US")} findings in scope.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <a
-              className="rounded-md border border-sky-400/40 px-3 py-1 text-xs text-sky-100"
-              href={exportHref("json")}
-            >
-              Export JSON
-            </a>
-            <a
-              className="rounded-md border border-sky-400/40 px-3 py-1 text-xs text-sky-100"
-              href={exportHref("csv")}
-            >
-              Export CSV
-            </a>
-          </div>
-        </div>
-
-        <div className="border-b border-sky-400/10 px-4 py-3">
+      <div className="findings-register">
+        <div className="panel findings-register-filters px-4 py-3">
           <form
             action="/findings"
             method="get"
@@ -717,33 +670,30 @@ export function FindingsTable({
           </form>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="w-[12rem] min-w-[12rem] px-3 py-2">Measure</th>
-                <th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>
-                <th className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2">Timestamp</th>
-                <th className="px-3 py-2">Title</th>
-                <th className="w-[6.5rem] min-w-[6.5rem] px-3 py-2">Status</th>
-                <th className="px-3 py-2">Evidence</th>
-                <th className="px-3 py-2">Recommended Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {findings.map((finding) => {
+        <div className="findings-table-host"><FindingsDataTable title="Findings Register" rows={findings} searchable={true} searchText={(finding) => [finding.id, ...Object.values(finding.scope), ...Object.values(finding.evidence)].join(" ")}
+columns={[{ key: "measure", label: "Measure", value: (finding) => `SPI ${finding.spiId} / P${finding.priorityRank}` },
+{ key: "severity", label: "Severity", value: (finding) => finding.severity },
+{ key: "timestamp", label: "Timestamp", value: (finding) => formatFindingTimestamp(finding.timestamp) },
+{ key: "title", label: "Title", value: (finding) => finding.title },
+{ key: "status", label: "Status", value: (finding) => finding.status === "open" ? "Open" : "Closed" },
+{ key: "evidence", label: "Evidence", value: (finding) => buildConfiguredEvidencePreview(finding, findingDisplayConfiguration) },
+{ key: "recommended-action", label: "Recommended Action", value: (finding) => finding.recommendedAction }]}
+actions={(matching) => <><button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadFindings(matching, "json")}>Export JSON</button><button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadFindings(matching, "csv")}>Export CSV</button></>}
+emptyMessage={<>No findings match the selected SPI, Priority, Findings Severity, and text search filters.
+                  </>}
+renderRow={(finding) => {
                 const asOfStatus = finding.status;
                 const severityBucket = severityBuckets.find((bucket) => findingMatchesBucket(finding, bucket));
                 const workflowTone = workflowToneByStatus.get(asOfStatus) ?? (asOfStatus === "open" ? "warning" : "success");
                 return (
                   <tr key={finding.id} className="border-t border-sky-400/10 align-top">
-                    <td className="w-[12rem] min-w-[12rem] px-3 py-2">
+                    <td className="px-3 py-2">
                       <div className="flex flex-col gap-1">
                         <span className="font-medium text-slate-100">SPI {finding.spiId}</span>
                         <span className="text-xs text-slate-300/80">P{finding.priorityRank}</span>
                       </div>
                     </td>
-                    <td className="w-[11rem] min-w-[11rem] px-3 py-2">
+                    <td className="px-3 py-2">
                       <div className="flex flex-col gap-1">
                         <span
                           className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${toneBadgeClass(
@@ -754,7 +704,7 @@ export function FindingsTable({
                         </span>
                       </div>
                     </td>
-                    <td className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2 text-slate-200">
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-200">
                       {formatFindingTimestamp(finding.timestamp)}
                     </td>
                     <td className="px-3 py-2 text-slate-100">
@@ -781,17 +731,7 @@ export function FindingsTable({
                     <td className="px-3 py-2 text-xs text-slate-300/85">{finding.recommendedAction}</td>
                   </tr>
                 );
-              })}
-              {findings.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-300/80">
-                    No findings match the selected SPI, Priority, Findings Severity, and text search filters.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              }} /></div>
 
         {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
           <div className="absolute inset-0 z-[4]">
@@ -802,7 +742,7 @@ export function FindingsTable({
               onClick={closeAssetDetailsPanel}
             />
             <aside
-              className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+              className={`findings-drillthrough absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
                 isAssetDetailsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
               }`}
               role="dialog"
@@ -827,31 +767,21 @@ export function FindingsTable({
                     <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.title}</p>
                     <p className="mt-1 text-xs text-slate-300/80">Affected CIs: {assetDetailsRows.length}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={downloadAssetDetailsCsv}
-                    disabled={!assetDetailsRows.length}
-                    className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-                  >
-                    Export to CSV
-                  </button>
+
                 </div>
 
-                <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                      <tr>
-                        <th className="px-3 py-2">Asset Name</th>
-                        <th className="px-3 py-2">Asset IP address</th>
-                        <th className="px-3 py-2">Asset Type</th>
-                        <th className="px-3 py-2">CVE Vulnerabilities</th>
-                        <th className="px-3 py-2">Asset Change Assignment Group</th>
-                        <th className="px-3 py-2">Asset Incident Assignment Group</th>
-                        <th className="px-3 py-2">Owner</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {assetDetailsRows.map((assetRow) => (
+                <div className="findings-table-host mt-3"><FindingsDataTable title="Affected CIs" rows={assetDetailsRows} searchable={true}
+columns={[{ key: "asset-name", label: "Asset Name", value: (assetRow) => assetRow.assetName },
+{ key: "asset-ip-address", label: "Asset IP address", value: (assetRow) => assetRow.assetIpAddress },
+{ key: "asset-type", label: "Asset Type", value: (assetRow) => assetRow.assetType },
+{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities },
+{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (assetRow) => assetRow.assetChangeAssignmentGroup },
+{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (assetRow) => assetRow.assetIncidentAssignmentGroup },
+{ key: "owner", label: "Owner", value: (assetRow) => assetRow.owner }]}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadAssetDetailsCsv(matching)}>Export CSV</button>}
+emptyMessage={<>No linked assets found for this finding.
+                          </>}
+renderRow={(assetRow) => (
                         <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
                           <td className="px-3 py-2 text-slate-100">
                             <CmdbDeviceName assetId={assetRow.assetId} name={assetRow.assetName} />
@@ -875,17 +805,7 @@ export function FindingsTable({
                           <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
                           <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                         </tr>
-                      ))}
-                      {assetDetailsRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                            No linked assets found for this finding.
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
+                      )} /></div>
               </div>
             </aside>
           </div>

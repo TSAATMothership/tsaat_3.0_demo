@@ -1,5 +1,7 @@
 "use client";
 
+import { FindingsDataTable } from "@/components/findings-data-table";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -523,7 +525,7 @@ export function NetworkComplianceOverview({
       });
   }, [searchTerm, selectedMeasure, severityFilter, timelineScopedFindings, workflowFilter]);
 
-  const filteredFindings = useMemo(() => filteredTimelineFindings.slice(0, 200), [filteredTimelineFindings]);
+  const filteredFindings = filteredTimelineFindings;
 
   const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
     if (!selectedFindingForAssets) {
@@ -549,8 +551,8 @@ export function NetworkComplianceOverview({
       .sort((a, b) => a.assetName.localeCompare(b.assetName));
   }, [assetCvesByAssetId, selectedFindingForAssets]);
 
-  const downloadAssetDetailsCsv = () => {
-    if (!assetDetailsRows.length) {
+  const downloadAssetDetailsCsv = (matchingRows: typeof assetDetailsRows) => {
+    if (!matchingRows.length) {
       return;
     }
 
@@ -563,7 +565,7 @@ export function NetworkComplianceOverview({
       "Asset Incident Assignment Group",
       "Owner"
     ];
-    const rows = assetDetailsRows.map((assetRow) => [
+    const rows = matchingRows.map((assetRow) => [
       assetRow.assetName,
       assetRow.assetIpAddress,
       assetRow.assetType,
@@ -622,13 +624,13 @@ export function NetworkComplianceOverview({
     });
   }, [cveCriticalityFilter, cveSearchTerm, selectedAssetCves]);
 
-  const downloadCvesCsv = () => {
-    if (!selectedAssetForCveDetails || !filteredAssetCves.length) {
+  const downloadCvesCsv = (matchingRows: typeof filteredAssetCves) => {
+    if (!selectedAssetForCveDetails || !matchingRows.length) {
       return;
     }
 
     const headers = ["Asset Name", "Asset ID", "CVE", "Description", "Remediation Guidance", "Criticality", "Timestamp"];
-    const rows = filteredAssetCves.map((entry) => [
+    const rows = matchingRows.map((entry) => [
       selectedAssetForCveDetails.assetName,
       selectedAssetForCveDetails.assetId,
       entry.cve,
@@ -768,14 +770,7 @@ export function NetworkComplianceOverview({
                       CVEs in scope: {filteredAssetCves.length} of {selectedAssetCves.length}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={downloadCvesCsv}
-                    disabled={!filteredAssetCves.length}
-                    className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-                  >
-                    Export CSV
-                  </button>
+
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem]">
@@ -818,19 +813,17 @@ export function NetworkComplianceOverview({
                   </div>
                 </div>
 
-                <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                      <tr>
-                        <th className="px-3 py-2">CVE Code</th>
-                        <th className="px-3 py-2">Description</th>
-                        <th className="px-3 py-2">Remediation Guidance</th>
-                        <th className="px-3 py-2">Criticality</th>
-                        <th className="px-3 py-2">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAssetCves.map((entry, index) => (
+                <div className="findings-table-host mt-3"><FindingsDataTable title="CVE vulnerabilities" rows={filteredAssetCves} searchable={false}
+columns={[{ key: "cve-code", label: "CVE Code", value: (entry) => entry.cve },
+{ key: "description", label: "Description", value: (entry) => entry.description },
+{ key: "remediation-guidance", label: "Remediation Guidance", value: (entry) => entry.remediationGuidance },
+{ key: "criticality", label: "Criticality", value: (entry) => entry.criticality },
+{ key: "timestamp", label: "Timestamp", value: (entry) => formatCapturedTimestamp(entry.capturedAt) }]}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadCvesCsv(matching)}>Export CSV</button>}
+emptyMessage={<>{selectedAssetCves.length === 0
+                              ? "No CVE vulnerabilities for this asset."
+                              : "No CVE records match the active filters."}</>}
+renderRow={(entry, index) => (
                         <tr
                           key={`${selectedAssetForCveDetails.assetId}-${entry.cve}-${entry.capturedAt}-${index}`}
                           className="border-t border-sky-400/10 align-top"
@@ -845,19 +838,7 @@ export function NetworkComplianceOverview({
                             {formatCapturedTimestamp(entry.capturedAt)}
                           </td>
                         </tr>
-                      ))}
-                      {filteredAssetCves.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                            {selectedAssetCves.length === 0
-                              ? "No CVE vulnerabilities for this asset."
-                              : "No CVE records match the active filters."}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
+                      )} /></div>
               </section>
             </div>
           </div>,
@@ -1012,7 +993,7 @@ export function NetworkComplianceOverview({
             onClick={closeFindingsPanel}
           />
           <aside
-            className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+            className={`findings-drillthrough absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
               isFindingsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
             }`}
             role="dialog"
@@ -1171,22 +1152,20 @@ export function NetworkComplianceOverview({
               </div>
 
               <div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-xl border border-sky-400/15">
-                <div className="h-full overflow-auto">
-                  <table className="min-w-full text-sm">
-                    <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                      <tr>
-                        <th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>
-                        <th className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2">Timestamp</th>
-                        <th className="px-3 py-2">Title</th>
-                        <th className="w-[6.5rem] min-w-[6.5rem] px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Evidence</th>
-                        <th className="px-3 py-2">Recommended Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredFindings.map((entry) => (
+                <div className="findings-table-host h-full"><FindingsDataTable title="Findings and evidence" rows={filteredFindings} searchable={false}
+columns={[{ key: "severity", label: "Severity", value: (entry) => entry.finding.severity },
+{ key: "timestamp", label: "Timestamp", value: (entry) => entry.finding.timestampLabel },
+{ key: "title", label: "Title", value: (entry) => entry.finding.title },
+{ key: "status", label: "Status", value: (entry) => entry.asOfStatus === "open" ? "Open" : "Closed" },
+{ key: "evidence", label: "Evidence", value: (entry) => entry.finding.evidencePreview },
+{ key: "recommended-action", label: "Recommended Action", value: (entry) => entry.finding.recommendedAction }]}
+
+emptyMessage={<>{timelineScopedStatusCounts.total === 0
+                              ? "No findings were generated for this measure in the current scope."
+                              : "No findings match the active filters. Try Workflow Status = All."}</>}
+renderRow={(entry) => (
                         <tr key={entry.finding.id} className="border-t border-sky-400/10 align-top">
-                          <td className="w-[11rem] min-w-[11rem] px-3 py-2">
+                          <td className="px-3 py-2">
                             <span
                               className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${findingSeverityBadgeClass(
                                 entry.finding.severity
@@ -1195,7 +1174,7 @@ export function NetworkComplianceOverview({
                               {entry.finding.severity}
                             </span>
                           </td>
-                          <td className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2 text-slate-200">
+                          <td className="whitespace-nowrap px-3 py-2 text-slate-200">
                             {entry.finding.timestampLabel}
                           </td>
                           <td className="px-3 py-2 text-slate-100">
@@ -1217,19 +1196,7 @@ export function NetworkComplianceOverview({
                           <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.evidencePreview}</td>
                           <td className="px-3 py-2 text-xs text-slate-300/85">{entry.finding.recommendedAction}</td>
                         </tr>
-                      ))}
-                      {filteredFindings.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                            {timelineScopedStatusCounts.total === 0
-                              ? "No findings were generated for this measure in the current scope."
-                              : "No findings match the active filters. Try Workflow Status = All."}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
+                      )} /></div>
 
                 {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
                   <div className="absolute inset-0 z-[3]">
@@ -1240,7 +1207,7 @@ export function NetworkComplianceOverview({
                       onClick={closeAssetDetailsPanel}
                     />
                     <aside
-                      className={`absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
+                      className={`findings-drillthrough absolute right-0 top-0 h-full w-full border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out ${
                         isAssetDetailsPanelOpen ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
                       }`}
                       role="dialog"
@@ -1265,31 +1232,21 @@ export function NetworkComplianceOverview({
                             <p className="text-xs text-slate-300/80">Selected Finding: {selectedFindingForAssets.finding.title}</p>
                             <p className="mt-1 text-xs text-slate-300/80">Affected CIs: {assetDetailsRows.length}</p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={downloadAssetDetailsCsv}
-                            disabled={!assetDetailsRows.length}
-                            className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-                          >
-                            Export to CSV
-                          </button>
+
                         </div>
 
-                        <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-                          <table className="min-w-full text-sm">
-                            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                              <tr>
-                                <th className="px-3 py-2">Asset Name</th>
-                                <th className="px-3 py-2">Asset IP address</th>
-                                <th className="px-3 py-2">Asset Type</th>
-                                <th className="px-3 py-2">CVE Vulnerabilities</th>
-                                <th className="px-3 py-2">Asset Change Assignment Group</th>
-                                <th className="px-3 py-2">Asset Incident Assignment Group</th>
-                                <th className="px-3 py-2">Owner</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {assetDetailsRows.map((assetRow) => (
+                        <div className="findings-table-host mt-3"><FindingsDataTable title="Affected CIs" rows={assetDetailsRows} searchable={true}
+columns={[{ key: "asset-name", label: "Asset Name", value: (assetRow) => assetRow.assetName },
+{ key: "asset-ip-address", label: "Asset IP address", value: (assetRow) => assetRow.assetIpAddress },
+{ key: "asset-type", label: "Asset Type", value: (assetRow) => assetRow.assetType },
+{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities },
+{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (assetRow) => assetRow.assetChangeAssignmentGroup },
+{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (assetRow) => assetRow.assetIncidentAssignmentGroup },
+{ key: "owner", label: "Owner", value: (assetRow) => assetRow.owner }]}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadAssetDetailsCsv(matching)}>Export CSV</button>}
+emptyMessage={<>No linked assets found for this finding.
+                                  </>}
+renderRow={(assetRow) => (
                                 <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
                                   <td className="px-3 py-2 text-slate-100">
                                     <CmdbDeviceName assetId={assetRow.assetId} name={assetRow.assetName} />
@@ -1313,17 +1270,7 @@ export function NetworkComplianceOverview({
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
                                   <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                                 </tr>
-                              ))}
-                              {assetDetailsRows.length === 0 ? (
-                                <tr>
-                                  <td colSpan={7} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                                    No linked assets found for this finding.
-                                  </td>
-                                </tr>
-                              ) : null}
-                            </tbody>
-                          </table>
-                        </div>
+                              )} /></div>
 
                       </div>
                     </aside>

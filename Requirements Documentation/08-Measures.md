@@ -4,22 +4,21 @@
 
 ## 1. Page Overview
 - **Page name:** Measures
-- **Purpose:** provide the database-backed KPI catalogue, SPI measure catalogue, summary charts, tasking/trend report launch points, and configurable severity mapping.
+- **Purpose:** provide the database-backed KPI catalogue, SPI measure catalogue, an executive summary, searchable KPI/SPI tables, tasking/trend report launch points, and configurable severity and priority mappings.
 - **User outcome:** the user can understand how performance is measured, inspect KPI and SPI scores for the current scope, generate tasking and trend reports, and manage the severity model applied to findings.
-- **Primary user roles:** cyber governance users, assurance teams, reporting users, cyber analysts, product administrators.
+- **Primary user roles:** executives, cyber governance users, assurance teams, reporting users, cyber analysts, product administrators.
 
 ## 2. Page Summary
-This page provides `summary`, `measures-kpi`, `measures-spi`, and `spi-settings` tabs.
+This page provides `summary`, `measures-kpi`, and `measures-spi` tabs. SPI Risk Matrix now lives in Menu > Settings > SPI Risk Matrix; legacy `spi-settings` and `settings` measure URLs redirect there while preserving network, system, and snapshot selection.
 
 Major dependencies:
 
 - `getCoreAppData()`
 - `loadKpiDefinitions()`
 - `buildKpiRows()`
-- `KpiComplianceChart`
-- `SecurityPerformanceIndicatorComplianceChart`
-- `KpiSpiMatrix`
-- `MeasuresSettingsMatrix`
+- `MeasuresSummary` / `buildMeasuresSummary()`
+- `MeasuresExplorer` / `buildKpiExplorerRows()` / `buildSpiExplorerRows()`
+- `OpenSettingsButton` / `SettingsPopup` (SPI Risk Matrix launch)
 - `/api/tasking-report`
 - `/api/measures/settings`
 
@@ -44,41 +43,42 @@ Important hidden behaviour:
 - **What it does:** filters the page by network, system, criticality, security domain, environment, asset type, mission capability, business service, date, and severity.
 - **User perspective:** the user narrows KPI and SPI reporting to the relevant scope.
 - **System behaviour:** the page uses the shared filter pipeline and adds a measures-specific severity selector.
-- **Outcome:** charts and matrix rows all recalculate from one consistent scope.
+- **Outcome:** tables, summary findings and report links follow the selected scope and actual snapshot. Severity filters affect findings-based measures; SPI assessment scores follow the other asset scope filters.
 
-### Feature: Summary Tab
-- **What it does:** shows KPI compliance and SPI compliance charts for the current scope.
-- **User perspective:** the user sees the overall measure picture before opening the detailed matrix.
-- **System behaviour:** the page builds KPI rows from database KPI definitions plus SQL-produced KPI evaluations and derives SPI compliance points by scanning SQL-produced evaluation statuses for active database SPI definitions.
-- **Outcome:** the page provides a compact performance summary.
+### Feature: Measures Summary
+- **What it does:** provides a compact executive overview of the KPI, SPI and SPI Risk Matrix pages, styled like Discovery Overview.
+- **User perspective:** linked tiles show KPIs with non-compliance, SPIs with non-compliance, SPIs with unknown results and open findings. Ranked indicator tables show the largest non-compliant populations with their own scores. Supporting panels show open-finding severity, configured priority focus and an executive review queue.
+- **Calculations:** KPI percentages retain their original assessment basis and are not combined into an overall KPI percentage. SPI compliance is compliant CI checks divided by all applicable SPI checks, including unknowns. Affected and unknown CI counts are distinct within each category; categories can overlap. Unassessed indicators show `N/A`. Open findings exclude closed records. Priority focus uses saved global SPI priority settings and counts open non-compliant findings; unknown findings retain their observed classification.
+- **Drill-through:** summary links preserve every page scope field and pin the actual snapshot. Indicator/result selections initialise the destination explorer through validated `measureFilters`. Severity links open the scoped Findings Register. The global SPI Risk Matrix opens in the Settings popup from Priority focus, retaining the current route and filters.
+- **Outcome:** executives can identify performance exceptions, posture remediation, evidence gaps and prioritisation decisions, then inspect the supporting indicator or finding. Explanatory notes are expandable to conserve vertical space.
 
-### Feature: Measures-KPI Tab
-- **What it does:** shows the KPI report index, including descriptions, success measures, scores, status counts, and report links.
-- **User perspective:** the user can inspect KPI score details and launch current and trend reports for database-defined KPIs where reporting is enabled.
-- **System behaviour:** KPI rows come from SQL-produced KPI evaluations joined to database KPI metadata; report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
-- **Outcome:** KPI performance details and per-KPI PDF report actions are shown in a dedicated tab.
+- **Scope controls:** Measures Summary has no page-level filters section; it continues to respect the shared workspace scope and snapshot. KPI and SPI explorer filters remain available.
 
-### Feature: Measures-SPI Tab
-- **What it does:** shows the SPI report index, including descriptions, success measures, scores, asset-type impact summaries, and report links.
-- **User perspective:** the user can inspect SPI score details and launch the all-SPI report, a current single-SPI report, or the 12-month single-SPI trend report.
-- **System behaviour:** SPI rows come from active database SPI definitions and SQL-produced SPI evaluation rows plus the shared SPI report model; report links carry the active filter scope and selected `dataDate` into `/api/tasking-report`.
-- **Outcome:** SPI performance details and per-SPI PDF report actions are shown in a dedicated tab.
+### Feature: KPI and SPI Explorer Tables
+- **What it does:** replaces the large report cards with compact tables using the Discovery explorer header filters, search, result filter tiles, pagination and visual style.
+- **Columns:** Indicator ID, Measure, Observed result, Compliance, Assessed, Compliant, Non-compliant, Unknown, Reports. Each header supports searchable multi-selection. Global search includes descriptions and success measures. Sort options include definition order, lowest compliance, most non-compliant and most unknown.
+- **Result tiles:** total indicators, non-compliant, unknown, fully compliant and no assessments filter the same result column used by the table. Counts respect search and other column selections while ignoring the result selection. An indicator can have both non-compliant and unknown results. Total clears only the result filter.
+- **Details:** expanding the measure name reveals its complete description and success measure. SPI rows retain the six report CI-type groups and non-compliant/unknown counts. KPI rows also show their high-priority count.
+- **Reports:** per-KPI current and trend report availability follows the existing database flag. SPI current and trend flags remain independent. The All-SPI report retains the full page scope, regardless of local table filters. All PDF links retain the page filters and selected snapshot, and existing PDF endpoints are unchanged.
+- **Compatibility:** legacy `spi` and `measureSearch` URLs initialise the new table filters. Malformed new filter payloads safely fall back to legacy/default selections. Table controls operate locally without recalculating the source scores.
+- **Performance:** the SPI table/summary aggregates the report CI-type groups without materialising PDF annex rows; unrelated KPI SQL calculations are skipped on the SPI view. Legacy risk-settings links redirect before loading scoped analytics.
+- **Outcome:** dense comparison, filtering and report access with the existing definitions, calculations and breakdowns preserved.
 
-### Feature: SPI-Settings Tab
-- **What it does:** lets users maintain nested SPI severity and priority matrix settings.
+### Feature: SPI Risk Matrix in Settings
+- **What it does:** opens the Menu Settings SPI Risk Matrix tab to maintain nested severity and priority matrices. The standalone Measures settings tab and sidebar entry have been removed.
 - **User perspective:** the user can tune finding severity and non-compliant finding priority without changing code.
 - **System behaviour:** the settings panel loads active SPI definitions, severity definitions, priority definitions, and the latest saved measures settings, validates edits, and saves through `/api/measures/settings`; severity matrix keys cover every active SPI and every canonical asset type, while priority matrix keys cover every active SPI mapped to selectable priority definitions.
-- **Outcome:** future analytics and findings displays use the updated severity and priority mappings.
+- **Outcome:** analytics and findings displays use the updated severity and priority mappings. A successful save refreshes the current route so the summary reflects the latest settings; Reset, error feedback and retry remain available.
 
 ## 4. Feature Detail Table
 | Page Name | Feature Name | Feature Description | User Action | System Behaviour | Inputs | Outputs | Business Rules | Validations | Dependencies | Outcome | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Measures | Tab routing | Switches among summary, KPI report index, SPI report index, and SPI settings | Click tab | Updates `measuresTab` query parameter | `measuresTab` | Different layout | summary is default; legacy `measures` maps to summary; legacy `settings` maps to SPI settings; legacy `kpi-settings` falls back to summary | unsupported values fall back to summary | `MeasuresTabs` | Bookmarkable tab state | |
+| Measures | Tab routing | Switches among summary, KPI report index, and SPI report index | Click tab | Updates `measuresTab` query parameter | `measuresTab` | Different layout | summary is default; legacy `measures` maps to summary; legacy `settings` and `spi-settings` redirect to Menu Settings SPI Risk Matrix; legacy `kpi-settings` falls back to summary | unsupported values fall back to summary | `MeasuresTabs` | Bookmarkable tab state | |
 | Measures | Shared scope | Common measure filter scope plus severity selector | Apply filters | Re-runs analytics and KPI/SPI rows | shared filters plus `severity` | Filtered charts and matrix | one scope for all visible scores | supported values come from filter options or severity list | `FilterBar`, `getCoreAppData()` | Consistent measures scope | |
-| Measures | Summary charts | KPI and SPI compliance charts | Open tab | Derives KPI and SPI compliance points from database definitions plus SQL-produced runtime rows | KPI definitions, SQL KPI evaluations, SPI definitions, analytics | Charts | charts show recalculated runtime scores for configured KPI and SPI rows | zero-safe percentages | chart components, `buildKpiRows()`, `usp_evaluate_kpi_snapshot` | Compact summary view | removed definitions disappear from the chart |
-| Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows from database definitions and SQL KPI evaluations, then carries filter scope plus `dataDate` into report URLs | KPI definitions, SQL KPI evaluations, filters, dataset snapshots | KPI tiles and PDF report links | report buttons follow `kpi_definition.report_available`; current seed enables KPI-5 through KPI-10 and leaves KPI-1 through KPI-4 unavailable | invalid or incomplete KPI calculation metadata fails validation/load normalization | `KpiSpiMatrix`, `/api/tasking-report`, `usp_evaluate_kpi_snapshot` | Detailed KPI view with current and trend reports | |
-| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows from active database definitions and SQL evaluation output, then carries filter scope plus `dataDate` into report URLs | SPI definitions, SQL SPI evaluations, analytics, filters, dataset snapshots | SPI tiles and PDF report links | SPI rows respect database enabled/report flags and applicability rules; all-SPI report summarizes every active reportable SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | invalid or incomplete calculation metadata fails validation/load normalization | `KpiSpiMatrix`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
-| Measures | SPI settings | Maintain nested severity and priority mappings | Edit rows, switch nested settings tab, save, reset | Validates and persists latest settings version with both matrices | active SPI definitions, severity definitions, priority definitions, measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
+| Measures | Executive summary | KPI exceptions, SPI posture, unknown evidence and risk priorities | Open findings, indicators or risk settings | Aggregates scoped source scores and open findings, preserving independent KPI bases and weighted SPI checks | KPI/SPI rows, analytics, saved mappings | Linked tiles, ranked reviews, severity distribution, priority focus and review queue | Distinct CI counts are deduplicated; unknown and non-compliant categories may overlap | Empty denominators show N/A | `MeasuresSummary`, `buildMeasuresSummary()` | Executive triage with scoped drill-through | Target scores and trends are not invented |
+| Measures | Measures-KPI tab | KPI-only detailed report index and report launch surface | Open tab, click report link | Builds KPI report rows from database definitions and SQL KPI evaluations, then carries filter scope plus `dataDate` into report URLs | KPI definitions, SQL KPI evaluations, filters, dataset snapshots | KPI table, expanded details and PDF report links | report buttons follow `kpi_definition.report_available`; current seed enables KPI-5 through KPI-10 and leaves KPI-1 through KPI-4 unavailable | invalid or incomplete KPI calculation metadata fails validation/load normalization | `MeasuresExplorer`, `/api/tasking-report`, `usp_evaluate_kpi_snapshot` | Detailed KPI view with current and trend reports | |
+| Measures | Measures-SPI tab | SPI-only detailed report index and report launch surface | Open tab, click report link | Builds SPI report rows from active database definitions and SQL evaluation output, then carries filter scope plus `dataDate` into report URLs | SPI definitions, SQL SPI evaluations, analytics, filters, dataset snapshots | SPI table, expanded CI breakdown and PDF report links | SPI rows respect database enabled/report flags and applicability rules; all-SPI report summarizes every active reportable SPI in current scope; trend report uses available snapshots in the 12 calendar months ending at the selected snapshot | invalid or incomplete calculation metadata fails validation/load normalization | `MeasuresExplorer`, `/api/tasking-report` | Detailed SPI view with all-SPI, current, and trend reports | |
+| Settings | SPI Risk Matrix | Maintain nested severity and priority mappings from the Menu Settings popup | Open Settings tab, edit rows, switch nested matrix tab, save, reset | Validates and persists latest settings version with both matrices | active SPI definitions, severity definitions, priority definitions, measures settings rows | Updated measures settings | severity matrix affects future severity remap; priority matrix affects non-compliant finding priority only; Unknown/Data Gap stays P90 | panel-level validation in component and API | `/api/measures/settings` | Updated severity and priority model | non-applicable SPI/asset combinations remain harmless severity entries |
 
 ## 5. Database Mapping
 The page reads snapshot analytics, KPI definitions, SPI definitions, severity/priority definitions, SQL KPI evaluation rows, SQL SPI evaluation rows, SQL discovery coverage rows, and measures settings tables. KPI definitions and KPI calculation metadata are stored in the database; SQL Server evaluates KPI score rows on demand for the selected scope. SPI definitions and SPI calculation expressions are stored in the database; SQL Server evaluates SPI status/outcome/evidence on demand for the selected snapshot. The Measures page uses the summary data profile so it avoids loading software, vulnerability, and CI dependency payloads that are not needed to render KPI/SPI scores.

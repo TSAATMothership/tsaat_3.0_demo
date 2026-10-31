@@ -76,7 +76,7 @@ describe("Findings register layout", () => {
     expect(historyDrillthroughSource).toContain('hiddenFields={["systemCriticality"]}');
   });
 
-  it("renders the register as a compliance detail-style scrollable worklist", () => {
+  it("keeps register scope filters and drill-through actions around the shared explorer table", () => {
     expect(pageSource).toContain("findings={findings}");
     expect(pageSource).toContain("buildCveVulnerabilityIndexByAssetId(dataset.assets)");
     expect(pageSource).toContain("const priorityFilterSelect = {");
@@ -84,12 +84,10 @@ describe("Findings register layout", () => {
     expect(pageSource).not.toContain("paginatedFindings");
     expect(pageSource).not.toContain("openTabPageSize");
     expect(pageSource).not.toContain("selectedPage");
-    expect(registerSource).toContain("Compliance detail-style worklist");
-    expect(registerSource).toContain('<th className="w-[12rem] min-w-[12rem] px-3 py-2">Measure</th>');
-    expect(registerSource).toContain('<th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>');
-    expect(registerSource).toContain(
-      '<th className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2">Timestamp</th>'
-    );
+    expect(registerSource).toContain('<FindingsDataTable title="Findings Register"');
+    expect(registerSource).toContain('label: "Measure"');
+    expect(registerSource).toContain('label: "Severity"');
+    expect(registerSource).toContain('label: "Timestamp"');
     expect(registerSource).toContain('{asOfStatus === "open" ? "Open" : "Closed"}');
     expect(registerSource).toContain("Findings Severity");
     expect(registerSource).not.toContain("<th className=\"px-3 py-2\">Scope</th>");
@@ -97,7 +95,6 @@ describe("Findings register layout", () => {
     expect(registerSource).not.toContain("Findings History (2 Years)");
     expect(registerSource).not.toContain("Findings by Severity");
     expect(registerSource).not.toContain("Page {pagination.currentPage}");
-    expect(registerSource).not.toContain("Previous");
     expect(registerSource).not.toContain("fetch(`/api/findings/asset-details");
   });
 
@@ -106,8 +103,8 @@ describe("Findings register layout", () => {
     expect(registerSource).toContain("buildAssetDetailsRow(selectedFindingForAssets, assetCvesByAssetId, findingDisplayConfiguration)");
     expect(registerSource).toContain("CVE Vulnerabilities");
     expect(registerSource).toContain("CVE Criticality");
-    expect(registerSource).toContain("const rows = filteredAssetCves.map((entry) => [");
-    expect(registerSource).toContain("disabled={!filteredAssetCves.length}");
+    expect(registerSource).toContain("const rows = matchingRows.map((entry) => [");
+    expect(registerSource).toContain("disabled={!matching.length}");
     expect(registerSource).not.toContain("Total Critical Exposure Findings");
     expect(registerSource).not.toContain("Total High Risk Findings");
     expect(registerSource).not.toContain("<th className=\"px-3 py-2\">Total Findings</th>");

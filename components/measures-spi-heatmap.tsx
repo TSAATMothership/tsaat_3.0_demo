@@ -1,5 +1,7 @@
 "use client";
 
+import { FindingsDataTable } from "@/components/findings-data-table";
+
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
@@ -390,7 +392,7 @@ function AffectedCisPanel({
   const rows = panel.spi.affectedCis;
   const title = `${panel.spi.label}: ${panel.spi.name}`;
 
-  const onExport = () => {
+  const onExport = (matchingRows: typeof rows) => {
     downloadCsv(
       `affected-cis-${safeSlug(`${panel.row.entityName}-${panel.spi.label}`, "affected-cis")}.csv`,
       [
@@ -402,7 +404,7 @@ function AffectedCisPanel({
         "Asset Incident Assignment Group",
         "Owner"
       ],
-      rows.map((row) => [
+      matchingRows.map((row) => [
         row.assetName,
         row.assetIpAddress,
         row.assetType,
@@ -418,7 +420,7 @@ function AffectedCisPanel({
     <div className="fixed inset-0 z-[170]">
       <div className="absolute inset-0 bg-slate-950/92 backdrop-blur-[1px]" onClick={onClose} />
       <aside
-        className="absolute right-0 top-0 flex h-full w-full flex-col border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out"
+        className="findings-drillthrough absolute right-0 top-0 flex h-full w-full flex-col border-l border-sky-300/35 bg-slate-950 p-4 shadow-[-22px_0_42px_rgba(0,0,0,0.55)] transition-all duration-[260ms] ease-out"
         role="dialog"
         aria-modal="true"
         aria-labelledby="measures-spi-affected-cis-title"
@@ -443,40 +445,21 @@ function AffectedCisPanel({
               </p>
               <p className="mt-1 text-xs text-slate-300/80">Affected CIs: {rows.length}</p>
             </div>
-            <button
-              type="button"
-              onClick={onExport}
-              disabled={!rows.length}
-              className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-            >
-              Export to CSV
-            </button>
+
           </div>
 
-          <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-            <table className="min-w-[111rem] table-fixed text-sm">
-              <colgroup>
-                <col className="w-[18rem]" />
-                <col className="w-[12rem]" />
-                <col className="w-[10rem]" />
-                <col className="w-[13rem]" />
-                <col className="w-[20rem]" />
-                <col className="w-[20rem]" />
-                <col className="w-[18rem]" />
-              </colgroup>
-              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                <tr>
-                  <th className="whitespace-nowrap px-3 py-2">Asset Name</th>
-                  <th className="whitespace-nowrap px-3 py-2">Asset IP address</th>
-                  <th className="whitespace-nowrap px-3 py-2">Asset Type</th>
-                  <th className="whitespace-nowrap px-3 py-2">CVE Vulnerabilities</th>
-                  <th className="whitespace-nowrap px-3 py-2">Asset Change Assignment Group</th>
-                  <th className="whitespace-nowrap px-3 py-2">Asset Incident Assignment Group</th>
-                  <th className="whitespace-nowrap px-3 py-2">Owner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((assetRow) => (
+          <div className="findings-table-host mt-3"><FindingsDataTable title="Affected CIs" rows={rows} searchable={true}
+columns={[{ key: "asset-name", label: "Asset Name", value: (assetRow) => assetRow.assetName },
+{ key: "asset-ip-address", label: "Asset IP address", value: (assetRow) => assetRow.assetIpAddress },
+{ key: "asset-type", label: "Asset Type", value: (assetRow) => assetRow.assetType },
+{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities },
+{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (assetRow) => assetRow.assetChangeAssignmentGroup },
+{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (assetRow) => assetRow.assetIncidentAssignmentGroup },
+{ key: "owner", label: "Owner", value: (assetRow) => assetRow.owner }]}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => onExport(matching)}>Export CSV</button>}
+emptyMessage={<>No affected CIs for this selected SPI and entity scope.
+                    </>}
+renderRow={(assetRow) => (
                   <tr key={assetRow.assetId} className="border-t border-sky-400/10 align-top">
                     <td className="whitespace-nowrap px-3 py-2 text-slate-100">
                       <CmdbDeviceName assetId={assetRow.assetId} name={assetRow.assetName} />
@@ -500,17 +483,7 @@ function AffectedCisPanel({
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                   </tr>
-                ))}
-                {!rows.length ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                      No affected CIs for this selected SPI and entity scope.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                )} /></div>
         </div>
       </aside>
       <CveDetailsModal assetRow={selectedAssetForCves} onClose={() => onOpenCves(null)} />
@@ -547,11 +520,11 @@ function CveDetailsModal({
     ].join(" ").toLowerCase().includes(normalizedSearch);
   });
 
-  const onExport = () => {
+  const onExport = (matchingRows: typeof filteredCves) => {
     downloadCsv(
       `cve-vulnerabilities-${safeSlug(assetRow.assetName, "asset-cves")}.csv`,
       ["Asset Name", "Asset ID", "CVE", "Description", "Remediation Guidance", "Criticality", "Timestamp"],
-      filteredCves.map((entry) => [
+      matchingRows.map((entry) => [
         assetRow.assetName,
         assetRow.assetId,
         entry.cve,
@@ -593,14 +566,7 @@ function CveDetailsModal({
                 CVEs in scope: {filteredCves.length} of {cves.length}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onExport}
-              disabled={!filteredCves.length}
-              className="rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 transition hover:border-sky-200/60 hover:text-sky-100 disabled:cursor-not-allowed disabled:border-slate-500/35 disabled:text-slate-400"
-            >
-              Export CSV
-            </button>
+
           </div>
           <div className="mt-3">
             <label htmlFor="measures-spi-cve-search" className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">
@@ -615,19 +581,15 @@ function CveDetailsModal({
               className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400/70"
             />
           </div>
-          <div className="mt-3 min-h-0 flex-1 overflow-x-auto overflow-y-scroll rounded-xl border border-sky-400/15">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                <tr>
-                  <th className="px-3 py-2">CVE Code</th>
-                  <th className="px-3 py-2">Description</th>
-                  <th className="px-3 py-2">Remediation Guidance</th>
-                  <th className="px-3 py-2">Criticality</th>
-                  <th className="px-3 py-2">Timestamp</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCves.map((entry: CveVulnerabilityDetail, index) => (
+          <div className="findings-table-host mt-3"><FindingsDataTable title="CVE vulnerabilities" rows={filteredCves} searchable={false}
+columns={[{ key: "cve-code", label: "CVE Code", value: (entry) => entry.cve },
+{ key: "description", label: "Description", value: (entry) => entry.description },
+{ key: "remediation-guidance", label: "Remediation Guidance", value: (entry) => entry.remediationGuidance },
+{ key: "criticality", label: "Criticality", value: (entry) => entry.criticality },
+{ key: "timestamp", label: "Timestamp", value: (entry) => formatCapturedTimestamp(entry.capturedAt) }]}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => onExport(matching)}>Export CSV</button>}
+emptyMessage={<>{cves.length === 0 ? "No CVE vulnerabilities for this asset." : "No CVE records match the active filters."}</>}
+renderRow={(entry: CveVulnerabilityDetail, index) => (
                   <tr key={`${assetRow.assetId}-${entry.cve}-${entry.capturedAt}-${index}`} className="border-t border-sky-400/10 align-top">
                     <td className="whitespace-nowrap px-3 py-2 font-medium text-sky-100">{entry.cve}</td>
                     <td className="px-3 py-2 text-slate-300/85">{entry.description}</td>
@@ -639,17 +601,7 @@ function CveDetailsModal({
                       {formatCapturedTimestamp(entry.capturedAt)}
                     </td>
                   </tr>
-                ))}
-                {!filteredCves.length ? (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-sm text-emerald-200/90">
-                      {cves.length === 0 ? "No CVE vulnerabilities for this asset." : "No CVE records match the active filters."}
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                )} /></div>
         </section>
       </div>
     </div>

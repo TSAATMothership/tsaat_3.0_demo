@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Count = { value: string; count: number };
 const number = (value: number) => value.toLocaleString("en-AU");
 const toggle = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 
-export function FilterHeader({ column, selected, options, open, onOpen, onChange }: {
-  column: { key: string; label: string }; selected: string[]; options: Count[]; open: boolean;
+export function FilterHeader({ column, selected, options, open, onOpen, onChange, layer }: {
+  layer?: number; column: { key: string; label: string }; selected: string[]; options: Count[]; open: boolean;
   onOpen: (open: boolean) => void; onChange: (values: string[]) => void;
 }) {
+  const popupId = useId();
   const [search, setSearch] = useState("");
   const [position, setPosition] = useState({ top: 0, left: 0, maxHeight: 420 });
   const trigger = useRef<HTMLButtonElement>(null);
@@ -33,7 +34,7 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
       if (!popup.current?.contains(event.target as Node) && !trigger.current?.contains(event.target as Node)) onOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); onOpen(false); trigger.current?.focus(); }
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onOpen(false); trigger.current?.focus(); }
     };
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
@@ -53,12 +54,12 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
   return <>
     <button ref={trigger} type="button" className={`endpoint-column-trigger ${selected.length ? "is-filtered" : ""}`}
       aria-label={`Filter ${column.label}${selected.length ? `, ${selected.length} selected` : ""}`} aria-expanded={open}
-      aria-haspopup="dialog" aria-controls={`endpoint-filter-${column.key}`} onClick={() => onOpen(!open)}>
+      aria-haspopup="dialog" aria-controls={`endpoint-filter-${popupId}`} onClick={() => onOpen(!open)}>
       <span>{column.label}</span>{selected.length > 0 && <span className="endpoint-filter-count">{selected.length}</span>}
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
     </button>
-    {open && createPortal(<div ref={popup} role="dialog" id={`endpoint-filter-${column.key}`} aria-label={`Filter ${column.label}`}
-      className="endpoint-filter-popup" style={position} onBlur={(event) => {
+    {open && createPortal(<div ref={popup} role="dialog" id={`endpoint-filter-${popupId}`} aria-label={`Filter ${column.label}`}
+      className="endpoint-filter-popup" style={{ ...position, zIndex: layer }} onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget) && !trigger.current?.contains(event.relatedTarget)) onOpen(false);
       }}>
       <div className="endpoint-filter-popup-title"><strong>{column.label}</strong><button type="button" aria-label={`Close ${column.label} filter`} onClick={() => { onOpen(false); trigger.current?.focus(); }}>×</button></div>

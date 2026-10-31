@@ -7,8 +7,7 @@ export type MeasuresTabId =
 export const MEASURES_TABS: Array<{ id: MeasuresTabId; label: string }> = [
   { id: "summary", label: "Measures Summary" },
   { id: "measures-kpi", label: "Key Performance Indicators (KPIs)" },
-  { id: "measures-spi", label: "Security Posture Indicators (SPIs)" },
-  { id: "spi-settings", label: "SPI Risk Matrix" }
+  { id: "measures-spi", label: "Security Posture Indicators (SPIs)" }
 ];
 
 export function resolveMeasuresTab(requestedTab: string | undefined): MeasuresTabId {

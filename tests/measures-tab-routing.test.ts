@@ -6,14 +6,13 @@ describe("Measures tab routing", () => {
     expect(MEASURES_TABS.map((tab) => tab.id)).toEqual([
       "summary",
       "measures-kpi",
-      "measures-spi",
-      "spi-settings"
+      "measures-spi"
     ]);
     expect(MEASURES_TABS.map((tab) => tab.label)).not.toContain("Networks - SPI Heatmap");
     expect(MEASURES_TABS.map((tab) => tab.label)).not.toContain("ICT Systems - SPI Heatmap");
     expect(MEASURES_TABS.find((tab) => tab.id === "measures-kpi")?.label).toBe("Key Performance Indicators (KPIs)");
     expect(MEASURES_TABS.find((tab) => tab.id === "measures-spi")?.label).toBe("Security Posture Indicators (SPIs)");
-    expect(MEASURES_TABS.find((tab) => tab.id === "spi-settings")?.label).toBe("SPI Risk Matrix");
+    expect(MEASURES_TABS.some((tab) => tab.id === "spi-settings")).toBe(false);
     expect(measuresTabLoadingLabel("measures-kpi")).toBe("Key Performance Indicators (KPIs)");
     expect(measuresTabLoadingLabel("measures-spi")).toBe("Security Posture Indicators (SPIs)");
     expect(measuresTabLoadingLabel("spi-settings")).toBe("SPI Risk Matrix");

@@ -8,7 +8,7 @@ import { locationKeyForHref, startRouteLoading } from "@/lib/route-loading";
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<string[]>(() => WORKSPACE_GROUPS.map((group) => group.label));
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const params = new URLSearchParams(useSearchParams()?.toString());

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import {
   MEASURES_ASSET_TYPES,
@@ -34,10 +35,11 @@ export function MeasuresSettingsMatrix({
   priorityDefinitions
 }: {
   initialSettings: MeasuresSettings;
-  spiDefinitions: SpiDefinition[];
+  spiDefinitions: Pick<SpiDefinition, "spiId" | "description">[];
   severityDefinitions: SeverityDefinition[];
   priorityDefinitions: FindingPriorityDefinition[];
 }) {
+  const router = useRouter();
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsMatrixTab>("severity");
   const [savedSettings, setSavedSettings] = useState<MeasuresSettings>(initialSettings);
   const [draftMatrix, setDraftMatrix] = useState<Record<string, FindingSeverity>>(initialSettings.severityMatrix);
@@ -114,6 +116,7 @@ export function MeasuresSettingsMatrix({
       setDraftMatrix(payload.settings.severityMatrix);
       setDraftPriorityMatrix(payload.settings.priorityMatrix);
       setSaveSuccess(`Saved at ${new Date(payload.settings.updatedAt).toLocaleString()}`);
+      router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to save settings.";
       setSaveError(message);
@@ -126,7 +129,7 @@ export function MeasuresSettingsMatrix({
     <section className="panel flex h-full min-h-0 flex-col p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">SPI Settings</h2>
+          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">SPI Risk Matrix</h2>
           <p className="mt-1 text-xs text-slate-300/80">
             Configure SPI severity and priority mappings. Changes are applied globally to findings analytics and rollups.
           </p>

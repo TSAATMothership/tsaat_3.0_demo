@@ -28,9 +28,10 @@ describe("SPI heatmap tabs", () => {
     expect(measuresPage).not.toContain('activeTab === "systems-spi-heatmap"');
   });
 
-  it("adds SPI and text search controls for Measures SPI views", () => {
+  it("retains heatmap filters and exposes SPI search in the Measures explorer", () => {
     const filters = readRepoFile("components/measures-spi-filters.tsx");
-    const matrix = readRepoFile("components/kpi-spi-matrix.tsx");
+    const explorer = readRepoFile("components/measures-explorer.tsx");
+    const measuresPage = readRepoFile("app/measures/page.tsx");
 
     expect(filters).toContain("SPI Filter");
     expect(filters).toContain("Text Search");
@@ -47,10 +48,11 @@ describe("SPI heatmap tabs", () => {
     expect(filters).toContain("SPI {definition.spiId} - {definition.name}: {definition.description}");
     expect(filters).toContain('params.set("spi", value)');
     expect(filters).toContain('params.set("measureSearch", trimmedSearch)');
-    expect(matrix).toContain("selectedSpiId");
-    expect(matrix).toContain("searchValue");
-    expect(matrix).toContain("report.successMeasure");
-    expect(matrix).toContain("No SPI reports match the current SPI and text search filters.");
+    expect(measuresPage).toContain("initialMeasureFilters(searchParams");
+    expect(explorer).toContain("FilterHeader");
+    expect(explorer).toContain("filters.search");
+    expect(explorer).toContain("row.successMeasure");
+    expect(explorer).toContain("No {label} indicators found");
   });
 
   it("renders the new SPI heatmap from shared SPI matrix rows", () => {
@@ -76,8 +78,8 @@ describe("SPI heatmap tabs", () => {
     expect(heatmap).toContain("setAffectedCisPanel");
     expect(heatmap).toContain("Affected CIs");
     expect(heatmap).toContain("CVE Details");
-    expect(heatmap).toContain('className="min-w-[111rem] table-fixed text-sm"');
-    expect(heatmap).toContain('<col className="w-[20rem]" />');
+    expect(heatmap).toContain('<FindingsDataTable title="Affected CIs"');
+    expect(heatmap).toContain('<FindingsDataTable title="CVE vulnerabilities"');
     expect(heatmap).toContain("whitespace-nowrap px-3 py-2");
     expect(heatmap).toContain("assetChangeAssignmentGroup");
     expect(heatmap).toContain("assetIncidentAssignmentGroup");
@@ -85,7 +87,6 @@ describe("SPI heatmap tabs", () => {
     expect(heatmap).toContain("setSelectedEntityDetails(row.entityDetails)");
     expect(heatmap).toContain("Network Details");
     expect(heatmap).toContain("ICT System Details");
-    expect(heatmap).toContain("Export to CSV");
     expect(heatmap).toContain("Export CSV");
     expect(heatmap).toContain('title={`${spi.label}: ${spi.name} - ${spi.description}`}');
     expect(heatmap).toContain("overflow-y-auto overflow-x-hidden");

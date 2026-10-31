@@ -1,5 +1,7 @@
 "use client";
 
+import { FindingsDataTable } from "@/components/findings-data-table";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
@@ -259,7 +261,7 @@ export function ServerComplianceView({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
+      if (event.key !== "Escape" || (event.target instanceof Element && event.target.closest(".endpoint-filter-popup"))) {
         return;
       }
       event.preventDefault();
@@ -529,7 +531,7 @@ export function ServerComplianceView({
                     role="dialog"
                     aria-modal="true"
                     aria-label="SPI Findings and Evidence"
-                    className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden rounded-lg border border-cyan-300/35 bg-slate-950 shadow-[0_18px_48px_rgba(0,0,0,0.7)]"
+                    className="findings-drillthrough absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden rounded-lg border border-cyan-300/35 bg-slate-950 shadow-[0_18px_48px_rgba(0,0,0,0.7)]"
                   >
                     <div className="flex shrink-0 items-start justify-between gap-4 border-b border-sky-300/15 bg-slate-900/90 px-4 py-3">
                       <div className="min-w-0">
@@ -580,13 +582,16 @@ export function ServerComplianceView({
                       <input id="server-spi-findings-search" type="search" value={findingSearch} onChange={(event) => setFindingSearch(event.target.value)} placeholder="Search title, severity, evidence or recommended action..." className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-400/70" />
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-auto border-t border-sky-300/10">
-                      <table className="min-w-full text-sm">
-                        <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                          <tr><th className="px-3 py-2">Severity</th><th className="px-3 py-2">Timestamp</th><th className="px-3 py-2">Title</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Evidence</th><th className="px-3 py-2">Recommended Action</th></tr>
-                        </thead>
-                        <tbody>
-                          {filteredFindings.map((finding) => (
+                    <div className="findings-table-host"><FindingsDataTable title="Findings and evidence" rows={filteredFindings} searchable={false}
+columns={[{ key: "severity", label: "Severity", value: (finding) => finding.severity },
+{ key: "timestamp", label: "Timestamp", value: (finding) => formatTimestamp(finding.timestamp) },
+{ key: "title", label: "Title", value: (finding) => finding.title },
+{ key: "status", label: "Status", value: (finding) => finding.status },
+{ key: "evidence", label: "Evidence", value: (finding) => findingEvidencePreview(finding) },
+{ key: "recommended-action", label: "Recommended Action", value: (finding) => finding.recommendedAction }]}
+
+emptyMessage={<>{selectedMeasureFindings.length ? "No findings match the active filters." : `No findings were generated for this SPI in the selected ${assetTypeScopeLabel} scope.`}</>}
+renderRow={(finding) => (
                             <tr key={finding.id} className="border-t border-sky-400/10 align-top">
                               <td className="px-3 py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${findingSeverityClass(finding.severity)}`}>{finding.severity}</span></td>
                               <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-300/85">{formatTimestamp(finding.timestamp)}</td>
@@ -595,13 +600,7 @@ export function ServerComplianceView({
                               <td className="max-w-sm px-3 py-2 text-xs text-slate-300/85">{findingEvidencePreview(finding)}</td>
                               <td className="max-w-sm px-3 py-2 text-xs text-slate-300/85">{finding.recommendedAction || "No recommended action recorded."}</td>
                             </tr>
-                          ))}
-                          {!filteredFindings.length ? (
-                            <tr><td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-300/80">{selectedMeasureFindings.length ? "No findings match the active filters." : `No findings were generated for this SPI in the selected ${assetTypeScopeLabel} scope.`}</td></tr>
-                          ) : null}
-                        </tbody>
-                      </table>
-                    </div>
+                          )} /></div>
                   </section>
                 ) : null}
               </div>

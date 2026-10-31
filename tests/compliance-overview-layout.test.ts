@@ -13,10 +13,11 @@ describe("Compliance overview details panel layout", () => {
     expect(source).not.toContain("Eval {entry.finding.evaluationStatus}");
   });
 
-  it("keeps details table timestamps on one line with a fixed readable width", () => {
-    expect(source).toContain('<th className="w-[11rem] min-w-[11rem] px-3 py-2">Severity</th>');
-    expect(source).toContain('className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2"');
-    expect(source).toContain('className="w-[12.5rem] min-w-[12.5rem] whitespace-nowrap px-3 py-2 text-slate-200"');
+  it("uses the explorer table with readable timestamps and workflow styling", () => {
+    expect(source).toContain('<FindingsDataTable title="Findings and evidence"');
+    expect(source).toContain('label: "Severity"');
+    expect(source).toContain('label: "Timestamp"');
+    expect(source).toContain('className="whitespace-nowrap px-3 py-2 text-slate-200"');
     expect(source).toContain("findingSeverityBadgeClass(");
     expect(source).toContain("entry.finding.severity");
     expect(source).not.toContain('<th className="px-3 py-2">Scope</th>');
@@ -41,8 +42,8 @@ describe("Compliance overview details panel layout", () => {
   });
 
   it("exports the filtered CVE drillthrough list", () => {
-    expect(source).toContain("const rows = filteredAssetCves.map((entry) => [");
-    expect(source).toContain("disabled={!filteredAssetCves.length}");
+    expect(source).toContain("const rows = matchingRows.map((entry) => [");
+    expect(source).toContain("disabled={!matching.length}");
     expect(source).not.toContain("const rows = selectedAssetCves.map");
     expect(source).not.toContain("downloadHighRiskCvesCsv");
   });

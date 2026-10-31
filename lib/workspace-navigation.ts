@@ -64,8 +64,7 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { label: "Observed Measures", items: [
     { label: "Measures Summary", href: "/measures" },
     { label: "Key Performance Indicators (KPIs)", href: "/measures?measuresTab=measures-kpi" },
-    { label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" },
-    { label: "SPI Risk Matrix", href: "/measures?measuresTab=spi-settings" }
+    { label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" }
   ] }
 ];
 export const WORKSPACE_LINKS: WorkspaceItem[] = [
