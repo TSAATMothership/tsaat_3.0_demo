@@ -1,6 +1,15 @@
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
+IF OBJECT_ID(N'tsaat.cmdb_attribute_definition', N'U') IS NULL
+  OR OBJECT_ID(N'tsaat.cmdb_asset_type_attribute', N'U') IS NULL
+  THROW 52000, 'Validation failed: CMDB attribute catalogue and asset-type mappings are required.', 1;
+
+IF NOT EXISTS (SELECT 1 FROM [tsaat].[cmdb_attribute_definition])
+  THROW 52000, 'Validation failed: CMDB attribute catalogue is empty.', 1;
+
+-- Attribute mappings can intentionally differ by type or contain no enabled rows.
+
 DECLARE @SnapshotCount INT = (SELECT COUNT(*) FROM [tsaat].[dataset_snapshot]);
 DECLARE @SpiCount INT = (SELECT COUNT(*) FROM [tsaat].[spi_definition]);
 DECLARE @SeverityCount INT = (SELECT COUNT(*) FROM [tsaat].[finding_severity_definition]);

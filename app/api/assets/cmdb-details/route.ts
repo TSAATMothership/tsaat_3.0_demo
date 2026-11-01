@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildCmdbAssetDetails } from "@/lib/cmdb-drill-through";
+import { buildCmdbAssetView } from "@/lib/cmdb-attributes";
+import { loadCmdbAttributeDefinitions } from "@/lib/cmdb-attribute-loader";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
 import { loadDatasetForDate } from "@/lib/data-loader";
+
+export const dynamic = "force-dynamic";
 
 function json(body: unknown, status = 200): NextResponse {
   const response = NextResponse.json(body, { status });
@@ -22,5 +26,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return json({ error: "Asset not found in the selected snapshot." }, 404);
   }
 
-  return json({ snapshotDate: dataset.snapshotDate, asset });
+  try {
+    const definitions = await loadCmdbAttributeDefinitions(asset.assetType);
+    return json({ snapshotDate: dataset.snapshotDate, asset: buildCmdbAssetView(asset, definitions) });
+  } catch {
+    return json({ error: "Unable to load the CMDB attribute configuration. Please retry." }, 503);
+  }
 }

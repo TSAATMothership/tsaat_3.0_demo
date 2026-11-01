@@ -2,6 +2,19 @@
 
 ```mermaid
 erDiagram
+  cmdb_attribute_definition ||--o{ cmdb_asset_type_attribute : "attribute_key"
+
+  cmdb_attribute_definition {
+    nvarchar attribute_key PK
+    nvarchar label
+  }
+  cmdb_asset_type_attribute {
+    nvarchar asset_type PK "Canonical asset type, matched to asset.asset_type"
+    nvarchar attribute_key PK,FK
+    int display_order
+    bit is_enabled
+  }
+
   dataset_snapshot ||--o{ managed_network : "snapshot_id"
   dataset_snapshot ||--o{ ict_system : "snapshot_id"
   dataset_snapshot ||--o{ asset : "snapshot_id"

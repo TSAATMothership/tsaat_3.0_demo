@@ -12,8 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { FindingsDataTable } from "@/components/findings-data-table";
-import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
-import type { CmdbAssetDetails } from "@/lib/cmdb-drill-through";
+import type { CmdbAssetView, CmdbAttributeRow } from "@/lib/cmdb-attributes";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
 import type { ExplorerColumn } from "@/lib/explorer-table";
 
@@ -29,7 +28,7 @@ interface CmdbRequest {
 
 interface CmdbSelection extends CmdbRequest {
   state: "loading" | "ready" | "error";
-  details: CmdbAssetDetails | null;
+  details: CmdbAssetView | null;
   error: string | null;
 }
 
@@ -39,8 +38,7 @@ interface CmdbDrillThroughContextValue {
 
 const CmdbDrillThroughContext = createContext<CmdbDrillThroughContextValue | null>(null);
 
-interface CmdbDetailRow { label: string; value: string; href?: string }
-const detailColumns: ExplorerColumn<CmdbDetailRow>[] = [
+const detailColumns: ExplorerColumn<CmdbAttributeRow>[] = [
   { key: "label", label: "Field", value: row => row.label },
   { key: "value", label: "Value", value: row => row.value }
 ];
@@ -64,22 +62,6 @@ function detailsEndpoint(request: CmdbRequest): string {
   return `/api/assets/cmdb-details?${params.toString()}`;
 }
 
-function formatDetailValue(value: string | number | null | undefined): string {
-  return value === null || value === undefined || value === "" ? "Not supplied" : String(value);
-}
-
-function safeExternalUrl(value: string | null | undefined): string | null {
-  if (!value?.trim()) {
-    return null;
-  }
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
 export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) {
   const [selection, setSelection] = useState<CmdbSelection | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -89,30 +71,21 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDialogElement | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
-  const cacheRef = useRef(new Map<string, CmdbAssetDetails>());
 
   const loadDetails = useCallback((request: CmdbRequest) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    const cacheKey = `${request.dataDate ?? "latest"}:${request.assetId}`;
-    const cached = cacheRef.current.get(cacheKey);
-    if (cached) {
-      setSelection({ ...request, state: "ready", details: cached, error: null });
-      return;
-    }
-
     setSelection({ ...request, state: "loading", details: null, error: null });
     void fetch(detailsEndpoint(request), { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = (await response.json().catch(() => ({}))) as {
-          asset?: CmdbAssetDetails;
+          asset?: CmdbAssetView;
           error?: string;
         };
-        if (!response.ok || !payload.asset || payload.asset.assetId !== request.assetId) {
+        if (!response.ok || !payload.asset || payload.asset.assetId !== request.assetId || !Array.isArray(payload.asset.attributes)) {
           throw new Error(payload.error || "Unable to load CMDB details for this device.");
         }
-        cacheRef.current.set(cacheKey, payload.asset);
         setSelection((current) =>
           current?.assetId === request.assetId && current.dataDate === request.dataDate
             ? { ...request, state: "ready", details: payload.asset ?? null, error: null }
@@ -255,32 +228,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
 
   const contextValue = useMemo(() => ({ openCmdbDrillThrough }), [openCmdbDrillThrough]);
   const details = selection?.details ?? null;
-  const cmdbRecordUrl = safeExternalUrl(details?.cmdbRecordUrl);
-  const detailRows: Array<[string, string | number | null | undefined]> = details
-    ? [
-        ["Asset ID", details.assetId],
-        ["Name", details.assetName],
-        ["Hostname", details.assetHostname],
-        ["Asset Type", formatAssetTypeLabel(details.assetType)],
-        ["IP Address", details.assetIpAddress],
-        ["Network", details.networkName || details.networkId],
-        ["ICT System", details.hasIctSystem ? details.systemName : "Not linked to ICT system"],
-        ["Environment", details.environmentType ?? "Unassigned"],
-        ["Security Domain", details.securityDomain],
-        ["Lifecycle EOL", details.lifecycleEolStatus],
-        ["Warranty", details.lifecycleWarrantyStatus],
-        ["Operating System", details.operatingSystemSummary],
-        ["Network OS", details.networkOsSummary],
-        ["Patch Status", details.patchStateSummary],
-        ["Installed Software", details.installedSoftwareCount],
-        ["Vulnerabilities", details.vulnerabilityCount],
-        ["Critical Vulnerabilities", details.criticalVulnerabilityCount]
-      ]
-    : [];
-  const tableRows: CmdbDetailRow[] = [
-    ...detailRows.map(([label, value]) => ({ label, value: formatDetailValue(value) })),
-    { label: "CMDB Record", value: cmdbRecordUrl ? "Open CMDB record" : "Not supplied", href: cmdbRecordUrl ?? undefined }
-  ];
+  const tableRows = details?.attributes ?? [];
 
   const panel =
     isMounted && selection
@@ -337,7 +285,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
                     columnFilters={false}
                     className="measure-scope-table cmdb-details-table" defaultPageSize={25} pageSizeOptions={[10, 25, 50, 100]}
                     searchText={row => row.href ?? ""}
-                    renderRow={row => <tr key={row.label}><td>{row.label}</td><td>{row.href
+                    renderRow={row => <tr key={row.key}><td>{row.label}</td><td>{row.href
                       ? <a href={row.href} target="_blank" rel="noreferrer" className="cmdb-record-link">{row.value}</a>
                       : row.value}</td></tr>} />
                 )}
