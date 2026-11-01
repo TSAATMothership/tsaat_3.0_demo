@@ -173,7 +173,6 @@ describe("CMDB drill through", () => {
       ["app/networks/[networkId]/page.tsx", 3],
       ["app/systems/[systemId]/page.tsx", 1],
       ["components/findings-table.tsx", 1],
-      ["components/measures-spi-heatmap.tsx", 2],
       ["components/network-compliance-overview.tsx", 2],
       ["components/network-detail-risk-charts.tsx", 4],
       ["components/top-risks.tsx", 1],

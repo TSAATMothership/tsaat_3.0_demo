@@ -8,7 +8,7 @@ export default async function IctSystemRiskProfilePage({ searchParams }: { searc
   const marker = <RouteReadyMarker pathname="/ict-system-risk-profile" searchParams={searchParams} />;
   if (!hasWorkspaceScope(searchParams)) return marker;
   const scope = { network: searchParams.network, system: searchParams.system, dataDate: searchParams.dataDate };
-  const { dataset, analytics, filters, severityDefinitions } = await getCoreAppData(scope, { profile: "risk-summary" });
-  const model = buildIctSystemRiskProfile({ dataset, analytics, filters, severityDefinitions });
+  const { dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings } = await getCoreAppData(scope, { profile: "risk-summary" });
+  const model = buildIctSystemRiskProfile({ dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings });
   return <>{marker}<IctSystemRiskProfile key={JSON.stringify([filters, dataset.snapshotDate])} model={model} filters={filters} /></>;
 }

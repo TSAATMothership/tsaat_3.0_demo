@@ -1,8 +1,10 @@
+import { buildComplianceHeatmap } from "@/lib/compliance-heatmap";
+import type { MeasuresSettings } from "@/lib/measures-settings";
 import { isRealNetworkId } from "@/lib/network-scope";
 import { applyAssetFilters } from "@/lib/selectors";
 import { scopeIds } from "@/lib/workspace-navigation";
 import { compareRiskRows, groupRiskItems, riskProfileHref, summarizeRiskAssets, summarizeRiskFindings } from "@/lib/risk-profile";
-import type { SeverityDefinition } from "@/lib/spi-definitions";
+import type { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import type { AnalyticsResult, Dataset, Filters } from "@/lib/types";
 
 export { buildRiskTrend as buildNetworkRiskTrend } from "@/lib/risk-profile";
@@ -10,8 +12,8 @@ export function networkRiskHref(path: string, filters: Filters, snapshotDate: st
   return riskProfileHref(path, filters, snapshotDate, "network", networkId, extra);
 }
 
-export function buildNetworkRiskProfile({ dataset, analytics, filters, severityDefinitions }: {
-  dataset: Dataset; analytics: AnalyticsResult; filters: Filters; severityDefinitions: SeverityDefinition[];
+export function buildNetworkRiskProfile({ dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings }: {
+  dataset: Dataset; analytics: AnalyticsResult; filters: Filters; severityDefinitions: SeverityDefinition[]; spiDefinitions: SpiDefinition[]; measuresSettings: MeasuresSettings;
 }) {
   const networkIds = scopeIds(filters.managedNetwork);
   const systemIds = scopeIds(filters.ictSystem);
@@ -56,6 +58,7 @@ export function buildNetworkRiskProfile({ dataset, analytics, filters, severityD
   return {
     ...summarizeRiskAssets(assets, evaluations, findings, dataset.snapshotDate),
     ...summarizeRiskFindings(findings, dataset.snapshotDate, severityDefinitions),
+    heatmap: buildComplianceHeatmap({ assets, evaluations, spiDefinitions, severityDefinitions, measuresSettings }),
     kind: "network" as const, snapshotDate: dataset.snapshotDate, rows,
     entityCount: networks.length, compliantCount: compliantNetworks,
     networkCount: networks.length, systemCount: systemCount(assets), modelled, discoveryEnabled, compliantNetworks,

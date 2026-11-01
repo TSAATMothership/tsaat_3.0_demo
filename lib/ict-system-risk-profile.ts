@@ -1,16 +1,18 @@
+import { buildComplianceHeatmap } from "@/lib/compliance-heatmap";
+import type { MeasuresSettings } from "@/lib/measures-settings";
 import { isRealNetworkId } from "@/lib/network-scope";
 import { applyAssetFilters, filterSystems } from "@/lib/selectors";
 import { scopeIds } from "@/lib/workspace-navigation";
 import { compareRiskRows, groupRiskItems, riskProfileHref, summarizeRiskAssets, summarizeRiskFindings } from "@/lib/risk-profile";
-import type { SeverityDefinition } from "@/lib/spi-definitions";
+import type { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import type { AnalyticsResult, Dataset, Filters } from "@/lib/types";
 
 export function ictSystemRiskHref(path: string, filters: Filters, snapshotDate: string, systemId?: string, extra: Record<string, string> = {}): string {
   return riskProfileHref(path, filters, snapshotDate, "system", systemId, extra);
 }
 
-export function buildIctSystemRiskProfile({ dataset, analytics, filters, severityDefinitions }: {
-  dataset: Dataset; analytics: AnalyticsResult; filters: Filters; severityDefinitions: SeverityDefinition[];
+export function buildIctSystemRiskProfile({ dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings }: {
+  dataset: Dataset; analytics: AnalyticsResult; filters: Filters; severityDefinitions: SeverityDefinition[]; spiDefinitions: SpiDefinition[]; measuresSettings: MeasuresSettings;
 }) {
   const networkIds = scopeIds(filters.managedNetwork);
   const candidateAssets = applyAssetFilters(dataset.assets, dataset.ictSystems, filters);
@@ -48,6 +50,7 @@ export function buildIctSystemRiskProfile({ dataset, analytics, filters, severit
   return {
     ...summarizeRiskAssets(assets, evaluations, findings, dataset.snapshotDate),
     ...summarizeRiskFindings(findings, dataset.snapshotDate, severityDefinitions),
+    heatmap: buildComplianceHeatmap({ assets, evaluations, spiDefinitions, severityDefinitions, measuresSettings }),
     kind: "system" as const, snapshotDate: dataset.snapshotDate, rows, entityCount: systems.length,
     compliantCount: rows.filter(row => row.status === "Compliant").length,
     systemCount: systems.length, networkCount: hostNetworks(assets).length, modelled, atoProvided, diisProvided,

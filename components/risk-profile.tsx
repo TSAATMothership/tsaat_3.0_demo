@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Papa from "papaparse";
 import { useMemo, useRef, useState } from "react";
+import { ComplianceHeatmap } from "@/components/compliance-heatmap";
 import { FindingsDataTable } from "@/components/findings-data-table";
 import { FindingsDurationPanel, severityBarColors } from "@/components/findings-duration-panel";
 import { NetworkRiskTrend } from "@/components/network-risk-trend";
@@ -13,7 +14,7 @@ import type { Filters } from "@/lib/types";
 const number = (value: number) => value.toLocaleString("en-AU");
 const score = (value: number | null) => value === null ? "No assessments" : `${value}%`;
 type Review = "all" | "severe" | "ageing" | "discovery" | "unassessed";
-type RiskProfileTab = "profile" | "explorer";
+type RiskProfileTab = "profile" | "explorer" | "heatmap";
 
 function CoverageBar({ label, counts }: { label: string; counts: RiskProfileRow["spi"] }) {
   const description = `${number(counts.compliant)} compliant, ${number(counts.nonCompliant)} non-compliant and ${number(counts.unknown)} unknown of ${number(counts.total)} checks`;
@@ -47,12 +48,12 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
   const title = `${entityLabel} Risk Profile`;
   const explorerTitle = `${entityLabel} Explorer`;
   const idPrefix = isSystem ? "ict-system-risk" : "network-risk";
-  const tabs = [{ id: "profile", label: title }, { id: "explorer", label: explorerTitle }] as const;
+  const tabs = [{ id: "profile", label: title }, { id: "explorer", label: explorerTitle }, { id: "heatmap", label: "Compliance Heatmap" }] as const;
   const columns = useMemo(() => profileColumns(model.kind), [model.kind]);
   const [activeTab, setActiveTab] = useState<RiskProfileTab>("profile");
   const [review, setReview] = useState<Review>("all");
   const [order, setOrder] = useState("risk");
-  const tabButtons = useRef<Record<RiskProfileTab, HTMLButtonElement | null>>({ profile: null, explorer: null });
+  const tabButtons = useRef<Record<RiskProfileTab, HTMLButtonElement | null>>({ profile: null, explorer: null, heatmap: null });
   const selectTab = (tab: RiskProfileTab, moveFocus = false) => {
     setActiveTab(tab);
     if (moveFocus) tabButtons.current[tab]?.focus();
@@ -91,8 +92,10 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
       {tabs.map(tab => <button key={tab.id} ref={element => { tabButtons.current[tab.id] = element; }} type="button" role="tab"
         id={`${idPrefix}-tab-${tab.id}`} aria-controls={`${idPrefix}-panel-${tab.id}`} aria-selected={activeTab === tab.id}
         tabIndex={activeTab === tab.id ? 0 : -1} onClick={() => selectTab(tab.id)} onKeyDown={event => {
-          const next = event.key === "Home" ? "profile" : event.key === "End" ? "explorer"
-            : event.key === "ArrowLeft" || event.key === "ArrowRight" ? tab.id === "profile" ? "explorer" : "profile" : null;
+          const position = tabs.findIndex(item => item.id === tab.id);
+          const next = event.key === "Home" ? tabs[0].id : event.key === "End" ? tabs[tabs.length - 1].id
+            : event.key === "ArrowLeft" ? tabs[(position + tabs.length - 1) % tabs.length].id
+            : event.key === "ArrowRight" ? tabs[(position + 1) % tabs.length].id : null;
           if (next) { event.preventDefault(); selectTab(next, true); }
         }}>{tab.label}</button>)}
     </div>
@@ -153,6 +156,9 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
             {isSystem && <><td>{row.atoNumber || "Not provided"}</td><td>{row.diisId || "Not provided"}</td></>}
             <td>{row.modellingStatus ? "Yes" : "No"}</td>
           </tr>} /></div>
+      </section>
+      <section role="tabpanel" id={`${idPrefix}-panel-heatmap`} aria-labelledby={`${idPrefix}-tab-heatmap`} hidden={activeTab !== "heatmap"}>
+        <ComplianceHeatmap model={model.heatmap} active={activeTab === "heatmap"} />
       </section>
   </div>;
 }

@@ -19,7 +19,6 @@ import {
   YAxis,
   ZAxis
 } from "recharts";
-import { MeasuresSpiHeatmapSection } from "@/components/measures-spi-heatmap-section";
 import { useCmdbDrillThrough } from "@/components/cmdb-drill-through";
 import {
   IctSystemImpactAnalyser2Chart,
@@ -31,9 +30,8 @@ import {
   RiskFindingsDrillThrough
 } from "@/components/network-detail-risk-charts";
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
-import { type PerformanceReportModel } from "@/lib/performance-report-model";
 import { type SpiDefinition } from "@/lib/spi-definitions";
-import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain, type SpiId } from "@/lib/types";
+import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
 
 export interface CyberCopImpactItem {
   id: string;
@@ -135,14 +133,8 @@ export interface CyberCopDashboardProps {
   activeTab: CopView;
   snapshotDate: string;
   filtersSlot?: ReactNode;
-  networkSpiHeatmapFilterSlot?: ReactNode;
-  systemSpiHeatmapFilterSlot?: ReactNode;
-  networkSpiHeatmapModel: PerformanceReportModel;
-  systemSpiHeatmapModel: PerformanceReportModel;
   networkOptions: CyberCopNetworkOption[];
   spiDefinitions: SpiDefinition[];
-  selectedSpiId?: SpiId;
-  initialMeasureSearch: string;
   complianceScoreCards: OverviewScoreCard[];
   riskProfile: {
     openFindings: number;
@@ -2018,14 +2010,8 @@ export function CyberCopDashboard({
   activeTab,
   snapshotDate,
   filtersSlot,
-  networkSpiHeatmapFilterSlot,
-  systemSpiHeatmapFilterSlot,
-  networkSpiHeatmapModel,
-  systemSpiHeatmapModel,
   networkOptions,
   spiDefinitions,
-  selectedSpiId,
-  initialMeasureSearch,
   complianceScoreCards,
   riskProfile,
   riskFindings,
@@ -2713,54 +2699,6 @@ export function CyberCopDashboard({
                   asOfDate={asOfDate}
                 />
               </div>
-            </div>
-            <CyberCopTabFooter />
-          </div>
-        </div>
-      ) : null}
-
-      {activeTab === "networks-spi-heatmap" ? (
-        <div
-          id="cyber-cop-tabpanel-networks-spi-heatmap"
-          role="region"
-          aria-label="cyber-cop-networks-spi-heatmap"
-          className={tabPanelClass}
-        >
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
-            <div className="min-h-0">{networkSpiHeatmapFilterSlot}</div>
-            <div className="min-h-0">
-              <MeasuresSpiHeatmapSection
-                model={networkSpiHeatmapModel}
-                spiDefinitions={spiDefinitions}
-                selectedSpiId={selectedSpiId}
-                initialSearchValue={initialMeasureSearch}
-                placeholder="Search security domain or network"
-                localSpiFilter
-              />
-            </div>
-            <CyberCopTabFooter />
-          </div>
-        </div>
-      ) : null}
-
-      {activeTab === "systems-spi-heatmap" ? (
-        <div
-          id="cyber-cop-tabpanel-systems-spi-heatmap"
-          role="region"
-          aria-label="cyber-cop-systems-spi-heatmap"
-          className={tabPanelClass}
-        >
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2">
-            <div className="min-h-0">{systemSpiHeatmapFilterSlot}</div>
-            <div className="min-h-0">
-              <MeasuresSpiHeatmapSection
-                model={systemSpiHeatmapModel}
-                spiDefinitions={spiDefinitions}
-                selectedSpiId={selectedSpiId}
-                initialSearchValue={initialMeasureSearch}
-                placeholder="Search security domain or ICT system"
-                localSpiFilter
-              />
             </div>
             <CyberCopTabFooter />
           </div>

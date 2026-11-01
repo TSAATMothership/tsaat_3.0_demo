@@ -3,7 +3,7 @@ import { buildNetworkRiskProfile, buildNetworkRiskTrend, networkRiskHref } from 
 import { isDataDateScopedPath } from "@/lib/data-date";
 import { WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
 import type { AnalyticsResult, Asset, AssetSpiEvaluation, ComplianceStatus, Dataset, Finding, ManagedNetwork } from "@/lib/types";
-import { testSeverityDefinitions } from "./spi-definition-fixtures";
+import { testSeverityDefinitions, testSpiDefinitions, testMeasuresSettings } from "./spi-definition-fixtures";
 
 const network = (id: string, overrides: Partial<ManagedNetwork> = {}): ManagedNetwork => ({ id, name: id,
   criticality: "Critical", adfPlatform: false, enterprisePlatform: false, modellingStatus: false,
@@ -34,7 +34,7 @@ function fixture() {
       finding(assets[3]), finding(asset("orphan", "net-a")), finding(assets[0], { id: "undated", timestamp: "invalid", severity: "Data Gap", priorityRank: 4 })],
     networkRollups: [], systemRollups: [], environmentRollups: [], overallCompliancePercent: 0,
     statusTotals: { compliant: 0, nonCompliant: 0, unknown: 0, impactedAssets: 0 }, productionCriticalExposureAssetIds: [] };
-  return { dataset, analytics, filters: {}, severityDefinitions: testSeverityDefinitions };
+  return { dataset, analytics, filters: {}, severityDefinitions: testSeverityDefinitions, spiDefinitions: testSpiDefinitions, measuresSettings: testMeasuresSettings };
 }
 
 describe("network risk profile", () => {
@@ -55,6 +55,8 @@ describe("network risk profile", () => {
     const input = fixture();
     const model = buildNetworkRiskProfile({ ...input, filters: { managedNetwork: "net-a,net-c" } });
     expect(model.rows.map(row => row.id)).toEqual(["net-a", "net-c"]);
+    expect(model.heatmap.devices.map(device => device.id).sort()).toEqual(["a", "c"]);
+    expect(model.heatmap.devices.find(device => device.id === "c")?.status).toBe(2);
     expect(model).toMatchObject({ ciCount: 2, openFindings: 2, modelled: 0, discoveryEnabled: 2 });
     expect(buildNetworkRiskProfile({ ...input, filters: { managedNetwork: "missing" } })).toMatchObject({ networkCount: 0, ciCount: 0, openFindings: 0 });
   });

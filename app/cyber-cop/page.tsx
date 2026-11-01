@@ -18,47 +18,16 @@ import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
-import { buildNetworkPerformanceReportModel, buildSystemPerformanceReportModel } from "@/lib/performance-report-model";
 import { applyAssetFilters } from "@/lib/selectors";
 import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { SpiDefinition } from "@/lib/spi-definitions";
-import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity, SpiId } from "@/lib/types";
+import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity } from "@/lib/types";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) {
     return value[0];
   }
   return value;
-}
-
-function omitSearchParams(
-  searchParams: Record<string, string | string[] | undefined>,
-  keysToOmit: string[]
-): Record<string, string | string[] | undefined> {
-  const omittedKeys = new Set(keysToOmit);
-  const result: Record<string, string | string[] | undefined> = {};
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (!omittedKeys.has(key)) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function readSpiFilter(
-  searchParams: Record<string, string | string[] | undefined>,
-  spiDefinitions: SpiDefinition[]
-): SpiId | undefined {
-  const value = firstParam(searchParams.spi)?.trim();
-  const numericValue = Number(value);
-  if (spiDefinitions.some((definition) => definition.spiId === numericValue)) {
-    return numericValue as SpiId;
-  }
-  return undefined;
-}
-
-function readMeasureSearch(searchParams: Record<string, string | string[] | undefined>): string {
-  return firstParam(searchParams.measureSearch)?.trim() ?? "";
 }
 
 type ComplianceCounts = { compliant: number; nonCompliant: number; unknown: number };
@@ -1066,59 +1035,8 @@ export default async function CyberCopPage({
 }) {
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />;
 
-  const measureSearch = readMeasureSearch(searchParams);
-  const networkHeatmapSearchParams = omitSearchParams(searchParams, ["criticality", "environment"]);
-  const systemHeatmapSearchParams = searchParams;
-  const [
-    { analytics, filterOptions, filters, dataset, systems, networks, spiDefinitions, severityDefinitions },
-    networkHeatmapData,
-    systemHeatmapData
-  ] = await Promise.all([
-    getCoreAppData(searchParams),
-    getCoreAppData(networkHeatmapSearchParams),
-    getCoreAppData(systemHeatmapSearchParams)
-  ]);
-  const selectedSpiId = readSpiFilter(searchParams, spiDefinitions);
+  const { analytics, filterOptions, filters, dataset, systems, networks, spiDefinitions } = await getCoreAppData(searchParams);
   const selectedDataDate = extractDataDateParam(searchParams);
-  const severityOptions: FindingSeverity[] = severityDefinitions.map((definition) => definition.severityKey);
-  const networkHeatmapExtraSelects = [
-    {
-      key: "severity",
-      label: "Severity",
-      value: networkHeatmapData.filters.severity,
-      options: severityOptions.map((severity) => ({ id: severity, label: severity }))
-    }
-  ];
-  const systemHeatmapExtraSelects = [
-    {
-      key: "severity",
-      label: "Severity",
-      value: systemHeatmapData.filters.severity,
-      options: severityOptions.map((severity) => ({ id: severity, label: severity }))
-    }
-  ];
-  const networkSpiHeatmapModel = buildNetworkPerformanceReportModel({
-    dataset: networkHeatmapData.dataset,
-    analytics: networkHeatmapData.analytics,
-    filters: networkHeatmapData.filters,
-    networks: networkHeatmapData.networks,
-    systems: networkHeatmapData.systems,
-    kpiDefinitions: networkHeatmapData.kpiDefinitions,
-    spiDefinitions: networkHeatmapData.spiDefinitions,
-    severityDefinitions: networkHeatmapData.severityDefinitions,
-    asOfDate: networkHeatmapData.dataset.snapshotDate
-  });
-  const systemSpiHeatmapModel = buildSystemPerformanceReportModel({
-    dataset: systemHeatmapData.dataset,
-    analytics: systemHeatmapData.analytics,
-    filters: systemHeatmapData.filters,
-    networks: systemHeatmapData.networks,
-    systems: systemHeatmapData.systems,
-    kpiDefinitions: systemHeatmapData.kpiDefinitions,
-    spiDefinitions: systemHeatmapData.spiDefinitions,
-    severityDefinitions: systemHeatmapData.severityDefinitions,
-    asOfDate: systemHeatmapData.dataset.snapshotDate
-  });
 
   const statusesWithEnvironment = analytics.evaluations.flatMap((evaluation) =>
     evaluation.evaluations.map((item) => ({
@@ -1340,34 +1258,8 @@ export default async function CyberCopPage({
             />
           </div>
         }
-        networkSpiHeatmapFilterSlot={
-          <div className="-mt-2">
-            <FilterBar
-              options={networkHeatmapData.filterOptions}
-              filters={networkHeatmapData.filters}
-              hiddenFields={["ictSystem", "systemCriticality", "environment"]}
-              extraSelectFields={networkHeatmapExtraSelects}
-              enableLoadingOverlay
-            />
-          </div>
-        }
-        systemSpiHeatmapFilterSlot={
-          <div className="-mt-2">
-            <FilterBar
-              options={systemHeatmapData.filterOptions}
-              filters={systemHeatmapData.filters}
-              hiddenFields={["managedNetwork"]}
-              extraSelectFields={systemHeatmapExtraSelects}
-              enableLoadingOverlay
-            />
-          </div>
-        }
-        networkSpiHeatmapModel={networkSpiHeatmapModel}
-        systemSpiHeatmapModel={systemSpiHeatmapModel}
         networkOptions={networks.map(({ id, name }) => ({ id, name }))}
         spiDefinitions={spiDefinitions}
-        selectedSpiId={selectedSpiId}
-        initialMeasureSearch={measureSearch}
         complianceScoreCards={complianceScoreCards}
         riskProfile={{
           openFindings: openFindings.length,

@@ -3,7 +3,7 @@ import { buildIctSystemRiskProfile, ictSystemRiskHref } from "@/lib/ict-system-r
 import { isDataDateScopedPath } from "@/lib/data-date";
 import { WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
 import type { AnalyticsResult, Asset, AssetSpiEvaluation, ComplianceStatus, Dataset, Finding, ICTSystem, ManagedNetwork } from "@/lib/types";
-import { testSeverityDefinitions } from "./spi-definition-fixtures";
+import { testSeverityDefinitions, testSpiDefinitions, testMeasuresSettings } from "./spi-definition-fixtures";
 
 const system = (id: string, overrides: Partial<ICTSystem> = {}): ICTSystem => ({ id, name: id, networkId: "net-b",
   criticality: "Critical", securityDomain: "Protected", adfPlatform: false, enterprisePlatform: false,
@@ -38,7 +38,7 @@ function fixture() {
       finding(assets[3]), finding(assets[4]), finding(asset("orphan", "net-a", "sys-a"))],
     networkRollups: [], systemRollups: [], environmentRollups: [], overallCompliancePercent: 0,
     statusTotals: { compliant: 0, nonCompliant: 0, unknown: 0, impactedAssets: 0 }, productionCriticalExposureAssetIds: [] };
-  return { dataset, analytics, filters: {}, severityDefinitions: testSeverityDefinitions };
+  return { dataset, analytics, filters: {}, severityDefinitions: testSeverityDefinitions, spiDefinitions: testSpiDefinitions, measuresSettings: testMeasuresSettings };
 }
 
 describe("ICT system risk profile", () => {
@@ -65,6 +65,7 @@ describe("ICT system risk profile", () => {
   it("applies single and multiple ICT system selections without leaking orphan or unrelated findings", () => {
     const input = fixture();
     const one = buildIctSystemRiskProfile({ ...input, filters: { ictSystem: "sys-a" } });
+    expect(one.heatmap.devices.map(device => device.id).sort()).toEqual(["a1", "a2"]);
     expect(one).toMatchObject({ systemCount: 1, ciCount: 2, networkCount: 2, openFindings: 2, atoProvided: 1 });
     const many = buildIctSystemRiskProfile({ ...input, filters: { ictSystem: "sys-a,sys-b" } });
     expect(many.rows.map(row => row.id)).toEqual(["sys-a", "sys-b"]);

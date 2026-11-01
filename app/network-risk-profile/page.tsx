@@ -9,7 +9,7 @@ export default async function NetworkRiskProfilePage({ searchParams }: { searchP
   if (!hasWorkspaceScope(searchParams)) return marker;
   // The shared header owns the scope; local explorer controls never change report scope.
   const scope = { network: searchParams.network, system: searchParams.system, dataDate: searchParams.dataDate };
-  const { dataset, analytics, filters, severityDefinitions } = await getCoreAppData(scope, { profile: "risk-summary" });
-  const model = buildNetworkRiskProfile({ dataset, analytics, filters, severityDefinitions });
+  const { dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings } = await getCoreAppData(scope, { profile: "risk-summary" });
+  const model = buildNetworkRiskProfile({ dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings });
   return <>{marker}<NetworkRiskProfile key={JSON.stringify([filters, dataset.snapshotDate])} model={model} filters={filters} /></>;
 }

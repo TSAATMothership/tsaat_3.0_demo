@@ -16,7 +16,7 @@ describe("network risk profile route", () => {
   it("loads only shared header scope and uses the actual available snapshot", async () => {
     vi.mocked(getCoreAppData).mockResolvedValue({
       dataset: { snapshotDate: "2026-10-30", generatedAt: "2026-10-30", assets: [], managedNetworks: [], ictSystems: [], spiEvaluations: [] },
-      analytics: { evaluations: [], findings: [] }, filters: { managedNetwork: "net-a,net-b" }, severityDefinitions: []
+      analytics: { evaluations: [], findings: [] }, filters: { managedNetwork: "net-a,net-b" }, severityDefinitions: [], spiDefinitions: [], measuresSettings: { updatedAt: "", severityMatrix: {}, priorityMatrix: {} }
     } as unknown as Awaited<ReturnType<typeof getCoreAppData>>);
     const page = await NetworkRiskProfilePage({ searchParams: { network: ["net-a", "net-b"], dataDate: "2026-10-31", severity: "High Risk", assetType: "server", securityDomain: "Protected" } });
     expect(getCoreAppData).toHaveBeenCalledExactlyOnceWith({ network: ["net-a", "net-b"], system: undefined, dataDate: "2026-10-31" }, { profile: "risk-summary" });

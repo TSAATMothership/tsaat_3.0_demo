@@ -1,3 +1,4 @@
+import type { ComplianceHeatmapModel } from "@/lib/compliance-heatmap";
 import { findingDurationDays, findingsByDuration } from "@/lib/findings-duration";
 import { measuresScopeParams } from "@/lib/measures-explorer";
 import type { SeverityDefinition } from "@/lib/spi-definitions";
@@ -112,4 +113,5 @@ export type RiskProfileModel = ReturnType<typeof summarizeRiskFindings> & Pick<R
   kind: RiskProfileKind; snapshotDate: string; rows: RiskProfileRow[]; entityCount: number; compliantCount: number;
   networkCount: number; systemCount: number; modelled: number;
   metadata: Array<{ label: string; count: number; total: number }>;
+  heatmap: ComplianceHeatmapModel;
 };

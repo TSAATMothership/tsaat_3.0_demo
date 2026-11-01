@@ -17,15 +17,15 @@ describe("workspace scope", () => {
     const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
     const hiddenHrefs = (query: string) => items.filter((item) => !isWorkspaceItemVisible(item, new URLSearchParams(query))).map((item) => item.href);
     expect(hiddenHrefs("network=net-a,net-b")).toEqual([
-      "/cyber-cop?copView=systems-spi-heatmap", "/cyber-cop?copView=ict-system-impact-analyser", "/ict-system-risk-profile"
+      "/cyber-cop?copView=ict-system-impact-analyser", "/ict-system-risk-profile"
     ]);
     expect(hiddenHrefs("system=sys-a,sys-b")).toEqual([
-      "/cyber-cop?copView=networks-spi-heatmap", "/cyber-cop?copView=network-impact-analyser", "/network-risk-profile"
+      "/cyber-cop?copView=network-impact-analyser", "/network-risk-profile"
     ]);
     expect(hiddenHrefs("")).toEqual([]);
   });
   it("keeps header selections on the empty workspace until a sidebar view is chosen", () => {
-    const current = new URLSearchParams("system=sys-a&copView=systems-spi-heatmap&dataDate=2026-10-30&page=3");
+    const current = new URLSearchParams("system=sys-a&copView=ict-system-impact-analyser&dataDate=2026-10-30&page=3");
     const next = updateWorkspaceScope(current, "network", ["net-a", "net-b"]);
     const target = new URL(workspaceHref("/", next), "http://localhost");
     expect(target.pathname).toBe("/");
@@ -143,6 +143,10 @@ describe("workspace scope", () => {
       expect(target.searchParams.has("severity")).toBe(false);
       expect(activeWorkspaceItem(target.pathname, target.searchParams)?.label).toBe(item.label);
     }
-    expect(resolveCopView("action")).toBe("overview");
+    for (const retiredView of ["action", "networks-spi-heatmap", "systems-spi-heatmap"]) {
+      expect(resolveCopView(retiredView)).toBe("overview");
+      expect(activeWorkspaceItem("/cyber-cop", new URLSearchParams(`copView=${retiredView}&network=net-a`))?.href).toBe("/cyber-cop");
+      expect(WORKSPACE_GROUPS.flatMap(group => group.items).some(item => item.href.includes(`copView=${retiredView}`))).toBe(false);
+    }
   });
 });

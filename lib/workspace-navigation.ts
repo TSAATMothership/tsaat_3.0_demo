@@ -60,8 +60,6 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { label: "Cyber Security", items: [
     { label: "Cyber COP", href: "/cyber-cop" },
     { label: "Service Impact Analyser", href: "/cyber-cop?copView=impact" },
-    { label: "Networks – SPI Heatmap", href: "/cyber-cop?copView=networks-spi-heatmap", scope: "network" },
-    { label: "ICT Systems – SPI Heatmap", href: "/cyber-cop?copView=systems-spi-heatmap", scope: "system" },
     { label: "Network Impact Analyser", href: "/cyber-cop?copView=network-impact-analyser", scope: "network" },
     { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
     { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
@@ -88,7 +86,7 @@ export const WORKSPACE_LINKS: WorkspaceItem[] = [
   { label: "Briefs & Reports", href: "/report" }
 ];
 
-export const COP_VIEWS = ["overview", "impact", "networks-spi-heatmap", "systems-spi-heatmap", "network-impact-analyser", "ict-system-impact-analyser"] as const;
+export const COP_VIEWS = ["overview", "impact", "network-impact-analyser", "ict-system-impact-analyser"] as const;
 export type CopView = typeof COP_VIEWS[number];
 export function resolveCopView(value: string | string[] | undefined): CopView {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -115,8 +113,9 @@ export function activeWorkspaceItem(pathname: string, params: URLSearchParams): 
     if (!key) return true;
     const defaults = { copView: "overview", discoveryView: "tools", measuresTab: "summary" };
     const selectedView = params.get(key) || defaults[key];
-    // Keep links to the former replacement view on the consolidated coverage page.
-    const canonicalView = key === "discoveryView" && selectedView === "tools-2" ? "tools" : selectedView;
+    // Keep retired view links aligned with the page fallback and sidebar selection.
+    const canonicalView = key === "copView" ? resolveCopView(selectedView)
+      : key === "discoveryView" && selectedView === "tools-2" ? "tools" : selectedView;
     return canonicalView === (target.searchParams.get(key) || defaults[key]);
   });
 }
