@@ -193,9 +193,6 @@ describe("buildServerComplianceModel", () => {
         priorityRank: 1,
         timestamp: "2026-07-11T00:00:00.000Z",
         evidence: {
-          assetOwner: "Application Owner",
-          changeAssignmentGroup: "Change Team",
-          incidentAssignmentGroup: "Incident Team",
           scanner: "Tenable"
         }
       }),
@@ -300,9 +297,6 @@ describe("buildServerComplianceModel", () => {
       assetName: "Application Server",
       assetType: "Server",
       assetIpAddress: "10.20.30.40",
-      assetChangeAssignmentGroup: "Change Team",
-      assetIncidentAssignmentGroup: "Incident Team",
-      owner: "Application Owner",
       spiId: 1,
       priorityRank: 1,
       timestamp: "2026-07-11T00:00:00.000Z",
@@ -312,9 +306,6 @@ describe("buildServerComplianceModel", () => {
       evaluationStatus: "Non-compliant",
       scopeLabel: "Asset server-1 | System system-1 | Env Production",
       evidence: [
-        { key: "assetOwner", value: "Application Owner" },
-        { key: "changeAssignmentGroup", value: "Change Team" },
-        { key: "incidentAssignmentGroup", value: "Incident Team" },
         { key: "scanner", value: "Tenable" }
       ]
     });

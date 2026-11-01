@@ -29,7 +29,6 @@ describe("route loading readiness", () => {
       "components/findings-spi-tiles.tsx",
       "components/findings-status-tabs.tsx",
       "components/findings-timeline-filter.tsx",
-      "components/findings-view-tabs.tsx",
       "components/measures-spi-filters.tsx",
       "components/measures-tabs.tsx",
       "components/network-detail-tabs.tsx",

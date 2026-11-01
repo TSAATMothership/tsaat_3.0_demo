@@ -81,8 +81,8 @@ describe("SPI heatmap tabs", () => {
     expect(heatmap).toContain('<FindingsDataTable title="Affected CIs"');
     expect(heatmap).toContain('<FindingsDataTable title="CVE vulnerabilities"');
     expect(heatmap).toContain("whitespace-nowrap px-3 py-2");
-    expect(heatmap).toContain("assetChangeAssignmentGroup");
-    expect(heatmap).toContain("assetIncidentAssignmentGroup");
+    expect(heatmap).not.toContain("assetChangeAssignmentGroup");
+    expect(heatmap).not.toContain("assetIncidentAssignmentGroup");
     expect(heatmap).toContain("totalCveVulnerabilities");
     expect(heatmap).toContain("setSelectedEntityDetails(row.entityDetails)");
     expect(heatmap).toContain("Network Details");

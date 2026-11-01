@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import {
-  loadCurrentDataset,
+  loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadMeasuresSettings,
   loadSeverityDefinitions,
@@ -10,6 +10,9 @@ import {
 } from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
+import { deviceReportDetails } from "@/lib/device-report";
+import type { Asset } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +22,7 @@ function summaryReportFileName(snapshotDate: string): string {
 }
 
 async function buildSummaryPdf(params: {
+  assets: Asset[];
   snapshotDate: string;
   overallCompliancePercent: number;
   counts: { compliant: number; nonCompliant: number; unknown: number };
@@ -173,18 +177,16 @@ async function buildSummaryPdf(params: {
   );
   y -= sectionGap - lineGap;
 
-  writeLine("Top 10 Risks", true);
-  for (const risk of params.topRisks.slice(0, 10)) {
-    writeLine(
-      `- [P${risk.priorityRank}] SPI ${risk.spiId} (${risk.severity}) ${risk.scope.assetId} - ${risk.title}`
-    );
-  }
-  y -= sectionGap - lineGap;
-
-  writeLine("Production Exceptions / High Risk", true);
-  for (const item of params.productionExceptions.slice(0, 20)) {
-    writeLine(`- ${item.severity} | SPI ${item.spiId} | ${item.scope.systemId ?? "Network"} / ${item.scope.assetId}`);
-  }
+  const assetsById = new Map(params.assets.map(asset => [asset.id, asset]));
+  const tableContext = { pdfDoc, fontRegular: regularFont, fontBold: boldFont, pageTitle: "TSAAT Cyber Posture Summary", snapshotDate: params.snapshotDate };
+  drawDeviceReportTable({ ...tableContext, sectionTitle: "Top 10 Risks",
+    columns: [{ label: "Priority / SPI / Severity", weight: 1.5 }, { label: "Finding", weight: 2.5 }],
+    rows: params.topRisks.slice(0, 10).map(risk => ({ device: deviceReportDetails(assetsById.get(risk.scope.assetId), risk.scope.assetId),
+      details: [`P${risk.priorityRank} | SPI-${risk.spiId}\n${risk.severity}`, `CI ID: ${risk.scope.assetId}\n${risk.title}`] })) });
+  drawDeviceReportTable({ ...tableContext, sectionTitle: "Production Exceptions / High Risk (First 20)",
+    columns: [{ label: "Severity / SPI", weight: 1.5 }, { label: "CI ID / ICT System", weight: 2 }],
+    rows: params.productionExceptions.slice(0, 20).map(item => ({ device: deviceReportDetails(assetsById.get(item.scope.assetId), item.scope.assetId),
+      details: [`${item.severity}\nSPI-${item.spiId}`, `${item.scope.assetId}\n${item.scope.systemId ?? "Network"}`] })) });
 
   const pdfBytes = await pdfDoc.save();
   return Uint8Array.from(pdfBytes).buffer;
@@ -192,7 +194,7 @@ async function buildSummaryPdf(params: {
 
 export async function GET(request: NextRequest) {
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadCurrentDataset(),
+    loadDatasetForDate(request.nextUrl.searchParams.get("dataDate") ?? undefined),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()
@@ -208,6 +210,7 @@ export async function GET(request: NextRequest) {
 
   if (requestedFormat === "pdf") {
     const pdfBuffer = await buildSummaryPdf({
+      assets: dataset.assets,
       snapshotDate: dataset.snapshotDate,
       overallCompliancePercent: analytics.overallCompliancePercent,
       counts: analytics.statusTotals,

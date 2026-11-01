@@ -58,17 +58,18 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
     { label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
     { label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
-    { label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" },
-    { label: "Target State Analyser", href: "/discovery-coverage?discoveryView=target-state" }
+    { label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" }
   ] },
   { label: "Observed Measures", items: [
     { label: "Measures Summary", href: "/measures" },
     { label: "Key Performance Indicators (KPIs)", href: "/measures?measuresTab=measures-kpi" },
     { label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" }
+  ] },
+  { label: "Findings", items: [
+    { label: "Findings Register", href: "/findings" }
   ] }
 ];
 export const WORKSPACE_LINKS: WorkspaceItem[] = [
-  { label: "Findings Register", href: "/findings" },
   { label: "Briefs & Reports", href: "/report" }
 ];
 

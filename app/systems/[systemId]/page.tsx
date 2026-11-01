@@ -1158,8 +1158,6 @@ export default async function SystemDetailPage({
     return map;
   }, new Map<string, Finding>());
 
-  const systemOwnerFallback = system.owner?.trim() || "Not assigned";
-
   const riskProfileFindings = systemScopedRiskFindings
     .map((finding) => {
       const asset = filteredAssetsById.get(finding.scope.assetId);
@@ -1196,22 +1194,6 @@ export default async function SystemDetailPage({
           "ipv4",
           "ip_address"
         ]) ?? (asset ? resolveAssetIpAddress(asset) : "Not available");
-      const assetChangeAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned";
-      const assetIncidentAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned";
-      const owner =
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ?? systemOwnerFallback;
 
       return {
         id: `risk-${finding.id}`,
@@ -1219,9 +1201,6 @@ export default async function SystemDetailPage({
         assetName,
         assetType,
         assetIpAddress,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner,
         spiId: finding.spiId,
         timestamp: finding.timestamp,
         closedTimestamp: finding.closedTimestamp ?? null,
@@ -1302,28 +1281,6 @@ export default async function SystemDetailPage({
             ])
           : null) ??
         (asset ? resolveAssetIpAddress(asset) : "Not available");
-      const assetChangeAssignmentGroup =
-        (latestFinding
-          ? readEvidenceStringValue(latestFinding.evidence, [
-              "assetChangeAssignmentGroup",
-              "changeAssignmentGroup",
-              "changeGroup",
-              "change_assignment_group"
-            ])
-          : null) ?? "Not assigned";
-      const assetIncidentAssignmentGroup =
-        (latestFinding
-          ? readEvidenceStringValue(latestFinding.evidence, [
-              "assetIncidentAssignmentGroup",
-              "incidentAssignmentGroup",
-              "incidentGroup",
-              "incident_assignment_group"
-            ])
-          : null) ?? "Not assigned";
-      const owner =
-        (latestFinding
-          ? readEvidenceStringValue(latestFinding.evidence, ["assetOwner", "owner", "serviceOwner"])
-          : null) ?? systemOwnerFallback;
 
       const timestamp = latestFinding?.timestamp ?? `${dataset.snapshotDate}T00:00:00.000Z`;
       const definition = spiDefinitions.find((item) => item.spiId === row.spiId);
@@ -1342,9 +1299,6 @@ export default async function SystemDetailPage({
         assetName,
         assetType,
         assetIpAddress,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner,
         spiId: row.spiId,
         timestamp,
         closedTimestamp: null,

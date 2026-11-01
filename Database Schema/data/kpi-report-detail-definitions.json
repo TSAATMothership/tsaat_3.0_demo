@@ -34,12 +34,13 @@
     }
   ],
   "bindings": [
-    { "kpiId": "KPI-4", "reportDetailKey": "critical-system-threshold" },
-    { "kpiId": "KPI-5", "reportDetailKey": "critical-exposure-assets" },
-    { "kpiId": "KPI-6", "reportDetailKey": "generic-kpi-summary" },
-    { "kpiId": "KPI-7", "reportDetailKey": "generic-kpi-summary" },
-    { "kpiId": "KPI-8", "reportDetailKey": "generic-kpi-summary" },
-    { "kpiId": "KPI-9", "reportDetailKey": "unmodelled-diis-systems" },
-    { "kpiId": "KPI-10", "reportDetailKey": "generic-kpi-summary" }
+    {
+      "kpiId": "KPI-1",
+      "reportDetailKey": "generic-kpi-summary"
+    },
+    {
+      "kpiId": "KPI-2",
+      "reportDetailKey": "generic-kpi-summary"
+    }
   ]
 }

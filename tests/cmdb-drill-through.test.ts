@@ -145,10 +145,10 @@ describe("CMDB drill through", () => {
 
     expect(layout).toContain("<CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider>");
     expect(drawer).toContain("createPortal(");
-    expect(drawer).toContain("z-[11000]");
-    expect(drawer).toContain("bg-slate-950/55 transition-opacity");
-    expect(drawer).toContain("border-sky-300/25 bg-slate-950 p-4");
-    expect(drawer).not.toContain("bg-slate-950/98 p-4");
+    expect(drawer).toContain("measure-scope-panel measure-scope-panel-systems cmdb-scope-panel");
+    expect(drawer).toContain("panel?.showModal()");
+    expect(drawer).toContain('className="measure-scope-content"');
+    expect(drawer).toContain('className="measure-scope-table cmdb-details-table"');
     expect(drawer).toContain("window.location.hash.startsWith(\"#/\")");
     expect(drawer).toContain("openCmdbDrillThrough");
     expect(drawer).toContain("data-cmdb-asset-id={assetId}");
@@ -172,7 +172,7 @@ describe("CMDB drill through", () => {
       ["components/discovery-coverage-by-tool-section.tsx", 1],
       ["app/networks/[networkId]/page.tsx", 3],
       ["app/systems/[systemId]/page.tsx", 1],
-      ["components/findings-table.tsx", 2],
+      ["components/findings-table.tsx", 1],
       ["components/measures-spi-heatmap.tsx", 2],
       ["components/network-compliance-overview.tsx", 2],
       ["components/network-detail-risk-charts.tsx", 4],

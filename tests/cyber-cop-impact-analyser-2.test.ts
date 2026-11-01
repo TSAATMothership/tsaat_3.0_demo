@@ -128,9 +128,7 @@ const findings: Finding[] = [
     },
     title: "Critical server finding",
     evidence: {
-      assetIpAddress: "10.0.0.10",
-      assetChangeAssignmentGroup: "Change Team",
-      assetIncidentAssignmentGroup: "Incident Team"
+      assetIpAddress: "10.0.0.10"
     },
     recommendedAction: "Patch server"
   },
@@ -1084,11 +1082,15 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
       assetName: "PAY-SRV-01",
       assetIpAddress: "10.0.0.10",
       assetType: "Server",
-      owner: "System Owner",
       systemId: "system-1",
       networkId: "network-1",
       environmentType: "Production"
     });
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("owner");
+      expect(row).not.toHaveProperty("assetChangeAssignmentGroup");
+      expect(row).not.toHaveProperty("assetIncidentAssignmentGroup");
+    }
   });
 });
 
@@ -1808,15 +1810,15 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain('hit.action === "asset-details"');
     expect(component).toContain("openAssetDetails(hit.node)");
     expect(cmdbDrawer).toContain("CMDB Drill Through");
-    expect(cmdbDrawer).toContain("Asset Details for");
+    expect(cmdbDrawer).toContain("Asset details for");
     expect(cmdbDrawer).toContain("CMDB Record");
     expect(cmdbDrawer).toContain("Open CMDB record");
-    expect(cmdbDrawer).toContain('<table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">');
-    expect(cmdbDrawer).toContain('scope="row"');
-    expect(cmdbDrawer).toContain('role="dialog"');
-    expect(cmdbDrawer).toContain("fixed inset-0 z-[11000] pointer-events-none cursor-default");
-    expect(cmdbDrawer).toContain("min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3");
-    expect(cmdbDrawer).toContain("cursor-pointer break-words text-cyan-200");
+    expect(cmdbDrawer).toContain('title="Asset Details" rows={tableRows} columns={detailColumns}');
+    expect(cmdbDrawer).toContain('label: "Field"');
+    expect(cmdbDrawer).toContain("<dialog");
+    expect(cmdbDrawer).toContain("measure-scope-panel measure-scope-panel-systems cmdb-scope-panel");
+    expect(cmdbDrawer).toContain('className="measure-scope-table cmdb-details-table"');
+    expect(cmdbDrawer).toContain('className="cmdb-record-link"');
     expect(cmdbDrawer).toContain('aria-label="Close CMDB Drill Through"');
     expect(component).not.toContain("Open CI Flow Focus for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");
     expect(component).not.toContain("{!isCiDiagramMode && selectedAssetDetails");

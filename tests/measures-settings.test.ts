@@ -96,11 +96,9 @@ describe("measures settings normalization", () => {
     expect(validator).toContain("finding_severity_definition_count");
   });
 
-  it("renders nested SPI severity and priority settings tabs and preserves both matrices on save", () => {
+  it("preserves both matrices on save and the priority catalog rules", () => {
     const source = readRepoFile("components/measures-settings-matrix.tsx");
 
-    expect(source).toContain("SPI Severity Matrix Settings");
-    expect(source).toContain("SPI Priority Matrix Settings");
     expect(source).toContain("selectablePriorityDefinitions(priorityDefinitions)");
     expect(source).toContain("option.label");
     expect(source).toContain("severityMatrix: draftMatrix");

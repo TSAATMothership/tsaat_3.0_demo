@@ -1,8 +1,9 @@
 import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { buildSpiRows, SpiRow } from "@/lib/measures";
-import { remediationActionsForSpi } from "@/lib/tasking";
+import { remediationActionsForSpi, teamsForSpi, type TeamContact } from "@/lib/tasking";
 import { SpiDefinition, spiDefinitionById } from "@/lib/spi-definitions";
 import { AnalyticsResult, Asset, AssetType, ComplianceStatus, Dataset, SpiId } from "@/lib/types";
+import { deviceReportDetails, type DeviceReportDetails } from "@/lib/device-report";
 
 export type SpiReportAssetTypeGroupId =
   | "server"
@@ -20,6 +21,7 @@ export interface SpiReportAssetTypeBreakdown {
 }
 
 export interface SpiReportAnnexRow {
+  device: DeviceReportDetails;
   assetId: string;
   ciName: string;
   assetType: AssetType;
@@ -29,6 +31,7 @@ export interface SpiReportAnnexRow {
 }
 
 export interface SpiReportModel {
+  nonCompliantOnly?: boolean;
   spiId: SpiId;
   name: string;
   reportName: string;
@@ -47,6 +50,7 @@ export interface SpiReportModel {
   observedNonCompliantCondition: string;
   observedUnknownCondition: string;
   remediationActions: string[];
+  taskingTeams: TeamContact[];
   annexA: SpiReportAnnexRow[];
   annexB: SpiReportAnnexRow[];
 }
@@ -161,6 +165,7 @@ function buildModelFromRow(
     }
 
     const annexRow: SpiReportAnnexRow = {
+      device: deviceReportDetails(asset, assetEvaluation.assetId),
       assetId: assetEvaluation.assetId,
       ciName: ciNameForAsset(asset, assetEvaluation.assetId),
       assetType,
@@ -182,7 +187,7 @@ function buildModelFromRow(
   return {
     spiId: row.spiId,
     name: row.name,
-    reportName: `SPI ${row.spiId} Report: ${row.name}`,
+    reportName: `SPI-${row.spiId} - ${row.name} Report`,
     indicatorLabel: `SPI-${row.spiId}`,
     description: row.description,
     successMeasure: row.successMeasure,
@@ -198,14 +203,15 @@ function buildModelFromRow(
     trendReportAvailable: row.trendReportAvailable,
     reportDetailKey: row.reportDetailKey,
     observedNonCompliantCondition:
-      row.nonCompliant > 0
+      !row.total ? "No CIs are in scope; compliance cannot be assessed." : row.nonCompliant > 0
         ? `Detected ${row.nonCompliant} non-compliant CI(s) for SPI-${row.spiId}. Current measured compliance is ${row.scorePercent}% across ${row.total} CI(s).`
         : `No non-compliant CI(s) detected for SPI-${row.spiId} in the current filtered scope.`,
     observedUnknownCondition:
-      row.unknown > 0
+      !row.total ? "No CI assessments are available in the current filtered scope." : row.unknown > 0
         ? `Detected ${unknownPercent}% (${row.unknown}) across ${row.total} CI(s) where the score cannot be calculated.`
         : `No Unknown CI score(s) detected for SPI-${row.spiId} in the current filtered scope.`,
     remediationActions: remediationActionsForSpi(row, spiDefinitions),
+    taskingTeams: teamsForSpi(row.spiId, spiDefinitions),
     annexA: annexA.sort(sortAnnexRows),
     annexB: annexB.sort(sortAnnexRows)
   };
@@ -215,15 +221,25 @@ export function buildSpiReportModel({
   dataset,
   analytics,
   spiId,
-  spiDefinitions
+  spiDefinitions,
+  nonCompliantOnly = false
 }: {
   dataset: Dataset;
   analytics: AnalyticsResult;
   spiId: number;
   spiDefinitions: SpiDefinition[];
+  nonCompliantOnly?: boolean;
 }): SpiReportModel | null {
-  const row = buildSpiRows(analytics, spiDefinitions).find((item) => item.spiId === spiId);
-  return row ? buildModelFromRow(dataset, analytics, row, spiDefinitions) : null;
+  const reportAnalytics = nonCompliantOnly ? { ...analytics, evaluations: analytics.evaluations.map((asset) => ({
+    ...asset, evaluations: asset.evaluations.filter((evaluation) => evaluation.spiId === spiId && evaluation.status === "Non-compliant")
+  })).filter((asset) => asset.evaluations.length) } : analytics;
+  const row = buildSpiRows(reportAnalytics, spiDefinitions).find((item) => item.spiId === spiId);
+  if (!row) return null;
+  const model = buildModelFromRow(dataset, reportAnalytics, row, spiDefinitions);
+  if (!nonCompliantOnly) return model;
+  return { ...model, nonCompliantOnly: true, observedNonCompliantCondition: model.nonCompliant
+    ? `Detected ${model.nonCompliant} non-compliant CI(s) for SPI-${spiId}. Only non-compliant results are included in this report.`
+    : `No non-compliant CI(s) detected for SPI-${spiId} in the selected scope and snapshot.` };
 }
 
 export function buildSpiReportModels(

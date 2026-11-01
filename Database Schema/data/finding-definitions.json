@@ -204,33 +204,6 @@
       "enabled": true
     },
     {
-      "fieldKey": "change-assignment-group",
-      "displayOrder": 4,
-      "label": "Asset Change Assignment Group",
-      "purposeKey": "change_assignment_group",
-      "candidateKeys": ["assetChangeAssignmentGroup", "changeAssignmentGroup", "changeGroup", "change_assignment_group"],
-      "fallbackValue": "Not assigned",
-      "enabled": true
-    },
-    {
-      "fieldKey": "incident-assignment-group",
-      "displayOrder": 5,
-      "label": "Asset Incident Assignment Group",
-      "purposeKey": "incident_assignment_group",
-      "candidateKeys": ["assetIncidentAssignmentGroup", "incidentAssignmentGroup", "incidentGroup", "incident_assignment_group"],
-      "fallbackValue": "Not assigned",
-      "enabled": true
-    },
-    {
-      "fieldKey": "owner",
-      "displayOrder": 6,
-      "label": "Owner",
-      "purposeKey": "owner",
-      "candidateKeys": ["assetOwner", "owner", "serviceOwner"],
-      "fallbackValue": "Not assigned",
-      "enabled": true
-    },
-    {
       "fieldKey": "evidence-preview-1",
       "displayOrder": 20,
       "label": "Evidence Preview",

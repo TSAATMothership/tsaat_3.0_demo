@@ -1751,9 +1751,9 @@ BEGIN
   LEFT JOIN [tsaat].[ict_system] AS s ON s.[snapshot_id] = a.[snapshot_id] AND s.[system_id] = a.[system_id]
   WHERE a.[snapshot_id] = @snapshot_id AND (@hasAssetScope = 0 OR EXISTS (SELECT 1 FROM @AssetScope AS scope WHERE scope.[asset_id] = a.[asset_id]));
 
-  DECLARE @Systems TABLE ([system_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [network_id] NVARCHAR(255) NOT NULL, [diis_defined] BIT NOT NULL, [modelling_status] BIT NOT NULL);
+  DECLARE @Systems TABLE ([system_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [network_id] NVARCHAR(255) NOT NULL, [diis_defined] BIT NOT NULL, [modelling_status] BIT NOT NULL, [ato_number] NVARCHAR(100) NULL);
   INSERT INTO @Systems
-  SELECT s.[system_id], s.[network_id], s.[diis_defined], s.[modelling_status]
+  SELECT s.[system_id], s.[network_id], s.[diis_defined], s.[modelling_status], s.[ato_number]
   FROM [tsaat].[ict_system] AS s
   WHERE s.[snapshot_id] = @snapshot_id AND (@hasSystemScope = 0 OR EXISTS (SELECT 1 FROM @SystemScope AS scope WHERE scope.[system_id] = s.[system_id]));
 
@@ -1804,9 +1804,9 @@ BEGIN
   DECLARE @discoveryCompliant INT = (SELECT COUNT(*) FROM @Discovery WHERE [coverage_compliance] = 1);
   INSERT INTO @Metric VALUES (N'discovery-coverage-compliance', CONVERT(NVARCHAR(40), CAST(CASE WHEN @discoveryTotal = 0 THEN 0 ELSE ROUND((@discoveryCompliant * 100.0) / @discoveryTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @discoveryCompliant) + N'/' + CONVERT(NVARCHAR(20), @discoveryTotal) + N')', CAST(CASE WHEN @discoveryTotal = 0 THEN 0 ELSE ROUND((@discoveryCompliant * 100.0) / @discoveryTotal, 1) END AS DECIMAL(9,1)), @discoveryCompliant, @discoveryTotal, @discoveryTotal - @discoveryCompliant, 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Discovery AS d ON d.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND d.[coverage_compliance] = 0));
 
-  ;WITH scoped_systems AS (SELECT DISTINCT [system_id] FROM @Assets WHERE [system_id] IS NOT NULL),
-  ato AS (SELECT [system_id], CASE WHEN [tsaat].[fn_kpi_stable_hash]([system_id] + N':ato') % 5 <> 0 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
-  diis AS (SELECT [system_id], CASE WHEN [tsaat].[fn_kpi_stable_hash]([system_id] + N':diis') % 4 <> 1 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems)
+  ;WITH scoped_systems AS (SELECT [system_id], [ato_number], [diis_defined] FROM @Systems),
+  ato AS (SELECT [system_id], CASE WHEN NULLIF(LTRIM(RTRIM([ato_number])), N'') IS NOT NULL THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
+  diis AS (SELECT [system_id], CASE WHEN [diis_defined] = 1 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems)
   INSERT INTO @Metric
   SELECT N'active-ato-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(SUM([compliant]), 0)) + N'/' + CONVERT(NVARCHAR(20), COUNT(*)) + N')', CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1)), COALESCE(SUM([compliant]), 0), COUNT(*), COUNT(*) - COALESCE(SUM([compliant]), 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS a ON a.[asset_id] = f.[asset_id] INNER JOIN ato AS ato_rows ON ato_rows.[system_id] = a.[system_id] WHERE f.[priority_rank] <= 2 AND ato_rows.[compliant] = 0) FROM ato
   UNION ALL
@@ -1908,16 +1908,18 @@ BEGIN
     [system_id] NVARCHAR(255) NOT NULL,
     [network_id] NVARCHAR(255) NOT NULL,
     [diis_defined] BIT NOT NULL,
-    [modelling_status] BIT NOT NULL
+    [modelling_status] BIT NOT NULL,
+    [ato_number] NVARCHAR(100) NULL
   );
 
-  INSERT INTO @ScopeSystems ([scope_key], [system_id], [network_id], [diis_defined], [modelling_status])
+  INSERT INTO @ScopeSystems ([scope_key], [system_id], [network_id], [diis_defined], [modelling_status], [ato_number])
   SELECT DISTINCT
     s.[scope_key],
     sys.[system_id],
     sys.[network_id],
     sys.[diis_defined],
-    sys.[modelling_status]
+    sys.[modelling_status],
+    sys.[ato_number]
   FROM @Scope AS s
   CROSS APPLY OPENJSON(CASE WHEN ISJSON(s.[system_ids_json]) = 1 THEN s.[system_ids_json] ELSE N'[]' END) AS system_scope
   INNER JOIN [tsaat].[ict_system] AS sys
@@ -2091,9 +2093,9 @@ BEGIN
   FROM @Scope AS s
   LEFT JOIN discovery_counts AS dc ON dc.[scope_key] = s.[scope_key];
 
-  ;WITH scoped_systems AS (SELECT DISTINCT [scope_key], [system_id] FROM @ScopeAssets WHERE [system_id] IS NOT NULL),
-  ato AS (SELECT [scope_key], [system_id], CASE WHEN [tsaat].[fn_kpi_stable_hash]([system_id] + N':ato') % 5 <> 0 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
-  diis AS (SELECT [scope_key], [system_id], CASE WHEN [tsaat].[fn_kpi_stable_hash]([system_id] + N':diis') % 4 <> 1 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
+  ;WITH scoped_systems AS (SELECT [scope_key], [system_id], [ato_number], [diis_defined] FROM @ScopeSystems),
+  ato AS (SELECT [scope_key], [system_id], CASE WHEN NULLIF(LTRIM(RTRIM([ato_number])), N'') IS NOT NULL THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
+  diis AS (SELECT [scope_key], [system_id], CASE WHEN [diis_defined] = 1 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
   ato_grouped AS (SELECT [scope_key], COUNT(*) AS [total], SUM([compliant]) AS [compliant] FROM ato GROUP BY [scope_key]),
   diis_grouped AS (SELECT [scope_key], COUNT(*) AS [total], SUM([compliant]) AS [compliant] FROM diis GROUP BY [scope_key])
   INSERT INTO @Metric

@@ -253,7 +253,7 @@ describe("performance report model", () => {
     });
 
     const alphaSecretKpis = model.kpiMatrixRows.find((row) => row.id === "Secret::net-a")?.kpis ?? [];
-    expect(alphaSecretKpis).toHaveLength(10);
+    expect(alphaSecretKpis).toHaveLength(2);
     expect(alphaSecretKpis.find((kpi) => kpi.id === "KPI-1")?.scorePercent).toBe(50);
 
     const alphaSecretSpiRow = model.spiMatrixRows.find((row) => row.id === "Secret::net-a");

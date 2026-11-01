@@ -11,9 +11,11 @@ import {
   type ReactNode
 } from "react";
 import { createPortal } from "react-dom";
+import { FindingsDataTable } from "@/components/findings-data-table";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import type { CmdbAssetDetails } from "@/lib/cmdb-drill-through";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
+import type { ExplorerColumn } from "@/lib/explorer-table";
 
 const PANEL_TWEEN_MS = 220;
 const FOCUSABLE_SELECTOR =
@@ -36,6 +38,12 @@ interface CmdbDrillThroughContextValue {
 }
 
 const CmdbDrillThroughContext = createContext<CmdbDrillThroughContextValue | null>(null);
+
+interface CmdbDetailRow { label: string; value: string; href?: string }
+const detailColumns: ExplorerColumn<CmdbDetailRow>[] = [
+  { key: "label", label: "Field", value: row => row.label },
+  { key: "value", label: "Value", value: row => row.value }
+];
 
 function currentDataDate(): string | null {
   if (typeof window === "undefined") {
@@ -79,7 +87,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   const abortRef = useRef<AbortController | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDialogElement | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const cacheRef = useRef(new Map<string, CmdbAssetDetails>());
 
@@ -138,7 +146,9 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
         window.clearTimeout(closeTimerRef.current);
         closeTimerRef.current = null;
       }
-      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      if (!panelRef.current?.open) {
+        returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      }
       const request: CmdbRequest = {
         assetId: normalizedAssetId,
         assetName: assetName?.trim() || normalizedAssetId,
@@ -160,8 +170,6 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
     closeTimerRef.current = window.setTimeout(() => {
       setSelection(null);
       closeTimerRef.current = null;
-      returnFocusRef.current?.focus();
-      returnFocusRef.current = null;
     }, PANEL_TWEEN_MS);
   }, []);
   const hasSelection = selection !== null;
@@ -178,11 +186,23 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   }, []);
 
   useEffect(() => {
+    if (!hasSelection) return;
+    const panel = panelRef.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel?.showModal();
+    return () => {
+      panel?.close();
+      document.body.style.overflow = previousOverflow;
+      returnFocusRef.current?.focus();
+      returnFocusRef.current = null;
+    };
+  }, [hasSelection]);
+
+  useEffect(() => {
     if (!hasSelection || !isOpen) {
       return;
     }
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
     const panel = panelRef.current;
     const focusableElements = () =>
@@ -194,7 +214,9 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
-        close();
+        const filterClose = panel?.querySelector<HTMLButtonElement>('.endpoint-filter-popup button[aria-label^="Close "]');
+        if (filterClose) filterClose.click();
+        else close();
         return;
       }
       if (event.key !== "Tab") {
@@ -228,7 +250,6 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("focusin", onFocusIn, true);
-      document.body.style.overflow = previousOverflow;
     };
   }, [close, hasSelection, isOpen, selectedAssetId]);
 
@@ -256,110 +277,72 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
         ["Critical Vulnerabilities", details.criticalVulnerabilityCount]
       ]
     : [];
+  const tableRows: CmdbDetailRow[] = [
+    ...detailRows.map(([label, value]) => ({ label, value: formatDetailValue(value) })),
+    { label: "CMDB Record", value: cmdbRecordUrl ? "Open CMDB record" : "Not supplied", href: cmdbRecordUrl ?? undefined }
+  ];
 
   const panel =
     isMounted && selection
       ? createPortal(
-          <div className="fixed inset-0 z-[11000] pointer-events-none cursor-default" data-cmdb-drill-through>
-            <div
-              aria-hidden="true"
-              onClick={close}
-              className={`absolute inset-0 cursor-default select-none bg-slate-950/55 transition-opacity duration-200 ${
-                isOpen ? "pointer-events-auto opacity-100" : "opacity-0"
-              }`}
-            />
-            <aside
+            <dialog
               ref={panelRef}
-              role="dialog"
               aria-modal="true"
               aria-labelledby="cmdb-drill-through-title"
               aria-describedby="cmdb-drill-through-description"
               aria-busy={selection.state === "loading"}
               data-load-state={selection.state}
-              className={`absolute left-0 top-0 flex h-full w-[min(29rem,94vw)] flex-col border-r border-sky-300/25 bg-slate-950 p-4 text-slate-100 shadow-[18px_0_40px_rgba(2,6,23,0.7)] transition-transform duration-200 ease-out pointer-events-auto cursor-default ${
-                isOpen ? "translate-x-0" : "-translate-x-full"
-              }`}
+              data-cmdb-drill-through
+              className={`measure-scope-panel measure-scope-panel-systems cmdb-scope-panel${isOpen ? " is-open" : ""}`}
+              onCancel={event => { event.preventDefault(); close(); }}
+              onClick={event => { if (event.target === event.currentTarget) close(); }}
             >
-              <div className="flex cursor-default select-none items-start justify-between gap-3 border-b border-sky-300/20 pb-3">
+              <div className="measure-scope-content">
+              <header>
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-sky-200/80">Read Only</p>
-                  <h3 id="cmdb-drill-through-title" className="text-lg font-semibold text-sky-100">
+                  <p className="endpoint-eyebrow">CMDB / Read only</p>
+                  <h2 id="cmdb-drill-through-title">
                     CMDB Drill Through
-                  </h3>
-                  <p id="cmdb-drill-through-description" className="mt-1 text-xs text-slate-300/80">
-                    Asset Details for {details?.assetName ?? selection.assetName}
-                  </p>
+                  </h2>
                 </div>
                 <button
                   ref={closeButtonRef}
                   type="button"
                   onClick={close}
                   aria-label="Close CMDB Drill Through"
-                  className="rounded-md border border-slate-600/80 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-800"
                 >
                   Close
                 </button>
-              </div>
-              <div className="min-h-0 flex-1 cursor-text select-text overflow-y-auto py-3">
+              </header>
+              <p id="cmdb-drill-through-description" className="cmdb-scope-description">
+                <span>Asset details for <strong>{details?.assetName ?? selection.assetName}</strong></span>
+                {(details?.snapshotDate ?? selection.dataDate) && <span>Snapshot · {details?.snapshotDate ?? selection.dataDate}</span>}
+              </p>
                 {selection.state === "loading" ? (
-                  <div className="rounded-lg border border-sky-300/20 bg-slate-900/65 p-4 text-sm text-slate-200" role="status">
+                  <div className="cmdb-scope-state" role="status">
                     Loading CMDB details...
                   </div>
                 ) : selection.state === "error" ? (
-                  <div className="rounded-lg border border-red-400/35 bg-red-500/10 p-4 text-sm text-red-100" role="alert">
+                  <div className="cmdb-scope-state is-error" role="alert">
                     <p>{selection.error}</p>
                     <button
                       type="button"
                       onClick={() => loadDetails(selection)}
-                      className="mt-3 rounded-md border border-red-300/45 px-3 py-1.5 text-xs font-semibold hover:bg-red-500/15"
                     >
                       Retry
                     </button>
                   </div>
                 ) : (
-                  <table className="w-full table-fixed border-separate border-spacing-y-1 text-left select-text">
-                    <tbody>
-                      {detailRows.map(([label, value], index) => (
-                        <tr key={label} className={index % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
-                          <th
-                            scope="row"
-                            className="w-36 align-top rounded-l-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400"
-                          >
-                            {label}
-                          </th>
-                          <td className="rounded-r-md px-3 py-2 text-sm font-medium text-slate-100">
-                            <span className="block break-words">{formatDetailValue(value)}</span>
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className={detailRows.length % 2 === 0 ? "bg-slate-900/35" : "bg-transparent"}>
-                        <th
-                          scope="row"
-                          className="w-36 align-top rounded-l-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400"
-                        >
-                          CMDB Record
-                        </th>
-                        <td className="rounded-r-md px-3 py-2 text-sm font-medium text-slate-100">
-                          {cmdbRecordUrl ? (
-                            <a
-                              href={cmdbRecordUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="cursor-pointer break-words text-cyan-200 underline decoration-cyan-300/60 underline-offset-2 hover:text-cyan-100"
-                            >
-                              Open CMDB record
-                            </a>
-                          ) : (
-                            "Not supplied"
-                          )}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <FindingsDataTable key={`${selection.dataDate}:${selection.assetId}`} title="Asset Details" rows={tableRows} columns={detailColumns}
+                    columnFilters={false}
+                    className="measure-scope-table cmdb-details-table" defaultPageSize={25} pageSizeOptions={[10, 25, 50, 100]}
+                    searchText={row => row.href ?? ""}
+                    renderRow={row => <tr key={row.label}><td>{row.label}</td><td>{row.href
+                      ? <a href={row.href} target="_blank" rel="noreferrer" className="cmdb-record-link">{row.value}</a>
+                      : row.value}</td></tr>} />
                 )}
               </div>
-            </aside>
-          </div>,
+            </dialog>,
           document.body
         )
       : null;

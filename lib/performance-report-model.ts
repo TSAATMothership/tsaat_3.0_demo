@@ -4,6 +4,7 @@ import { buildKpiRows, KpiRow } from "@/lib/measures";
 import { loadSnapshotKpiEvaluationsForScopes } from "@/lib/data-loader";
 import { resolveNetworkDetailFields } from "@/lib/network-detail-fields";
 import { filterRealNetworks } from "@/lib/network-scope";
+import { resolveKpiScope } from "@/lib/kpi-scope";
 import { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
 import {
   AnalyticsResult,
@@ -77,9 +78,6 @@ export interface PerformanceAffectedCiRow {
   assetName: string;
   assetIpAddress: string;
   assetType: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   totalCveVulnerabilities: number;
   cveVulnerabilities: CveVulnerabilityDetail[];
 }
@@ -248,7 +246,7 @@ interface BuildPerformanceReportModelParams {
 
 type BuildPerformanceKpiRowsParams = Pick<
   BuildPerformanceReportModelParams,
-  "scopeType" | "dataset" | "analytics" | "networks" | "systems" | "kpiDefinitions"
+  "scopeType" | "dataset" | "analytics" | "networks" | "systems" | "kpiDefinitions" | "filters"
 >;
 
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
@@ -506,21 +504,10 @@ function assetCveDetails(asset: Asset | undefined): CveVulnerabilityDetail[] {
   }));
 }
 
-function affectedCiOwner(asset: Asset | undefined, fallbackOwner: string): string {
-  return (
-    readRecordStringValue(asset as unknown as Record<string, unknown> | undefined, [
-      "assetOwner",
-      "owner",
-      "serviceOwner"
-    ]) ?? fallbackOwner
-  );
-}
-
 function buildAffectedCiRows(
   evaluations: AssetSpiEvaluation[],
   spiId: SpiId,
-  assetById: Map<string, Asset>,
-  fallbackOwner: string
+  assetById: Map<string, Asset>
 ): PerformanceAffectedCiRow[] {
   return evaluations
     .filter((evaluation) =>
@@ -529,28 +516,12 @@ function buildAffectedCiRows(
     .map((evaluation) => {
       const asset = assetById.get(evaluation.assetId);
       const cveVulnerabilities = assetCveDetails(asset);
-      const assetRecord = asset as unknown as Record<string, unknown> | undefined;
 
       return {
         assetId: evaluation.assetId,
         assetName: assetDisplayName(asset, evaluation.assetId),
         assetIpAddress: resolveAssetIpAddress(asset),
         assetType: formatAssetTypeLabel(asset?.type ?? evaluation.assetType),
-        assetChangeAssignmentGroup:
-          readRecordStringValue(assetRecord, [
-            "assetChangeAssignmentGroup",
-            "changeAssignmentGroup",
-            "changeGroup",
-            "change_assignment_group"
-          ]) ?? "Not assigned",
-        assetIncidentAssignmentGroup:
-          readRecordStringValue(assetRecord, [
-            "assetIncidentAssignmentGroup",
-            "incidentAssignmentGroup",
-            "incidentGroup",
-            "incident_assignment_group"
-          ]) ?? "Not assigned",
-        owner: affectedCiOwner(asset, fallbackOwner),
         totalCveVulnerabilities: cveVulnerabilities.length,
         cveVulnerabilities
       };
@@ -655,6 +626,7 @@ export async function buildPerformanceKpiRowsByMatrixRowId({
   scopeType,
   dataset,
   analytics,
+  filters,
   networks,
   systems,
   kpiDefinitions
@@ -717,14 +689,11 @@ export async function buildPerformanceKpiRowsByMatrixRowId({
   const scopes = rows.map((row) => {
     const rowAssetIds = new Set(row.evaluations.map((evaluation) => evaluation.assetId));
     const findings = scopedFindings.filter((finding) => rowAssetIds.has(finding.scope.assetId));
-    const rowSystems =
-      scopeType === "system"
-        ? scopedSystems.filter((system) => system.id === row.entityId)
-        : scopedSystems.filter((system) => system.networkId === row.entityId);
-    const rowNetworks =
-      scopeType === "network"
-        ? scopedNetworks.filter((network) => network.id === row.entityId)
-        : scopedNetworks.filter((network) => rowSystems.some((system) => system.networkId === network.id));
+    const { systems: rowSystems, networks: rowNetworks } = resolveKpiScope(dataset, {
+      ...filters,
+      ...(scopeType === "system" ? { ictSystem: row.entityId } : { managedNetwork: row.entityId }),
+      securityDomain: row.securityDomain
+    });
 
     return {
       scopeKey: row.id,
@@ -903,8 +872,7 @@ export function buildPerformanceReportModel({
           affectedCis: buildAffectedCiRows(
             evaluations,
             spiId,
-            assetById,
-            entityDetailsById.get(row.entityId)?.owner ?? "Not assigned"
+            assetById
           ),
           ...counts
         };

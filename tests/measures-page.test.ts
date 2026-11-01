@@ -16,7 +16,9 @@ const core: Awaited<ReturnType<typeof getCoreAppData>> = {
   analytics: { evaluations: [], findings: [], networkRollups: [], systemRollups: [], environmentRollups: [], overallCompliancePercent: 0, statusTotals: { compliant: 0, nonCompliant: 0, unknown: 0, impactedAssets: 0 }, productionCriticalExposureAssetIds: [] },
   filters: { managedNetwork: "net-1", ictSystem: "sys-1" }, systems: [], networks: [],
   filterOptions: { networks: [], systems: [], securityDomains: [], missionCapabilities: [], businessServices: [], systemCriticalities: [] },
-  kpiDefinitions: [{ id: "KPI-1", displayOrder: 1, name: "Coverage", description: "Coverage measure", successMeasure: "All entities", calculationKey: "coverage", enabled: true, reportAvailable: true, taskingTeams: [], taskingActions: [], taskingConditions: {} }],
+  kpiDefinitions: [{ id: "KPI-1", displayOrder: 1, name: "Coverage", description: "Coverage measure", successMeasure: "All entities", calculationKey: "coverage", enabled: true, reportAvailable: true,
+    taskingTeams: [{ displayOrder: 1, team: "Accreditation Team", supportQueue: "ATO-QUEUE", contactEmail: "ato@example.test" }],
+    taskingActions: [{ displayOrder: 1, conditionKey: "always", actionText: "Provide an ATO for each system." }], taskingConditions: {} }],
   spiDefinitions: testSpiDefinitions.slice(0, 1), severityDefinitions: [], priorityDefinitions: [],
   findingDisplayConfiguration: { sourcePolicies: [], generationPolicies: [], workflowStatuses: [], buckets: [], evidenceFields: [], registerColumns: [] },
   discoveryToolsSettings: defaultDiscoveryToolsSettings(),
@@ -54,13 +56,30 @@ describe("observed measures page wiring", () => {
     expect(explorer.props.initialFilters).toEqual(initialFilters);
     expect(explorer.props.rows[0].reportHref).toContain("kind=kpi");
     expect(explorer.props.rows[0].trendHref).toContain("dataDate=2026-10-30");
+    expect(explorer.props.rows[0].remediationActions).toEqual(["Provide an ATO for each system."]);
+    expect(explorer.props.rows[0].taskingTeams).toEqual([{ team: "Accreditation Team", supportQueue: "ATO-QUEUE", contactEmail: "ato@example.test" }]);
   });
   it("supports legacy SPI filters and avoids loading unrelated KPI calculations", async () => {
     const rendered = await MeasuresPage({ searchParams: { ...scope, measuresTab: "measures-spi", spi: "1", measureSearch: "coverage" } });
     const explorer = child<ComponentProps<typeof MeasuresExplorer>>(rendered, MeasuresExplorer);
     expect(explorer.props.initialFilters).toEqual({ search: "coverage", columns: { id: ["SPI-1"] } });
-    expect(explorer.props.allSpiReportHref).toContain("kind=spi-all");
     expect(loadSnapshotKpiEvaluationsForAnalyticsScope).not.toHaveBeenCalled();
+  });
+  it("uses the same infrastructure-derived system scope for calculations and linked tallies", async () => {
+    const system = { id: "sys-shared", name: "Shared system", networkId: "net-other", adfPlatform: false, enterprisePlatform: false,
+      modellingStatus: true, diisDefined: true, criticality: "Critical" as const, securityDomain: "Protected" as const,
+      missionCapabilities: [], businessServices: [], environments: [{ id: "prod", name: "Production", type: "Production" as const, assetIds: ["shared-ci"] }] };
+    const network = { id: "net-1", name: "Selected network", adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
+      criticality: "Critical" as const, discoveryStatus: "Discovery Enabled" as const, assetIds: ["shared-ci"], ictSystemIds: [] };
+    const asset = { id: "shared-ci", name: "Shared CI", hostname: "shared-ci", networkId: "net-1", type: "server" as const,
+      securityDomain: "Protected" as const, operatingSystem: null, installedSoftware: [], vulnerabilities: [],
+      lifecycle: { eolStatus: "Unknown" as const, warrantyStatus: "Unknown" as const } };
+    vi.mocked(getCoreAppData).mockResolvedValue({ ...core, filters: { managedNetwork: "net-1" }, systems: [], networks: [network],
+      dataset: { ...core.dataset, ictSystems: [system], managedNetworks: [network], assets: [asset] } });
+    const rendered = await MeasuresPage({ searchParams: { network: "net-1", measuresTab: "measures-kpi" } });
+    const explorer = child<ComponentProps<typeof MeasuresExplorer>>(rendered, MeasuresExplorer);
+    expect(loadSnapshotKpiEvaluationsForAnalyticsScope).toHaveBeenCalledWith(expect.objectContaining({ systems: [system], networks: [network] }));
+    expect(explorer.props.rows[0]).toMatchObject({ ictSystems: [{ id: system.id, name: system.name }], networks: [{ id: network.id, name: network.name }] });
   });
   it("redirects legacy risk matrix URLs to the Settings popup without loading scoped analytics", async () => {
     await expect(MeasuresPage({ searchParams: { ...scope, measuresTab: "spi-settings" } })).rejects.toMatchObject({

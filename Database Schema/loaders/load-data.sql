@@ -1103,7 +1103,9 @@ WHEN NOT MATCHED BY TARGET THEN
     source.[calculation_key],
     source.[report_available],
     source.[enabled]
-  );
+  )
+WHEN NOT MATCHED BY SOURCE THEN
+  UPDATE SET [enabled] = 0;
 
 SET @FilePath = @PackageDataRoot + N'\kpi-report-detail-definitions.json';
 SET @Json = NULL;

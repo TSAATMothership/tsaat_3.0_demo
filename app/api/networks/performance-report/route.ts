@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
   const systems = filterSystems(dataset.ictSystems, filters);
   const kpiRowsByMatrixRowId = await buildPerformanceKpiRowsByMatrixRowId({
     scopeType: "network",
+    filters,
     dataset,
     analytics,
     networks,

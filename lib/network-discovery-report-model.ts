@@ -13,6 +13,7 @@ import { resolveNetworkReferenceFields } from "@/lib/network-reference-fields";
 import { buildNetworkTargetStateSummary, type NetworkTargetStateCellState } from "@/lib/network-target-state";
 import type { SpiDefinition } from "@/lib/spi-definitions";
 import type { Asset, AssetType, Dataset, Filters, ManagedNetwork } from "@/lib/types";
+import { deviceReportDetails, type DeviceReportDetails } from "@/lib/device-report";
 
 export interface NetworkDiscoveryToolCoverageRow {
   toolId: string;
@@ -34,6 +35,7 @@ export interface NetworkDiscoveryTargetStateRow {
 }
 
 export interface NetworkDiscoveryAssetReportRow {
+  device: DeviceReportDetails;
   assetId: string;
   name: string;
   hostname: string;
@@ -164,6 +166,7 @@ export function buildNetworkDiscoveryReportModel({
       const systemId = asset.systemContext?.systemId;
       const missingTools = [...coverage.missingToolNames].sort((a, b) => a.localeCompare(b));
       return {
+        device: deviceReportDetails(asset, asset.id),
         assetId: asset.id,
         name: asset.name,
         hostname: asset.hostname,

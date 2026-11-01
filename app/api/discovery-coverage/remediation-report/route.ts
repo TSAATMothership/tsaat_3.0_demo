@@ -1,10 +1,12 @@
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
+import { deviceCoverageRows, DEVICE_COVERAGE_COLUMNS } from "@/lib/device-report";
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import {
-  loadCurrentDataset,
+  loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadMeasuresSettings,
   loadSeverityDefinitions,
@@ -136,7 +138,7 @@ function includesSearch(
 
 export async function GET(request: NextRequest) {
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadCurrentDataset(),
+    loadDatasetForDate(request.nextUrl.searchParams.get("dataDate") ?? undefined),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()
@@ -278,12 +280,7 @@ export async function GET(request: NextRequest) {
   if (!coverageGapRows.length) {
     lines.push("- No discovery coverage gaps in this filtered scope.");
   } else {
-    for (const row of coverageGapRows) {
-      lines.push(`- ${row.hostname} (${row.assetId})`);
-      lines.push(`  - Type/Environment: ${row.assetType} / ${row.environment}`);
-      lines.push(`  - Network/System: ${row.networkName} / ${row.systemName}`);
-      lines.push(`  - Missing Tools: ${row.coverage.missingTools.join(", ")}`);
-    }
+    lines.push("- Device inventory and missing-tool details are listed in the device tables following this summary.");
   }
 
   lines.push("");
@@ -301,10 +298,7 @@ export async function GET(request: NextRequest) {
   if (!serverCoverageGapRows.length) {
     lines.push("- No servers in scope are missing discovery tools.");
   } else {
-    for (const row of serverCoverageGapRows) {
-      lines.push(`- ${row.hostname} (${row.assetId})`);
-      lines.push(`  - Missing Tools: ${row.coverage.missingTools.join(", ")}`);
-    }
+    lines.push("- Device inventory and missing-tool details are listed in the device tables following this summary.");
   }
 
   lines.push("");
@@ -399,6 +393,11 @@ export async function GET(request: NextRequest) {
     }
 
     y -= style.spacingAfter;
+  }
+
+  for (const [sectionTitle, deviceRows] of [["Discovery Coverage Findings Register", coverageGapRows], ["Server Coverage Gaps", serverCoverageGapRows]] as const) {
+    if (deviceRows.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate, sectionTitle,
+      columns: DEVICE_COVERAGE_COLUMNS, rows: deviceCoverageRows(deviceRows.map(row => ({ assetId: row.assetId, missingTools: row.coverage.missingTools })), dataset) });
   }
 
   const pdfBytes = await pdfDoc.save();

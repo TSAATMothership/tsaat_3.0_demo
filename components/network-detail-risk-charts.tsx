@@ -41,9 +41,6 @@ export interface NetworkDetailRiskFindingRow {
   assetName: string;
   assetType: string;
   assetIpAddress: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   spiId: number;
   timestamp: string;
   closedTimestamp: string | null;
@@ -67,9 +64,6 @@ interface AffectedDeviceRow {
   assetName: string;
   assetIpAddress: string;
   assetType: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   totalOpenFindings: number;
   totalHighRiskCveVulnerabilities: number;
   highRiskCveVulnerabilities: AssetHighRiskCveEntry[];
@@ -224,9 +218,6 @@ function buildAffectedDeviceRowsForFinding(
       assetName: finding.assetName,
       assetIpAddress: finding.assetIpAddress,
       assetType: finding.assetType,
-      assetChangeAssignmentGroup: finding.assetChangeAssignmentGroup,
-      assetIncidentAssignmentGroup: finding.assetIncidentAssignmentGroup,
-      owner: finding.owner,
       totalOpenFindings: openCountByAsset.get(finding.assetId) ?? 0,
       totalHighRiskCveVulnerabilities: (assetHighRiskCvesByAssetId[finding.assetId] ?? []).length,
       highRiskCveVulnerabilities: assetHighRiskCvesByAssetId[finding.assetId] ?? []
@@ -808,10 +799,7 @@ export function RiskFindingsDrillThrough({
       "Asset IP Address",
       "Asset Type",
       "Total Open Findings",
-      "Total High Risk CVE Vulnerabilities",
-      "Asset Change Assignment Group",
-      "Asset Incident Assignment Group",
-      "Owner"
+      "Total High Risk CVE Vulnerabilities"
     ];
     const rows = matchingRows.map((device) => [
       extract,
@@ -822,10 +810,7 @@ export function RiskFindingsDrillThrough({
       device.assetIpAddress,
       device.assetType,
       device.totalOpenFindings,
-      device.totalHighRiskCveVulnerabilities,
-      device.assetChangeAssignmentGroup,
-      device.assetIncidentAssignmentGroup,
-      device.owner
+      device.totalHighRiskCveVulnerabilities
     ]);
     const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
     downloadBlob(
@@ -894,10 +879,7 @@ export function RiskFindingsDrillThrough({
       "Asset IP Address",
       "Asset Type",
       "Total Open Findings",
-      "Total High Risk CVE Vulnerabilities",
-      "Asset Change Assignment Group",
-      "Asset Incident Assignment Group",
-      "Owner"
+      "Total High Risk CVE Vulnerabilities"
     ];
     const affectedRows = affectedCisForExport.filter((row) => matchingExtracts.has(row.extract)).map((row) => [
       row.extract,
@@ -908,10 +890,7 @@ export function RiskFindingsDrillThrough({
       row.ci.assetIpAddress,
       row.ci.assetType,
       row.ci.totalOpenFindings,
-      row.ci.totalHighRiskCveVulnerabilities,
-      row.ci.assetChangeAssignmentGroup,
-      row.ci.assetIncidentAssignmentGroup,
-      row.ci.owner
+      row.ci.totalHighRiskCveVulnerabilities
     ]);
 
     const workbookXml = buildWorkbookXml({
@@ -1333,10 +1312,7 @@ columns={[{ key: "device", label: "Device", value: (device) => device.assetName 
 { key: "asset-ip-address", label: "Asset IP address", value: (device) => device.assetIpAddress },
 { key: "asset-type", label: "Asset Type", value: (device) => device.assetType },
 { key: "total-open-findings", label: "Total Open Findings", value: (device) => device.totalOpenFindings },
-{ key: "total-high-risk-cve-vulnerabilities", label: "Total High Risk CVE Vulnerabilities", value: (device) => device.totalHighRiskCveVulnerabilities },
-{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (device) => device.assetChangeAssignmentGroup },
-{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (device) => device.assetIncidentAssignmentGroup },
-{ key: "owner", label: "Owner", value: (device) => device.owner }]}
+{ key: "total-high-risk-cve-vulnerabilities", label: "Total High Risk CVE Vulnerabilities", value: (device) => device.totalHighRiskCveVulnerabilities }]}
 actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadAffectedCisCsv(matching)}>Export CSV</button>}
 emptyMessage={<>No affected devices found for this finding.
                               </>}
@@ -1362,9 +1338,6 @@ renderRow={(device) => (
                                   <span className="text-slate-400/90">0</span>
                                 )}
                               </td>
-                              <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetChangeAssignmentGroup}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetIncidentAssignmentGroup}</td>
-                              <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.owner}</td>
                             </tr>
                           )} /></div>
                   </div>
@@ -1956,10 +1929,7 @@ export function NetworkDetailRiskCharts({
       "Asset IP Address",
       "Asset Type",
       "Total Open Findings",
-      "Total High Risk CVE Vulnerabilities",
-      "Asset Change Assignment Group",
-      "Asset Incident Assignment Group",
-      "Owner"
+      "Total High Risk CVE Vulnerabilities"
     ];
     const rows = matchingRows.map((device) => [
       extract,
@@ -1970,10 +1940,7 @@ export function NetworkDetailRiskCharts({
       device.assetIpAddress,
       device.assetType,
       device.totalOpenFindings,
-      device.totalHighRiskCveVulnerabilities,
-      device.assetChangeAssignmentGroup,
-      device.assetIncidentAssignmentGroup,
-      device.owner
+      device.totalHighRiskCveVulnerabilities
     ]);
     const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
     downloadBlob(
@@ -2042,10 +2009,7 @@ export function NetworkDetailRiskCharts({
       "Asset IP Address",
       "Asset Type",
       "Total Open Findings",
-      "Total High Risk CVE Vulnerabilities",
-      "Asset Change Assignment Group",
-      "Asset Incident Assignment Group",
-      "Owner"
+      "Total High Risk CVE Vulnerabilities"
     ];
     const affectedRows = affectedCisForExport.filter((row) => matchingExtracts.has(row.extract)).map((row) => [
       row.extract,
@@ -2056,10 +2020,7 @@ export function NetworkDetailRiskCharts({
       row.ci.assetIpAddress,
       row.ci.assetType,
       row.ci.totalOpenFindings,
-      row.ci.totalHighRiskCveVulnerabilities,
-      row.ci.assetChangeAssignmentGroup,
-      row.ci.assetIncidentAssignmentGroup,
-      row.ci.owner
+      row.ci.totalHighRiskCveVulnerabilities
     ]);
 
     const workbookXml = buildWorkbookXml({
@@ -2743,10 +2704,7 @@ columns={[{ key: "device", label: "Device", value: (device) => device.assetName 
 { key: "asset-ip-address", label: "Asset IP address", value: (device) => device.assetIpAddress },
 { key: "asset-type", label: "Asset Type", value: (device) => device.assetType },
 { key: "total-open-findings", label: "Total Open Findings", value: (device) => device.totalOpenFindings },
-{ key: "total-high-risk-cve-vulnerabilities", label: "Total High Risk CVE Vulnerabilities", value: (device) => device.totalHighRiskCveVulnerabilities },
-{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (device) => device.assetChangeAssignmentGroup },
-{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (device) => device.assetIncidentAssignmentGroup },
-{ key: "owner", label: "Owner", value: (device) => device.owner }]}
+{ key: "total-high-risk-cve-vulnerabilities", label: "Total High Risk CVE Vulnerabilities", value: (device) => device.totalHighRiskCveVulnerabilities }]}
 actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadAffectedCisCsv(matching)}>Export CSV</button>}
 emptyMessage={<>No affected devices found for this finding.
                                 </>}
@@ -2772,9 +2730,6 @@ renderRow={(device) => (
                                     <span className="text-slate-400/90">0</span>
                                   )}
                                 </td>
-                                <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetChangeAssignmentGroup}</td>
-                                <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.assetIncidentAssignmentGroup}</td>
-                                <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{device.owner}</td>
                               </tr>
                             )} /></div>
                     </div>

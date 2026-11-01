@@ -1,9 +1,11 @@
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
+import { deviceFindingRows, deviceCoverageRows, DEVICE_FINDING_COLUMNS, DEVICE_COVERAGE_COLUMNS } from "@/lib/device-report";
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import {
-  loadCurrentDataset,
+  loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadMeasuresSettings,
   loadSeverityDefinitions,
@@ -156,7 +158,7 @@ function createPage(pdfDoc: PDFDocument, pageTitle: string, titleFont: PDFFont):
 
 export async function GET(request: NextRequest) {
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadCurrentDataset(),
+    loadDatasetForDate(request.nextUrl.searchParams.get("dataDate") ?? undefined),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()
@@ -218,8 +220,6 @@ export async function GET(request: NextRequest) {
     .filter((item) => item.missingTools.length > 0)
     .sort((a, b) => a.hostname.localeCompare(b.hostname));
 
-  const networkNameById = new Map(filterRealNetworks(dataset.managedNetworks).map((network) => [network.id, network.name]));
-  const assetNameById = new Map(dataset.assets.map((asset) => [asset.id, asset.hostname]));
   const maxFindingsInReport = 300;
   const findingsForReport = findings.slice(0, maxFindingsInReport);
   const isFindingsTruncated = findings.length > findingsForReport.length;
@@ -301,18 +301,7 @@ export async function GET(request: NextRequest) {
   if (!findingsForReport.length) {
     lines.push("- No findings in the current scope.");
   } else {
-    for (const finding of findingsForReport) {
-      const assetName = assetNameById.get(finding.scope.assetId) ?? finding.scope.assetId;
-      const networkName = networkNameById.get(finding.scope.networkId) ?? finding.scope.networkId;
-      lines.push(
-        `- [${finding.id}] P${finding.priorityRank} | SPI ${finding.spiId} | ${finding.severity} | ${finding.complianceStatus} | ${finding.status} | ${finding.timestamp}`
-      );
-      lines.push(`  - Asset: ${assetName}`);
-      lines.push(`  - Network: ${networkName}`);
-      lines.push(`  - Environment: ${finding.scope.environmentType ?? "-"}`);
-      lines.push(`  - Finding: ${finding.title}`);
-      lines.push(`  - Recommended Action: ${finding.recommendedAction}`);
-    }
+    lines.push("- Full finding details and device inventory columns are listed in the device register following this summary.");
   }
   if (isFindingsTruncated) {
     lines.push(`- Report truncated to first ${maxFindingsInReport} findings. Total scoped findings: ${findings.length}.`);
@@ -334,10 +323,7 @@ export async function GET(request: NextRequest) {
     lines.push("- All servers in scope are discovery coverage compliant.");
   } else {
     lines.push(`- Servers requiring discovery tool deployment: ${discoveryCoverageServerGaps.length}`);
-    for (const gap of discoveryCoverageServerGaps) {
-      lines.push(`- ${gap.hostname} (${gap.assetId})`);
-      lines.push(`  - Deploy/Integrate: ${gap.missingTools.join(", ")}`);
-    }
+    lines.push("- Device details and required tools are listed in the discovery coverage table following this summary.");
   }
 
   lines.push("");
@@ -430,6 +416,11 @@ export async function GET(request: NextRequest) {
 
     y -= style.spacingAfter;
   }
+
+  if (findingsForReport.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
+    sectionTitle: "Findings Register (Scoped)", columns: DEVICE_FINDING_COLUMNS, rows: deviceFindingRows(findingsForReport, dataset) });
+  if (discoveryCoverageServerGaps.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
+    sectionTitle: "Discovery Coverage Gap Remediation Plan", columns: DEVICE_COVERAGE_COLUMNS, rows: deviceCoverageRows(discoveryCoverageServerGaps, dataset) });
 
   const pdfBytes = await pdfDoc.save();
   const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;

@@ -855,10 +855,6 @@ export default async function NetworkDetailPage({
 
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
   const networkAssetsById = new Map(assets.map((asset) => [asset.id, asset]));
-  const systemOwnerById = new Map(
-    dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""])
-  );
-  const networkOwnerFallback = network.owner?.trim() || "Not assigned";
 
   const riskProfileFindings = networkScopedFindings
     .map((finding) => {
@@ -897,23 +893,6 @@ export default async function NetworkDetailPage({
           "ipv4",
           "ip_address"
         ]) ?? (asset ? resolveAssetIpAddress(asset) : "Not available");
-      const assetChangeAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned";
-      const assetIncidentAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned";
-      const owner =
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
-        (systemId ? systemOwnerById.get(systemId)?.trim() || networkOwnerFallback : networkOwnerFallback);
 
       return {
         id: `risk-${finding.id}`,
@@ -921,9 +900,6 @@ export default async function NetworkDetailPage({
         assetName,
         assetType,
         assetIpAddress,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner,
         spiId: finding.spiId,
         timestamp: finding.timestamp,
         closedTimestamp: finding.closedTimestamp ?? null,
@@ -1018,31 +994,6 @@ export default async function NetworkDetailPage({
             ])
           : null) ??
         (asset ? resolveAssetIpAddress(asset) : "Not available");
-      const assetChangeAssignmentGroup =
-        (latestFinding
-          ? readEvidenceStringValue(latestFinding.evidence, [
-              "assetChangeAssignmentGroup",
-              "changeAssignmentGroup",
-              "changeGroup",
-              "change_assignment_group"
-            ])
-          : null) ?? "Not assigned";
-      const assetIncidentAssignmentGroup =
-        (latestFinding
-          ? readEvidenceStringValue(latestFinding.evidence, [
-              "assetIncidentAssignmentGroup",
-              "incidentAssignmentGroup",
-              "incidentGroup",
-              "incident_assignment_group"
-            ])
-          : null) ?? "Not assigned";
-      const owner =
-        (latestFinding
-          ? readEvidenceStringValue(latestFinding.evidence, ["assetOwner", "owner", "serviceOwner"])
-          : null) ??
-        (asset?.systemContext?.systemId
-          ? systemOwnerById.get(asset.systemContext.systemId)?.trim() || networkOwnerFallback
-          : networkOwnerFallback);
 
       const timestamp = latestFinding?.timestamp ?? `${dataset.snapshotDate}T00:00:00.000Z`;
       const definition = spiDefinitions.find((item) => item.spiId === row.spiId);
@@ -1061,9 +1012,6 @@ export default async function NetworkDetailPage({
         assetName,
         assetType,
         assetIpAddress,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner,
         spiId: row.spiId,
         timestamp,
         closedTimestamp: null,

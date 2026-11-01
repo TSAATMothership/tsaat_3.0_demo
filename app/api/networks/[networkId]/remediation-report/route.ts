@@ -1,3 +1,5 @@
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
+import { deviceFindingRows, deviceCoverageRows, DEVICE_FINDING_COLUMNS, DEVICE_COVERAGE_COLUMNS } from "@/lib/device-report";
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
@@ -212,7 +214,6 @@ export async function GET(
     discoveryToolsSettings
   );
   const assets = dataset.assets.filter((asset) => asset.networkId === network.id);
-  const assetNameById = new Map(assets.map((asset) => [asset.id, asset.hostname]));
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const allFindings = analytics.findings;
   const requestedKpiFilter = request.nextUrl.searchParams.get("kpiFilter") ?? undefined;
@@ -362,16 +363,7 @@ export async function GET(
   if (!findingsForReport.length) {
     lines.push("- No findings in the current scope.");
   } else {
-    for (const finding of findingsForReport) {
-      const assetName = assetNameById.get(finding.scope.assetId) ?? finding.scope.assetId;
-      lines.push(
-        `- [${finding.id}] P${finding.priorityRank} | SPI ${finding.spiId} | ${finding.severity} | ${finding.complianceStatus} | ${finding.status} | ${finding.timestamp}`
-      );
-      lines.push(`  - Asset: ${assetName}`);
-      lines.push(`  - Environment: ${finding.scope.environmentType ?? "-"}`);
-      lines.push(`  - Finding: ${finding.title}`);
-      lines.push(`  - Recommended Action: ${finding.recommendedAction}`);
-    }
+    lines.push("- Full finding details and device inventory columns are listed in the device register following this summary.");
   }
 
   if (isFindingsTruncated) {
@@ -394,10 +386,7 @@ export async function GET(
     lines.push("- All servers in scope are discovery coverage compliant.");
   } else {
     lines.push(`- Servers requiring discovery tool deployment: ${discoveryCoverageServerGaps.length}`);
-    for (const gap of discoveryCoverageServerGaps) {
-      lines.push(`- ${gap.hostname} (${gap.assetId})`);
-      lines.push(`  - Deploy/Integrate: ${gap.missingTools.join(", ")}`);
-    }
+    lines.push("- Device details and required tools are listed in the discovery coverage table following this summary.");
   }
 
   lines.push("");
@@ -457,6 +446,11 @@ export async function GET(
 
     y -= style.spacingAfter;
   }
+
+  if (findingsForReport.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
+    sectionTitle: "Findings Register (Scoped)", columns: DEVICE_FINDING_COLUMNS, rows: deviceFindingRows(findingsForReport, dataset) });
+  if (discoveryCoverageServerGaps.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
+    sectionTitle: "Discovery Coverage Gap Remediation Plan", columns: DEVICE_COVERAGE_COLUMNS, rows: deviceCoverageRows(discoveryCoverageServerGaps, dataset) });
 
   const pdfBytes = await pdfDoc.save();
   const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;

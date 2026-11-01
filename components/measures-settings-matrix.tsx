@@ -18,6 +18,11 @@ import { AssetType, FindingSeverity, SpiId } from "@/lib/types";
 
 type SettingsMatrixTab = "severity" | "priority";
 
+const matrixTabs = [
+  { id: "spi-risk-matrix", matrix: "severity", label: "SPI Risk Matrix" },
+  { id: "spi-priority-matrix", matrix: "priority", label: "SPI Priority Matrix" }
+] as const;
+
 function matrixEqual<T extends string | number>(a: Record<string, T>, b: Record<string, T>): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) {
@@ -29,18 +34,19 @@ function matrixEqual<T extends string | number>(a: Record<string, T>, b: Record<
 }
 
 export function MeasuresSettingsMatrix({
+  activeMatrix,
   initialSettings,
   spiDefinitions,
   severityDefinitions,
   priorityDefinitions
 }: {
+  activeMatrix: SettingsMatrixTab | null;
   initialSettings: MeasuresSettings;
   spiDefinitions: Pick<SpiDefinition, "spiId" | "description">[];
   severityDefinitions: SeverityDefinition[];
   priorityDefinitions: FindingPriorityDefinition[];
 }) {
   const router = useRouter();
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsMatrixTab>("severity");
   const [savedSettings, setSavedSettings] = useState<MeasuresSettings>(initialSettings);
   const [draftMatrix, setDraftMatrix] = useState<Record<string, FindingSeverity>>(initialSettings.severityMatrix);
   const [draftPriorityMatrix, setDraftPriorityMatrix] = useState<Record<string, MeasuresPriorityRank>>(
@@ -126,162 +132,143 @@ export function MeasuresSettingsMatrix({
   };
 
   return (
-    <section className="panel flex h-full min-h-0 flex-col p-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">SPI Risk Matrix</h2>
-          <p className="mt-1 text-xs text-slate-300/80">
-            Configure SPI severity and priority mappings. Changes are applied globally to findings analytics and rollups.
-          </p>
-          <p className="mt-1 text-xs text-slate-300/65">
-            Last saved: {new Date(savedSettings.updatedAt).toLocaleString()}
-          </p>
-        </div>
-        {isDirty ? (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onReset}
-              className="rounded-md border border-slate-500/40 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/70"
-              disabled={isSaving}
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={onSave}
-              className="rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isSaving}
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </button>
+    <>{matrixTabs.map((tab) => (
+      <div key={tab.id} role="tabpanel" id={`settings-panel-${tab.id}`} aria-labelledby={`settings-tab-${tab.id}`}
+        hidden={activeMatrix !== tab.matrix} className="h-full min-h-[360px]">
+        <section className="panel flex h-full min-h-0 flex-col p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">{tab.label}</h2>
+              <p className="mt-1 text-xs text-slate-300/80">
+                Configure SPI {tab.matrix} mappings. Changes are applied globally to findings analytics and rollups.
+              </p>
+              <p className="mt-1 text-xs text-slate-300/65">
+                Last saved: {new Date(savedSettings.updatedAt).toLocaleString()}
+              </p>
+            </div>
+            {isDirty ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onReset}
+                  className="rounded-md border border-slate-500/40 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/70"
+                  disabled={isSaving}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={onSave}
+                  className="rounded-md border border-sky-300/40 bg-sky-500/15 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 border-b border-sky-400/15 pb-3">
-        {[
-          { id: "severity" as const, label: "SPI Severity Matrix Settings" },
-          { id: "priority" as const, label: "SPI Priority Matrix Settings" }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveSettingsTab(tab.id);
-              setSaveError(null);
-              setSaveSuccess(null);
-            }}
-            className={`rounded-md border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
-              activeSettingsTab === tab.id
-                ? "border-sky-200/60 bg-sky-500/20 text-sky-100"
-                : "border-sky-400/20 bg-slate-900/40 text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/70"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+          {saveError ? (
+            <p className="mt-3 rounded-md border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-100">{saveError}</p>
+          ) : null}
+          {saveSuccess ? (
+            <p className="mt-3 rounded-md border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+              {saveSuccess}
+            </p>
+          ) : null}
 
-      {saveError ? (
-        <p className="mt-3 rounded-md border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-100">{saveError}</p>
-      ) : null}
-      {saveSuccess ? (
-        <p className="mt-3 rounded-md border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-          {saveSuccess}
-        </p>
-      ) : null}
+          {tab.matrix === "severity" ? (
+            <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                  <tr>
+                    <th className="w-[360px] min-w-[360px] px-3 py-2">SPI</th>
+                    {MEASURES_ASSET_TYPES.map((assetType) => (
+                      <th key={assetType} className="px-3 py-2">
+                        {ASSET_TYPE_LABELS[assetType]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {spiDefinitions.map((definition) => (
+                    <tr key={definition.spiId} className="border-t border-sky-400/10">
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-slate-100">SPI {definition.spiId}</p>
+                        <p className="mt-1 text-xs text-slate-300/80">{definition.description}</p>
+                      </td>
+                      {MEASURES_ASSET_TYPES.map((assetType) => {
+                        const key = severityMatrixKey(definition.spiId, assetType);
+                        const selectedValue =
+                          draftMatrix[key] === "Data Gap" ? "Moderate" : (draftMatrix[key] ?? "Moderate");
 
-      {activeSettingsTab === "severity" ? (
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="w-[360px] min-w-[360px] px-3 py-2">SPI</th>
-                {MEASURES_ASSET_TYPES.map((assetType) => (
-                  <th key={assetType} className="px-3 py-2">
-                    {ASSET_TYPE_LABELS[assetType]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {spiDefinitions.map((definition) => (
-                <tr key={definition.spiId} className="border-t border-sky-400/10">
-                  <td className="px-3 py-2">
-                    <p className="font-semibold text-slate-100">SPI {definition.spiId}</p>
-                    <p className="mt-1 text-xs text-slate-300/80">{definition.description}</p>
-                  </td>
-                  {MEASURES_ASSET_TYPES.map((assetType) => {
-                    const key = severityMatrixKey(definition.spiId, assetType);
-                    const selectedValue =
-                      draftMatrix[key] === "Data Gap" ? "Moderate" : (draftMatrix[key] ?? "Moderate");
+                        return (
+                          <td key={key} className="px-3 py-2">
+                            <select
+                              value={selectedValue}
+                              onChange={(event) => setSeverity(definition.spiId, assetType, event.target.value as FindingSeverity)}
+                              className="w-full min-w-[170px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
+                            >
+                              {selectableSeverities.map((option) => (
+                                <option key={option.severityKey} value={option.severityKey}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
+                  <tr>
+                    <th className="w-[520px] min-w-[520px] px-3 py-2">SPI</th>
+                    <th className="w-[220px] min-w-[220px] px-3 py-2">Priority</th>
+                    <th className="px-3 py-2">Priority State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {spiDefinitions.map((definition) => {
+                    const key = priorityMatrixKey(definition.spiId);
+                    const selectedValue = draftPriorityMatrix[key] ?? selectablePriorities[0]?.priorityRank ?? 7;
 
                     return (
-                      <td key={key} className="px-3 py-2">
-                        <select
-                          value={selectedValue}
-                          onChange={(event) => setSeverity(definition.spiId, assetType, event.target.value as FindingSeverity)}
-                          className="w-full min-w-[170px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
-                        >
-                          {selectableSeverities.map((option) => (
-                            <option key={option.severityKey} value={option.severityKey}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
+                      <tr key={definition.spiId} className="border-t border-sky-400/10">
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-slate-100">SPI {definition.spiId}</p>
+                          <p className="mt-1 text-xs text-slate-300/80">{definition.description}</p>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={selectedValue}
+                            onChange={(event) => setPriority(definition.spiId, Number(event.target.value) as MeasuresPriorityRank)}
+                            className="w-full min-w-[150px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
+                          >
+                            {selectablePriorities.map((option) => (
+                              <option key={option.priorityRank} value={option.priorityRank}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-300/80">
+                          Non-compliant SPI {definition.spiId} findings map to P{selectedValue}. Unknown/Data Gap findings remain P90.
+                        </td>
+                      </tr>
                     );
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="mt-3 min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/15">
-          <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-              <tr>
-                <th className="w-[520px] min-w-[520px] px-3 py-2">SPI</th>
-                <th className="w-[220px] min-w-[220px] px-3 py-2">Priority</th>
-                <th className="px-3 py-2">Priority State</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spiDefinitions.map((definition) => {
-                const key = priorityMatrixKey(definition.spiId);
-                const selectedValue = draftPriorityMatrix[key] ?? selectablePriorities[0]?.priorityRank ?? 7;
-
-                return (
-                  <tr key={definition.spiId} className="border-t border-sky-400/10">
-                    <td className="px-3 py-2">
-                      <p className="font-semibold text-slate-100">SPI {definition.spiId}</p>
-                      <p className="mt-1 text-xs text-slate-300/80">{definition.description}</p>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={selectedValue}
-                        onChange={(event) => setPriority(definition.spiId, Number(event.target.value) as MeasuresPriorityRank)}
-                        className="w-full min-w-[150px] rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-1.5 text-sm text-slate-100"
-                      >
-                        {selectablePriorities.map((option) => (
-                          <option key={option.priorityRank} value={option.priorityRank}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-slate-300/80">
-                      Non-compliant SPI {definition.spiId} findings map to P{selectedValue}. Unknown/Data Gap findings remain P90.
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    ))}</>
   );
 }

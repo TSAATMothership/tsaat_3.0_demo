@@ -82,9 +82,6 @@ export interface CyberCopImpactAnalyserFindingRow {
   assetName: string;
   assetType: string;
   assetIpAddress: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   spiId: number;
   timestamp: string;
   closedTimestamp: string | null;
@@ -784,9 +781,7 @@ export function readAssetTypeParam(value: string | null): CanonicalAssetType | n
 export function buildCyberCopImpactAnalyserFindingRows({
   findings,
   scopedAssets,
-  allAssets,
-  systems,
-  networks
+  allAssets
 }: {
   findings: Finding[];
   scopedAssets: Asset[];
@@ -796,8 +791,6 @@ export function buildCyberCopImpactAnalyserFindingRows({
 }): CyberCopImpactAnalyserFindingRow[] {
   const scopedAssetsById = new Map(scopedAssets.map((asset) => [asset.id, asset]));
   const allAssetsById = new Map(allAssets.map((asset) => [asset.id, asset]));
-  const systemOwnerById = new Map(systems.map((system) => [system.id, system.owner?.trim() ?? ""]));
-  const networkOwnerById = new Map(networks.map((network) => [network.id, network.owner?.trim() ?? ""]));
 
   return findings
     .map((finding) => {
@@ -834,25 +827,6 @@ export function buildCyberCopImpactAnalyserFindingRows({
           "ipv4",
           "ip_address"
         ]) ?? (asset ? resolveAssetIpAddress(asset) : "N/A");
-      const assetChangeAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned";
-      const assetIncidentAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned";
-      const owner =
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
-        (systemId
-          ? systemOwnerById.get(systemId)?.trim() || networkOwnerById.get(networkId ?? "")?.trim() || "Not assigned"
-          : networkOwnerById.get(networkId ?? "")?.trim() || "Not assigned");
 
       return {
         id: `risk-${finding.id}`,
@@ -861,9 +835,6 @@ export function buildCyberCopImpactAnalyserFindingRows({
         assetName,
         assetType,
         assetIpAddress,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner,
         spiId: finding.spiId,
         timestamp: finding.timestamp,
         closedTimestamp: finding.closedTimestamp ?? null,

@@ -1,3 +1,5 @@
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
+import { deviceCoverageRows, DEVICE_COVERAGE_COLUMNS } from "@/lib/device-report";
 import { NextRequest, NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
@@ -351,11 +353,7 @@ export async function GET(
   if (!serverCoverageGaps.length) {
     lines.push("- All servers in scope are discovery coverage compliant.");
   } else {
-    for (const gap of serverCoverageGaps) {
-      lines.push(`- ${gap.hostname} (${gap.assetId})`);
-      lines.push(`  - Environment: ${gap.environment}`);
-      lines.push(`  - Missing tools: ${gap.missingTools.join(", ")}`);
-    }
+    lines.push("- Device details and required tools are listed in the coverage table following this summary.");
   }
 
   lines.push("");
@@ -415,6 +413,9 @@ export async function GET(
 
     y -= style.spacingAfter;
   }
+
+  if (serverCoverageGaps.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
+    sectionTitle: "Required Discovery Tool Deployment by Server", columns: DEVICE_COVERAGE_COLUMNS, rows: deviceCoverageRows(serverCoverageGaps, dataset) });
 
   const pdfBytes = await pdfDoc.save();
   const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;

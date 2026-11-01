@@ -433,8 +433,6 @@ export default async function SystemsPage({
     dataset.snapshotDate
   );
   const weeklyRiskTrend = buildWeeklyRiskTrend(highRiskDaily, criticalExposureDaily, 13);
-
-  const systemOwnerById = new Map(dataset.ictSystems.map((system) => [system.id, system.owner?.trim() ?? ""]));
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
   const riskProfileFindings = systemScopedFindings
     .map((finding) => {
@@ -470,23 +468,6 @@ export default async function SystemsPage({
           "ipv4",
           "ip_address"
         ]) ?? (asset ? resolveAssetIpAddress(asset) : "N/A");
-      const assetChangeAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned";
-      const assetIncidentAssignmentGroup =
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned";
-      const owner =
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
-        (systemId ? systemOwnerById.get(systemId)?.trim() || "Not assigned" : "Not assigned");
 
       return {
         id: `risk-${finding.id}`,
@@ -494,9 +475,6 @@ export default async function SystemsPage({
         assetName,
         assetType,
         assetIpAddress,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner,
         spiId: finding.spiId,
         timestamp: finding.timestamp,
         closedTimestamp: finding.closedTimestamp ?? null,

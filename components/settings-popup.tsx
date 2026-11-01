@@ -9,7 +9,7 @@ import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 
-type SpiRiskSettings = ComponentProps<typeof MeasuresSettingsMatrix>;
+type SpiMatrixSettings = Omit<ComponentProps<typeof MeasuresSettingsMatrix>, "activeMatrix">;
 
 type DatabaseSettings = ComponentProps<typeof DatabaseSettingsPanel>["initialSettings"];
 
@@ -22,9 +22,9 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [settings, setSettings] = useState<DatabaseSettings | null>(null);
   const [discoverySettings, setDiscoverySettings] = useState<DiscoveryToolsSettings | null>(null);
-  const [spiRiskSettings, setSpiRiskSettings] = useState<SpiRiskSettings | null>(null);
-  const [spiRiskError, setSpiRiskError] = useState("");
-  const [spiRiskRetry, setSpiRiskRetry] = useState(0);
+  const [spiMatrixSettings, setSpiMatrixSettings] = useState<SpiMatrixSettings | null>(null);
+  const [spiMatrixError, setSpiMatrixError] = useState("");
+  const [spiMatrixRetry, setSpiMatrixRetry] = useState(0);
   const [discoveryError, setDiscoveryError] = useState("");
   const [discoveryRetry, setDiscoveryRetry] = useState(0);
   const [error, setError] = useState("");
@@ -72,19 +72,19 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
   }, [activeTab, discoverySettings, discoveryRetry]);
 
   useEffect(() => {
-    if (activeTab !== "spi-risk-matrix" || spiRiskSettings) return;
+    if ((activeTab !== "spi-risk-matrix" && activeTab !== "spi-priority-matrix") || spiMatrixSettings) return;
     const controller = new AbortController();
-    setSpiRiskError("");
+    setSpiMatrixError("");
     fetch("/api/measures/settings", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load SPI risk matrix settings.");
-        const payload = await response.json() as Omit<SpiRiskSettings, "initialSettings"> & { settings: SpiRiskSettings["initialSettings"] };
-        if (!controller.signal.aborted) setSpiRiskSettings({ initialSettings: payload.settings,
+        if (!response.ok) throw new Error("Unable to load SPI matrix settings.");
+        const payload = await response.json() as Omit<SpiMatrixSettings, "initialSettings"> & { settings: SpiMatrixSettings["initialSettings"] };
+        if (!controller.signal.aborted) setSpiMatrixSettings({ initialSettings: payload.settings,
           spiDefinitions: payload.spiDefinitions, severityDefinitions: payload.severityDefinitions, priorityDefinitions: payload.priorityDefinitions });
       })
-      .catch((reason: Error) => { if (!controller.signal.aborted) setSpiRiskError(reason.message); });
+      .catch((reason: Error) => { if (!controller.signal.aborted) setSpiMatrixError(reason.message); });
     return () => controller.abort();
-  }, [activeTab, spiRiskSettings, spiRiskRetry]);
+  }, [activeTab, spiMatrixSettings, spiMatrixRetry]);
 
   if (!mounted) return null;
   return createPortal(
@@ -113,11 +113,16 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
               <div className="panel p-5"><p role="alert">{discoveryError}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setDiscoveryRetry((value) => value + 1)}>Retry</button></div>
             ) : <p role="status" className="p-5">Loading discovery tools settings...</p>}
           </div>
-          <div role="tabpanel" id="settings-panel-spi-risk-matrix" aria-labelledby="settings-tab-spi-risk-matrix" hidden={activeTab !== "spi-risk-matrix"} className="h-full min-h-[360px]">
-            {spiRiskSettings ? <MeasuresSettingsMatrix {...spiRiskSettings} /> : spiRiskError ? (
-              <div className="panel p-5"><p role="alert">{spiRiskError}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setSpiRiskRetry((value) => value + 1)}>Retry</button></div>
-            ) : <p role="status" className="p-5">Loading SPI risk matrix settings...</p>}
-          </div>
+          {spiMatrixSettings ? <MeasuresSettingsMatrix {...spiMatrixSettings}
+            activeMatrix={activeTab === "spi-risk-matrix" ? "severity" : activeTab === "spi-priority-matrix" ? "priority" : null} /> : [
+            { id: "spi-risk-matrix", label: "SPI Risk Matrix" },
+            { id: "spi-priority-matrix", label: "SPI Priority Matrix" }
+          ].map((tab) => <div key={tab.id} role="tabpanel" id={`settings-panel-${tab.id}`} aria-labelledby={`settings-tab-${tab.id}`}
+            hidden={activeTab !== tab.id} className="h-full min-h-[360px]">
+            {spiMatrixError ? (
+              <div className="panel p-5"><p role="alert">{spiMatrixError}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setSpiMatrixRetry((value) => value + 1)}>Retry</button></div>
+            ) : <p role="status" className="p-5">Loading {tab.label} settings...</p>}
+          </div>)}
         </div>
       </div>
     </dialog>, document.body

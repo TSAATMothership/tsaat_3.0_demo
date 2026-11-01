@@ -19,9 +19,6 @@ interface AssetDetailsRow {
   criticalExposureFindings: number;
   highRiskFindings: number;
   totalFindings: number;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
 }
 
 function toSearchParamsRecord(
@@ -140,13 +137,6 @@ function buildAssetRows(findings: Finding[], findingDisplayConfiguration: Findin
         readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_ip_address", "Not available") ??
         "Not available";
       const assetType = formatAssetTypeLabel(readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_type"));
-      const assetChangeAssignmentGroup =
-        readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "change_assignment_group", "Not assigned") ??
-        "Not assigned";
-      const assetIncidentAssignmentGroup =
-        readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "incident_assignment_group", "Not assigned") ??
-        "Not assigned";
-      const owner = readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "owner", "Not assigned") ?? "Not assigned";
 
       byAsset.set(assetId, {
         assetId,
@@ -155,10 +145,7 @@ function buildAssetRows(findings: Finding[], findingDisplayConfiguration: Findin
         assetType,
         criticalExposureFindings: 0,
         highRiskFindings: 0,
-        totalFindings: 0,
-        assetChangeAssignmentGroup,
-        assetIncidentAssignmentGroup,
-        owner
+        totalFindings: 0
       });
     }
 

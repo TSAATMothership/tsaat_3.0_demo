@@ -44,17 +44,21 @@ describe("SPI risk settings popup", () => {
     expect(saveMeasuresSettings).toHaveBeenCalledWith(payload);
     expect(await response.json()).toEqual({ settings: testMeasuresSettings });
   });
-  it("opens a direct Settings link on the new tab without a workspace scope", async () => {
-    const result = await SettingsPage({ searchParams: { settingsTab: "spi-risk-matrix" } });
+  it.each(["spi-risk-matrix", "spi-priority-matrix"])("opens a direct Settings link on %s without a workspace scope", async (tab) => {
+    const result = await SettingsPage({ searchParams: { settingsTab: tab } });
     const popup = result.props.children.find((item: React.ReactElement) => item.type === SettingsRoutePopup);
-    expect(popup.props.initialTab).toBe("spi-risk-matrix");
+    expect(popup.props.initialTab).toBe(tab);
     expect(loadMeasuresSettings).not.toHaveBeenCalled();
   });
-  it("exposes the accessible Settings tab and removes it from the Observed Measures sidebar", () => {
-    const html = renderToStaticMarkup(React.createElement(SettingsTabs, { activeTab: "spi-risk-matrix", onSelect: () => {} }));
+  it("exposes adjacent accessible risk and priority Settings tabs outside the Observed Measures sidebar", () => {
+    const html = renderToStaticMarkup(React.createElement(SettingsTabs, { activeTab: "spi-priority-matrix", onSelect: () => {} }));
     expect(html).toContain('id="settings-tab-spi-risk-matrix"');
     expect(html).toContain('aria-controls="settings-panel-spi-risk-matrix"');
     expect(html).toContain("SPI Risk Matrix");
+    expect(html).toContain('id="settings-tab-spi-priority-matrix"');
+    expect(html).toContain('aria-controls="settings-panel-spi-priority-matrix" aria-selected="true"');
+    expect(html).toContain("SPI Priority Matrix");
+    expect(html.indexOf('id="settings-tab-spi-priority-matrix"')).toBeGreaterThan(html.indexOf('id="settings-tab-spi-risk-matrix"'));
     expect(WORKSPACE_GROUPS.find((group) => group.label === "Observed Measures")?.items.map((item) => item.label)).not.toContain("SPI Risk Matrix");
   });
   it("sends generated risk matrix links to Settings and preserves scope and snapshot", () => {

@@ -83,7 +83,7 @@ function kpiRows(discoveryCompliantCount: number, definitions = kpiDefinitions, 
   return buildKpiRows(
     definitions,
     definitions.map((definition) => {
-      const isDiscoveryCoverage = definition.id === "KPI-6";
+      const isDiscoveryCoverage = definition.calculationKey === "active-ato-coverage" || definition.calculationKey === "discovery-coverage-compliance";
       const compliantCount = isDiscoveryCoverage ? discoveryCompliantCount : 1;
       const applicableCount = isDiscoveryCoverage ? discoveryApplicableCount : 2;
       const scorePercent = Number(((compliantCount / applicableCount) * 100).toFixed(1));
@@ -105,25 +105,24 @@ function kpiRows(discoveryCompliantCount: number, definitions = kpiDefinitions, 
 }
 
 describe("KPI report model", () => {
-  it("marks KPI-1 through KPI-4 unavailable and KPI-5 through KPI-10 available", () => {
-    const reports = buildKpiReportModels(kpiRows(1));
+  it("filters both KPI report totals and tasking counts to non-compliance without mutating source rows", () => {
+    for (const id of ["KPI-1", "KPI-2"]) {
+      const rows = kpiRows(1).map(row => ({ ...row, compliantCount: 3, nonCompliantCount: 2, unknownCount: 1, applicableCount: 6, scorePercent: 50, score: "50%" }));
+      const report = buildKpiReportModel({ kpiRows: rows, kpiId: id, kpiDefinitions, nonCompliantOnly: true })!;
+      expect(report).toMatchObject({ nonCompliantOnly: true, total: 2, nonCompliant: 2, compliant: 0, unknown: 0, scorePercent: 0 });
+      expect(report.sourceRow).toMatchObject({ applicableCount: 2, nonCompliantCount: 2, compliantCount: 0, unknownCount: 0 });
+      expect(buildKpiReportModel({ kpiRows: rows, kpiId: id, kpiDefinitions })).toMatchObject({ total: 6, compliant: 3, unknown: 1 });
+      const empty = buildKpiReportModel({ kpiRows: rows.map(row => ({ ...row, nonCompliantCount: 0 })), kpiId: id, kpiDefinitions, nonCompliantOnly: true })!;
+      expect(empty).toMatchObject({ total: 0, compliant: 0, unknown: 0, score: "N/A" });
+    }
+  });
 
-    expect(reports.filter((report) => !report.reportAvailable).map((report) => report.id)).toEqual([
-      "KPI-1",
-      "KPI-2",
-      "KPI-3",
-      "KPI-4"
-    ]);
-    expect(reports.filter((report) => report.reportAvailable).map((report) => report.id)).toEqual([
-      "KPI-5",
-      "KPI-6",
-      "KPI-7",
-      "KPI-8",
-      "KPI-9",
-      "KPI-10"
-    ]);
-    expect(isKpiReportAvailable("KPI-4", kpiDefinitions)).toBe(false);
-    expect(isKpiReportAvailable("KPI-5", kpiDefinitions)).toBe(true);
+  it("offers current and trend reports for the two retained system KPIs", () => {
+    const reports = buildKpiReportModels(kpiRows(1));
+    expect(reports.map((report) => report.id)).toEqual(["KPI-1", "KPI-2"]);
+    expect(reports.every((report) => report.reportAvailable)).toBe(true);
+    expect(isKpiReportAvailable("KPI-7", kpiDefinitions)).toBe(false);
+    expect(isKpiReportAvailable("KPI-1", kpiDefinitions)).toBe(true);
   });
 
   it("uses database definition order and omits removed KPI definitions", () => {
@@ -163,11 +162,11 @@ describe("KPI report model", () => {
   it("builds KPI trend points from per-snapshot scoped analytics", () => {
     const currentReport = buildKpiReportModel({
       kpiRows: kpiRows(2),
-      kpiId: "KPI-6",
+      kpiId: "KPI-1",
       kpiDefinitions
     });
     const trend = buildKpiTrendReportModel({
-      kpiId: "KPI-6",
+      kpiId: "KPI-1",
       kpiDefinitions,
       snapshots: [
         { snapshotDate: "2026-04-16", kpiRows: kpiRows(1) },
@@ -176,7 +175,7 @@ describe("KPI report model", () => {
     });
 
     expect(trend).not.toBeNull();
-    expect(trend?.reportName).toBe("KPI-6 Trend Report: Discovery Coverage Compliance");
+    expect(trend?.reportName).toBe("KPI-1 Trend Report: ICT Systems have an active ATO");
     expect(trend?.rangeStartDate).toBe("2026-04-16");
     expect(trend?.rangeEndDate).toBe("2026-04-23");
     expect(trend?.trendPoints[1]).toMatchObject({
@@ -209,7 +208,7 @@ describe("KPI report model", () => {
 
   it("uses the supplied scoped analytics for each KPI trend snapshot", () => {
     const trend = buildKpiTrendReportModel({
-      kpiId: "KPI-6",
+      kpiId: "KPI-1",
       kpiDefinitions,
       snapshots: [
         {

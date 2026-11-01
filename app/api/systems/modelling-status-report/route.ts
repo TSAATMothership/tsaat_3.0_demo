@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { loadCurrentDataset } from "@/lib/data-loader";
+import { loadDatasetForDate } from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { filterSystems, parseFilters } from "@/lib/selectors";
 
@@ -110,7 +110,7 @@ function createPage(pdfDoc: PDFDocument, pageTitle: string, titleFont: PDFFont):
 }
 
 export async function GET(request: NextRequest) {
-  const dataset = await loadCurrentDataset();
+  const dataset = await loadDatasetForDate(request.nextUrl.searchParams.get("dataDate") ?? undefined);
 
   const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
   const filters = parseFilters(queryObject);

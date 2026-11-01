@@ -50,7 +50,7 @@ export default function RootLayout({
             <div className="w-full px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex shrink-0 items-center gap-3">
-                  <Image src="/dct-mark.svg" alt="TSAAT mark" width={40} height={40} />
+                  <Image src="/tsaat-logo.png" alt="TSAAT logo" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" priority />
                   <div>
                     <p className={`${headingFontClass} text-xl uppercase tracking-[0.14em] text-slate-100`}>TSAAT</p>
                     <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>

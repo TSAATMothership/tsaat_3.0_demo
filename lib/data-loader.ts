@@ -2583,7 +2583,7 @@ export async function loadSnapshotKpiEvaluationsForScopes({
       networkIds: toSortedStringArray(scope.networkIds),
       findings: findingsForKpiSql(scope.findings)
     }))
-    .filter((scope) => scope.scopeKey && scope.assetIds.length > 0);
+    .filter((scope) => scope.scopeKey);
 
   if (!normalizedScopes.length) {
     return new Map();

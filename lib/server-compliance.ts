@@ -42,9 +42,6 @@ export interface AssetComplianceFinding extends AssetComplianceOpenFinding {
   assetName: string;
   assetType: string;
   assetIpAddress: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   spiId: number;
   priorityRank: number;
   timestamp: string;
@@ -378,15 +375,12 @@ export function buildAssetComplianceModel({
 
   const membership = resolveAssetSystemMembership(dataset, asset, preferredSystemId);
   const network = dataset.managedNetworks.find((candidate) => candidate.id === asset.networkId);
-  const defaultSystem = dataset.ictSystems.find((system) => system.id === membership?.systemId);
   const rawAssetFindings = sortedFindings(
     (dataset.findings ?? []).filter((finding) => finding.scope.assetId === asset.id)
   );
   const findingRows = rawAssetFindings.map<AssetComplianceFinding>((finding) => {
     const evaluations = evaluationsBySpiId.get(finding.spiId) ?? [];
     const evidence = findingEvidence(finding, evaluations);
-    const scopedSystem =
-      dataset.ictSystems.find((system) => system.id === finding.scope.systemId) ?? defaultSystem;
     const assetName =
       readEvidenceStringValue(finding.evidence, ["assetName", "asset_name"]) ??
       displayText(asset.name, asset.hostname || asset.id);
@@ -414,23 +408,6 @@ export function buildAssetComplianceModel({
       assetName,
       assetType: assetTypeLabel(asset.type),
       assetIpAddress,
-      assetChangeAssignmentGroup:
-        readEvidenceStringValue(finding.evidence, [
-          "assetChangeAssignmentGroup",
-          "changeAssignmentGroup",
-          "changeGroup",
-          "change_assignment_group"
-        ]) ?? "Not assigned",
-      assetIncidentAssignmentGroup:
-        readEvidenceStringValue(finding.evidence, [
-          "assetIncidentAssignmentGroup",
-          "incidentAssignmentGroup",
-          "incidentGroup",
-          "incident_assignment_group"
-        ]) ?? "Not assigned",
-      owner:
-        readEvidenceStringValue(finding.evidence, ["assetOwner", "owner", "serviceOwner"]) ??
-        displayText(scopedSystem?.owner ?? network?.owner, "Not assigned"),
       spiId: finding.spiId,
       priorityRank: finding.priorityRank,
       timestamp: finding.timestamp,

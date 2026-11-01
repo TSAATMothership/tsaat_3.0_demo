@@ -562,6 +562,16 @@ describe("data loader caches", () => {
 
     expect(sqlCallsContaining("FROM [tsaat].[finding_priority_definition]")).toBe(1);
   });
+  it("evaluates system KPI scopes even when they contain no assets", async () => {
+    const kpiDefinitions = await loadKpiDefinitions();
+    await loadSnapshotKpiEvaluationsForScopes({ snapshotId: 1, kpiDefinitions, scopes: [
+      { scopeKey: "system-only", assetIds: [], systemIds: ["sys-1"], networkIds: [], findings: [] },
+      { scopeKey: "empty-network", assetIds: [], systemIds: [], networkIds: ["net-empty"], findings: [] }
+    ] });
+    const sql = executeSqlJsonMock.mock.calls.map(([query]) => String(query)).find((query) => query.includes("usp_evaluate_kpi_snapshot_bulk"));
+    expect(sql).toContain('"scopeKey":"system-only"');
+    expect(sql).toContain('"scopeKey":"empty-network"');
+  });
 
   it("caches finding display configuration for repeated reads", async () => {
     await loadFindingDisplayConfiguration();

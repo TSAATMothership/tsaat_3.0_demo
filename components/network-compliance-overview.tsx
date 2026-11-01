@@ -140,9 +140,6 @@ export interface ComplianceOverviewFindingRow {
   assetName: string;
   assetType: string;
   assetIpAddress: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   spiId: number;
   timestamp: string;
   closedTimestamp: string | null;
@@ -168,9 +165,6 @@ type AssetDetailsRow = {
   assetName: string;
   assetIpAddress: string;
   assetType: string;
-  assetChangeAssignmentGroup: string;
-  assetIncidentAssignmentGroup: string;
-  owner: string;
   totalCveVulnerabilities: number;
   cveVulnerabilities: AssetCveEntry[];
 };
@@ -541,9 +535,6 @@ export function NetworkComplianceOverview({
           assetName: finding.assetName,
           assetIpAddress: finding.assetIpAddress,
           assetType: finding.assetType,
-          assetChangeAssignmentGroup: finding.assetChangeAssignmentGroup,
-          assetIncidentAssignmentGroup: finding.assetIncidentAssignmentGroup,
-          owner: finding.owner,
           totalCveVulnerabilities: (assetCvesByAssetId[finding.assetId] ?? []).length,
           cveVulnerabilities: assetCvesByAssetId[finding.assetId] ?? []
         };
@@ -560,19 +551,13 @@ export function NetworkComplianceOverview({
       "Asset Name",
       "Asset IP address",
       "Asset Type",
-      "CVE Vulnerabilities",
-      "Asset Change Assignment Group",
-      "Asset Incident Assignment Group",
-      "Owner"
+      "CVE Vulnerabilities"
     ];
     const rows = matchingRows.map((assetRow) => [
       assetRow.assetName,
       assetRow.assetIpAddress,
       assetRow.assetType,
-      assetRow.totalCveVulnerabilities,
-      assetRow.assetChangeAssignmentGroup,
-      assetRow.assetIncidentAssignmentGroup,
-      assetRow.owner
+      assetRow.totalCveVulnerabilities
     ]);
     const csvContent = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
 
@@ -1239,10 +1224,7 @@ renderRow={(entry) => (
 columns={[{ key: "asset-name", label: "Asset Name", value: (assetRow) => assetRow.assetName },
 { key: "asset-ip-address", label: "Asset IP address", value: (assetRow) => assetRow.assetIpAddress },
 { key: "asset-type", label: "Asset Type", value: (assetRow) => assetRow.assetType },
-{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities },
-{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (assetRow) => assetRow.assetChangeAssignmentGroup },
-{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (assetRow) => assetRow.assetIncidentAssignmentGroup },
-{ key: "owner", label: "Owner", value: (assetRow) => assetRow.owner }]}
+{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities }]}
 actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadAssetDetailsCsv(matching)}>Export CSV</button>}
 emptyMessage={<>No linked assets found for this finding.
                                   </>}
@@ -1266,9 +1248,6 @@ renderRow={(assetRow) => (
                                       <span className="text-slate-400/90">0</span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                                 </tr>
                               )} /></div>
 

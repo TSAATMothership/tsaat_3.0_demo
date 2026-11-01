@@ -2,6 +2,7 @@ import { KpiRow } from "@/lib/measures";
 import { KpiDefinition } from "@/lib/kpi-definitions";
 
 export interface KpiReportModel {
+  nonCompliantOnly?: boolean;
   id: string;
   name: string;
   reportName: string;
@@ -70,14 +71,20 @@ export function buildKpiReportModels(kpiRows: KpiRow[]): KpiReportModel[] {
 export function buildKpiReportModel({
   kpiRows,
   kpiId,
-  kpiDefinitions
+  kpiDefinitions,
+  nonCompliantOnly = false
 }: {
   kpiRows: KpiRow[];
   kpiId: string;
   kpiDefinitions: KpiDefinition[];
+  nonCompliantOnly?: boolean;
 }): KpiReportModel | null {
   void kpiDefinitions;
-  return buildKpiReportModels(kpiRows).find((model) => model.id === kpiId) ?? null;
+  const row = kpiRows.find((item) => item.id === kpiId);
+  if (!row) return null;
+  if (!nonCompliantOnly) return toKpiReportModel(row);
+  return { ...toKpiReportModel({ ...row, compliantCount: 0, unknownCount: 0,
+    applicableCount: row.nonCompliantCount, scorePercent: 0, score: row.nonCompliantCount ? "0%" : "N/A" }), nonCompliantOnly: true };
 }
 
 export function buildKpiTrendReportModel({

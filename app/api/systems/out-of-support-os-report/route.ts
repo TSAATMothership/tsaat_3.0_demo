@@ -1,8 +1,10 @@
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
+import { deviceReportDetails } from "@/lib/device-report";
 import { NextRequest } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import {
-  loadCurrentDataset,
+  loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadMeasuresSettings,
   loadSeverityDefinitions,
@@ -119,7 +121,7 @@ function createPage(pdfDoc: PDFDocument, pageTitle: string, titleFont: PDFFont):
 
 export async function GET(request: NextRequest) {
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadCurrentDataset(),
+    loadDatasetForDate(request.nextUrl.searchParams.get("dataDate") ?? undefined),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()
@@ -238,14 +240,7 @@ export async function GET(request: NextRequest) {
   if (!outOfSupportRows.length) {
     lines.push(`- No servers in the current filtered scope are non-compliant with ${reportMeasureLabel}.`);
   } else {
-    for (const row of outOfSupportRows) {
-      lines.push(`- ${row.hostname} (${row.assetId})`);
-      lines.push(`  - ICT System: ${row.systemName} (${row.systemId})`);
-      lines.push(`  - Environment: ${row.environment}`);
-      lines.push(`  - OS: ${row.osName} ${row.osVersion}`);
-      lines.push(`  - Support Status: ${row.supportStatus}`);
-      lines.push(`  - Evidence: ${row.reason}`);
-    }
+    lines.push("- Device inventory, OS support status and evidence are listed in the affected-server table following this summary.");
   }
   lines.push("");
   lines.push("## Notes");
@@ -341,6 +336,12 @@ export async function GET(request: NextRequest) {
 
     y -= style.spacingAfter;
   }
+
+  if (outOfSupportRows.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
+    sectionTitle: `Affected Servers (${reportMeasureLabel} Non-compliant)`, columns: [{ label: "Device / OS Context", weight: 2.5 }, { label: "Evidence", weight: 2.5 }],
+    rows: outOfSupportRows.map(row => ({ device: deviceReportDetails(assetsById.get(row.assetId), row.assetId), details: [
+      `CI ID: ${row.assetId}\nHostname: ${row.hostname}\nICT System: ${row.systemName} (${row.systemId})\nEnvironment: ${row.environment}\nOS: ${row.osName} ${row.osVersion}\nSupport: ${row.supportStatus}`, row.reason
+    ] })) });
 
   const pdfBytes = await pdfDoc.save();
   const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;

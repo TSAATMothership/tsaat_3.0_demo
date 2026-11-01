@@ -14,27 +14,11 @@ describe("KPI definitions", () => {
   it("normalizes database-backed KPI definitions in display order", () => {
     const definitions = normalizeKpiDefinitions(rawKpiDefinitions);
 
-    expect(definitions).toHaveLength(10);
-    expect(definitions.map((definition) => definition.id)).toEqual([
-      "KPI-1",
-      "KPI-2",
-      "KPI-3",
-      "KPI-4",
-      "KPI-5",
-      "KPI-6",
-      "KPI-7",
-      "KPI-8",
-      "KPI-9",
-      "KPI-10"
+    expect(definitions).toHaveLength(2);
+    expect(definitions.map((definition) => [definition.id, definition.calculationKey])).toEqual([
+      ["KPI-1", "active-ato-coverage"], ["KPI-2", "diis-registration-coverage"]
     ]);
-    expect(definitions.filter((definition) => definition.reportAvailable).map((definition) => definition.id)).toEqual([
-      "KPI-5",
-      "KPI-6",
-      "KPI-7",
-      "KPI-8",
-      "KPI-9",
-      "KPI-10"
-    ]);
+    expect(definitions.every((definition) => definition.reportAvailable)).toBe(true);
   });
 
   it("drops unsupported or duplicate rows during normalization", () => {

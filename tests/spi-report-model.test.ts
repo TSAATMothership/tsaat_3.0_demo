@@ -14,6 +14,10 @@ function baseAsset(id: string, name: string, type: AssetType): Asset {
     id,
     name,
     hostname: id,
+    ipAddress: "192.0.2.10",
+    deviceModel: "Test model",
+    lastDiscoveredDate: "2026-04-29T12:00:00Z",
+    discoveredBy: "Test discovery",
     networkId: "net-1",
     securityDomain: "Protected" as const,
     lifecycle: { eolStatus: "Supported" as const, warrantyStatus: "InWarranty" as const },
@@ -99,6 +103,26 @@ function reportFixture({
 }
 
 describe("SPI report model", () => {
+  it("filters all report counts and CI annexes to non-compliance without changing the full report", () => {
+    const { dataset, analytics } = reportFixture();
+    const params = { dataset, analytics, spiId: 10, spiDefinitions: testSpiDefinitions };
+    const report = buildSpiReportModel({ ...params, nonCompliantOnly: true })!;
+    expect(report).toMatchObject({ nonCompliantOnly: true, compliant: 0, unknown: 0, nonCompliant: 2, total: 2, scorePercent: 0 });
+    expect(report.annexA.map(row => row.assetId).sort()).toEqual(["sto-1", "wks-1"]);
+    expect(report.annexA.every(row => row.score === "Non-compliant")).toBe(true);
+    expect(report.annexB).toEqual([]);
+    expect(report.assetTypeBreakdown.every(group => group.unknown === 0)).toBe(true);
+    expect(report.assetTypeBreakdown.reduce((total, group) => total + group.nonCompliant, 0)).toBe(2);
+    expect(buildSpiReportModel(params)).toMatchObject({ compliant: 2, unknown: 2, total: 6 });
+  });
+
+  it("returns an empty non-compliance report when only compliant or unknown results exist", () => {
+    const { dataset, analytics } = reportFixture({ statuses: ["Compliant", "Unknown"] });
+    const report = buildSpiReportModel({ dataset, analytics, spiId: 10, spiDefinitions: testSpiDefinitions, nonCompliantOnly: true })!;
+    expect(report).toMatchObject({ total: 0, nonCompliant: 0, compliant: 0, unknown: 0, annexA: [], annexB: [] });
+    expect(report.observedNonCompliantCondition).toContain("No non-compliant CI(s)");
+  });
+
   it("matches SPI summary counts and splits annex rows by calculable score", () => {
     const { dataset, analytics } = reportFixture();
     const report = buildSpiReportModel({ dataset, analytics, spiId: 10, spiDefinitions: testSpiDefinitions });
@@ -109,6 +133,8 @@ describe("SPI report model", () => {
     expect(report?.nonCompliant).toBe(2);
     expect(report?.unknown).toBe(2);
     expect(report?.total).toBe(6);
+    expect(report?.reportName).toBe("SPI-10 - Asset Lifecycle Currency Report");
+    expect(report?.taskingTeams.length).toBeGreaterThan(0);
     expect(report?.annexA.map((row) => row.score).sort()).toEqual([
       "Compliant",
       "Compliant",
@@ -116,6 +142,10 @@ describe("SPI report model", () => {
       "Non-compliant"
     ]);
     expect(report?.annexB.map((row) => row.score)).toEqual(["Unknown", "Unknown"]);
+    for (const row of [...report!.annexA, ...report!.annexB]) {
+      expect(row.device).toMatchObject({ deviceIp: "192.0.2.10", deviceModel: "Test model", lastDiscoveredDate: "29-04-2026", discoveredBy: "Test discovery" });
+      expect(row.device.deviceName).toBe(row.ciName);
+    }
   });
 
   it("keeps storage-device separate from the Other Devices template bucket", () => {
@@ -128,6 +158,13 @@ describe("SPI report model", () => {
     expect(spiReportAssetTypeGroup("other")).toBe("other");
     expect(storageBucket).toMatchObject({ label: "Storage Devices", nonCompliant: 1, unknown: 0 });
     expect(otherBucket).toMatchObject({ label: "Other Devices", nonCompliant: 0, unknown: 0 });
+  });
+
+  it("reports an empty scope as unassessed", () => {
+    const { dataset, analytics } = reportFixture();
+    const report = buildSpiReportModel({ dataset, analytics: { ...analytics, evaluations: [] }, spiId: 10, spiDefinitions: testSpiDefinitions });
+    expect(report?.total).toBe(0);
+    expect(report?.observedNonCompliantCondition).toBe("No CIs are in scope; compliance cannot be assessed.");
   });
 
   it("builds all available SPI report models from the current filtered analytics", () => {

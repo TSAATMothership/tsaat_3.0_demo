@@ -1,6 +1,7 @@
 import type { SpiReportAssetTypeBreakdown } from "@/lib/spi-report-model";
 import type { Filters } from "@/lib/types";
 import type { WorkspaceSearchParams } from "@/lib/workspace-navigation";
+import type { TeamContact } from "@/lib/tasking";
 
 export interface MeasureRecord {
   id: string;
@@ -16,15 +17,25 @@ export interface MeasureRecord {
   trendHref: string | null;
   assetTypeBreakdown: SpiReportAssetTypeBreakdown[];
   highPriorityCount?: number;
+  ictSystems?: MeasureScopeItem[];
+  networks?: MeasureScopeItem[];
+  remediationActions?: string[];
+  taskingTeams?: TeamContact[];
 }
+export interface MeasureScopeItem { id: string; name: string; atoNumber?: string; diisId?: string }
 export const MEASURE_COLUMNS = [
   { key: "id", label: "Indicator ID" }, { key: "name", label: "Measure" },
+  { key: "ictSystems", label: "ICT Systems" }, { key: "networks", label: "Networks" },
   { key: "result", label: "Observed result" }, { key: "score", label: "Compliance" },
   { key: "total", label: "Assessed" }, { key: "compliant", label: "Compliant" },
   { key: "nonCompliant", label: "Non-compliant" }, { key: "unknown", label: "Unknown" },
   { key: "reports", label: "Reports" }
 ] as const;
 export type MeasureColumn = typeof MEASURE_COLUMNS[number]["key"];
+export function measureColumns(mode: "kpi" | "spi") {
+  void mode;
+  return MEASURE_COLUMNS;
+}
 export interface MeasureFilters { search: string; columns: Partial<Record<MeasureColumn, string[]>> }
 export const emptyMeasureFilters = (): MeasureFilters => ({ search: "", columns: {} });
 export const MEASURE_RESULTS = ["Non-compliant", "Unknown", "Fully compliant", "No assessments"] as const;
@@ -38,10 +49,11 @@ export function measureResults(row: MeasureRecord): string[] {
   return values.length ? values : ["Review"];
 }
 export function measureValues(row: MeasureRecord, column: MeasureColumn): string[] {
+  if (column === "ictSystems" || column === "networks") return [String(row[column]?.length ?? 0)];
   if (column === "result") return measureResults(row);
   if (column === "score") return [row.total ? `${row.scorePercent}%` : "N/A"];
   if (column === "reports") {
-    const available = [row.reportHref ? "Current report" : "", row.trendHref ? "Trend report" : ""].filter(Boolean);
+    const available = [row.reportHref ? "Current report" : "", row.reportHref ? "Non-Compliance Only" : "", row.trendHref ? "Trend report" : ""].filter(Boolean);
     return available.length ? available : ["Unavailable"];
   }
   return [String(row[column])];
@@ -49,7 +61,9 @@ export function measureValues(row: MeasureRecord, column: MeasureColumn): string
 export function filterMeasureRows(rows: readonly MeasureRecord[], filters: MeasureFilters, exceptColumn?: MeasureColumn): MeasureRecord[] {
   const search = filters.search.trim().toLocaleLowerCase();
   return rows.filter((row) => {
-    if (search && ![row.description, row.successMeasure, ...MEASURE_COLUMNS.flatMap(({ key }) => measureValues(row, key))].join(" ").toLocaleLowerCase().includes(search)) return false;
+    if (search && ![row.description, row.successMeasure, ...(row.remediationActions ?? []),
+      ...(row.taskingTeams ?? []).flatMap(({ team, supportQueue, contactEmail }) => [team, supportQueue, contactEmail]),
+      ...MEASURE_COLUMNS.flatMap(({ key }) => measureValues(row, key))].join(" ").toLocaleLowerCase().includes(search)) return false;
     return MEASURE_COLUMNS.every(({ key }) => key === exceptColumn || !filters.columns[key]?.length ||
       measureValues(row, key).some((value) => filters.columns[key]!.includes(value)));
   });
@@ -101,9 +115,9 @@ export function measuresHref(tab: "summary" | "measures-kpi" | "measures-spi" | 
   if (selection) params.set("measureFilters", JSON.stringify(selection));
   return `/measures?${params}`;
 }
-export function measuresFindingsHref(filters: Filters, snapshotDate: string, selection: { severity?: string; spi?: number; priority?: number } = {}): string {
+export function measuresFindingsHref(filters: Filters, snapshotDate: string, selection: { severity?: string; spi?: number; priority?: number; durationMin?: number; durationMax?: number } = {}): string {
   const params = measuresScopeParams(filters, snapshotDate);
-  params.set("findingsViewTab", "register"); params.set("findingsTab", "open"); params.set("asOf", snapshotDate);
+  params.set("findingsTab", "open"); params.set("asOf", snapshotDate);
   for (const [key, value] of Object.entries(selection)) if (value !== undefined) params.set(key, String(value));
   return `/findings?${params}`;
 }

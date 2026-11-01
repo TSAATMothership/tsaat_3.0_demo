@@ -21,6 +21,7 @@ import {
   drawReportTable
 } from "@/lib/report-template-pdf";
 import { parseFilters } from "@/lib/selectors";
+import { drawDeviceReportTable } from "@/lib/device-report-pdf";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -100,36 +101,12 @@ async function drawNetworkDiscoveryReport(model: NetworkDiscoveryReportModel, pd
     [179, 75, 75, 85, 117]
   );
 
-  drawReportHeading(context, "Discovered Assets - Annex A:");
-  drawReportParagraph(context, "Discovered Assets:", { size: 9 });
-  drawReportTable(
-    context,
-    ["CI Name", "Asset Type", "IP Address", "ICT System", "Environment", "Coverage"],
-    model.discoveredAssets.map((asset) => [
-      asset.hostname || asset.name,
-      asset.assetTypeLabel,
-      asset.ipAddress,
-      asset.systemName,
-      asset.environment,
-      asset.coverageStatus
-    ]),
-    [111, 75, 76, 104, 74, 91]
-  );
-
-  drawReportHeading(context, "Assets Not Discovered - Annex B:");
-  drawReportParagraph(context, "Assets where discovery is not enabled:", { size: 9 });
-  drawReportTable(
-    context,
-    ["CI Name", "Asset Type", "IP Address", "ICT System", "Missing Discovery Tools"],
-    model.assetsNotDiscovered.map((asset) => [
-      asset.hostname || asset.name,
-      asset.assetTypeLabel,
-      asset.ipAddress,
-      asset.systemName,
-      asset.missingTools.length ? asset.missingTools.join(", ") : "None"
-    ]),
-    [111, 75, 76, 104, 165]
-  );
+  drawDeviceReportTable({ ...context, sectionTitle: "Discovered Assets - Annex A",
+    columns: [{ label: "Asset Type" }, { label: "Hostname / ICT System / Environment", weight: 1.5 }, { label: "Coverage" }],
+    rows: model.discoveredAssets.map(asset => ({ device: asset.device, details: [asset.assetTypeLabel, `${asset.hostname}\n${asset.systemName}\n${asset.environment}`, asset.coverageStatus] })) });
+  drawDeviceReportTable({ ...context, sectionTitle: "Assets Not Discovered - Annex B: Discovery Coverage Gaps",
+    columns: [{ label: "Asset Type" }, { label: "Hostname / ICT System", weight: 1.5 }, { label: "Missing Discovery Tools", weight: 2 }],
+    rows: model.assetsNotDiscovered.map(asset => ({ device: asset.device, details: [asset.assetTypeLabel, `${asset.hostname}\n${asset.systemName}`, asset.missingTools.join(", ") || "None"] })) });
 }
 
 export async function GET(request: NextRequest) {

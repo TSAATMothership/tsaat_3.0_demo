@@ -14,16 +14,14 @@
     { "calculationKey": "critical-ict-system-compliance", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 4, "name": "Critical ICT System Compliance", "description": "Compliant SPI evaluations for assets belonging to Critical ICT systems divided by all applicable Critical-system SPI evaluations.", "enabled": true },
     { "calculationKey": "critical-exposure-in-production", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 5, "name": "Critical Exposure in Production", "description": "Count of Critical Exposure findings with score percent derived from non-critical-exposure findings over all findings.", "enabled": true },
     { "calculationKey": "discovery-coverage-compliance", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 6, "name": "Discovery Coverage Compliance", "description": "Discovery-compliant assets divided by all scoped assets with discovery coverage rows.", "enabled": true },
-    { "calculationKey": "active-ato-coverage", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 7, "name": "Active ATO Coverage", "description": "Scoped ICT systems passing the seeded deterministic ATO proxy divided by scoped ICT systems.", "enabled": true },
-    { "calculationKey": "diis-registration-coverage", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 8, "name": "DIIS Registration Coverage", "description": "Scoped ICT systems passing the seeded deterministic DIIS registration proxy divided by scoped ICT systems.", "enabled": true },
+    { "calculationKey": "active-ato-coverage", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 7, "name": "Active ATO Coverage", "description": "Scoped ICT systems with a non-blank ATO number divided by all scoped ICT systems.", "enabled": true },
+    { "calculationKey": "diis-registration-coverage", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 8, "name": "DIIS Registration Coverage", "description": "Scoped ICT systems marked DIIS Defined divided by all scoped ICT systems.", "enabled": true },
     { "calculationKey": "diis-modelled-coverage", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 9, "name": "DIIS Modelled Coverage", "description": "DIIS-defined scoped ICT systems with modelling enabled divided by DIIS-defined scoped ICT systems.", "enabled": true },
     { "calculationKey": "network-discovery-enablement", "sourceKey": "kpi-snapshot-scope-context", "displayOrder": 10, "name": "Network Discovery Enablement", "description": "Scoped networks marked Discovery Enabled divided by scoped networks.", "enabled": true }
   ],
   "parameters": [
     { "calculationKey": "critical-exposure-in-production", "parameterKey": "critical_severity", "parameterType": "string", "parameterValue": "Critical Exposure" },
     { "calculationKey": "overall-spi-compliance", "parameterKey": "high_priority_threshold", "parameterType": "number", "parameterValue": "2" },
-    { "calculationKey": "discovery-coverage-compliance", "parameterKey": "high_priority_threshold", "parameterType": "number", "parameterValue": "2" },
-    { "calculationKey": "active-ato-coverage", "parameterKey": "hash_suffix", "parameterType": "string", "parameterValue": ":ato" },
-    { "calculationKey": "diis-registration-coverage", "parameterKey": "hash_suffix", "parameterType": "string", "parameterValue": ":diis" }
+    { "calculationKey": "discovery-coverage-compliance", "parameterKey": "high_priority_threshold", "parameterType": "number", "parameterValue": "2" }
   ]
 }

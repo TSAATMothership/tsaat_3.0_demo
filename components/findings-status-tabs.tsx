@@ -24,6 +24,7 @@ export function FindingsStatusTabs({
 
     const params = new URLSearchParams((searchParams?.toString() ?? ""));
     params.delete("status");
+    params.delete("findingsViewTab");
     params.set("findingsTab", tab);
     const query = params.toString();
     const href = query ? `${pathname}?${query}` : pathname;

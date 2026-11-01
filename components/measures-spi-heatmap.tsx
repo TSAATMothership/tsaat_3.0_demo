@@ -399,19 +399,13 @@ function AffectedCisPanel({
         "Asset Name",
         "Asset IP address",
         "Asset Type",
-        "CVE Vulnerabilities",
-        "Asset Change Assignment Group",
-        "Asset Incident Assignment Group",
-        "Owner"
+        "CVE Vulnerabilities"
       ],
       matchingRows.map((row) => [
         row.assetName,
         row.assetIpAddress,
         row.assetType,
-        row.totalCveVulnerabilities,
-        row.assetChangeAssignmentGroup,
-        row.assetIncidentAssignmentGroup,
-        row.owner
+        row.totalCveVulnerabilities
       ])
     );
   };
@@ -452,10 +446,7 @@ function AffectedCisPanel({
 columns={[{ key: "asset-name", label: "Asset Name", value: (assetRow) => assetRow.assetName },
 { key: "asset-ip-address", label: "Asset IP address", value: (assetRow) => assetRow.assetIpAddress },
 { key: "asset-type", label: "Asset Type", value: (assetRow) => assetRow.assetType },
-{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities },
-{ key: "asset-change-assignment-group", label: "Asset Change Assignment Group", value: (assetRow) => assetRow.assetChangeAssignmentGroup },
-{ key: "asset-incident-assignment-group", label: "Asset Incident Assignment Group", value: (assetRow) => assetRow.assetIncidentAssignmentGroup },
-{ key: "owner", label: "Owner", value: (assetRow) => assetRow.owner }]}
+{ key: "cve-vulnerabilities", label: "CVE Vulnerabilities", value: (assetRow) => assetRow.totalCveVulnerabilities }]}
 actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => onExport(matching)}>Export CSV</button>}
 emptyMessage={<>No affected CIs for this selected SPI and entity scope.
                     </>}
@@ -479,9 +470,6 @@ renderRow={(assetRow) => (
                         <span className="text-slate-400/90">0</span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetChangeAssignmentGroup}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.assetIncidentAssignmentGroup}</td>
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-300/85">{assetRow.owner}</td>
                   </tr>
                 )} /></div>
         </div>

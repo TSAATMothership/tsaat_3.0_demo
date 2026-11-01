@@ -4,6 +4,14 @@ import { Filters } from "@/lib/types";
 export type TaskingReportKind = "kpi" | "kpi-trend" | "spi" | "spi-trend" | "spi-all";
 
 export const TASKING_REPORT_CONTENT_TYPE = "application/pdf";
+export const KPI_ATO_REPORT_NAME = "KPI-1 ICT Systems without ATO Report";
+export const KPI_DIIS_REPORT_NAME = "KPI-2 ICT Systems without DIIS Registration Report";
+
+export function nonCompliantTaskingReportHref(href: string): string {
+  const url = new URL(href, "http://localhost");
+  url.searchParams.set("results", "non-compliant");
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 
 export function buildTaskingReportHref({
   kind,
@@ -58,19 +66,27 @@ export function taskingReportDataDateFromSearchParams(searchParams: URLSearchPar
   return normalizeDataDate(searchParams.get(DATA_DATE_PARAM)?.trim());
 }
 
-export function taskingReportFilename(kind: TaskingReportKind, id: string): string {
+function taskingReportDate(generatedAt: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Australia/Sydney", day: "2-digit", month: "2-digit", year: "numeric"
+  }).format(generatedAt).replaceAll("/", "-");
+}
+
+export function taskingReportFilename(kind: TaskingReportKind, id: string, generatedAt = new Date(), indicatorName?: string, nonCompliantOnly = false): string {
+  const variant = nonCompliantOnly ? " - Non-Compliance Only" : "";
+  if (kind === "kpi" && (id === "KPI-1" || id === "KPI-2")) {
+    const reportName = id === "KPI-1" ? KPI_ATO_REPORT_NAME : KPI_DIIS_REPORT_NAME;
+    return `${reportName}${variant} ${taskingReportDate(generatedAt)}.pdf`;
+  }
   const safeId = `${kind}-${id.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`;
-  if (kind === "spi") {
-    return `tsaat-spi-report-${safeId}.pdf`;
-  }
-  if (kind === "spi-trend") {
-    return `tsaat-spi-trend-report-${safeId}.pdf`;
-  }
   if (kind === "spi-all") {
-    return "tsaat-spi-report-all.pdf";
+    return `All SPI Report ${taskingReportDate(generatedAt)}.pdf`;
   }
-  if (kind === "kpi-trend") {
-    return `tsaat-kpi-trend-report-${safeId}.pdf`;
+  if (kind === "kpi-trend" || kind === "spi" || kind === "spi-trend") {
+    const safeName = indicatorName?.replace(/[<>:"/\\|?*\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!safeName) throw new Error("An indicator name is required for this report filename.");
+    const label = kind === "kpi-trend" ? id : `SPI-${id.replace(/^SPI-/i, "")}`;
+    return `${label} - ${safeName}${kind === "spi" ? " Report" : ""}${variant} ${taskingReportDate(generatedAt)}.pdf`;
   }
   return `tsaat-tasking-report-${safeId}.pdf`;
 }

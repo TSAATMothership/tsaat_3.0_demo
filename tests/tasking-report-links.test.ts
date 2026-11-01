@@ -3,11 +3,26 @@ import { isDataDateScopedPath } from "@/lib/data-date";
 import {
   TASKING_REPORT_CONTENT_TYPE,
   buildTaskingReportHref,
+  nonCompliantTaskingReportHref,
   taskingReportDataDateFromSearchParams,
   taskingReportFilename
 } from "@/lib/tasking-report-links";
 
 describe("tasking report links", () => {
+  it("adds the non-compliance option while retaining indicator, snapshot and multi-scope selections", () => {
+    for (const [kind, id] of [["kpi", "KPI-1"], ["kpi", "KPI-2"], ["spi", "10"]] as const) {
+      const href = buildTaskingReportHref({ kind, id, dataDate: "2026-04-23", filters: { managedNetwork: "net-1,net-2", ictSystem: "sys-1,sys-2" } });
+      const url = new URL(nonCompliantTaskingReportHref(href), "http://localhost");
+      expect(url.searchParams.get("results")).toBe("non-compliant");
+      url.searchParams.delete("results");
+      expect(url.pathname + url.search).toBe(href);
+      const date = new Date("2026-10-31T15:00:00Z");
+      const filename = taskingReportFilename(kind, id, date, "Example Indicator", true);
+      expect(filename).toContain(" - Non-Compliance Only 01-11-2026.pdf");
+      expect(filename).not.toBe(taskingReportFilename(kind, id, date, "Example Indicator"));
+    }
+  });
+
   it("preserves filters and dataDate in SPI report links", () => {
     const href = buildTaskingReportHref({
       kind: "spi",
@@ -35,11 +50,40 @@ describe("tasking report links", () => {
   it("normalizes tasking report dataDate and report response metadata", () => {
     expect(taskingReportDataDateFromSearchParams(new URLSearchParams("dataDate=2026-04-30"))).toBe("2026-04-30");
     expect(taskingReportDataDateFromSearchParams(new URLSearchParams("dataDate=30-04-2026"))).toBeUndefined();
-    expect(taskingReportFilename("spi", "10")).toBe("tsaat-spi-report-spi-10.pdf");
-    expect(taskingReportFilename("spi-trend", "10")).toBe("tsaat-spi-trend-report-spi-trend-10.pdf");
-    expect(taskingReportFilename("spi-all", "all")).toBe("tsaat-spi-report-all.pdf");
-    expect(taskingReportFilename("kpi-trend", "KPI-6")).toBe("tsaat-kpi-trend-report-kpi-trend-kpi-6.pdf");
+    const generatedAt = new Date("2026-10-31T14:30:00Z");
+    expect(taskingReportFilename("spi", "10", generatedAt, "Asset Lifecycle Currency")).toBe("SPI-10 - Asset Lifecycle Currency Report 01-11-2026.pdf");
+    expect(taskingReportFilename("spi-trend", "10", generatedAt, "Asset Lifecycle Currency")).toBe("SPI-10 - Asset Lifecycle Currency 01-11-2026.pdf");
+    expect(taskingReportFilename("spi-all", "all", generatedAt)).toBe("All SPI Report 01-11-2026.pdf");
     expect(TASKING_REPORT_CONTENT_TYPE).toBe("application/pdf");
+  });
+
+  it("names the KPI-1 current PDF using the Sydney generation date", () => {
+    expect(taskingReportFilename("kpi", "KPI-1", new Date("2026-10-31T14:30:00Z")))
+      .toBe("KPI-1 ICT Systems without ATO Report 01-11-2026.pdf");
+    expect(taskingReportFilename("kpi", "KPI-1", new Date("2026-11-01T13:30:00Z")))
+      .toBe("KPI-1 ICT Systems without ATO Report 02-11-2026.pdf");
+  });
+
+  it("names the KPI-2 current PDF using the Sydney generation date", () => {
+    expect(taskingReportFilename("kpi", "KPI-2", new Date("2026-10-31T14:30:00Z")))
+      .toBe("KPI-2 ICT Systems without DIIS Registration Report 01-11-2026.pdf");
+    expect(taskingReportFilename("kpi", "KPI-2", new Date("2026-11-01T13:30:00Z")))
+      .toBe("KPI-2 ICT Systems without DIIS Registration Report 02-11-2026.pdf");
+  });
+
+  it.each([
+    ["KPI-1", "ICT Systems have an active ATO"],
+    ["KPI-2", "ICT Systems are registered within DIIS"]
+  ])("names the %s trend PDF using its supplied name and Sydney generation date", (id, name) => {
+    expect(taskingReportFilename("kpi-trend", id, new Date("2026-10-31T14:30:00Z"), name))
+      .toBe(`${id} - ${name} 01-11-2026.pdf`);
+    expect(taskingReportFilename("kpi-trend", id, new Date("2026-11-01T13:30:00Z"), name))
+      .toBe(`${id} - ${name} 02-11-2026.pdf`);
+  });
+
+  it("uses a renamed KPI and removes characters that cannot appear in a download filename", () => {
+    expect(taskingReportFilename("kpi-trend", "KPI-2", new Date("2026-11-01T00:00:00Z"), 'ICT Systems: DIIS / "Registration"'))
+      .toBe("KPI-2 - ICT Systems DIIS Registration 01-11-2026.pdf");
   });
 
   it("builds SPI trend report links with the selected snapshot scope", () => {
@@ -106,8 +150,8 @@ describe("tasking report links", () => {
     expect(url.searchParams.get("severity")).toBe("High Risk");
   });
 
-  it("builds KPI current and trend report links for KPI-5 through KPI-10", () => {
-    for (const id of ["KPI-5", "KPI-6", "KPI-7", "KPI-8", "KPI-9", "KPI-10"]) {
+  it("builds KPI current and trend report links for KPI-1 and KPI-2", () => {
+    for (const id of ["KPI-1", "KPI-2"]) {
       for (const kind of ["kpi", "kpi-trend"] as const) {
         const href = buildTaskingReportHref({
           kind,
