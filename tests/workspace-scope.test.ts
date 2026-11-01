@@ -13,14 +13,14 @@ const networks = systems.map((system) => ({ id: system.networkId, name: system.n
 const assets = systems.map((system) => ({ id: system.id.replace("sys", "asset"), networkId: system.networkId, systemContext: { systemId: system.id, environmentType: "Production" } })) as Asset[];
 
 describe("workspace scope", () => {
-  it("hides exactly the three opposite-scope sidebar items and restores them when cleared", () => {
+  it("hides opposite-scope sidebar items and restores them when cleared", () => {
     const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
     const hiddenHrefs = (query: string) => items.filter((item) => !isWorkspaceItemVisible(item, new URLSearchParams(query))).map((item) => item.href);
     expect(hiddenHrefs("network=net-a,net-b")).toEqual([
       "/cyber-cop?copView=systems-spi-heatmap", "/cyber-cop?copView=ict-system-impact-analyser", "/systems"
     ]);
     expect(hiddenHrefs("system=sys-a,sys-b")).toEqual([
-      "/cyber-cop?copView=networks-spi-heatmap", "/cyber-cop?copView=network-impact-analyser", "/networks"
+      "/cyber-cop?copView=networks-spi-heatmap", "/cyber-cop?copView=network-impact-analyser", "/networks", "/network-risk-profile"
     ]);
     expect(hiddenHrefs("")).toEqual([]);
   });

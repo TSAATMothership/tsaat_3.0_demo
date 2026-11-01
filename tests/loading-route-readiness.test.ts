@@ -63,6 +63,7 @@ describe("route loading readiness", () => {
       ["app/findings/page.tsx", 'pathname="/findings"'],
       ["app/measures/page.tsx", 'pathname="/measures"'],
       ["app/networks/page.tsx", 'pathname="/networks"'],
+      ["app/network-risk-profile/page.tsx", 'pathname="/network-risk-profile"'],
       ["app/report/page.tsx", 'pathname="/report"'],
       ["app/settings/page.tsx", 'pathname="/settings"'],
       ["app/systems/page.tsx", 'pathname="/systems"']

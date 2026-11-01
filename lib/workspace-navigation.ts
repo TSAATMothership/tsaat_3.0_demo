@@ -50,6 +50,7 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { label: "Network Impact Analyser", href: "/cyber-cop?copView=network-impact-analyser", scope: "network" },
     { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
     { label: "Networks Posture", href: "/networks", scope: "network" },
+    { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
     { label: "ICT Systems Posture", href: "/systems", scope: "system" }
   ] },
   { label: "Discovery", items: [

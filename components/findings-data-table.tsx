@@ -9,11 +9,11 @@ const rangeLabel = ({ min, max }: ExplorerNumberRange, unit: string) =>
   `${min !== undefined && max !== undefined ? `${number(min)}\u2013${number(max)}` : min !== undefined ? `At least ${number(min)}` : `Up to ${number(max!)}`} ${unit}`;
 
 /** Shared explorer controls; callers retain their cells, drill-through actions and page filters. */
-export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchText, searchable = true, columnFilters = true, actions, initialFilters, emptyMessage = "No records are available in the selected scope.", className = "", defaultPageSize = 50, pageSizeOptions = [25, 50, 100, 250] }: {
+export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchText, searchable = true, columnFilters = true, actions, initialFilters, emptyMessage = "No records are available in the selected scope.", className = "", paginate = true, defaultPageSize = 50, pageSizeOptions = [25, 50, 100, 250] }: {
   title: string; rows: T[]; columns: ExplorerColumn<T>[]; renderRow: (row: T, index: number) => ReactNode;
   searchText?: (row: T) => string; searchable?: boolean; columnFilters?: boolean; actions?: (matchingRows: T[]) => ReactNode;
   initialFilters?: ExplorerTableFilters;
-  emptyMessage?: ReactNode; className?: string; defaultPageSize?: number; pageSizeOptions?: number[];
+  emptyMessage?: ReactNode; className?: string; paginate?: boolean; defaultPageSize?: number; pageSizeOptions?: number[];
 }) {
   const [filters, setFilters] = useState(() => initialFilters ?? emptyExplorerTableFilters());
   const [openColumn, setOpenColumn] = useState<string | null>(null);
@@ -27,7 +27,8 @@ export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchTe
   const activeRanges = columns.filter(({ key, range }) => range && hasExplorerNumberRange(filters.ranges?.[key]));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
-  const start = (currentPage - 1) * pageSize;
+  const start = paginate ? (currentPage - 1) * pageSize : 0;
+  const visibleRows = paginate ? filtered.slice(start, start + pageSize) : filtered;
   const changeColumn = (key: string, values: string[]) => {
     setFilters((current) => ({ ...current, columns: { ...current.columns, [key]: values } })); setPage(1);
   };
@@ -62,14 +63,14 @@ export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchTe
           onOpen={(open) => setOpenColumn(open ? column.key : null)} onChange={(values) => changeColumn(column.key, values)} layer={13000} />
           : <span className="endpoint-column-label">{column.label}</span>}
       </th>)}</tr></thead>
-      <tbody>{filtered.slice(start, start + pageSize).map((row, index) => renderRow(row, start + index))}
+      <tbody>{visibleRows.map((row, index) => renderRow(row, start + index))}
         {!filtered.length && <tr><td colSpan={columns.length}><div className="endpoint-empty"><strong>No matching records</strong><p>{rows.length ? "Clear or adjust the table filters to see more records." : emptyMessage}</p></div></td></tr>}
       </tbody>
     </table></div>
-    <footer className="endpoint-pagination"><span>{filtered.length ? `${number(start + 1)}–${number(Math.min(start + pageSize, filtered.length))}` : "0"} of {number(filtered.length)} records</span>
+    {paginate && <footer className="endpoint-pagination"><span>{filtered.length ? `${number(start + 1)}–${number(Math.min(start + pageSize, filtered.length))}` : "0"} of {number(filtered.length)} records</span>
       <div><label>Rows per page <select aria-label={`${title} rows per page`} value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>{pageSizeOptions.map((size) => <option key={size}>{size}</option>)}</select></label>
         <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>{currentPage} / {pages}</span>
         <button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
-    </footer>
+    </footer>}
   </section>;
 }

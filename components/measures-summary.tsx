@@ -1,17 +1,11 @@
 import Link from "next/link";
+import { FindingsDurationPanel, severityBarColors } from "@/components/findings-duration-panel";
 import { IndicatorReviewScroll } from "@/components/indicator-review-scroll";
 import { OpenSettingsButton } from "@/components/open-settings-button";
 import { measuresHref, measuresFindingsHref, type MeasureRecord, type MeasureFilters } from "@/lib/measures-explorer";
 import type { MeasuresSummaryModel } from "@/lib/measures-summary";
 import type { Filters } from "@/lib/types";
 
-const severityBarColors: Record<string, string> = {
-  "Critical Exposure": "#ef4444",
-  "High Risk": "#f97316",
-  Major: "#facc15",
-  Moderate: "#3b82f6",
-  "Data Gap": "#a855f7"
-};
 const number = (value: number) => value.toLocaleString("en-AU");
 const resultFilter = (result: string): MeasureFilters => ({ search: "", columns: { result: [result] } });
 const idFilter = (id: string): MeasureFilters => ({ search: "", columns: { id: [id] } });
@@ -33,36 +27,6 @@ function ComplianceBar({ label, percent, compliant, nonCompliant, unknown, total
 function IndicatorReview({ rows, href }: { rows: MeasureRecord[]; href: (id: string) => string }) {
   return rows.length ? <div className="measures-summary-review"><table><thead><tr><th scope="col">Indicator</th><th scope="col">Compliance</th><th scope="col">Non-compliant</th><th scope="col">Unknown</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td><Link prefetch={false} href={href(row.id)}><span>{row.id}</span> {row.name} <Arrow /></Link></td><td data-label="Compliance"><ComplianceBar label={row.id} percent={row.scorePercent} compliant={row.compliant} nonCompliant={row.nonCompliant} unknown={row.unknown} total={row.total} /></td><td data-label="Non-compliant" className="measure-gap">{number(row.nonCompliant)}</td><td data-label="Unknown" className="measure-unknown">{number(row.unknown)}</td></tr>)}</tbody></table></div> : <p className="discovery-overview-empty">No non-compliant or unknown results are recorded for these indicators.</p>;
 }
-function FindingsDuration({ model, filters, snapshotDate }: { model: MeasuresSummaryModel; filters: Filters; snapshotDate: string }) {
-  const maximum = Math.max(1, ...model.findingsByDuration.map(bucket => bucket.total));
-  return <section className="discovery-overview-panel" aria-labelledby="summary-duration-title">
-    <header><h2 id="summary-duration-title">Findings by Duration</h2><Link prefetch={false} href={measuresFindingsHref(filters, snapshotDate)}>Findings <Arrow /></Link></header>
-    <p className="discovery-overview-note">Open findings by days since their timestamp, as of {snapshotDate}.</p>
-    <ul className="measures-duration-legend" aria-label="Severity legend">{model.severities.map(severity => <li key={severity.key}>
-      <span aria-hidden="true" style={{ backgroundColor: severityBarColors[severity.key] ?? "#94a3b8" }} />{severity.label}
-    </li>)}</ul>
-    <div className="measures-duration-chart" role="group" aria-label="Open findings by duration and severity">
-      {model.findingsByDuration.map(bucket => {
-        const range = { durationMin: bucket.min, durationMax: bucket.max };
-        return <div className="measures-duration-row" key={bucket.label}>
-          {bucket.total && !bucket.unknownDate ? <Link prefetch={false} href={measuresFindingsHref(filters, snapshotDate, range)} aria-label={`${bucket.label}: ${number(bucket.total)} open findings`}>{bucket.label}</Link> : <span>{bucket.label}</span>}
-          <div className="measures-duration-track"><div className="measures-duration-stack" style={{ width: `${bucket.total / maximum * 100}%` }}>
-            {model.severities.filter(severity => bucket.severities[severity.key] > 0).map(severity => {
-              const count = bucket.severities[severity.key];
-              const label = `${severity.label}, ${bucket.label}: ${number(count)} open findings`;
-              const style = { width: `${count / bucket.total * 100}%`, backgroundColor: severityBarColors[severity.key] ?? "#94a3b8" };
-              return bucket.unknownDate ? <span key={severity.key} className="measures-duration-segment" role="img" aria-label={label} title={label} style={style}>{number(count)}</span>
-                : <Link prefetch={false} key={severity.key} className="measures-duration-segment" href={measuresFindingsHref(filters, snapshotDate, { ...range, severity: severity.key })} aria-label={label} title={label} style={style}>{number(count)}</Link>;
-            })}
-          </div></div>
-          <strong>{number(bucket.total)}</strong>
-        </div>;
-      })}
-    </div>
-    <p className="discovery-overview-note">{model.openFindings ? "Select a bar segment to review matching findings. Bar lengths show finding counts." : "No open findings in this scope."}</p>
-  </section>;
-}
-
 export function MeasuresSummary({ model, filters, snapshotDate, allSpiReportHref }: {
   model: MeasuresSummaryModel; filters: Filters; snapshotDate: string; allSpiReportHref: string;
 }) {
@@ -109,7 +73,7 @@ export function MeasuresSummary({ model, filters, snapshotDate, allSpiReportHref
         {!model.priorityFocus.length && <p className="discovery-overview-empty">No open non-compliant SPI findings to prioritise.</p>}
         <p className="discovery-overview-note">Global matrix saved {model.settingsUpdatedAt.slice(0, 10) || "date unavailable"}. Settings apply across the estate.</p>
       </section>
-      <FindingsDuration model={model} filters={filters} snapshotDate={snapshotDate} />
+      <FindingsDurationPanel model={model} filters={filters} snapshotDate={snapshotDate} />
     </div>
     <details className="discovery-overview-method"><summary>How to interpret this summary</summary><div><p>Overall bars include all KPI or SPI assessments in scope, including fully compliant indicators omitted from the review tables. KPI compliance is compliant ICT system checks divided by all applicable KPI checks; each system contributes one check per KPI. SPI compliance is compliant CI assessments divided by all applicable SPI assessments. Both totals include unknown results. A scope with no assessments shows N/A.</p><p>A CI can fail several indicators or have both non-compliant and unknown results. Distinct CI counts are deduplicated; indicator and finding counts must not be added together.</p><p>Open findings use observed severity and priority classifications. The SPI Risk Matrix shows the saved global severity-by-CI-type settings; the SPI Priority Matrix shows the saved global priorities. Unknown findings can retain their separate classification. Severity filtering affects findings-based metrics; SPI assessment scores follow the other page filters.</p></div></details>
   </div>;

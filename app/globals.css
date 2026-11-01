@@ -544,6 +544,62 @@ a {
 .report-category:hover { border-color: var(--category-color); }.report-category[aria-pressed="true"] { border-color: var(--category-color); background: #153444; box-shadow: inset 0 -2px var(--category-color); }
 .report-results { flex: 1; min-height: 18rem; }.report-results .endpoint-table-scroll { max-height: none; }.report-results .endpoint-toolbar { padding: .8rem .9rem; flex-wrap: wrap; }.report-results .endpoint-toolbar-actions { flex-wrap: wrap; }.report-results .endpoint-toolbar-actions > input { width: clamp(15rem, 25vw, 26rem); }
 .report-sort { border: 1px solid #355669; border-radius: .4rem; padding: .55rem .65rem; background: #102a3b; color: #c0d9e8; font-size: .73rem; }
+
+.network-risk-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .65rem 1rem; }
+.network-risk-tabs { display: flex; flex-wrap: wrap; gap: .4rem; padding: .4rem; border: 1px solid #294251; border-radius: .55rem; background: #0d2131; }
+.network-risk-tabs button { padding: .55rem .8rem; border: 1px solid transparent; border-radius: .35rem; color: #a8c4d6; font-size: .76rem; font-weight: 500; }
+.network-risk-tabs button:hover { color: #d8f2fc; background: #173447; }
+.network-risk-tabs button[aria-selected="true"] { border-color: #5dc9dc; color: #b7f2fc; background: #123b49; }
+.network-risk-profile-panel:not([hidden]) { display: grid; gap: .65rem; }
+.network-risk-page [role="tabpanel"][hidden] { display: none; }
+.network-risk-page [role="tabpanel"]:focus-visible { outline: 2px solid #73d8e7; outline-offset: 3px; border-radius: .4rem; }
+.network-risk-page .discovery-overview-metric { text-align: left; }
+.network-risk-page button:focus-visible, .network-risk-page select:focus-visible { outline: 2px solid #73d8e7; outline-offset: 3px; }
+.network-risk-overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.network-risk-overview-grid .discovery-overview-panel > header { flex-wrap: wrap; }
+.network-risk-coverage { margin-top: .7rem; }
+.network-risk-coverage > div:first-child { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem .5rem; margin-bottom: .35rem; }
+.network-risk-coverage strong { color: #cfe5f2; font-size: .8rem; font-weight: 500; }
+.network-risk-coverage > div:first-child > span, .network-risk-coverage p { color: #91adbf; font-size: .7rem; }
+.network-risk-coverage p { margin-top: .25rem; }
+.network-risk-coverage .measures-compliance-bar { height: 1.5rem; }
+.network-risk-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: 1rem; padding-top: .7rem; border-top: 1px solid #294251; color: #91adbf; font-size: .72rem; }
+.network-risk-metadata strong { display: block; color: #cfe5f2; font-size: .95rem; font-weight: 500; }
+.network-risk-trend { height: 14rem; min-width: 0; margin-top: .25rem; }
+.network-risk-trend-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.network-risk-trend-popup-body { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: .7rem; overflow: auto; padding: 1.25rem; }
+.network-risk-trend-popup-controls { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.network-risk-trend-popup-controls label { display: flex; align-items: center; gap: .5rem; color: #a8c4d6; font-size: .8rem; }
+.network-risk-trend-popup .measures-duration-legend { flex: none; margin: 0; }
+.network-risk-trend-popup .network-risk-trend { flex: 1; height: auto; min-height: 12rem; }
+@media (max-width: 600px) { .network-risk-trend-popup h2 { font-size: 1.15rem; }.network-risk-trend-popup-body { padding: 1rem; } }
+.network-risk-explorer { min-width: 0; scroll-margin-top: 1rem; }
+.network-risk-explorer > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; padding: .45rem 0; }
+.network-risk-explorer h2 { color: #e1f1fa; font-size: 1rem; font-weight: 600; }
+.network-risk-explorer header p { color: #91adbf; font-size: .73rem; margin-top: .15rem; }
+.network-risk-explorer header label { display: flex; align-items: center; gap: .5rem; color: #91adbf; font-size: .73rem; }
+.network-risk-views { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 .65rem; }
+.network-risk-views button { display: flex; align-items: center; gap: .45rem; border: 1px solid #355063; border-radius: .4rem; background: #102536; padding: .4rem .6rem; color: #a8c4d6; font-size: .72rem; }
+.network-risk-views button:hover { border-color: #60b9ce; }
+.network-risk-views button[aria-pressed="true"] { border-color: #5dc9dc; color: #b7f2fc; background: #123b49; }
+.network-risk-views button > span { border-radius: .25rem; background: #06172366; min-width: 1.25rem; padding: .05rem .25rem; text-align: center; font-variant-numeric: tabular-nums; }
+.network-risk-table-host { display: flex; height: 32rem; min-height: 24rem; }
+.network-risk-table-host > .findings-data-table { flex: 1; min-width: 0; height: 100%; max-height: none; }
+.network-risk-table .findings-explorer-table { min-width: 1160px; }
+.network-risk-table .findings-explorer-table td:has(a), .network-risk-table .findings-explorer-table td:has(button) { min-width: 0; }
+.network-risk-table .findings-explorer-table td { vertical-align: middle; }
+.network-risk-table .findings-explorer-table td.network-risk-name { min-width: 13rem; max-width: 20rem; }
+.network-risk-name > a { color: #9de2ef; font-weight: 500; }
+.network-risk-name small { display: block; margin-top: .2rem; color: #8eaabd; font-size: .65rem; }
+.network-risk-status { display: inline-block; min-width: 7rem; padding: .25rem .45rem; border: 1px solid #476074; border-radius: 2rem; text-align: center; white-space: nowrap; font-size: .65rem; color: #a9c1d2; background: #203648; }
+.network-risk-status.is-good { color: #89dec6; background: #153b35; border-color: #337163; }
+.network-risk-status.is-gap { color: #f6b2b5; background: #442731; border-color: #7e424c; }
+.network-risk-table .findings-explorer-table td.network-risk-score { min-width: 9rem; }
+.network-risk-score .measures-compliance-bar { height: 1.25rem; }
+.network-risk-severe { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.network-risk-severe a:first-child { color: #ff8787; }.network-risk-severe a:last-child { color: #ffb27b; }
+@container (max-width: 850px) { .network-risk-overview-grid { grid-template-columns: 1fr; } }
+@container (max-width: 560px) { .network-risk-header-actions { justify-content: flex-start; }.network-risk-trend { height: 12rem; }.network-risk-explorer header label { width: 100%; justify-content: space-between; }.network-risk-views button { flex-grow: 1; justify-content: space-between; } }
 .endpoint-table.report-table { min-width: 1000px; }.report-table .endpoint-column-trigger { padding: .75rem; }.report-table .report-action-heading { padding: .75rem; color: #b3cbd9; }
 .report-table td { padding: .85rem .75rem; line-height: 1.5; }.report-table .report-name { width: 23%; min-width: 13rem; }.report-name > strong { display: block; color: #dceff8; font-weight: 500; font-size: .8rem; }.report-format { display: block; margin-top: .35rem; color: #7d9bab; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; }
 .report-table .report-description { width: 30%; min-width: 16rem; color: #acc4d4; }.report-table .report-audience { width: 22%; min-width: 12rem; color: #94b1c5; }
