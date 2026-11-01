@@ -7,6 +7,8 @@ import { ComplianceHeatmap } from "@/components/compliance-heatmap";
 import { FindingsDataTable } from "@/components/findings-data-table";
 import { FindingsDurationPanel, severityBarColors } from "@/components/findings-duration-panel";
 import { NetworkRiskTrend } from "@/components/network-risk-trend";
+import { NetworkDetailsPanel } from "@/components/network-details-panel";
+import { IctSystemDetailsPanel } from "@/components/ict-system-details-panel";
 import { riskProfileHref, type RiskProfileModel, type RiskProfileRow, type RiskProfileKind } from "@/lib/risk-profile";
 import type { ExplorerColumn } from "@/lib/explorer-table";
 import type { Filters } from "@/lib/types";
@@ -37,11 +39,12 @@ const profileColumns = (kind: RiskProfileKind): ExplorerColumn<RiskProfileRow>[]
   { key: "severe", label: "Critical / High", value: row => `${row.critical} / ${row.high}` },
   { key: "ageing", label: "Over 90 days", value: row => row.overdue, range: { value: row => row.overdue, unit: "findings", min: 0, step: 1, sortable: true } },
   ...(kind === "system" ? [{ key: "ato", label: "ATO", value: (row: RiskProfileRow) => row.atoNumber || "Not provided" },
-    { key: "diis", label: "DIIS", value: (row: RiskProfileRow) => row.diisId || "Not provided" }] : []),
+    { key: "diis", label: "DIIS", value: (row: RiskProfileRow) => row.diisId || "Not provided" },
+    { key: "appId", label: "APP-ID", value: (row: RiskProfileRow) => row.systemDetails?.apmNumber || "Not provided" }] : []),
   { key: "modelled", label: "Modelled", value: row => row.modellingStatus ? "Yes" : "No" }
 ];
 
-export function RiskProfile({ model, filters }: { model: RiskProfileModel; filters: Filters }) {
+export function RiskProfile({ model, filters, initialNetworkId, initialSystemId }: { model: RiskProfileModel; filters: Filters; initialNetworkId?: string; initialSystemId?: string }) {
   const isSystem = model.kind === "system";
   const entityLabel = isSystem ? "ICT System" : "Network";
   const entities = isSystem ? "ICT systems" : "networks";
@@ -50,7 +53,10 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
   const idPrefix = isSystem ? "ict-system-risk" : "network-risk";
   const tabs = [{ id: "profile", label: title }, { id: "explorer", label: explorerTitle }, { id: "heatmap", label: "Compliance Heatmap" }] as const;
   const columns = useMemo(() => profileColumns(model.kind), [model.kind]);
-  const [activeTab, setActiveTab] = useState<RiskProfileTab>("profile");
+  const initialDetails = model.rows.find(row => row.id === (isSystem ? initialSystemId : initialNetworkId))?.[isSystem ? "systemDetails" : "networkDetails"];
+  const [activeTab, setActiveTab] = useState<RiskProfileTab>(initialDetails ? "explorer" : "profile");
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(initialDetails?.id ?? null);
+  const selectedRow = model.rows.find(row => row.id === selectedEntityId);
   const [review, setReview] = useState<Review>("all");
   const [order, setOrder] = useState("risk");
   const tabButtons = useRef<Record<RiskProfileTab, HTMLButtonElement | null>>({ profile: null, explorer: null, heatmap: null });
@@ -74,7 +80,7 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
   const focus = (view: Review) => { setReview(view); selectTab("explorer", true); };
   const exportCsv = (matching: RiskProfileRow[]) => {
     const csv = Papa.unparse(matching.map(row => ({ [entityLabel]: row.name, [isSystem ? "Security domain" : "Classification"]: row.classification, Criticality: row.criticality,
-      Posture: row.status, CIs: row.ciCount, ...(isSystem ? { "Networks hosting CIs": row.networkCount, ATO: row.atoNumber, DIIS: row.diisId } : { "ICT systems using CIs": row.systemCount }), "CIs without SPI assessments": row.unassessedCis, "SPI compliance (%)": row.spi.percent ?? "",
+      Posture: row.status, CIs: row.ciCount, ...(isSystem ? { "Networks hosting CIs": row.networkCount, ATO: row.atoNumber, DIIS: row.diisId, "APP-ID": row.systemDetails?.apmNumber ?? "" } : { "ICT systems using CIs": row.systemCount }), "CIs without SPI assessments": row.unassessedCis, "SPI compliance (%)": row.spi.percent ?? "",
       "Discovery coverage (%)": row.discovery.percent ?? "", "Open findings": row.openFindings, "Critical Exposure": row.critical,
       "High Risk": row.high, "Open over 90 days": row.overdue, "Oldest open finding (days)": row.oldestDays ?? "",
       Modelled: row.modellingStatus ? "Yes" : "No", ...(isSystem ? { "Managed networks": row.context } : { "Discovery status": row.discoveryStatus }), Owner: row.owner, Snapshot: model.snapshotDate })));
@@ -131,7 +137,7 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
         <p>All summaries use the {entities} and snapshot selected in the header. Explorer focus, search, ordering and column filters apply to the {isSystem ? "ICT system" : "network"} table; CSV exports include all matching rows. The remediation report uses the full header scope.</p>
         <p>SPI compliance is compliant CI and SPI assessments divided by all recorded assessments, including unknowns. CIs with no SPI assessments are reported separately; no assessments show N/A. Discovery coverage is the share of scoped CIs meeting discovery requirements; CIs missing an evaluation show as unknown. Green shows compliance, red shows non-compliance and grey shows unknowns.</p>
         <p>Risk priority orders {entities} by critical findings, high findings, findings over 90 days, then all open findings. A CI can produce several findings. Age is measured in UTC calendar days at the snapshot. Trends reconstruct recorded opening and closure dates; they are not historical snapshots of previous severity settings.</p>
-        {isSystem && <p>CI assessments and findings use the recorded ICT system association, matching the linked findings and endpoint explorers. CIs without a recorded ICT system are excluded. ATO and DIIS show the stored identifiers; missing values are not treated as provided.</p>}
+        {isSystem && <p>CI assessments and findings use the recorded ICT system association, matching the linked findings and endpoint explorers. CIs without a recorded ICT system are excluded. ATO, DIIS and APP-ID show the stored identifiers; missing values are not treated as provided.</p>}
       </div></details>
     </>}
     </section>
@@ -145,7 +151,8 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
           emptyMessage={`No ${entities} match this review focus. Choose All ${entities} to see the selected scope. Define the scope in the header if none are available.`}
           actions={matching => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => exportCsv(matching)}>Export CSV</button>}
           renderRow={row => <tr key={row.id}>
-            <td className="network-risk-name"><Link href={href(`/${isSystem ? "systems" : "networks"}/${encodeURIComponent(row.id)}`, row.id)} prefetch={false}>{row.name} ↗</Link><small>{row.classification} · {row.criticality}</small><small>{row.context}</small></td>
+            <td className="network-risk-name"><button type="button" aria-haspopup="dialog" aria-label={`Open ${entityLabel} Details for ${row.name}`} onClick={() => setSelectedEntityId(row.id)}>{row.name} <span aria-hidden="true">→</span></button>
+              <small>{row.classification} · {row.criticality}</small><small>{row.context}</small></td>
             <td><span className={`network-risk-status ${row.status === "Compliant" ? "is-good" : row.status === "Non-compliant" ? "is-gap" : "is-unknown"}`}>{row.status}</span></td>
             <td><Link aria-label={`${row.name}: ${row.ciCount} CIs`} href={href("/discovery-coverage", row.id, { discoveryView: "endpoints" })} prefetch={false}>{number(row.ciCount)}</Link></td>
             <td className="network-risk-score"><Link aria-label={`Review ${row.name} SPI compliance`} href={href("/measures", row.id, { measuresTab: "measures-spi" })} prefetch={false}><CoverageBar label={`${row.name} SPI compliance`} counts={row.spi} /></Link></td>
@@ -153,12 +160,14 @@ export function RiskProfile({ model, filters }: { model: RiskProfileModel; filte
             <td><Link aria-label={`${row.name}: ${row.openFindings} open findings`} href={findingsHref(row.id)} prefetch={false}>{number(row.openFindings)}</Link></td>
             <td className="network-risk-severe"><Link aria-label={`${row.name}: ${row.critical} critical exposure findings`} href={findingsHref(row.id, { severity: "Critical Exposure" })} prefetch={false}>{number(row.critical)}</Link><span> / </span><Link aria-label={`${row.name}: ${row.high} high risk findings`} href={findingsHref(row.id, { severity: "High Risk" })} prefetch={false}>{number(row.high)}</Link></td>
             <td><Link aria-label={`${row.name}: ${row.overdue} findings over 90 days`} href={findingsHref(row.id, { durationMin: "91" })} prefetch={false}>{number(row.overdue)}</Link></td>
-            {isSystem && <><td>{row.atoNumber || "Not provided"}</td><td>{row.diisId || "Not provided"}</td></>}
+            {isSystem && <><td>{row.atoNumber || "Not provided"}</td><td>{row.diisId || "Not provided"}</td><td>{row.systemDetails?.apmNumber || "Not provided"}</td></>}
             <td>{row.modellingStatus ? "Yes" : "No"}</td>
           </tr>} /></div>
       </section>
       <section role="tabpanel" id={`${idPrefix}-panel-heatmap`} aria-labelledby={`${idPrefix}-tab-heatmap`} hidden={activeTab !== "heatmap"}>
         <ComplianceHeatmap model={model.heatmap} active={activeTab === "heatmap"} />
       </section>
+      {!isSystem && selectedRow?.networkDetails && <NetworkDetailsPanel network={selectedRow.networkDetails} snapshotDate={model.snapshotDate} onClose={() => setSelectedEntityId(null)} />}
+      {isSystem && selectedRow?.systemDetails && <IctSystemDetailsPanel system={selectedRow.systemDetails} snapshotDate={model.snapshotDate} onClose={() => setSelectedEntityId(null)} />}
   </div>;
 }

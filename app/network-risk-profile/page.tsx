@@ -11,5 +11,7 @@ export default async function NetworkRiskProfilePage({ searchParams }: { searchP
   const scope = { network: searchParams.network, system: searchParams.system, dataDate: searchParams.dataDate };
   const { dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings } = await getCoreAppData(scope, { profile: "risk-summary" });
   const model = buildNetworkRiskProfile({ dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings });
-  return <>{marker}<NetworkRiskProfile key={JSON.stringify([filters, dataset.snapshotDate])} model={model} filters={filters} /></>;
+  const detailsId = Array.isArray(searchParams.networkDetails) ? searchParams.networkDetails[0] : searchParams.networkDetails;
+  const initialNetworkId = model.rows.some(row => row.id === detailsId) ? detailsId : undefined;
+  return <>{marker}<NetworkRiskProfile key={JSON.stringify([filters, dataset.snapshotDate, initialNetworkId])} model={model} filters={filters} initialNetworkId={initialNetworkId} /></>;
 }

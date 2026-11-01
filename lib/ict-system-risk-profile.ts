@@ -1,4 +1,5 @@
 import { buildComplianceHeatmap } from "@/lib/compliance-heatmap";
+import { buildIctSystemDetails } from "@/lib/ict-system-details";
 import type { MeasuresSettings } from "@/lib/measures-settings";
 import { isRealNetworkId } from "@/lib/network-scope";
 import { applyAssetFilters, filterSystems } from "@/lib/selectors";
@@ -29,19 +30,36 @@ export function buildIctSystemRiskProfile({ dataset, analytics, filters, severit
   const evaluationsBySystem = groupRiskItems(evaluations, evaluation => assetById.get(evaluation.assetId)!.systemContext!.systemId);
   const findingsBySystem = groupRiskItems(findings, finding => assetById.get(finding.scope.assetId)!.systemContext!.systemId);
   const networksById = new Map(dataset.managedNetworks.filter(network => isRealNetworkId(network.id)).map(network => [network.id, network]));
+  const declaredNetworkIdsBySystem = new Map<string, Set<string>>();
+  for (const network of networksById.values()) for (const systemId of network.ictSystemIds) {
+    const ids = declaredNetworkIdsBySystem.get(systemId) ?? new Set<string>();
+    ids.add(network.id);
+    declaredNetworkIdsBySystem.set(systemId, ids);
+  }
+  const allAssetsById = new Map(dataset.assets.map(asset => [asset.id, asset]));
   const hostNetworks = (scopedAssets: typeof assets) => [...new Set(scopedAssets.map(asset => asset.networkId))]
     .flatMap(id => networksById.has(id) ? [networksById.get(id)!] : []).sort((a, b) => a.name.localeCompare(b.name));
   const rows = systems.map(system => {
     const systemAssets = assetsBySystem.get(system.id) ?? [];
     const hosts = hostNetworks(systemAssets);
     const assignedNetwork = networksById.get(system.networkId);
+    const linkedNetworkIds = new Set([
+      ...hosts.map(network => network.id), system.networkId,
+      ...(declaredNetworkIdsBySystem.get(system.id) ?? []),
+      ...system.environments.flatMap(environment => environment.assetIds.flatMap(id => {
+        const asset = allAssetsById.get(id); return asset ? [asset.networkId] : [];
+      }))
+    ]);
+    const linkedNetworks = [...linkedNetworkIds].filter(id => !networkIds.length || networkIds.includes(id))
+      .flatMap(id => { const network = networksById.get(id); return network ? [network] : []; });
     return {
       ...summarizeRiskAssets(systemAssets, evaluationsBySystem.get(system.id) ?? [], findingsBySystem.get(system.id) ?? [], dataset.snapshotDate),
       id: system.id, name: system.name, classification: system.securityDomain,
       criticality: system.criticality, modellingStatus: system.modellingStatus,
       owner: system.owner?.trim() || "Not recorded", description: system.description?.trim() || "",
       context: hosts.length ? hosts.map(network => network.name).join(", ") : assignedNetwork ? `${assignedNetwork.name} (assigned network)` : "No managed network recorded",
-      networkCount: hosts.length, atoNumber: system.atoNumber?.trim() || "", diisId: system.diisId?.trim() || ""
+      networkCount: hosts.length, atoNumber: system.atoNumber?.trim() || "", diisId: system.diisId?.trim() || "",
+      systemDetails: buildIctSystemDetails(system, systemAssets, linkedNetworks)
     };
   }).sort(compareRiskRows);
   const modelled = systems.filter(system => system.modellingStatus).length;

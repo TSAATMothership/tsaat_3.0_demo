@@ -7,29 +7,6 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe("drill-through discovery coverage wiring", () => {
-  it("uses the shared scoped discovery tool model on network and ICT system drill-through pages", () => {
-    const networkPage = readRepoFile("app/networks/[networkId]/page.tsx");
-    const systemPage = readRepoFile("app/systems/[systemId]/page.tsx");
-
-    for (const source of [networkPage, systemPage]) {
-      expect(source).toContain("buildScopedDiscoveryToolCoverage(");
-      expect(source).toContain("dataset.discoveryCoverageEvaluations");
-      expect(source).toContain("discoveryToolCoverageModel.toolColumns.map");
-      expect(source).toContain("discoveryCoverageValueLabel(value)");
-    }
-    expect(systemPage).toContain("discoveryCoverageExportHref");
-    expect(systemPage).toContain("/discovery-coverage-export");
-  });
-
-  it("does not keep network tool filters locked to the old hard-coded four-tool set", () => {
-    const networkPage = readRepoFile("app/networks/[networkId]/page.tsx");
-
-    expect(networkPage).not.toContain("type DiscoveryToolFilterKey");
-    expect(networkPage).not.toContain("isDiscoveryToolFilterKey");
-    expect(networkPage).toContain("applicableDiscoveryToolIds.has(requestedDiscoveryToolFilter)");
-    expect(networkPage).toContain("row.toolValues[selectedDiscoveryToolFilter] !== 0");
-  });
-
   it("keeps network discovery coverage export aligned with dynamic configured tool columns", () => {
     const exportRoute = readRepoFile("app/api/networks/[networkId]/discovery-coverage-export/route.ts");
 

@@ -3,8 +3,6 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(path.join(process.cwd(), "components", "network-compliance-overview.tsx"), "utf8");
-const networkDetailSource = readFileSync(path.join(process.cwd(), "app", "networks", "[networkId]", "page.tsx"), "utf8");
-const systemDetailSource = readFileSync(path.join(process.cwd(), "app", "systems", "[systemId]", "page.tsx"), "utf8");
 
 describe("Compliance overview details panel layout", () => {
   it("keeps the details table status column limited to workflow pills", () => {
@@ -56,10 +54,5 @@ describe("Compliance overview details panel layout", () => {
     expect(source).toContain('label: "Printer Devices"');
     expect(source).toContain('label: "Other Devices"');
     expect(source).toContain("assetTypeTiles.map");
-    for (const pageSource of [networkDetailSource, systemDetailSource]) {
-      expect(pageSource).toContain('storageDeviceCount: filteredAssets.filter((asset) => asset.type === "storage-device").length');
-      expect(pageSource).toContain('printerDeviceCount: filteredAssets.filter((asset) => asset.type === "printer-device").length');
-      expect(pageSource).toContain('otherCount: filteredAssets.filter((asset) => asset.type === "other").length');
-    }
   });
 });

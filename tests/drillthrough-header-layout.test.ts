@@ -2,8 +2,8 @@ import { readFileSync } from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 
-const networkDetailSource = readFileSync(path.join(process.cwd(), "app", "networks", "[networkId]", "page.tsx"), "utf8");
-const systemDetailSource = readFileSync(path.join(process.cwd(), "app", "systems", "[systemId]", "page.tsx"), "utf8");
+const networkDetailSource = readFileSync(path.join(process.cwd(), "components", "risk-entity-details-panel.tsx"), "utf8");
+const systemDetailSource = networkDetailSource;
 
 describe("Network and ICT system drill-through headers", () => {
   it("does not render header pills under the network heading", () => {

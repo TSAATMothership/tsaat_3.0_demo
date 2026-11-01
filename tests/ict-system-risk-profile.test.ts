@@ -42,6 +42,29 @@ function fixture() {
 }
 
 describe("ICT system risk profile", () => {
+  it("builds the details panel from stored metadata, related networks and the explorer's scoped asset footprint", () => {
+    const input = fixture();
+    Object.assign(input.dataset.ictSystems[0], { description: " Service description ", owner: " Service operations ",
+      supportEmail: " service@example.test ", serviceCatalogueUrl: "https://example.test/service",
+      grcUrl: "https://example.test/grc", diisUrl: "https://example.test/diis", apmNumber: " APM-SYS-001 " });
+    input.dataset.managedNetworks.push({ ...network("net-c"), ictSystemIds: ["sys-a", "sys-a"] }, network("net-d"));
+    input.dataset.assets.push(asset("environment-ci", "net-d"));
+    input.dataset.ictSystems[0].environments = [{ id: "prod", name: "Production", type: "Production", assetIds: ["environment-ci", "environment-ci", "missing-ci"] }];
+    const model = buildIctSystemRiskProfile(input);
+    const row = model.rows.find(row => row.id === "sys-a")!;
+    expect(row.systemDetails).toMatchObject({ description: "Service description", owner: "Service operations", supportEmail: "service@example.test",
+      atoNumber: "ATO-1", diisId: "DIIS-1", apmNumber: "APM-SYS-001", grcUrl: "https://example.test/grc", diisUrl: "https://example.test/diis", assetCount: row.ciCount });
+    expect(row.systemDetails.linkedNetworks.map(network => network.id)).toEqual(["net-a", "net-b", "net-c", "net-d"]);
+    expect(row.systemDetails.assetCount).toBe(2);
+    expect(row.systemDetails.assetFootprint).toHaveLength(7);
+    expect(row.systemDetails.assetFootprint.reduce((sum, item) => sum + item.count, 0)).toBe(row.ciCount);
+    expect(row.systemDetails.assetFootprint.find(item => item.type === "server")?.count).toBe(2);
+    expect(model.rows.find(row => row.id === "sys-empty")!.systemDetails).toMatchObject({ description: "", owner: "", atoNumber: "", diisId: "", apmNumber: "", assetCount: 0 });
+    expect(model.rows.find(row => row.id === "sys-b")!.systemDetails.linkedNetworks.map(network => network.id)).toEqual(["net-b"]);
+    const scoped = buildIctSystemRiskProfile({ ...input, filters: { managedNetwork: "net-a" } }).rows.find(row => row.id === "sys-a")!;
+    expect(scoped.systemDetails.linkedNetworks.map(network => network.id)).toEqual(["net-a"]);
+    expect(scoped.systemDetails.assetCount).toBe(1);
+  });
   it("counts systems and their actual CIs, including infrastructure hosted outside the owning network", () => {
     const model = buildIctSystemRiskProfile(fixture());
     expect(model).toMatchObject({ kind: "system", entityCount: 3, systemCount: 3, ciCount: 3, networkCount: 2,

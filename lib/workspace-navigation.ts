@@ -58,12 +58,11 @@ export interface WorkspaceGroup { label: string; items: WorkspaceItem[] }
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { label: "Cyber Security", items: [
-    { label: "Cyber COP", href: "/cyber-cop" },
+    { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
+    { label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" },
     { label: "Service Impact Analyser", href: "/cyber-cop?copView=impact" },
     { label: "Network Impact Analyser", href: "/cyber-cop?copView=network-impact-analyser", scope: "network" },
-    { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
-    { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
-    { label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" }
+    { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" }
   ] },
   { label: "Discovery", items: [
     { label: "Overview", href: "/discovery-coverage?discoveryView=overview" },

@@ -170,8 +170,6 @@ describe("CMDB drill through", () => {
   it("wires every structured device-name table and nested panel surface", () => {
     const expectedTriggerCounts: Array<[string, number]> = [
       ["components/discovery-coverage-by-tool-section.tsx", 1],
-      ["app/networks/[networkId]/page.tsx", 3],
-      ["app/systems/[systemId]/page.tsx", 1],
       ["components/findings-table.tsx", 1],
       ["components/network-compliance-overview.tsx", 2],
       ["components/network-detail-risk-charts.tsx", 4],

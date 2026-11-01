@@ -10,5 +10,7 @@ export default async function IctSystemRiskProfilePage({ searchParams }: { searc
   const scope = { network: searchParams.network, system: searchParams.system, dataDate: searchParams.dataDate };
   const { dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings } = await getCoreAppData(scope, { profile: "risk-summary" });
   const model = buildIctSystemRiskProfile({ dataset, analytics, filters, severityDefinitions, spiDefinitions, measuresSettings });
-  return <>{marker}<IctSystemRiskProfile key={JSON.stringify([filters, dataset.snapshotDate])} model={model} filters={filters} /></>;
+  const detailsId = Array.isArray(searchParams.systemDetails) ? searchParams.systemDetails[0] : searchParams.systemDetails;
+  const initialSystemId = model.rows.some(row => row.id === detailsId) ? detailsId : undefined;
+  return <>{marker}<IctSystemRiskProfile key={JSON.stringify([filters, dataset.snapshotDate, initialSystemId])} model={model} filters={filters} initialSystemId={initialSystemId} /></>;
 }

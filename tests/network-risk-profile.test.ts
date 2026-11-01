@@ -38,6 +38,27 @@ function fixture() {
 }
 
 describe("network risk profile", () => {
+  it("builds network panel details from stored metadata and all real system relationships, without duplicates", () => {
+    const input = fixture();
+    Object.assign(input.dataset.managedNetworks[0], { description: " Network description ", owner: " Network operations ",
+      supportEmail: " ops@example.test ", serviceCatalogueUrl: "https://example.test/services", atoNumber: " ATO-1 ",
+      grcUrl: "https://example.test/grc/1", diisId: " DIIS-1 ", diisUrl: "https://example.test/diis/1",
+      ictSystemIds: ["sys-shared", "sys-shared", "missing"] });
+    const model = buildNetworkRiskProfile(input);
+    const details = model.rows.find(row => row.id === "net-a")!.networkDetails;
+    expect(details).toMatchObject({ description: "Network description", owner: "Network operations", supportEmail: "ops@example.test",
+      atoNumber: "ATO-1", diisId: "DIIS-1", assetCount: 1 });
+    expect(details.linkedSystems.map(system => system.id).sort()).toEqual(["sys-other", "sys-shared"]);
+    expect(model.rows.find(row => row.id === "net-b")!.networkDetails.linkedSystems).toHaveLength(2);
+    expect(details.assetFootprint).toHaveLength(7);
+    expect(details.assetFootprint.reduce((sum, item) => sum + item.count, 0)).toBe(1);
+    expect(details.assetFootprint.find(item => item.type === "server")?.count).toBe(1);
+    expect(details.assetFootprint.find(item => item.type === "ip-node")?.count).toBe(0);
+    expect(model.rows.find(row => row.id === "net-empty")!.networkDetails).toMatchObject({ owner: "", atoNumber: "", diisId: "", linkedSystems: [], assetCount: 0 });
+    const scoped = buildNetworkRiskProfile({ ...input, filters: { ictSystem: "sys-shared" } });
+    expect(scoped.rows.find(row => row.id === "net-a")!.networkDetails.linkedSystems.map(system => system.id)).toEqual(["sys-shared"]);
+    expect(scoped.rows.find(row => row.id === "net-b")!.networkDetails.assetCount).toBe(0);
+  });
   it("reconciles scoped networks, assessed checks, discovery gaps and open findings", () => {
     const model = buildNetworkRiskProfile(fixture());
     expect(model).toMatchObject({ networkCount: 4, ciCount: 3, systemCount: 2, openFindings: 3, severeFindings: 2, overdueFindings: 2,

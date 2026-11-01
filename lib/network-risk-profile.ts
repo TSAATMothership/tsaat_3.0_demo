@@ -1,4 +1,5 @@
 import { buildComplianceHeatmap } from "@/lib/compliance-heatmap";
+import { buildNetworkDetails } from "@/lib/network-details";
 import type { MeasuresSettings } from "@/lib/measures-settings";
 import { isRealNetworkId } from "@/lib/network-scope";
 import { applyAssetFilters } from "@/lib/selectors";
@@ -42,14 +43,24 @@ export function buildNetworkRiskProfile({ dataset, analytics, filters, severityD
     for (const assetId of environment.assetIds) addSystem(assetId, system.id);
   }
   const systemCount = (scopedAssets: typeof assets) => new Set(scopedAssets.flatMap(asset => [...(systemsByAsset.get(asset.id) ?? [])])).size;
+  const systemsById = new Map(dataset.ictSystems.map(system => [system.id, system]));
+  const systemsByNetwork = groupRiskItems(dataset.ictSystems, system => system.networkId);
   const rows = networks.map(network => {
     const networkAssets = assetsByNetwork.get(network.id) ?? [];
+    const linkedSystemIds = new Set([
+      ...network.ictSystemIds,
+      ...(systemsByNetwork.get(network.id) ?? []).map(system => system.id),
+      ...networkAssets.flatMap(asset => [...(systemsByAsset.get(asset.id) ?? [])])
+    ]);
+    const linkedSystems = [...linkedSystemIds].filter(id => !systemIds.length || systemIds.includes(id))
+      .flatMap(id => { const system = systemsById.get(id); return system ? [system] : []; });
     return {
       ...summarizeRiskAssets(networkAssets, evaluationsByNetwork.get(network.id) ?? [], findingsByNetwork.get(network.id) ?? [], dataset.snapshotDate),
       id: network.id, name: network.name, classification: network.classification?.trim() || "Not recorded",
       criticality: network.criticality, modellingStatus: network.modellingStatus, discoveryStatus: network.discoveryStatus,
       owner: network.owner?.trim() || "Not recorded", description: network.description?.trim() || "",
-      context: network.discoveryStatus, systemCount: systemCount(networkAssets)
+      context: network.discoveryStatus, systemCount: systemCount(networkAssets),
+      networkDetails: buildNetworkDetails(network, networkAssets, linkedSystems)
     };
   }).sort(compareRiskRows);
   const modelled = networks.filter(network => network.modellingStatus).length;

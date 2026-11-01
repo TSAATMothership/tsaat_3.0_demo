@@ -9,9 +9,10 @@ const rangeLabel = ({ min, max }: ExplorerNumberRange, unit: string) =>
   `${min !== undefined && max !== undefined ? `${number(min)}\u2013${number(max)}` : min !== undefined ? `At least ${number(min)}` : `Up to ${number(max!)}`} ${unit}`;
 
 /** Shared explorer controls; callers retain their cells, drill-through actions and page filters. */
-export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchText, searchable = true, columnFilters = true, actions, initialFilters, emptyMessage = "No records are available in the selected scope.", className = "", paginate = true, defaultPageSize = 50, pageSizeOptions = [25, 50, 100, 250] }: {
+export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchText, searchable = true, columnFilters = true, actions, onFilteredRowsChange, initialFilters, emptyMessage = "No records are available in the selected scope.", className = "", paginate = true, defaultPageSize = 50, pageSizeOptions = [25, 50, 100, 250] }: {
   title: string; rows: T[]; columns: ExplorerColumn<T>[]; renderRow: (row: T, index: number) => ReactNode;
   searchText?: (row: T) => string; searchable?: boolean; columnFilters?: boolean; actions?: (matchingRows: T[]) => ReactNode;
+  onFilteredRowsChange?: (matchingRows: T[]) => void;
   initialFilters?: ExplorerTableFilters;
   emptyMessage?: ReactNode; className?: string; paginate?: boolean; defaultPageSize?: number; pageSizeOptions?: number[];
 }) {
@@ -23,6 +24,7 @@ export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchTe
   useEffect(() => { setPage(1); }, [rows]);
   const prepared = useMemo(() => prepareExplorerRows(rows, columns, searchText), [rows, columns, searchText]);
   const { filtered, facets } = useMemo(() => queryExplorerRows(prepared, columns, filters, sort), [prepared, columns, filters, sort]);
+  useEffect(() => { onFilteredRowsChange?.(filtered); }, [filtered, onFilteredRowsChange]);
   const activeColumns = columns.filter(({ key }) => filters.columns[key]?.length);
   const activeRanges = columns.filter(({ key, range }) => range && hasExplorerNumberRange(filters.ranges?.[key]));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));

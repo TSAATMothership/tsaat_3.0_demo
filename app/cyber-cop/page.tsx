@@ -1,4 +1,6 @@
 import { hasWorkspaceScope, resolveCopView, WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
+import { ServiceImpactAnalyser } from "@/components/service-impact-analyser";
+import { buildServiceImpactModel } from "@/lib/service-impact";
 import {
   CyberCopDashboard,
   type CyberCopActionQuickWinRow,
@@ -1034,6 +1036,14 @@ export default async function CyberCopPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />;
+
+  if (resolveCopView(searchParams.copView) === "impact") {
+    const scope = { network: searchParams.network, system: searchParams.system, dataDate: searchParams.dataDate };
+    const data = await getCoreAppData(scope, { profile: "full" });
+    const model = buildServiceImpactModel(data);
+    return <><RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />
+      <ServiceImpactAnalyser key={JSON.stringify([data.filters, model.snapshotDate])} model={model} filters={data.filters} /></>;
+  }
 
   const { analytics, filterOptions, filters, dataset, systems, networks, spiDefinitions } = await getCoreAppData(searchParams);
   const selectedDataDate = extractDataDateParam(searchParams);

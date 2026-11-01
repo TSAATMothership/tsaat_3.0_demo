@@ -1263,22 +1263,18 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("onClose={closeComplianceView}");
   });
 
-  it("keeps the resized Server Compliance tabs and SPI drill-through contract stable", () => {
+  it("shares Settings sizing and explorer controls while preserving asset compliance drill-through", () => {
     const complianceView = readRepoFile("components/server-compliance-view.tsx");
 
-    expect(complianceView).toContain(
-      'import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";'
-    );
+    expect(complianceView).toContain('className="settings-popup asset-compliance-popup"');
+    expect(complianceView).toContain("node?.showModal()");
+    expect(complianceView).toContain("<WorkspaceTabs");
+    expect(complianceView).toContain("<FindingsDataTable");
     expect(complianceView).toContain('data-server-compliance-dialog="fixed"');
     expect(complianceView).toContain('data-asset-compliance-dialog="fixed"');
     expect(complianceView).toContain('data-asset-compliance-view="true"');
-    expect(complianceView).toContain("z-[1500]");
     expect(complianceView).toContain('params.set("systemId", systemId)');
-    expect(complianceView).toContain("{assetTypeLabel} Compliance View");
-    expect(complianceView).toContain("h-[calc(100vh-2rem)]");
-    expect(complianceView).toContain("max-h-[56rem]");
-    expect(complianceView).toContain("w-[calc(100vw-2rem)]");
-    expect(complianceView).toContain("max-w-[90rem]");
+    expect(complianceView).toContain('model?.asset.assetTypeLabel ?? "Asset"');
     expect(complianceView).toContain("data-server-compliance-score-tiles");
     expect(complianceView).toContain("Security Posture Indicator breakdown");
     expect(complianceView).toContain("data-server-compliance-spi-breakdown");
@@ -1295,19 +1291,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(measureAction).toContain('type="button"');
     expect(measureAction).toContain("onClick=");
 
-    const escapeHandlerStart = complianceView.indexOf("const handleKeyDown =");
-    const escapeHandlerEnd = complianceView.indexOf(
-      'document.addEventListener("keydown", handleKeyDown, true)',
-      escapeHandlerStart
-    );
-    const escapeHandler = complianceView.slice(escapeHandlerStart, escapeHandlerEnd);
-    const nestedDetailClearIndex = escapeHandler.search(/set[A-Za-z0-9]*Measure[A-Za-z0-9]*\(null\)/);
-    const parentCloseIndex = escapeHandler.indexOf("onClose()");
-    expect(escapeHandlerStart).toBeGreaterThanOrEqual(0);
-    expect(escapeHandlerEnd).toBeGreaterThan(escapeHandlerStart);
-    expect(nestedDetailClearIndex).toBeGreaterThanOrEqual(0);
-    expect(parentCloseIndex).toBeGreaterThan(nestedDetailClearIndex);
-    expect(escapeHandler.slice(nestedDetailClearIndex, parentCloseIndex)).toContain("return;");
+    expect(complianceView).toContain("if (selectedMeasure) closeMeasureDetail(); else onClose()");
   });
 
   it("combines business and mission impact scopes into one tabbed left panel", () => {
@@ -1811,8 +1795,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("openAssetDetails(hit.node)");
     expect(cmdbDrawer).toContain("CMDB Drill Through");
     expect(cmdbDrawer).toContain("Asset details for");
-    expect(cmdbDrawer).toContain("CMDB Record");
-    expect(cmdbDrawer).toContain("Open CMDB record");
+    expect(cmdbDrawer).toContain("details?.attributes ?? []");
+    expect(cmdbDrawer).toContain('href={row.href}');
     expect(cmdbDrawer).toContain('title="Asset Details" rows={tableRows} columns={detailColumns}');
     expect(cmdbDrawer).toContain('label: "Field"');
     expect(cmdbDrawer).toContain("<dialog");
@@ -1949,7 +1933,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(rowBuilder).toContain("cmdbRecordUrl?: string | null");
     expect(rowBuilder).toContain("cmdbRecordUrl: asset.cmdbRecordUrl ?? null");
     expect(cmdbBuilder).toContain("cmdbRecordUrl: asset.cmdbRecordUrl?.trim() || null");
-    expect(cmdbDrawer).toContain("details?.cmdbRecordUrl");
-    expect(cmdbDrawer).toContain("Open CMDB record");
+    const cmdbAttributes = readRepoFile("lib/cmdb-attributes.ts");
+    expect(cmdbAttributes).toContain('key === "cmdbRecordUrl"');
+    expect(cmdbAttributes).toContain("safeExternalUrl(details.cmdbRecordUrl)");
+    expect(cmdbAttributes).toContain("Open CMDB record");
+    expect(cmdbDrawer).toContain("details?.attributes ?? []");
+    expect(cmdbDrawer).toContain("href={row.href}");
   });
 });

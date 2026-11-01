@@ -1,614 +1,235 @@
 "use client";
 
-import { FindingsDataTable } from "@/components/findings-data-table";
-
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
+import { FindingsDataTable } from "@/components/findings-data-table";
+import { WorkspaceTabs } from "@/components/workspace-tabs";
+import { severityBarColors } from "@/components/findings-duration-panel";
+import { findingDurationDays } from "@/lib/findings-duration";
+import type { ExplorerColumn } from "@/lib/explorer-table";
 import type { AssetComplianceModel } from "@/lib/server-compliance";
 
-type ComplianceTab = "overview" | "discovery";
-type WorkflowFilter = "all" | "open" | "closed";
-type AssetComplianceMeasure = AssetComplianceModel["complianceOverview"]["measures"][number];
-type AssetComplianceFinding = AssetComplianceMeasure["findings"][number];
+type Measure = AssetComplianceModel["complianceOverview"]["measures"][number];
+type ComplianceFinding = Measure["findings"][number];
+type DiscoveryTool = AssetComplianceModel["discoveryCompliance"]["tools"][number];
+const tabs = [{ id: "overview", label: "Security Posture" }, { id: "findings", label: "Findings" },
+  { id: "discovery", label: "Discovery Coverage" }] as const;
+type ComplianceTab = typeof tabs[number]["id"];
+const number = (value: number) => value.toLocaleString("en-AU");
+const displayValue = (value: string | null | undefined) => value?.trim() || "Not provided";
+const evidenceText = (items: Measure["evidence"]) => items.map(item => `${item.key}: ${item.value}`).join(" | ");
 
-const findingSeverityOptions = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
-
-function percentage(part: number, whole: number): number {
-  if (!whole) {
-    return 0;
-  }
-  return Number(((part / whole) * 100).toFixed(1));
+function StatusPill({ status }: { status: string }) {
+  const tone = ["Compliant", "Covered", "closed"].includes(status) ? "good"
+    : ["Non-compliant", "Missing"].includes(status) ? "bad" : "unknown";
+  return <span className={`asset-compliance-pill asset-compliance-${tone}`}>{status}</span>;
 }
 
-function complianceStatusClass(status: string): string {
-  if (status === "Compliant" || status === "Covered") {
-    return "border-emerald-300/35 bg-emerald-500/15 text-emerald-100";
-  }
-  if (status === "Non-compliant" || status === "Missing") {
-    return "border-rose-300/35 bg-rose-500/15 text-rose-100";
-  }
-  return "border-slate-300/25 bg-slate-500/15 text-slate-200";
-}
-
-function findingSeverityClass(severity: string): string {
-  if (severity === "Critical Exposure") {
-    return "border-red-400/35 bg-red-500/10 text-red-100";
-  }
-  if (severity === "High Risk") {
-    return "border-orange-400/35 bg-orange-500/10 text-orange-100";
-  }
-  if (severity === "Major") {
-    return "border-amber-400/35 bg-amber-500/10 text-amber-100";
-  }
-  return "border-sky-300/25 bg-sky-500/10 text-sky-100";
-}
-
-function workflowStatusClass(status: "open" | "closed"): string {
-  return status === "open"
-    ? "border-amber-400/45 bg-amber-500/15 text-amber-100"
-    : "border-emerald-400/35 bg-emerald-500/10 text-emerald-100";
-}
-
-function displayValue(value: string | null | undefined): string {
-  return value?.trim() || "Not available";
-}
-
-function formatTimestamp(value: string | null | undefined): string {
-  if (!value) {
-    return "Not available";
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return `${parsed.toLocaleString("en-AU", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC"
-  })} UTC`;
-}
-
-function findingEvidencePreview(finding: AssetComplianceFinding): string {
-  if (!finding.evidence.length) {
-    return "No evidence recorded.";
-  }
-  return finding.evidence.map((item) => `${item.key}: ${item.value}`).join(" | ");
-}
-
-function scoreCardsForModel(model: AssetComplianceModel): [OverviewScoreCard, OverviewScoreCard] {
-  const overview = model.complianceOverview;
-  const discovery = model.discoveryCompliance;
-  return [
-    {
-      title: "Compliance Score",
-      score: overview.score,
-      total: overview.total,
-      contextLabel: `Selected ${model.asset.assetTypeLabel.toLowerCase()} scope | ${overview.openFindingCount} open findings`,
-      segments: [
-        {
-          label: "Compliant",
-          shortLabel: "C",
-          value: overview.compliant,
-          barClassName: "h-full bg-emerald-400/90",
-          chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
-        },
-        {
-          label: "Non-compliant",
-          shortLabel: "NC",
-          value: overview.nonCompliant,
-          barClassName: "h-full bg-rose-400/90",
-          chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
-        },
-        {
-          label: "Unknown",
-          shortLabel: "U",
-          value: overview.unknown,
-          barClassName: "h-full bg-slate-400/90",
-          chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
-        }
-      ]
-    },
-    {
-      title: "Discovery Compliance Score",
-      score: discovery.score,
-      total: discovery.total,
-      contextLabel: discovery.coverageCompliance ? "Current discovery scope | Compliant" : "Current discovery scope | Non-compliant",
-      segments: [
-        {
-          label: "Covered",
-          shortLabel: "C",
-          value: discovery.covered,
-          barClassName: "h-full bg-emerald-400/90",
-          chipClassName: "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
-        },
-        {
-          label: "Missing",
-          shortLabel: "M",
-          value: discovery.missing,
-          barClassName: "h-full bg-rose-400/90",
-          chipClassName: "border-rose-300/25 bg-rose-500/10 text-rose-100"
-        },
-        {
-          label: "Not available",
-          shortLabel: "N/A",
-          value: discovery.notAvailable,
-          barClassName: "h-full bg-slate-400/90",
-          chipClassName: "border-slate-400/25 bg-slate-500/10 text-slate-100"
-        }
-      ]
-    }
-  ];
-}
-
-export function ServerComplianceView({
-  assetId,
-  assetName,
-  systemId,
-  dataDate,
-  dataPath = "/api/cyber-cop/impact-analyser-2/compliance",
-  onClose
-}: {
-  assetId: string;
-  assetName: string;
-  systemId?: string | null;
-  dataDate?: string;
-  dataPath?: string;
-  onClose: () => void;
+function ComplianceBar({ score, counts, labels = ["Compliant", "Non-compliant", "Unknown"], scoredTotal }: {
+  score: number; counts: [number, number, number]; labels?: [string, string, string]; scoredTotal?: number;
 }) {
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  const scoreLabel = (scoredTotal ?? total) > 0 ? `${score}%` : "N/A";
+  return <div className="asset-compliance-bar">
+    <div className="asset-compliance-bar-track" role="img" aria-label={`${scoreLabel}; ${counts.map((value, i) => `${labels[i]}: ${value}`).join(", ")}`}>
+      {counts.map((value, index) => <span key={labels[index]} className={`asset-compliance-segment-${index}`} style={{ width: `${total ? value / total * 100 : 0}%` }} />)}
+      <strong>{scoreLabel}</strong>
+    </div>
+    <ul>{counts.map((value, index) => <li key={labels[index]}><i className={`asset-compliance-segment-${index}`} />{labels[index]} <b>{number(value)}</b></li>)}</ul>
+  </div>;
+}
+
+function Evidence({ items }: { items: Measure["evidence"] }) {
+  return items.length ? <dl className="asset-compliance-evidence">{items.map((item, index) =>
+    <div key={`${item.key}-${index}`}><dt>{item.key}</dt><dd>{item.value}</dd></div>)}</dl> : <p>No evaluation evidence recorded.</p>;
+}
+
+const measureColumns: ExplorerColumn<Measure>[] = [
+  { key: "spi", label: "SPI", value: row => row.label },
+  { key: "status", label: "Observed Result", value: row => row.status },
+  { key: "score", label: "Compliance", value: row => row.total ? `${row.score}%` : "N/A",
+    range: { value: row => row.total ? row.score : null, unit: "%", min: 0, step: 1, sortable: true } },
+  { key: "open", label: "Open Findings", value: row => row.openFindings.length,
+    range: { value: row => row.openFindings.length, unit: "findings", min: 0, step: 1, sortable: true } },
+  { key: "reason", label: "Non-Compliance Reason", value: row => row.topReasons.join(" | ") || "None recorded" }
+];
+const toolColumns: ExplorerColumn<DiscoveryTool>[] = [
+  { key: "name", label: "Discovery Tool", value: row => row.name },
+  { key: "status", label: "Coverage", value: row => row.status },
+  { key: "value", label: "Source Value", value: row => row.value ?? "Not available" },
+  { key: "owner", label: "EL2 Owner", value: row => displayValue(row.el2Owner) },
+  { key: "manager", label: "EL2 Operations Manager", value: row => displayValue(row.el2OperationsManager) }
+];
+
+function ComplianceFindingsTable({ findings, snapshotDate, onMeasure }: {
+  findings: ComplianceFinding[]; snapshotDate: string; onMeasure?: (spiId: number) => void;
+}) {
+  const columns = useMemo<ExplorerColumn<ComplianceFinding>[]>(() => [
+    ...(onMeasure ? [{ key: "spi", label: "SPI", value: (row: ComplianceFinding) => row.measureLabel }] : []),
+    { key: "priority", label: "Priority", value: row => row.priorityRank > 0 ? `P${row.priorityRank}` : "Not assigned" },
+    { key: "severity", label: "Severity", value: row => row.severity },
+    { key: "finding", label: "Finding & Evidence", value: row => row.title },
+    { key: "status", label: "Status", value: row => row.status },
+    { key: "timestamp", label: "Timestamp", value: row => row.timestampLabel },
+    { key: "duration", label: "Duration", value: row => {
+      const days = findingDurationDays(row, snapshotDate); return days === null ? row.status === "closed" ? "Closed" : "Unknown" : `${days} days`;
+    }, range: { value: row => findingDurationDays(row, snapshotDate), unit: "days", min: 0, step: 1, sortable: true } }
+  ], [snapshotDate, onMeasure]);
+  return <div className="asset-compliance-table asset-compliance-findings-table">
+    <FindingsDataTable title="Findings and evidence" rows={findings} columns={columns} paginate={false}
+      initialFilters={{ search: "", columns: findings.some(row => row.status === "open") ? { status: ["open"] } : {} }}
+      searchText={row => `${row.id} ${row.recommendedAction} ${evidenceText(row.evidence)} ${row.evidencePreview}`}
+      emptyMessage="No findings were generated in this scope. SPI evaluations are shown on the Security Posture tab."
+      renderRow={row => <tr key={row.id}>
+        {onMeasure && <td><button type="button" className="asset-compliance-link" onClick={() => onMeasure(row.spiId)}>{row.measureLabel}</button></td>}
+        <td>{row.priorityRank > 0 ? `P${row.priorityRank}` : "Not assigned"}</td>
+        <td><span className="asset-compliance-severity" style={{ borderColor: severityBarColors[row.severity] ?? "#94a3b8" }}>{row.severity}</span></td>
+        <td><details className="asset-compliance-finding"><summary>{row.title}</summary>
+          <p className="asset-compliance-muted">Finding {row.id}{row.status === "closed" && row.closedTimestampLabel ? ` · Closed ${row.closedTimestampLabel}` : ""}</p>
+          <h4>Evidence</h4><Evidence items={row.evidence} />
+          <h4>Remediation action</h4><p>{row.recommendedAction || "No remediation action recorded."}</p>
+        </details></td>
+        <td><StatusPill status={row.status} /></td><td className="asset-compliance-nowrap">{row.timestampLabel}</td>
+        <td className="asset-compliance-nowrap">{columns[columns.length - 1].value(row)}</td>
+      </tr>} />
+  </div>;
+}
+
+export function ServerComplianceView({ assetId, assetName, systemId, dataDate,
+  dataPath = "/api/cyber-cop/impact-analyser-2/compliance", onClose
+}: { assetId: string; assetName: string; systemId?: string | null; dataDate?: string; dataPath?: string; onClose: () => void }) {
+  const id = useId();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const backButton = useRef<HTMLButtonElement>(null);
+  const measureTrigger = useRef<HTMLElement | null>(null);
+  const detailOrigin = useRef<ComplianceTab>("overview");
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<ComplianceTab>("overview");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [model, setModel] = useState<AssetComplianceModel | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [retryKey, setRetryKey] = useState(0);
-  const [selectedMeasure, setSelectedMeasure] = useState<AssetComplianceMeasure | null>(null);
-  const [workflowFilter, setWorkflowFilter] = useState<WorkflowFilter>("all");
-  const [severityFilter, setSeverityFilter] = useState("all");
-  const [findingSearch, setFindingSearch] = useState("");
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const selectedMeasureRef = useRef<AssetComplianceMeasure | null>(null);
-
+  const [selectedMeasure, setSelectedMeasure] = useState<Measure | null>(null);
+  const [findingsViewKey, setFindingsViewKey] = useState(0);
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ assetId });
-    if (dataDate) {
-      params.set("dataDate", dataDate);
-    }
-    if (systemId) {
-      params.set("systemId", systemId);
-    }
+    if (dataDate) params.set("dataDate", dataDate);
+    if (systemId) params.set("systemId", systemId);
     return `${dataPath}?${params.toString()}`;
   }, [assetId, dataDate, dataPath, systemId]);
+  const sortedMeasures = useMemo(() => [...(model?.complianceOverview.measures ?? [])].sort(
+    (left, right) => left.score - right.score || right.nonCompliant - left.nonCompliant || left.spiId - right.spiId
+  ), [model]);
 
-  const sortedMeasures = useMemo(
-    () =>
-      [...(model?.complianceOverview.measures ?? [])].sort(
-        (left, right) => right.score - left.score || left.spiId - right.spiId
-      ),
-    [model?.complianceOverview.measures]
-  );
+  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    if (!mounted) return;
+    const node = dialog.current;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const overflow = document.body.style.overflow;
+    node?.showModal(); document.body.style.overflow = "hidden";
+    return () => { node?.close(); document.body.style.overflow = overflow; trigger?.focus(); };
+  }, [mounted]);
 
-  const selectedMeasureFindings = useMemo(() => selectedMeasure?.findings ?? [], [selectedMeasure]);
-  const filteredFindings = useMemo(() => {
-    const normalizedSearch = findingSearch.trim().toLowerCase();
-    return selectedMeasureFindings.filter((finding) => {
-      if (workflowFilter !== "all" && finding.status !== workflowFilter) {
-        return false;
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoadState("loading"); setModel(null); setErrorMessage(""); setSelectedMeasure(null); setActiveTab("overview");
+    fetch(requestUrl, { cache: "no-store", signal: controller.signal }).then(async response => {
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || `Unable to load asset compliance (${response.status}).`);
       }
-      if (severityFilter !== "all" && finding.severity !== severityFilter) {
-        return false;
-      }
-      if (!normalizedSearch) {
-        return true;
-      }
-      return [
-        finding.id,
-        finding.title,
-        finding.severity,
-        finding.status,
-        finding.complianceStatus,
-        findingEvidencePreview(finding),
-        finding.recommendedAction
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedSearch);
+      return response.json() as Promise<AssetComplianceModel>;
+    }).then(payload => {
+      if (!controller.signal.aborted) { setModel(payload); setLoadState("ready"); }
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) { setErrorMessage(error instanceof Error ? error.message : "Unable to load asset compliance."); setLoadState("error"); }
     });
-  }, [findingSearch, selectedMeasureFindings, severityFilter, workflowFilter]);
-
-  useEffect(() => {
-    selectedMeasureRef.current = selectedMeasure;
-  }, [selectedMeasure]);
-
-  useEffect(() => {
-    const abortController = new AbortController();
-    setLoadState("loading");
-    setErrorMessage("");
-    fetch(requestUrl, { cache: "no-store", signal: abortController.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(payload?.error || `Request failed with ${response.status}`);
-        }
-        return response.json() as Promise<AssetComplianceModel>;
-      })
-      .then((payload) => {
-        setModel(payload);
-        setLoadState("ready");
-      })
-      .catch((error: unknown) => {
-        if (abortController.signal.aborted) {
-          return;
-        }
-        setErrorMessage(error instanceof Error ? error.message : "Unable to load asset compliance.");
-        setLoadState("error");
-      });
-    return () => abortController.abort();
+    return () => controller.abort();
   }, [requestUrl, retryKey]);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || (event.target instanceof Element && event.target.closest(".endpoint-filter-popup"))) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      if (selectedMeasureRef.current) {
-        setSelectedMeasure(null);
-        return;
-      }
-      onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [onClose]);
-
-  const openMeasureDetail = (measure: AssetComplianceMeasure) => {
-    setSelectedMeasure(measure);
-    setWorkflowFilter(measure.findings.some((finding) => finding.status === "open") ? "open" : "all");
-    setSeverityFilter("all");
-    setFindingSearch("");
-  };
-
-  const selectTab = (tab: ComplianceTab) => {
-    setActiveTab(tab);
-    setSelectedMeasure(null);
-  };
-
-  if (typeof document === "undefined") {
-    return null;
+  useEffect(() => { if (selectedMeasure) backButton.current?.focus(); }, [selectedMeasure]);
+  function openMeasureDetail(measure: Measure) {
+    measureTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    detailOrigin.current = activeTab; setSelectedMeasure(measure); setActiveTab("overview");
   }
-
-  const titleId = `server-compliance-title-${assetId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  function closeMeasureDetail() {
+    setSelectedMeasure(null); setActiveTab(detailOrigin.current);
+    requestAnimationFrame(() => measureTrigger.current?.focus());
+  }
+  function selectTab(tab: ComplianceTab) { setActiveTab(tab); setSelectedMeasure(null); }
+  if (!mounted) return null;
   const overview = model?.complianceOverview;
   const discovery = model?.discoveryCompliance;
-  const scoreCards = model ? scoreCardsForModel(model) : null;
-  const assetTypeLabel = model?.asset.assetTypeLabel ?? "Asset";
-  const assetTypeScopeLabel = assetTypeLabel.toLowerCase();
 
-  return createPortal(
-    <div
-      data-server-compliance-view="true"
-      data-asset-compliance-view="true"
-      data-asset-id={assetId}
-      data-load-state={loadState}
-      className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-950/78 p-4 backdrop-blur-[2px]"
-    >
-      <section
-        data-server-compliance-dialog="fixed"
-        data-asset-compliance-dialog="fixed"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="flex h-[calc(100vh-2rem)] max-h-[56rem] w-[calc(100vw-2rem)] max-w-[90rem] flex-col overflow-hidden rounded-xl border border-cyan-300/35 bg-slate-950 shadow-[0_24px_80px_rgba(0,0,0,0.75)]"
-      >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-sky-300/15 bg-slate-900/90 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/70">{assetTypeLabel} Compliance View</p>
-            <h2 id={titleId} className="mt-1 truncate text-lg font-semibold text-slate-50">
-              {model?.asset.name || assetName}
-            </h2>
-            <p className="mt-1 truncate text-xs text-slate-300/75">
-              {model
-                ? `${displayValue(model.asset.hostname)} | ${displayValue(model.asset.ipAddress)} | ${displayValue(model.asset.environmentType)} | Snapshot ${model.snapshotDate}`
-                : "Loading compliance and discovery evidence..."}
-            </p>
-            {model ? (
-              <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                Asset Type: {assetTypeLabel} | ICT System: {displayValue(model.asset.systemName)} | Network: {displayValue(model.asset.networkName)} | Security Domain: {displayValue(model.asset.securityDomain)}
-              </p>
-            ) : null}
+  return createPortal(<dialog ref={dialog} className="settings-popup asset-compliance-popup"
+    data-server-compliance-view="true" data-asset-compliance-view="true" data-server-compliance-dialog="fixed" data-asset-compliance-dialog="fixed"
+    data-asset-id={assetId} data-load-state={loadState} aria-labelledby={`${id}-title`}
+    onCancel={event => { event.preventDefault(); if (selectedMeasure) closeMeasureDetail(); else onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="settings-popup-frame">
+      <header className="asset-compliance-header"><div>
+        <p className="endpoint-eyebrow">{model?.asset.assetTypeLabel ?? "Asset"} Compliance View</p>
+        <h2 id={`${id}-title`}>{model?.asset.name || assetName}</h2>
+        <p className="asset-compliance-muted">{model ? `${displayValue(model.asset.hostname)} · ${displayValue(model.asset.ipAddress)} · Snapshot ${model.snapshotDate}`
+          : loadState === "loading" ? "Loading selected asset…" : dataDate ? `Snapshot ${dataDate}` : "Selected asset"}</p>
+      </div><button type="button" className="asset-compliance-button" autoFocus onClick={onClose}>Close</button></header>
+      <div className="asset-compliance-nav"><WorkspaceTabs id={id} label="Asset compliance views" tabs={tabs} active={activeTab} onChange={selectTab} /></div>
+      <div className="asset-compliance-body" aria-busy={loadState === "loading"}>
+        {loadState === "loading" && <div className="asset-compliance-placeholder" role="status">Loading compliance and discovery results…</div>}
+        {loadState === "error" && <div className="asset-compliance-placeholder" role="alert"><h3>Unable to load compliance</h3><p>{errorMessage}</p>
+          <button type="button" className="asset-compliance-button" onClick={() => setRetryKey(value => value + 1)}>Retry</button></div>}
+        {loadState === "ready" && model && overview && discovery && <>
+          <details hidden={!!selectedMeasure} className="asset-compliance-context"><summary>Asset context <span>{displayValue(model.asset.networkName)} · {displayValue(model.asset.systemName)}</span></summary>
+            <dl><div><dt>Network</dt><dd>{displayValue(model.asset.networkName)}</dd></div><div><dt>ICT System</dt><dd>{displayValue(model.asset.systemName)}</dd></div>
+              <div><dt>Environment</dt><dd>{displayValue(model.asset.environmentType)}</dd></div><div><dt>Security Domain</dt><dd>{displayValue(model.asset.securityDomain)}</dd></div></dl>
+          </details>
+          <div hidden={!!selectedMeasure} data-server-compliance-score-tiles="true" className="asset-compliance-summaries">
+            <section><div className="asset-compliance-summary-title"><h3>Security posture</h3><button type="button" className="asset-compliance-link" onClick={() => { setFindingsViewKey(value => value + 1); selectTab("findings"); }}>{number(overview.openFindingCount)} open findings →</button></div>
+              <ComplianceBar score={overview.score} counts={[overview.compliant, overview.nonCompliant, overview.unknown]} />
+              <p>{number(overview.total)} SPI evaluations for this asset. Unknown results remain in the score.</p></section>
+            <section><div className="asset-compliance-summary-title"><h3>Discovery coverage</h3><StatusPill status={discovery.total ? discovery.coverageCompliance ? "Compliant" : "Non-compliant" : "Not available"} /></div>
+              <ComplianceBar score={discovery.score} counts={[discovery.covered, discovery.missing, discovery.notAvailable]} labels={["Covered", "Missing", "Not available"]} scoredTotal={discovery.covered + discovery.missing} />
+              <p>Score uses covered and missing sources; unavailable values are excluded.</p></section>
           </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            aria-label={`Close ${assetTypeLabel} Compliance`}
-            onClick={onClose}
-            className="shrink-0 rounded-md border border-rose-300/45 bg-rose-500/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-rose-100 hover:border-rose-200/70 hover:bg-rose-500/25"
-          >
-            Close
-          </button>
-        </header>
 
-        <div className="flex shrink-0 gap-1 border-b border-sky-300/15 bg-slate-950 px-4 pt-2" role="tablist" aria-label={`${assetTypeLabel} compliance sections`}>
-          {([
-            ["overview", "Compliance Overview"],
-            ["discovery", "Discovery Compliance"]
-          ] as const).map(([tabId, label]) => (
-            <button
-              key={tabId}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tabId}
-              onClick={() => selectTab(tabId)}
-              className={`rounded-t-md border border-b-0 px-3 py-2 text-xs font-semibold ${
-                activeTab === tabId
-                  ? "border-cyan-300/40 bg-cyan-500/15 text-cyan-100"
-                  : "border-sky-300/15 bg-slate-900/55 text-slate-300 hover:text-slate-100"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-hidden p-3">
-          {loadState === "loading" ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-sky-300/15 bg-slate-900/45 text-sm text-slate-300">
-              Loading Compliance View...
+          <section id={`${id}-panel-overview`} role="tabpanel" aria-labelledby={`${id}-tab-overview`} hidden={activeTab !== "overview"} className="asset-compliance-tab-panel">
+            <div hidden={!!selectedMeasure} className="asset-compliance-spi-list" data-server-compliance-spi-breakdown="true">
+              <p className="asset-compliance-note">Security Posture Indicator breakdown · Lowest compliance first. Select an SPI to review its findings, evidence and remediation actions.</p>
+              <div className="asset-compliance-table"><FindingsDataTable title="Security Posture Indicators" rows={sortedMeasures} columns={measureColumns} paginate={false}
+                searchText={row => `${row.reasons.join(" ")} ${evidenceText(row.evidence)}`}
+                emptyMessage="No SPI evaluations are available for this asset in the selected snapshot."
+                renderRow={row => <tr key={row.spiId}><td><button type="button" className="asset-compliance-link" data-server-compliance-measure-action={row.spiId} onClick={() => openMeasureDetail(row)}>{row.label}</button></td>
+                  <td><StatusPill status={row.status} /></td><td><ComplianceBar score={row.score} counts={[row.compliant, row.nonCompliant, row.unknown]} /></td>
+                  <td><button type="button" className="asset-compliance-link" onClick={() => openMeasureDetail(row)} aria-label={`${row.openFindings.length} open findings for ${row.label}`}>{number(row.openFindings.length)}</button></td>
+                  <td className="asset-compliance-reason">{row.topReasons[0] || "None recorded"}{row.reasons.length > 1 && <small>+{row.reasons.length - 1} more in SPI details</small>}</td></tr>} /></div>
             </div>
-          ) : loadState === "error" ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-rose-300/25 bg-rose-950/35 p-6 text-center">
-              <p className="text-sm text-rose-100">{errorMessage}</p>
-              <button
-                type="button"
-                onClick={() => setRetryKey((current) => current + 1)}
-                className="rounded-md border border-cyan-300/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25"
-              >
-                Retry
-              </button>
-            </div>
-          ) : model && overview && discovery && scoreCards ? (
-            <div className="flex h-full min-h-0 flex-col">
-              <div data-server-compliance-score-tiles="true" className="grid shrink-0 gap-2 lg:grid-cols-2">
-                {scoreCards.map((card) => <OverviewScoreCardTile key={card.title} card={card} />)}
-              </div>
-
-              <div className="relative mt-3 min-h-0 flex-1 overflow-hidden">
-                {activeTab === "overview" ? (
-                  <div data-server-compliance-section="overview" className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-900/45">
-                    <div className="shrink-0 border-b border-sky-300/15 px-4 py-3">
-                      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Security Posture Indicator breakdown</h3>
-                      <p className="mt-1 text-xs text-slate-300/75">
-                        SPI-level contribution to the score with status mix, impacted assets and non-compliance reasons.
-                      </p>
-                    </div>
-                    <div data-server-compliance-spi-breakdown="true" className="min-h-0 flex-1 overflow-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="sticky top-0 z-[1] bg-slate-900/95 text-left text-xs uppercase tracking-[0.12em] text-slate-300/80">
-                          <tr>
-                            <th className="px-3 py-2">Security Posture Indicator</th>
-                            <th className="px-3 py-2">Score</th>
-                            <th className="px-3 py-2">Status Mix</th>
-                            <th className="px-3 py-2">Impacted Assets</th>
-                            <th className="px-3 py-2">Top Non-Compliance Reason</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortedMeasures.map((measure) => {
-                            const compliantPercent = percentage(measure.compliant, measure.total);
-                            const nonCompliantPercent = percentage(measure.nonCompliant, measure.total);
-                            const unknownPercent = percentage(measure.unknown, measure.total);
-                            return (
-                              <tr key={measure.spiId} className="border-t border-sky-400/10">
-                                <td className="px-3 py-2 text-slate-100">
-                                  <button
-                                    type="button"
-                                    data-server-compliance-measure-action={measure.spiId}
-                                    onClick={() => openMeasureDetail(measure)}
-                                    className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
-                                  >
-                                    {measure.label}
-                                  </button>
-                                </td>
-                                <td className="px-3 py-2 text-slate-100">{measure.score}%</td>
-                                <td className="px-3 py-2">
-                                  <div className="w-[220px] max-w-full">
-                                    <div className="overflow-hidden rounded-full border border-sky-300/20 bg-slate-950/60">
-                                      <div className="flex h-2.5 w-full">
-                                        <div className="bg-emerald-400/80" style={{ width: `${compliantPercent}%` }} />
-                                        <div className="bg-red-400/80" style={{ width: `${nonCompliantPercent}%` }} />
-                                        <div className="bg-slate-400/70" style={{ width: `${unknownPercent}%` }} />
-                                      </div>
-                                    </div>
-                                    <p className="mt-1 text-[11px] text-slate-300/75">
-                                      C {measure.compliant} | NC {measure.nonCompliant} | U {measure.unknown}
-                                    </p>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2 text-slate-200">{measure.impactedAssets}</td>
-                                <td className="px-3 py-2 text-xs text-slate-300/85">{measure.topReasons[0] ?? "-"}</td>
-                              </tr>
-                            );
-                          })}
-                          {!sortedMeasures.length ? (
-                            <tr>
-                              <td colSpan={5} className="px-3 py-8 text-center text-sm text-slate-300/80">No SPI data is available for this {assetTypeScopeLabel}.</td>
-                            </tr>
-                          ) : null}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div data-server-compliance-section="discovery" className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-                    <section className="shrink-0 rounded-lg border border-sky-300/15 bg-slate-900/45 p-3">
-                      <div className="flex items-end justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Discovery Tool Coverage</h3>
-                          <p className="mt-1 text-xs text-slate-300/75">Required discovery sources for the selected {assetTypeScopeLabel}.</p>
-                        </div>
-                        <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${complianceStatusClass(discovery.coverageCompliance ? "Compliant" : "Non-compliant")}`}>
-                          {discovery.coverageCompliance ? "Coverage compliant" : "Coverage non-compliant"}
-                        </span>
-                      </div>
-                      <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-2">
-                        {discovery.tools.map((tool) => {
-                          const coveragePercent = tool.status === "Covered" ? 100 : 0;
-                          return (
-                            <article key={`server-discovery-card-${tool.id}`} className="rounded-lg border border-sky-300/20 bg-slate-950/50 p-2.5">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200" title={tool.name}>{tool.name}</p>
-                                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${complianceStatusClass(tool.status)}`}>{tool.status}</span>
-                              </div>
-                              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800/90">
-                                <div className={`h-full ${tool.status === "Covered" ? "bg-emerald-400" : tool.status === "Missing" ? "bg-red-400" : "bg-slate-500"}`} style={{ width: tool.status === "Not available" ? "100%" : `${coveragePercent}%` }} />
-                              </div>
-                              <p className="mt-2 text-[11px] text-slate-300/75">
-                                {tool.status === "Not available" ? "No source value available" : `${coveragePercent}% covered for this ${assetTypeScopeLabel}`}
-                              </p>
-                            </article>
-                          );
-                        })}
-                      </div>
-                    </section>
-
-                    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-900/45">
-                      <div className="shrink-0 border-b border-sky-300/15 px-4 py-2.5">
-                        <h3 className="text-sm font-semibold text-slate-100">Discovery source details</h3>
-                        <p className="text-[11px] text-slate-300/70">Coverage status, value and operational ownership.</p>
-                      </div>
-                      {discovery.tools.length ? (
-                        <div className="min-h-0 flex-1 overflow-auto">
-                          <table className="min-w-full text-left text-xs">
-                            <thead className="sticky top-0 z-[1] bg-slate-950/95 text-[10px] uppercase tracking-[0.12em] text-slate-300/70">
-                              <tr>
-                                <th className="px-3 py-2">Discovery Tool</th>
-                                <th className="px-3 py-2">Status</th>
-                                <th className="px-3 py-2">Value</th>
-                                <th className="px-3 py-2">EL2 Owner</th>
-                                <th className="px-3 py-2">EL2 Operations Manager</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-sky-300/10">
-                              {discovery.tools.map((tool) => (
-                                <tr key={tool.id} className="align-top text-slate-200">
-                                  <td className="px-3 py-2">
-                                    <p className="font-medium text-slate-100">{tool.name}</p>
-                                    <p className="mt-0.5 max-w-lg text-[11px] text-slate-400">{tool.description || "No description recorded."}</p>
-                                  </td>
-                                  <td className="px-3 py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${complianceStatusClass(tool.status)}`}>{tool.status}</span></td>
-                                  <td className="px-3 py-2 text-slate-300/85">{tool.value === null ? "N/A" : tool.value}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{displayValue(tool.el2Owner)}</td>
-                                  <td className="px-3 py-2 text-slate-300/85">{displayValue(tool.el2OperationsManager)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : <p className="px-3 py-8 text-center text-sm text-slate-400">No discovery tools apply to this {assetTypeScopeLabel}.</p>}
-                    </section>
-                  </div>
-                )}
-
-                {selectedMeasure ? (
-                  <section
-                    data-server-compliance-measure-detail="true"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="SPI Findings and Evidence"
-                    className="findings-drillthrough absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden rounded-lg border border-cyan-300/35 bg-slate-950 shadow-[0_18px_48px_rgba(0,0,0,0.7)]"
-                  >
-                    <div className="flex shrink-0 items-start justify-between gap-4 border-b border-sky-300/15 bg-slate-900/90 px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-[0.14em] text-slate-300/75">Compliance Detail</p>
-                        <h4 className="mt-1 text-lg font-semibold text-slate-100">Findings and Evidence</h4>
-                        <p className="mt-1 truncate text-xs text-slate-300/80">Selected SPI: {selectedMeasure.label}</p>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label="Close Security Posture Indicator Detail"
-                        onClick={() => setSelectedMeasure(null)}
-                        className="shrink-0 rounded-md border border-sky-300/35 px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-slate-200 hover:border-sky-200/60 hover:text-sky-100"
-                      >
-                        Close
-                      </button>
-                    </div>
-
-                    <div className="grid shrink-0 gap-2 border-b border-sky-300/10 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem_11rem]">
-                      <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 p-2.5">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-slate-300/70">Evaluation Evidence</p>
-                        <p className="mt-1 line-clamp-2 text-xs text-slate-200">
-                          {selectedMeasure.evidence.length
-                            ? selectedMeasure.evidence.map((item) => `${item.key}: ${item.value}`).join(" | ")
-                            : "No evaluation evidence recorded."}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-sky-300/15 bg-slate-900/55 p-2.5">
-                        <p className="text-[10px] uppercase tracking-[0.12em] text-slate-300/70">Non-Compliance Reasons</p>
-                        <p className="mt-1 line-clamp-2 text-xs text-slate-200">{selectedMeasure.topReasons.join(" | ") || "No non-compliance reasons recorded."}</p>
-                      </div>
-                      <div>
-                        <label htmlFor="server-spi-workflow-filter" className="text-[10px] uppercase tracking-[0.12em] text-slate-300/70">Workflow Status</label>
-                        <select id="server-spi-workflow-filter" value={workflowFilter} onChange={(event) => setWorkflowFilter(event.target.value as WorkflowFilter)} className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-2 py-2 text-xs text-slate-100">
-                          <option value="all">All</option><option value="open">Open</option><option value="closed">Closed</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label htmlFor="server-spi-severity-filter" className="text-[10px] uppercase tracking-[0.12em] text-slate-300/70">Findings Severity</label>
-                        <select id="server-spi-severity-filter" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-2 py-2 text-xs text-slate-100">
-                          <option value="all">All</option>
-                          {findingSeverityOptions.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 px-3 pb-3">
-                      <label htmlFor="server-spi-findings-search" className="text-[10px] uppercase tracking-[0.12em] text-slate-300/70">Text Search</label>
-                      <input id="server-spi-findings-search" type="search" value={findingSearch} onChange={(event) => setFindingSearch(event.target.value)} placeholder="Search title, severity, evidence or recommended action..." className="mt-1 w-full rounded-md border border-sky-400/20 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-400/70" />
-                    </div>
-
-                    <div className="findings-table-host"><FindingsDataTable title="Findings and evidence" rows={filteredFindings} searchable={false}
-columns={[{ key: "severity", label: "Severity", value: (finding) => finding.severity },
-{ key: "timestamp", label: "Timestamp", value: (finding) => formatTimestamp(finding.timestamp) },
-{ key: "title", label: "Title", value: (finding) => finding.title },
-{ key: "status", label: "Status", value: (finding) => finding.status },
-{ key: "evidence", label: "Evidence", value: (finding) => findingEvidencePreview(finding) },
-{ key: "recommended-action", label: "Recommended Action", value: (finding) => finding.recommendedAction }]}
-
-emptyMessage={<>{selectedMeasureFindings.length ? "No findings match the active filters." : `No findings were generated for this SPI in the selected ${assetTypeScopeLabel} scope.`}</>}
-renderRow={(finding) => (
-                            <tr key={finding.id} className="border-t border-sky-400/10 align-top">
-                              <td className="px-3 py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${findingSeverityClass(finding.severity)}`}>{finding.severity}</span></td>
-                              <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-300/85">{formatTimestamp(finding.timestamp)}</td>
-                              <td className="px-3 py-2 text-slate-100">{finding.title}</td>
-                              <td className="px-3 py-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${workflowStatusClass(finding.status)}`}>{finding.status}</span></td>
-                              <td className="max-w-sm px-3 py-2 text-xs text-slate-300/85">{findingEvidencePreview(finding)}</td>
-                              <td className="max-w-sm px-3 py-2 text-xs text-slate-300/85">{finding.recommendedAction || "No recommended action recorded."}</td>
-                            </tr>
-                          )} /></div>
-                  </section>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </section>
-    </div>,
-    document.body
-  );
+            {selectedMeasure && <section data-server-compliance-measure-detail="true" className="asset-compliance-detail" aria-label="SPI Findings and Evidence">
+              <div className="asset-compliance-detail-heading"><button ref={backButton} type="button" className="asset-compliance-button" onClick={closeMeasureDetail}>← Back to {detailOrigin.current === "findings" ? "findings" : "SPIs"}</button>
+                <h3>{selectedMeasure.label}</h3><StatusPill status={selectedMeasure.status} /></div>
+              <details className="asset-compliance-evaluation"><summary>Evaluation evidence & non-compliance reasons</summary>
+                <div><section><h4>Evaluation evidence</h4><Evidence items={selectedMeasure.evidence} /></section>
+                  <section><h4>Non-compliance reasons</h4>{selectedMeasure.reasons.length ? <ul>{selectedMeasure.reasons.map((reason, i) => <li key={i}>{reason}</li>)}</ul> : <p>No non-compliance reasons recorded.</p>}</section></div>
+              </details>
+              <p className="asset-compliance-note">Expand a finding for evidence and its remediation action. Use the Status column to include closed findings. Duration is days open at snapshot {model.snapshotDate}.</p>
+              <ComplianceFindingsTable key={selectedMeasure.spiId} findings={selectedMeasure.findings} snapshotDate={model.snapshotDate} />
+            </section>}
+          </section>
+          <section id={`${id}-panel-findings`} role="tabpanel" aria-labelledby={`${id}-tab-findings`} hidden={activeTab !== "findings"} className="asset-compliance-tab-panel">
+            <p className="asset-compliance-note">Use column filters to include open or closed findings, narrow severity or priority, and filter or sort Duration. Expand a finding for evidence and remediation.</p>
+            <ComplianceFindingsTable key={findingsViewKey} findings={overview.findings} snapshotDate={model.snapshotDate} onMeasure={spiId => {
+              const measure = overview.measures.find(row => row.spiId === spiId); if (measure) openMeasureDetail(measure);
+            }} />
+          </section>
+          <section id={`${id}-panel-discovery`} role="tabpanel" aria-labelledby={`${id}-tab-discovery`} hidden={activeTab !== "discovery"} className="asset-compliance-tab-panel">
+            <p className="asset-compliance-note">Discovery sources applicable to this asset type. Filter Coverage to find missing or unavailable sources; ownership details identify who to contact.</p>
+            <div className="asset-compliance-table"><FindingsDataTable title="Discovery source details" rows={discovery.tools} columns={toolColumns} paginate={false} searchText={row => row.description}
+              emptyMessage="No discovery tools apply to this asset type."
+              renderRow={row => <tr key={row.id}><td><strong>{row.name}</strong><small>{row.description || "No description recorded."}</small></td>
+                <td><StatusPill status={row.status} /></td><td>{row.value ?? "Not available"}</td><td>{displayValue(row.el2Owner)}</td><td>{displayValue(row.el2OperationsManager)}</td></tr>} /></div>
+          </section>
+        </>}
+      </div>
+    </div>
+  </dialog>, document.body);
 }

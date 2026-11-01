@@ -17,10 +17,10 @@ describe("workspace scope", () => {
     const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
     const hiddenHrefs = (query: string) => items.filter((item) => !isWorkspaceItemVisible(item, new URLSearchParams(query))).map((item) => item.href);
     expect(hiddenHrefs("network=net-a,net-b")).toEqual([
-      "/cyber-cop?copView=ict-system-impact-analyser", "/ict-system-risk-profile"
+      "/ict-system-risk-profile", "/cyber-cop?copView=ict-system-impact-analyser"
     ]);
     expect(hiddenHrefs("system=sys-a,sys-b")).toEqual([
-      "/cyber-cop?copView=network-impact-analyser", "/network-risk-profile"
+      "/network-risk-profile", "/cyber-cop?copView=network-impact-analyser"
     ]);
     expect(hiddenHrefs("")).toEqual([]);
   });
@@ -145,7 +145,7 @@ describe("workspace scope", () => {
     }
     for (const retiredView of ["action", "networks-spi-heatmap", "systems-spi-heatmap"]) {
       expect(resolveCopView(retiredView)).toBe("overview");
-      expect(activeWorkspaceItem("/cyber-cop", new URLSearchParams(`copView=${retiredView}&network=net-a`))?.href).toBe("/cyber-cop");
+      expect(activeWorkspaceItem("/cyber-cop", new URLSearchParams(`copView=${retiredView}&network=net-a`))).toBeUndefined();
       expect(WORKSPACE_GROUPS.flatMap(group => group.items).some(item => item.href.includes(`copView=${retiredView}`))).toBe(false);
     }
   });

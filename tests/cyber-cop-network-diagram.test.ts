@@ -25,8 +25,8 @@ describe("Cyber COP SPI driver drill-through", () => {
     expect(exportedDrillThrough).toContain("const affectedAssetsByTypeRows = useMemo");
     expect(exportedDrillThrough).toContain("for (const finding of filteredFindings)");
     expect(exportedDrillThrough).toContain("const assetKey = finding.assetId");
-    expect(riskCharts).toContain('className="min-w-[134rem] table-fixed text-sm"');
-    expect(riskCharts).toContain('<col className="w-[18rem]" />');
+    expect(riskCharts).toContain('<FindingsDataTable title="Findings"');
+    expect(riskCharts).toContain('<FindingsDataTable title="Affected CIs"');
     expect(riskCharts).toContain("whitespace-nowrap px-3 py-2");
 
     expect(dashboard).toContain("RiskFindingsDrillThrough");

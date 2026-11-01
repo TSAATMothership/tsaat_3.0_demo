@@ -1,4 +1,6 @@
 import type { ComplianceHeatmapModel } from "@/lib/compliance-heatmap";
+import type { NetworkDetailsModel } from "@/lib/network-details";
+import type { IctSystemDetailsModel } from "@/lib/ict-system-details";
 import { findingDurationDays, findingsByDuration } from "@/lib/findings-duration";
 import { measuresScopeParams } from "@/lib/measures-explorer";
 import type { SeverityDefinition } from "@/lib/spi-definitions";
@@ -108,6 +110,8 @@ export type RiskProfileRow = ReturnType<typeof summarizeRiskAssets> & {
   owner: string; description: string; context: string;
   systemCount?: number; discoveryStatus?: NetworkDiscoveryStatus;
   networkCount?: number; atoNumber?: string; diisId?: string;
+  networkDetails?: NetworkDetailsModel;
+  systemDetails?: IctSystemDetailsModel;
 };
 export type RiskProfileModel = ReturnType<typeof summarizeRiskFindings> & Pick<ReturnType<typeof summarizeRiskAssets>, "ciCount" | "spi" | "discovery" | "unassessedCis"> & {
   kind: RiskProfileKind; snapshotDate: string; rows: RiskProfileRow[]; entityCount: number; compliantCount: number;

@@ -73,7 +73,7 @@ describe("route loading readiness", () => {
       expect(source, pagePath).toContain(markerPath);
     }
 
-    expect(readRepoFile("app/networks/[networkId]/page.tsx")).toContain("RouteReadyMarker");
-    expect(readRepoFile("app/systems/[systemId]/page.tsx")).toContain("RouteReadyMarker");
+    expect(readRepoFile("app/networks/[networkId]/page.tsx")).toContain("redirect(networkDetailsHref(");
+    expect(readRepoFile("app/systems/[systemId]/page.tsx")).toContain("redirect(ictSystemDetailsHref(");
   });
 });
