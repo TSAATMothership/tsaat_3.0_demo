@@ -29,13 +29,28 @@ export function sameWorkspaceScope(left: URLSearchParams, right: URLSearchParams
 }
 
 function workspaceViewPathname(pathname: string): string {
-  return pathname.startsWith("/networks/") ? "/networks"
-    : pathname.startsWith("/systems/") ? "/systems" : pathname;
+  return pathname === "/networks" || pathname.startsWith("/networks/") ? "/network-risk-profile"
+    : pathname === "/systems" || pathname.startsWith("/systems/") ? "/ict-system-risk-profile" : pathname;
 }
 
 /** Apply a pending selection to the current sidebar view, preserving its local tab and date. */
 export function workspaceScopeUpdateHref(pathname: string, params: URLSearchParams): string {
-  return workspaceViewPathname(pathname) + (params.size ? `?${params}` : "");
+  pathname = workspaceViewPathname(pathname);
+  if (pathname === "/network-risk-profile" || pathname === "/ict-system-risk-profile") {
+    if (scopeIds(params.getAll("network")).length) pathname = "/network-risk-profile";
+    else if (scopeIds(params.getAll("system")).length) pathname = "/ict-system-risk-profile";
+  }
+  return pathname + (params.size ? `?${params}` : "");
+}
+
+/** Retired posture pages return to the risk profile with the applied header scope and date. */
+export function postureReplacementHref(pathname: "/networks" | "/systems", searchParams: WorkspaceSearchParams): string {
+  const params = new URLSearchParams();
+  for (const key of ["network", "system", "dataDate"]) {
+    const value = searchParams[key];
+    if (value) params.set(key, Array.isArray(value) ? value.join(",") : value);
+  }
+  return workspaceScopeUpdateHref(pathname, params);
 }
 
 export interface WorkspaceItem { label: string; href: string; scope?: "network" | "system" }
@@ -49,9 +64,8 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { label: "ICT Systems – SPI Heatmap", href: "/cyber-cop?copView=systems-spi-heatmap", scope: "system" },
     { label: "Network Impact Analyser", href: "/cyber-cop?copView=network-impact-analyser", scope: "network" },
     { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
-    { label: "Networks Posture", href: "/networks", scope: "network" },
     { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
-    { label: "ICT Systems Posture", href: "/systems", scope: "system" }
+    { label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" }
   ] },
   { label: "Discovery", items: [
     { label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
@@ -108,6 +122,11 @@ export function activeWorkspaceItem(pathname: string, params: URLSearchParams): 
 }
 
 export function isWorkspaceItemVisible(item: WorkspaceItem, params: URLSearchParams, activeHref?: string): boolean {
+  // Risk profiles follow the applied header scope, including when the other profile was active.
+  if (item.href === "/network-risk-profile" || item.href === "/ict-system-risk-profile") {
+    if (scopeIds(params.getAll("network")).length) return item.scope === "network";
+    if (scopeIds(params.getAll("system")).length) return item.scope === "system";
+  }
   // Applying another scope must not hide or deselect the view the user is updating.
   if (item.href === activeHref) return true;
   if (scopeIds(params.getAll("network")).length) return item.scope !== "system";

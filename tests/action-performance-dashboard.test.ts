@@ -23,12 +23,12 @@ describe("network and ICT system action tab removal", () => {
     expect(systemTabs).not.toContain('pendingTab === "action"');
   });
 
-  it("falls old action-tab query params back to Overview and removes action panel rendering", () => {
+  it("redirects retired posture pages to risk profiles without rendering action panels", () => {
     const networkPage = readRepoFile("app/networks/page.tsx");
     const systemPage = readRepoFile("app/systems/page.tsx");
 
-    expect(networkPage).toContain('const activeTab: "overview" | "posture" = requestedTab === "posture" ? "posture" : "overview"');
-    expect(systemPage).toContain('const activeTab: "overview" | "posture" = requestedTab === "posture" ? "posture" : "overview"');
+    expect(networkPage).toContain('redirect(postureReplacementHref("/networks", searchParams))');
+    expect(systemPage).toContain('redirect(postureReplacementHref("/systems", searchParams))');
 
     for (const source of [networkPage, systemPage]) {
       expect(source).not.toContain('activeTab === "action"');

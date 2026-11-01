@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hasWorkspaceScope, postureReplacementHref } from "@/lib/workspace-navigation";
 import { notFound } from "next/navigation";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { DrillthroughBackLink } from "@/components/drillthrough-back-link";
@@ -1255,11 +1256,11 @@ export default async function NetworkDetailPage({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <DrillthroughBackLink
-              href={withDataDate("/networks?networksTab=posture", requestedDataDate)}
+              href={postureReplacementHref("/networks", { ...requestParams, ...(!hasWorkspaceScope(requestParams) ? { network: network.id } : {}) })}
               className="text-xs text-sky-200 underline"
-              loadingLabel="Returning to Networks..."
+              loadingLabel="Returning to Risk Profile..."
             >
-              Back to Networks
+              Back to Risk Profile
             </DrillthroughBackLink>
             <h1 className="mt-2 text-3xl font-semibold text-slate-100">{network.name}</h1>
           </div>

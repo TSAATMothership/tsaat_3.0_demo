@@ -81,6 +81,7 @@ export function isDataDateScopedPath(pathname: string): boolean {
     pathname === "/report" ||
     pathname === "/networks" ||
     pathname === "/network-risk-profile" ||
+    pathname === "/ict-system-risk-profile" ||
     pathname.startsWith("/networks/") ||
     pathname === "/systems" ||
     pathname.startsWith("/systems/")

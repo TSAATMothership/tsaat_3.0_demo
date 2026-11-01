@@ -33,7 +33,7 @@ describe("Findings register layout", () => {
 
   it("keeps register table controls and drill-through actions without the page filter panel", () => {
     expect(pageSource).toContain("findings={findings}");
-    expect(pageSource).toContain("deviceReportDetails(asset, asset.id)");
+    expect(pageSource).toContain("loadFindingsRegisterData(searchParams)");
     expect(pageSource).not.toContain("FindingsViewTabs");
     expect(pageSource).not.toContain("<FilterBar");
     expect(pageSource).not.toContain("activeViewTab");

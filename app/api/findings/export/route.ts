@@ -11,7 +11,14 @@ import {
 } from "@/lib/data-loader";
 import { parseFilters } from "@/lib/selectors";
 
+import type { FindingsExportContext } from "@/lib/findings-export";
+import { loadFindingsRegisterData } from "@/lib/findings-register-data";
+import { buildFindingsWorkbook } from "@/lib/findings-workbook";
+import { INVENTORY_XLSX_TYPE } from "@/lib/inventory-explorer-workbook";
+import { scopeIds } from "@/lib/workspace-navigation";
+
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function isDateOnly(value: string | undefined): value is string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -158,4 +165,51 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ findings, generatedAt: new Date().toISOString() });
+}
+
+function validDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function validIds(value: unknown, limit: number): value is string[] {
+  return Array.isArray(value) && value.length <= limit && value.every((id) =>
+    typeof id === "string" && id.trim().length > 0 && id.length <= 255);
+}
+
+export async function POST(request: NextRequest) {
+  let context: FindingsExportContext;
+  let findingIds: string[];
+  try {
+    const input = await request.json();
+    if (!validIds(input.scope?.network, 10000) || !validIds(input.scope?.system, 10000)
+      || !validDate(input.scope?.dataDate) || !validDate(input.asOf)
+      || (input.status !== "open" && input.status !== "closed")
+      || !validIds(input.findingIds, 1048575) || !input.findingIds.length) throw new Error("Invalid export.");
+    const scope = { network: scopeIds(input.scope.network), system: scopeIds(input.scope.system), dataDate: input.scope.dataDate };
+    if ((!scope.network.length && !scope.system.length) || (scope.network.length && scope.system.length)) throw new Error("Invalid scope.");
+    context = { scope, asOf: input.asOf, status: input.status };
+    findingIds = [...new Set(input.findingIds as string[])];
+  } catch {
+    return NextResponse.json({ error: "Invalid findings export selection or scope." }, { status: 400 });
+  }
+  try {
+    const data = await loadFindingsRegisterData({ ...context.scope, asOf: context.asOf, findingsTab: context.status });
+    const byId = new Map(data.findings.map((finding) => [finding.id, finding]));
+    // Only export canonical findings in the displayed scope/status/date, in the user's filtered sort order.
+    if (data.exportContext.scope.dataDate !== context.scope.dataDate || data.selectedAsOf !== context.asOf
+      || findingIds.some((id) => !byId.has(id))) {
+      return NextResponse.json({ error: "Findings have changed. Refresh the register and try again." }, { status: 409 });
+    }
+    const workbook = buildFindingsWorkbook(findingIds.map((id) => byId.get(id)!), context.asOf,
+      data.assetDetailsByAssetId, data.findingDisplayConfiguration);
+    return new Response(Uint8Array.from(workbook).buffer, { headers: {
+      "Content-Type": INVENTORY_XLSX_TYPE,
+      "Content-Disposition": `attachment; filename="dct-findings-${context.asOf}.xlsx"`,
+      "Cache-Control": "no-store"
+    } });
+  } catch {
+    return NextResponse.json({ error: "Unable to export findings and affected CIs." }, { status: 503 });
+  }
 }

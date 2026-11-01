@@ -1,6 +1,5 @@
 "use client";
 
-import Papa from "papaparse";
 import { FindingsDataTable } from "@/components/findings-data-table";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,20 +9,15 @@ import {
   FindingDisplayConfiguration,
   findingBucketsOfType,
   findingMatchesBucket,
-  readConfiguredEvidenceValue,
   toneBadgeClass
 } from "@/lib/findings-config";
 import { hasExplorerNumberRange, type ExplorerNumberRange, type ExplorerTableFilters } from "@/lib/explorer-table";
-import { deviceReportDetails, type DeviceReportDetails } from "@/lib/device-report";
+import { buildAssetDetailsRow, type AssetDeviceDetails, type AssetDetailsRow } from "@/lib/findings-assets";
+import type { FindingsExportContext } from "@/lib/findings-export";
 import { findingDurationDays } from "@/lib/findings-duration";
 import type { Finding } from "@/lib/types";
 
 const PANEL_TWEEN_MS = 260;
-
-type AssetDeviceDetails = DeviceReportDetails & { assetType: string };
-interface AssetDetailsRow extends AssetDeviceDetails {
-  assetId: string;
-}
 
 function formatFindingTimestamp(timestamp: string): string {
   const match = timestamp.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
@@ -40,48 +34,12 @@ function formatFindingDuration(finding: Finding, asOfDate: string): string {
   return days === null ? "\u2014" : `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-function formatAssetTypeLabel(value?: string | null): string {
-  if (!value) {
-    return "Unknown";
-  }
-  if (value === "network-device") {
-    return "Network Device";
-  }
-  if (value === "storage-device") {
-    return "Storage Device";
-  }
-  if (value === "printer-device") {
-    return "Printer Device";
-  }
-  return value
-    .replace(/[-_]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 function csvCell(value: string | number): string {
   const text = String(value);
   if (!/[",\r\n]/.test(text)) {
     return text;
   }
   return `"${text.replace(/"/g, "\"\"")}"`;
-}
-
-function buildAssetDetailsRow(
-  finding: Finding,
-  assetDetailsByAssetId: Record<string, AssetDeviceDetails>,
-  findingDisplayConfiguration: FindingDisplayConfiguration
-): AssetDetailsRow {
-  const assetId = finding.scope.assetId;
-  const device = assetDetailsByAssetId[assetId] ?? {
-    ...deviceReportDetails(undefined, assetId),
-    deviceName: readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_name", assetId) ?? assetId,
-    deviceIp: readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_ip_address", "Not recorded") ?? "Not recorded",
-    assetType: readConfiguredEvidenceValue(finding.evidence, findingDisplayConfiguration, "asset_type") ?? "Unknown"
-  };
-
-  return { ...device, assetId, assetType: formatAssetTypeLabel(device.assetType) };
 }
 
 function safeSlug(value: string, fallback: string): string {
@@ -97,6 +55,7 @@ function safeSlug(value: string, fallback: string): string {
 export function FindingsTable({
   findings,
   selectedAsOf,
+  exportContext,
   selectedSpi,
   selectedPriority,
   selectedSeverity,
@@ -106,6 +65,7 @@ export function FindingsTable({
 }: {
   findings: Finding[];
   selectedAsOf: string;
+  exportContext: FindingsExportContext;
   selectedSpi?: number;
   selectedPriority?: number;
   selectedSeverity?: string;
@@ -113,6 +73,8 @@ export function FindingsTable({
   findingDisplayConfiguration: FindingDisplayConfiguration;
   assetDetailsByAssetId?: Record<string, AssetDeviceDetails>;
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
   const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
   const [isAssetDetailsPanelOpen, setIsAssetDetailsPanelOpen] = useState(false);
@@ -164,19 +126,30 @@ export function FindingsTable({
     };
   }, [dismissOverlaysImmediately]);
 
-  const downloadFindingsCsv = (matchingRows: Finding[]) => {
-    const content = Papa.unparse(matchingRows.map((finding) => ({
-        id: finding.id, priorityRank: finding.priorityRank, spiId: finding.spiId, severity: finding.severity,
-        status: finding.status, complianceStatus: finding.complianceStatus, timestamp: finding.timestamp,
-        durationDays: findingDurationDays(finding, selectedAsOf) ?? "",
-        networkId: finding.scope.networkId, systemId: finding.scope.systemId ?? "", environment: finding.scope.environmentType ?? "",
-        assetId: finding.scope.assetId, title: finding.title, evidence: JSON.stringify(finding.evidence), recommendedAction: finding.recommendedAction
-      })));
-    const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8;" }));
-    const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = `dct-findings-${selectedAsOf}.csv`;
-    document.body.append(anchor); anchor.click(); anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const downloadFindingsWorkbook = async (matchingRows: Finding[]) => {
+    if (exporting || !matchingRows.length) return;
+    setExporting(true);
+    setExportError("");
+    try {
+      const response = await fetch("/api/findings/export", {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ ...exportContext, findingIds: matchingRows.map((finding) => finding.id) })
+      });
+      if (!response.ok) {
+        throw new Error(response.status === 409
+          ? "Findings have changed. Refresh the register and try again."
+          : "The Excel export could not be created. Please try again.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = `dct-findings-${selectedAsOf}.xlsx`;
+      document.body.append(anchor); anchor.click(); anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Unable to export findings.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const assetDetailsRows = useMemo<AssetDetailsRow[]>(() => {
@@ -245,6 +218,7 @@ export function FindingsTable({
 
   return (
       <div className="findings-register">
+        {exportError && <p role="alert" className="endpoint-export-error">{exportError}</p>}
         <div className="findings-table-host"><FindingsDataTable title="Findings Register" rows={findings} searchable={true} searchText={(finding) => [finding.id, ...Object.values(finding.scope), ...Object.values(finding.evidence)].join(" ")}
 key={JSON.stringify(initialTableFilters)} initialFilters={initialTableFilters}
 columns={[{ key: "measure", label: "SPI", value: (finding) => `SPI ${finding.spiId}-${finding.title}` },
@@ -255,7 +229,7 @@ columns={[{ key: "measure", label: "SPI", value: (finding) => `SPI ${finding.spi
   range: { value: (finding) => findingDurationDays(finding, selectedAsOf), unit: "days", min: 0, step: 1, sortable: true } },
 { key: "status", label: "Status", value: (finding) => finding.status === "open" ? "Open" : "Closed" },
 { key: "evidence", label: "Evidence", value: (finding) => buildConfiguredEvidencePreview(finding, findingDisplayConfiguration) }]}
-actions={(matching) => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => downloadFindingsCsv(matching)}>Export CSV</button>}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={exporting || !matching.length} onClick={() => downloadFindingsWorkbook(matching)} title="Export findings and affected CIs to separate Excel sheets">{exporting ? "Exporting..." : "Export Excel"}</button>}
 emptyMessage="No findings are available for the selected scope, status, and date."
 renderRow={(finding) => {
                 const asOfStatus = finding.status;

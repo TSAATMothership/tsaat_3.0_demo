@@ -563,7 +563,7 @@ a {
 .network-risk-coverage > div:first-child > span, .network-risk-coverage p { color: #91adbf; font-size: .7rem; }
 .network-risk-coverage p { margin-top: .25rem; }
 .network-risk-coverage .measures-compliance-bar { height: 1.5rem; }
-.network-risk-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-top: 1rem; padding-top: .7rem; border-top: 1px solid #294251; color: #91adbf; font-size: .72rem; }
+.network-risk-metadata { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: .5rem; margin-top: 1rem; padding-top: .7rem; border-top: 1px solid #294251; color: #91adbf; font-size: .72rem; }
 .network-risk-metadata strong { display: block; color: #cfe5f2; font-size: .95rem; font-weight: 500; }
 .network-risk-trend { height: 14rem; min-width: 0; margin-top: .25rem; }
 .network-risk-trend-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
@@ -586,6 +586,7 @@ a {
 .network-risk-table-host { display: flex; height: 32rem; min-height: 24rem; }
 .network-risk-table-host > .findings-data-table { flex: 1; min-width: 0; height: 100%; max-height: none; }
 .network-risk-table .findings-explorer-table { min-width: 1160px; }
+.ict-system-risk-table .findings-explorer-table { min-width: 1370px; }
 .network-risk-table .findings-explorer-table td:has(a), .network-risk-table .findings-explorer-table td:has(button) { min-width: 0; }
 .network-risk-table .findings-explorer-table td { vertical-align: middle; }
 .network-risk-table .findings-explorer-table td.network-risk-name { min-width: 13rem; max-width: 20rem; }

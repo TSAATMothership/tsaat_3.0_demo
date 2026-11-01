@@ -62,11 +62,10 @@ describe("route loading readiness", () => {
       ["app/discovery-coverage/page.tsx", 'pathname="/discovery-coverage"'],
       ["app/findings/page.tsx", 'pathname="/findings"'],
       ["app/measures/page.tsx", 'pathname="/measures"'],
-      ["app/networks/page.tsx", 'pathname="/networks"'],
       ["app/network-risk-profile/page.tsx", 'pathname="/network-risk-profile"'],
+      ["app/ict-system-risk-profile/page.tsx", 'pathname="/ict-system-risk-profile"'],
       ["app/report/page.tsx", 'pathname="/report"'],
-      ["app/settings/page.tsx", 'pathname="/settings"'],
-      ["app/systems/page.tsx", 'pathname="/systems"']
+      ["app/settings/page.tsx", 'pathname="/settings"']
     ];
 
     for (const [pagePath, markerPath] of pages) {

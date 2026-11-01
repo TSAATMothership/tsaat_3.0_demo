@@ -87,10 +87,12 @@ describe("network risk profile", () => {
     const findings = new URL(networkRiskHref("/findings", filters, "2026-10-30", "net-b", { severity: "High Risk", durationMin: "91" }), "http://localhost");
     expect(Object.fromEntries(findings.searchParams)).toMatchObject({ network: "net-b", system: "sys-shared", dataDate: "2026-10-30", severity: "High Risk", durationMin: "91" });
   });
-  it("places the page directly below Networks Posture and supports snapshot selection", () => {
+  it("keeps the risk profiles together without the retired posture pages and supports snapshot selection", () => {
     const items = WORKSPACE_GROUPS.find(group => group.label === "Cyber Security")!.items;
-    const position = items.findIndex(item => item.label === "Networks Posture");
-    expect(items[position + 1]).toMatchObject({ label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" });
+    const position = items.findIndex(item => item.label === "Network Risk Profile");
+    expect(items[position]).toMatchObject({ href: "/network-risk-profile", scope: "network" });
+    expect(items[position + 1]).toMatchObject({ label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" });
+    expect(items.some(item => item.href === "/networks" || item.href === "/systems")).toBe(false);
     expect(isDataDateScopedPath("/network-risk-profile")).toBe(true);
   });
 });

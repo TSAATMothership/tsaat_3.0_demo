@@ -17,10 +17,10 @@ describe("workspace scope", () => {
     const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
     const hiddenHrefs = (query: string) => items.filter((item) => !isWorkspaceItemVisible(item, new URLSearchParams(query))).map((item) => item.href);
     expect(hiddenHrefs("network=net-a,net-b")).toEqual([
-      "/cyber-cop?copView=systems-spi-heatmap", "/cyber-cop?copView=ict-system-impact-analyser", "/systems"
+      "/cyber-cop?copView=systems-spi-heatmap", "/cyber-cop?copView=ict-system-impact-analyser", "/ict-system-risk-profile"
     ]);
     expect(hiddenHrefs("system=sys-a,sys-b")).toEqual([
-      "/cyber-cop?copView=networks-spi-heatmap", "/cyber-cop?copView=network-impact-analyser", "/networks", "/network-risk-profile"
+      "/cyber-cop?copView=networks-spi-heatmap", "/cyber-cop?copView=network-impact-analyser", "/network-risk-profile"
     ]);
     expect(hiddenHrefs("")).toEqual([]);
   });
@@ -62,29 +62,48 @@ describe("workspace scope", () => {
     expect(applied.get("network")).toBe("net-a");
     expect(sameWorkspaceScope(applied, switched)).toBe(false);
   });
-  it("applies pending filters to every current sidebar view without deselecting it", () => {
+  it("preserves the current view, or selects the matching risk profile, when applying header filters", () => {
     for (const item of [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS]) {
       const current = new URL(workspaceHref(item.href, new URLSearchParams("network=net-a&dataDate=2026-10-31")), "http://localhost");
       current.searchParams.set("page", "3");
       const draft = updateWorkspaceScope(current.searchParams, "system", ["sys-a", "sys-b"]);
       const updated = new URL(workspaceScopeUpdateHref(current.pathname, draft), current.origin);
-      expect(activeWorkspaceItem(updated.pathname, updated.searchParams)?.href).toBe(item.href);
+      const expectedHref = item.href === "/network-risk-profile" ? "/ict-system-risk-profile" : item.href;
+      const selected = activeWorkspaceItem(updated.pathname, updated.searchParams)!;
+      expect(selected.href).toBe(expectedHref);
       expect(updated.searchParams.get("dataDate")).toBe("2026-10-31");
       expect(updated.searchParams.get("system")).toBe("sys-a,sys-b");
       expect(updated.searchParams.has("network")).toBe(false);
       expect(updated.searchParams.has("page")).toBe(false);
-      expect(isWorkspaceItemVisible(item, updated.searchParams, item.href)).toBe(true);
+      expect(isWorkspaceItemVisible(selected, updated.searchParams, selected.href)).toBe(true);
       const cleared = updateWorkspaceScope(draft, "system", []);
-      expect(activeWorkspaceItem(updated.pathname, cleared)?.href).toBe(item.href);
+      expect(activeWorkspaceItem(updated.pathname, cleared)?.href).toBe(expectedHref);
       expect(hasWorkspaceScope(Object.fromEntries(cleared))).toBe(false);
     }
   });
-  it("keeps the posture sidebar view selected when updating from an entity detail page", () => {
+  it("keeps risk-profile visibility aligned with applied scope even if the opposite profile was active", () => {
+    const items = WORKSPACE_GROUPS.flatMap(group => group.items);
+    const network = items.find(item => item.href === "/network-risk-profile")!;
+    const system = items.find(item => item.href === "/ict-system-risk-profile")!;
+    for (const active of [network.href, system.href, undefined]) {
+      expect(isWorkspaceItemVisible(network, new URLSearchParams("network=net-a&network=net-b"), active)).toBe(true);
+      expect(isWorkspaceItemVisible(system, new URLSearchParams("network=net-a,net-b"), active)).toBe(false);
+      expect(isWorkspaceItemVisible(network, new URLSearchParams("system=sys-a,sys-b"), active)).toBe(false);
+      expect(isWorkspaceItemVisible(system, new URLSearchParams("system=sys-a&system=sys-b"), active)).toBe(true);
+      expect(isWorkspaceItemVisible(network, new URLSearchParams(), active)).toBe(true);
+      expect(isWorkspaceItemVisible(system, new URLSearchParams(), active)).toBe(true);
+    }
+    const params = new URLSearchParams("network=net-a,net-b&dataDate=2026-10-30");
+    expect(workspaceScopeUpdateHref(system.href, params)).toBe("/network-risk-profile?network=net-a%2Cnet-b&dataDate=2026-10-30");
+    expect(workspaceScopeUpdateHref(network.href, updateWorkspaceScope(params, "system", ["sys-b"])))
+      .toBe("/ict-system-risk-profile?dataDate=2026-10-30&system=sys-b");
+  });
+  it("uses the risk profiles when navigating from entity detail pages", () => {
     const params = new URLSearchParams("network=net-b&dataDate=2026-10-31");
-    expect(activeWorkspaceItem("/networks/net-a", params)?.href).toBe("/networks");
-    expect(workspaceScopeUpdateHref("/networks/net-a", params)).toBe("/networks?network=net-b&dataDate=2026-10-31");
-    expect(activeWorkspaceItem("/systems/sys-a", params)?.href).toBe("/systems");
-    expect(workspaceScopeUpdateHref("/systems/sys-a", params)).toBe("/systems?network=net-b&dataDate=2026-10-31");
+    expect(activeWorkspaceItem("/networks/net-a", params)?.href).toBe("/network-risk-profile");
+    expect(workspaceScopeUpdateHref("/networks/net-a", params)).toBe("/network-risk-profile?network=net-b&dataDate=2026-10-31");
+    expect(activeWorkspaceItem("/systems/sys-a", params)?.href).toBe("/ict-system-risk-profile");
+    expect(workspaceScopeUpdateHref("/systems/sys-a", params)).toBe("/network-risk-profile?network=net-b&dataDate=2026-10-31");
   });
   it("switches scope exclusively while preserving the date and selected view", () => {
     const params = new URLSearchParams("network=net-a,net-b&dataDate=2026-10-30&copView=impact&page=3");

@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { severityBarColors } from "@/components/findings-duration-panel";
-import type { NetworkRiskProfileModel } from "@/lib/network-risk-profile";
+import type { RiskProfileModel } from "@/lib/risk-profile";
 
-type TrendPoints = NetworkRiskProfileModel["trend"]["points"];
+type TrendPoints = RiskProfileModel["trend"]["points"];
 
 function TrendPeriod({ days, onChange, expanded = false }: { days: number; onChange: (days: number) => void; expanded?: boolean }) {
   return <select className="report-sort" aria-label={expanded ? "Expanded risk trend period" : "Risk trend period"} value={days} onChange={event => onChange(Number(event.target.value))}>
@@ -39,7 +39,7 @@ function UndatedFindings({ count }: { count: number }) {
 }
 
 function TrendPopup({ model, points, days, onChange, onClose }: {
-  model: NetworkRiskProfileModel; points: TrendPoints; days: number; onChange: (days: number) => void; onClose: () => void;
+  model: RiskProfileModel; points: TrendPoints; days: number; onChange: (days: number) => void; onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -67,13 +67,13 @@ function TrendPopup({ model, points, days, onChange, onClose }: {
     }}>
     <div className="settings-popup-frame">
       <header className="flex shrink-0 items-start justify-between gap-4 border-b border-sky-300/20 p-5">
-        <div><p className="text-xs uppercase tracking-[0.14em] text-slate-400">Network Risk Profile</p>
+        <div><p className="text-xs uppercase tracking-[0.14em] text-slate-400">{model.kind === "system" ? "ICT System" : "Network"} Risk Profile</p>
           <h2 id="network-risk-trend-popup-title" className="mt-1 text-2xl font-semibold">Critical &amp; high findings over time</h2></div>
         <button type="button" autoFocus onClick={onClose} className="rounded border border-sky-300/35 px-3 py-2 text-sm hover:bg-sky-500/10" aria-label="Close expanded risk trend chart">Close</button>
       </header>
       <div className="network-risk-trend-popup-body">
         <div className="network-risk-trend-popup-controls">
-          <p className="discovery-overview-note">{model.networkCount.toLocaleString("en-AU")} {model.networkCount === 1 ? "network" : "networks"} in scope · Snapshot {model.snapshotDate}</p>
+          <p className="discovery-overview-note">{model.entityCount.toLocaleString("en-AU")} {model.kind === "system" ? "ICT system" : "network"}{model.entityCount === 1 ? "" : "s"} in scope · Snapshot {model.snapshotDate}</p>
           <label>Period <TrendPeriod days={days} onChange={onChange} expanded /></label>
         </div>
         <p className="discovery-overview-note">Recorded opening and closure dates, ending at the selected snapshot.</p>
@@ -85,7 +85,7 @@ function TrendPopup({ model, points, days, onChange, onClose }: {
   </dialog>, document.body);
 }
 
-export function NetworkRiskTrend({ model, active }: { model: NetworkRiskProfileModel; active: boolean }) {
+export function NetworkRiskTrend({ model, active }: { model: RiskProfileModel; active: boolean }) {
   const [days, setDays] = useState(90);
   const [expanded, setExpanded] = useState(false);
   const points = model.trend.points.slice(-days);
