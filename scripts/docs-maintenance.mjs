@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const normalize = text => text.replace(/\r\n/g, '\n');
 const posix = value => value.split(path.sep).join('/');
-const sourceRoots = ['app', 'components', 'lib', 'scripts', 'public', 'data', 'Database Schema', '.github'];
+const sourceRoots = ['app', 'components', 'lib', 'scripts', 'public', 'data', 'Database Schema', '.github', 'Demo/src', 'Demo/data'];
 const rootFiles = ['package.json', 'package-lock.json', 'middleware.ts', 'next.config.mjs', 'tsconfig.json', 'vitest.config.ts', 'tailwind.config.ts', 'postcss.config.js', '.eslintrc.json', '.npmrc', '.node-version', 'CreateDB.cmd', 'buildDatabase.cmd', 'compileApp.cmd'];
 const isSource = name => !/\.(md|txt|dotx)$/i.test(name) && !name.includes('/last-build-summary');
 const read = name => normalize(fs.readFileSync(name, 'utf8'));
@@ -27,7 +27,7 @@ export function sourceSnapshot(root) {
   const files = [...sourceRoots.flatMap(dir => walk(root, dir)).filter(isSource), ...rootFiles.filter(file => fs.existsSync(path.join(root, file)))].sort();
   return Object.fromEntries(files.map(file => {
     const bytes = fs.readFileSync(path.join(root, file));
-    return [file, hash(/\.(tsx?|jsx?|mjs|cjs|json|css|sql|ps1|cmd|yml|yaml|svg)$/.test(file) || rootFiles.includes(file) ? normalize(bytes.toString('utf8')) : bytes)];
+    return [file, hash(/\.(tsx?|mts|cts|jsx?|mjs|cjs|json|css|sql|ps1|cmd|yml|yaml|svg)$/.test(file) || rootFiles.includes(file) ? normalize(bytes.toString('utf8')) : bytes)];
   }));
 }
 

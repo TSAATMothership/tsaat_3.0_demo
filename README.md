@@ -32,9 +32,15 @@ npm run db:bootstrap -- -DatabaseName TSAAT_UI3_Dev -TrustServerCertificate
 
 The bootstrap refuses an existing database. Review [database operations](docs/database.md) first. Never run the destructive base schema/seed loader against an operational database.
 
+## Browser-only demo
+
+Open [Demo/index.html](Demo/index.html) directly in Chrome or Edge. This synthetic-data demo needs no installation, SQL, login, backend or internet. See [Demo instructions](Demo/README.md) and [the maintenance contract](docs/demo.md).
+
 ## Development gates
 
 ```powershell
+npm run demo:build
+npm run demo:test
 npm run docs:generate
 npm run check
 npm run build
@@ -49,4 +55,4 @@ Cyber Security contains Network Risk Profile, ICT System Risk Profile, Service I
 
 ## Repository boundary
 
-Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, required demo/test snapshots and maintained documentation. Excludes old Git history, duplicate demo application copies, vendored packages/runtimes, credentials, builds, temporary reports and logs. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure a remote host, branch protection or deployment service.
+Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, required demo/test snapshots and maintained documentation. Excludes old Git history, independently maintained duplicate app implementations, vendored packages/runtimes, credentials, other builds, temporary reports and logs. The portable Demo/index.html distribution and its source adapters are maintained with the app. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure a remote host, branch protection or deployment service.

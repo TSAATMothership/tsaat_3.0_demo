@@ -7,6 +7,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Product behavior and acceptance contracts | [Solution design index](../Requirements%20Documentation/TSAAT-Solution-Design-Index.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
+| Browser-only JSON demo and maintenance | [Standalone demo](demo.md) |
 | Install, run, test and debug | [Development](development.md) |
 | Schema, migrations, configuration and integration | [Database lifecycle](database.md) |
 | Release, deployment and recovery | [Operations](operations.md) |

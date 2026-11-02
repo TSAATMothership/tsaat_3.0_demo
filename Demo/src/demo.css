@@ -1,0 +1,6 @@
+body { font-family: "Segoe UI", "Trebuchet MS", Arial, sans-serif; }
+.demo-toast { position: fixed; bottom: 20px; right: 20px; z-index: 2000; max-width: min(560px,90vw); display: flex; gap: 16px; padding: 16px 20px; background: #0b2638; border: 1px solid #58b8d6; border-radius: 10px; box-shadow: 0 10px 30px #0008; }
+.demo-toast button { font-size: 24px; }
+
+
+.workspace-date select { min-height: 30px; max-width: 150px; padding: 4px 8px; border: 1px solid #36576c; border-radius: 5px; background: #10283b; color: #d4e6f1; color-scheme: dark; font: inherit; }

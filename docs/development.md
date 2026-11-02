@@ -36,3 +36,7 @@ For UI work, check representative snapshot data, desktop/narrow layouts, keyboar
 ## Troubleshooting
 
 Create missing DPAPI files under the runtime identity. Configure sqlcmd if absent. Hard-refresh stale Next hot-update references after a restart; stop the dev server before removing .next. Fix build errors rather than bypassing them. Deployment troubleshooting is in [operations](operations.md).
+
+## Demo development
+
+Run `npm run demo:build` to package JSON fixtures, shared UI, reports and assets into Demo/index.html. Open that file directly or run `npm run demo:test` with installed Chrome/Edge (override with DEMO_BROWSER_PATH). `npm run check` includes deterministic demo freshness verification. Commit the HTML and manifest with source changes; see [demo development](demo.md) for data and calculation review.

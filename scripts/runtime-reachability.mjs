@@ -13,10 +13,10 @@ export function runtimeReachability(root = process.cwd()) {
     for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
       const name = path.posix.join(relative, entry.name);
       if (entry.isDirectory()) walk(name);
-      else if (/\.(?:[cm]?js|jsx|ts|tsx)$/.test(name)) files.push(name);
+      else if (!name.endsWith('.d.ts') && /\.(?:[cm]?js|jsx|ts|tsx)$/.test(name)) files.push(name);
     }
   }
-  for (const directory of ['app', 'components', 'lib', 'scripts']) walk(directory);
+  for (const directory of ['app', 'components', 'lib', 'scripts', 'Demo/src']) walk(directory);
   if (fs.existsSync(path.join(root, 'middleware.ts'))) files.push('middleware.ts');
   const known = new Set(files);
   const edges = new Map();
@@ -26,7 +26,7 @@ export function runtimeReachability(root = process.cwd()) {
     function visit(node) {
       if (ts.isStringLiteralLike(node)) {
         const value = node.text;
-        const base = value.startsWith('@/') ? value.slice(2)
+        const base = value.startsWith('@/') ? value.slice(2) : value.startsWith('Demo/src/') ? value
           : value.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(file), value)) : null;
         if (base) {
           const resolved = [base, ...['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].flatMap(extension => [base + extension, base + '/index' + extension])].find(candidate => known.has(candidate));
@@ -38,7 +38,7 @@ export function runtimeReachability(root = process.cwd()) {
     visit(source);
     edges.set(file, targets);
   }
-  const roots = files.filter(file => file.startsWith('app/') || file.startsWith('scripts/') || file === 'middleware.ts');
+  const roots = files.filter(file => file.startsWith('app/') || file.startsWith('scripts/') || file === 'middleware.ts' || file === 'Demo/src/main.tsx');
   const reachable = new Set();
   function trace(file) {
     if (reachable.has(file)) return;

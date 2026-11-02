@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "description": "Synthetic demonstration data. Never export operational SQL data into the demo.",
+  "snapshots": "data/snapshots/week-*.json",
+  "references": "Database Schema/data/*.json",
+  "enhancements": "Demo/src/sample-data.ts adds deterministic discovery metadata, contacts and missing ATO/DIIS examples to browser data only."
+}

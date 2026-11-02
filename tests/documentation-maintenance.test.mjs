@@ -20,7 +20,11 @@ test('source fingerprints ignore platform line endings but detect content change
   try {
     fs.mkdirSync(path.join(root, 'app')); fs.mkdirSync(path.join(root, 'docs'));
     fs.writeFileSync(path.join(root, 'app/page.tsx'), 'first\r\n');
+    fs.mkdirSync(path.join(root, "scripts"));
+    fs.writeFileSync(path.join(root, "scripts/build-demo.d.mts"), "export function buildDemo(): Promise<void>;\r\n");
     const first = sourceSnapshot(root);
+    fs.writeFileSync(path.join(root, "scripts/build-demo.d.mts"), "export function buildDemo(): Promise<void>;\n");
+    assert.deepEqual(sourceSnapshot(root), first);
     fs.writeFileSync(path.join(root, 'app/page.tsx'), 'first\n'); assert.deepEqual(sourceSnapshot(root), first);
     fs.writeFileSync(path.join(root, 'app/page.tsx'), 'changed\n'); assert.notDeepEqual(sourceSnapshot(root), first);
     fs.writeFileSync(path.join(root, 'docs/with space.md'), '# Target\n');

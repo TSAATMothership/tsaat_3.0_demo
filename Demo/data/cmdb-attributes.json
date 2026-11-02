@@ -1,0 +1,646 @@
+{
+  "server": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ],
+  "workstation": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ],
+  "network-device": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ],
+  "storage-device": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ],
+  "printer-device": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ],
+  "other": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ],
+  "ip-node": [
+    {
+      "key": "assetId",
+      "label": "Asset ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "assetName",
+      "label": "Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "assetHostname",
+      "label": "Hostname",
+      "displayOrder": 30
+    },
+    {
+      "key": "assetType",
+      "label": "Asset Type",
+      "displayOrder": 40
+    },
+    {
+      "key": "assetIpAddress",
+      "label": "IP Address",
+      "displayOrder": 50
+    },
+    {
+      "key": "networkName",
+      "label": "Network",
+      "displayOrder": 60
+    },
+    {
+      "key": "systemName",
+      "label": "ICT System",
+      "displayOrder": 70
+    },
+    {
+      "key": "environmentType",
+      "label": "Environment",
+      "displayOrder": 80
+    },
+    {
+      "key": "securityDomain",
+      "label": "Security Domain",
+      "displayOrder": 90
+    },
+    {
+      "key": "lifecycleEolStatus",
+      "label": "Lifecycle EOL",
+      "displayOrder": 100
+    },
+    {
+      "key": "lifecycleWarrantyStatus",
+      "label": "Warranty",
+      "displayOrder": 110
+    },
+    {
+      "key": "operatingSystemSummary",
+      "label": "Operating System",
+      "displayOrder": 120
+    },
+    {
+      "key": "networkOsSummary",
+      "label": "Network OS",
+      "displayOrder": 130
+    },
+    {
+      "key": "patchStateSummary",
+      "label": "Patch Status",
+      "displayOrder": 140
+    },
+    {
+      "key": "installedSoftwareCount",
+      "label": "Installed Software",
+      "displayOrder": 150
+    },
+    {
+      "key": "vulnerabilityCount",
+      "label": "Vulnerabilities",
+      "displayOrder": 160
+    },
+    {
+      "key": "criticalVulnerabilityCount",
+      "label": "Critical Vulnerabilities",
+      "displayOrder": 170
+    },
+    {
+      "key": "cmdbRecordUrl",
+      "label": "CMDB Record",
+      "displayOrder": 180
+    }
+  ]
+}

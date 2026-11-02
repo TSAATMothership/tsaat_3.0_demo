@@ -15,14 +15,18 @@
     "docs:generate": "node scripts/docs-maintenance.mjs --write",
     "docs:check": "node scripts/docs-maintenance.mjs --check",
     "repo:check": "node scripts/repository-check.mjs",
-    "check": "npm run repo:check && npm run docs:check && npm run lint && npm run typecheck && npm test && npm run test:tooling",
+    "check": "npm run repo:check && npm run docs:check && npm run lint && npm run typecheck && npm test && npm run test:tooling && npm run demo:check",
     "setup:database": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-db-config.ps1",
     "setup:login": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-logindetails.ps1",
     "db:bootstrap": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-demo-database.ps1",
-    "test:tooling": "node --test tests/documentation-maintenance.test.mjs tests/runtime-reachability.test.mjs"
+    "test:tooling": "node --test tests/documentation-maintenance.test.mjs tests/runtime-reachability.test.mjs",
+    "demo:build": "node scripts/build-demo.mjs",
+    "demo:check": "node scripts/build-demo.mjs --check",
+    "demo:test": "node scripts/test-demo-browser.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "fflate": "0.8.2",
     "next": "^14.2.35",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
@@ -41,6 +45,7 @@
     "@types/three": "^0.181.0",
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.24",
+    "esbuild": "0.27.3",
     "eslint": "8.57.0",
     "eslint-config-next": "^14.2.35",
     "postcss": "^8.5.6",

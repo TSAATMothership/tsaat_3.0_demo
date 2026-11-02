@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 - Standalone browser demo
+
+- Added Demo/index.html: a portable, offline JSON-backed version of the current workspace, reports, risk profiles and impact analysers.
+- Reused shared UI/report code with browser data/settings/navigation adapters and synthetic historical data.
+- Added demo build/freshness/browser tests, SQL calculation review checks and SDLC/CI obligations to keep both versions aligned.
+
 ## Unreleased
 
 - Removed 42 unreachable legacy modules, obsolete private helpers, an unused logo and the unused direct zod dependency; current navigation, APIs and report behavior are preserved.

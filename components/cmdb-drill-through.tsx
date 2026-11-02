@@ -1,5 +1,7 @@
 "use client";
 
+import { browserWorkspaceSearch } from "@/lib/browser-location";
+
 import {
   createContext,
   useCallback,
@@ -47,11 +49,8 @@ function currentDataDate(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const logicalHref = window.location.hash.startsWith("#/")
-    ? window.location.hash.slice(1)
-    : `${window.location.pathname}${window.location.search}`;
-  const url = new URL(logicalHref, window.location.origin);
-  return normalizeDataDate(url.searchParams.get(DATA_DATE_PARAM)) ?? null;
+  const params = new URLSearchParams(browserWorkspaceSearch(window.location));
+  return normalizeDataDate(params.get(DATA_DATE_PARAM)) ?? null;
 }
 
 function detailsEndpoint(request: CmdbRequest): string {

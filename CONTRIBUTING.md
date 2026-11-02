@@ -5,3 +5,5 @@ Create a short-lived branch from main. Define the problem, scope and acceptance 
 Implement code and meaningful regression tests together. Update affected feature, design, architecture and database docs in the same change; use an ADR for significant decisions. Run `npm run docs:generate`, `npm run check` and `npm run build`, plus relevant SQL/browser/PDF checks.
 
 Use the pull request template to present behavior, evidence and migration/recovery notes. Merge after review and passing checks. The repository owner must configure protected main and required CI in the selected hosting service; local files cannot enforce hosting controls. See [the SDLC](docs/sdlc.md).
+
+Every relevant change must also update the [standalone demo](docs/demo.md). Run `npm run demo:build` and `npm run demo:test` before the normal gates, and commit its reproducible HTML/manifest. Review demo calculations and JSON mappings whenever SQL rules or data contracts change.

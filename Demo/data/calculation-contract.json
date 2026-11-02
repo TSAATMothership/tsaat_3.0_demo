@@ -1,0 +1,12 @@
+{
+  "reviewedAgainst": "JSON seed rules and fresh-install SQL contract, 2026-11-02",
+  "instructions": "When these contracts change, review and update Demo/src/evaluations.ts, data-loader.ts, CMDB mappings and regression tests before refreshing checksums. Never refresh blindly.",
+  "files": {
+    "Database Schema/database-schema.sql": "a241e8f26bb67ede7c2f1b20d985b4c7300efa5cffed01463cf6f9db1f35b936",
+    "Database Schema/data/spi-sql-calculations.json": "5225ccaee34c9e9768cb4b726bf6a672b50ba9aeda5884207c22e933e0ac4397",
+    "Database Schema/data/spi-rule-definitions.json": "357da2972ac0f8ba89d262e4fc14f785096a64c85e319faadc4cd0732f91f509",
+    "Database Schema/data/discovery-coverage-rules.json": "99be18dd4bc78804ca1537c1f6a504e5e9c2e7073c42bc198abcc0b7189aea82",
+    "Database Schema/data/kpi-calculations.json": "8adba849c258e47b925361cb51880971df949c4076a56b109306087d818ea6ec",
+    "Database Schema/data/finding-definitions.json": "40c6f9d068961fb36dbacc2fcc4cbd8a347997d892dd0831b6512692d581f986"
+  }
+}

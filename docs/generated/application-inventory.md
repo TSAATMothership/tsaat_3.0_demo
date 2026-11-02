@@ -92,6 +92,7 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | Package | Requirement | Use |
 | --- | --- | --- |
 | clsx | ^2.1.1 | Runtime |
+| fflate | 0.8.2 | Runtime |
 | next | ^14.2.35 | Runtime |
 | papaparse | ^5.5.3 | Runtime |
 | pdf-lib | ^1.17.1 | Runtime |
@@ -108,6 +109,7 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | @types/three | ^0.181.0 | Development |
 | @vitest/coverage-v8 | ^4.0.18 | Development |
 | autoprefixer | ^10.4.24 | Development |
+| esbuild | 0.27.3 | Development |
 | eslint | 8.57.0 | Development |
 | eslint-config-next | ^14.2.35 | Development |
 | postcss | ^8.5.6 | Development |

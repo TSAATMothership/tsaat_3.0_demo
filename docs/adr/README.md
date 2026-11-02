@@ -7,3 +7,5 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0001 — SQL and snapshots](0001-sql-snapshots.md)
 - [0002 — Source-only repository](0002-source-only-repository.md)
 - [0003 — Typed CMDB values](0003-cmdb-attributes.md)
+
+- [0005: Standalone browser demo](0005-standalone-browser-demo.md)

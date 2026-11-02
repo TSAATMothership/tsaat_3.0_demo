@@ -43,3 +43,7 @@ Retired `/networks`, `/systems` and entity paths redirect to current risk profil
 Windows DPAPI/PowerShell and sqlcmd remain runtime/setup dependencies. Linux-only deployment and datastore portability are not claimed. Production cookies require HTTPS. Identity-provider, SQL-driver, framework-major or storage-model changes need an ADR and parity/migration plan.
 
 Unreachable legacy presentation modules are removed rather than maintained beside their replacements. Repository checks trace all routes, scripts and worker dependencies; TypeScript rejects unused private declarations. Compatibility roots remain supported. KPI SQL evaluates only the two current system metrics, retaining high-priority finding counts without executing retired SPI/discovery KPI calculations. See [ADR 0004](adr/0004-retired-runtime-cleanup.md).
+
+## Standalone demo boundary
+
+[The browser demo](demo.md) bundles the same current page compositions, components, models and report handlers with explicit JSON/data, local settings, hash-routing and workbook adapters. It needs no backend. Production authentication, SQL and strict TLS remain intact. Demo/index.html is a reproducible distribution of shared source, not an independently maintained UI. See [ADR 0005](adr/0005-standalone-browser-demo.md).

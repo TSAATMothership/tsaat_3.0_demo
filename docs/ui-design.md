@@ -23,3 +23,7 @@ Device/SPI heatmaps default to 40px cells, support resizing, search and status f
 Tabs support Arrow keys and Home/End with aria-selected/controls. Controls have labels and visible focus. Long names/evidence wrap or scroll inside their region; tables can scroll horizontally without overflowing the viewport. Verify desktop and a 390px viewport, keyboard traversal, layering, focus return and loading/error/empty states.
 
 Shared implementation: FindingsDataTable, FilterHeader, WorkspaceTabs, SettingsPopup, ServerComplianceView, RiskEntityDetailsPanel, ComplianceHeatmap and app/globals.css. Update this contract when shared interactions change.
+
+## Offline demonstration shell
+
+The portable demo reuses current workspace UI/components and report layouts. Its header clearly labels synthetic offline data and selects the packaged snapshot dates. Its native Settings dialog uses the same risk, priority and discovery editors; Demo Data replaces database/password administration. Hash links retain scope/date and support linked entities in new tabs. Desktop and narrow-layout checks apply to both versions. See [demo contract](demo.md).

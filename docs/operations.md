@@ -23,3 +23,7 @@ Verify login/logout/expiry, empty workspace, header Update, both scope types and
 Retain process/application and migration logs in the deployment platform, excluding secrets and operational reports from Git. Enable existing performance/cache debug flags only when needed. Diagnose startup failures through Windows identity, DPAPI readability, SQL target/TLS and schema compatibility.
 
 Keep the previous artifact and a tested database backup. Stop rollout on failed smoke checks. Restore the previous application when schema-compatible; otherwise follow the approved database recovery plan before returning traffic. Record incidents and regression tests. No automatic deployment or hosting controls are created by the local baseline.
+
+## Standalone demo distribution
+
+After normal and demo checks pass, distribute Demo/index.html from the reviewed commit. A current Chrome/Edge opens it directly with no service, SQL, login or internet. Only synthetic JSON data may be packaged. Do not include DB_config, logindetails, operational extracts or dependency folders. This demo does not replace the authenticated operational deployment. See [demo behavior and limitations](demo.md).

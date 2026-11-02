@@ -149,7 +149,7 @@ describe("CMDB drill through", () => {
     expect(drawer).toContain("panel?.showModal()");
     expect(drawer).toContain('className="measure-scope-content"');
     expect(drawer).toContain('className="measure-scope-table cmdb-details-table"');
-    expect(drawer).toContain("window.location.hash.startsWith(\"#/\")");
+    expect(drawer).toContain("browserWorkspaceSearch(window.location)");
     expect(drawer).toContain("openCmdbDrillThrough");
     expect(drawer).toContain("data-cmdb-asset-id={assetId}");
     expect(drawer).toContain('event.key === "Escape"');

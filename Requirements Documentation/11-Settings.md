@@ -11,3 +11,7 @@ Database Settings reads/writes encrypted DB_config and supports connection/schem
 Settings does not authorize destructive schema rebuilds or demo imports. Source: components/settings-popup.tsx, settings-tabs.tsx, spi-risk-settings-popup.tsx and settings forms; lib/measures-settings.ts, discovery-tools-settings.ts, db-config.ts, login-details.ts and related APIs. Tests cover priority/risk settings behavior, password handling, SQL TLS, DB config and auth invalidation. Verify save/reopen and subsequent scoped results, not just successful toast text.
 
 Database schema diagnostics require the current 66-table contract after migration 027; they no longer require the unused KPI parameter table or network apm_number. Risk/priority settings and version tables are retained.
+
+## Standalone demo settings
+
+The portable Demo/index.html uses the same SPI risk, SPI priority and discovery applicability editors. Saving updates the JSON-backed browser calculations immediately and persists settings in local browser storage when available. Demo Data explains sample snapshots and offers a settings reset. Database/password administration is absent because this synthetic demo has no backend or login. These changes do not alter operational SQL settings or strict TLS. See [demo maintenance](../docs/demo.md).

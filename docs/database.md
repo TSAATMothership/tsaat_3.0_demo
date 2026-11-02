@@ -36,3 +36,7 @@ Back up and verify restore. Compare deployed schema/configuration, select missin
 Do not apply 026 to operational imports: its Sample metadata and example.test addresses are demonstration values, not verified contacts. Future migrations must state schema/config/demo scope, preconditions, row impact, idempotence and recovery. Review both fresh-install and upgrade paths.
 
 Regenerate docs after SQL/reference changes and inspect ERD/mappings. Run validation SQL and integration suites on a disposable target. Keep deployed migration evidence and live schema comparisons with the release record.
+
+## Browser demo relationship
+
+The standalone demo never connects to SQL. It consumes the maintained synthetic snapshots/reference JSON and applies reviewed browser equivalents of the supported calculation rules. SQL/schema changes must include demo evaluator/fixture/mapping review and updates to Demo/data/calculation-contract.json after meaningful tests. Per-type demo CMDB mappings are in Demo/data/cmdb-attributes.json. The operational SQL connection remains strict TLS; demo work does not alter its certificate configuration. See [demo maintenance](demo.md).

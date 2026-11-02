@@ -1,5 +1,7 @@
 "use client";
 
+import { browserWorkspaceSearch } from "@/lib/browser-location";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import {
@@ -210,7 +212,7 @@ function spiIdFromNodeValue(value: string): number | null {
 }
 
 function buildApiUrl(path: string, extraParams: Record<string, string | number | null | undefined> = {}): string {
-  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+  const params = new URLSearchParams(typeof window === "undefined" ? "" : browserWorkspaceSearch(window.location));
   for (const [key, value] of Object.entries(extraParams)) {
     if (value === null || value === undefined || value === "" || value === "all") {
       params.delete(key);
