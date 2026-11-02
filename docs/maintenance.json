@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "areas": [
+    { "name": "Workspace and navigation", "pattern": "workspace|route-loading|app/page\\.tsx|app/layout\\.tsx", "documents": ["Requirements Documentation/01-Home-Redirect.md", "docs/ui-design.md"] },
+    { "name": "Impact analysers", "pattern": "cyber-cop|impact-analyser|service-impact|server-compliance|ci-flow", "documents": ["Requirements Documentation/02-Cyber-COP.md", "docs/architecture.md"] },
+    { "name": "Risk profiles and entity details", "pattern": "risk-profile|risk-entity|network-details|ict-system-details|compliance-heatmap|app/networks|app/systems", "documents": ["Requirements Documentation/03-Networks.md", "Requirements Documentation/04-Network-Detail.md", "Requirements Documentation/05-ICT-Systems.md", "Requirements Documentation/06-ICT-System-Detail.md", "docs/ui-design.md"] },
+    { "name": "Discovery and CMDB", "pattern": "discovery|endpoint|installed-software|shadow-it|cmdb", "documents": ["Requirements Documentation/07-Discovery.md", "docs/cmdb-asset-type-attributes.md"] },
+    { "name": "Measures", "pattern": "measures|kpi|spi", "documents": ["Requirements Documentation/08-Measures.md", "Requirements Documentation/11-Settings.md", "Requirements Documentation/12-Asset-Taxonomy-and-SPI-Applicability.md"] },
+    { "name": "Findings", "pattern": "findings|finding-", "documents": ["Requirements Documentation/09-Findings-and-Evidence.md", "docs/ui-design.md"] },
+    { "name": "Reports", "pattern": "report|workbook|export", "documents": ["Requirements Documentation/10-Report-Catalogue.md", "Requirements Documentation/08-Measures.md"] },
+    { "name": "Settings and authentication", "pattern": "settings|auth|login|password|middleware|db-config|dpapi", "documents": ["Requirements Documentation/11-Settings.md", "Requirements Documentation/13-Authentication-and-Login.md", "SECURITY.md"] },
+    { "name": "Database", "pattern": "^Database Schema/|lib/data-loader|lib/sql-server|lib/types|cmdb-attribute-loader", "documents": ["docs/database.md", "Database Schema/ERD.md", "Database Schema/database-schema-description.txt", "Database Schema/data-mapping-description.txt", "Database Schema/migrations/README.txt"] },
+    { "name": "Shared UI", "pattern": "app/globals\\.css|workspace-tabs|findings-data-table|inventory-explorer-controls|tailwind", "documents": ["docs/ui-design.md"] },
+    { "name": "Tooling and lifecycle", "pattern": "^scripts/|^package|^tsconfig|^vitest|^next.config|^\\.github/|\\.cmd$", "documents": ["docs/development.md", "docs/sdlc.md", "docs/operations.md", "docs/database.md"] }
+  ],
+  "fallbackDocuments": ["docs/architecture.md", "docs/development.md"]
+}

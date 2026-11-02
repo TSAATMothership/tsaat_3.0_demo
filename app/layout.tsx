@@ -1,0 +1,82 @@
+import type { Metadata } from "next";
+import Image from "next/image";
+import { headers } from "next/headers";
+import { Suspense } from "react";
+import "./globals.css";
+import { AuthenticatedSessionGuard } from "@/components/authenticated-session-guard";
+import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
+import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
+import { MenuNavigation } from "@/components/menu-navigation";
+import { WorkspaceShell } from "@/components/workspace-shell";
+import { APP_NAME } from "@/lib/constants";
+
+const bodyFontClass = "font-['Segoe_UI','Trebuchet_MS','Arial',sans-serif]";
+const headingFontClass = "font-['Bahnschrift','Arial_Narrow','Arial',sans-serif]";
+
+export const metadata: Metadata = {
+  title: APP_NAME,
+  description: "Cyberspace situational awareness dashboard for TSAAT posture and risk reporting."
+};
+
+export default function RootLayout({
+  children
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const requestHeaders = headers();
+  const pathname = requestHeaders.get("x-tsaat-pathname") ?? "";
+  const authenticatedUsername = (requestHeaders.get("x-tsaat-auth-user") ?? "").trim();
+  const isLoginRoute = pathname === "/login";
+
+  if (isLoginRoute) {
+    return (
+      <html lang="en">
+        <body className={`${bodyFontClass} antialiased`}>
+          <div className="app-bg" />
+          <div className="topography-overlay" />
+          <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">{children}</main>
+        </body>
+      </html>
+    );
+  }
+
+  return (
+    <html lang="en">
+      <body className={`${bodyFontClass} antialiased`}>
+        <div className="app-bg" />
+        <div className="topography-overlay" />
+        <div className="app-workspace-shell">
+          <header className="workspace-header no-print">
+            <div className="w-full px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex shrink-0 items-center gap-3">
+                  <Image src="/tsaat-logo.png" alt="TSAAT logo" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" priority />
+                  <div>
+                    <p className={`${headingFontClass} text-xl uppercase tracking-[0.14em] text-slate-100`}>TSAAT</p>
+                    <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <Suspense fallback={<div className="h-[38px]" />}>
+                    <MenuNavigation authenticatedUsername={authenticatedUsername} />
+                  </Suspense>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <Suspense fallback={null}>
+            <WorkspaceShell><CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider></WorkspaceShell>
+          </Suspense>
+        </div>
+        <Suspense fallback={null}>
+          <AuthenticatedSessionGuard />
+        </Suspense>
+        <Suspense fallback={null}>
+          <FilterLoadingOverlay />
+        </Suspense>
+
+      </body>
+    </html>
+  );
+}

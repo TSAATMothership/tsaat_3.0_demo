@@ -1,0 +1,268 @@
+﻿TSAAT Database Data Mapping Description
+======================================
+
+Canonical Package Root
+----------------------
+- Database Schema/
+  - database-schema.sql
+  - migrations/*.sql
+  - data/*.json
+  - loaders/*.sql, *.ps1, *.cmd
+
+Discovered Application Database Name
+------------------------------------
+- TSAAT
+- Discovery rule used by loader:
+  1) data/database-build-manifest.json.applicationDatabaseName
+  2) fallback: schema name from database-schema.sql (CREATE SCHEMA [tsaat] -> TSAAT)
+
+SQL Server Target
+-----------------
+- Server: configured in encrypted `DB_config` payload (`server`).
+- Application database: configured in encrypted `DB_config` payload (`database`).
+- Authentication:
+  - Controlled by `authMode` in encrypted `DB_config` payload.
+  - `authMode=trusted` => Windows trusted auth.
+  - `authMode=sql` => SQL login via `userId` + `password`.
+  - SSL controlled by `sslEnabled` + `sslType`.
+  - `sslEnabled=false` => no SSL transport encryption.
+  - `sslEnabled=true, sslType=strict` => SSL with strict certificate validation.
+  - `sslEnabled=true, sslType=trust-server-certificate` => SSL with trusted server certificate mode.
+- Use npm run setup:database to provision encrypted DB_config. CreateDB.cmd is a guarded new-demo database bootstrap; compileApp.cmd runs source checks/build without modifying SQL or credentials.
+- Unattended missing-file or undecryptable-file provisioning uses `TSAAT_DB_CONFIG_ASSUME_YES=true` plus complete `TSAAT_SQL_*` values to create/recreate encrypted `DB_config`; confirmed file values then drive loaders/compile scripts.
+- Admin database for bootstrap: master
+- Application schema: tsaat
+- Application login credentials are not imported into SQL Server; they are created/updated in local encrypted repository root `logindetails`.
+
+Database Load Modes
+-------------------
+- ClientPayload is the guarded demo bootstrap mode. The setup machine reads local JSON, sends parameterized NVARCHAR(MAX) payload inserts over the SQL connection, and maps them with OPENJSON.
+- SqlServerFiles remains available in the low-level loader through SqlServerPackageDataRoot and SqlServerSnapshotsRoot. Pre-stage files in paths readable by the SQL Server service account (scripts/stage-db-load-files.ps1 is retained). The new guarded bootstrap uses ClientPayload and does not prompt for UNC staging. Low-level schema loading is destructive and must not target an operational database.
+- `ClientPayload` is preferred for remote SQL Server installs because SQL Server does not need filesystem access to the application repository.
+
+Source Data Artefacts
+---------------------
+Package-local files:
+- Database Schema/data/spi-definitions.json
+- Database Schema/data/spi-rule-definitions.json
+- Database Schema/data/spi-report-detail-definitions.json
+- Database Schema/data/spi-finding-classification-rules.json
+- Database Schema/data/spi-sql-calculations.json
+- Database Schema/data/finding-definitions.json
+- Database Schema/data/severity-definitions.json
+- Database Schema/data/kpi-definitions.json
+- Database Schema/data/kpi-calculations.json
+- Database Schema/data/kpi-report-detail-definitions.json
+- Database Schema/data/kpi-tasking.json
+- Database Schema/data/discovery-coverage-rules.json
+- Database Schema/data/discovery-tools-settings.json
+- Database Schema/data/measures-settings.json
+- Database Schema/data/reference-versions.json
+- Database Schema/data/database-build-manifest.json
+
+Repository source snapshots:
+- ../data/snapshots/week-01.json ... week-08.json
+
+Load Order (Deterministic)
+--------------------------
+1. reference_version_set
+2. reference_os_current_major
+3. reference_software_supported_version
+4. finding_severity_definition
+5. finding_priority_definition
+6. finding_source_policy
+7. finding_generation_policy
+8. finding_workflow_status_definition
+9. finding_bucket_definition
+10. finding_evidence_field_definition
+11. finding_register_column_definition
+12. spi_rule_definition
+13. spi_rule_parameter_definition
+14. spi_rule_outcome_template
+15. spi_report_detail_definition
+16. spi_calculation_source
+17. spi_calculation_definition
+18. spi_calculation_evidence_expression
+19. spi_definition
+20. spi_finding_classification_rule
+21. spi_feature_binding
+22. spi_applicable_asset_type
+23. spi_rule_parameter
+24. spi_tasking_team
+25. spi_tasking_action_template
+26. spi_tasking_condition_template
+27. kpi_calculation_source
+28. kpi_calculation_definition
+29. kpi_calculation_parameter
+30. kpi_definition
+31. kpi_report_detail_definition
+32. kpi_report_detail_binding
+33. kpi_tasking_team
+34. kpi_tasking_action_template
+35. kpi_tasking_condition_template
+36. discovery_tools_settings_version
+37. discovery_tool
+38. discovery_tool_asset_scope
+39. discovery_coverage_source
+40. discovery_tool_detection_definition
+41. discovery_tool_detection_rule
+42. discovery_tool_detection_rule_value
+43. measures_settings_version
+44. measures_severity_matrix
+45. measures_priority_matrix
+46. dataset_snapshot
+47. managed_network
+48. managed_network_hierarchy
+49. ict_system
+50. ict_system_hierarchy
+51. network_declared_system
+52. system_mission_capability
+53. system_business_service
+54. system_environment
+55. asset
+56. network_declared_asset
+57. network_target_state_asset
+58. system_environment_asset
+59. asset_operating_system
+60. asset_network_os
+61. asset_patch_state
+62. asset_installed_software
+63. asset_vulnerability
+64. ci_dependency
+65. finding
+
+Field-Level Mapping Summary
+---------------------------
+Reference and settings:
+- Database Schema/data/reference-versions.json.osCurrentMajor -> tsaat.reference_os_current_major
+- Database Schema/data/reference-versions.json.softwareSupportMatrix -> tsaat.reference_software_supported_version
+- Database Schema/data/severity-definitions.json.severities[] -> tsaat.finding_severity_definition
+- Database Schema/data/spi-sql-calculations.json.findingPriorities[] -> tsaat.finding_priority_definition
+- Database Schema/data/finding-definitions.json.sourcePolicies[] -> tsaat.finding_source_policy
+- Database Schema/data/finding-definitions.json.generationPolicies[] -> tsaat.finding_generation_policy
+- Database Schema/data/finding-definitions.json.workflowStatuses[] -> tsaat.finding_workflow_status_definition
+- Database Schema/data/finding-definitions.json.buckets[] -> tsaat.finding_bucket_definition
+- Database Schema/data/finding-definitions.json.evidenceFields[] -> tsaat.finding_evidence_field_definition
+- Database Schema/data/finding-definitions.json.registerColumns[] -> tsaat.finding_register_column_definition
+- Database Schema/data/spi-rule-definitions.json.rules[] -> tsaat.spi_rule_definition
+- Database Schema/data/spi-rule-definitions.json.rules[].parameters[] -> tsaat.spi_rule_parameter_definition
+- Database Schema/data/spi-rule-definitions.json.rules[].outcomes[] -> tsaat.spi_rule_outcome_template
+- Database Schema/data/spi-report-detail-definitions.json.reportDetails[] -> tsaat.spi_report_detail_definition
+- Database Schema/data/spi-sql-calculations.json.calculationSources[] -> tsaat.spi_calculation_source
+- Database Schema/data/spi-sql-calculations.json.calculations[] -> tsaat.spi_calculation_definition
+- Database Schema/data/spi-sql-calculations.json.calculations[].evidenceExpressions[] -> tsaat.spi_calculation_evidence_expression
+- Database Schema/data/spi-definitions.json.spis[] -> tsaat.spi_definition, including displayOrder, enabled, ruleKey, reportAvailable, trendReportAvailable, reportDetailKey, defaultSeverity, and recommendedAction
+- Database Schema/data/spi-finding-classification-rules.json.classificationRules[] -> tsaat.spi_finding_classification_rule
+- Database Schema/data/spi-sql-calculations.json.featureBindings[] -> tsaat.spi_feature_binding
+- Database Schema/data/spi-definitions.json.spis[].applicableAssetTypes[] -> tsaat.spi_applicable_asset_type
+- Database Schema/data/spi-definitions.json.spis[].ruleParameters object -> tsaat.spi_rule_parameter
+- Database Schema/data/spi-definitions.json.spis[].taskingTeams[] -> tsaat.spi_tasking_team
+- Database Schema/data/spi-definitions.json.spis[].taskingActions[] -> tsaat.spi_tasking_action_template
+- Database Schema/data/spi-definitions.json.spis[].taskingConditions[] -> tsaat.spi_tasking_condition_template
+- Database Schema/data/kpi-calculations.json.calculationSources[] -> tsaat.kpi_calculation_source
+- Database Schema/data/kpi-calculations.json.calculations[] -> tsaat.kpi_calculation_definition
+- Database Schema/data/kpi-calculations.json.calculations[].parameters[] -> tsaat.kpi_calculation_parameter
+- Database Schema/data/kpi-definitions.json.kpis[] -> tsaat.kpi_definition, including enabled flag, display order, report availability, and calculation key
+- Database Schema/data/kpi-report-detail-definitions.json.reportDetails[] -> tsaat.kpi_report_detail_definition
+- Database Schema/data/kpi-report-detail-definitions.json.bindings[] -> tsaat.kpi_report_detail_binding
+- Database Schema/data/kpi-tasking.json.teams[] -> tsaat.kpi_tasking_team
+- Database Schema/data/kpi-tasking.json.actions[] -> tsaat.kpi_tasking_action_template
+- Database Schema/data/kpi-tasking.json.conditions[] -> tsaat.kpi_tasking_condition_template
+- Database Schema/data/discovery-tools-settings.json.updatedAt -> tsaat.discovery_tools_settings_version.updated_at
+- Database Schema/data/discovery-tools-settings.json.tools[] -> tsaat.discovery_tool
+- Database Schema/data/discovery-tools-settings.json.tools[].assetTypeScope object -> tsaat.discovery_tool_asset_scope
+- Database Schema/data/discovery-coverage-rules.json.sources[] -> tsaat.discovery_coverage_source
+- Database Schema/data/discovery-coverage-rules.json.detections[] -> tsaat.discovery_tool_detection_definition
+- Database Schema/data/discovery-coverage-rules.json.rules[] -> tsaat.discovery_tool_detection_rule
+- Database Schema/data/discovery-coverage-rules.json.rules[].values[] -> tsaat.discovery_tool_detection_rule_value
+- Database Schema/data/measures-settings.json.updatedAt -> tsaat.measures_settings_version.updated_at
+- Database Schema/data/measures-settings.json.severityMatrix object key "spiId:assetType" -> tsaat.measures_severity_matrix
+- Database Schema/data/measures-settings.json.priorityMatrix object key "spiId" -> tsaat.measures_priority_matrix
+  - if priorityMatrix is omitted, the loader derives priorities from spi_definition.priority_order and validates the value against selectable tsaat.finding_priority_definition rows
+
+Snapshots and domain entities:
+- snapshot root:
+  - generatedAt -> dataset_snapshot.generated_at
+  - snapshotDate -> dataset_snapshot.snapshot_date
+  - source_label = snapshot file name
+
+- managedNetworks[]:
+  - id,name,criticality,adfPlatform,enterprisePlatform,modellingStatus,classification,description,owner,supportEmail,serviceCatalogueUrl,diisId,atoNumber,apmNumber,diisUrl,grcUrl,discoveryStatus
+    -> managed_network
+  - if modellingStatus is omitted, the loader derives it from discoveryStatus: `Discovery Non Enabled` -> false, otherwise true
+  - if diisId, atoNumber, or apmNumber is omitted, the loader derives deterministic values as `DIIS-NET-XXX`, `ATO-NET-XXX`, and `APM-NET-XXX`
+  - parentNetworkId + childNetworkIds[] -> managed_network_hierarchy
+  - ictSystemIds[] -> network_declared_system
+  - assetIds[] -> network_declared_asset
+  - targetStateAssets.<assetType>[] (name-only target records) -> network_target_state_asset
+
+- ictSystems[]:
+  - id,networkId,name,adfPlatform,enterprisePlatform,description,diisId,owner,supportEmail,serviceCatalogueUrl,atoNumber,apmNumber,diisUrl,grcUrl,modellingStatus,diisDefined,criticality,securityDomain
+    -> ict_system
+  - if diisId, atoNumber, or apmNumber is omitted, the loader derives deterministic values as `DIIS-SYS-XXX`, `ATO-SYS-XXX`, and `APM-SYS-XXX`
+  - parentSystemId + childSystemIds[] -> ict_system_hierarchy
+  - missionCapabilities[] -> system_mission_capability
+  - businessServices[] -> system_business_service
+  - environments[] -> system_environment
+  - environments[].assetIds[] -> system_environment_asset
+
+- assets[]:
+  - id,name,hostname,ipAddress,cmdbRecordUrl,type,networkId,securityDomain,systemContext.systemId,systemContext.environmentType,lifecycle.eolStatus,lifecycle.warrantyStatus
+    -> asset
+  - operatingSystem -> asset_operating_system
+  - networkOs -> asset_network_os
+  - patchState -> asset_patch_state
+  - installedSoftware[] -> asset_installed_software (ordinal = array index + 1)
+  - vulnerabilities[] -> asset_vulnerability
+
+- ciDependencies[] (optional):
+  - id,sourceAssetId,targetAssetId,dependencyType,protocol,sourcePort,targetPort,observationMethod,observedAt
+    -> ci_dependency
+
+- findings[]:
+  - id,spiId,priorityRank,severity,complianceStatus,scope.networkId,scope.systemId,scope.environmentType,scope.assetId,title,evidence,recommendedAction,status,timestamp,closedTimestamp
+    -> finding
+
+Identity and deterministic key policy:
+- reference_version_set.version_set_id = 1
+- discovery_tools_settings_version.settings_version_id = 1
+- measures_settings_version.settings_version_id = 1
+- dataset_snapshot.snapshot_id = 1..8 mapped to week-01..week-08
+
+Normalization rule applied for relational integrity:
+- If ictSystems[].networkId is empty string, loader maps it to synthetic networkId `net-unassigned`.
+- Loader inserts one synthetic managed_network row per snapshot:
+  - network_id = `net-unassigned`
+  - name = `Unassigned Systems`
+  - modelling_status = 0
+  - diis_id = `DIIS-NET-000`
+  - ato_number = `ATO-NET-000`
+  - apm_number = `APM-NET-000`
+  - criticality = `Non-Critical`
+  - discovery_status = `Discovery Non Enabled`
+- If ciDependencies[] is absent for a snapshot, loader synthesizes deterministic dependency examples:
+  - environment-level Logical Dependency chains
+  - environment/network-level Flow Dependency links
+  - links from modelled CIs to unmodelled CIs for Not Modelled scenarios
+
+Validation Rules Applied by loader/validator
+--------------------------------------------
+- Exactly 8 dataset snapshots required
+- At least 10 SPI definitions required; current seed preserves SPI 1..10 and future supported SPI IDs may be added
+- At least 5 severity definitions required; current seed preserves Critical Exposure, High Risk, Major, Moderate, and Data Gap
+- Non-empty asset, finding, discovery_tool, kpi_definition, kpi_calculation_source, kpi_calculation_definition, kpi tasking/report metadata, discovery coverage detection metadata, finding_severity_definition, finding_priority_definition, SPI rule catalogue, SPI parameter schema, SPI outcome template, SPI report detail catalogue, SPI SQL calculation source/definition/evidence, SPI feature binding, SPI finding classification, spi_rule_parameter, SPI tasking metadata, measures_severity_matrix, and measures_priority_matrix tables required
+- `tsaat.usp_evaluate_spi_snapshot` must return valid JSON evidence rows for the latest snapshot using the DB-backed SQL calculation definitions and must respect optional asset-scope JSON
+- `tsaat.usp_evaluate_discovery_coverage_snapshot` must return per-asset SQL discovery coverage rows for the latest snapshot
+- `tsaat.usp_evaluate_kpi_snapshot` must execute for the latest snapshot using the DB-backed KPI calculation definitions, and `tsaat.usp_evaluate_kpi_snapshot_bulk` must execute for scoped performance/report rows
+- Non-empty network_target_state_asset table required
+- Full row-count summary emitted after load
+- Seed profile constraints validated in `scripts/validate-seed.ts`:
+  - 70% of assets modelled to ICT systems, 30% left unmodelled
+  - ICT systems map server assets only (no workstations/network devices)
+  - Per-system server count bounded to 20..300, with most systems < 50
+  - Discovery-enabled network target-state asset types must not produce discovery-missing rows
+  - Flow dependency distribution per source CI:
+    - 10% with 0 edges
+    - 70% with 20..50 edges
+    - 19% with 3..19 edges
+    - 1% with 51..150 edges

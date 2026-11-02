@@ -1,0 +1,21 @@
+# TSAAT solution design index
+
+The feature contracts below describe the current application. Exact interfaces, SQL fields and API methods are linked through the generated inventories. The former combined specification is an entrypoint rather than a duplicate copy.
+
+- [Workspace, navigation and scope](01-Home-Redirect.md)
+- [Cyber Security and impact analysers](02-Cyber-COP.md)
+- [Network Risk Profile](03-Networks.md)
+- [Network Details panel](04-Network-Detail.md)
+- [ICT System Risk Profile](05-ICT-Systems.md)
+- [ICT System Details panel](06-ICT-System-Detail.md)
+- [Discovery workspace](07-Discovery.md)
+- [Measures Summary, KPIs and SPIs](08-Measures.md)
+- [Findings Register and evidence](09-Findings-and-Evidence.md)
+- [Briefs & Reports and export contracts](10-Report-Catalogue.md)
+- [Settings](11-Settings.md)
+- [Asset taxonomy and applicability](12-Asset-Taxonomy-and-SPI-Applicability.md)
+- [Authentication and login](13-Authentication-and-Login.md)
+
+Cross-cutting: [Architecture](../docs/architecture.md), [UI design](../docs/ui-design.md), [Database lifecycle](../docs/database.md), [CMDB mappings](../docs/cmdb-asset-type-attributes.md), [Application inventory](../docs/generated/application-inventory.md), [Schema catalogue](../docs/generated/database-catalogue.md).
+
+Update behavior, implementation references and validation expectations together. This index includes retired URL compatibility; it does not restore retired sidebar pages.

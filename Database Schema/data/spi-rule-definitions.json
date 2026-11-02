@@ -1,0 +1,500 @@
+{
+  "updatedAt": "2026-03-22T00:00:00.000Z",
+  "rules": [
+    {
+      "ruleKey": "os-support",
+      "handlerKey": "os-support",
+      "displayOrder": 1,
+      "name": "Operating System Support Rule",
+      "description": "Evaluates operating system vendor support status for servers and workstations.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": ["Supported", "OutOfSupport", "Unknown"],
+          "displayOrder": 1,
+          "description": "Support status treated as non-compliant."
+        },
+        {
+          "parameterKey": "unknownSupportStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": ["Unknown"],
+          "displayOrder": 2,
+          "description": "Support status treated as unknown."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "missing_os_data",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Operating system data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "unsupported",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Operating system is out of support.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "supported",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Operating system is vendor supported.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "os-n-minus",
+      "handlerKey": "os-n-minus",
+      "displayOrder": 2,
+      "name": "Operating System N-Minus Rule",
+      "description": "Evaluates operating system currency against the configured N-minus threshold.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "maxNMinus",
+          "parameterType": "number",
+          "required": false,
+          "defaultValue": "2",
+          "allowedValues": [],
+          "displayOrder": 1,
+          "description": "Maximum compliant N-minus distance."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "missing_n_minus",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "N-minus metadata is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "within_n_minus",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "OS is within N-{maxNMinus} range.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "older_than_n_minus",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "OS major version is older than N-{maxNMinus}.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "server-critical-vulnerability",
+      "handlerKey": "server-critical-vulnerability",
+      "displayOrder": 3,
+      "name": "Server Critical Vulnerability Rule",
+      "description": "Evaluates whether a server has vulnerabilities at the configured severity.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": ["Low", "Medium", "High", "Critical"],
+          "displayOrder": 1,
+          "description": "Vulnerability severity that triggers non-compliance."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "critical_vulnerability_present",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Server has one or more critical vulnerabilities.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "no_critical_vulnerability",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "No critical server vulnerabilities present.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "production-server-critical-unsupported-os",
+      "handlerKey": "production-server-critical-unsupported-os",
+      "displayOrder": 4,
+      "name": "Production Server Critical Unsupported OS Rule",
+      "description": "Evaluates production servers for the high-risk combination of critical vulnerability and unsupported OS.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "environmentType",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Production",
+          "allowedValues": ["Production", "Development", "UAT", "Test"],
+          "displayOrder": 1,
+          "description": "System environment type in scope."
+        },
+        {
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": ["Low", "Medium", "High", "Critical"],
+          "displayOrder": 2,
+          "description": "Vulnerability severity that contributes to the high-risk condition."
+        },
+        {
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": ["Supported", "OutOfSupport", "Unknown"],
+          "displayOrder": 3,
+          "description": "OS support status that contributes to the high-risk condition."
+        },
+        {
+          "parameterKey": "unknownSupportStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": ["Unknown"],
+          "displayOrder": 4,
+          "description": "OS support status treated as unknown."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "not_production_context",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Asset is not in production context.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "missing_os_support",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Production server OS support status is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "triggered",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "High Risk: Production server has critical vulnerability on unsupported OS.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "not_triggered",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "High Risk condition not triggered.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "production-server-critical-unsupported-software",
+      "handlerKey": "production-server-critical-unsupported-software",
+      "displayOrder": 5,
+      "name": "Production Server Critical Unsupported Software Rule",
+      "description": "Evaluates production servers for critical vulnerabilities with unsupported installed software.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "environmentType",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Production",
+          "allowedValues": ["Production", "Development", "UAT", "Test"],
+          "displayOrder": 1,
+          "description": "System environment type in scope."
+        },
+        {
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": ["Low", "Medium", "High", "Critical"],
+          "displayOrder": 2,
+          "description": "Vulnerability severity that contributes to the high-risk condition."
+        },
+        {
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": ["Supported", "OutOfSupport", "Unknown"],
+          "displayOrder": 3,
+          "description": "Software support status that contributes to the high-risk condition."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "not_production_context",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Asset is not in production context.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "missing_software",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Installed software data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "triggered",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "High Risk: Production server has critical vulnerability and unsupported installed software.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "not_triggered",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "High Risk condition not triggered.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "production-workstation-critical-unsupported-software",
+      "handlerKey": "production-workstation-critical-unsupported-software",
+      "displayOrder": 6,
+      "name": "Production Workstation Critical Unsupported Software Rule",
+      "description": "Evaluates production-supporting workstations for critical vulnerabilities with unsupported installed software.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "environmentType",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Production",
+          "allowedValues": ["Production", "Development", "UAT", "Test"],
+          "displayOrder": 1,
+          "description": "System environment type in scope."
+        },
+        {
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": ["Low", "Medium", "High", "Critical"],
+          "displayOrder": 2,
+          "description": "Vulnerability severity that contributes to the high-risk condition."
+        },
+        {
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": ["Supported", "OutOfSupport", "Unknown"],
+          "displayOrder": 3,
+          "description": "Software support status that contributes to the high-risk condition."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "not_production_context",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Workstation is not in production-support context.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "missing_software",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Installed software data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "triggered",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "High Risk: Production-support workstation has critical vulnerability and unsupported installed software.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "not_triggered",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "High Risk condition not triggered.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "network-device-critical-vulnerability",
+      "handlerKey": "network-device-critical-vulnerability",
+      "displayOrder": 7,
+      "name": "Network Device Critical Vulnerability Rule",
+      "description": "Evaluates whether a network device has vulnerabilities at the configured severity.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "vulnerabilitySeverity",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Critical",
+          "allowedValues": ["Low", "Medium", "High", "Critical"],
+          "displayOrder": 1,
+          "description": "Vulnerability severity that triggers non-compliance."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "critical_vulnerability_present",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Network device has critical vulnerabilities.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "no_critical_vulnerability",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "No critical vulnerabilities found on network device.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "network-device-support",
+      "handlerKey": "network-device-support",
+      "displayOrder": 8,
+      "name": "Network Device Support Rule",
+      "description": "Evaluates network device OS or firmware vendor support status.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "unsupportedStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "OutOfSupport",
+          "allowedValues": ["Supported", "OutOfSupport", "Unknown"],
+          "displayOrder": 1,
+          "description": "Support status treated as non-compliant."
+        },
+        {
+          "parameterKey": "unknownSupportStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": ["Unknown"],
+          "displayOrder": 2,
+          "description": "Support status treated as unknown."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "missing_network_os",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Network OS/firmware data is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "unsupported",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Network OS/firmware is out of support.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "supported",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Network OS/firmware is vendor supported.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "network-device-patch-currency",
+      "handlerKey": "network-device-patch-currency",
+      "displayOrder": 9,
+      "name": "Network Device Patch Currency Rule",
+      "description": "Evaluates whether network devices are on the configured current patch state.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "latestPatchRequired",
+          "parameterType": "boolean",
+          "required": false,
+          "defaultValue": "true",
+          "allowedValues": ["true", "false"],
+          "displayOrder": 1,
+          "description": "Whether latest patch state is required for compliance."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "missing_patch_state",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Patch state is missing.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "current",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Network device patch level is current.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "not_current",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Network device is not on latest patch level.",
+          "evidenceTemplate": null
+        }
+      ]
+    },
+    {
+      "ruleKey": "asset-lifecycle-currency",
+      "handlerKey": "asset-lifecycle-currency",
+      "displayOrder": 10,
+      "name": "Asset Lifecycle Currency Rule",
+      "description": "Evaluates physical asset lifecycle and warranty currency.",
+      "enabled": true,
+      "parameters": [
+        {
+          "parameterKey": "endOfLifeStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "EOL",
+          "allowedValues": ["Supported", "EOL", "Unknown"],
+          "displayOrder": 1,
+          "description": "Lifecycle status treated as end-of-life."
+        },
+        {
+          "parameterKey": "inWarrantyStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "InWarranty",
+          "allowedValues": ["InWarranty", "OutOfWarranty", "Unknown"],
+          "displayOrder": 2,
+          "description": "Warranty status required for compliance."
+        },
+        {
+          "parameterKey": "unknownLifecycleStatus",
+          "parameterType": "string",
+          "required": false,
+          "defaultValue": "Unknown",
+          "allowedValues": ["Unknown"],
+          "displayOrder": 3,
+          "description": "Lifecycle or warranty status treated as unknown."
+        }
+      ],
+      "outcomes": [
+        {
+          "outcomeKey": "missing_lifecycle",
+          "complianceStatus": "Unknown",
+          "reasonTemplate": "Lifecycle data is incomplete.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "current",
+          "complianceStatus": "Compliant",
+          "reasonTemplate": "Lifecycle and warranty are within policy.",
+          "evidenceTemplate": null
+        },
+        {
+          "outcomeKey": "expired",
+          "complianceStatus": "Non-compliant",
+          "reasonTemplate": "Device is EOL or out of warranty.",
+          "evidenceTemplate": null
+        }
+      ]
+    }
+  ]
+}

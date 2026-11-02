@@ -1,0 +1,19 @@
+node_modules/
+.next/
+out/
+coverage/
+output/
+tmp/
+.local/
+Dependencies/
+TSAATDemo*/
+DB_config*
+logindetails*
+.env*
+!.env.example
+*.log
+*.tsbuildinfo
+*.bak
+*.tmp
+.DS_Store
+Database Schema/loaders/last-build-summary.txt

@@ -1,0 +1,28 @@
+{
+  "sources": [
+    {
+      "sourceKey": "asset-discovery-coverage-context",
+      "sourceObjectName": "[tsaat].[asset] + discovery settings + asset evidence tables",
+      "description": "Approved SQL context for discovery coverage evaluation over asset, system, lifecycle, vulnerability, and latest discovery tool settings facts.",
+      "enabled": true
+    }
+  ],
+  "toolDetectionDefinitions": [
+    { "toolId": "ucmdb", "displayOrder": 1, "name": "UCMDB", "description": "Asset has an ICT system context.", "enabled": true },
+    { "toolId": "tanium", "displayOrder": 2, "name": "Tanium", "description": "Server and workstation assets are visible to endpoint tooling.", "enabled": true },
+    { "toolId": "tenable", "displayOrder": 3, "name": "Tenable", "description": "Asset has vulnerability evidence from a supported scanner source.", "enabled": true },
+    { "toolId": "snow", "displayOrder": 4, "name": "SNOW", "description": "Asset has known warranty lifecycle evidence.", "enabled": true },
+    { "toolId": "servicenow", "displayOrder": 5, "name": "ServiceNow", "description": "Asset has known end-of-life lifecycle evidence.", "enabled": true },
+    { "toolId": "dsoc-siem", "displayOrder": 6, "name": "DSOC SIEM", "description": "Asset has vulnerability/security telemetry evidence.", "enabled": true },
+    { "toolId": "elastic", "displayOrder": 7, "name": "Elastic", "description": "Server and workstation assets are visible to telemetry indexing.", "enabled": true }
+  ],
+  "detectionRules": [
+    { "toolId": "ucmdb", "displayOrder": 1, "conditionKey": "has-system-context", "description": "Covered when the asset is associated with an ICT system.", "enabled": true },
+    { "toolId": "tanium", "displayOrder": 1, "conditionKey": "asset-type-in", "values": ["server", "workstation"], "description": "Covered for server and workstation assets.", "enabled": true },
+    { "toolId": "tenable", "displayOrder": 1, "conditionKey": "vulnerability-source-in", "values": ["Nessus", "Qualys", "OpenVAS"], "description": "Covered when a supported vulnerability scanner source is present.", "enabled": true },
+    { "toolId": "snow", "displayOrder": 1, "conditionKey": "warranty-status-known", "description": "Covered when warranty status is known.", "enabled": true },
+    { "toolId": "servicenow", "displayOrder": 1, "conditionKey": "eol-status-known", "description": "Covered when EOL status is known.", "enabled": true },
+    { "toolId": "dsoc-siem", "displayOrder": 1, "conditionKey": "has-vulnerability", "description": "Covered when any vulnerability/security telemetry exists.", "enabled": true },
+    { "toolId": "elastic", "displayOrder": 1, "conditionKey": "asset-type-in", "values": ["server", "workstation"], "description": "Covered for server and workstation assets.", "enabled": true }
+  ]
+}

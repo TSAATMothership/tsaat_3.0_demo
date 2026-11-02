@@ -1,0 +1,17 @@
+# Measures Summary, KPIs and SPIs
+
+Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
+
+Observed Measures has separate Summary, KPI and SPI destinations. Their former security-domain/environment/asset-type/severity page filter blocks are removed; header scope/date and standard table controls remain.
+
+Measures Summary shows all non-compliant SPI exceptions ordered worst compliance first, with a viewport of approximately five rows and vertical scrolling. KPI performance has equivalent scrolling. Both sections retain total green/red performance bars and visible percentages even when no exceptions are listed. Open findings severity colors are red/orange/yellow/blue/purple. Findings by Duration replaces the former Executive review queue and groups open findings by severity and days open.
+
+Only KPI-1 and KPI-2 are active in the current reference catalogue. KPI-1 is ICT-system ATO coverage: a present ATO number is Yes, an absent/blank number is No; no expiry inference is made. KPI-2 is DIIS registration coverage using the configured DIIS-defined registration value. A direct system selection evaluates those systems. Network selection first resolves systems using infrastructure within selected networks, then deduplicates the denominator. Both KPIs evaluate systems, not network compliance.
+
+KPI tables include ICT Systems and Networks tallies linked to standard right-hand tables. System details expose ATO and DIIS identifiers. Expanded measure rows include Remediation action and Who to contact? from configured tasking metadata. Observed-result pills have consistent widths. Report links are single-line Generate report, Non-Compliance Only and trend actions where supported. Non-Compliance Only reuses the current report format with non-compliant results only.
+
+KPI-1 current PDF is named KPI-1 ICT Systems without ATO Report with a dd-mm-yyyy suffix. KPI-2 follows the same naming/template approach. Current reports place a findings summary chart below the indicator title and the description below it; contact headings read Who to contact? Trend filenames follow <KPI x> - <KPI Name> dd-mm-yyyy. SPI reports apply the relevant shared chart, detail and naming patterns; there is no all-SPI report UI action. PDF endpoint lists include Device Name, Device IP, Device Model, Last Discovered Date and Discovered By.
+
+SQL KPI/SPI definition/calculation catalogues, report bindings, tasking teams/action/condition templates and versioned risk/priority matrices remain authoritative. SQL produces scoped evaluations; model builders aggregate and format them. Trend reports use available historical snapshots rather than fabricating observations. Empty denominators must remain distinguishable from compliance.
+
+Sources: app/measures/page.tsx; lib/kpi-scope.ts, kpi-definitions.ts, measures-summary.ts, measures-explorer-model.ts, kpi-report-model.ts, spi-report-model.ts and PDF builders. Database tables include kpi_definition/calculation/report/tasking families, spi_definition/applicable_asset_type/calculation/rule/report/tasking families and measures_* matrices. Tests: kpi-scope, kpi-report-model, kpi-sql, spi-report-model, measures-summary, measures-tab-routing and settings tests.
