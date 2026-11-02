@@ -23,3 +23,5 @@ Eight snapshot fixtures and current/reference JSON remain because import and reg
 Old history, duplicate demo apps, vendored packages/runtimes, credentials, logs, caches, build outputs, temporary reports and editor/agent-local state are excluded. node_modules and .next may be created locally for validation, but are ignored and are not repository content. Offline bundles can be produced separately by the delivery process.
 
 [Machine-readable provenance](import-baseline.json) records the origin and fidelity check. [Validation evidence](validation.md) records checks for this baseline. Hosting, branch protection and production deployment remain separate configuration tasks.
+
+Current policy update: [ADR 0007](adr/0007-offline-compilation.md) supersedes the import-time exclusion of package archives and the external offline-bundle approach. The repository now includes reviewed vendor/npm archives for mandatory offline installation/compilation. The historical import record above remains provenance; current instructions are in [offline builds](offline-builds.md).

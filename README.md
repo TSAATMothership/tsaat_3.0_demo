@@ -11,10 +11,10 @@ Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app w
 
 ## Local setup
 
-Both builds use Windows, Node.js 24, npm and PowerShell. Install from the lockfile and provision login under the runtime Windows identity:
+Both builds compile offline on Windows with preinstalled Node.js 24, npm and PowerShell. All application packages, including native compiler packages, are checked in under vendor/npm. No registry, prewarmed npm cache or sibling folder is needed. Install from the local lockfile archives and provision login under the runtime Windows identity:
 
 ~~~powershell
-npm ci
+npm ci --offline
 npm run setup:login
 ~~~
 
@@ -28,7 +28,7 @@ Choose a build:
 | Run compiled app | npm run start:sql | npm run start:nosql |
 | Build output | .next-sql | .next-nosql |
 
-Open http://localhost:3000 and sign in. Select a network or ICT system to populate the workspace. Production deployment uses HTTPS. The ordinary dev/build/start commands remain SQL defaults. compileApp.cmd accepts sql, nosql or all (default sql).
+Open http://localhost:3000 and sign in. Select a network or ICT system to populate the workspace. Production deployment uses HTTPS. The ordinary dev/build/start commands remain SQL defaults. compileApp.cmd accepts sql, nosql or all (default sql) and performs a locked offline install before validation/compilation. Builds reject network access. See the mandatory [offline compilation contract](docs/offline-builds.md).
 
 SQL additionally needs a compatible SQL Server database and sqlcmd on PATH (or SQLCMD_PATH). DB_config is encrypted for the runtime Windows identity. Setup does not import or replace database data; preserve strict TLS and configure a trusted certificate.
 
@@ -45,7 +45,7 @@ npm run build:all
 npm run test:nosql
 ~~~
 
-Review affected human-written documentation before regenerating inventories. The gates check repository hygiene, documentation, lint, types, tests, both production compilations and the compiled No-SQL app in an authenticated browser. SQL integration is separately opt-in against a disposable database. Every feature change must support both providers in the same release.
+Review affected human-written documentation before regenerating inventories. The gates check repository hygiene, documentation, lint, types, tests, both production compilations and the compiled No-SQL app in an authenticated browser. SQL integration is separately opt-in against a disposable database. Every feature change must support both providers and preserve fresh-checkout offline installation and compilation in the same release. CI uses an empty npm cache and denies outbound Node traffic during installation, checks and both builds.
 
 ## Current workspace
 
@@ -53,4 +53,4 @@ Cyber Security contains Network Risk Profile, ICT System Risk Profile, Service I
 
 ## Repository boundary
 
-Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, JSON initialization data and maintained documentation. Excludes independently maintained duplicate apps, dependencies/runtimes, credentials, mutable JSON stores, build outputs, reports and logs. The rejected standalone Demo distribution has been removed. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure remote hosting, branch protection or deployment services.
+Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, JSON initialization data and maintained documentation. Includes the integrity-locked third-party archives and provenance manifest in vendor/npm as the sole dependency-vendoring exception. Excludes independently maintained duplicate apps, installed node_modules, host runtimes, credentials, mutable JSON stores, build outputs, reports and logs. The rejected standalone Demo distribution has been removed. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure remote hosting, branch protection or deployment services.

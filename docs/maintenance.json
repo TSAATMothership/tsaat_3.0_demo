@@ -108,6 +108,15 @@
         "docs/database.md",
         "docs/sdlc.md"
       ]
+    },
+    {
+      "name": "Mandatory offline compilation",
+      "pattern": "^vendor/|offline|^package|^\\.npmrc$|run-app|compileApp|^\\.github/workflows/",
+      "documents": [
+        "docs/offline-builds.md",
+        "docs/sdlc.md",
+        "Requirements Documentation/14-Offline-Compilation.md"
+      ]
     }
   ],
   "fallbackDocuments": [

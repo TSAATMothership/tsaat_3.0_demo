@@ -19,3 +19,5 @@ The feature contracts below describe both SQL and JSON-backed No-SQL builds of t
 Cross-cutting: [Architecture](../docs/architecture.md), [UI design](../docs/ui-design.md), [Database lifecycle](../docs/database.md), [CMDB mappings](../docs/cmdb-asset-type-attributes.md), [Application inventory](../docs/generated/application-inventory.md), [Schema catalogue](../docs/generated/database-catalogue.md).
 
 Update behavior, implementation references and validation expectations together. This index includes retired URL compatibility; it does not restore retired sidebar pages.
+
+Mandatory cross-cutting acceptance: [Offline compilation](14-Offline-Compilation.md). Every future feature and dependency change must retain offline installation and both production builds from repository-contained packages and assets.

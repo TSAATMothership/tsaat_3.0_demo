@@ -2,7 +2,7 @@
 
 ## Environment
 
-Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci` uses the checked-in legacy-peer-deps setting. The checkout does not require a sibling TSAAT folder or vendored runtime. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
+Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci --offline` installs only committed vendor/npm archives, using the checked-in legacy-peer-deps setting, with lifecycle scripts, audit and update notices disabled. No populated npm cache or network is required. The checkout does not require a sibling TSAAT folder or vendored host runtime. The [offline compilation contract](offline-builds.md) is mandatory for all changes. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
 
 Both builds use `npm run setup:login` for local DPAPI credentials. For SQL, `npm run setup:database` provisions DB_config. Choose an existing development database for ordinary work. `npm run db:bootstrap` requires a new database name and refuses an existing one. sqlcmd must be on PATH or selected by SQLCMD_PATH.
 
@@ -10,7 +10,9 @@ Both builds use `npm run setup:login` for local DPAPI credentials. For SQL, `npm
 
 | Command | Purpose |
 | --- | --- |
-| npm ci | Locked installation |
+| npm ci --offline | Locked installation from repository archives, even with an empty npm cache |
+| npm run offline:check | Verify local lockfile closure, archive integrity and provenance |
+| npm run offline:refresh | Explicit connected maintenance only: vendor reviewed locked packages |
 | npm run dev:sql / dev:nosql | Development server using the selected provider |
 | npm run docs:generate | Regenerate inventories/checksums after documentation review |
 | npm run docs:check | Verify links, inventories, source freshness and PR documentation impact |
@@ -19,7 +21,7 @@ Both builds use `npm run setup:login` for local DPAPI credentials. For SQL, `npm
 | npm run typecheck | Strict checking of app, scripts and tests, including unused locals/parameters |
 | npm test | Full default suite; SQL integration remains opt-in |
 | npm run check | All source/documentation gates |
-| npm run build:all | Both production compilations and route generation |
+| npm run build:all | Both production compilations with network access blocked and local archives verified |
 | npm run build:sql / build:nosql | Compile a single provider |
 | npm run test:nosql | Authenticated production browser/API smoke and restart persistence |
 | npm run setup:nosql | Initialize missing JSON storage without replacing existing data |
@@ -43,7 +45,7 @@ Create missing DPAPI files under the runtime identity. Configure sqlcmd if absen
 
 ## Provider development
 
-SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
+SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all and performs npm ci --offline before checks/builds. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
 
 The No-SQL smoke needs installed Chrome or Edge; TSAAT_TEST_BROWSER overrides its executable. It starts the compiled app with isolated credentials/data and an unavailable SQL executable, exercises both scope types, reports and saved settings, then restarts to verify persistence. It does not touch local DB_config, logindetails or NoSQL/data. Unit tests also use temporary stores.
 

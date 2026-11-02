@@ -9,3 +9,5 @@ Decision: use a fresh Git history, locked npm installation, quality gates and so
 Consequences: clean checkouts need installed/pre-staged Node/npm, sqlcmd and packages from a trusted registry/cache. Standard wrappers replace bundle-dependent setup. Hosting and deployment controls must be configured separately.
 
 Alternative: copying the entire old workspace would retain irrelevant and machine-specific state. See [baseline provenance](../import-baseline.md).
+
+Superseded in part by [ADR 0007](0007-offline-compilation.md): mandatory offline compilation requires reviewed package archives inside the repository. Exclusions for installed dependencies, host runtimes, credentials, outputs and duplicate applications remain. External artifact storage or a prewarmed cache no longer satisfies the build dependency requirement.

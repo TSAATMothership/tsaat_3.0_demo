@@ -1,4 +1,4 @@
-name: Source and documentation quality
+﻿name: Source and documentation quality
 on:
   push:
     branches: [main]
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   quality:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       TSAAT_SQL_INTEGRATION: '0'
@@ -24,10 +24,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-          cache: npm
-      - run: npm ci --no-audit
-      - run: npm run check
-      - run: npm run build:all
+      - name: Install and compile both providers with Node outbound traffic denied
+        shell: powershell
+        run: ./scripts/ci-offline.ps1
       - run: npm run test:nosql
       - name: Verify tracked source stayed clean
         run: git diff --exit-code

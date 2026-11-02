@@ -2,11 +2,11 @@
 
 ## Release preparation
 
-Choose an approved commit; run npm ci, npm run check, npm run build:all and npm run test:nosql. Review CHANGELOG, SQL migration needs, affected APIs/reports and dependency advisories. Browser-check relevant scopes/dates and run SQL integration on a disposable database. Default CI builds both artifacts and browser-tests No-SQL without provisioning SQL.
+Choose an approved commit; run npm ci --offline, npm run check, npm run build:all and npm run test:nosql. Verify npm run offline:check and record an empty-cache install before release. Review CHANGELOG, SQL migration needs, affected APIs/reports and dependency advisories. Browser-check relevant scopes/dates and run SQL integration on a disposable database. Default CI builds both artifacts and browser-tests No-SQL without provisioning SQL.
 
 ## Deployment
 
-Package the release source/lockfile/build through the organization's delivery process. Install dependencies reproducibly; runtimes and artifacts belong outside Git. Run both builds on Windows with Node 24 and PowerShell. The SQL build additionally needs sqlcmd; configure SQLCMD_PATH when needed.
+Package the release source, complete vendor/npm archives/manifest, lockfile and compiled output through the organization's delivery process. An offline source delivery must include the actual archives, not links or Git LFS pointers. Install dependencies reproducibly with npm ci --offline; host runtimes and compiled outputs belong outside Git. Run both builds on Windows with Node 24 and PowerShell. Compilation needs no SQL service, sqlcmd, database credentials or network. SQL runtime additionally needs sqlcmd and its configured database; configure SQLCMD_PATH when needed. Pre-provision Node/npm, Windows/PowerShell and Chrome/Edge for runtime/browser validation on disconnected hosts. See [offline build and upgrade procedures](offline-builds.md).
 
 Provision logindetails, and DB_config for SQL only, under the service identity, or use supported approved secret provisioning. Do not copy another identity's DPAPI files. Use a service manager and HTTPS reverse proxy in front of npm run start:sql or npm run start:nosql for the matching artifact. Production cookies are secure; plain HTTP is not a valid production login test.
 

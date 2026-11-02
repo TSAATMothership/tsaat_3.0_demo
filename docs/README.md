@@ -9,6 +9,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |
 | Install, run, test and debug | [Development](development.md) |
+| Mandatory offline compilation and dependency maintenance | [Offline builds](offline-builds.md) |
 | Schema, migrations, configuration and integration | [Database lifecycle](database.md) |
 | Release, deployment and recovery | [Operations](operations.md) |
 | Change control and documentation obligations | [SDLC](sdlc.md) |

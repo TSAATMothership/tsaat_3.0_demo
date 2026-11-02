@@ -11,3 +11,5 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0005: Standalone browser demo](0005-standalone-browser-demo.md)
 
 - [0006: SQL and JSON compilation paths](0006-dual-data-provider-builds.md)
+
+- [0007: Mandatory offline compilation](0007-offline-compilation.md)

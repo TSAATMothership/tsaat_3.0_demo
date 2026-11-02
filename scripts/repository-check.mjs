@@ -13,6 +13,6 @@ for (const file of files) {
 const migrations = fs.readdirSync('Database Schema/migrations').filter(file => file.endsWith('.sql')).sort();
 const numbers = migrations.map(file => file.match(/^(\d{3})_/s)?.[1]);
 if (numbers.some(number => !number) || new Set(numbers).size !== numbers.length) errors.push('Migration filenames need unique three-digit numeric prefixes.');
-for (const required of ['README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'docs/README.md', 'docs/maintenance.json', '.github/workflows/ci.yml', 'package-lock.json']) if (!fs.existsSync(required)) errors.push(`Missing repository contract: ${required}`);
+for (const required of ['README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'docs/README.md', 'docs/maintenance.json', '.github/workflows/ci.yml', 'package-lock.json', 'vendor/npm/manifest.json', 'docs/offline-builds.md']) if (!fs.existsSync(required)) errors.push(`Missing repository contract: ${required}`);
 if (errors.length) { console.error(errors.join('\n')); process.exitCode = 1; }
 else console.log(`Repository hygiene verified across ${files.length} source/document files and ${migrations.length} migrations.`);

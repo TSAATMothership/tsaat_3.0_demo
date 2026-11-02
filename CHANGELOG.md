@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 - Mandatory offline compilation
+
+- Included all locked application, development and native compiler package archives in vendor/npm with original source URLs and SHA-512 verification. npm ci installs offline without a prewarmed cache.
+- Enforced local archive verification and network-denied compilation for SQL and No-SQL; disabled npm lifecycle downloads and build telemetry. compileApp.cmd now performs the offline install before validation.
+- Added archive/network regression tests, empty-cache offline CI, and mandatory SDLC, agent, contribution, release and review obligations for every future change. No SQL schema, JSON format or calculation changes.
+
 ## 2026-11-02 - SQL and No-SQL compilation paths
 
 - Removed the rejected standalone Demo app and folder.

@@ -15,11 +15,11 @@
     "docs:generate": "node scripts/docs-maintenance.mjs --write",
     "docs:check": "node scripts/docs-maintenance.mjs --check",
     "repo:check": "node scripts/repository-check.mjs",
-    "check": "npm run repo:check && npm run docs:check && npm run lint && npm run typecheck && npm test && npm run test:tooling && npm run storage:check",
+    "check": "npm run offline:check && npm run repo:check && npm run docs:check && npm run lint && npm run typecheck && npm test && npm run test:tooling && npm run storage:check",
     "setup:database": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-db-config.ps1",
     "setup:login": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure-logindetails.ps1",
     "db:bootstrap": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-demo-database.ps1",
-    "test:tooling": "node --test tests/documentation-maintenance.test.mjs tests/runtime-reachability.test.mjs",
+    "test:tooling": "node --test tests/documentation-maintenance.test.mjs tests/runtime-reachability.test.mjs tests/offline-build.test.mjs",
     "build:sql": "node scripts/run-app.mjs build sql",
     "build:nosql": "node scripts/run-app.mjs build nosql",
     "dev:sql": "node scripts/run-app.mjs dev sql",
@@ -29,7 +29,9 @@
     "build:all": "npm run build:sql && npm run build:nosql",
     "setup:nosql": "node scripts/setup-json-store.mjs",
     "storage:check": "node scripts/check-data-providers.mjs",
-    "test:nosql": "node --import tsx scripts/test-nosql.mjs"
+    "test:nosql": "node --import tsx scripts/test-nosql.mjs",
+    "offline:check": "node scripts/offline-dependencies.mjs --check",
+    "offline:refresh": "node scripts/offline-dependencies.mjs --refresh"
   },
   "dependencies": {
     "clsx": "^2.1.1",
