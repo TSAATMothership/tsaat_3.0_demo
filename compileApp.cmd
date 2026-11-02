@@ -9,6 +9,8 @@ if /i "%TSAAT_BUILD_PATH%"=="all" goto validate
 echo Usage: compileApp.cmd [sql^|nosql^|all]
 exit /b 2
 :validate
+if /i "%TSAAT_BUILD_PATH%"=="sql" set "TSAAT_BUILD_PATH=sql"
+if /i "%TSAAT_BUILD_PATH%"=="nosql" set "TSAAT_BUILD_PATH=nosql"
 call npm run check
 if errorlevel 1 exit /b %errorlevel%
 if /i "%TSAAT_BUILD_PATH%"=="all" (
