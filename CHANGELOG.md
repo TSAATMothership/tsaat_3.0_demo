@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-02 - SQL and No-SQL compilation paths
+
+- Removed the rejected standalone Demo app and folder.
+- Added SQL and JSON-backed No-SQL builds of the same authenticated app, with separate output directories and shared pages, APIs, reports and settings.
+- Added persistent server-side JSON snapshots/reference data, atomic settings saves, restart persistence and per-type CMDB mappings. Existing SQL data and strict TLS are unchanged.
+- Updated SDLC, contribution/agent guidance, CI, build scripts and release/data documentation to require both builds and No-SQL runtime validation for future changes.
+
 ## 2026-11-02 - Standalone browser demo
 
 - Added Demo/index.html: a portable, offline JSON-backed version of the current workspace, reports, risk profiles and impact analysers.

@@ -59,6 +59,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/settings/database/test-schema` | POST | [Source](../../app/api/settings/database/test-schema/route.ts) |
 | `/api/settings/database/test-ssl` | POST | [Source](../../app/api/settings/database/test-ssl/route.ts) |
 | `/api/settings/password` | PUT | [Source](../../app/api/settings/password/route.ts) |
+| `/api/settings/storage` | GET | [Source](../../app/api/settings/storage/route.ts) |
 | `/api/systems/[systemId]/coverage-gaps-report` | GET | [Source](../../app/api/systems/%5BsystemId%5D/coverage-gaps-report/route.ts) |
 | `/api/systems/[systemId]/discovery-coverage-export` | GET | [Source](../../app/api/systems/%5BsystemId%5D/discovery-coverage-export/route.ts) |
 | `/api/systems/[systemId]/impact-analyser/findings` | GET | [Source](../../app/api/systems/%5BsystemId%5D/impact-analyser/findings/route.ts) |
@@ -92,7 +93,6 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | Package | Requirement | Use |
 | --- | --- | --- |
 | clsx | ^2.1.1 | Runtime |
-| fflate | 0.8.2 | Runtime |
 | next | ^14.2.35 | Runtime |
 | papaparse | ^5.5.3 | Runtime |
 | pdf-lib | ^1.17.1 | Runtime |
@@ -109,7 +109,6 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | @types/three | ^0.181.0 | Development |
 | @vitest/coverage-v8 | ^4.0.18 | Development |
 | autoprefixer | ^10.4.24 | Development |
-| esbuild | 0.27.3 | Development |
 | eslint | 8.57.0 | Development |
 | eslint-config-next | ^14.2.35 | Development |
 | postcss | ^8.5.6 | Development |

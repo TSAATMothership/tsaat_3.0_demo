@@ -17,3 +17,8 @@ logindetails*
 *.tmp
 .DS_Store
 Database Schema/loaders/last-build-summary.txt
+
+.next-sql/
+.next-nosql/
+NoSQL/data/
+NoSQL/data.initializing-*/

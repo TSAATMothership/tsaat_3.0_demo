@@ -1,5 +1,8 @@
 "use client";
 
+import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
+import { JsonStorageSettingsPanel } from "@/components/json-storage-settings-panel";
+
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { DatabaseSettingsPanel } from "@/components/database-settings-panel";
@@ -45,6 +48,7 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
   }, [mounted]);
 
   useEffect(() => {
+    if (IS_JSON_BUILD) return;
     const controller = new AbortController();
     setError("");
     fetch("/api/settings/database", { signal: controller.signal, cache: "no-store" })
@@ -101,7 +105,7 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
         <div className="shrink-0 px-5 pt-4"><SettingsTabs activeTab={activeTab} onSelect={setActiveTab} /></div>
         <div className="min-h-0 flex-1 overflow-auto p-5">
           <div role="tabpanel" id="settings-panel-database-settings" aria-labelledby="settings-tab-database-settings" hidden={activeTab !== "database-settings"}>
-            {settings ? <DatabaseSettingsPanel initialSettings={settings} /> : error ? (
+            {IS_JSON_BUILD ? <JsonStorageSettingsPanel /> : settings ? <DatabaseSettingsPanel initialSettings={settings} /> : error ? (
               <div className="panel p-5"><p role="alert">{error}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setRetry((value) => value + 1)}>Retry</button></div>
             ) : <p role="status" className="flex items-center gap-3 p-5"><span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />Loading settings...</p>}
           </div>

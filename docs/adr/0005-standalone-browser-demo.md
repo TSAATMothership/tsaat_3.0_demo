@@ -1,6 +1,6 @@
 # ADR 0005: Shared UI with a self-contained browser demo
 
-Status: Accepted, 2026-11-02.
+Status: Superseded by [ADR 0006](0006-dual-data-provider-builds.md), 2026-11-02. The user rejected this approach; its Demo folder and build tooling were removed. The historical decision below is not current guidance.
 
 ## Context
 

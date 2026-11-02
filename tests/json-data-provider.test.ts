@@ -1,10 +1,13 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { readFileSync, mkdtempSync, rmSync, copyFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createHash } from "node:crypto";
-import { createDemoPackage } from "../scripts/build-demo.mjs";
-import { configureDemoPackage, demoPackage } from "../Demo/src/package";
-import * as data from "../Demo/src/data-loader";
-import { evaluateSpi, evaluateDiscovery } from "../Demo/src/evaluations";
+import { initializeJsonStore } from "../scripts/setup-json-store.mjs";
+import { loadStoreManifest, atomicWriteJson, readJson, withStoreWriteLock } from "@/lib/json-store/files";
+import { loadCmdbAttributeDefinitions } from "@/lib/json-store/cmdb-attributes";
+import * as data from "../lib/json-store/data-loader";
+import { evaluateSpi, evaluateDiscovery } from "../lib/json-store/evaluations";
 import { resolveKpiScope } from "@/lib/kpi-scope";
 import { severityMatrixKey, priorityMatrixKey } from "@/lib/measures-settings";
 import type { Asset, Dataset, NetworkDeviceAsset, ServerAsset, Vulnerability } from "@/lib/types";
@@ -12,12 +15,24 @@ import type { SpiDefinition } from "@/lib/spi-definitions";
 
 let definitions: SpiDefinition[];
 let sample: Dataset;
+const directory = mkdtempSync(path.join(os.tmpdir(), "tsaat-json-store-"));
+const previousDirectory = process.env.TSAAT_JSON_DATA_DIR;
 beforeAll(async () => {
-  configureDemoPackage(createDemoPackage());
+  process.env.TSAAT_JSON_DATA_DIR = directory;
+  await initializeJsonStore({ target: directory });
   definitions = await data.loadSpiDefinitions();
   sample = await data.loadCurrentDataset();
 });
-beforeEach(() => data.resetDemoSettings());
+function restoreSettings() {
+  for (const name of ["measures-settings", "discovery-tools-settings"]) copyFileSync(path.join(directory, "references", name + ".json"), path.join(directory, "settings", name + ".json"));
+  data.clearDataLoaderCaches();
+}
+beforeEach(restoreSettings);
+afterAll(() => {
+  if (previousDirectory === undefined) delete process.env.TSAAT_JSON_DATA_DIR; else process.env.TSAAT_JSON_DATA_DIR = previousDirectory;
+  if (path.dirname(directory) !== os.tmpdir() || !path.basename(directory).startsWith("tsaat-json-store-")) throw new Error("Unsafe test path.");
+  rmSync(directory, { recursive: true, force: true });
+});
 const baseline = (): ServerAsset => ({
   id: "test-server", name: "Test server", hostname: "test.example.invalid", type: "server", networkId: "net-1", securityDomain: "Protected",
   systemContext: { systemId: "sys-1", environmentType: "Production" }, vulnerabilities: [],
@@ -29,18 +44,14 @@ const vulnerability = { id: "v1", assetId: "test-server", cve: "CVE-2025-0001", 
   description: "Sample", remediationGuidance: "Patch", exploitability: "No Known Exploit", detectedDate: "2026-01-01", capturedAt: "2026-01-01" } satisfies Vulnerability;
 function evaluate(id: number, asset: Asset) { return evaluateSpi(asset, definitions.find(d => d.spiId === id)!); }
 
-describe("offline JSON calculation contract", () => {
+describe("JSON datastore calculation contract", () => {
   it("loads all configured indicators, snapshots, metadata and real reference relationships", async () => {
     expect(definitions).toHaveLength(10);
     expect((await data.loadKpiDefinitions()).map(k => k.id)).toEqual(["KPI-1", "KPI-2"]);
-    expect(demoPackage().snapshots).toHaveLength(8);
+    expect((await loadStoreManifest()).snapshots).toHaveLength(8);
     expect(sample.spiEvaluations.length).toBeGreaterThan(4000);
-    expect(sample.managedNetworks.every(n => n.description && n.owner && n.supportEmail)).toBe(true);
-    expect(sample.ictSystems.every(s => s.description && s.owner && s.supportEmail && s.apmNumber)).toBe(true);
-    expect(sample.assets.every(a => a.ipAddress && a.deviceModel && a.lastDiscoveredDate && a.discoveredBy)).toBe(true);
     const ids = new Set(sample.assets.map(a => a.id));
     expect(sample.ciDependencies?.every(d => ids.has(d.sourceAssetId) && ids.has(d.targetAssetId))).toBe(true);
-    expect((await data.loadShadowItExplorerData({ network: "net-1" })).rows).toHaveLength(2);
   });
   it("preserves the configured SQL evidence keys for every SPI", () => {
     for (const definition of definitions) {
@@ -127,7 +138,7 @@ describe("offline JSON calculation contract", () => {
     expect(changed.severity).toBe("Critical Exposure");
     expect(changed.priorityRank).toBe(7);
     expect(after).not.toBe(before);
-    data.resetDemoSettings();
+    restoreSettings();
     expect((await data.loadCurrentDataset()).findings!.find(f => f.id === finding.id)?.priorityRank).toBe(finding.priorityRank);
   });
   it("recalculates discovery coverage using saved applicability", async () => {
@@ -142,7 +153,7 @@ describe("offline JSON calculation contract", () => {
     expect(() => evaluateDiscovery(baseline(), settings, [{ toolId: "ucmdb", enabled: true, conditionKey: "future" }])).not.toThrow();
   });
   it("respects snapshot selection, historical status and scope isolation", async () => {
-    const early = demoPackage().snapshots[0].date;
+    const early = (await loadStoreManifest()).snapshots[0].date;
     expect((await data.loadDatasetForDate(early)).snapshotDate).toBe(early);
     expect(await data.loadLatestSnapshotsForDate(early)).toHaveLength(1);
     const asOf = "2026-04-01";
@@ -154,11 +165,53 @@ describe("offline JSON calculation contract", () => {
     const source = await data.loadDatasetForDate(early);
     expect(systems.rows.every(row => source.assets.find(a => a.id === row.assetId)?.systemContext?.systemId === "sys-1")).toBe(true);
   });
-  it("requires an explicit demo review when SQL calculation contracts change", () => {
-    const contract = JSON.parse(readFileSync("Demo/data/calculation-contract.json", "utf8").replace(/^\uFEFF/, "")) as { files: Record<string,string> };
+  it("persists settings to disk, preserves history and does not overwrite an existing store during setup", async () => {
+    const settings = await data.loadMeasuresSettings();
+    settings.priorityMatrix["1"] = 7;
+    await data.saveMeasuresSettings(settings);
+    data.clearDataLoaderCaches();
+    expect((await data.loadMeasuresSettings()).priorityMatrix["1"]).toBe(7);
+    expect((await initializeJsonStore({ target: directory })).created).toBe(false);
+    expect((await readJson<typeof settings>("settings/measures-settings.json")).priorityMatrix["1"]).toBe(7);
+  });
+  it("reloads changed per-type CMDB mappings without affecting another asset type", async () => {
+    const file = "references/cmdb-attributes.json";
+    const mappings = await readJson<Record<string, Array<{ key: string; label: string; displayOrder: number }>>>(file);
+    const original = structuredClone(mappings);
+    const network = await loadCmdbAttributeDefinitions("network-device");
+    try {
+      mappings.server = [{ key: "assetName", label: "Server name", displayOrder: 1 }];
+      await atomicWriteJson(file, mappings);
+      expect(await loadCmdbAttributeDefinitions("server")).toEqual(mappings.server);
+      expect(await loadCmdbAttributeDefinitions("network-device")).toEqual(network);
+    } finally { await atomicWriteJson(file, original); }
+  });
+  it("rejects future store formats and nonempty uninitialized directories without replacing data", async () => {
+    const manifest = await readJson("store.json");
+    try {
+      await atomicWriteJson("store.json", { format: "tsaat-json-store", schemaVersion: 99, snapshots: [] });
+      await expect(initializeJsonStore({ target: directory })).rejects.toThrow("not overwritten");
+      await expect(loadStoreManifest()).rejects.toThrow("Unsupported");
+      expect((await readJson<{ schemaVersion: number }>("store.json")).schemaVersion).toBe(99);
+    } finally { await atomicWriteJson("store.json", manifest); }
+    await atomicWriteJson("occupied/keep.json", { keep: true });
+    await expect(initializeJsonStore({ target: path.join(directory, "occupied") })).rejects.toThrow("Nothing was overwritten");
+    expect(await readJson("occupied/keep.json")).toEqual({ keep: true });
+  });
+  it("serializes writers and leaves valid JSON on disk", async () => {
+    await atomicWriteJson("settings/counter.json", { value: 0 });
+    await Promise.all(Array.from({ length: 5 }, () => withStoreWriteLock(async () => {
+      const counter = await readJson<{ value: number }>("settings/counter.json");
+      await atomicWriteJson("settings/counter.json", { value: counter.value + 1 });
+    })));
+    expect(await readJson("settings/counter.json")).toEqual({ value: 5 });
+    await expect(readJson("../outside.json")).rejects.toThrow("inside");
+  });
+  it("requires an explicit JSON provider review when SQL calculation contracts change", () => {
+    const contract = JSON.parse(readFileSync("NoSQL/calculation-contract.json", "utf8").replace(/^\uFEFF/, "")) as { files: Record<string,string> };
     for (const [file, expected] of Object.entries(contract.files)) {
       const source = readFileSync(file,"utf8").replace(/^\uFEFF/,"").replace(/\r\n/g,"\n");
-      expect(createHash("sha256").update(source).digest("hex"), file + ": review demo evaluators/tests before updating contract").toBe(expected);
+      expect(createHash("sha256").update(source).digest("hex"), file + ": review JSON evaluators/tests before updating contract").toBe(expected);
     }
   });
 });

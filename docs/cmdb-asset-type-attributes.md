@@ -44,4 +44,4 @@ COMMIT TRANSACTION;
 
 Run the focused app tests with `vitest run tests/cmdb-drill-through.test.ts tests/cmdb-attributes.test.ts tests/cmdb-details-route.test.ts`. For database regression checks, set `TSAAT_SQL_INTEGRATION=1` and run `tests/cmdb-attributes-sql.test.ts`; its temporary changes roll back.
 
-The standalone demo reads per-type JSON mappings from Demo/data/cmdb-attributes.json. The shared CMDB drill-through resolves the selected snapshot from either hosted queries or portable hash routes, preserving context under file://. Keep these mappings aligned when the SQL attribute contract changes.
+Both builds use lib/cmdb-attribute-loader.ts. SQL mappings are read by lib/sql-cmdb-attribute-loader.ts; No-SQL reads per-type mappings from references/cmdb-attributes.json in the configured JSON store. NoSQL/cmdb-attributes.json supplies initial defaults. Updates must align labels, canonical keys, order and enabled fields in both stores without overwriting existing data. The shared drill-through retains the selected snapshot and header scope.

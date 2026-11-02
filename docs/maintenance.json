@@ -99,11 +99,13 @@
       ]
     },
     {
-      "name": "Standalone browser demo",
-      "pattern": "^Demo/|demo\\.",
+      "name": "SQL and JSON data providers",
+      "pattern": "^NoSQL/|json-store|data-provider|sql-data-loader|cmdb-attribute-loader|run-app|nosql|next.config|compileApp",
       "documents": [
-        "docs/demo.md",
-        "Demo/README.md",
+        "docs/data-providers.md",
+        "NoSQL/README.md",
+        "docs/architecture.md",
+        "docs/database.md",
         "docs/sdlc.md"
       ]
     }

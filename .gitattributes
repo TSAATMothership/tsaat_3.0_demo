@@ -4,6 +4,3 @@
 scripts/*.ps1 text eol=crlf
 "Database Schema/**/*.ps1" text eol=crlf
 "Database Schema/**/*.sql" text eol=crlf
-
-# Generated vendor shader and PDF template literals contain intentional end-of-line spaces.
-Demo/index.html whitespace=-blank-at-eol

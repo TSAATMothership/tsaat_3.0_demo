@@ -1,3 +1,4 @@
+import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
 import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeDatabaseSettingsPayloadForProcessing,
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (IS_JSON_BUILD) return NextResponse.json({ error: "SQL configuration is unavailable in the No-SQL build." }, { status: 409 });
   try {
     const payload = await normalizeDatabaseSettingsPayloadForProcessing(await request.json());
     const connectionResult = await testDatabaseConnection(payload);

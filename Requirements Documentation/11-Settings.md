@@ -12,6 +12,8 @@ Settings does not authorize destructive schema rebuilds or demo imports. Source:
 
 Database schema diagnostics require the current 66-table contract after migration 027; they no longer require the unused KPI parameter table or network apm_number. Risk/priority settings and version tables are retained.
 
-## Standalone demo settings
+## SQL and No-SQL build settings
 
-The portable Demo/index.html uses the same SPI risk, SPI priority and discovery applicability editors. Saving updates the JSON-backed browser calculations immediately and persists settings in local browser storage when available. Demo Data explains sample snapshots and offers a settings reset. Database/password administration is absent because this synthetic demo has no backend or login. These changes do not alter operational SQL settings or strict TLS. See [demo maintenance](../docs/demo.md).
+Both builds use the same authenticated Settings dialog, password editor, SPI risk/priority matrices and discovery applicability editor. SQL retains Database Settings and strict TLS. No-SQL replaces that tab with JSON Data Files, showing the configured server directory and available snapshots; SQL configuration/test APIs return 409 in that build.
+
+No-SQL saves settings to JSON files on the server, using atomic replacement and a writer lock. Changes affect subsequent calculations, are shared by browser sessions and survive app restarts. Initialization and recompilation retain existing settings. Verify save/reopen, changed findings and restart persistence using the compiled No-SQL smoke. See [storage contracts](../docs/data-providers.md).

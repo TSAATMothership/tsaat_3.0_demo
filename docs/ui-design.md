@@ -24,6 +24,6 @@ Tabs support Arrow keys and Home/End with aria-selected/controls. Controls have 
 
 Shared implementation: FindingsDataTable, FilterHeader, WorkspaceTabs, SettingsPopup, ServerComplianceView, RiskEntityDetailsPanel, ComplianceHeatmap and app/globals.css. Update this contract when shared interactions change.
 
-## Offline demonstration shell
+## Shared SQL and No-SQL interface
 
-The portable demo reuses current workspace UI/components and report layouts. Its header clearly labels synthetic offline data and selects the packaged snapshot dates. Its native Settings dialog uses the same risk, priority and discovery editors; Demo Data replaces database/password administration. Hash links retain scope/date and support linked entities in new tabs. Desktop and narrow-layout checks apply to both versions. See [demo contract](demo.md).
+Both artifacts render the same workspace, URL navigation, scope/date filters, tables, dialogs and reports. No-SQL replaces the Database Settings tab with JSON Data Files, showing the server store path, snapshot inventory and persistence explanation. Password, SPI risk, SPI priority and discovery editors remain available. Their saves persist on the server across browser sessions and restarts. Apply desktop, narrow-layout, keyboard and loading/error-state checks to both builds. See [data providers](data-providers.md).

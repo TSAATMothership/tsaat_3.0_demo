@@ -1,7 +1,7 @@
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import type { CmdbAssetDetails } from "@/lib/cmdb-drill-through";
 
-// Approved canonical values. Labels, inclusion and ordering are controlled by SQL.
+// Approved canonical values. Labels, inclusion and ordering are controlled by the selected data provider.
 export const CMDB_ATTRIBUTE_KEYS = [
   "assetId", "assetName", "assetHostname", "assetType", "assetIpAddress",
   "networkName", "systemName", "environmentType", "securityDomain",

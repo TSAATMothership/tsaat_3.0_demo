@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 
 const normalize = text => text.replace(/\r\n/g, '\n');
 const posix = value => value.split(path.sep).join('/');
-const sourceRoots = ['app', 'components', 'lib', 'scripts', 'public', 'data', 'Database Schema', '.github', 'Demo/src', 'Demo/data'];
+const sourceRoots = ['app', 'components', 'lib', 'scripts', 'public', 'data', 'Database Schema', '.github', 'NoSQL'];
 const rootFiles = ['package.json', 'package-lock.json', 'middleware.ts', 'next.config.mjs', 'tsconfig.json', 'vitest.config.ts', 'tailwind.config.ts', 'postcss.config.js', '.eslintrc.json', '.npmrc', '.node-version', 'CreateDB.cmd', 'buildDatabase.cmd', 'compileApp.cmd'];
-const isSource = name => !/\.(md|txt|dotx)$/i.test(name) && !name.includes('/last-build-summary');
+const isSource = name => !/\.(md|txt|dotx)$/i.test(name) && !name.includes('/last-build-summary') && !name.startsWith("NoSQL/data/") && !name.includes(".initializing-");
 const read = name => normalize(fs.readFileSync(name, 'utf8'));
 const hash = content => crypto.createHash('sha256').update(content).digest('hex');
 const link = value => value.split('/').map(encodeURIComponent).join('/');

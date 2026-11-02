@@ -2,16 +2,16 @@
 
 ## Environment
 
-Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci` uses the checked-in legacy-peer-deps setting. The checkout does not require a sibling TSAAT folder or vendored runtime. node_modules and .next are local outputs.
+Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci` uses the checked-in legacy-peer-deps setting. The checkout does not require a sibling TSAAT folder or vendored runtime. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
 
-`npm run setup:database` and `npm run setup:login` provision local DPAPI files. Choose an existing development database for ordinary work. `npm run db:bootstrap` requires a new database name and refuses an existing one. sqlcmd must be on PATH or selected by SQLCMD_PATH.
+Both builds use `npm run setup:login` for local DPAPI credentials. For SQL, `npm run setup:database` provisions DB_config. Choose an existing development database for ordinary work. `npm run db:bootstrap` requires a new database name and refuses an existing one. sqlcmd must be on PATH or selected by SQLCMD_PATH.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
 | npm ci | Locked installation |
-| npm run dev | Standard Next development server |
+| npm run dev:sql / dev:nosql | Development server using the selected provider |
 | npm run docs:generate | Regenerate inventories/checksums after documentation review |
 | npm run docs:check | Verify links, inventories, source freshness and PR documentation impact |
 | npm run repo:check | Reject tracked secrets, generated folders, oversized files and unreachable runtime modules |
@@ -19,8 +19,12 @@ Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci` use
 | npm run typecheck | Strict checking of app, scripts and tests, including unused locals/parameters |
 | npm test | Full default suite; SQL integration remains opt-in |
 | npm run check | All source/documentation gates |
-| npm run build | Production compilation and route generation |
-| npm start | Serve compiled app; production login requires HTTPS |
+| npm run build:all | Both production compilations and route generation |
+| npm run build:sql / build:nosql | Compile a single provider |
+| npm run test:nosql | Authenticated production browser/API smoke and restart persistence |
+| npm run setup:nosql | Initialize missing JSON storage without replacing existing data |
+| npm run storage:check | Require review when SQL calculation contracts change |
+| npm run start:sql / start:nosql | Serve the corresponding compiled artifact; production login requires HTTPS |
 | npm run seed / seed:validate | Regenerate/validate sample JSON; generation intentionally changes fixture data |
 
 ## Validation strategy
@@ -35,8 +39,12 @@ For UI work, check representative snapshot data, desktop/narrow layouts, keyboar
 
 ## Troubleshooting
 
-Create missing DPAPI files under the runtime identity. Configure sqlcmd if absent. Hard-refresh stale Next hot-update references after a restart; stop the dev server before removing .next. Fix build errors rather than bypassing them. Deployment troubleshooting is in [operations](operations.md).
+Create missing DPAPI files under the runtime identity. Configure sqlcmd if absent. Hard-refresh stale Next hot-update references after a restart; stop the corresponding server before clearing its .next-sql or .next-nosql output. Never clear NoSQL/data as a build fix. Fix build errors rather than bypassing them. Deployment troubleshooting is in [operations](operations.md).
 
-## Demo development
+## Provider development
 
-Run `npm run demo:build` to package JSON fixtures, shared UI, reports and assets into Demo/index.html. Open that file directly or run `npm run demo:test` with installed Chrome/Edge (override with DEMO_BROWSER_PATH). `npm run check` includes deterministic demo freshness verification. Commit the HTML and manifest with source changes; see [demo development](demo.md) for data and calculation review.
+SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
+
+The No-SQL smoke needs installed Chrome or Edge; TSAAT_TEST_BROWSER overrides its executable. It starts the compiled app with isolated credentials/data and an unavailable SQL executable, exercises both scope types, reports and saved settings, then restarts to verify persistence. It does not touch local DB_config, logindetails or NoSQL/data. Unit tests also use temporary stores.
+
+All new feature code uses the shared data facades. Type checking requires the JSON operation set to match SQL. Add behavior tests for both providers when data or rule semantics change; review the SQL calculation hash guard only after implementation and regression validation. The No-SQL provider does not execute arbitrary SQL text.

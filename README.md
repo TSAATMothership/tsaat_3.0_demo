@@ -1,53 +1,51 @@
 # TSAAT UI 3
 
-Threat Surface Area Assessment Tool: a Windows-hosted Next.js/TypeScript application backed by Microsoft SQL Server. This clean development baseline includes the latest network and ICT system compliance popup redesign.
+Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app with two compilation paths. The standard build uses Microsoft SQL Server. The No-SQL build uses persistent JSON files. Both share the current pages, login, reports, settings and interactions.
 
 ## Start here
 
-- [Documentation index](docs/README.md)
-- [Development and testing](docs/development.md)
-- [Architecture](docs/architecture.md) and [UI design](docs/ui-design.md)
-- [Solution design](Requirements%20Documentation/TSAAT-Solution-Design-Index.md)
-- [Database lifecycle](docs/database.md), [ERD](Database%20Schema/ERD.md) and [generated schema catalogue](docs/generated/database-catalogue.md)
+- [Documentation index](docs/README.md), [development](docs/development.md) and [data providers](docs/data-providers.md)
+- [Architecture](docs/architecture.md), [UI design](docs/ui-design.md) and [solution design](Requirements%20Documentation/TSAAT-Solution-Design-Index.md)
+- [Database lifecycle](docs/database.md), [ERD](Database%20Schema/ERD.md) and [schema catalogue](docs/generated/database-catalogue.md)
 - [Contribution workflow](CONTRIBUTING.md), [SDLC](docs/sdlc.md) and [release runbook](docs/operations.md)
 
 ## Local setup
 
-Use Windows, Node.js 24 (baseline 24.13.1), npm, PowerShell, a reachable SQL Server instance and sqlcmd on PATH (or SQLCMD_PATH). Packages are installed from the committed lockfile; runtimes and node_modules are not versioned.
+Both builds use Windows, Node.js 24, npm and PowerShell. Install from the lockfile and provision login under the runtime Windows identity:
 
-```powershell
+~~~powershell
 npm ci
-npm run setup:database
 npm run setup:login
-npm run dev
-```
+~~~
 
-Setup creates local encrypted DB_config and logindetails files for the current Windows identity. Point database settings at an existing compatible database; configuration setup does not import or replace data. Open http://localhost:3000 and sign in. Select a network or ICT system to populate the workspace.
+Choose a build:
 
-For a NEW disposable demo database only:
+| Action | Standard SQL | No-SQL (JSON files) |
+| --- | --- | --- |
+| Configure storage | npm run setup:database | npm run setup:nosql |
+| Development | npm run dev:sql | npm run dev:nosql |
+| Compile | npm run build:sql | npm run build:nosql |
+| Run compiled app | npm run start:sql | npm run start:nosql |
+| Build output | .next-sql | .next-nosql |
 
-```powershell
-npm run db:bootstrap -- -DatabaseName TSAAT_UI3_Dev -TrustServerCertificate
-```
+Open http://localhost:3000 and sign in. Select a network or ICT system to populate the workspace. Production deployment uses HTTPS. The ordinary dev/build/start commands remain SQL defaults. compileApp.cmd accepts sql, nosql or all (default sql).
 
-The bootstrap refuses an existing database. Review [database operations](docs/database.md) first. Never run the destructive base schema/seed loader against an operational database.
+SQL additionally needs a compatible SQL Server database and sqlcmd on PATH (or SQLCMD_PATH). DB_config is encrypted for the runtime Windows identity. Setup does not import or replace database data; preserve strict TLS and configure a trusted certificate.
 
-## Browser-only demo
+No-SQL needs no SQL Server, sqlcmd or DB_config. It runs the same app server and login; it is not a static HTML export. Setup, build and start initialize a missing JSON store from the repository's sample snapshots/reference data and retain an existing store. Data and saved settings live in NoSQL/data by default; set TSAAT_JSON_DATA_DIR to an absolute path for another location. These samples are not an export of the live SQL database. See [JSON storage and recovery](docs/data-providers.md).
 
-Open [Demo/index.html](Demo/index.html) directly in Chrome or Edge. This synthetic-data demo needs no installation, SQL, login, backend or internet. See [Demo instructions](Demo/README.md) and [the maintenance contract](docs/demo.md).
+For a NEW disposable SQL database only, use npm run db:bootstrap -- -DatabaseName TSAAT_UI3_Dev after reviewing [database operations](docs/database.md). The bootstrap refuses an existing database. Never apply the destructive base schema/seed loader to an operational database.
 
 ## Development gates
 
-```powershell
-npm run demo:build
-npm run demo:test
+~~~powershell
 npm run docs:generate
 npm run check
-npm run build
-npm start
-```
+npm run build:all
+npm run test:nosql
+~~~
 
-Review and update affected human-written documentation before regenerating inventories. `check` verifies repository hygiene, documentation freshness, lint, TypeScript and tests. SQL integration is a separate opt-in check against a disposable database. Production authentication requires HTTPS; see the release runbook.
+Review affected human-written documentation before regenerating inventories. The gates check repository hygiene, documentation, lint, types, tests, both production compilations and the compiled No-SQL app in an authenticated browser. SQL integration is separately opt-in against a disposable database. Every feature change must support both providers in the same release.
 
 ## Current workspace
 
@@ -55,4 +53,4 @@ Cyber Security contains Network Risk Profile, ICT System Risk Profile, Service I
 
 ## Repository boundary
 
-Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, required demo/test snapshots and maintained documentation. Excludes old Git history, independently maintained duplicate app implementations, vendored packages/runtimes, credentials, other builds, temporary reports and logs. The portable Demo/index.html distribution and its source adapters are maintained with the app. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure a remote host, branch protection or deployment service.
+Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, JSON initialization data and maintained documentation. Excludes independently maintained duplicate apps, dependencies/runtimes, credentials, mutable JSON stores, build outputs, reports and logs. The rejected standalone Demo distribution has been removed. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure remote hosting, branch protection or deployment services.

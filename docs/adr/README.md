@@ -9,3 +9,5 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0003 — Typed CMDB values](0003-cmdb-attributes.md)
 
 - [0005: Standalone browser demo](0005-standalone-browser-demo.md)
+
+- [0006: SQL and JSON compilation paths](0006-dual-data-provider-builds.md)

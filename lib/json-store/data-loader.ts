@@ -1,4 +1,5 @@
-import type * as SqlLoader from "@/lib/data-loader";
+import "server-only";
+import type * as SqlLoader from "@/lib/sql-data-loader";
 import type { Dataset, Finding, ICTSystem, ManagedNetwork, ReferenceVersions, StoredKpiEvaluation } from "@/lib/types";
 import { normalizeSpiDefinitions, normalizeSeverityDefinitions } from "@/lib/spi-definitions";
 import { normalizeKpiDefinitions, type KpiDefinition } from "@/lib/kpi-definitions";
@@ -7,103 +8,109 @@ import { normalizeDiscoveryToolsSettings, normalizeDiscoveryToolsScopeUpdate } f
 import { normalizeFindingDisplayConfiguration } from "@/lib/findings-config";
 import { clearAnalyticsCache } from "@/lib/analytics-cache";
 import { clearAppDataCaches } from "@/lib/app-data-cache";
+import { normalizeDataDate, todayDateKey, subtractCalendarMonthsDateKey } from "@/lib/data-date";
 import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
-import { demoPackage, unpackJson } from "./package";
-import { enrichSampleData } from "./sample-data";
+import { readJson, fileVersion, loadStoreManifest, atomicWriteJson, withStoreWriteLock, jsonStoreDirectory } from "./files";
+import { reference, spiReferenceRows, kpiReferenceRows, clearReferenceCaches } from "./references";
 import { evaluateSpi, evaluateDiscovery, type DetectionRule } from "./evaluations";
 
 export type DatasetLoadProfile = SqlLoader.DatasetLoadProfile;
 export type KpiEvaluationScopeInput = SqlLoader.KpiEvaluationScopeInput;
+export type WorkspaceFilterOptions = SqlLoader.WorkspaceFilterOptions;
+export type EndpointExplorerData = SqlLoader.EndpointExplorerData;
+export type InstalledSoftwareExplorerData = SqlLoader.InstalledSoftwareExplorerData;
+export type ShadowItExplorerData = SqlLoader.ShadowItExplorerData;
 type Options = { profile?: DatasetLoadProfile };
-const datasets = new Map<number, Dataset>();
-const settingsMemory = new Map<string, unknown>();
-const storagePrefix = "tsaat-offline-demo-v1:";
-export let storageNotice = "";
-const ref = (name: string) => demoPackage().references[name];
-function readSetting(name: string) {
-  if (settingsMemory.has(name)) return settingsMemory.get(name);
-  try { const value = localStorage.getItem(storagePrefix + name); if (value) return JSON.parse(value) as unknown; }
-  catch { storageNotice = "Browser storage is unavailable. Settings apply for this session only."; }
-  return ref(name);
-}
-function writeSetting(name: string, value: unknown) {
-  settingsMemory.set(name, value);
-  try { localStorage.setItem(storagePrefix + name, JSON.stringify(value)); }
-  catch { storageNotice = "Browser storage is unavailable. Settings apply for this session only."; }
-  clearDataLoaderCaches();
-}
-export function resetDemoSettings() {
-  settingsMemory.clear();
-  for (const key of ["measures-settings", "discovery-tools-settings"]) {
-    try { localStorage.removeItem(storagePrefix + key); } catch { /* Session-only storage. */ }
-  }
-  clearDataLoaderCaches();
-}
-export function clearDataLoaderCaches() { datasets.clear(); clearAnalyticsCache(); clearAppDataCaches(); }
+const datasets = new Map<string, Dataset>();
+export function clearDataLoaderCaches() { datasets.clear(); clearReferenceCaches(); clearAnalyticsCache(); clearAppDataCaches(); }
 export const __resetDataLoaderCachesForTest = clearDataLoaderCaches;
-export async function loadSpiDefinitions() { return normalizeSpiDefinitions(ref("spi-definitions")); }
-export async function loadKpiDefinitions() { return normalizeKpiDefinitions(ref("kpi-definitions")); }
-export async function loadSeverityDefinitions() { return normalizeSeverityDefinitions(ref("severity-definitions")); }
-export async function loadFindingPriorityDefinitions() { return normalizePriorityDefinitions(ref("finding-priorities")); }
-export async function loadFindingDisplayConfiguration() {
-  return normalizeFindingDisplayConfiguration(ref("finding-definitions") as Parameters<typeof normalizeFindingDisplayConfiguration>[0]);
+export async function loadSpiDefinitions() {
+  const rows = await spiReferenceRows(), definitions = normalizeSpiDefinitions(rows);
+  if (definitions.length !== rows.filter(row => row.enabled !== false).length) throw new Error("Invalid SPI definitions in JSON storage.");
+  return definitions;
 }
-export async function loadReferenceVersions() { return ref("reference-versions") as ReferenceVersions; }
-export async function loadMeasuresSettings(spis = normalizeSpiDefinitions(ref("spi-definitions")), severities = normalizeSeverityDefinitions(ref("severity-definitions")), priorities = normalizePriorityDefinitions(ref("finding-priorities"))) {
-  return normalizeMeasuresSettings(readSetting("measures-settings"), spis, severities, priorities);
+export async function loadKpiDefinitions() { return normalizeKpiDefinitions(await kpiReferenceRows()); }
+export async function loadSeverityDefinitions() { return normalizeSeverityDefinitions(await reference("severity-definitions")); }
+export async function loadFindingPriorityDefinitions() {
+  const file = await reference<{ findingPriorities: unknown[] }>("spi-sql-calculations");
+  return normalizePriorityDefinitions(file.findingPriorities);
+}
+export async function loadFindingDisplayConfiguration() {
+  return normalizeFindingDisplayConfiguration(await reference<Parameters<typeof normalizeFindingDisplayConfiguration>[0]>("finding-definitions"));
+}
+export async function loadReferenceVersions() { return reference<ReferenceVersions>("reference-versions"); }
+export async function loadMeasuresSettings(...args: Parameters<typeof SqlLoader.loadMeasuresSettings>) {
+  const [spis = await loadSpiDefinitions(), severities = await loadSeverityDefinitions(), priorities = await loadFindingPriorityDefinitions()] = args;
+  return normalizeMeasuresSettings(await readJson("settings/measures-settings.json"), spis, severities, priorities);
+}
+async function persistSettings<T extends { updatedAt: string }>(name: string, value: T): Promise<T> {
+  return withStoreWriteLock(async () => {
+    const previous = await readJson<{ updatedAt: string }>("settings/" + name + ".json");
+    value.updatedAt = new Date(Math.max(Date.now(), Date.parse(previous.updatedAt) + 1 || 0)).toISOString();
+    await atomicWriteJson("settings/history/" + name + "-" + value.updatedAt.replaceAll(":", "-") + ".json", value);
+    await atomicWriteJson("settings/" + name + ".json", value);
+    clearDataLoaderCaches();
+    return value;
+  });
 }
 export async function saveMeasuresSettings(input: unknown) {
   const settings = normalizeMeasuresSettings(input, await loadSpiDefinitions(), await loadSeverityDefinitions(), await loadFindingPriorityDefinitions());
-  settings.updatedAt = new Date().toISOString();
-  writeSetting("measures-settings", settings);
-  return settings;
+  if (!Object.keys(settings.severityMatrix).length || !Object.keys(settings.priorityMatrix).length) throw new Error("No measures mappings were produced.");
+  return persistSettings("measures-settings", settings);
 }
-export async function loadDiscoveryToolsSettings() { return normalizeDiscoveryToolsSettings(readSetting("discovery-tools-settings")); }
+export async function loadDiscoveryToolsSettings() { return normalizeDiscoveryToolsSettings(await readJson("settings/discovery-tools-settings.json")); }
 export async function saveDiscoveryToolsSettings(input: unknown) {
-  const settings = normalizeDiscoveryToolsScopeUpdate(input, await loadDiscoveryToolsSettings());
-  settings.updatedAt = new Date().toISOString();
-  writeSetting("discovery-tools-settings", settings);
-  return settings;
+  return persistSettings("discovery-tools-settings", normalizeDiscoveryToolsScopeUpdate(input, await loadDiscoveryToolsSettings()));
 }
-
 async function snapshot(id: number): Promise<Dataset> {
-  const cached = datasets.get(id);
+  const manifest = await loadStoreManifest(), source = manifest.snapshots.find(item => item.id === id);
+  if (!source) throw new Error("Unknown JSON snapshot ID: " + id);
+  const [spis, measures, discovery, rules, version] = await Promise.all([
+    loadSpiDefinitions(), loadMeasuresSettings(), loadDiscoveryToolsSettings(),
+    reference<{ detectionRules: DetectionRule[] }>("discovery-coverage-rules"), fileVersion(source.file)
+  ]);
+  const key = JSON.stringify([jsonStoreDirectory(), id, version, spis, measures, discovery, rules]);
+  const cached = datasets.get(key);
   if (cached) return cached;
-  const source = demoPackage().snapshots[id - 1];
-  if (!source) throw new Error("Unknown demo snapshot.");
-  const dataset = enrichSampleData(unpackJson<Dataset>(source.json), id);
-  const [spis, measures, discovery] = await Promise.all([loadSpiDefinitions(), loadMeasuresSettings(), loadDiscoveryToolsSettings()]);
-  const rules = ref("discovery-coverage-rules") as { detectionRules: DetectionRule[] };
+  const dataset = await readJson<Dataset>(source.file);
+  if (dataset.snapshotDate !== source.date || !Array.isArray(dataset.assets) || !Array.isArray(dataset.managedNetworks) ||
+      !Array.isArray(dataset.ictSystems) || !Array.isArray(dataset.findings)) throw new Error("Invalid snapshot data: " + source.file);
+  const assetIds = new Set(dataset.assets.map(asset => asset.id));
+  if (assetIds.size !== dataset.assets.length || dataset.findings.some(f => !assetIds.has(f.scope.assetId))) throw new Error("Invalid asset references in " + source.file);
+  dataset.snapshotId = id;
   dataset.spiEvaluations = dataset.assets.flatMap(asset => spis.filter(def => def.applicableAssetTypes.includes(asset.type)).map(def => evaluateSpi(asset, def)));
   dataset.discoveryCoverageEvaluations = dataset.assets.map(asset => evaluateDiscovery(asset, discovery, rules.detectionRules));
-  dataset.findings = applyMeasuresPrioritySettings(applyMeasuresSeveritySettings(dataset.findings ?? [], dataset.assets, measures), measures);
-  datasets.set(id, dataset);
+  dataset.findings = applyMeasuresPrioritySettings(applyMeasuresSeveritySettings(dataset.findings, dataset.assets, measures), measures);
+  // A new file revision must invalidate the shared model caches, on subsequent loads.
+  clearAnalyticsCache(); clearAppDataCaches();
+  if (datasets.size >= 16) datasets.delete(datasets.keys().next().value!);
+  datasets.set(key, dataset);
   return dataset;
 }
-export async function loadCurrentDataset(_options: Options = {}) { return snapshot(demoPackage().snapshots.length); }
-export async function loadSnapshots(_options: Options = {}) { return Promise.all(demoPackage().snapshots.map((_, i) => snapshot(i + 1))); }
-export async function loadLatestSnapshots(limit = 12, options: Options = {}) { return (await loadSnapshots(options)).slice(-limit); }
+export async function loadCurrentDataset(_options: Options = {}) { return snapshot((await loadStoreManifest()).snapshots.at(-1)!.id); }
+export async function loadSnapshots(_options: Options = {}) { return Promise.all((await loadStoreManifest()).snapshots.map(item => snapshot(item.id))); }
+export async function loadLatestSnapshots(limit = 12, _options: Options = {}) {
+  return Promise.all((await loadStoreManifest()).snapshots.slice(-Math.max(0, limit)).map(item => snapshot(item.id)));
+}
 export const loadDatasetTimeline = loadSnapshots;
 export async function loadDatasetForDate(requestedDate?: string, _options: Options = {}) {
-  const sources = demoPackage().snapshots;
-  const index = requestedDate ? sources.reduce((selected, item, i) => item.date <= requestedDate ? i : selected, -1) : sources.length - 1;
-  return snapshot(Math.max(0, index) + 1);
+  const sources = (await loadStoreManifest()).snapshots, target = normalizeDataDate(requestedDate) ?? todayDateKey();
+  return snapshot((sources.filter(item => item.date <= target).at(-1) ?? sources[0]).id);
 }
-export async function loadLatestSnapshotsForDate(requestedDate?: string, limit = 12, options: Options = {}) {
-  const latest = await loadDatasetForDate(requestedDate, options);
-  return (await loadSnapshots(options)).filter(item => item.snapshotDate <= latest.snapshotDate).slice(-limit);
+export async function loadLatestSnapshotsForDate(requestedDate: string | undefined, limit = 12, _options: Options = {}) {
+  const target = normalizeDataDate(requestedDate) ?? todayDateKey();
+  return Promise.all((await loadStoreManifest()).snapshots.filter(item => item.date <= target).slice(-Math.max(0, limit)).map(item => snapshot(item.id)));
 }
-export async function loadSnapshotsForDateWindow(requestedDate?: string, monthsBack = 12, options: Options = {}) {
-  const latest = await loadDatasetForDate(requestedDate, options);
-  const from = new Date(latest.snapshotDate + "T00:00:00Z"); from.setUTCMonth(from.getUTCMonth() - monthsBack);
-  return (await loadSnapshots(options)).filter(item => item.snapshotDate >= from.toISOString().slice(0, 10) && item.snapshotDate <= latest.snapshotDate);
+export async function loadSnapshotsForDateWindow(requestedDate: string | undefined, monthsBack = 12, options: Options = {}) {
+  const latest = await loadDatasetForDate(requestedDate, options), from = subtractCalendarMonthsDateKey(latest.snapshotDate, monthsBack);
+  return Promise.all((await loadStoreManifest()).snapshots.filter(item => item.date >= from && item.date <= latest.snapshotDate).map(item => snapshot(item.id)));
 }
 export async function loadSnapshotEffectiveFindings(snapshotId: number, asOfDate?: string | null): Promise<Finding[]> {
   const dataset = await snapshot(snapshotId);
-  const date = asOfDate ?? dataset.snapshotDate;
-  return (dataset.findings ?? []).filter(f => f.timestamp.slice(0, 10) <= date).map(f => ({
-    ...f, status: f.closedTimestamp && f.closedTimestamp.slice(0, 10) <= date ? "closed" : "open"
+  if (!asOfDate) return dataset.findings ?? [];
+  return (dataset.findings ?? []).filter(f => f.timestamp.slice(0, 10) <= asOfDate).map(f => ({
+    ...f, status: f.closedTimestamp && f.closedTimestamp.slice(0, 10) <= asOfDate ? "closed" : "open"
   }));
 }
 export async function loadWorkspaceFilterOptionsForDate(date?: string) {
@@ -113,6 +120,7 @@ export async function loadWorkspaceFilterOptionsForDate(date?: string) {
     systems: dataset.ictSystems.map(s => ({ id: s.id, label: s.name })).sort((a,b) => a.label.localeCompare(b.label))
   };
 }
+
 async function inventory(params: WorkspaceSearchParams) {
   const dataset = await loadDatasetForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
   const networks = scopeIds(params.network), systems = scopeIds(params.system);
@@ -159,7 +167,7 @@ export async function loadSnapshotKpiEvaluationsForScope(input: {
     function compliant(system: ICTSystem) {
       if (def.calculationKey === "active-ato-coverage") return Boolean(system.atoNumber?.trim());
       if (def.calculationKey === "diis-registration-coverage") return system.diisDefined;
-      throw new Error("Unsupported demo KPI calculation: " + def.calculationKey);
+      throw new Error("Unsupported JSON KPI calculation: " + def.calculationKey);
     }
     const nonCompliant = new Set(systems.filter(s => !compliant(s)).map(s => s.id));
     const applicableCount = systems.length, compliantCount = applicableCount - nonCompliant.size;
@@ -180,3 +188,34 @@ export async function loadSnapshotKpiEvaluationsForAnalyticsScope(input: {
   return loadSnapshotKpiEvaluationsForScope({ snapshotId: input.dataset.snapshotId!, assetIds: input.analytics.evaluations.map(a => a.assetId),
     systemIds: input.systems.map(s => s.id), networkIds: input.networks.map(n => n.id), findings: input.analytics.findings, kpiDefinitions: input.kpiDefinitions });
 }
+
+// Compile-time parity: adding a SQL provider operation requires its JSON implementation.
+export const jsonDataProvider = {
+  loadSnapshotEffectiveFindings,
+  loadCurrentDataset,
+  loadSnapshots,
+  loadLatestSnapshots,
+  loadDatasetTimeline,
+  loadDatasetForDate,
+  loadWorkspaceFilterOptionsForDate,
+  loadEndpointExplorerData,
+  loadInstalledSoftwareExplorerData,
+  loadShadowItExplorerData,
+  loadLatestSnapshotsForDate,
+  loadSnapshotsForDateWindow,
+  loadReferenceVersions,
+  loadSeverityDefinitions,
+  loadFindingPriorityDefinitions,
+  loadFindingDisplayConfiguration,
+  loadSpiDefinitions,
+  loadKpiDefinitions,
+  loadSnapshotKpiEvaluationsForScope,
+  loadSnapshotKpiEvaluationsForScopes,
+  loadSnapshotKpiEvaluationsForAnalyticsScope,
+  loadMeasuresSettings,
+  saveMeasuresSettings,
+  loadDiscoveryToolsSettings,
+  saveDiscoveryToolsSettings,
+  clearDataLoaderCaches,
+  __resetDataLoaderCachesForTest
+} satisfies typeof SqlLoader;

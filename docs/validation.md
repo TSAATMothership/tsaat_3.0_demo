@@ -1,5 +1,25 @@
 # Validation records
 
+## Dual-provider builds - 2026-11-02
+
+Validation used Windows, Node 24 and installed Chrome. No operational SQL data or configuration was changed. The original TSAAT repository remained clean.
+
+| Check | Result |
+| --- | --- |
+| Source/documentation gates | npm run check passed: hygiene, reachability, docs, lint, strict types, 573 regression tests passed; 11 opt-in SQL tests skipped |
+| Tooling | Four tests passed |
+| Production compilation | npm run build:all passed; distinct .next-sql and .next-nosql artifacts contain the expected compiled provider constants |
+| Compiled No-SQL runtime | Authentication and 16 views passed with no DB_config and an unavailable SQL executable |
+| Interactions | Both heatmaps/searches, entity details, CMDB, both worker analysers and all Settings tabs passed; no SQL administration fetches from No-SQL UI |
+| Reports/exports | 44 PDF responses parsed with pages and six XLSX exports validated, including findings Affected CIs |
+| Persistence | Risk, priority and discovery settings saved to JSON; priority affected findings; settings survived a fresh app process and login |
+| File-store safety | Unit tests covered concurrent writers, traversal rejection, unknown schema versions, nonempty-directory protection, preservation of existing stores and per-type mapping reloads |
+| SQL preservation | Both SQL implementations match their previous content exactly behind the new facades; schema, seed datasets and strict TLS were unchanged |
+| Removed distribution | Demo folder and standalone build/test adapters removed; runtime JSON and compiled outputs ignored by Git |
+
+SQL integration was not rerun for this storage split and remains opt-in against a disposable database. Earlier trusted-certificate constraints are described below; no TLS exception was introduced. The current smoke validates PDF structure/content delivery, not a new visual audit of every report. The existing Browserslist data-age notice remains. Local validation logs are under .local/dual-build-*.log and are not tracked.
+
+
 ## Cleanup release - 2026-11-02
 
 Validation used Windows, Node 24.13.1 and local SQL Server Express. Cleanup removed 42 unreachable modules plus unused private declarations and server calculations; seven obsolete test files and retired assertions were removed with their implementations.

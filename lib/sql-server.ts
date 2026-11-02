@@ -1,5 +1,7 @@
 ﻿import "server-only";
 
+import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
+
 import { execFile } from "child_process";
 import { existsSync, promises as fs } from "fs";
 import os from "os";
@@ -459,6 +461,7 @@ async function executeSqlFileAgainstConnection(
 }
 
 export async function executeSqlText(sqlText: string, databaseName?: string): Promise<string> {
+  if (IS_JSON_BUILD) throw new Error("SQL access is disabled in the No-SQL build.");
   const connection = await resolveEffectiveConnection(databaseName);
 
   return timeAsync(`sqlcmd ${connection.database}`, () =>
@@ -469,6 +472,7 @@ export async function executeSqlText(sqlText: string, databaseName?: string): Pr
 }
 
 export async function executeSqlTextWithConnection(sqlText: string, connection: SqlConnectionInput): Promise<string> {
+  if (IS_JSON_BUILD) throw new Error("SQL access is disabled in the No-SQL build.");
   const resolved = normalizeExplicitConnection(connection);
   return timeAsync(`sqlcmd ${resolved.database}`, () =>
     withTempSqlFile(sqlText, async (sqlPath) =>

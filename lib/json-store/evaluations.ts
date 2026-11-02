@@ -1,3 +1,4 @@
+import "server-only";
 import type { Asset, StoredSpiEvaluation, StoredDiscoveryCoverageEvaluation } from "@/lib/types";
 import type { SpiDefinition } from "@/lib/spi-definitions";
 import { renderSpiOutcomeReason } from "@/lib/spi-definitions";
@@ -42,10 +43,10 @@ export function evaluateSpi(asset: Asset, definition: SpiDefinition): StoredSpiE
       outcome = asset.lifecycle.eolStatus === p.unknownLifecycleStatus || asset.lifecycle.warrantyStatus === p.unknownLifecycleStatus ? "missing_lifecycle" :
         asset.lifecycle.eolStatus !== p.endOfLifeStatus && asset.lifecycle.warrantyStatus === p.inWarrantyStatus ? "current" : "expired";
       evidence = { eolStatus: asset.lifecycle.eolStatus, warrantyStatus: asset.lifecycle.warrantyStatus }; break;
-    default: throw new Error("Unsupported demo SPI rule: " + definition.ruleKey);
+    default: throw new Error("Unsupported JSON SPI rule: " + definition.ruleKey);
   }
   const template = definition.outcomeTemplates.find(t => t.outcomeKey === outcome);
-  if (!template) throw new Error("Missing demo SPI outcome: " + outcome);
+  if (!template) throw new Error("Missing JSON SPI outcome: " + outcome);
   const result: StoredSpiEvaluation = { assetId: asset.id, spiId: definition.spiId, status: template.complianceStatus, outcomeKey: outcome, evidence, reasons: [] };
   result.reasons = [renderSpiOutcomeReason(definition, result)];
   return result;

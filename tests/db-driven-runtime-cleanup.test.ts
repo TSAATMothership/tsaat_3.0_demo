@@ -62,7 +62,7 @@ describe("DB-driven SPI and findings runtime cleanup", () => {
   });
 
   it("keeps SPI evaluations and effective findings on SQL-backed loader paths", () => {
-    const dataLoader = readRepoFile("lib/data-loader.ts");
+    const dataLoader = readRepoFile("lib/sql-data-loader.ts");
     const analytics = readRepoFile("lib/analytics.ts");
 
     expect(dataLoader).toContain("usp_evaluate_spi_snapshot");

@@ -2,10 +2,10 @@
 
 ## Change flow
 
-1. Define the problem, scope and acceptance criteria. Identify UI, data, report, standalone-demo and compatibility impacts.
+1. Define the problem, scope and acceptance criteria. Identify UI, data, report, SQL/No-SQL build and compatibility impacts.
 2. Review/update requirements and design before or alongside implementation. Record substantial decisions in an ADR.
 3. Develop on a short-lived branch with meaningful tests. Add reviewed numbered database migrations and align fresh-install schema/reference data.
-4. Keep the standalone demo aligned (shared UI, JSON data, browser calculations, settings and reports). Run `npm run demo:build` and `npm run demo:test`, commit its HTML/manifest, and review the calculation contract when SQL changes. Update human-written docs and CHANGELOG, regenerate inventories, then run `npm run check` and `npm run build`. Add relevant browser, PDF and SQL evidence.
+4. Implement and validate both SQL and No-SQL providers in the same change. Review calculations, scope/date behavior, settings persistence, reports, JSON formats and CMDB mappings. Add SQL and JSON migration/recovery steps where needed. Update human-written docs and CHANGELOG, regenerate inventories, then run npm run check, npm run build:all and npm run test:nosql. Add relevant disposable-SQL integration and browser/PDF evidence.
 5. Request independent review of behavior, maintainability, scope/security, accessibility, documentation and migration/recovery notes.
 6. Merge after checks/review. Release from a specific commit/tag with the operations runbook and record post-deployment checks.
 
@@ -19,7 +19,7 @@ Where behavior is unchanged, document the reason and validation in the relevant 
 
 ## Definition of done
 
-Acceptance criteria, compatibility and security boundaries are preserved; tests/lint/types/build pass; feature/design/architecture/database/operations docs match; relevant UI/report states are inspected; migrations/recovery are reviewable; no secrets or unapproved generated artifacts are tracked. The reproducible Demo/index.html and manifest are an approved distribution exception; demo freshness and direct-file browser checks must pass.
+Acceptance criteria, compatibility and security boundaries are preserved; tests/lint/types and both builds pass; feature/design/architecture/database/operations docs match; relevant UI/report states are inspected; migrations/recovery are reviewable; no secrets or unapproved generated artifacts are tracked. The compiled No-SQL browser smoke must pass, including persistence after restart with SQL unavailable. Neither build output nor mutable JSON data is committed. There is no third standalone demo build.
 
 ## Responsibilities and hosting controls
 
@@ -29,4 +29,4 @@ After choosing a remote, the repository owner must enable protected main, requir
 
 ## Ongoing maintenance
 
-Triage defects against reproducible snapshots. Review dependency advisories and plan supported-version upgrades separately from this baseline. Keep published migrations append-only. Maintain the [demo contract](demo.md) on every related app change; do not postpone demo work to a later release. Exercise restore/deployment in disposable environments. Baseline results are evidence for this commit, not permanent release certification.
+Triage defects against reproducible snapshots. Review dependency advisories and plan supported-version upgrades separately from this baseline. Keep published migrations append-only. Maintain the [dual-provider contract](data-providers.md) on every related app change; do not postpone either provider to a later release. Version incompatible JSON changes and provide upgrades for existing stores; new seeds alone are not an upgrade. Review the calculation contract before refreshing hashes. Exercise restore/deployment in disposable environments. Baseline results are evidence for this commit, not permanent release certification.

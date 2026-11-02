@@ -37,6 +37,10 @@ Do not apply 026 to operational imports: its Sample metadata and example.test ad
 
 Regenerate docs after SQL/reference changes and inspect ERD/mappings. Run validation SQL and integration suites on a disposable target. Keep deployed migration evidence and live schema comparisons with the release record.
 
-## Browser demo relationship
+## No-SQL build relationship
 
-The standalone demo never connects to SQL. It consumes the maintained synthetic snapshots/reference JSON and applies reviewed browser equivalents of the supported calculation rules. SQL/schema changes must include demo evaluator/fixture/mapping review and updates to Demo/data/calculation-contract.json after meaningful tests. Per-type demo CMDB mappings are in Demo/data/cmdb-attributes.json. The operational SQL connection remains strict TLS; demo work does not alter its certificate configuration. See [demo maintenance](demo.md).
+The same app also compiles with a JSON data provider. SQL implementation moved behind lib/data-loader.ts into lib/sql-data-loader.ts; the schema, migrations and strict TLS configuration are unchanged by this build split. CMDB SQL access similarly remains behind the shared attribute-loader facade.
+
+No-SQL loads snapshots, references and settings from its own server directory. Initial seed JSON is sample material, not an export of this database. Existing SQL data is neither copied nor mutated. SQL rule/schema changes require equivalent JSON calculations and regression review before updating NoSQL/calculation-contract.json. Per-type defaults are in NoSQL/cmdb-attributes.json; runtime overrides live in the store references directory.
+
+Future schema changes require reviewed SQL migrations plus a JSON schema/data upgrade plan. Do not update only fresh-install seeds. See [data provider contracts](data-providers.md) for persistence, supported calculations and historical finding import requirements.

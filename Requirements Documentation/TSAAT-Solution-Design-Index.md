@@ -1,6 +1,6 @@
 # TSAAT solution design index
 
-The feature contracts below describe the current application. Exact interfaces, SQL fields and API methods are linked through the generated inventories. The former combined specification is an entrypoint rather than a duplicate copy.
+The feature contracts below describe both SQL and JSON-backed No-SQL builds of the current application. Both use the same authenticated app server, pages, APIs and reports; storage-specific details follow the [data provider contract](../docs/data-providers.md). Exact interfaces, SQL fields and API methods are linked through the generated inventories. The former combined specification is an entrypoint rather than a duplicate copy.
 
 - [Workspace, navigation and scope](01-Home-Redirect.md)
 - [Cyber Security and impact analysers](02-Cyber-COP.md)
