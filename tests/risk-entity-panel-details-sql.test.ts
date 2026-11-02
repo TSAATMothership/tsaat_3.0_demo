@@ -22,7 +22,7 @@ UPDATE [tsaat].[ict_system] SET [description] = N'Existing system description', 
   [support_email] = NULL, [service_catalogue_url] = N'https://existing.example.test/catalogue',
   [ato_number] = NULL, [diis_defined] = 0 WHERE [system_id] = N'sys-1';
 SELECT [snapshot_id], [network_id], [name], [criticality], [adf_platform], [enterprise_platform], [modelling_status],
-  [classification], [diis_id], [ato_number], [apm_number], [diis_url], [grc_url], [discovery_status]
+  [classification], [diis_id], [ato_number], [diis_url], [grc_url], [discovery_status]
   INTO #network_posture FROM [tsaat].[managed_network];
 SELECT [snapshot_id], [system_id], [network_id], [name], [adf_platform], [enterprise_platform], [diis_id],
   [ato_number], [apm_number], [diis_url], [grc_url], [modelling_status], [diis_defined], [criticality], [security_domain]
@@ -43,7 +43,7 @@ SELECT
       OR [owner] <> N'Existing owner' OR [service_catalogue_url] <> N'https://existing.example.test/catalogue')) THEN 1 ELSE 0 END AS BIT) AS preserved,
   CAST(CASE WHEN NOT EXISTS (SELECT * FROM #network_posture EXCEPT SELECT [snapshot_id], [network_id], [name],
     [criticality], [adf_platform], [enterprise_platform], [modelling_status], [classification], [diis_id], [ato_number],
-    [apm_number], [diis_url], [grc_url], [discovery_status] FROM [tsaat].[managed_network])
+    [diis_url], [grc_url], [discovery_status] FROM [tsaat].[managed_network])
     AND NOT EXISTS (SELECT * FROM #system_posture EXCEPT SELECT [snapshot_id], [system_id], [network_id], [name],
     [adf_platform], [enterprise_platform], [diis_id], [ato_number], [apm_number], [diis_url], [grc_url],
     [modelling_status], [diis_defined], [criticality], [security_domain] FROM [tsaat].[ict_system]) THEN 1 ELSE 0 END AS BIT) AS postureUnchanged,

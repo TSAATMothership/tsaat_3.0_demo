@@ -71,11 +71,10 @@ describe("DB-driven SPI and findings runtime cleanup", () => {
     expect(analytics).not.toContain("buildFindings");
   });
 
-  it("uses database-produced workflow status in the compliance overview panel", () => {
-    const source = readRepoFile("components/network-compliance-overview.tsx");
+  it("uses database-produced workflow status in the current asset compliance panel", () => {
+    const source = readRepoFile("lib/server-compliance.ts");
 
-    expect(source).toContain("finding.workflowStatus === \"open\"");
-    expect(source).toContain("asOfStatus: finding.workflowStatus");
+    expect(source).toContain("finding.status === \"open\"");
     expect(source).not.toContain("workflowStatusAtAsOf");
   });
 });

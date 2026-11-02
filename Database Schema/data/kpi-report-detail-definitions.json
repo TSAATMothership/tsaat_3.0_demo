@@ -7,30 +7,6 @@
       "name": "Generic KPI Summary",
       "description": "Default KPI tasking report detail section.",
       "enabled": true
-    },
-    {
-      "reportDetailKey": "critical-system-threshold",
-      "handlerKey": "critical-system-threshold",
-      "displayOrder": 2,
-      "name": "Critical ICT Systems at Threshold",
-      "description": "Lists critical ICT systems at or below the configured compliance threshold.",
-      "enabled": true
-    },
-    {
-      "reportDetailKey": "critical-exposure-assets",
-      "handlerKey": "critical-exposure-assets",
-      "displayOrder": 3,
-      "name": "Critical Exposure Assets",
-      "description": "Lists assets with Critical Exposure findings.",
-      "enabled": true
-    },
-    {
-      "reportDetailKey": "unmodelled-diis-systems",
-      "handlerKey": "unmodelled-diis-systems",
-      "displayOrder": 4,
-      "name": "Unmodelled DIIS Systems",
-      "description": "Lists DIIS-defined ICT systems without modelling enabled.",
-      "enabled": true
     }
   ],
   "bindings": [

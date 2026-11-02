@@ -12,10 +12,6 @@ const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
 const ZIP_STORE_METHOD = 0;
 const ZIP_DEFLATE_METHOD = 8;
 
-interface ZipEntry {
-  name: string;
-  data: Buffer;
-}
 
 function escapeXml(value: string): string {
   return value

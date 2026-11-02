@@ -11,3 +11,5 @@ Affected CI drill-through shows Device Name, Device IP, Device Model, Last Disco
 Finding evidence, workflow and timestamp are distinct from current evaluation status. Priority and severity follow configured database mappings. Preserve the selected scope/date, canonical device metadata, deduplication and status filtering across register, drill-through and export. Generated files use existing safe text/CSV handling.
 
 Sources: app/findings/page.tsx, lib/findings-register-data.ts, findings-duration.ts, findings-assets.ts, findings-export.ts, findings-workbook.ts, findings-config.ts and API handlers. Tests: findings-duration, findings-filter-dropdowns, findings-workbook, findings-asset-details-route and related export/configuration tests; generated inventory lists actual route files.
+
+Runtime cleanup removes obsolete history widgets that were unreachable from the current register. Current duration, evidence, affected-CI, CSV/workbook and report contracts remain. Historical snapshots and finding records are retained.

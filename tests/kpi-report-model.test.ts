@@ -8,74 +8,7 @@ import {
 } from "@/lib/kpi-report-model";
 import { normalizeKpiDefinitions } from "@/lib/kpi-definitions";
 import { buildKpiRows, type KpiRow } from "@/lib/measures";
-import { AnalyticsResult, AssetSpiEvaluation, ICTSystem, ManagedNetwork } from "@/lib/types";
 import rawKpiDefinitions from "../Database Schema/data/kpi-definitions.json";
-
-function evaluation(assetId: string, discoveryCoverageCompliant: boolean): AssetSpiEvaluation {
-  return {
-    assetId,
-    assetType: "server",
-    networkId: "net-1",
-    systemId: "sys-1",
-    environmentType: "Production",
-    securityDomain: "Protected",
-    systemCriticality: "Critical",
-    discoveryCoverageCompliant,
-    evaluations: [
-      {
-        spiId: 1,
-        status: discoveryCoverageCompliant ? "Compliant" : "Non-compliant",
-        evidence: {},
-        reasons: []
-      }
-    ]
-  };
-}
-
-function analyticsFixture(discoveryCompliantCount: number): AnalyticsResult {
-  const evaluations = [evaluation("asset-1", discoveryCompliantCount >= 1), evaluation("asset-2", discoveryCompliantCount >= 2)];
-  return {
-    evaluations,
-    findings: [],
-    networkRollups: [],
-    systemRollups: [],
-    environmentRollups: [],
-    overallCompliancePercent: 50,
-    statusTotals: { compliant: discoveryCompliantCount, nonCompliant: 2 - discoveryCompliantCount, unknown: 0, impactedAssets: 2 },
-    productionCriticalExposureAssetIds: []
-  };
-}
-
-const systems: ICTSystem[] = [
-  {
-    id: "sys-1",
-    name: "System 1",
-    adfPlatform: true,
-    enterprisePlatform: false,
-    modellingStatus: true,
-    diisDefined: true,
-    networkId: "net-1",
-    criticality: "Critical",
-    securityDomain: "Protected",
-    missionCapabilities: [],
-    businessServices: [],
-    environments: []
-  }
-];
-
-const networks: ManagedNetwork[] = [
-  {
-    id: "net-1",
-    name: "Network 1",
-    criticality: "Critical",
-    adfPlatform: true,
-    enterprisePlatform: false,
-    modellingStatus: true,
-    discoveryStatus: "Discovery Enabled",
-    ictSystemIds: ["sys-1"],
-    assetIds: ["asset-1", "asset-2"]
-  }
-];
 
 const kpiDefinitions = normalizeKpiDefinitions(rawKpiDefinitions);
 

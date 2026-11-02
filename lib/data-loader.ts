@@ -115,7 +115,6 @@ type ManagedNetworkRow = {
   serviceCatalogueUrl: string | null;
   diisId: string | null;
   atoNumber: string | null;
-  apmNumber: string | null;
   diisUrl: string | null;
   grcUrl: string | null;
   discoveryStatus: "Discovery Enabled" | "Discovery Non Enabled";
@@ -925,7 +924,6 @@ SELECT
       n.[service_catalogue_url] AS [serviceCatalogueUrl],
       n.[diis_id] AS [diisId],
       n.[ato_number] AS [atoNumber],
-      n.[apm_number] AS [apmNumber],
       n.[diis_url] AS [diisUrl],
       n.[grc_url] AS [grcUrl],
       n.[discovery_status] AS [discoveryStatus]
@@ -1349,7 +1347,6 @@ function buildDatasetFromSnapshotRow(
       ...(network.serviceCatalogueUrl ? { serviceCatalogueUrl: network.serviceCatalogueUrl } : {}),
       ...(network.diisId ? { diisId: network.diisId } : {}),
       ...(network.atoNumber ? { atoNumber: network.atoNumber } : {}),
-      ...(network.apmNumber ? { apmNumber: network.apmNumber } : {}),
       ...(network.diisUrl ? { diisUrl: network.diisUrl } : {}),
       ...(network.grcUrl ? { grcUrl: network.grcUrl } : {}),
       discoveryStatus: network.discoveryStatus,

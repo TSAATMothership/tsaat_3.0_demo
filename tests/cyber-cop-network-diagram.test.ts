@@ -61,14 +61,10 @@ describe("Cyber COP overview Risk Profile", () => {
   it("disables the overview Risk Profile drill-through without removing shared drill-through support", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const riskCharts = readRepoFile("components/network-detail-risk-charts.tsx");
-    const networkPanels = readRepoFile("components/networks-cop-panels.tsx");
-    const systemPanels = readRepoFile("components/systems-cop-panels.tsx");
 
     expect(riskCharts).toContain("enableFindingsDrillThrough = true");
     expect(riskCharts).toContain("if (!enableFindingsDrillThrough)");
     expect(riskCharts).toContain("enableFindingsDrillThrough && isFindingsPanelVisible && selectedSeverity");
     expect(dashboard).toContain("enableFindingsDrillThrough={false}");
-    expect(networkPanels).not.toContain("enableFindingsDrillThrough={false}");
-    expect(systemPanels).not.toContain("enableFindingsDrillThrough={false}");
   });
 });

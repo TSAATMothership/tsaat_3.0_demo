@@ -93,43 +93,42 @@ Load Order (Deterministic)
 26. spi_tasking_condition_template
 27. kpi_calculation_source
 28. kpi_calculation_definition
-29. kpi_calculation_parameter
-30. kpi_definition
-31. kpi_report_detail_definition
-32. kpi_report_detail_binding
-33. kpi_tasking_team
-34. kpi_tasking_action_template
-35. kpi_tasking_condition_template
-36. discovery_tools_settings_version
-37. discovery_tool
-38. discovery_tool_asset_scope
-39. discovery_coverage_source
-40. discovery_tool_detection_definition
-41. discovery_tool_detection_rule
-42. discovery_tool_detection_rule_value
-43. measures_settings_version
-44. measures_severity_matrix
-45. measures_priority_matrix
-46. dataset_snapshot
-47. managed_network
-48. managed_network_hierarchy
-49. ict_system
-50. ict_system_hierarchy
-51. network_declared_system
-52. system_mission_capability
-53. system_business_service
-54. system_environment
-55. asset
-56. network_declared_asset
-57. network_target_state_asset
-58. system_environment_asset
-59. asset_operating_system
-60. asset_network_os
-61. asset_patch_state
-62. asset_installed_software
-63. asset_vulnerability
-64. ci_dependency
-65. finding
+29. kpi_definition
+30. kpi_report_detail_definition
+31. kpi_report_detail_binding
+32. kpi_tasking_team
+33. kpi_tasking_action_template
+34. kpi_tasking_condition_template
+35. discovery_tools_settings_version
+36. discovery_tool
+37. discovery_tool_asset_scope
+38. discovery_coverage_source
+39. discovery_tool_detection_definition
+40. discovery_tool_detection_rule
+41. discovery_tool_detection_rule_value
+42. measures_settings_version
+43. measures_severity_matrix
+44. measures_priority_matrix
+45. dataset_snapshot
+46. managed_network
+47. managed_network_hierarchy
+48. ict_system
+49. ict_system_hierarchy
+50. network_declared_system
+51. system_mission_capability
+52. system_business_service
+53. system_environment
+54. asset
+55. network_declared_asset
+56. network_target_state_asset
+57. system_environment_asset
+58. asset_operating_system
+59. asset_network_os
+60. asset_patch_state
+61. asset_installed_software
+62. asset_vulnerability
+63. ci_dependency
+64. finding
 
 Field-Level Mapping Summary
 ---------------------------
@@ -161,7 +160,6 @@ Reference and settings:
 - Database Schema/data/spi-definitions.json.spis[].taskingConditions[] -> tsaat.spi_tasking_condition_template
 - Database Schema/data/kpi-calculations.json.calculationSources[] -> tsaat.kpi_calculation_source
 - Database Schema/data/kpi-calculations.json.calculations[] -> tsaat.kpi_calculation_definition
-- Database Schema/data/kpi-calculations.json.calculations[].parameters[] -> tsaat.kpi_calculation_parameter
 - Database Schema/data/kpi-definitions.json.kpis[] -> tsaat.kpi_definition, including enabled flag, display order, report availability, and calculation key
 - Database Schema/data/kpi-report-detail-definitions.json.reportDetails[] -> tsaat.kpi_report_detail_definition
 - Database Schema/data/kpi-report-detail-definitions.json.bindings[] -> tsaat.kpi_report_detail_binding
@@ -237,7 +235,6 @@ Normalization rule applied for relational integrity:
   - modelling_status = 0
   - diis_id = `DIIS-NET-000`
   - ato_number = `ATO-NET-000`
-  - apm_number = `APM-NET-000`
   - criticality = `Non-Critical`
   - discovery_status = `Discovery Non Enabled`
 - If ciDependencies[] is absent for a snapshot, loader synthesizes deterministic dependency examples:
@@ -266,3 +263,5 @@ Validation Rules Applied by loader/validator
     - 70% with 20..50 edges
     - 19% with 3..19 edges
     - 1% with 51..150 edges
+
+Migration 027 removes unused KPI parameter import and the network APM mapping. Current KPI reference JSON contains two calculations, no parameters, and one report detail definition. System apmNumber still maps to ict_system.apm_number for APP-ID. CMDB attribute catalogue and per-type mappings are initialized by the schema and migration 025, outside the snapshot load-order list above.

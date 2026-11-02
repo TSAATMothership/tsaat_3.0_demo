@@ -11,3 +11,5 @@ End Point Explorer uses canonical asset identity, IP, model, discovery timestamp
 CMDB opens from device names. Its searchable Field/Value table has plain labels rather than interactive headers. Per-type SQL mappings govern which approved attributes appear; the seven types initially share 18 fields. CI owner/change assignment/incident assignment display fields are retired; network/system operational owners remain separate.
 
 Sources: app/discovery-coverage/page.tsx, lib/discovery-*.ts, endpoint-explorer.ts, installed-software-explorer.ts, shadow-it-explorer.ts, cmdb-attributes.ts and associated API routes. Tests cover overview, scope, coverage/tool assets, all three explorers/exports and CMDB routes/mappings. SQL source and mapping inventories are in the database documentation.
+
+Retired network-status/discovery-by-network presentation modules are removed. Current explorers, CMDB routes, target-state comparison data and template/report APIs remain supported. Fresh-install validation checks current evidence mappings rather than the retired CI assignment/owner purposes.

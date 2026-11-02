@@ -6,8 +6,6 @@ const stripSource = readFileSync(
   path.join(process.cwd(), "components", "overview-compliance-score-strip.tsx"),
   "utf8"
 );
-const networkPanelsSource = readFileSync(path.join(process.cwd(), "components", "networks-cop-panels.tsx"), "utf8");
-const systemPanelsSource = readFileSync(path.join(process.cwd(), "components", "systems-cop-panels.tsx"), "utf8");
 const networksPageSource = readFileSync(path.join(process.cwd(), "app", "networks", "page.tsx"), "utf8");
 const systemsPageSource = readFileSync(path.join(process.cwd(), "app", "systems", "page.tsx"), "utf8");
 const cyberCopDashboardSource = readFileSync(path.join(process.cwd(), "components", "cyber-cop-dashboard.tsx"), "utf8");
@@ -32,22 +30,6 @@ describe("overview compliance score strip", () => {
     expect(stripSource).not.toContain('<ComplianceScoreTile title="Overall Compliance"');
     expect(stripSource).not.toContain('<ComplianceScoreTile title="DSE Compliance"');
     expect(stripSource).not.toContain('<ComplianceScoreTile title="DPE Compliance"');
-  });
-
-  it("shares the same compact component across network and ICT system overviews", () => {
-    expect(networkPanelsSource).toContain("OverviewComplianceScoreStrip");
-    expect(networkPanelsSource).toContain("scoreCards: [OverviewScoreCard, OverviewScoreCard]");
-    expect(networkPanelsSource).toContain('modellingGapLabel="Networks not modelled"');
-    expect(networkPanelsSource).not.toContain("Network-Scoped Operational Briefing");
-    expect(networkPanelsSource).not.toContain("function ComplianceTile");
-    expect(networkPanelsSource).not.toContain("function ModellingBulletTile");
-
-    expect(systemPanelsSource).toContain("OverviewComplianceScoreStrip");
-    expect(systemPanelsSource).toContain("scoreCards: [OverviewScoreCard, OverviewScoreCard]");
-    expect(systemPanelsSource).toContain('modellingGapLabel="ICT Systems not modelled"');
-    expect(systemPanelsSource).not.toContain("ICT System-Scoped Operational Briefing");
-    expect(systemPanelsSource).not.toContain("function ComplianceTile");
-    expect(systemPanelsSource).not.toContain("function ModellingBulletTile");
   });
 
   it("redirects retired posture pages to the current scoped risk profiles", () => {

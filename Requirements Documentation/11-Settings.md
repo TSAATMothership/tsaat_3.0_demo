@@ -9,3 +9,5 @@ SPI Risk Matrix and SPI Priority Matrix are sibling tabs. Risk mapping is by con
 Database Settings reads/writes encrypted DB_config and supports connection/schema/TLS diagnostics. Password Settings updates local encrypted logindetails and invalidates affected sessions. Masked or unchanged secrets must not be accidentally overwritten with placeholders. Diagnostics must not disclose passwords. Configuration helpers support local setup under the Windows identity.
 
 Settings does not authorize destructive schema rebuilds or demo imports. Source: components/settings-popup.tsx, settings-tabs.tsx, spi-risk-settings-popup.tsx and settings forms; lib/measures-settings.ts, discovery-tools-settings.ts, db-config.ts, login-details.ts and related APIs. Tests cover priority/risk settings behavior, password handling, SQL TLS, DB config and auth invalidation. Verify save/reopen and subsequent scoped results, not just successful toast text.
+
+Database schema diagnostics require the current 66-table contract after migration 027; they no longer require the unused KPI parameter table or network apm_number. Risk/priority settings and version tables are retained.

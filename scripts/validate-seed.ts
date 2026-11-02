@@ -26,7 +26,6 @@ const EXPECTED_UNMODELLED_RATIO = 0.3;
 const FLOW_ZERO_RATIO = 0.1;
 const FLOW_HIGH_RATIO = 0.7;
 const FLOW_MEDIUM_RATIO = 0.19;
-const FLOW_SPIKE_RATIO = 0.01;
 const TARGET_HIGH_MIN_RATIO = 0.08;
 const TARGET_HIGH_MAX_RATIO = 0.14;
 const TARGET_OVER90_MIN_RATIO = 0.56;
@@ -87,7 +86,6 @@ async function main() {
     }
     assert(network.diisId === `DIIS-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have a DIIS ID.`);
     assert(network.atoNumber === `ATO-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an ATO number.`);
-    assert(network.apmNumber === `APM-NET-${expectedReferenceOrdinal}`, `Network ${network.id} must have an APM number.`);
     assert(ENTITY_CRITICALITY.has(network.criticality), `Network ${network.id} must have valid criticality.`);
     assert(typeof network.adfPlatform === "boolean", `Network ${network.id} must include adfPlatform as boolean.`);
     assert(

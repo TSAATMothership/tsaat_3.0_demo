@@ -2,7 +2,7 @@
 
 Generated from the base schema and migration inventory. Do not edit by hand. This is source DDL, not an assertion about a deployed database. Read the migration README and database lifecycle before execution.
 
-Base schema declares **65 tables**. [Schema source](../../Database%20Schema/database-schema.sql) · [Maintained ERD](../../Database%20Schema/ERD.md) · [Database lifecycle](../database.md).
+Base schema declares **64 tables**. [Schema source](../../Database%20Schema/database-schema.sql) · [Maintained ERD](../../Database%20Schema/ERD.md) · [Database lifecycle](../database.md).
 
 ## tsaat.reference_version_set
 
@@ -641,24 +641,6 @@ CONSTRAINT [UQ_kpi_calculation_definition_display_order] UNIQUE ([display_order]
 CONSTRAINT [CK_kpi_calculation_definition_display_order] CHECK ([display_order] > 0)
 ```
 
-## tsaat.kpi_calculation_parameter
-
-| Column | Source definition |
-| --- | --- |
-| calculation_key | NVARCHAR(100) NOT NULL |
-| parameter_key | NVARCHAR(100) NOT NULL |
-| parameter_type | NVARCHAR(20) NOT NULL |
-| parameter_value | NVARCHAR(4000) NOT NULL |
-
-Declared constraints:
-
-```sql
-CONSTRAINT [PK_kpi_calculation_parameter] PRIMARY KEY CLUSTERED ([calculation_key], [parameter_key]),
-CONSTRAINT [FK_kpi_calculation_parameter_definition]
-FOREIGN KEY ([calculation_key]) REFERENCES [tsaat].[kpi_calculation_definition]([calculation_key]),
-CONSTRAINT [CK_kpi_calculation_parameter_type] CHECK ([parameter_type] IN (N'string', N'number', N'boolean'))
-```
-
 ## tsaat.kpi_report_detail_definition
 
 | Column | Source definition |
@@ -770,7 +752,6 @@ CHECK ([condition_key] IN (N'non_compliant', N'unknown', N'compliant'))
 | service_catalogue_url | NVARCHAR(1024) NULL |
 | diis_id | NVARCHAR(100) NULL |
 | ato_number | NVARCHAR(100) NULL |
-| apm_number | NVARCHAR(100) NULL |
 | diis_url | NVARCHAR(1024) NULL |
 | grc_url | NVARCHAR(1024) NULL |
 | discovery_status | NVARCHAR(40) NOT NULL |
@@ -1582,7 +1563,6 @@ CHECK ([priority_rank] > 0)
 ## Routines
 
 - FUNCTION tsaat.fn_finding_hash_int
-- FUNCTION tsaat.fn_kpi_stable_hash
 - FUNCTION tsaat.fn_spi_boolean_parameter
 - FUNCTION tsaat.fn_spi_installed_software_count
 - FUNCTION tsaat.fn_spi_number_parameter
@@ -1632,3 +1612,4 @@ Apply approved missing upgrades only; 026 contains demonstration metadata.
 | [024_remove_ci_assignment_and_owner_fields.sql](../../Database%20Schema/migrations/024_remove_ci_assignment_and_owner_fields.sql) | aaf74a392898466306defbac5b5addb927b1ed276fd43eef225bb36ab60f8f1a |
 | [025_cmdb_asset_type_attributes.sql](../../Database%20Schema/migrations/025_cmdb_asset_type_attributes.sql) | 341d5881bd67ff101089f056377b8fefa1e0ebce1792f3349a923f6f0c8d1551 |
 | [026_populate_demo_entity_panel_details.sql](../../Database%20Schema/migrations/026_populate_demo_entity_panel_details.sql) | a8335a7fcb19b1a21c3764690637ee2f313dd7051ae606fcdc13f39fada66dcf |
+| [027_remove_retired_runtime_structures.sql](../../Database%20Schema/migrations/027_remove_retired_runtime_structures.sql) | c6db131b85b452ff7b95b140dcf41fff46b38079f8017e2ea91384a85ffa334e |

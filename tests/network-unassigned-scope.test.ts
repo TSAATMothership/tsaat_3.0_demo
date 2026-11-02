@@ -23,6 +23,5 @@ describe("network Unassigned Systems scope wiring", () => {
     expect(readRepoFile("app/api/networks/remediation-report/route.ts")).toContain("filterRealNetworkEvaluations");
     expect(readRepoFile("app/api/networks/remediation-report/route.ts")).toContain("filterRealNetworkFindings");
     expect(readRepoFile("lib/network-topology.ts")).toContain("filterRealNetworks(dataset.managedNetworks)");
-    expect(readRepoFile("components/detailed-topology-view.tsx")).toContain("isRealNetworkId(relatedCi.networkId)");
   });
 });

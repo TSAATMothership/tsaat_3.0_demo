@@ -1011,29 +1011,6 @@ WHEN NOT MATCHED BY TARGET THEN
   INSERT ([calculation_key], [source_key], [display_order], [name], [description], [enabled])
   VALUES (source.[calculation_key], source.[source_key], source.[display_order], source.[name], source.[description], source.[enabled]);
 
-MERGE [tsaat].[kpi_calculation_parameter] AS target
-USING (
-  SELECT
-    parameter.[calculation_key],
-    parameter.[parameter_key],
-    parameter.[parameter_type],
-    parameter.[parameter_value]
-  FROM OPENJSON(@Json, '$.parameters') WITH (
-    [calculation_key] NVARCHAR(100) '$.calculationKey',
-    [parameter_key] NVARCHAR(100) '$.parameterKey',
-    [parameter_type] NVARCHAR(20) '$.parameterType',
-    [parameter_value] NVARCHAR(4000) '$.parameterValue'
-  ) AS parameter
-) AS source
-ON target.[calculation_key] = source.[calculation_key]
-  AND target.[parameter_key] = source.[parameter_key]
-WHEN MATCHED THEN UPDATE SET
-  [parameter_type] = source.[parameter_type],
-  [parameter_value] = source.[parameter_value]
-WHEN NOT MATCHED BY TARGET THEN
-  INSERT ([calculation_key], [parameter_key], [parameter_type], [parameter_value])
-  VALUES (source.[calculation_key], source.[parameter_key], source.[parameter_type], source.[parameter_value]);
-
 SET @FilePath = @PackageDataRoot + N'\kpi-definitions.json';
 SET @Json = NULL;
 IF @DataLoadMode = N'ClientPayload'
@@ -1633,7 +1610,6 @@ BEGIN
       [service_catalogue_url] NVARCHAR(1024) '$.serviceCatalogueUrl',
       [diis_id] NVARCHAR(100) '$.diisId',
       [ato_number] NVARCHAR(100) '$.atoNumber',
-      [apm_number] NVARCHAR(100) '$.apmNumber',
       [diis_url] NVARCHAR(1024) '$.diisUrl',
       [grc_url] NVARCHAR(1024) '$.grcUrl',
       [discovery_status] NVARCHAR(40) '$.discoveryStatus'
@@ -1654,7 +1630,6 @@ BEGIN
     [service_catalogue_url],
     [diis_id],
     [ato_number],
-    [apm_number],
     [diis_url],
     [grc_url],
     [discovery_status]
@@ -1692,13 +1667,6 @@ BEGIN
         ELSE CONCAT(N'ATO-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
       END
     ),
-    COALESCE(
-      NULLIF(LTRIM(RTRIM(n.[apm_number])), N''),
-      CASE
-        WHEN n.[id] = N'net-unassigned' THEN N'APM-NET-000'
-        ELSE CONCAT(N'APM-NET-', RIGHT(CONCAT(N'000', CONVERT(NVARCHAR(10), n.[network_ordinal])), 3))
-      END
-    ),
     n.[diis_url],
     n.[grc_url],
     n.[discovery_status]
@@ -1724,7 +1692,6 @@ BEGIN
       [description],
       [diis_id],
       [ato_number],
-      [apm_number],
       [discovery_status]
     )
     VALUES (
@@ -1739,7 +1706,6 @@ BEGIN
       N'Synthetic network created during load for systems without networkId.',
       N'DIIS-NET-000',
       N'ATO-NET-000',
-      N'APM-NET-000',
       N'Discovery Non Enabled'
     );
   END;

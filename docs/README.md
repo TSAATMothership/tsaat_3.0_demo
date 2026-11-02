@@ -12,6 +12,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Release, deployment and recovery | [Operations](operations.md) |
 | Change control and documentation obligations | [SDLC](sdlc.md) |
 | Significant decisions | [ADRs](adr/README.md) |
+| Retired code and SQL removal evidence | [Cleanup audit](cleanup-audit.md) |
 | Current pages, APIs, navigation and dependencies | [Generated application inventory](generated/application-inventory.md) |
 | Schema fields, foreign keys and migrations | [Generated database catalogue](generated/database-catalogue.md) |
 | CMDB per-type fields | [CMDB attribute contract](cmdb-asset-type-attributes.md) |

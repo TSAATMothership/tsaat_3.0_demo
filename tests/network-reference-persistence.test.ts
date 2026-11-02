@@ -21,7 +21,6 @@ describe("network and ICT system reference persistence", () => {
     const databaseSettings = readRepoFile("lib/database-settings.ts");
 
     expect(schema).toMatch(/CREATE TABLE \[tsaat\]\.\[managed_network\] \([\s\S]*\[diis_id\] NVARCHAR\(100\) NULL/);
-    expect(schema).toMatch(/CREATE TABLE \[tsaat\]\.\[managed_network\] \([\s\S]*\[apm_number\] NVARCHAR\(100\) NULL/);
     expect(schema).toMatch(/CREATE TABLE \[tsaat\]\.\[ict_system\] \([\s\S]*\[diis_id\] NVARCHAR\(100\) NULL/);
     expect(schema).toMatch(/CREATE TABLE \[tsaat\]\.\[ict_system\] \([\s\S]*\[apm_number\] NVARCHAR\(100\) NULL/);
     expect(migration).toContain("COL_LENGTH(N'tsaat.managed_network', N'apm_number')");
@@ -41,13 +40,11 @@ describe("network and ICT system reference persistence", () => {
     expect(loader).toContain("[apm_number] NVARCHAR(100) '$.apmNumber'");
     expect(loader).toContain("N'DIIS-NET-000'");
     expect(loader).toContain("N'ATO-NET-000'");
-    expect(loader).toContain("N'APM-NET-000'");
     expect(loader).toContain("CONCAT(N'DIIS-SYS-', RIGHT(CONCAT(N'000'");
     expect(loader).toContain("CONCAT(N'ATO-SYS-', RIGHT(CONCAT(N'000'");
     expect(loader).toContain("CONCAT(N'APM-SYS-', RIGHT(CONCAT(N'000'");
     expect(databaseSettings).toContain('{ tableName: "managed_network", columnName: "diis_id" }');
     expect(databaseSettings).toContain('{ tableName: "managed_network", columnName: "ato_number" }');
-    expect(databaseSettings).toContain('{ tableName: "managed_network", columnName: "apm_number" }');
     expect(databaseSettings).toContain('{ tableName: "ict_system", columnName: "diis_id" }');
     expect(databaseSettings).toContain('{ tableName: "ict_system", columnName: "ato_number" }');
     expect(databaseSettings).toContain('{ tableName: "ict_system", columnName: "apm_number" }');
@@ -61,7 +58,6 @@ describe("network and ICT system reference persistence", () => {
       const reference = expectedReference(index);
       expect(network.diisId).toBe(`DIIS-NET-${reference}`);
       expect(network.atoNumber).toBe(`ATO-NET-${reference}`);
-      expect(network.apmNumber).toBe(`APM-NET-${reference}`);
     }
 
     expect(dataset.ictSystems.length).toBeGreaterThan(0);

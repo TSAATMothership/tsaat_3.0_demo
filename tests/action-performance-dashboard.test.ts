@@ -11,17 +11,6 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe("network and ICT system action tab removal", () => {
-  it("removes the Action tab from the top-level Networks and ICT Systems tab bars", () => {
-    const networkTabs = readRepoFile("components/networks-tabs.tsx");
-    const systemTabs = readRepoFile("components/systems-tabs.tsx");
-
-    expect(networkTabs).toContain('type NetworksTabId = "overview" | "posture"');
-    expect(systemTabs).toContain('type SystemsTabId = "overview" | "posture"');
-    expect(networkTabs).not.toContain('{ id: "action", label: "Action" }');
-    expect(systemTabs).not.toContain('{ id: "action", label: "Action" }');
-    expect(networkTabs).not.toContain('pendingTab === "action"');
-    expect(systemTabs).not.toContain('pendingTab === "action"');
-  });
 
   it("redirects retired posture pages to risk profiles without rendering action panels", () => {
     const networkPage = readRepoFile("app/networks/page.tsx");
@@ -45,22 +34,13 @@ describe("network and ICT system action tab removal", () => {
   });
 
   it("removes dead action dashboard and panel wrappers without removing report APIs", () => {
-    const networkPanels = readRepoFile("components/networks-cop-panels.tsx");
-    const systemPanels = readRepoFile("components/systems-cop-panels.tsx");
     const networkRoute = readRepoFile("app/api/networks/performance-report/route.ts");
     const systemRoute = readRepoFile("app/api/systems/performance-report/route.ts");
 
     expect(existsSync(repoPath("components/performance-action-dashboard.tsx"))).toBe(false);
 
-    for (const source of [networkPanels, systemPanels]) {
-      expect(source).not.toContain("PerformanceActionDashboard");
-      expect(source).not.toContain("ActionPanel");
-      expect(source).not.toContain("ActionThroughputPoint");
-      expect(source).not.toContain("RemediationThroughputChart");
-      expect(source).not.toContain("FindingAgingBucketsChart");
-      expect(source).not.toContain("OldestOpenFindingsTable");
-      expect(source).not.toContain("ActionQuickWinsTable");
-      expect(source).not.toContain("Action Plan Summary");
+    for (const file of ["components/networks-cop-panels.tsx", "components/systems-cop-panels.tsx"]) {
+      expect(existsSync(repoPath(file))).toBe(false);
     }
 
     expect(networkRoute).toContain('export const dynamic = "force-dynamic"');

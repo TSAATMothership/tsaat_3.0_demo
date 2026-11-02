@@ -171,10 +171,8 @@ describe("CMDB drill through", () => {
     const expectedTriggerCounts: Array<[string, number]> = [
       ["components/discovery-coverage-by-tool-section.tsx", 1],
       ["components/findings-table.tsx", 1],
-      ["components/network-compliance-overview.tsx", 2],
       ["components/network-detail-risk-charts.tsx", 4],
-      ["components/top-risks.tsx", 1],
-      ["components/detailed-topology-view.tsx", 1]
+      ["components/compliance-heatmap.tsx", 1]
     ];
 
     for (const [relativePath, minimumCount] of expectedTriggerCounts) {

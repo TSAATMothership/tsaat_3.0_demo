@@ -72,7 +72,6 @@ erDiagram
   spi_definition ||--o{ spi_tasking_condition_template : "spi_id"
   spi_definition ||--o{ spi_feature_binding : "spi_id"
   kpi_calculation_source ||--o{ kpi_calculation_definition : "source_key"
-  kpi_calculation_definition ||--o{ kpi_calculation_parameter : "calculation_key"
   kpi_calculation_definition ||--o{ kpi_definition : "calculation_key"
   kpi_definition ||--o{ kpi_report_detail_binding : "kpi_id"
   kpi_report_detail_definition ||--o{ kpi_report_detail_binding : "report_detail_key"
@@ -95,23 +94,17 @@ erDiagram
   kpi_calculation_source {
     string source_key
     string source_object_name
-    int display_order
+    string description
     boolean enabled
   }
 
   kpi_calculation_definition {
     string calculation_key
     string source_key
-    string handler_key
     int display_order
+    string name
+    string description
     boolean enabled
-  }
-
-  kpi_calculation_parameter {
-    string calculation_key
-    string parameter_key
-    string parameter_type
-    boolean required
   }
 
   kpi_report_detail_definition {
@@ -325,7 +318,6 @@ erDiagram
 - `managed_network` includes accreditation references:
   - `diis_id` (`NVARCHAR(100)`)
   - `ato_number` (`NVARCHAR(100)`)
-  - `apm_number` (`NVARCHAR(100)`)
 - `asset` includes optional `cmdb_record_url` (`NVARCHAR(1024)`) for read-only asset details drill-through links.
 - `ict_system` includes platform flags:
   - `adf_platform` (`BIT`)
@@ -350,7 +342,7 @@ erDiagram
 - SPI calculations are SQL-driven at runtime through approved read-only expressions over approved context objects; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
 - KPI and discovery coverage metadata is database-driven:
   - `kpi_definition` stores KPI catalogue text, display order, enabled flag, calculation key, and report availability.
-  - `kpi_calculation_source`, `kpi_calculation_definition`, and `kpi_calculation_parameter` store SQL-backed KPI calculation metadata evaluated by `usp_evaluate_kpi_snapshot`; `usp_evaluate_kpi_snapshot_bulk` returns KPI rows for multiple scoped report matrix rows in one SQL call.
+  - `kpi_calculation_source` and `kpi_calculation_definition` store SQL-backed KPI calculation metadata evaluated by `usp_evaluate_kpi_snapshot`; `usp_evaluate_kpi_snapshot_bulk` returns KPI rows for multiple scoped report matrix rows in one SQL call.
   - `kpi_report_detail_definition`, `kpi_report_detail_binding`, `kpi_tasking_team`, `kpi_tasking_action_template`, and `kpi_tasking_condition_template` store KPI report/tasking metadata.
   - `discovery_coverage_source`, `discovery_tool_detection_definition`, `discovery_tool_detection_rule`, and `discovery_tool_detection_rule_value` store SQL-backed discovery coverage detection rules evaluated by `usp_evaluate_discovery_coverage_snapshot`.
 - KPI and discovery coverage calculations are SQL-driven at runtime through approved stored procedures and seeded rule rows; unrestricted formulas, JavaScript, and arbitrary SQL batches are not supported.
@@ -358,3 +350,5 @@ erDiagram
   - `finding_source_policy` and `finding_generation_policy` control persisted-first effective finding selection and generated fallback policy.
   - `finding_workflow_status_definition`, `finding_bucket_definition`, `finding_evidence_field_definition`, and `finding_register_column_definition` store workflow, grouping, evidence display, and register/export semantics.
   - `vw_persisted_finding_normalized`, `usp_generate_spi_findings_snapshot`, `usp_get_effective_findings_snapshot`, `usp_get_finding_history_snapshot`, and `usp_get_finding_spi_history_snapshot` provide SQL-backed effective findings and history datasets.
+
+Migration 027 removes the retired KPI parameter relationship and network-only APP-ID; ICT-system APP-ID remains. The current base schema has 66 tables. Historical migration definitions are retained as upgrade history, not current entities.

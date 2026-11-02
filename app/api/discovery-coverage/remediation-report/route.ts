@@ -14,7 +14,6 @@ import {
 } from "@/lib/data-loader";
 import { addVisualSummaryPage } from "@/lib/report-pdf-visuals";
 import { parseFilters } from "@/lib/selectors";
-import { Asset } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

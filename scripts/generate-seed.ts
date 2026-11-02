@@ -393,41 +393,6 @@ function shuffledIndices(random: Random, count: number): number[] {
   return values;
 }
 
-function buildChunkAllocation(
-  random: Random,
-  total: number,
-  bucketCount: number,
-  minChunkSize: number,
-  maxChunkSize: number
-): number[] {
-  if (bucketCount <= 0) {
-    return [];
-  }
-
-  const allocations = Array.from({ length: bucketCount }, () => 0);
-  let remaining = total;
-  const randomizedBuckets = shuffledIndices(random, bucketCount);
-
-  for (let index = 0; index < randomizedBuckets.length; index += 1) {
-    const bucketId = randomizedBuckets[index];
-    const bucketsLeft = randomizedBuckets.length - index;
-    const minReservedForOthers = bucketsLeft - 1;
-    const maxAllowed = Math.max(1, Math.min(maxChunkSize, remaining - minReservedForOthers));
-    const minAllowed = Math.min(maxAllowed, Math.max(1, minChunkSize));
-    const chunkSize = randomInt(random, minAllowed, maxAllowed);
-    allocations[bucketId] += chunkSize;
-    remaining -= chunkSize;
-  }
-
-  while (remaining > 0) {
-    const bucketId = randomInt(random, 0, bucketCount - 1);
-    const chunkSize = randomInt(random, 1, Math.min(maxChunkSize, remaining));
-    allocations[bucketId] += chunkSize;
-    remaining -= chunkSize;
-  }
-
-  return allocations;
-}
 
 function createAssetTypeRecord<T>(factory: (assetType: AssetType) => T): Record<AssetType, T> {
   return Object.fromEntries(ASSET_TYPES.map((assetType) => [assetType, factory(assetType)] as const)) as Record<
@@ -919,7 +884,6 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       classification,
       diisId: `DIIS-NET-${referenceOrdinal}`,
       atoNumber: `ATO-NET-${referenceOrdinal}`,
-      apmNumber: `APM-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
       assetIds: []
@@ -939,7 +903,6 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       classification,
       diisId: `DIIS-NET-${referenceOrdinal}`,
       atoNumber: `ATO-NET-${referenceOrdinal}`,
-      apmNumber: `APM-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
       ictSystemIds: [],
       assetIds: []
@@ -956,7 +919,6 @@ function buildNetworks(random: Random): ManagedNetwork[] {
     modellingStatus: false,
     diisId: `DIIS-NET-${disabledReferenceOrdinal}`,
     atoNumber: `ATO-NET-${disabledReferenceOrdinal}`,
-    apmNumber: `APM-NET-${disabledReferenceOrdinal}`,
     discoveryStatus: "Discovery Non Enabled",
     ictSystemIds: [],
     assetIds: []
@@ -1066,31 +1028,6 @@ function buildUnmodelledSystems(random: Random, startIndex: number, count: numbe
   });
 }
 
-function assignSystemContext(
-  random: Random,
-  networkId: string,
-  systems: ICTSystem[]
-): { systemId: string; environmentType: EnvironmentType } | undefined {
-  const matching = systems.filter((system) => system.networkId === networkId);
-  if (!matching.length || !chance(random, 0.72)) {
-    return undefined;
-  }
-
-  const system = pick(random, matching);
-  const environments = system.environments;
-  const production = environments.find((environment) => environment.type === "Production");
-  const nonProd = environments.filter((environment) => environment.type !== "Production");
-
-  if (production && chance(random, 0.55)) {
-    return { systemId: system.id, environmentType: "Production" };
-  }
-
-  if (nonProd.length) {
-    return { systemId: system.id, environmentType: pick(random, nonProd).type };
-  }
-
-  return production ? { systemId: system.id, environmentType: "Production" } : undefined;
-}
 
 function pickEnvironmentTypeForSystem(random: Random, system: ICTSystem): EnvironmentType {
   const production = system.environments.find((environment) => environment.type === "Production");
@@ -1142,26 +1079,6 @@ function buildWorkstation(
   };
 }
 
-function buildDesktop(
-  random: Random,
-  index: number,
-  networkId: string,
-  versions: ReferenceVersions
-): WorkstationAsset {
-  const id = `dsk-${String(index + 1).padStart(5, "0")}`;
-  return {
-    id,
-    name: `Desktop ${index + 1}`,
-    hostname: `${id}.dct.local`,
-    type: "workstation",
-    networkId,
-    securityDomain: "Unclassified",
-    lifecycle: buildLifecycle(random),
-    vulnerabilities: buildVulnerabilities(random, "workstation", id),
-    operatingSystem: buildOperatingSystem(random, "workstation", versions),
-    installedSoftware: buildSoftware(random, "workstation", versions)
-  };
-}
 
 function buildDevice(
   random: Random,
@@ -1231,27 +1148,6 @@ function buildOtherAsset(random: Random, index: number, networkId: string): Othe
   };
 }
 
-function ensureEnvironmentAssignments(random: Random, systems: ICTSystem[], assets: Asset[]) {
-  const unassigned = assets.filter((asset) => asset.systemContext === undefined);
-
-  for (const system of systems) {
-    for (const environment of system.environments) {
-      if (environment.assetIds.length >= 4) {
-        continue;
-      }
-
-      const candidates = unassigned.filter((asset) => asset.networkId === system.networkId);
-      const needed = 4 - environment.assetIds.length;
-      const selected = pickMany(random, candidates, needed);
-      for (const asset of selected) {
-        asset.systemContext = {
-          systemId: system.id,
-          environmentType: environment.type
-        };
-      }
-    }
-  }
-}
 
 function syncRelationshipIndexes(networks: ManagedNetwork[], systems: ICTSystem[], assets: Asset[]) {
   for (const network of networks) {

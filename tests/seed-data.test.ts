@@ -87,7 +87,6 @@ describe("seed dataset", () => {
       }
       expect(network.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
       expect(network.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
-      expect(network.apmNumber).toBe(`APM-NET-${expectedReferenceOrdinal}`);
       expect(["Critical", "Non-Critical"]).toContain(network.criticality);
       expect(typeof network.adfPlatform).toBe("boolean");
       expect(typeof network.enterprisePlatform).toBe("boolean");
@@ -310,7 +309,6 @@ describe("seed dataset", () => {
       const expectedReferenceOrdinal = String(disabledNetworkIndex + 1).padStart(3, "0");
       expect(disabledNetwork?.diisId).toBe(`DIIS-NET-${expectedReferenceOrdinal}`);
       expect(disabledNetwork?.atoNumber).toBe(`ATO-NET-${expectedReferenceOrdinal}`);
-      expect(disabledNetwork?.apmNumber).toBe(`APM-NET-${expectedReferenceOrdinal}`);
     }
   });
 });

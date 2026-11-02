@@ -22,18 +22,8 @@ describe("route loading readiness", () => {
       "components/workspace-filters.tsx",
       "components/workspace-shell.tsx",
       "components/filter-bar.tsx",
-      "components/discovery-coverage-tabs.tsx",
-      "components/discovery-coverage-search-form.tsx",
-      "components/drillthrough-back-link.tsx",
-      "components/findings-history-drillthrough.tsx",
-      "components/findings-spi-tiles.tsx",
       "components/findings-status-tabs.tsx",
       "components/findings-timeline-filter.tsx",
-      "components/measures-tabs.tsx",
-      "components/network-detail-tabs.tsx",
-      "components/networks-tabs.tsx",
-      "components/system-detail-tabs.tsx",
-      "components/systems-tabs.tsx"
     ];
 
     for (const componentPath of routeLoadingComponents) {

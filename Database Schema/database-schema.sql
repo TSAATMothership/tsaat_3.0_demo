@@ -595,17 +595,6 @@ ALTER TABLE [tsaat].[kpi_definition]
     FOREIGN KEY ([calculation_key]) REFERENCES [tsaat].[kpi_calculation_definition]([calculation_key]);
 GO
 
-CREATE TABLE [tsaat].[kpi_calculation_parameter] (
-  [calculation_key] NVARCHAR(100) NOT NULL,
-  [parameter_key] NVARCHAR(100) NOT NULL,
-  [parameter_type] NVARCHAR(20) NOT NULL,
-  [parameter_value] NVARCHAR(4000) NOT NULL,
-  CONSTRAINT [PK_kpi_calculation_parameter] PRIMARY KEY CLUSTERED ([calculation_key], [parameter_key]),
-  CONSTRAINT [FK_kpi_calculation_parameter_definition]
-    FOREIGN KEY ([calculation_key]) REFERENCES [tsaat].[kpi_calculation_definition]([calculation_key]),
-  CONSTRAINT [CK_kpi_calculation_parameter_type] CHECK ([parameter_type] IN (N'string', N'number', N'boolean'))
-);
-GO
 
 CREATE TABLE [tsaat].[kpi_report_detail_definition] (
   [report_detail_key] NVARCHAR(100) NOT NULL,
@@ -685,7 +674,6 @@ CREATE TABLE [tsaat].[managed_network] (
   [service_catalogue_url] NVARCHAR(1024) NULL,
   [diis_id] NVARCHAR(100) NULL,
   [ato_number] NVARCHAR(100) NULL,
-  [apm_number] NVARCHAR(100) NULL,
   [diis_url] NVARCHAR(1024) NULL,
   [grc_url] NVARCHAR(1024) NULL,
   [discovery_status] NVARCHAR(40) NOT NULL,
@@ -1659,21 +1647,6 @@ BEGIN
 END;
 GO
 
-CREATE OR ALTER FUNCTION [tsaat].[fn_kpi_stable_hash](@value NVARCHAR(4000))
-RETURNS BIGINT
-AS
-BEGIN
-  DECLARE @hash BIGINT = 0;
-  DECLARE @index INT = 1;
-  DECLARE @length INT = LEN(COALESCE(@value, N''));
-  WHILE @index <= @length
-  BEGIN
-    SET @hash = ((@hash * 31) + UNICODE(SUBSTRING(@value, @index, 1))) % 4294967296;
-    SET @index += 1;
-  END;
-  RETURN @hash;
-END;
-GO
 
 CREATE OR ALTER PROCEDURE [tsaat].[usp_evaluate_discovery_coverage_snapshot]
   @snapshot_id BIGINT,
@@ -1817,14 +1790,11 @@ BEGIN
 
   DECLARE @hasAssetScope BIT = CASE WHEN ISJSON(@asset_ids_json) = 1 THEN 1 ELSE 0 END;
   DECLARE @hasSystemScope BIT = CASE WHEN ISJSON(@system_ids_json) = 1 THEN 1 ELSE 0 END;
-  DECLARE @hasNetworkScope BIT = CASE WHEN ISJSON(@network_ids_json) = 1 THEN 1 ELSE 0 END;
   DECLARE @AssetScope TABLE ([asset_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
   DECLARE @SystemScope TABLE ([system_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
-  DECLARE @NetworkScope TABLE ([network_id] NVARCHAR(255) NOT NULL PRIMARY KEY);
 
   IF @hasAssetScope = 1 INSERT INTO @AssetScope SELECT DISTINCT CONVERT(NVARCHAR(255), [value]) FROM OPENJSON(@asset_ids_json) WHERE [type] IN (1, 2);
   IF @hasSystemScope = 1 INSERT INTO @SystemScope SELECT DISTINCT CONVERT(NVARCHAR(255), [value]) FROM OPENJSON(@system_ids_json) WHERE [type] IN (1, 2);
-  IF @hasNetworkScope = 1 INSERT INTO @NetworkScope SELECT DISTINCT CONVERT(NVARCHAR(255), [value]) FROM OPENJSON(@network_ids_json) WHERE [type] IN (1, 2);
 
   DECLARE @Assets TABLE ([asset_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [network_id] NVARCHAR(255) NOT NULL, [system_id] NVARCHAR(255) NULL, [security_domain] NVARCHAR(20) NOT NULL, [system_criticality] NVARCHAR(20) NULL);
   INSERT INTO @Assets
@@ -1839,19 +1809,6 @@ BEGIN
   FROM [tsaat].[ict_system] AS s
   WHERE s.[snapshot_id] = @snapshot_id AND (@hasSystemScope = 0 OR EXISTS (SELECT 1 FROM @SystemScope AS scope WHERE scope.[system_id] = s.[system_id]));
 
-  DECLARE @Networks TABLE ([network_id] NVARCHAR(255) NOT NULL PRIMARY KEY, [discovery_status] NVARCHAR(40) NOT NULL);
-  INSERT INTO @Networks
-  SELECT n.[network_id], n.[discovery_status]
-  FROM [tsaat].[managed_network] AS n
-  WHERE n.[snapshot_id] = @snapshot_id AND (@hasNetworkScope = 0 OR EXISTS (SELECT 1 FROM @NetworkScope AS scope WHERE scope.[network_id] = n.[network_id]));
-
-  DECLARE @SpiEvaluations TABLE ([snapshot_id] BIGINT NOT NULL, [asset_id] NVARCHAR(255) NOT NULL, [spi_id] INT NOT NULL, [display_order] INT NOT NULL, [compliance_status] NVARCHAR(20) NOT NULL, [outcome_key] NVARCHAR(100) NOT NULL, [evidence_json] NVARCHAR(MAX) NOT NULL);
-  INSERT INTO @SpiEvaluations EXEC [tsaat].[usp_evaluate_spi_snapshot] @snapshot_id = @snapshot_id, @asset_ids_json = @asset_ids_json;
-  DELETE se FROM @SpiEvaluations AS se WHERE NOT EXISTS (SELECT 1 FROM @Assets AS a WHERE a.[asset_id] = se.[asset_id]);
-
-  DECLARE @Discovery TABLE ([snapshot_id] BIGINT NOT NULL, [asset_id] NVARCHAR(255) NOT NULL, [coverage_compliance] BIT NOT NULL, [tool_values_json] NVARCHAR(MAX) NOT NULL, [missing_tool_ids_json] NVARCHAR(MAX) NOT NULL, [missing_tool_names_json] NVARCHAR(MAX) NOT NULL);
-  INSERT INTO @Discovery EXEC [tsaat].[usp_evaluate_discovery_coverage_snapshot] @snapshot_id = @snapshot_id, @asset_ids_json = @asset_ids_json, @emit_json = 0;
-
   DECLARE @Findings TABLE ([asset_id] NVARCHAR(255) NOT NULL, [severity] NVARCHAR(30) NOT NULL, [priority_rank] INT NOT NULL);
   IF ISJSON(@effective_findings_json) = 1
   BEGIN
@@ -1861,30 +1818,7 @@ BEGIN
     WHERE [asset_id] IS NOT NULL AND EXISTS (SELECT 1 FROM @Assets AS a WHERE a.[asset_id] = [asset_id]);
   END;
 
-  DECLARE @overallUnknown INT = (SELECT COUNT(*) FROM @SpiEvaluations WHERE [compliance_status] = N'Unknown');
   DECLARE @Metric TABLE ([calculation_key] NVARCHAR(100) NOT NULL PRIMARY KEY, [score] NVARCHAR(100) NOT NULL, [score_percent] DECIMAL(9,1) NOT NULL, [compliant_count] INT NOT NULL, [applicable_count] INT NOT NULL, [non_compliant_count] INT NOT NULL, [unknown_count] INT NOT NULL, [high_priority_count] INT NOT NULL);
-
-  ;WITH base AS (
-    SELECT se.[compliance_status], a.[security_domain], a.[system_criticality], a.[asset_id], a.[system_id]
-    FROM @SpiEvaluations AS se INNER JOIN @Assets AS a ON a.[asset_id] = se.[asset_id]
-  ),
-  grouped AS (
-    SELECT N'overall-spi-compliance' AS [calculation_key], COUNT(*) AS [total], SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END) AS [compliant], SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END) AS [non_compliant], SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END) AS [unknown], (SELECT COUNT(*) FROM @Findings WHERE [priority_rank] <= 2) AS [high_priority] FROM base
-    UNION ALL SELECT N'protected-domain-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS fa ON fa.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND fa.[security_domain] = N'Protected') FROM base WHERE [security_domain] = N'Protected'
-    UNION ALL SELECT N'secret-domain-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS fa ON fa.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND fa.[security_domain] = N'Secret') FROM base WHERE [security_domain] = N'Secret'
-    UNION ALL SELECT N'critical-ict-system-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS fa ON fa.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND fa.[system_criticality] = N'Critical') FROM base WHERE [system_criticality] = N'Critical'
-  )
-  INSERT INTO @Metric
-  SELECT [calculation_key], CONVERT(NVARCHAR(40), CAST(CASE WHEN [total] = 0 THEN 0 ELSE ROUND(([compliant] * 100.0) / [total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE([compliant], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE([total], 0)) + N')', CAST(CASE WHEN [total] = 0 THEN 0 ELSE ROUND(([compliant] * 100.0) / [total], 1) END AS DECIMAL(9,1)), COALESCE([compliant], 0), COALESCE([total], 0), COALESCE([non_compliant], 0), COALESCE([unknown], 0), COALESCE([high_priority], 0)
-  FROM grouped;
-
-  DECLARE @findingTotal INT = (SELECT COUNT(*) FROM @Findings);
-  DECLARE @criticalExposure INT = (SELECT COUNT(*) FROM @Findings WHERE [severity] = N'Critical Exposure');
-  INSERT INTO @Metric VALUES (N'critical-exposure-in-production', CONVERT(NVARCHAR(20), @criticalExposure), CAST(CASE WHEN @findingTotal = 0 THEN 0 ELSE ROUND(((CAST(@findingTotal - @criticalExposure AS DECIMAL(18,4))) * 100.0) / @findingTotal, 1) END AS DECIMAL(9,1)), CASE WHEN @findingTotal - @criticalExposure < 0 THEN 0 ELSE @findingTotal - @criticalExposure END, @findingTotal, @criticalExposure, @overallUnknown, @criticalExposure);
-
-  DECLARE @discoveryTotal INT = (SELECT COUNT(*) FROM @Discovery);
-  DECLARE @discoveryCompliant INT = (SELECT COUNT(*) FROM @Discovery WHERE [coverage_compliance] = 1);
-  INSERT INTO @Metric VALUES (N'discovery-coverage-compliance', CONVERT(NVARCHAR(40), CAST(CASE WHEN @discoveryTotal = 0 THEN 0 ELSE ROUND((@discoveryCompliant * 100.0) / @discoveryTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @discoveryCompliant) + N'/' + CONVERT(NVARCHAR(20), @discoveryTotal) + N')', CAST(CASE WHEN @discoveryTotal = 0 THEN 0 ELSE ROUND((@discoveryCompliant * 100.0) / @discoveryTotal, 1) END AS DECIMAL(9,1)), @discoveryCompliant, @discoveryTotal, @discoveryTotal - @discoveryCompliant, 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Discovery AS d ON d.[asset_id] = f.[asset_id] WHERE f.[priority_rank] <= 2 AND d.[coverage_compliance] = 0));
 
   ;WITH scoped_systems AS (SELECT [system_id], [ato_number], [diis_defined] FROM @Systems),
   ato AS (SELECT [system_id], CASE WHEN NULLIF(LTRIM(RTRIM([ato_number])), N'') IS NOT NULL THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
@@ -1893,14 +1827,6 @@ BEGIN
   SELECT N'active-ato-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(SUM([compliant]), 0)) + N'/' + CONVERT(NVARCHAR(20), COUNT(*)) + N')', CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1)), COALESCE(SUM([compliant]), 0), COUNT(*), COUNT(*) - COALESCE(SUM([compliant]), 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS a ON a.[asset_id] = f.[asset_id] INNER JOIN ato AS ato_rows ON ato_rows.[system_id] = a.[system_id] WHERE f.[priority_rank] <= 2 AND ato_rows.[compliant] = 0) FROM ato
   UNION ALL
   SELECT N'diis-registration-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(SUM([compliant]), 0)) + N'/' + CONVERT(NVARCHAR(20), COUNT(*)) + N')', CAST(CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND((SUM([compliant]) * 100.0) / COUNT(*), 1) END AS DECIMAL(9,1)), COALESCE(SUM([compliant]), 0), COUNT(*), COUNT(*) - COALESCE(SUM([compliant]), 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Assets AS a ON a.[asset_id] = f.[asset_id] INNER JOIN diis AS diis_rows ON diis_rows.[system_id] = a.[system_id] WHERE f.[priority_rank] <= 2 AND diis_rows.[compliant] = 0) FROM diis;
-
-  DECLARE @diisSystemTotal INT = (SELECT COUNT(*) FROM @Systems WHERE [diis_defined] = 1);
-  DECLARE @diisSystemModelled INT = (SELECT COUNT(*) FROM @Systems WHERE [diis_defined] = 1 AND [modelling_status] = 1);
-  INSERT INTO @Metric VALUES (N'diis-modelled-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN @diisSystemTotal = 0 THEN 0 ELSE ROUND((@diisSystemModelled * 100.0) / @diisSystemTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @diisSystemModelled) + N'/' + CONVERT(NVARCHAR(20), @diisSystemTotal) + N')', CAST(CASE WHEN @diisSystemTotal = 0 THEN 0 ELSE ROUND((@diisSystemModelled * 100.0) / @diisSystemTotal, 1) END AS DECIMAL(9,1)), @diisSystemModelled, @diisSystemTotal, @diisSystemTotal - @diisSystemModelled, 0, @diisSystemTotal - @diisSystemModelled);
-
-  DECLARE @networkTotal INT = (SELECT COUNT(*) FROM @Networks);
-  DECLARE @networkEnabled INT = (SELECT COUNT(*) FROM @Networks WHERE [discovery_status] = N'Discovery Enabled');
-  INSERT INTO @Metric VALUES (N'network-discovery-enablement', CONVERT(NVARCHAR(40), CAST(CASE WHEN @networkTotal = 0 THEN 0 ELSE ROUND((@networkEnabled * 100.0) / @networkTotal, 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), @networkEnabled) + N'/' + CONVERT(NVARCHAR(20), @networkTotal) + N')', CAST(CASE WHEN @networkTotal = 0 THEN 0 ELSE ROUND((@networkEnabled * 100.0) / @networkTotal, 1) END AS DECIMAL(9,1)), @networkEnabled, @networkTotal, @networkTotal - @networkEnabled, 0, @networkTotal - @networkEnabled);
 
   IF @emit_json = 1
   BEGIN
@@ -2009,52 +1935,6 @@ BEGIN
     AND sys.[system_id] = CONVERT(NVARCHAR(255), system_scope.[value])
   WHERE system_scope.[type] IN (1, 2);
 
-  DECLARE @ScopeNetworks TABLE (
-    [scope_key] NVARCHAR(255) NOT NULL,
-    [network_id] NVARCHAR(255) NOT NULL,
-    [discovery_status] NVARCHAR(40) NOT NULL
-  );
-
-  INSERT INTO @ScopeNetworks ([scope_key], [network_id], [discovery_status])
-  SELECT DISTINCT
-    s.[scope_key],
-    n.[network_id],
-    n.[discovery_status]
-  FROM @Scope AS s
-  CROSS APPLY OPENJSON(CASE WHEN ISJSON(s.[network_ids_json]) = 1 THEN s.[network_ids_json] ELSE N'[]' END) AS network_scope
-  INNER JOIN [tsaat].[managed_network] AS n
-    ON n.[snapshot_id] = @snapshot_id
-    AND n.[network_id] = CONVERT(NVARCHAR(255), network_scope.[value])
-  WHERE network_scope.[type] IN (1, 2);
-
-  DECLARE @AllAssetIdsJson NVARCHAR(MAX) = (
-    SELECT N'[' + COALESCE(STRING_AGG(CAST(N'"' + STRING_ESCAPE([asset_id], 'json') + N'"' AS NVARCHAR(MAX)), N','), N'') + N']'
-    FROM (SELECT DISTINCT [asset_id] FROM @ScopeAssets) AS scoped_asset
-  );
-
-  DECLARE @SpiEvaluations TABLE (
-    [snapshot_id] BIGINT NOT NULL,
-    [asset_id] NVARCHAR(255) NOT NULL,
-    [spi_id] INT NOT NULL,
-    [display_order] INT NOT NULL,
-    [compliance_status] NVARCHAR(20) NOT NULL,
-    [outcome_key] NVARCHAR(100) NOT NULL,
-    [evidence_json] NVARCHAR(MAX) NOT NULL
-  );
-  INSERT INTO @SpiEvaluations
-  EXEC [tsaat].[usp_evaluate_spi_snapshot] @snapshot_id = @snapshot_id, @asset_ids_json = @AllAssetIdsJson;
-
-  DECLARE @Discovery TABLE (
-    [snapshot_id] BIGINT NOT NULL,
-    [asset_id] NVARCHAR(255) NOT NULL,
-    [coverage_compliance] BIT NOT NULL,
-    [tool_values_json] NVARCHAR(MAX) NOT NULL,
-    [missing_tool_ids_json] NVARCHAR(MAX) NOT NULL,
-    [missing_tool_names_json] NVARCHAR(MAX) NOT NULL
-  );
-  INSERT INTO @Discovery
-  EXEC [tsaat].[usp_evaluate_discovery_coverage_snapshot] @snapshot_id = @snapshot_id, @asset_ids_json = @AllAssetIdsJson, @emit_json = 0;
-
   DECLARE @Findings TABLE (
     [scope_key] NVARCHAR(255) NOT NULL,
     [asset_id] NVARCHAR(255) NOT NULL,
@@ -2091,90 +1971,6 @@ BEGIN
     PRIMARY KEY ([scope_key], [calculation_key])
   );
 
-  ;WITH base AS (
-    SELECT
-      scoped_asset.[scope_key],
-      se.[compliance_status],
-      scoped_asset.[security_domain],
-      scoped_asset.[system_criticality],
-      scoped_asset.[asset_id],
-      scoped_asset.[system_id]
-    FROM @SpiEvaluations AS se
-    INNER JOIN @ScopeAssets AS scoped_asset ON scoped_asset.[asset_id] = se.[asset_id]
-  ),
-  grouped AS (
-    SELECT [scope_key], N'overall-spi-compliance' AS [calculation_key], COUNT(*) AS [total], SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END) AS [compliant], SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END) AS [non_compliant], SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END) AS [unknown], (SELECT COUNT(*) FROM @Findings AS f WHERE f.[scope_key] = base.[scope_key] AND f.[priority_rank] <= 2) AS [high_priority] FROM base GROUP BY [scope_key]
-    UNION ALL SELECT [scope_key], N'protected-domain-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @ScopeAssets AS fa ON fa.[scope_key] = f.[scope_key] AND fa.[asset_id] = f.[asset_id] WHERE f.[scope_key] = base.[scope_key] AND f.[priority_rank] <= 2 AND fa.[security_domain] = N'Protected') FROM base WHERE [security_domain] = N'Protected' GROUP BY [scope_key]
-    UNION ALL SELECT [scope_key], N'secret-domain-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @ScopeAssets AS fa ON fa.[scope_key] = f.[scope_key] AND fa.[asset_id] = f.[asset_id] WHERE f.[scope_key] = base.[scope_key] AND f.[priority_rank] <= 2 AND fa.[security_domain] = N'Secret') FROM base WHERE [security_domain] = N'Secret' GROUP BY [scope_key]
-    UNION ALL SELECT [scope_key], N'critical-ict-system-compliance', COUNT(*), SUM(CASE WHEN [compliance_status] = N'Compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Non-compliant' THEN 1 ELSE 0 END), SUM(CASE WHEN [compliance_status] = N'Unknown' THEN 1 ELSE 0 END), (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @ScopeAssets AS fa ON fa.[scope_key] = f.[scope_key] AND fa.[asset_id] = f.[asset_id] WHERE f.[scope_key] = base.[scope_key] AND f.[priority_rank] <= 2 AND fa.[system_criticality] = N'Critical') FROM base WHERE [system_criticality] = N'Critical' GROUP BY [scope_key]
-  )
-  INSERT INTO @Metric
-  SELECT [scope_key], [calculation_key], CONVERT(NVARCHAR(40), CAST(CASE WHEN [total] = 0 THEN 0 ELSE ROUND(([compliant] * 100.0) / [total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE([compliant], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE([total], 0)) + N')', CAST(CASE WHEN [total] = 0 THEN 0 ELSE ROUND(([compliant] * 100.0) / [total], 1) END AS DECIMAL(9,1)), COALESCE([compliant], 0), COALESCE([total], 0), COALESCE([non_compliant], 0), COALESCE([unknown], 0), COALESCE([high_priority], 0)
-  FROM grouped;
-
-  INSERT INTO @Metric
-  SELECT s.[scope_key], missing_metric.[calculation_key], N'0.0% (0/0)', CAST(0 AS DECIMAL(9,1)), 0, 0, 0, 0, 0
-  FROM @Scope AS s
-  CROSS JOIN (VALUES
-    (N'overall-spi-compliance'),
-    (N'protected-domain-compliance'),
-    (N'secret-domain-compliance'),
-    (N'critical-ict-system-compliance')
-  ) AS missing_metric([calculation_key])
-  WHERE NOT EXISTS (
-    SELECT 1
-    FROM @Metric AS existing_metric
-    WHERE existing_metric.[scope_key] = s.[scope_key]
-      AND existing_metric.[calculation_key] = missing_metric.[calculation_key]
-  );
-
-  ;WITH finding_counts AS (
-    SELECT [scope_key], COUNT(*) AS [finding_total], SUM(CASE WHEN [severity] = N'Critical Exposure' THEN 1 ELSE 0 END) AS [critical_exposure]
-    FROM @Findings
-    GROUP BY [scope_key]
-  ),
-  unknown_counts AS (
-    SELECT scoped_asset.[scope_key], COUNT(*) AS [unknown_total]
-    FROM @SpiEvaluations AS se
-    INNER JOIN @ScopeAssets AS scoped_asset ON scoped_asset.[asset_id] = se.[asset_id]
-    WHERE se.[compliance_status] = N'Unknown'
-    GROUP BY scoped_asset.[scope_key]
-  )
-  INSERT INTO @Metric
-  SELECT
-    s.[scope_key],
-    N'critical-exposure-in-production',
-    CONVERT(NVARCHAR(20), COALESCE(fc.[critical_exposure], 0)),
-    CAST(CASE WHEN COALESCE(fc.[finding_total], 0) = 0 THEN 0 ELSE ROUND(((CAST(fc.[finding_total] - fc.[critical_exposure] AS DECIMAL(18,4))) * 100.0) / fc.[finding_total], 1) END AS DECIMAL(9,1)),
-    CASE WHEN COALESCE(fc.[finding_total], 0) - COALESCE(fc.[critical_exposure], 0) < 0 THEN 0 ELSE COALESCE(fc.[finding_total], 0) - COALESCE(fc.[critical_exposure], 0) END,
-    COALESCE(fc.[finding_total], 0),
-    COALESCE(fc.[critical_exposure], 0),
-    COALESCE(uc.[unknown_total], 0),
-    COALESCE(fc.[critical_exposure], 0)
-  FROM @Scope AS s
-  LEFT JOIN finding_counts AS fc ON fc.[scope_key] = s.[scope_key]
-  LEFT JOIN unknown_counts AS uc ON uc.[scope_key] = s.[scope_key];
-
-  ;WITH discovery_counts AS (
-    SELECT scoped_asset.[scope_key], COUNT(*) AS [total], SUM(CASE WHEN d.[coverage_compliance] = 1 THEN 1 ELSE 0 END) AS [compliant]
-    FROM @ScopeAssets AS scoped_asset
-    INNER JOIN @Discovery AS d ON d.[asset_id] = scoped_asset.[asset_id]
-    GROUP BY scoped_asset.[scope_key]
-  )
-  INSERT INTO @Metric
-  SELECT
-    s.[scope_key],
-    N'discovery-coverage-compliance',
-    CONVERT(NVARCHAR(40), CAST(CASE WHEN COALESCE(dc.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(dc.[compliant], 0) * 100.0) / dc.[total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(dc.[compliant], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE(dc.[total], 0)) + N')',
-    CAST(CASE WHEN COALESCE(dc.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(dc.[compliant], 0) * 100.0) / dc.[total], 1) END AS DECIMAL(9,1)),
-    COALESCE(dc.[compliant], 0),
-    COALESCE(dc.[total], 0),
-    COALESCE(dc.[total], 0) - COALESCE(dc.[compliant], 0),
-    0,
-    (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @Discovery AS d ON d.[asset_id] = f.[asset_id] WHERE f.[scope_key] = s.[scope_key] AND f.[priority_rank] <= 2 AND d.[coverage_compliance] = 0)
-  FROM @Scope AS s
-  LEFT JOIN discovery_counts AS dc ON dc.[scope_key] = s.[scope_key];
-
   ;WITH scoped_systems AS (SELECT [scope_key], [system_id], [ato_number], [diis_defined] FROM @ScopeSystems),
   ato AS (SELECT [scope_key], [system_id], CASE WHEN NULLIF(LTRIM(RTRIM([ato_number])), N'') IS NOT NULL THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
   diis AS (SELECT [scope_key], [system_id], CASE WHEN [diis_defined] = 1 THEN 1 ELSE 0 END AS [compliant] FROM scoped_systems),
@@ -2184,27 +1980,6 @@ BEGIN
   SELECT s.[scope_key], N'active-ato-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COALESCE(ag.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(ag.[compliant], 0) * 100.0) / ag.[total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(ag.[compliant], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE(ag.[total], 0)) + N')', CAST(CASE WHEN COALESCE(ag.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(ag.[compliant], 0) * 100.0) / ag.[total], 1) END AS DECIMAL(9,1)), COALESCE(ag.[compliant], 0), COALESCE(ag.[total], 0), COALESCE(ag.[total], 0) - COALESCE(ag.[compliant], 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @ScopeAssets AS a ON a.[scope_key] = f.[scope_key] AND a.[asset_id] = f.[asset_id] INNER JOIN ato AS ato_rows ON ato_rows.[scope_key] = a.[scope_key] AND ato_rows.[system_id] = a.[system_id] WHERE f.[scope_key] = s.[scope_key] AND f.[priority_rank] <= 2 AND ato_rows.[compliant] = 0) FROM @Scope AS s LEFT JOIN ato_grouped AS ag ON ag.[scope_key] = s.[scope_key]
   UNION ALL
   SELECT s.[scope_key], N'diis-registration-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COALESCE(dg.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(dg.[compliant], 0) * 100.0) / dg.[total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(dg.[compliant], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE(dg.[total], 0)) + N')', CAST(CASE WHEN COALESCE(dg.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(dg.[compliant], 0) * 100.0) / dg.[total], 1) END AS DECIMAL(9,1)), COALESCE(dg.[compliant], 0), COALESCE(dg.[total], 0), COALESCE(dg.[total], 0) - COALESCE(dg.[compliant], 0), 0, (SELECT COUNT(*) FROM @Findings AS f INNER JOIN @ScopeAssets AS a ON a.[scope_key] = f.[scope_key] AND a.[asset_id] = f.[asset_id] INNER JOIN diis AS diis_rows ON diis_rows.[scope_key] = a.[scope_key] AND diis_rows.[system_id] = a.[system_id] WHERE f.[scope_key] = s.[scope_key] AND f.[priority_rank] <= 2 AND diis_rows.[compliant] = 0) FROM @Scope AS s LEFT JOIN diis_grouped AS dg ON dg.[scope_key] = s.[scope_key];
-
-  ;WITH diis_modelled AS (
-    SELECT [scope_key], COUNT(*) AS [total], SUM(CASE WHEN [diis_defined] = 1 AND [modelling_status] = 1 THEN 1 ELSE 0 END) AS [modelled]
-    FROM @ScopeSystems
-    WHERE [diis_defined] = 1
-    GROUP BY [scope_key]
-  )
-  INSERT INTO @Metric
-  SELECT s.[scope_key], N'diis-modelled-coverage', CONVERT(NVARCHAR(40), CAST(CASE WHEN COALESCE(dm.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(dm.[modelled], 0) * 100.0) / dm.[total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(dm.[modelled], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE(dm.[total], 0)) + N')', CAST(CASE WHEN COALESCE(dm.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(dm.[modelled], 0) * 100.0) / dm.[total], 1) END AS DECIMAL(9,1)), COALESCE(dm.[modelled], 0), COALESCE(dm.[total], 0), COALESCE(dm.[total], 0) - COALESCE(dm.[modelled], 0), 0, COALESCE(dm.[total], 0) - COALESCE(dm.[modelled], 0)
-  FROM @Scope AS s
-  LEFT JOIN diis_modelled AS dm ON dm.[scope_key] = s.[scope_key];
-
-  ;WITH network_counts AS (
-    SELECT [scope_key], COUNT(*) AS [total], SUM(CASE WHEN [discovery_status] = N'Discovery Enabled' THEN 1 ELSE 0 END) AS [enabled]
-    FROM @ScopeNetworks
-    GROUP BY [scope_key]
-  )
-  INSERT INTO @Metric
-  SELECT s.[scope_key], N'network-discovery-enablement', CONVERT(NVARCHAR(40), CAST(CASE WHEN COALESCE(nc.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(nc.[enabled], 0) * 100.0) / nc.[total], 1) END AS DECIMAL(9,1))) + N'% (' + CONVERT(NVARCHAR(20), COALESCE(nc.[enabled], 0)) + N'/' + CONVERT(NVARCHAR(20), COALESCE(nc.[total], 0)) + N')', CAST(CASE WHEN COALESCE(nc.[total], 0) = 0 THEN 0 ELSE ROUND((COALESCE(nc.[enabled], 0) * 100.0) / nc.[total], 1) END AS DECIMAL(9,1)), COALESCE(nc.[enabled], 0), COALESCE(nc.[total], 0), COALESCE(nc.[total], 0) - COALESCE(nc.[enabled], 0), 0, COALESCE(nc.[total], 0) - COALESCE(nc.[enabled], 0)
-  FROM @Scope AS s
-  LEFT JOIN network_counts AS nc ON nc.[scope_key] = s.[scope_key];
 
   IF @emit_json = 1
   BEGIN

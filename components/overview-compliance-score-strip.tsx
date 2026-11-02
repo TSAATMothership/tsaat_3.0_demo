@@ -95,7 +95,6 @@ function ModellingGapTile({
   entityLabel: string;
   coverage: ModellingCoverage;
 }) {
-  const modelledPercent = boundedPercent(coverage.modelledPercent);
   const notModelledPercent = boundedPercent(coverage.notModelledPercent);
 
   return (

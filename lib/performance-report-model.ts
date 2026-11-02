@@ -18,7 +18,6 @@ import {
   FindingSeverity,
   ICTSystem,
   ManagedNetwork,
-  RollupCounts,
   SecurityDomain,
   SpiId
 } from "@/lib/types";
@@ -328,39 +327,6 @@ function discoveryScore(counts: Omit<PerformanceDiscoveryCounts, "total" | "scor
   };
 }
 
-function rollupCountsForEvaluations(evaluations: AssetSpiEvaluation[]): RollupCounts {
-  const counts = statusCounts(evaluations.flatMap((evaluation) => evaluation.evaluations.map((item) => item.status)));
-  return {
-    compliant: counts.compliant,
-    nonCompliant: counts.nonCompliant,
-    unknown: counts.unknown,
-    impactedAssets: new Set(evaluations.map((evaluation) => evaluation.assetId)).size
-  };
-}
-
-function analyticsSubset(
-  base: AnalyticsResult,
-  evaluations: AssetSpiEvaluation[],
-  findings: Finding[]
-): AnalyticsResult {
-  const counts = rollupCountsForEvaluations(evaluations);
-  const total = counts.compliant + counts.nonCompliant + counts.unknown;
-
-  return {
-    ...base,
-    evaluations,
-    findings,
-    networkRollups: [],
-    systemRollups: [],
-    environmentRollups: [],
-    overallCompliancePercent: scorePercent(counts.compliant, total),
-    statusTotals: counts,
-    productionCriticalExposureAssetIds: findings
-      .filter((finding) => finding.severity === "Critical Exposure")
-      .map((finding) => finding.scope.assetId)
-  };
-}
-
 function throughputWeekIndex(startDate: Date, dateKey: string, weeks: number): number {
   const date = parseUtcDateKey(dateKey);
   const diffDays = signedDifferenceInWholeUtcDays(startDate, date);
@@ -579,7 +545,7 @@ function fallbackSystemApmNumber(system: ICTSystem): string {
   return system.apmNumber?.trim() || `APM-${system.id.replace(/[^a-z0-9]+/gi, "-").toUpperCase()}`;
 }
 
-function fallbackSystemApmUrl(system: ICTSystem, apmNumber: string): string {
+function fallbackSystemApmUrl(apmNumber: string): string {
   return `https://apm.defence.gov.au/applications/${encodeURIComponent(apmNumber)}`;
 }
 
@@ -618,7 +584,7 @@ function systemEntityDetails(system: ICTSystem): PerformanceEntityDetails {
     diisUrl: fallbackSystemDiisUrl(system),
     grcUrl: fallbackSystemGrcUrl(system, atoNumber),
     apmNumber,
-    apmUrl: fallbackSystemApmUrl(system, apmNumber)
+    apmUrl: fallbackSystemApmUrl(apmNumber)
   };
 }
 
@@ -727,7 +693,6 @@ export function buildPerformanceReportModel({
   systems,
   kpiDefinitions,
   spiDefinitions,
-  severityDefinitions,
   kpiRowsByMatrixRowId = new Map(),
   asOfDate = dataset.snapshotDate
 }: BuildPerformanceReportModelParams): PerformanceReportModel {
@@ -736,7 +701,6 @@ export function buildPerformanceReportModel({
   const scopeLabel = scopeType === "network" ? "Network" : "ICT System";
   const scopedNetworks = filterRealNetworks(networks);
   const scopedSystems = systems;
-  const severityDisplayOrder = severityDefinitions.map((definition) => definition.severityKey);
   const entityRows =
     scopeType === "network"
       ? scopedNetworks.map((network) => ({
@@ -798,18 +762,6 @@ export function buildPerformanceReportModel({
   );
 
   const kpiMatrixRows = domainEntityRows.map((row) => {
-    const evaluations = groupedEvaluations.get(row.id) ?? [];
-    const rowAssetIds = new Set(evaluations.map((evaluation) => evaluation.assetId));
-    const findings = scopedFindings.filter((finding) => rowAssetIds.has(finding.scope.assetId));
-    const rowAnalytics = analyticsSubset(analytics, evaluations, findings);
-    const rowSystems =
-      scopeType === "system"
-        ? scopedSystems.filter((system) => system.id === row.entityId)
-        : scopedSystems.filter((system) => system.networkId === row.entityId);
-    const rowNetworks =
-      scopeType === "network"
-        ? scopedNetworks.filter((network) => network.id === row.entityId)
-        : scopedNetworks.filter((network) => rowSystems.some((system) => system.networkId === network.id));
 
     return {
       id: row.id,

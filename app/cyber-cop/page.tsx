@@ -3,34 +3,22 @@ import { ServiceImpactAnalyser } from "@/components/service-impact-analyser";
 import { buildServiceImpactModel } from "@/lib/service-impact";
 import {
   CyberCopDashboard,
-  type CyberCopActionQuickWinRow,
   type CyberCopAssetTypeHeatmapAsset,
   type CyberCopDailyTrendPoint,
   type CyberCopImpactItem,
   type CyberCopImpactEnvironmentSplitRow,
-  type CyberCopImpactEntityTrend,
   type CyberCopImpactLinks,
   type CyberCopImpactSpiDriver
 } from "@/components/cyber-cop-dashboard";
 import { FilterBar } from "@/components/filter-bar";
 import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { buildHighRiskCveIndexByAssetId } from "@/lib/cve";
-import { countSevereOpenFindingsOlderThan } from "@/lib/cyber-cop-action-plan";
 import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
-import { buildNetworkTargetStateSummary } from "@/lib/network-target-state";
 import { applyAssetFilters } from "@/lib/selectors";
-import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { SpiDefinition } from "@/lib/spi-definitions";
-import { Asset, AssetType, ComplianceStatus, Criticality, Finding, FindingSeverity } from "@/lib/types";
-
-function firstParam(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-  return value;
-}
+import { Asset, ComplianceStatus, Criticality, Finding, FindingSeverity } from "@/lib/types";
 
 type ComplianceCounts = { compliant: number; nonCompliant: number; unknown: number };
 
@@ -114,30 +102,6 @@ function complianceScoreCard(title: string, contextLabel: string, counts: Compli
       }
     ]
   };
-}
-
-function countNonCompliantOs(
-  assets: Asset[],
-  evaluationByAssetId: Map<
-    string,
-    {
-      evaluations: Array<{ spiId: number; status: ComplianceStatus; outcomeKey?: string }>;
-    }
-  >,
-  spiDefinitions: SpiDefinition[]
-): number {
-  return assets.filter((asset) => {
-    if (asset.type !== "server" && asset.type !== "workstation") {
-      return false;
-    }
-    const evaluation = evaluationByAssetId.get(asset.id);
-    if (!evaluation) {
-      return false;
-    }
-    return evaluation.evaluations.some((evaluationItem) =>
-      evaluationMatchesSpiFeature(evaluationItem, SPI_FEATURE_OS_NON_COMPLIANT, spiDefinitions)
-    );
-  }).length;
 }
 
 function toUtcDateKey(date: Date): string {
@@ -594,38 +558,6 @@ function toImpactSpiDrivers(
     }));
 }
 
-function buildImpactSpiDrivers(findings: Finding[], spiDefinitions: SpiDefinition[]): CyberCopImpactSpiDriver[] {
-  const countBySpi = findings.reduce<
-    Map<
-      number,
-      {
-        criticalExposureCount: number;
-        highRiskCount: number;
-        otherCount: number;
-      }
-    >
-  >((accumulator, finding) => {
-    const row = accumulator.get(finding.spiId) ?? {
-      criticalExposureCount: 0,
-      highRiskCount: 0,
-      otherCount: 0
-    };
-
-    if (finding.severity === "Critical Exposure") {
-      row.criticalExposureCount += 1;
-    } else if (finding.severity === "High Risk") {
-      row.highRiskCount += 1;
-    } else {
-      row.otherCount += 1;
-    }
-
-    accumulator.set(finding.spiId, row);
-    return accumulator;
-  }, new Map());
-
-  return toImpactSpiDrivers(countBySpi, spiDefinitions);
-}
-
 function buildImpactSpiDriversBySystemId(
   findings: Finding[],
   spiDefinitions: SpiDefinition[]
@@ -719,10 +651,6 @@ function buildImpactEnvironmentSplitRows(
     .filter((item) => item.total > 0);
 }
 
-function buildImpactEnvironmentSplit(findings: Finding[]): CyberCopImpactEnvironmentSplitRow[] {
-  return buildImpactEnvironmentSplitRows(findings);
-}
-
 function buildImpactEnvironmentSplitBySystemId(
   findings: Finding[]
 ): Record<string, CyberCopImpactEnvironmentSplitRow[]> {
@@ -736,112 +664,6 @@ function buildImpactEnvironmentSplitBySystemId(
       buildImpactEnvironmentSplitRows(findings, (finding) => finding.scope.systemId === systemId)
     ])
   );
-}
-
-function buildOpenSevereFindingsDailySeriesForSystem(
-  findings: Finding[],
-  systemId: string,
-  endDateKey: string,
-  days = 365
-): CyberCopDailyTrendPoint[] {
-  const endDate = parseUtcDateKey(endDateKey);
-  const startDate = addUtcDays(endDate, -(days - 1));
-  const startDateKey = toUtcDateKey(startDate);
-  const events = new Map<string, number>();
-  let openAtWindowStart = 0;
-
-  for (const finding of findings) {
-    if (
-      finding.scope.systemId !== systemId ||
-      (finding.severity !== "High Risk" && finding.severity !== "Critical Exposure")
-    ) {
-      continue;
-    }
-
-    const openedDateKey = toFindingDateKey(finding.timestamp);
-    if (!openedDateKey) {
-      continue;
-    }
-    const closedDateKey = toFindingDateKey(finding.closedTimestamp);
-
-    if (openedDateKey < startDateKey && (!closedDateKey || closedDateKey >= startDateKey)) {
-      openAtWindowStart += 1;
-    }
-
-    if (openedDateKey >= startDateKey && openedDateKey <= endDateKey) {
-      events.set(openedDateKey, (events.get(openedDateKey) ?? 0) + 1);
-    }
-    if (closedDateKey && closedDateKey >= startDateKey && closedDateKey <= endDateKey) {
-      events.set(closedDateKey, (events.get(closedDateKey) ?? 0) - 1);
-    }
-  }
-
-  const points: CyberCopDailyTrendPoint[] = [];
-  let running = openAtWindowStart;
-  for (let offset = 0; offset < days; offset += 1) {
-    const pointDate = addUtcDays(startDate, offset);
-    const pointDateKey = toUtcDateKey(pointDate);
-    running += events.get(pointDateKey) ?? 0;
-    points.push({
-      date: pointDateKey,
-      label: formatUtcDay(pointDate),
-      count: Math.max(0, running)
-    });
-  }
-
-  return points;
-}
-
-function buildWeeklyEntityTrend(daily: CyberCopDailyTrendPoint[], weeks = 13) {
-  const endDateKey = daily[daily.length - 1]?.date;
-  if (!endDateKey) {
-    return [];
-  }
-
-  const endDate = parseUtcDateKey(endDateKey);
-  const countsByDate = new Map(daily.map((point) => [point.date, point.count]));
-
-  return Array.from({ length: weeks }, (_, index) => {
-    const weekOffset = weeks - 1 - index;
-    const pointDate = addUtcDays(endDate, -weekOffset * 7);
-    const pointDateKey = toUtcDateKey(pointDate);
-    return {
-      weekLabel: formatUtcDay(pointDate),
-      count: countsByDate.get(pointDateKey) ?? 0
-    };
-  });
-}
-
-function buildImpactEntityTrends(
-  findings: Finding[],
-  systemImpact: CyberCopImpactItem[],
-  endDateKey: string,
-  topCount = 5
-): CyberCopImpactEntityTrend[] {
-  const topSystems = systemImpact
-    .map((system) => ({
-      ...system,
-      riskCount: system.criticalExposureCount + system.highRiskCount
-    }))
-    .filter((system) => system.riskCount > 0)
-    .sort((a, b) => {
-      if (b.riskCount !== a.riskCount) {
-        return b.riskCount - a.riskCount;
-      }
-      return a.name.localeCompare(b.name);
-    })
-    .slice(0, topCount);
-
-  return topSystems.map((system) => ({
-    id: system.id,
-    name: system.name,
-    criticality: system.criticality,
-    riskCount: system.riskCount,
-    weeklyTrend: buildWeeklyEntityTrend(
-      buildOpenSevereFindingsDailySeriesForSystem(findings, system.id, endDateKey, 365),
-      13
-    )
-  }));
 }
 
 function buildImpactLinks(
@@ -965,71 +787,6 @@ function buildImpactAssetTypeHeatmapBySystemId(
   );
 }
 
-function buildActionQuickWins(openFindings: Finding[], topCount = 10): CyberCopActionQuickWinRow[] {
-  const grouped = new Map<
-    string,
-    {
-      actionText: string;
-      criticalExposureCount: number;
-      highRiskCount: number;
-      otherCount: number;
-      total: number;
-      systemIds: Set<string>;
-    }
-  >();
-
-  for (const finding of openFindings) {
-    const actionText = finding.recommendedAction?.trim();
-    if (!actionText) {
-      continue;
-    }
-    const key = actionText.toLowerCase();
-    const row = grouped.get(key) ?? {
-      actionText,
-      criticalExposureCount: 0,
-      highRiskCount: 0,
-      otherCount: 0,
-      total: 0,
-      systemIds: new Set<string>()
-    };
-
-    if (finding.severity === "Critical Exposure") {
-      row.criticalExposureCount += 1;
-    } else if (finding.severity === "High Risk") {
-      row.highRiskCount += 1;
-    } else {
-      row.otherCount += 1;
-    }
-    row.total += 1;
-    if (finding.scope.systemId) {
-      row.systemIds.add(finding.scope.systemId);
-    }
-    grouped.set(key, row);
-  }
-
-  return Array.from(grouped.values())
-    .sort((a, b) => {
-      const severeA = a.criticalExposureCount + a.highRiskCount;
-      const severeB = b.criticalExposureCount + b.highRiskCount;
-      if (severeB !== severeA) {
-        return severeB - severeA;
-      }
-      if (b.total !== a.total) {
-        return b.total - a.total;
-      }
-      return a.actionText.localeCompare(b.actionText);
-    })
-    .slice(0, topCount)
-    .map((row) => ({
-      actionText: row.actionText,
-      criticalExposureCount: row.criticalExposureCount,
-      highRiskCount: row.highRiskCount,
-      otherCount: row.otherCount,
-      total: row.total,
-      systemCount: row.systemIds.size
-    }));
-}
-
 export default async function CyberCopPage({
   searchParams
 }: {
@@ -1126,39 +883,6 @@ export default async function CyberCopPage({
       const bTime = new Date(b.timestamp).getTime();
       return bTime - aTime;
     });
-  const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
-  const nonCompliantOs = countNonCompliantOs(filteredAssets, evaluationByAssetId, spiDefinitions);
-  const nonCompliantOsTotal = filteredAssets.filter((asset) => asset.type === "server" || asset.type === "workstation").length;
-  const scopedAssetsTotal = filteredAssets.length;
-  const scopedServersTotal = filteredAssets.filter((asset) => asset.type === "server").length;
-  const assetsOutOfWarrantyEol = filteredAssets.filter(
-    (asset) => asset.lifecycle.warrantyStatus === "OutOfWarranty" || asset.lifecycle.eolStatus === "EOL"
-  ).length;
-  const networksWithoutDiscoveryEnabled = networks.filter(
-    (network) => network.discoveryStatus === "Discovery Non Enabled"
-  ).length;
-  const discoveryEnabledNetworkIds = new Set(
-    networks.filter((network) => network.discoveryStatus === "Discovery Enabled").map((network) => network.id)
-  );
-  const networksDiscoveryNonCompliant = new Set(
-    analytics.evaluations
-      .filter(
-        (evaluation) =>
-          discoveryEnabledNetworkIds.has(evaluation.networkId) && !evaluation.discoveryCoverageCompliant
-      )
-      .map((evaluation) => evaluation.networkId)
-  ).size;
-  const targetStateSummaryByNetworkId = buildNetworkTargetStateSummary(
-    networks,
-    filteredAssets.map((asset) => ({
-      networkId: asset.networkId,
-      assetType: asset.type,
-      name: asset.name || asset.hostname || asset.id
-    }))
-  );
-  const networksWithNoTargetState = networks.filter(
-    (network) => !targetStateSummaryByNetworkId.get(network.id)?.targetStateProvided
-  ).length;
 
   const criticalIctStatuses = analytics.evaluations
     .filter((evaluation) => evaluation.systemCriticality === "Critical")
@@ -1195,14 +919,6 @@ export default async function CyberCopPage({
   const highRiskOpenCount = severityCounts.get("High Risk") ?? 0;
   const criticalExposureOpenCount = severityCounts.get("Critical Exposure") ?? 0;
   const p1p2Count = openFindings.filter((finding) => finding.priorityRank <= 2).length;
-  const immediateAction = highRiskOpenCount + criticalExposureOpenCount;
-  const serversWithCriticalFindings = new Set(
-    openFindings
-      .filter((finding) => finding.severity === "Critical Exposure")
-      .map((finding) => filteredAssetsById.get(finding.scope.assetId))
-      .filter((asset): asset is Asset => asset !== undefined && asset.type === "server")
-      .map((asset) => asset.id)
-  ).size;
 
   const chartAnchorDateKey = selectedDataDate ?? dataset.snapshotDate;
   const chartWindowEndDateKey = selectedDataDate ?? todayDateKey();
@@ -1225,27 +941,8 @@ export default async function CyberCopPage({
   const systemImpact = buildSystemImpact(openFindings, systems);
   const impactLinks = buildImpactLinks(systems);
   const impactAssetTypeHeatmapBySystemId = buildImpactAssetTypeHeatmapBySystemId(filteredAssets, openFindings, systems);
-  const impactSpiDrivers = buildImpactSpiDrivers(openFindings, spiDefinitions);
   const impactSpiDriversBySystemId = buildImpactSpiDriversBySystemId(openFindings, spiDefinitions);
-  const impactEnvironmentSplit = buildImpactEnvironmentSplit(openFindings);
   const impactEnvironmentSplitBySystemId = buildImpactEnvironmentSplitBySystemId(openFindings);
-  const impactEntityTrends = buildImpactEntityTrends(analytics.findings, systemImpact, chartAnchorDateKey, 5);
-  const criticalHighOpenFindingsOver60Days = countSevereOpenFindingsOlderThan(openFindings, dataset.snapshotDate, 60);
-  const threatSurfaceQuickWins = buildActionQuickWins(openFindings, 10);
-  const diisSystems = systems.filter((system) => system.diisDefined);
-  const modelledDiisSystems = diisSystems.filter((system) => system.modellingStatus);
-  const ictSystemsNotModelled = diisSystems.length - modelledDiisSystems.length;
-  const modelledDiisSystemIds = new Set(modelledDiisSystems.map((system) => system.id));
-  const modelledDiscoveryNonCompliantCount = new Set(
-    analytics.evaluations
-      .filter(
-        (evaluation) =>
-          Boolean(evaluation.systemId) &&
-          modelledDiisSystemIds.has(evaluation.systemId as string) &&
-          !evaluation.discoveryCoverageCompliant
-      )
-      .map((evaluation) => evaluation.systemId as string)
-  ).size;
 
   return (
     <div
@@ -1289,31 +986,8 @@ export default async function CyberCopPage({
         }}
         impactLinks={impactLinks}
         impactAssetTypeHeatmapBySystemId={impactAssetTypeHeatmapBySystemId}
-        impactSpiDrivers={impactSpiDrivers}
         impactSpiDriversBySystemId={impactSpiDriversBySystemId}
-        impactEnvironmentSplit={impactEnvironmentSplit}
         impactEnvironmentSplitBySystemId={impactEnvironmentSplitBySystemId}
-        impactEntityTrends={impactEntityTrends}
-        actionPlan={{
-          immediateAction,
-          criticalHighOpenFindingsOver60Days,
-          nonCompliantOs,
-          nonCompliantOsTotal,
-          assetsOutOfWarrantyEol,
-          scopedAssetsTotal,
-          serversWithCriticalFindings,
-          scopedServersTotal,
-          networksWithoutDiscoveryEnabled,
-          scopedNetworksTotal: networks.length,
-          discoveryEnabledNetworksTotal: discoveryEnabledNetworkIds.size,
-          networksDiscoveryNonCompliant,
-          networksWithNoTargetState,
-          diisIctSystemsDefined: diisSystems.length,
-          ictSystemsNotModelled,
-          ictSystemsModelled: modelledDiisSystems.length,
-          ictSystemsModelledDiscoveryNonCompliant: modelledDiscoveryNonCompliantCount
-        }}
-        threatSurfaceQuickWins={threatSurfaceQuickWins}
         dailyHighRisk={highRiskDaily}
         dailyCriticalExposure={criticalExposureDaily}
       />

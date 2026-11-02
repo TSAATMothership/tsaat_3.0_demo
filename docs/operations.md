@@ -12,6 +12,8 @@ Provision DB_config and logindetails under the service identity, or use supporte
 
 Restrict configuration/database access. Apply separately reviewed migrations to the explicit database before switching traffic when required. Compilation does not seed a database.
 
+For cleanup migration 027, stop app traffic to the selected database, retain a verified pre-upgrade backup, apply 027 using sqlcmd -b, then deploy UI 3 and verify scoped measures, explorers and exports. Do not point an older TSAAT build at this cleaned schema: older loaders select the removed network apm_number column. An isolated restored copy lets the older installation continue using its original database. Recovery restores both the database backup and previous compatible app.
+
 ## Smoke checks
 
 Verify login/logout/expiry, empty workspace, header Update, both scope types and dates. Check risk profiles, explorers/details, heatmaps, Service Impact tabs and both diagram analysers. Confirm CMDB and Settings-sized compliance dialogs, evidence/remediation and keyboard/focus behavior. Check Measures Summary, the two KPIs, configured SPIs, findings, discovery and representative PDF/workbook exports. Confirm saved severity/priority settings affect subsequent evaluation.

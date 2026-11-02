@@ -76,8 +76,11 @@ IF @FindingWorkflowStatusDefinitionCount < 2
 IF @FindingBucketDefinitionCount < 5
   THROW 52000, 'Validation failed: finding_bucket_definition count must include severity, priority, and workflow buckets.', 1;
 
-IF @FindingEvidenceFieldDefinitionCount < 6
-  THROW 52000, 'Validation failed: finding_evidence_field_definition count must include register evidence mappings.', 1;
+IF EXISTS (
+  SELECT required.[purpose_key] FROM (VALUES (N'asset_name'), (N'asset_ip_address'), (N'asset_type'), (N'evidence_preview')) AS required([purpose_key])
+  WHERE NOT EXISTS (SELECT 1 FROM [tsaat].[finding_evidence_field_definition] AS actual WHERE actual.[purpose_key] = required.[purpose_key])
+)
+  THROW 52000, 'Validation failed: current device and evidence register mappings are required.', 1;
 
 IF @FindingRegisterColumnDefinitionCount < 7
   THROW 52000, 'Validation failed: finding_register_column_definition count must include register display columns.', 1;
@@ -127,8 +130,8 @@ IF @KpiCount <= 0
 IF @KpiCalculationSourceCount <= 0
   THROW 52000, 'Validation failed: kpi_calculation_source table is empty.', 1;
 
-IF @KpiCalculationDefinitionCount < 10
-  THROW 52000, 'Validation failed: kpi_calculation_definition count must be at least 10.', 1;
+IF @KpiCalculationDefinitionCount <> 2
+  THROW 52000, 'Validation failed: the current catalogue requires the ATO and DIIS calculations only.', 1;
 
 IF @KpiTaskingTeamCount <= 0
   THROW 52000, 'Validation failed: kpi_tasking_team table is empty.', 1;
@@ -142,7 +145,7 @@ IF @KpiTaskingConditionCount <= 0
 IF @KpiReportDetailDefinitionCount <= 0
   THROW 52000, 'Validation failed: kpi_report_detail_definition table is empty.', 1;
 
-IF @KpiReportDetailBindingCount < 3
+IF @KpiReportDetailBindingCount <> 2
   THROW 52000, 'Validation failed: kpi_report_detail_binding must include the seeded KPI detail bindings.', 1;
 
 IF @AssetCount <= 0
@@ -202,11 +205,14 @@ IF OBJECT_ID(N'tsaat.usp_get_finding_history_snapshot', N'P') IS NULL
 IF OBJECT_ID(N'tsaat.usp_get_finding_spi_history_snapshot', N'P') IS NULL
   THROW 52000, 'Validation failed: usp_get_finding_spi_history_snapshot is missing.', 1;
 
-IF OBJECT_ID(N'tsaat.fn_kpi_stable_hash', N'FN') IS NULL
-  THROW 52000, 'Validation failed: fn_kpi_stable_hash is missing.', 1;
 
 IF OBJECT_ID(N'tsaat.usp_evaluate_discovery_coverage_snapshot', N'P') IS NULL
   THROW 52000, 'Validation failed: usp_evaluate_discovery_coverage_snapshot is missing.', 1;
+
+IF OBJECT_ID(N'tsaat.kpi_calculation_parameter', N'U') IS NOT NULL OR OBJECT_ID(N'tsaat.fn_kpi_stable_hash', N'FN') IS NOT NULL
+  THROW 52000, 'Validation failed: retired KPI structures remain; apply migration 027.', 1;
+IF COL_LENGTH(N'tsaat.managed_network', N'apm_number') IS NOT NULL
+  THROW 52000, 'Validation failed: retired network APM column remains; apply migration 027.', 1;
 
 IF OBJECT_ID(N'tsaat.usp_evaluate_kpi_snapshot', N'P') IS NULL
   THROW 52000, 'Validation failed: usp_evaluate_kpi_snapshot is missing.', 1;

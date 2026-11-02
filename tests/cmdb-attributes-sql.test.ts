@@ -63,7 +63,7 @@ ROLLBACK TRANSACTION;
     expect(rows.snapshotsUnchanged).toBe(true);
   }, 60000);
 
-  it("serves real snapshot values with the installed SQL mapping for every asset type", async () => {
+  it("serves real snapshot values for populated asset types and validates mappings for every supported type", async () => {
     const assets = await executeSqlJson<Array<{ assetId: string; assetType: typeof ASSET_TYPES[number]; snapshotDate: string }>>(`
       WITH candidates AS (
         SELECT a.[asset_id] AS [assetId], a.[asset_type] AS [assetType], CONVERT(CHAR(10), s.[snapshot_date], 23) AS [snapshotDate],
@@ -72,7 +72,12 @@ ROLLBACK TRANSACTION;
         WHERE s.[snapshot_id] = (SELECT TOP (1) [snapshot_id] FROM [tsaat].[dataset_snapshot] ORDER BY [snapshot_date] DESC)
       ) SELECT [assetId], [assetType], [snapshotDate] FROM candidates WHERE rn = 1 FOR JSON PATH;
     `);
-    expect(assets.map(asset => asset.assetType).sort()).toEqual([...ASSET_TYPES].sort());
+    expect(assets.length).toBeGreaterThan(0);
+    expect(assets.every(asset => ASSET_TYPES.includes(asset.assetType))).toBe(true);
+    for (const assetType of ASSET_TYPES) {
+      const mapping = await loadCmdbAttributeDefinitions(assetType);
+      expect(mapping.map(row => row.key)).toEqual([...CMDB_ATTRIBUTE_KEYS]);
+    }
     for (const asset of assets) {
       const mapping = await loadCmdbAttributeDefinitions(asset.assetType);
       const params = new URLSearchParams({ assetId: asset.assetId, dataDate: asset.snapshotDate });

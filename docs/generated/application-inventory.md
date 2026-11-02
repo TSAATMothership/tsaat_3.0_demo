@@ -101,7 +101,6 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | react-is | ^18.2.0 | Runtime |
 | recharts | ^3.7.0 | Runtime |
 | three | ^0.181.2 | Runtime |
-| zod | ^4.3.6 | Runtime |
 | @types/node | 20.11.30 | Development |
 | @types/papaparse | ^5.5.2 | Development |
 | @types/react | 18.2.79 | Development |

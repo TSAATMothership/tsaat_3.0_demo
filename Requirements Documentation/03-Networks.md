@@ -9,3 +9,5 @@ Risk summaries and finding counts derive from the scoped model rather than dupli
 Compliance Heatmap maps individual devices to configured SPIs: green compliant, red non-compliant, orange unknown. Default cells are 40px and can scale. Text search and result filters narrow devices. Device ordering groups compliance states; SPI severity increases towards the right. The retired network-to-SPI aggregate heatmap is not a separate tab/page.
 
 The /networks route redirects to the current profile with scope/date; it is not the old overview page. Sources: app/network-risk-profile/page.tsx, lib/network-risk-profile.ts, lib/risk-profile.ts, components/risk-profile.tsx and compliance-heatmap.tsx. Tests: network-risk-profile, network-risk-profile-page, compliance-heatmap and posture-page-redirects.
+
+The network SQL model no longer stores the unused apm_number field (migration 027). Network ATO/DIIS, contacts, description, linked systems, discovery and topology relationships remain unchanged. APP-ID continues to belong to ICT systems.

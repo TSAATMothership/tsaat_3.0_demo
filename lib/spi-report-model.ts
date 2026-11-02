@@ -1,7 +1,7 @@
 import { ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { buildSpiRows, SpiRow } from "@/lib/measures";
 import { remediationActionsForSpi, teamsForSpi, type TeamContact } from "@/lib/tasking";
-import { SpiDefinition, spiDefinitionById } from "@/lib/spi-definitions";
+import { SpiDefinition } from "@/lib/spi-definitions";
 import { AnalyticsResult, Asset, AssetType, ComplianceStatus, Dataset, SpiId } from "@/lib/types";
 import { deviceReportDetails, type DeviceReportDetails } from "@/lib/device-report";
 
@@ -181,7 +181,6 @@ function buildModelFromRow(
     }
   }
 
-  const definition = spiDefinitionById(spiDefinitions).get(row.spiId);
   const unknownPercent = toPercent(row.unknown, row.total);
 
   return {

@@ -484,8 +484,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-001",
-      "atoNumber": "ATO-NET-001",
-      "apmNumber": "APM-NET-001"
+      "atoNumber": "ATO-NET-001"
     },
     {
       "id": "net-2",
@@ -835,8 +834,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-002",
-      "atoNumber": "ATO-NET-002",
-      "apmNumber": "APM-NET-002"
+      "atoNumber": "ATO-NET-002"
     },
     {
       "id": "net-3",
@@ -1301,8 +1299,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-003",
-      "atoNumber": "ATO-NET-003",
-      "apmNumber": "APM-NET-003"
+      "atoNumber": "ATO-NET-003"
     },
     {
       "id": "net-4",
@@ -1641,8 +1638,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-004",
-      "atoNumber": "ATO-NET-004",
-      "apmNumber": "APM-NET-004"
+      "atoNumber": "ATO-NET-004"
     },
     {
       "id": "net-5",
@@ -2017,8 +2013,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-005",
-      "atoNumber": "ATO-NET-005",
-      "apmNumber": "APM-NET-005"
+      "atoNumber": "ATO-NET-005"
     },
     {
       "id": "net-new-1",
@@ -2067,8 +2062,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-006",
-      "atoNumber": "ATO-NET-006",
-      "apmNumber": "APM-NET-006"
+      "atoNumber": "ATO-NET-006"
     },
     {
       "id": "net-new-2",
@@ -2113,8 +2107,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-007",
-      "atoNumber": "ATO-NET-007",
-      "apmNumber": "APM-NET-007"
+      "atoNumber": "ATO-NET-007"
     },
     {
       "id": "net-new-3",
@@ -2177,8 +2170,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-008",
-      "atoNumber": "ATO-NET-008",
-      "apmNumber": "APM-NET-008"
+      "atoNumber": "ATO-NET-008"
     },
     {
       "id": "net-new-4",
@@ -2223,8 +2215,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-009",
-      "atoNumber": "ATO-NET-009",
-      "apmNumber": "APM-NET-009"
+      "atoNumber": "ATO-NET-009"
     },
     {
       "id": "net-new-5",
@@ -2277,8 +2268,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-010",
-      "atoNumber": "ATO-NET-010",
-      "apmNumber": "APM-NET-010"
+      "atoNumber": "ATO-NET-010"
     },
     {
       "id": "net-new-6",
@@ -2346,8 +2336,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-011",
-      "atoNumber": "ATO-NET-011",
-      "apmNumber": "APM-NET-011"
+      "atoNumber": "ATO-NET-011"
     },
     {
       "id": "net-new-7",
@@ -2415,8 +2404,7 @@
       },
       "modellingStatus": true,
       "diisId": "DIIS-NET-012",
-      "atoNumber": "ATO-NET-012",
-      "apmNumber": "APM-NET-012"
+      "atoNumber": "ATO-NET-012"
     },
     {
       "id": "net-disabled-reference",
@@ -2438,8 +2426,7 @@
         "other": []
       },
       "diisId": "DIIS-NET-013",
-      "atoNumber": "ATO-NET-013",
-      "apmNumber": "APM-NET-013"
+      "atoNumber": "ATO-NET-013"
     }
   ],
   "ictSystems": [

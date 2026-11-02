@@ -79,28 +79,6 @@ export interface CyberCopImpactEnvironmentSplitRow {
   total: number;
 }
 
-export interface CyberCopImpactEntityTrendPoint {
-  weekLabel: string;
-  count: number;
-}
-
-export interface CyberCopImpactEntityTrend {
-  id: string;
-  name: string;
-  criticality: Criticality;
-  riskCount: number;
-  weeklyTrend: CyberCopImpactEntityTrendPoint[];
-}
-
-export interface CyberCopActionQuickWinRow {
-  actionText: string;
-  criticalExposureCount: number;
-  highRiskCount: number;
-  otherCount: number;
-  total: number;
-  systemCount: number;
-}
-
 export interface CyberCopImpactLinks {
   businessToSystems: Record<string, string[]>;
   missionToSystems: Record<string, string[]>;
@@ -154,38 +132,14 @@ export interface CyberCopDashboardProps {
   };
   impactLinks: CyberCopImpactLinks;
   impactAssetTypeHeatmapBySystemId: Record<string, CyberCopAssetTypeHeatmapAsset[]>;
-  impactSpiDrivers: CyberCopImpactSpiDriver[];
   impactSpiDriversBySystemId: Record<string, CyberCopImpactSpiDriver[]>;
-  impactEnvironmentSplit: CyberCopImpactEnvironmentSplitRow[];
   impactEnvironmentSplitBySystemId: Record<string, CyberCopImpactEnvironmentSplitRow[]>;
-  impactEntityTrends: CyberCopImpactEntityTrend[];
-  actionPlan: {
-    immediateAction: number;
-    criticalHighOpenFindingsOver60Days: number;
-    nonCompliantOs: number;
-    nonCompliantOsTotal: number;
-    assetsOutOfWarrantyEol: number;
-    scopedAssetsTotal: number;
-    serversWithCriticalFindings: number;
-    scopedServersTotal: number;
-    networksWithoutDiscoveryEnabled: number;
-    scopedNetworksTotal: number;
-    discoveryEnabledNetworksTotal: number;
-    networksDiscoveryNonCompliant: number;
-    networksWithNoTargetState: number;
-    diisIctSystemsDefined: number;
-    ictSystemsNotModelled: number;
-    ictSystemsModelled: number;
-    ictSystemsModelledDiscoveryNonCompliant: number;
-  };
-  threatSurfaceQuickWins: CyberCopActionQuickWinRow[];
   dailyHighRisk: CyberCopDailyTrendPoint[];
   dailyCriticalExposure: CyberCopDailyTrendPoint[];
 }
 
 type ImpactScopeTabId = "business-services" | "mission-capabilities";
 type ImpactChartTabId = "spi" | "blast-radius" | "environment" | "mission-business";
-type ActionPlanTabId = "threat-surface" | "discovery" | "ict-system-modelling";
 
 const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "spi", label: "SPI Barchart" },
@@ -194,34 +148,7 @@ const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
   { id: "mission-business", label: "Critical Findings Blast Radius" }
 ];
 
-const actionPlanTabs: Array<{ id: ActionPlanTabId; label: string }> = [
-  { id: "threat-surface", label: "Threat Surface Area Action Plan" },
-  { id: "discovery", label: "Discovery Action Plan" },
-  { id: "ict-system-modelling", label: "ICT System Modelling Action Plan" }
-];
-
-function actionPlanTabTarget(currentTabId: ActionPlanTabId, key: string): ActionPlanTabId | null {
-  const currentIndex = actionPlanTabs.findIndex((tab) => tab.id === currentTabId);
-  if (currentIndex < 0) {
-    return null;
-  }
-  if (key === "ArrowRight") {
-    return actionPlanTabs[(currentIndex + 1) % actionPlanTabs.length].id;
-  }
-  if (key === "ArrowLeft") {
-    return actionPlanTabs[(currentIndex - 1 + actionPlanTabs.length) % actionPlanTabs.length].id;
-  }
-  if (key === "Home") {
-    return actionPlanTabs[0].id;
-  }
-  if (key === "End") {
-    return actionPlanTabs[actionPlanTabs.length - 1].id;
-  }
-  return null;
-}
-
 const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
-const impactSeverityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
 const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
 
 function chartSurfaceClass(embedded?: boolean): string {
@@ -252,22 +179,6 @@ function assetHeatmapColor(score: number, maxScore: number): string {
     return interpolateColor([34, 197, 94], [250, 204, 21], ratio / 0.5);
   }
   return interpolateColor([250, 204, 21], [239, 68, 68], (ratio - 0.5) / 0.5);
-}
-
-function severityStrokeColor(severity: FindingSeverity): string {
-  if (severity === "Critical Exposure") {
-    return "#ef4444";
-  }
-  if (severity === "High Risk") {
-    return "#f97316";
-  }
-  if (severity === "Major") {
-    return "#facc15";
-  }
-  if (severity === "Moderate") {
-    return "#38bdf8";
-  }
-  return "#a78bfa";
 }
 
 function sortEnvironmentLabel(left: ServerHeatmapEnvironmentOption, right: ServerHeatmapEnvironmentOption): number {
@@ -568,162 +479,6 @@ function ImpactLeaderboard({
   return (
     <section className="panel flex h-full min-h-0 flex-col p-3">
       {content}
-    </section>
-  );
-}
-
-function actionSegmentWidth(value: number, total: number): string {
-  if (!total || value <= 0) {
-    return "0%";
-  }
-  return `${Math.max(2, (value / total) * 100)}%`;
-}
-
-type ActionPlanMatrixTone = "critical" | "warning" | "watch";
-
-type ActionPlanMatrixRow = {
-  action: string;
-  detail: string;
-  count: number;
-  scope: string;
-  total?: number;
-  actionLabel?: string;
-  clearLabel?: string;
-  statusLabel: string;
-  tone: ActionPlanMatrixTone;
-  emphasized?: boolean;
-};
-
-type ActionPlanQuickWinRow = {
-  actionText: string;
-  detail: string;
-  count: number;
-  scope: string;
-  priorityLabel: string;
-  tone: ActionPlanMatrixTone;
-};
-
-function actionMatrixToneClasses(tone: ActionPlanMatrixTone) {
-  if (tone === "critical") {
-    return {
-      count: "text-red-100",
-      segment: "bg-red-400/95",
-      badge: "border-red-300/30 bg-red-500/10 text-red-100",
-      row: "bg-red-500/[0.06]"
-    };
-  }
-  if (tone === "warning") {
-    return {
-      count: "text-amber-100",
-      segment: "bg-amber-300/95",
-      badge: "border-amber-300/30 bg-amber-500/10 text-amber-100",
-      row: "bg-amber-500/[0.045]"
-    };
-  }
-  return {
-    count: "text-sky-100",
-    segment: "bg-sky-300/95",
-    badge: "border-sky-300/30 bg-sky-500/10 text-sky-100",
-    row: "bg-sky-500/[0.045]"
-  };
-}
-
-function actionRateLabel(count: number, total?: number): string {
-  if (typeof total !== "number") {
-    return "Baseline";
-  }
-  if (total <= 0) {
-    return "0%";
-  }
-  return `${Number(((Math.max(0, count) / total) * 100).toFixed(1))}%`;
-}
-
-function ActionPlanMatrix({ title, rows }: { title: string; rows: ActionPlanMatrixRow[] }) {
-  return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-sky-300/15 bg-slate-950/35">
-      <div className="shrink-0 border-b border-sky-300/10 px-3 py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-100">{title}</h3>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <table className="min-w-[48rem] w-full table-fixed text-sm">
-          <colgroup>
-            <col className="w-[38%]" />
-            <col className="w-[11%]" />
-            <col className="w-[18%]" />
-            <col className="w-[11%]" />
-            <col className="w-[22%]" />
-          </colgroup>
-          <thead className="bg-slate-900/70 text-[10px] uppercase tracking-[0.13em] text-slate-300/70">
-            <tr>
-              <th className="px-2 py-2 text-left">Action</th>
-              <th className="px-2 py-2 text-right">Count</th>
-              <th className="px-2 py-2 text-left">Scope</th>
-              <th className="px-2 py-2 text-right">Rate</th>
-              <th className="px-2 py-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const toneClasses = actionMatrixToneClasses(row.tone);
-              const safeTotal = typeof row.total === "number" ? Math.max(0, row.total) : undefined;
-              const boundedCount = safeTotal === undefined ? Math.max(0, row.count) : Math.min(Math.max(0, row.count), safeTotal);
-              const clearCount = safeTotal === undefined ? 0 : Math.max(0, safeTotal - boundedCount);
-              const statusTitle =
-                safeTotal === undefined
-                  ? row.statusLabel
-                  : `${clearCount} ${row.clearLabel?.toLowerCase() ?? "clear"}, ${boundedCount} ${
-                      row.actionLabel?.toLowerCase() ?? "requiring action"
-                    }`;
-
-              return (
-                <tr
-                  key={`${title}-${row.action}`}
-                  className={`border-t border-sky-300/10 ${row.emphasized ? toneClasses.row : ""}`}
-                >
-                  <td className="px-2 py-2">
-                    <p className={row.emphasized ? "font-semibold text-slate-100" : "font-medium text-slate-200"}>{row.action}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">{row.detail}</p>
-                  </td>
-                  <td className={`px-2 py-2 text-right text-base font-semibold tabular-nums ${toneClasses.count}`}>
-                    {row.count}
-                  </td>
-                  <td className="break-words px-2 py-2 text-xs text-slate-300">{row.scope}</td>
-                  <td className="px-2 py-2 text-right text-xs font-semibold tabular-nums text-slate-100">
-                    {actionRateLabel(row.count, row.total)}
-                  </td>
-                  <td className="px-2 py-2">
-                    {safeTotal === undefined ? (
-                      <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] ${toneClasses.badge}`}>
-                        {row.statusLabel}
-                      </span>
-                    ) : (
-                      <div className="w-full" title={statusTitle}>
-                        <div
-                          className="flex h-2.5 overflow-hidden rounded-full border border-sky-300/20 bg-slate-800/80"
-                          aria-label={`${row.action}: ${row.count}`}
-                        >
-                          <div
-                            className="h-full bg-emerald-400/90"
-                            style={{ width: actionSegmentWidth(clearCount, safeTotal) }}
-                          />
-                          <div
-                            className={`h-full ${toneClasses.segment}`}
-                            style={{ width: actionSegmentWidth(boundedCount, safeTotal) }}
-                          />
-                        </div>
-                        <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-slate-400">
-                          <span>{row.clearLabel}</span>
-                          <span className={toneClasses.count}>{row.actionLabel}</span>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }
@@ -1931,73 +1686,6 @@ function ImpactChartTabs({
   );
 }
 
-function ActionQuickWinsTable({
-  planTitle,
-  rows
-}: {
-  planTitle: string;
-  rows: ActionPlanQuickWinRow[];
-}) {
-  if (!rows.length) {
-    return (
-      <section className="panel flex h-full min-h-0 flex-col p-4">
-        <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
-        <p className="mt-1 text-xs text-slate-300/80">
-          Recommended actions derived from the active {planTitle} data.
-        </p>
-        <p className="mt-3 text-sm text-slate-300/80">No {planTitle.toLowerCase()} quick wins require action in the current scope.</p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="panel flex h-full min-h-0 flex-col p-3">
-      <h3 className="text-sm uppercase tracking-[0.14em] text-slate-100">Quick Wins by Recommended Action</h3>
-      <p className="mt-1 text-xs text-slate-300/80">Recommended actions derived from the active {planTitle} data.</p>
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto overflow-x-auto rounded-lg border border-sky-300/15 bg-slate-950/45">
-        <table className="min-w-[52rem] w-full table-fixed text-sm">
-          <colgroup>
-            <col className="w-[31%]" />
-            <col className="w-[36%]" />
-            <col className="w-[9%]" />
-            <col className="w-[14%]" />
-            <col className="w-[10%]" />
-          </colgroup>
-          <thead className="sticky top-0 z-[1] bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300/80">
-            <tr>
-              <th className="px-3 py-2 text-left">Recommended Action</th>
-              <th className="px-3 py-2 text-left">Why This Helps</th>
-              <th className="px-3 py-2 text-right">Items</th>
-              <th className="px-3 py-2 text-left">Scope</th>
-              <th className="px-3 py-2 text-left">Priority</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const toneClasses = actionMatrixToneClasses(row.tone);
-              return (
-                <tr key={row.actionText} className="border-t border-sky-300/10">
-                  <td className="px-3 py-2 font-medium text-slate-100">{row.actionText}</td>
-                  <td className="px-3 py-2 text-xs text-slate-300">{row.detail}</td>
-                  <td className={`px-3 py-2 text-right text-base font-semibold tabular-nums ${toneClasses.count}`}>
-                    {row.count}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-200">{row.scope}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex rounded-full border px-2 py-1 text-[11px] ${toneClasses.badge}`}>
-                      {row.priorityLabel}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 function CyberCopTabFooter() {
   return (
     <footer className="mt-auto shrink-0 border-t border-sky-300/15 bg-slate-950/30">
@@ -2020,16 +1708,11 @@ export function CyberCopDashboard({
   impact,
   impactLinks,
   impactAssetTypeHeatmapBySystemId,
-  impactSpiDrivers,
   impactSpiDriversBySystemId,
-  impactEnvironmentSplit,
   impactEnvironmentSplitBySystemId,
-  actionPlan,
-  threatSurfaceQuickWins,
   dailyHighRisk,
   dailyCriticalExposure
 }: CyberCopDashboardProps) {
-  const [activeActionPlanTab, setActiveActionPlanTab] = useState<ActionPlanTabId>("threat-surface");
   const [activeImpactScopeTab, setActiveImpactScopeTab] = useState<ImpactScopeTabId>("business-services");
   const [selectedBusinessServiceId, setSelectedBusinessServiceId] = useState<string | null>(null);
   const [selectedMissionCapabilityId, setSelectedMissionCapabilityId] = useState<string | null>(null);
@@ -2268,213 +1951,6 @@ export function CyberCopDashboard({
     : ictSystemVisibleScope.active
       ? `Charts follow ${ictSystemTableRows.length} visible ICT system row${ictSystemTableRows.length === 1 ? "" : "s"}.`
       : "Systems with highest open finding pressure.";
-  const threatSurfaceActionRows: ActionPlanMatrixRow[] = [
-    {
-      action: "Immediate action (critical and High-risk findings)",
-      detail: "Open Critical Exposure + High Risk findings",
-      count: actionPlan.immediateAction,
-      scope: "Open severe findings",
-      statusLabel: "Immediate",
-      tone: "critical",
-      emphasized: true
-    },
-    {
-      action: "Critical/High Open Findings > 60 days old",
-      detail: "Open Critical Exposure and High Risk findings older than 60 whole days",
-      count: actionPlan.criticalHighOpenFindingsOver60Days,
-      total: actionPlan.immediateAction,
-      scope: `${actionPlan.immediateAction} open Critical/High findings`,
-      actionLabel: "> 60 days",
-      clearLabel: "60 days or less",
-      statusLabel: "Ageing breach",
-      tone: "critical",
-      emphasized: true
-    },
-    {
-      action: "Total Non-Compliant OS",
-      detail: "Server and workstation OS controls",
-      count: actionPlan.nonCompliantOs,
-      total: actionPlan.nonCompliantOsTotal,
-      scope: `${actionPlan.nonCompliantOsTotal} endpoints`,
-      actionLabel: "Non-compliant",
-      clearLabel: "Compliant",
-      statusLabel: "OS posture",
-      tone: "warning"
-    },
-    {
-      action: "Assets out of Warranty/EOL",
-      detail: "Scoped asset lifecycle posture",
-      count: actionPlan.assetsOutOfWarrantyEol,
-      total: actionPlan.scopedAssetsTotal,
-      scope: `${actionPlan.scopedAssetsTotal} assets`,
-      actionLabel: "Warranty/EOL",
-      clearLabel: "Current",
-      statusLabel: "Lifecycle",
-      tone: "critical"
-    },
-    {
-      action: "Servers with Critical findings",
-      detail: "Unique server assets",
-      count: actionPlan.serversWithCriticalFindings,
-      total: actionPlan.scopedServersTotal,
-      scope: `${actionPlan.scopedServersTotal} servers`,
-      actionLabel: "Critical",
-      clearLabel: "No critical",
-      statusLabel: "Server risk",
-      tone: "critical"
-    }
-  ];
-  const discoveryActionRows: ActionPlanMatrixRow[] = [
-    {
-      action: "Networks without discovery enabled",
-      detail: "Managed network discovery status",
-      count: actionPlan.networksWithoutDiscoveryEnabled,
-      total: actionPlan.scopedNetworksTotal,
-      scope: `${actionPlan.scopedNetworksTotal} networks`,
-      actionLabel: "Disabled",
-      clearLabel: "Enabled",
-      statusLabel: "Discovery status",
-      tone: "warning"
-    },
-    {
-      action: "Networks Discovery non-compliant",
-      detail: "Discovery-enabled networks with gaps",
-      count: actionPlan.networksDiscoveryNonCompliant,
-      total: actionPlan.discoveryEnabledNetworksTotal,
-      scope: `${actionPlan.discoveryEnabledNetworksTotal} discovery-enabled networks`,
-      actionLabel: "Non-compliant",
-      clearLabel: "Compliant",
-      statusLabel: "Coverage",
-      tone: "warning"
-    },
-    {
-      action: "Networks with no target state",
-      detail: "Target state inventory coverage",
-      count: actionPlan.networksWithNoTargetState,
-      total: actionPlan.scopedNetworksTotal,
-      scope: `${actionPlan.scopedNetworksTotal} networks`,
-      actionLabel: "No target",
-      clearLabel: "Target set",
-      statusLabel: "Target state",
-      tone: "warning"
-    }
-  ];
-  const ictSystemModellingActionRows: ActionPlanMatrixRow[] = [
-    {
-      action: "DIIS ICT Systems defined",
-      detail: "Total DIIS-defined ICT systems in scope",
-      count: actionPlan.diisIctSystemsDefined,
-      scope: "DIIS inventory",
-      statusLabel: "Defined scope",
-      tone: "watch",
-      emphasized: true
-    },
-    {
-      action: "ICT Systems not modelled",
-      detail: "DIIS systems without TSAAT models",
-      count: actionPlan.ictSystemsNotModelled,
-      total: actionPlan.diisIctSystemsDefined,
-      scope: `${actionPlan.diisIctSystemsDefined} DIIS systems`,
-      actionLabel: "Not modelled",
-      clearLabel: "Modelled",
-      statusLabel: "Modelling",
-      tone: "warning"
-    },
-    {
-      action: "ICT System Modelled and Discovery non-compliant",
-      detail: "Modelled systems with discovery gaps",
-      count: actionPlan.ictSystemsModelledDiscoveryNonCompliant,
-      total: actionPlan.ictSystemsModelled,
-      scope: `${actionPlan.ictSystemsModelled} modelled systems`,
-      actionLabel: "Non-compliant",
-      clearLabel: "Compliant",
-      statusLabel: "Discovery",
-      tone: "critical"
-    }
-  ];
-  const threatSurfaceQuickWinRows: ActionPlanQuickWinRow[] = threatSurfaceQuickWins.map((row) => {
-    const severityDetail = [
-      row.criticalExposureCount ? `${row.criticalExposureCount} Critical Exposure` : null,
-      row.highRiskCount ? `${row.highRiskCount} High Risk` : null,
-      row.otherCount ? `${row.otherCount} other` : null
-    ]
-      .filter((value): value is string => Boolean(value))
-      .join(" · ");
-    return {
-      actionText: row.actionText,
-      detail: severityDetail || `${row.total} open findings`,
-      count: row.total,
-      scope: row.systemCount
-        ? `${row.systemCount} ICT system${row.systemCount === 1 ? "" : "s"}`
-        : "Network / unassigned scope",
-      priorityLabel: row.criticalExposureCount ? "Immediate" : row.highRiskCount ? "Urgent" : "Planned",
-      tone: row.criticalExposureCount ? "critical" : row.highRiskCount ? "warning" : "watch"
-    };
-  });
-  const discoveryQuickWinRows: ActionPlanQuickWinRow[] = [
-    {
-      actionText: "Enable discovery on managed networks currently marked Discovery Non Enabled.",
-      detail: "Activate approved discovery tooling and scheduled scans on networks where discovery is disabled.",
-      count: actionPlan.networksWithoutDiscoveryEnabled,
-      scope: `${actionPlan.scopedNetworksTotal} networks`,
-      priorityLabel: "High",
-      tone: "warning" as const
-    },
-    {
-      actionText: "Remediate discovery-tool coverage gaps on discovery-enabled networks.",
-      detail: "Close missing-tool and coverage gaps so the current network inventory is complete and reliable.",
-      count: actionPlan.networksDiscoveryNonCompliant,
-      scope: `${actionPlan.discoveryEnabledNetworksTotal} discovery-enabled networks`,
-      priorityLabel: "High",
-      tone: "warning" as const
-    },
-    {
-      actionText: "Define and load target-state inventories for networks with no target state.",
-      detail: "Establish the expected asset inventory baseline used to identify unmanaged or missing devices.",
-      count: actionPlan.networksWithNoTargetState,
-      scope: `${actionPlan.scopedNetworksTotal} networks`,
-      priorityLabel: "Planned",
-      tone: "watch" as const
-    }
-  ].filter((row) => row.count > 0);
-  const ictSystemModellingQuickWinRows: ActionPlanQuickWinRow[] = [
-    {
-      actionText: "Complete TSAAT models for DIIS-defined ICT systems that are not modelled.",
-      detail: "Create the missing system, environment, asset and relationship model needed for risk analysis.",
-      count: actionPlan.ictSystemsNotModelled,
-      scope: `${actionPlan.diisIctSystemsDefined} DIIS systems`,
-      priorityLabel: "High",
-      tone: "warning" as const
-    },
-    {
-      actionText: "Remediate discovery coverage gaps for modelled DIIS ICT systems.",
-      detail: "Close discovery gaps that reduce confidence in otherwise modelled ICT system boundaries.",
-      count: actionPlan.ictSystemsModelledDiscoveryNonCompliant,
-      scope: `${actionPlan.ictSystemsModelled} modelled systems`,
-      priorityLabel: "Immediate",
-      tone: "critical" as const
-    }
-  ].filter((row) => row.count > 0);
-  const actionPlanModels: Record<
-    ActionPlanTabId,
-    { title: string; rows: ActionPlanMatrixRow[]; quickWins: ActionPlanQuickWinRow[] }
-  > = {
-    "threat-surface": {
-      title: "Threat Surface Area Action Plan",
-      rows: threatSurfaceActionRows,
-      quickWins: threatSurfaceQuickWinRows
-    },
-    discovery: {
-      title: "Discovery Action Plan",
-      rows: discoveryActionRows,
-      quickWins: discoveryQuickWinRows
-    },
-    "ict-system-modelling": {
-      title: "ICT System Modelling Action Plan",
-      rows: ictSystemModellingActionRows,
-      quickWins: ictSystemModellingQuickWinRows
-    }
-  };
 
   const tabPanelClass = "min-h-0 flex-1 overflow-auto";
 

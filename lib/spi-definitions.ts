@@ -951,7 +951,7 @@ export function renderSpiOutcomeReason(definition: SpiDefinition, evaluation: Sp
     ...evaluation.evidence
   };
 
-  return template.reasonTemplate.replace(/\{([A-Za-z0-9_]+)\}/g, (match, key: string) => {
+  return template.reasonTemplate.replace(/\{([A-Za-z0-9_]+)\}/g, (_match, key: string) => {
     const value = context[key];
     return value === null || value === undefined ? "" : String(value);
   });
