@@ -20,6 +20,14 @@ npm run setup:login
 
 The login command asks for a username, password (8-256 characters) and password confirmation. Run it again to change the login, even when logindetails already exists; saving signs out existing sessions. Password entry is hidden. Use the same Windows identity to run setup and the app.
 
+If `npm run setup:login` does not work or hangs before showing the username prompt, press **Ctrl+C** to cancel it, then run the setup script directly from the repository root in PowerShell:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\ensure-logindetails.ps1 -Configure
+~~~
+
+This fallback uses the same username, password and confirmation prompts for both SQL and No-SQL builds.
+
 Choose a build:
 
 | Action | Standard SQL | No-SQL (JSON files) |
