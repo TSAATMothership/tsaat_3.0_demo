@@ -1,6 +1,6 @@
 {
   "reviewedAgainst": "JSON seed rules and fresh-install SQL contract, 2026-11-02",
-  "instructions": "Review lib/json-store/evaluations.ts, data-loader.ts, NoSQL/cmdb-attributes.json and regression tests whenever SQL contracts change. Refresh checksums only after validating both providers.",
+  "instructions": "Review lib/spi-evaluation.ts, lib/json-store/evaluations.ts, data-loader.ts, NoSQL/cmdb-attributes.json and regression tests whenever SQL contracts change. Refresh checksums only after validating both providers.",
   "files": {
     "Database Schema/database-schema.sql": "a241e8f26bb67ede7c2f1b20d985b4c7300efa5cffed01463cf6f9db1f35b936",
     "Database Schema/data/spi-sql-calculations.json": "5225ccaee34c9e9768cb4b726bf6a672b50ba9aeda5884207c22e933e0ac4397",

@@ -20,6 +20,10 @@ npm run test:nosql
 
 compileApp.cmd sql, nosql or all performs archive verification, npm ci --offline, checks and the selected compilation. It reinstalls node_modules; stop local app processes before using it. Ordinary npm run build/build:sql/build:nosql/build:all expect npm ci first. Run the selected artifact using start:sql or start:nosql and provision login/storage as described in the main README. Builds keep existing NoSQL/data and never seed an operational SQL database.
 
+JSON sample enrichment, SQL-export conversion and population use local source files and Node built-ins. No export or database connection is attempted during either build; pre-existing JSON stores remain intact.
+
+Login setup and credential replacement use the existing local PowerShell, DPAPI and PBKDF2 implementation; npm run setup:login adds no packages or downloads for either provider.
+
 The repository .npmrc sets offline=true, ignore-scripts=true, audit=false, update-notifier=false and the existing legacy-peer-deps policy. npm ci remains the installation contract. The lockfile resolves every package, including its legacy v2 dependency table, to file:vendor/npm archives. Native SWC, esbuild, Rollup and resolver binaries are packaged dependencies; no compiler or browser download is needed. Current dependencies work without install lifecycle scripts. A future package requiring a lifecycle-generated artifact needs an explicit reviewed local preparation step and new offline evidence; do not simply enable dependency scripts.
 
 To demonstrate independence from a previous cache, choose a new cache directory:
@@ -63,3 +67,7 @@ Missing/corrupt archive: restore the reviewed archive from the compatible reposi
 Network attempt: remove the build-time fetch/download, commit the required asset/code, and add regression coverage. Do not disable the guard or clear attempt evidence to make the build pass.
 
 Dependency rollback: restore the previous package manifest, lockfile and vendor archives as one change, reinstall offline and rebuild both providers. No SQL schema, JSON format or data migration is associated with this packaging change. Runtime credentials, JSON stores and build outputs remain excluded from Git.
+
+The explicit `enrich:nosql` command uses the already pinned local tsx package and shared TypeScript rule code. It adds no packages or network calls, and builds do not invoke it against existing stores.
+
+Risk-profile explorer new-tab links use the existing Next/React packages and local routes; no dependency or build asset changes are required. The same empty-cache offline installation and both-build checks apply.

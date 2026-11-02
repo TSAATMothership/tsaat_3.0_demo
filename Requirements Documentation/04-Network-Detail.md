@@ -2,7 +2,7 @@
 
 Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 
-Selecting a Network Explorer name opens an in-place right-hand panel, not a separate network drill-through page. The panel contains description, Operational Contacts, ATO details, DIIS details, Linked ICT Systems and Asset Footprint Summary. Values come from the current scoped snapshot; missing values are explicit.
+Selecting a Network Explorer name opens a new browser tab at the existing Network Risk Profile route, with network, networkDetails and dataDate presets. The right-hand details panel opens automatically in that tab; the originating explorer remains unchanged. The panel contains description, Operational Contacts, ATO details, DIIS details, Linked ICT Systems and Asset Footprint Summary. Values come from the current scoped snapshot; missing values are explicit.
 
 Linked ICT system names open a new TSAAT browser tab with that system selected in the header and the same data date. The linked table omits Security Domain. ATO/DIIS numbers remain; the removed Cyber GRC Record and DIIS Record rows are not rendered. Assets are deduplicated and footprint counts cover the canonical types.
 

@@ -4,12 +4,14 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { authenticateLoginDetailsUser, loadLoginDetailsFromFile } from "@/lib/login-details";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ENSURE_SCRIPT = path.join(REPO_ROOT, "scripts", "ensure-logindetails.ps1");
 
-function withCleanTsaatLoginEnv(overrides: Record<string, string> = {}): NodeJS.ProcessEnv {
+function withCleanTsaatLoginEnv(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith("TSAAT_LOGIN_")) {
@@ -25,6 +27,15 @@ function runPowerShell(scriptPath: string, args: string[], env: NodeJS.ProcessEn
     env,
     encoding: "utf8",
     input: ""
+  });
+}
+
+async function runSetupLogin(loginDetailsPath: string, env: NodeJS.ProcessEnv) {
+  const manifest = JSON.parse(await fs.readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
+  // Exercise the actual npm script entry point, including its configuration switch.
+  const [command, ...args] = manifest.scripts["setup:login"].split(" ");
+  return spawnSync(command, [...args, "-RepoRoot", REPO_ROOT, "-LoginDetailsPath", loginDetailsPath], {
+    cwd: REPO_ROOT, env, encoding: "utf8", input: ""
   });
 }
 
@@ -51,9 +62,14 @@ describe("ensure-logindetails.ps1", () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "tsaat-ensure-logindetails-"));
     loginDetailsPath = path.join(tempDir, "logindetails");
+    await fs.mkdir(path.join(tempDir, "scripts"));
+    await fs.copyFile(path.join(REPO_ROOT, "scripts/invoke-dpapi.ps1"), path.join(tempDir, "scripts/invoke-dpapi.ps1"));
+    vi.spyOn(process, "cwd").mockReturnValue(tempDir);
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
@@ -101,6 +117,69 @@ describe("ensure-logindetails.ps1", () => {
 
     const after = await fs.readFile(loginDetailsPath, "utf8");
     expect(sha256(after)).toBe(sha256(before));
+  });
+
+  it("setup:login creates credentials that the application can use", async () => {
+    const result = await runSetupLogin(loginDetailsPath, withCleanTsaatLoginEnv({
+      TSAAT_LOGIN_USERNAME: " FirstUser ", TSAAT_LOGIN_PASSWORD: "first-password"
+    }));
+    expect(result.status, result.stderr).toBe(0);
+    await expect(authenticateLoginDetailsUser("FirstUser", "first-password")).resolves.toEqual({
+      username: "firstuser", sessionVersion: 1
+    });
+  });
+
+  it.each(["sql", "json"])("setup:login updates credentials and invalidates old sessions for %s", async provider => {
+    vi.stubEnv("TSAAT_DATA_PROVIDER", provider);
+    const created = runPowerShell(ENSURE_SCRIPT, ["-RepoRoot", REPO_ROOT, "-LoginDetailsPath", loginDetailsPath],
+      withCleanTsaatLoginEnv({ TSAAT_LOGIN_USERNAME: "AdminUser", TSAAT_LOGIN_PASSWORD: "initial-password" }));
+    expect(created.status, created.stderr).toBe(0);
+    const initial = await loadLoginDetailsFromFile();
+
+    const updated = await runSetupLogin(loginDetailsPath, withCleanTsaatLoginEnv({
+      TSAAT_LOGIN_USERNAME: "AdminUser", TSAAT_LOGIN_PASSWORD: "replacement-password"
+    }));
+    expect(updated.status, updated.stderr).toBe(0);
+    expect(updated.stdout).toContain("Updated encrypted logindetails file");
+    await expect(authenticateLoginDetailsUser("adminuser", "initial-password")).resolves.toBeNull();
+    await expect(authenticateLoginDetailsUser("adminuser", "replacement-password")).resolves.toEqual({
+      username: "adminuser", sessionVersion: 2
+    });
+    const stored = await loadLoginDetailsFromFile();
+    expect(stored?.createdAtUtc).toBe(initial?.createdAtUtc);
+    expect(stored?.passwordChangedAtUtc).not.toBe(initial?.passwordChangedAtUtc);
+    expect(stored?.passwordSalt).not.toEqual(initial?.passwordSalt);
+
+    const renamed = await runSetupLogin(loginDetailsPath, withCleanTsaatLoginEnv({
+      TSAAT_LOGIN_USERNAME: " ReplacementUser ", TSAAT_LOGIN_PASSWORD: "renamed-password"
+    }));
+    expect(renamed.status, renamed.stderr).toBe(0);
+    await expect(authenticateLoginDetailsUser("adminuser", "replacement-password")).resolves.toBeNull();
+    await expect(authenticateLoginDetailsUser("ReplacementUser", "renamed-password")).resolves.toEqual({
+      username: "replacementuser", sessionVersion: 3
+    });
+    const raw = await fs.readFile(loginDetailsPath, "utf8");
+    for (const secret of ["replacementuser", "replacement-password", "renamed-password"]) {
+      expect(raw).not.toContain(secret);
+      expect(updated.stdout + updated.stderr + renamed.stdout + renamed.stderr).not.toContain(secret);
+    }
+  });
+
+  it.each([
+    {},
+    { TSAAT_LOGIN_USERNAME: "newuser" },
+    { TSAAT_LOGIN_USERNAME: "newuser", TSAAT_LOGIN_PASSWORD: "short" }
+  ])("setup:login preserves existing credentials when input is missing or invalid: %j", async credentials => {
+    const created = runPowerShell(ENSURE_SCRIPT, ["-RepoRoot", REPO_ROOT, "-LoginDetailsPath", loginDetailsPath],
+      withCleanTsaatLoginEnv({ TSAAT_LOGIN_USERNAME: "adminuser", TSAAT_LOGIN_PASSWORD: "initial-password" }));
+    expect(created.status, created.stderr).toBe(0);
+    const before = await fs.readFile(loginDetailsPath, "utf8");
+    const result = await runSetupLogin(loginDetailsPath, withCleanTsaatLoginEnv(credentials));
+    expect(result.status).not.toBe(0);
+    expect(await fs.readFile(loginDetailsPath, "utf8")).toBe(before);
+    await expect(authenticateLoginDetailsUser("adminuser", "initial-password")).resolves.toEqual({
+      username: "adminuser", sessionVersion: 1
+    });
   });
 
   it("recreates an undecryptable logindetails noninteractively when credentials are provided", async () => {
@@ -160,7 +239,7 @@ describe("ensure-logindetails.ps1", () => {
     );
 
     expect(result.status).not.toBe(0);
-    expect(`${result.stdout}\n${result.stderr}`).toContain("logindetails is missing");
+    expect(`${result.stdout}\n${result.stderr}`).toContain("Interactive username input is unavailable");
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/TSAAT_LOGIN_USERNAME\s+and\s+TSAAT_LOGIN_PASSWORD/);
   });
 });

@@ -42,6 +42,8 @@ Network/ICT analysers use lazy APIs and worker-assisted filtering/rendering. Sep
 
 Retired `/networks`, `/systems` and entity paths redirect to current risk profiles/details, preserving scope/date. Existing report/export/API paths and internal compatibility contracts remain. Removed sidebar pages are not restored. [Generated routes](generated/application-inventory.md) distinguish available routes from visible navigation.
 
+The setup:login command invokes scripts/ensure-logindetails.ps1 with -Configure to create or replace the shared application credentials. Replacement reuses the existing DPAPI/PBKDF2 envelope and increments the stored session version checked by lib/auth-session.ts. Calling the helper without -Configure remains idempotent for a usable existing file. Credential collection and validation finish before persistence.
+
 Windows DPAPI/PowerShell remain runtime/setup dependencies for both builds. Only SQL requires sqlcmd and DB_config. Linux-only deployment is not claimed. Production cookies require HTTPS. Identity-provider, SQL-driver, framework-major or storage-model changes need an ADR and parity/migration plan.
 
 Unreachable legacy presentation modules are removed rather than maintained beside their replacements. Repository checks trace all routes, scripts and worker dependencies; TypeScript rejects unused private declarations. Compatibility roots remain supported. KPI SQL evaluates only the two current system metrics, retaining high-priority finding counts without executing retired SPI/discovery KPI calculations. See [ADR 0004](adr/0004-retired-runtime-cleanup.md).
@@ -52,8 +54,14 @@ The shared lib/data-loader.ts facade selects lib/sql-data-loader.ts or lib/json-
 
 Settings replaces only Database Settings with JSON Data Files in No-SQL. Authentication/password handling and all other settings remain shared. SQL execution is explicitly blocked in No-SQL. Reference/snapshot revisions and settings timestamps participate in cache invalidation. Persisted finding history is required for imported JSON snapshots; no historical events are fabricated.
 
+Data population is an explicit maintenance operation. SQL table exports are converted into the shared Dataset shape, preserving IDs, dates, inventory details, scope and persisted findings. Missing demonstration attributes are enriched before validated snapshot revisions are published through one manifest replacement; source provenance and a full pre-import backup support recovery. Existing reference/settings files remain authoritative. JSON Shadow IT system scope includes the ARP owner, matching the SQL predicate. See [ADR 0008](adr/0008-explicit-nosql-data-population.md).
+
 See [data providers](data-providers.md) and [ADR 0006](adr/0006-dual-data-provider-builds.md). This replaces the removed static demo and its browser adapters.
 
 ## Offline build boundary
 
 All application and compiler dependency archives live in vendor/npm, with local file resolutions in package-lock.json and original registry URLs/SHA-512 values in a provenance manifest. Node/npm and Windows/PowerShell are preinstalled host tools. npm lifecycle scripts are disabled; current native tools load their packaged platform binaries. Both build commands verify the archive closure, disable telemetry and preload a network-denial guard into Next and inherited Node children/workers. A shared attempt log makes even caught network attempts fail the build. Runtime start/dev keep normal provider networking. CI adds an outbound firewall rule for Node during installation, checks and compilation, using a new empty cache. See [ADR 0007](adr/0007-offline-compilation.md) and the [build contract](offline-builds.md).
+
+The pure SPI evaluator in lib/spi-evaluation.ts is shared by the JSON server and the explicit sample maintenance command. The command reads existing reference/settings files under the store writer lock and uses the existing snapshot publication boundary. It never synthesizes findings in a page request or build. Original history remains immutable; appended sample observations carry provenance and are checked against current applicable evaluations. SQL classification and settings precedence are retained without changing SQL procedures or JSON applicability. See [ADR 0009](adr/0009-explicit-sample-finding-coverage.md).
+
+Risk-profile explorer drill-throughs share the RiskProfile component and existing riskProfileHref scope/date serializer. Native new-tab anchors narrow the destination to the selected row and retain any intersecting applied scope, resolved snapshot, and destination filter. Entity names reuse the existing networkDetails/systemDetails query contract; no new route, storage operation or data dependency is introduced.

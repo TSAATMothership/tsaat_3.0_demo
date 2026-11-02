@@ -8,6 +8,9 @@ import puppeteer from "puppeteer-core";
 import { PDFDocument } from "pdf-lib";
 import workbookTools from "../lib/network-target-state-template-workbook.ts";
 const { readXlsxEntries } = workbookTools;
+import coverageTools from "./nosql-coverage.ts";
+const { enrichJsonStore } = coverageTools;
+import { populateJsonStore } from "./populate-json-store.mjs";
 import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 
 assert(fs.existsSync(path.join(repositoryRoot, ".next-nosql", "BUILD_ID")), "Run npm run build:nosql first.");
@@ -35,6 +38,9 @@ async function stopServer() {
 }
 try {
   await initializeJsonStore({ target: env.TSAAT_JSON_DATA_DIR });
+  if (process.env.TSAAT_TEST_SQL_EXPORT) await populateJsonStore({ target: env.TSAAT_JSON_DATA_DIR,
+    sourceExport: process.env.TSAAT_TEST_SQL_EXPORT, apply: true, demo: true, backupDirectory: path.join(directory, "before-source-import") });
+  await enrichJsonStore({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-coverage-enrichment") });
   fs.mkdirSync(path.join(directory, "scripts"));
   fs.copyFileSync(path.join(repositoryRoot, "scripts/invoke-dpapi.ps1"), path.join(directory, "scripts/invoke-dpapi.ps1"));
   fs.mkdirSync(path.join(directory, "data/templates"), { recursive: true });
@@ -95,8 +101,9 @@ try {
     await page.waitForFunction(id => document.getElementById('settings-tab-' + id)?.getAttribute('aria-selected') === 'true', {}, tab);
   }
   await page.keyboard.press("Escape");
+  let drillThroughTabs = 0;
   for (const kind of ["network", "ict-system"]) {
-    await navigate("/" + kind + "-risk-profile", kind === "network" ? "network=net-1" : "system=sys-1");
+    await navigate("/" + kind + "-risk-profile", kind === "network" ? "network=net-1,net-2" : "system=sys-1,sys-2");
     await page.click('[role="tab"][id$="-tab-heatmap"]');
     assert.equal(await page.$eval('[aria-label="Heatmap square size"]', node => node.value), "40");
     await page.waitForSelector('[role="gridcell"]');
@@ -105,9 +112,65 @@ try {
     await page.click('[aria-label="Clear heatmap search"]');
     await page.waitForSelector('[role="gridcell"]');
     await page.click('[role="tab"][id$="-tab-explorer"]');
-    await page.click('button[aria-label^="Open ' + (kind === "network" ? "Network" : "ICT System") + ' Details"]');
-    await page.waitForSelector("dialog[open]");
-    await page.keyboard.press("Escape");
+    const scopeKey = kind === "network" ? "network" : "system";
+    const orderControl = '[aria-label="Order ' + (kind === "network" ? "networks" : "ICT systems") + '"]';
+    await page.select(orderControl, "name");
+    const firstRow = ".network-risk-table tbody tr:first-child";
+    const selectedId = await page.$eval(firstRow + " a", (link, key) => new URL(link.href).searchParams.get(key), scopeKey);
+    const searchControl = '.network-risk-table input[type="search"]';
+    await page.type(searchControl, selectedId);
+    await page.waitForFunction(() => document.querySelectorAll(".network-risk-table tbody tr").length === 1);
+    const links = await page.$$eval(firstRow + " a", nodes => nodes.map(node => ({ href: node.href, target: node.target, rel: node.rel, label: node.getAttribute("aria-label") })));
+    const expected = [
+      { path: "/" + kind + "-risk-profile", extra: { [scopeKey + "Details"]: selectedId } },
+      { path: "/discovery-coverage", extra: { discoveryView: "endpoints" } },
+      { path: "/measures", extra: { measuresTab: "measures-spi" } },
+      { path: "/discovery-coverage", extra: { discoveryView: "compliance" } },
+      ...[{}, { severity: "Critical Exposure" }, { severity: "High Risk" }, { durationMin: "91" }].map(extra => ({ path: "/findings", extra: { findingsTab: "open", asOf: date, ...extra } }))
+    ];
+    assert.equal(links.length, expected.length);
+    const originalUrl = page.url();
+    for (const [index, link] of links.entries()) {
+      const targetUrl = new URL(link.href);
+      assert.equal(link.target, "_blank");
+      assert(link.rel.includes("noopener") && link.rel.includes("noreferrer"));
+      assert.match(link.label, /opens in a new tab/);
+      assert.equal(targetUrl.pathname, expected[index].path);
+      assert.deepEqual(Object.fromEntries(targetUrl.searchParams), { dataDate: date, [scopeKey]: selectedId, ...expected[index].extra });
+      await page.bringToFront();
+      const targetPromise = browser.waitForTarget(target => target.type() === "page" && target.url() === link.href, { timeout: 45000 });
+      const control = (await page.$$(firstRow + " a"))[index];
+      if (index === 0) { await control.focus(); await page.keyboard.press("Enter"); } else await control.click();
+      const popup = await (await targetPromise).page();
+      assert(popup, "The explorer drill-through must open a browser tab");
+      popup.on("pageerror", error => errors.push(error.message));
+      await popup.waitForSelector("main h1", { timeout: 45000 });
+      assert.equal(popup.url(), link.href);
+      assert.equal(await popup.evaluate(() => window.opener === null), true);
+      assert(!await popup.evaluate(() => document.body.innerText.includes("Application error")));
+      if (index === 0) {
+        await popup.waitForSelector("dialog[open]");
+        assert((await popup.$eval("dialog[open]", node => node.textContent)).includes(selectedId));
+        await popup.keyboard.press("Escape");
+        await popup.waitForSelector("dialog[open]", { hidden: true });
+      }
+      if (targetUrl.searchParams.has("severity")) {
+        const selector = '[aria-label="Clear Severity table filter"]';
+        await popup.waitForSelector(selector);
+        assert((await popup.$eval(selector, node => node.textContent)).includes(targetUrl.searchParams.get("severity")));
+      }
+      if (targetUrl.searchParams.has("durationMin")) {
+        const selector = '[aria-label="Clear Duration range filter"]';
+        await popup.waitForSelector(selector);
+        assert((await popup.$eval(selector, node => node.textContent)).includes("91"));
+      }
+      await popup.close(); drillThroughTabs++;
+      assert.equal(page.url(), originalUrl);
+      assert.equal(await page.$eval(searchControl, node => node.value), selectedId);
+      assert.equal(await page.$eval(orderControl, node => node.value), "name");
+      assert.equal(await page.$eval('[role="tab"][id$="-tab-explorer"]', node => node.getAttribute("aria-selected")), "true");
+      assert.equal(await page.$("dialog[open]"), null);
+    }
   }
   await navigate("/discovery-coverage?discoveryView=endpoints");
   await page.click("[data-cmdb-asset-id]");
@@ -160,7 +223,7 @@ try {
   assert(!fs.existsSync(path.join(directory, "DB_config")), "No-SQL runtime created SQL configuration");
   assert.deepEqual(errors, []);
   assert.deepEqual(sqlRequests, [], "No-SQL UI must not request SQL administration");
-  console.log("No-SQL production smoke passed: authentication, " + routes.length + " views, both heatmaps/analysers, Settings, CMDB, " + pdfCount + " PDFs, " + workbookCount + " workbooks, disk settings and restart persistence; no SQL configuration or executable.");
+  console.log("No-SQL production smoke passed: authentication, " + routes.length + " views, " + drillThroughTabs + " explorer drill-through tabs, both heatmaps/analysers, Settings, CMDB, " + pdfCount + " PDFs, " + workbookCount + " workbooks, disk settings and restart persistence; no SQL configuration or executable.");
 } catch (error) {
   console.error(serverOutput.slice(-3000)); throw error;
 } finally {

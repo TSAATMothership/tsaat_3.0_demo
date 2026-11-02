@@ -4,7 +4,7 @@ Use the discovery/risk-profile dark blue and cyan theme, compact panel headings 
 
 ## Tables
 
-Use FindingsDataTable and ExplorerColumn definitions for shared search, facets, numeric ranges, sorting, matching counts and empty states. Buttons open in-place details; anchors navigate. Network/ICT explorers use scrollable unpaginated tables. CMDB keeps searchable field/value rows with plain headers. KPI/SPI result pills have consistent widths and report links fit on one line.
+Use FindingsDataTable and ExplorerColumn definitions for shared search, facets, numeric ranges, sorting, matching counts and empty states. Buttons open in-place details; anchors navigate. Network/ICT explorers use scrollable unpaginated tables. All row drill-throughs are native links with target=_blank and rel=noopener noreferrer, with accessible names announcing the new tab. Names open the existing entity-details panel in the destination tab; counts and coverage links preselect the row, actual snapshot and matching severity/duration/view. The originating table retains its filters, order and focus. CMDB keeps searchable field/value rows with plain headers. KPI/SPI result pills have consistent widths and report links fit on one line.
 
 ## Dialogs and panels
 

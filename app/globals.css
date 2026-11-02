@@ -701,8 +701,8 @@ a {
 .network-risk-table .findings-explorer-table td { vertical-align: middle; }
 .network-risk-table .findings-explorer-table td.network-risk-name { min-width: 13rem; max-width: 20rem; }
 .network-risk-name > a, .network-risk-name > button { color: #9de2ef; font-weight: 500; }
-.network-risk-name > button { text-align: left; text-decoration: underline; text-underline-offset: .2rem; }
-.network-risk-name > button:hover { color: #e0f7ff; }
+.network-risk-name > a, .network-risk-name > button { text-align: left; text-decoration: underline; text-underline-offset: .2rem; }
+.network-risk-name > a:hover, .network-risk-name > button:hover { color: #e0f7ff; }
 .network-risk-name small { display: block; margin-top: .2rem; color: #8eaabd; font-size: .65rem; }
 .network-risk-status { display: inline-block; min-width: 7rem; padding: .25rem .45rem; border: 1px solid #476074; border-radius: 2rem; text-align: center; white-space: nowrap; font-size: .65rem; color: #a9c1d2; background: #203648; }
 .network-risk-status.is-good { color: #89dec6; background: #153b35; border-color: #337163; }

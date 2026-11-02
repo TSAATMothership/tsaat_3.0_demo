@@ -2,7 +2,7 @@
 
 Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 
-ICT System Risk Profile parallels the network profile for systems selected in the header. Tabs are ICT System Risk Profile, ICT System Explorer and Compliance Heatmap. The explorer is unpaginated and scrollable, with standard table search/filters and APP-ID immediately after DIIS. Selecting a system opens its details panel.
+ICT System Risk Profile parallels the network profile for systems selected in the header. Tabs are ICT System Risk Profile, ICT System Explorer and Compliance Heatmap. The explorer is unpaginated and scrollable, with standard table search/filters and APP-ID immediately after DIIS. Every explorer row drill-through opens a new browser tab. Selecting a system name opens its details panel in the new tab with that system and the same resolved snapshot selected. CI counts, SPI/discovery coverage and finding counts retain their destination-specific presets, including severity and duration. The original explorer keeps its scope, review focus, search and sort.
 
 Risk summaries, finding drill-through and the expandable critical/high trend use the same scoped model. The device/SPI heatmap follows the network contract: 40px initial cells, scale control, dynamic text search, compliant/non-compliant/unknown filtering, grouped device order and highest SPI severity at the right. The old system-to-SPI aggregate heatmap is removed.
 

@@ -145,10 +145,15 @@ export async function loadInstalledSoftwareExplorerData(params: WorkspaceSearchP
   })) : []) };
 }
 export async function loadShadowItExplorerData(params: WorkspaceSearchParams): Promise<SqlLoader.ShadowItExplorerData> {
-  const { dataset, assets } = await inventory(params);
-  return { snapshotDate: dataset.snapshotDate, rows: assets.flatMap(a => {
-    if (a.type !== "ip-node") return [];
-    const owner = dataset.assets.find(item => item.id === a.arpOwnerAssetId);
+  const dataset = await loadDatasetForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
+  const networks = scopeIds(params.network), systems = scopeIds(params.system);
+  const byId = new Map(dataset.assets.map(asset => [asset.id, asset]));
+  return { snapshotDate: dataset.snapshotDate, rows: dataset.assets.flatMap(a => {
+    if (a.type !== "ip-node" || (!networks.length && !systems.length) || !a.networkId.trim() || a.networkId === "net-unassigned") return [];
+    const candidate = a.discoveryApproach === "ARP Table" ? byId.get(a.arpOwnerAssetId ?? "") : undefined;
+    const owner = candidate?.networkId === a.networkId ? candidate : undefined;
+    if (networks.length && !networks.includes(a.networkId)) return [];
+    if (systems.length && !systems.includes(a.systemContext?.systemId ?? "") && !systems.includes(owner?.systemContext?.systemId ?? "")) return [];
     return [{ assetId: a.id, ownerAssetId: owner?.id ?? null, ipAddress: a.ipAddress ?? "", discoveryApproach: a.discoveryApproach,
       lastDiscoveredDate: a.lastDiscoveredDate ?? null, discoveredBy: a.discoveredBy ?? null, endpointName: owner?.name ?? null,
       endpointCiType: owner ? formatAssetTypeLabel(owner.type) : null, endpointIpAddress: owner?.ipAddress ?? null,

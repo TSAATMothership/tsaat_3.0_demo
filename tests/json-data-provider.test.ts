@@ -45,6 +45,16 @@ const vulnerability = { id: "v1", assetId: "test-server", cve: "CVE-2025-0001", 
 function evaluate(id: number, asset: Asset) { return evaluateSpi(asset, definitions.find(d => d.spiId === id)!); }
 
 describe("JSON datastore calculation contract", () => {
+  it("exposes MAC and model data for every scoped known endpoint while retaining unidentified nodes", async () => {
+    const result = await data.loadEndpointExplorerData({ network: sample.managedNetworks.map(n => n.id), dataDate: sample.snapshotDate });
+    const known = new Set(sample.assets.filter(a => a.type !== "ip-node").map(a => a.id));
+    const endpoints = result.rows.filter(row => known.has(row.assetId));
+    expect(endpoints).toHaveLength(1000);
+    expect(endpoints.every(row => row.macAddress?.trim() && row.deviceModel?.trim())).toBe(true);
+    const nodes = result.rows.filter(row => !known.has(row.assetId));
+    expect(nodes).toHaveLength(240);
+    expect(nodes.every(row => !row.macAddress && !row.deviceModel)).toBe(true);
+  });
   it("loads all configured indicators, snapshots, metadata and real reference relationships", async () => {
     expect(definitions).toHaveLength(10);
     expect((await data.loadKpiDefinitions()).map(k => k.id)).toEqual(["KPI-1", "KPI-2"]);
@@ -164,6 +174,18 @@ describe("JSON datastore calculation contract", () => {
     const systems = await data.loadEndpointExplorerData({ system: "sys-1", dataDate: early });
     const source = await data.loadDatasetForDate(early);
     expect(systems.rows.every(row => source.assets.find(a => a.id === row.assetId)?.systemContext?.systemId === "sys-1")).toBe(true);
+  });
+  it("includes ARP observations in their owner's system scope and keeps unowned scans out", async () => {
+    const systemId = "sys-1", dataset = await data.loadCurrentDataset();
+    const rows = (await data.loadShadowItExplorerData({ system: systemId, dataDate: dataset.snapshotDate })).rows;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every(row => row.discoveryApproach === "ARP Table" && dataset.assets.find(a => a.id === row.ownerAssetId)?.systemContext?.systemId === systemId)).toBe(true);
+    const owner = dataset.assets.find(a => a.id === rows[0].ownerAssetId)!;
+    const networks = await data.loadShadowItExplorerData({ network: owner.networkId, dataDate: dataset.snapshotDate });
+    expect(networks.rows.some(row => row.discoveryApproach === "IP Scan")).toBe(true);
+    expect(networks.rows.find(row => row.assetId === rows[0].assetId)).toEqual(rows[0]);
+    expect((await data.loadShadowItExplorerData({})).rows).toEqual([]);
+    expect((await data.loadShadowItExplorerData({ system: systemId, network: "missing-network" })).rows).toEqual([]);
   });
   it("persists settings to disk, preserves history and does not overwrite an existing store during setup", async () => {
     const settings = await data.loadMeasuresSettings();

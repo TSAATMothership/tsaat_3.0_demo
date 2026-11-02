@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Papa from "papaparse";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ComplianceHeatmap } from "@/components/compliance-heatmap";
 import { FindingsDataTable } from "@/components/findings-data-table";
 import { FindingsDurationPanel, severityBarColors } from "@/components/findings-duration-panel";
@@ -17,6 +17,11 @@ const number = (value: number) => value.toLocaleString("en-AU");
 const score = (value: number | null) => value === null ? "No assessments" : `${value}%`;
 type Review = "all" | "severe" | "ageing" | "discovery" | "unassessed";
 type RiskProfileTab = "profile" | "explorer" | "heatmap";
+
+function ExplorerDrillThrough({ href, label, children }: { href: string; label: string; children: ReactNode }) {
+  return <Link href={href} target="_blank" rel="noopener noreferrer" prefetch={false}
+    aria-label={label + " (opens in a new tab)"}>{children}</Link>;
+}
 
 function CoverageBar({ label, counts }: { label: string; counts: RiskProfileRow["spi"] }) {
   const description = `${number(counts.compliant)} compliant, ${number(counts.nonCompliant)} non-compliant and ${number(counts.unknown)} unknown of ${number(counts.total)} checks`;
@@ -65,6 +70,8 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
     if (moveFocus) tabButtons.current[tab]?.focus();
   };
   const href = (path: string, entityId?: string, extra?: Record<string, string>) => riskProfileHref(path, filters, model.snapshotDate, model.kind, entityId, extra);
+  const detailsHref = (entityId: string) => href(isSystem ? "/ict-system-risk-profile" : "/network-risk-profile", entityId,
+    { [isSystem ? "systemDetails" : "networkDetails"]: entityId });
   const findingsHref = (entityId?: string, extra?: Record<string, string>) => href("/findings", entityId, { findingsTab: "open", asOf: model.snapshotDate, ...extra });
   const views = useMemo(() => [
     { id: "all" as const, label: `All ${entities}`, rows: model.rows },
@@ -142,7 +149,7 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
     </>}
     </section>
       <section className="network-risk-explorer" role="tabpanel" id={`${idPrefix}-panel-explorer`} aria-labelledby={`${idPrefix}-tab-explorer`} hidden={activeTab !== "explorer"} tabIndex={0}>
-        <header><div><h2 id="network-risk-explorer-title">{explorerTitle}</h2><p>Review {entities}, then follow counts to their findings and devices.</p></div>
+        <header><div><h2 id="network-risk-explorer-title">{explorerTitle}</h2><p>Drill-throughs open in new tabs with the selected {isSystem ? "ICT system" : "network"}, snapshot and matching filters.</p></div>
           <label>Order <select className="report-sort" aria-label={`Order ${entities}`} value={order} onChange={event => setOrder(event.target.value)}><option value="risk">Risk priority</option><option value="compliance">Lowest SPI compliance</option><option value="findings">Most open findings</option><option value="name">{entityLabel} name A–Z</option></select></label>
         </header>
         <div className="network-risk-views" role="group" aria-label={`${entityLabel} review focus`}>{views.map(view => <button type="button" key={view.id} aria-pressed={view.id === review} onClick={() => setReview(view.id)}>{view.label} <span>{number(view.rows.length)}</span></button>)}</div>
@@ -151,15 +158,15 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
           emptyMessage={`No ${entities} match this review focus. Choose All ${entities} to see the selected scope. Define the scope in the header if none are available.`}
           actions={matching => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => exportCsv(matching)}>Export CSV</button>}
           renderRow={row => <tr key={row.id}>
-            <td className="network-risk-name"><button type="button" aria-haspopup="dialog" aria-label={`Open ${entityLabel} Details for ${row.name}`} onClick={() => setSelectedEntityId(row.id)}>{row.name} <span aria-hidden="true">→</span></button>
+            <td className="network-risk-name"><ExplorerDrillThrough label={`Open ${entityLabel} Details for ${row.name}`} href={detailsHref(row.id)}>{row.name} <span aria-hidden="true">↗</span></ExplorerDrillThrough>
               <small>{row.classification} · {row.criticality}</small><small>{row.context}</small></td>
             <td><span className={`network-risk-status ${row.status === "Compliant" ? "is-good" : row.status === "Non-compliant" ? "is-gap" : "is-unknown"}`}>{row.status}</span></td>
-            <td><Link aria-label={`${row.name}: ${row.ciCount} CIs`} href={href("/discovery-coverage", row.id, { discoveryView: "endpoints" })} prefetch={false}>{number(row.ciCount)}</Link></td>
-            <td className="network-risk-score"><Link aria-label={`Review ${row.name} SPI compliance`} href={href("/measures", row.id, { measuresTab: "measures-spi" })} prefetch={false}><CoverageBar label={`${row.name} SPI compliance`} counts={row.spi} /></Link></td>
-            <td className="network-risk-score"><Link aria-label={`Review ${row.name} discovery coverage`} href={href("/discovery-coverage", row.id, { discoveryView: "compliance" })} prefetch={false}><CoverageBar label={`${row.name} discovery coverage`} counts={row.discovery} /></Link></td>
-            <td><Link aria-label={`${row.name}: ${row.openFindings} open findings`} href={findingsHref(row.id)} prefetch={false}>{number(row.openFindings)}</Link></td>
-            <td className="network-risk-severe"><Link aria-label={`${row.name}: ${row.critical} critical exposure findings`} href={findingsHref(row.id, { severity: "Critical Exposure" })} prefetch={false}>{number(row.critical)}</Link><span> / </span><Link aria-label={`${row.name}: ${row.high} high risk findings`} href={findingsHref(row.id, { severity: "High Risk" })} prefetch={false}>{number(row.high)}</Link></td>
-            <td><Link aria-label={`${row.name}: ${row.overdue} findings over 90 days`} href={findingsHref(row.id, { durationMin: "91" })} prefetch={false}>{number(row.overdue)}</Link></td>
+            <td><ExplorerDrillThrough label={`${row.name}: ${row.ciCount} CIs`} href={href("/discovery-coverage", row.id, { discoveryView: "endpoints" })}>{number(row.ciCount)}</ExplorerDrillThrough></td>
+            <td className="network-risk-score"><ExplorerDrillThrough label={`Review ${row.name} SPI compliance`} href={href("/measures", row.id, { measuresTab: "measures-spi" })}><CoverageBar label={`${row.name} SPI compliance`} counts={row.spi} /></ExplorerDrillThrough></td>
+            <td className="network-risk-score"><ExplorerDrillThrough label={`Review ${row.name} discovery coverage`} href={href("/discovery-coverage", row.id, { discoveryView: "compliance" })}><CoverageBar label={`${row.name} discovery coverage`} counts={row.discovery} /></ExplorerDrillThrough></td>
+            <td><ExplorerDrillThrough label={`${row.name}: ${row.openFindings} open findings`} href={findingsHref(row.id)}>{number(row.openFindings)}</ExplorerDrillThrough></td>
+            <td className="network-risk-severe"><ExplorerDrillThrough label={`${row.name}: ${row.critical} critical exposure findings`} href={findingsHref(row.id, { severity: "Critical Exposure" })}>{number(row.critical)}</ExplorerDrillThrough><span> / </span><ExplorerDrillThrough label={`${row.name}: ${row.high} high risk findings`} href={findingsHref(row.id, { severity: "High Risk" })}>{number(row.high)}</ExplorerDrillThrough></td>
+            <td><ExplorerDrillThrough label={`${row.name}: ${row.overdue} findings over 90 days`} href={findingsHref(row.id, { durationMin: "91" })}>{number(row.overdue)}</ExplorerDrillThrough></td>
             {isSystem && <><td>{row.atoNumber || "Not provided"}</td><td>{row.diisId || "Not provided"}</td><td>{row.systemDetails?.apmNumber || "Not provided"}</td></>}
             <td>{row.modellingStatus ? "Yes" : "No"}</td>
           </tr>} /></div>

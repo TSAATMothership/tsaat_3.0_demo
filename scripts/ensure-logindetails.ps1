@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$RepoRoot,
-  [string]$LoginDetailsPath
+  [string]$LoginDetailsPath,
+  [switch]$Configure
 )
 
 $ErrorActionPreference = 'Stop'
@@ -97,7 +98,7 @@ function Read-RequiredUsername {
   }
 
   if ([Console]::IsInputRedirected) {
-    throw 'logindetails is missing and interactive username input is unavailable. Set TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD before running compileApp.cmd.'
+    throw 'Interactive username input is unavailable. Run npm run setup:login in a terminal or set both TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD.'
   }
 
   return Normalize-Username -Value (Read-Host 'Enter TSAAT login username')
@@ -109,11 +110,23 @@ function Read-RequiredPassword {
   }
 
   if ([Console]::IsInputRedirected) {
-    throw 'logindetails is missing and interactive password input is unavailable. Set TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD before running compileApp.cmd.'
+    throw 'Interactive password input is unavailable. Run npm run setup:login in a terminal or set both TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD.'
   }
 
-  $securePassword = Read-Host 'Enter TSAAT login password' -AsSecureString
-  return Normalize-Password -Value (Convert-SecureStringToPlaintext -SecureString $securePassword)
+  $securePassword = Read-Host 'Enter TSAAT login password (8-256 characters)' -AsSecureString
+  $secureConfirmation = $null
+  try {
+    $password = Normalize-Password -Value (Convert-SecureStringToPlaintext -SecureString $securePassword)
+    $secureConfirmation = Read-Host 'Confirm TSAAT login password' -AsSecureString
+    $confirmation = Convert-SecureStringToPlaintext -SecureString $secureConfirmation
+    if ($password -cne $confirmation.Trim()) {
+      throw 'Passwords do not match. logindetails was not changed.'
+    }
+    return $password
+  } finally {
+    $securePassword.Dispose()
+    if ($null -ne $secureConfirmation) { $secureConfirmation.Dispose() }
+  }
 }
 
 function Has-RequiredEnvCredentials {
@@ -281,7 +294,8 @@ function Write-LoginDetailsFile {
 function New-LoginDetailsFile {
   param(
     [Parameter(Mandatory = $true)][string]$Path,
-    [ValidateSet('Created', 'Recreated')][string]$Action = 'Created'
+    [ValidateSet('Created', 'Recreated', 'Updated')][string]$Action = 'Created',
+    [AllowNull()][object]$ExistingPayload = $null
   )
 
   $username = Read-RequiredUsername
@@ -314,8 +328,8 @@ function New-LoginDetailsFile {
     hashAlgorithm = $HashAlgorithmName
     iterationCount = $IterationCount
     passwordChangedAtUtc = $now
-    sessionVersion = 1
-    createdAtUtc = $now
+    sessionVersion = if ($null -ne $ExistingPayload) { [long]$ExistingPayload.sessionVersion + 1 } else { 1 }
+    createdAtUtc = if ($null -ne $ExistingPayload) { $ExistingPayload.createdAtUtc } else { $now }
     updatedAtUtc = $now
   }
   $payloadJson = ConvertTo-CanonicalJson -Value $payload
@@ -341,14 +355,24 @@ if ([string]::IsNullOrWhiteSpace($LoginDetailsPath)) {
 }
 
 if (Test-Path -LiteralPath $LoginDetailsPath) {
+  $existingPayload = $null
   try {
     $payload = Read-EncryptedPayload -Path $LoginDetailsPath
     Test-LoginDetailsPayload -Payload $payload
-    Write-Host "Validated encrypted logindetails file: $LoginDetailsPath"
-    exit 0
+    $existingPayload = $payload
   } catch {
     $existingReadError = $_.Exception.Message
     Write-Warning ("Existing logindetails cannot be decrypted or validated by this Windows identity. It may have been created by another Windows user/machine or it may be invalid. Details: {0}" -f $existingReadError)
+  }
+
+  if ($null -ne $existingPayload) {
+    if ($Configure) {
+      Write-Host 'Set the username and password for TSAAT. Saving signs out existing sessions.'
+      New-LoginDetailsFile -Path $LoginDetailsPath -Action Updated -ExistingPayload $existingPayload
+    } else {
+      Write-Host "Validated encrypted logindetails file: $LoginDetailsPath"
+    }
+    exit 0
   }
 
   $interactive = Is-Interactive

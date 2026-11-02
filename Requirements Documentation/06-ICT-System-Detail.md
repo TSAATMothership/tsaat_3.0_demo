@@ -2,7 +2,7 @@
 
 Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 
-Selecting an ICT System Explorer name opens the shared right-hand entity panel. It shows description, Operational Contacts, ATO details, DIIS details, APP-ID, Linked Networks and Asset Footprint Summary. APP-ID is backed by ict_system.apm_number and labeled APP-ID Number. The removed Cyber GRC Record and DIIS Record rows are absent.
+Selecting an ICT System Explorer name opens a new browser tab at the existing ICT System Risk Profile route with system, systemDetails and dataDate presets. The shared right-hand entity panel opens automatically in that tab while the originating explorer stays unchanged. It shows description, Operational Contacts, ATO details, DIIS details, APP-ID, Linked Networks and Asset Footprint Summary. APP-ID is backed by ict_system.apm_number and labeled APP-ID Number. The removed Cyber GRC Record and DIIS Record rows are absent.
 
 Linked network names open a new TSAAT browser tab with that network selected and the same date. The linked table omits Security Domain. The panel uses canonical declared/assigned/environment relationships to deduplicate linked networks and assets; a network link alone must not broaden unrelated system data.
 

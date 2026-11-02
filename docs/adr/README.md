@@ -13,3 +13,7 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0006: SQL and JSON compilation paths](0006-dual-data-provider-builds.md)
 
 - [0007: Mandatory offline compilation](0007-offline-compilation.md)
+
+- [0008: Explicit No-SQL data population](0008-explicit-nosql-data-population.md)
+
+- [0009: Explicit sample finding coverage](0009-explicit-sample-finding-coverage.md)

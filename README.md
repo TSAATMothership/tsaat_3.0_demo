@@ -18,6 +18,8 @@ npm ci --offline
 npm run setup:login
 ~~~
 
+The login command asks for a username, password (8-256 characters) and password confirmation. Run it again to change the login, even when logindetails already exists; saving signs out existing sessions. Password entry is hidden. Use the same Windows identity to run setup and the app.
+
 Choose a build:
 
 | Action | Standard SQL | No-SQL (JSON files) |
@@ -32,7 +34,7 @@ Open http://localhost:3000 and sign in. Select a network or ICT system to popula
 
 SQL additionally needs a compatible SQL Server database and sqlcmd on PATH (or SQLCMD_PATH). DB_config is encrypted for the runtime Windows identity. Setup does not import or replace database data; preserve strict TLS and configure a trusted certificate.
 
-No-SQL needs no SQL Server, sqlcmd or DB_config. It runs the same app server and login; it is not a static HTML export. Setup, build and start initialize a missing JSON store from the repository's sample snapshots/reference data and retain an existing store. Data and saved settings live in NoSQL/data by default; set TSAAT_JSON_DATA_DIR to an absolute path for another location. These samples are not an export of the live SQL database. See [JSON storage and recovery](docs/data-providers.md).
+No-SQL needs no SQL Server, sqlcmd or DB_config. It runs the same app server and login; it is not a static HTML export. Setup, build and start initialize a missing JSON store from the repository's sample snapshots/reference data and retain an existing store. Data and saved settings live in NoSQL/data by default; set TSAAT_JSON_DATA_DIR to an absolute path for another location. Fresh stores include complete sample endpoint/software details, entity profiles and Shadow IT observations. Existing stores can be populated from an explicit SQL export using npm run populate:nosql; preview first and apply with --source <export.json> --apply --demo to enrich imported records. Population backs up the store and preserves settings. For explicit sample finding coverage, run npm run enrich:nosql to preview, then npm run enrich:nosql -- --apply --demo. This fills missing known-endpoint details and adds open findings for every failed or unknown applicable SPI while preserving existing history; Shadow IT remains unidentified. Fresh samples remain independent of any live SQL database. See [JSON storage and recovery](docs/data-providers.md).
 
 For a NEW disposable SQL database only, use npm run db:bootstrap -- -DatabaseName TSAAT_UI3_Dev after reviewing [database operations](docs/database.md). The bootstrap refuses an existing database. Never apply the destructive base schema/seed loader to an operational database.
 
