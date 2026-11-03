@@ -5,16 +5,16 @@ import { WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
 import type { AnalyticsResult, Asset, AssetSpiEvaluation, ComplianceStatus, Dataset, Finding, ManagedNetwork } from "@/lib/types";
 import { testSeverityDefinitions, testSpiDefinitions, testMeasuresSettings } from "./spi-definition-fixtures";
 
-const network = (id: string, overrides: Partial<ManagedNetwork> = {}): ManagedNetwork => ({ id, name: id,
+const network = (id: string, overrides: Partial<ManagedNetwork> = {}): ManagedNetwork => ({ securityDomain: "UNKNOWN", id, name: id,
   criticality: "Critical", adfPlatform: false, enterprisePlatform: false, modellingStatus: false,
   discoveryStatus: "Discovery Enabled", assetIds: [], ictSystemIds: [], ...overrides });
 const asset = (id: string, networkId: string, systemId?: string): Asset => ({ id, name: id, hostname: id,
-  networkId, type: "server", securityDomain: "Protected", operatingSystem: null, installedSoftware: [], vulnerabilities: [],
+  networkId, type: "server", securityDomain: "PROTECTED", operatingSystem: null, installedSoftware: [], vulnerabilities: [],
   lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" },
   ...(systemId ? { systemContext: { systemId, environmentType: "Production" as const } } : {}) });
 const evaluation = (ci: Asset, statuses: ComplianceStatus[], covered = true): AssetSpiEvaluation => ({
   assetId: ci.id, assetType: ci.type, networkId: ci.networkId, systemId: ci.systemContext?.systemId ?? null,
-  environmentType: "Production", securityDomain: "Protected", systemCriticality: "Critical", discoveryCoverageCompliant: covered,
+  environmentType: "Production", securityDomain: "PROTECTED", systemCriticality: "Critical", discoveryCoverageCompliant: covered,
   evaluations: statuses.map((status, index) => ({ spiId: index + 1, status, evidence: {}, reasons: [] })) });
 const finding = (ci: Asset, overrides: Partial<Finding> = {}): Finding => ({ id: ci.id, spiId: 1, priorityRank: 1,
   severity: "High Risk", complianceStatus: "Non-compliant", status: "open", timestamp: "2026-07-01T12:00:00Z",
@@ -24,9 +24,9 @@ function fixture() {
   const assets = [asset("a", "net-a", "sys-shared"), asset("b", "net-b"), asset("c", "net-c"), asset("u", "net-unassigned")];
   const dataset: Dataset = { snapshotDate: "2026-11-01", generatedAt: "2026-11-01", assets, spiEvaluations: [],
     managedNetworks: [network("net-a"), network("net-b", { modellingStatus: true, discoveryStatus: "Discovery Non Enabled" }), network("net-c"), network("net-empty"), network("net-unassigned")],
-    ictSystems: [{ id: "sys-shared", name: "Shared service", networkId: "net-b", criticality: "Critical", securityDomain: "Protected",
+    ictSystems: [{ id: "sys-shared", name: "Shared service", networkId: "net-b", criticality: "Critical", securityDomain: "PROTECTED",
       adfPlatform: false, enterprisePlatform: false, modellingStatus: true, diisDefined: false, missionCapabilities: [], businessServices: [], environments: [] },
-      { id: "sys-other", name: "Shared infrastructure consumer", networkId: "net-b", criticality: "Critical", securityDomain: "Protected",
+      { id: "sys-other", name: "Shared infrastructure consumer", networkId: "net-b", criticality: "Critical", securityDomain: "PROTECTED",
         adfPlatform: false, enterprisePlatform: false, modellingStatus: false, diisDefined: false, missionCapabilities: [], businessServices: [],
         environments: [{ id: "prod", name: "Production", type: "Production", assetIds: ["a"] }] }] };
   const analytics: AnalyticsResult = { evaluations: [evaluation(assets[0], ["Compliant", "Non-compliant", "Unknown"]), evaluation(assets[1], ["Compliant"], false), evaluation(assets[3], ["Compliant"])],

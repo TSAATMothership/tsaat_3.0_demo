@@ -1,6 +1,7 @@
 import { Asset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
 import { filterRealNetworks, normalizeManagedNetworkFilter } from "@/lib/network-scope";
 import { scopeIds } from "@/lib/workspace-navigation";
+import { matchesSecurityDomain, securityDomainFilter, SECURITY_DOMAINS } from "@/lib/security-domain.mjs";
 
 export function parseFilters(searchParams: Record<string, string | string[] | undefined>): Filters {
   const getValue = (key: string): string | undefined => {
@@ -15,7 +16,7 @@ export function parseFilters(searchParams: Record<string, string | string[] | un
     managedNetwork: scopeIds(searchParams.network).filter((id) => normalizeManagedNetworkFilter(id)).join(",") || undefined,
     ictSystem: scopeIds(searchParams.system).join(",") || undefined,
     systemCriticality: (getValue("criticality") as Filters["systemCriticality"]) || undefined,
-    securityDomain: (getValue("securityDomain") as Filters["securityDomain"]) || undefined,
+    securityDomain: securityDomainFilter(searchParams.securityDomain),
     environment: (getValue("environment") as Filters["environment"]) || undefined,
     assetType: (getValue("assetType") as Filters["assetType"]) || undefined,
     severity: (getValue("severity") as Filters["severity"]) || undefined,
@@ -42,7 +43,7 @@ export function applyAssetFilters(
       return false;
     }
 
-    if (filters.securityDomain && asset.securityDomain !== filters.securityDomain) {
+    if (!matchesSecurityDomain(asset.securityDomain, filters.securityDomain)) {
       return false;
     }
 
@@ -84,7 +85,7 @@ export function filterNetworks(networks: ManagedNetwork[], filters: Filters, sys
   const networkIds = scopeIds(filters.managedNetwork).filter((id) => normalizeManagedNetworkFilter(id));
   const systemIds = scopeIds(filters.ictSystem);
   const systemNetworkIds = new Set(systems.filter((system) => systemIds.includes(system.id)).map((system) => system.networkId));
-  return realNetworks.filter((network) => (!networkIds.length || networkIds.includes(network.id)) && (!systemIds.length || systemNetworkIds.has(network.id)));
+  return realNetworks.filter((network) => matchesSecurityDomain(network.securityDomain, filters.securityDomain) && (!networkIds.length || networkIds.includes(network.id)) && (!systemIds.length || systemNetworkIds.has(network.id)));
 }
 
 export function filterSystems(systems: ICTSystem[], filters: Filters): ICTSystem[] {
@@ -100,7 +101,7 @@ export function filterSystems(systems: ICTSystem[], filters: Filters): ICTSystem
     if (filters.systemCriticality && system.criticality !== filters.systemCriticality) {
       return false;
     }
-    if (filters.securityDomain && system.securityDomain !== filters.securityDomain) {
+    if (!matchesSecurityDomain(system.securityDomain, filters.securityDomain)) {
       return false;
     }
     if (
@@ -139,7 +140,7 @@ export function buildFilterOptions(networks: ManagedNetwork[], systems: ICTSyste
       id: criticality,
       label: criticality
     })),
-    securityDomains: (["Secret", "Protected", "Unclassified"] as const).map((domain) => ({
+    securityDomains: SECURITY_DOMAINS.map((domain) => ({
       id: domain,
       label: domain
     })),

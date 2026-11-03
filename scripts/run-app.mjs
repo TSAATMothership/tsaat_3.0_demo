@@ -8,6 +8,16 @@ import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 const require = createRequire(import.meta.url);
 const [command, mode, ...args] = process.argv.slice(2);
 if (!["build", "dev", "start"].includes(command) || !["sql", "nosql"].includes(mode)) throw new Error("Usage: node scripts/run-app.mjs <build|dev|start> <sql|nosql> [Next options]");
+let nextCli;
+try {
+  nextCli = require.resolve("next/dist/bin/next");
+} catch (error) {
+  if (error.code !== "MODULE_NOT_FOUND") throw error;
+  console.error("Next.js is missing or incomplete in node_modules.");
+  console.error(`From the repository root (${repositoryRoot}), run: npm ci --offline`);
+  console.error(`Then retry npm run ${command}:${mode} with your original options. Installation uses the committed vendor/npm archives; no network is needed.`);
+  process.exit(1);
+}
 const env = { ...process.env, TSAAT_DATA_PROVIDER: mode === "nosql" ? "json" : "sql", NEXT_TELEMETRY_DISABLED: "1" };
 let attemptDirectory;
 if (command === "build") {
@@ -24,7 +34,7 @@ if (mode === "nosql") {
   const result = await initializeJsonStore();
   console.log("No-SQL JSON data: " + result.directory + (result.created ? " (initialized from repository JSON)" : " (existing data retained)"));
 }
-const child = spawn(process.execPath, [require.resolve("next/dist/bin/next"), command, ...args], {
+const child = spawn(process.execPath, [nextCli, command, ...args], {
   cwd: repositoryRoot, stdio: "inherit", env, windowsHide: true
 });
 child.on("error", error => { console.error(error.message); process.exitCode = 1; });

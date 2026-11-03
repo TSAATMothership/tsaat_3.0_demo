@@ -10,6 +10,8 @@ import workbookTools from "../lib/network-target-state-template-workbook.ts";
 const { readXlsxEntries } = workbookTools;
 import coverageTools from "./nosql-coverage.ts";
 const { enrichJsonStore } = coverageTools;
+import { populateVulnerabilityMetadata } from "./populate-vulnerability-metadata.mjs";
+import { populatePatchManagement } from "./populate-patch-management.mjs";
 import { populateJsonStore } from "./populate-json-store.mjs";
 import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 
@@ -40,6 +42,8 @@ try {
   await initializeJsonStore({ target: env.TSAAT_JSON_DATA_DIR });
   if (process.env.TSAAT_TEST_SQL_EXPORT) await populateJsonStore({ target: env.TSAAT_JSON_DATA_DIR,
     sourceExport: process.env.TSAAT_TEST_SQL_EXPORT, apply: true, demo: true, backupDirectory: path.join(directory, "before-source-import") });
+  await populateVulnerabilityMetadata({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-vulnerability-population") });
+  await populatePatchManagement({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-patch-population") });
   await enrichJsonStore({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-coverage-enrichment") });
   fs.mkdirSync(path.join(directory, "scripts"));
   fs.copyFileSync(path.join(repositoryRoot, "scripts/invoke-dpapi.ps1"), path.join(directory, "scripts/invoke-dpapi.ps1"));
@@ -83,15 +87,246 @@ try {
     assert(!await page.evaluate(() => document.body.innerText.includes('Application error')), route + ': server rendering failed');
     assert.deepEqual(errors, [], route + ': browser runtime errors');
   }
-  const routes = ["/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
+  const routes = ["/governance/overview", "/governance/trends", "/governance/insights", "/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
     "/discovery-coverage?discoveryView=overview", "/discovery-coverage", "/discovery-coverage?discoveryView=compliance", "/discovery-coverage?discoveryView=endpoints",
-    "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/network-risk-profile", "/ict-system-risk-profile",
+    "/discovery-coverage?discoveryView=security-vulnerabilities", "/discovery-coverage?discoveryView=patch-management", "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/network-risk-profile", "/ict-system-risk-profile",
     "/cyber-cop?copView=impact", "/cyber-cop?copView=network-impact-analyser", "/cyber-cop?copView=ict-system-impact-analyser", "/report"];
   const reports = new Set();
   for (const route of routes) {
     await navigate(route, route.includes("ict-system") ? "system=sys-1" : "network=net-1");
     (await page.$$eval("a", nodes => nodes.map(node => node.getAttribute("href")).filter(href => href?.startsWith("/api/")))).forEach(href => reports.add(href));
   }
+  // Domain scope defaults to all, stages edits, survives navigation and supports an explicit empty scope.
+  await navigate('/discovery-coverage?discoveryView=endpoints');
+  const domainTrigger='button[aria-controls="security-domain-options"]';
+  await page.click(domainTrigger);
+  assert.equal(await page.$$eval('#security-domain-options input[type="checkbox"]:checked',nodes=>nodes.length),3);
+  await page.click('#security-domain-options label:nth-child(1) input');
+  await page.click('#security-domain-options label:nth-child(3) input');
+  assert.equal(new URL(page.url()).searchParams.get('securityDomain'),null,'Domain edits must be staged');
+  await page.click('[aria-label="Update Security Domain filter"]');
+  await page.waitForFunction(()=>new URL(location.href).searchParams.get('securityDomain')==='SECRET');
+  await page.waitForSelector('dialog.loading-modal[open]',{hidden:true});
+  assert.equal(new URL(page.url()).searchParams.get('network'),'net-1');
+  assert.equal(new URL(page.url()).searchParams.get('dataDate'),date);
+  assert(await page.$('a[href*="securityDomain=SECRET"]'),'Sidebar links must retain domain scope');
+  await page.click(domainTrigger);
+  await page.click('#security-domain-options .workspace-scope-none');
+  await page.click('[aria-label="Update Security Domain filter"]');
+  await page.waitForFunction(()=>new URL(location.href).searchParams.get('securityDomain')==='NONE');
+  await page.waitForSelector('dialog.loading-modal[open]',{hidden:true});
+  assert.equal(await page.$$eval('.endpoint-explorer tbody tr button',nodes=>nodes.length),0);
+  await page.click(domainTrigger);
+  await page.click('#security-domain-options button[title^="Select all"]');
+  await page.click('[aria-label="Update Security Domain filter"]');
+  await page.waitForFunction(()=>!new URL(location.href).searchParams.has('securityDomain'));
+  await page.waitForSelector('dialog.loading-modal[open]',{hidden:true});
+  await page.focus(domainTrigger); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
+  assert.equal(await page.$eval(domainTrigger,node=>document.activeElement===node),true);
+  await navigate('/governance/overview');
+  assert.equal(await page.$eval('.workspace-nav-group:first-child .workspace-group-toggle', node => node.textContent.trim()), 'Governance');
+  assert.deepEqual(await page.$$eval('.workspace-nav-group:first-child a', nodes => nodes.map(node => node.textContent.trim())), ['Overview', 'Trends', 'Insights']);
+  for (const view of ['trends', 'insights', 'overview']) {
+    await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
+    await page.focus(`.workspace-nav-group:first-child a[href^="/governance/${view}"]`);
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
+    await page.waitForFunction(selected => window.location.pathname === '/governance/' + selected &&
+      document.querySelector('.governance-placeholder h1')?.textContent === selected[0].toUpperCase() + selected.slice(1), {}, view);
+    await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
+    assert.equal(new URL(page.url()).searchParams.get('network'), 'net-1');
+    assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
+    assert.equal(await page.$eval('.governance-placeholder h1', node => node.textContent), view[0].toUpperCase() + view.slice(1));
+    assert.equal(await page.$$eval('.workspace-navigation [aria-current="page"]', nodes => nodes.length), 1);
+    assert.equal(await page.$eval('.workspace-navigation [aria-current="page"]', node => new URL(node.href).pathname), '/governance/' + view);
+    assert.equal(await page.$$eval('.governance-placeholder table, .governance-placeholder canvas, .governance-placeholder button', nodes => nodes.length), 0);
+  }
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) {
+    fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR, { recursive: true });
+    await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'governance-desktop.png'), fullPage: true });
+  }
+  await navigate('/governance/insights', 'system=sys-1');
+  assert.equal(new URL(page.url()).searchParams.get('system'), 'sys-1');
+  assert.equal(await page.$$eval('.workspace-nav-group:first-child a', nodes => nodes.length), 3);
+  await navigate('/governance/trends', '');
+  assert.equal(await page.$('.governance-placeholder h1'), null);
+  // Overview counts and destinations must agree for both scope kinds and resolved historical dates.
+  for (const overviewScope of [{ query: 'network=net-1', date }, { query: 'system=sys-1', date: storage.snapshots[0].date }]) {
+    const overviewUrl = base + '/discovery-coverage?discoveryView=overview&' + overviewScope.query + '&dataDate=' + overviewScope.date;
+    await page.goto(overviewUrl, { waitUntil: 'networkidle0' });
+    assert(await page.$('[aria-label="Open Security Vulnerability Explorer"]'));
+    assert(await page.$('[aria-label="Open Patch Management Explorer"]'));
+    assert.equal(await page.$eval('.discovery-overview-snapshot strong', node => node.textContent), overviewScope.date);
+    const overviewLinks = await page.$$eval('.discovery-overview a[data-overview-count]', nodes => nodes.map(node => ({ href: node.getAttribute('href'), count: Number(node.getAttribute('data-overview-count')) })));
+    const overviewTargets = overviewLinks.filter(link => {
+      const params = new URL(link.href, base).searchParams;
+      const filters = JSON.parse(params.get('discoveryFilters') || '{}');
+      return (params.get('discoveryView') === 'security-vulnerabilities' && filters.columns?.severity?.length === 2) ||
+        (params.get('discoveryView') === 'patch-management' && (filters.ranges?.daysOverdue?.min === 1 || filters.columns?.status?.[0] === 'Unknown'));
+    }).filter((link, index, links) => links.findIndex(item => item.href === link.href) === index);
+    assert.equal(overviewTargets.length, 3);
+    if (overviewScope.query.startsWith('network')) {
+      if (process.env.TSAAT_TEST_ARTIFACT_DIR) {
+        fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR, { recursive: true });
+        await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'discovery-overview-desktop.png'), fullPage: true });
+      }
+      await page.setViewport({ width: 390, height: 844 }); await page.click('[aria-label="Hide sidebar"]');
+      await page.waitForFunction(() => document.querySelector('.workspace-sidebar')?.getBoundingClientRect().width < 50);
+      assert(await page.$eval('.workspace-content', node => node.scrollWidth <= node.clientWidth + 1));
+      await page.$eval('[data-discovery-security]', node => node.scrollIntoView({ block: 'start' }));
+      if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'discovery-overview-narrow.png'), fullPage: true });
+      await page.setViewport({ width: 1600, height: 1000 }); await page.click('[aria-label="Show sidebar"]');
+    }
+    for (const link of overviewTargets) {
+      await page.goto(overviewUrl, { waitUntil: 'networkidle0' });
+      await page.focus(`.discovery-overview a[href="${link.href}"]`);
+      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
+      const destination = new URL(page.url());
+      assert.equal(destination.searchParams.get('dataDate'), overviewScope.date);
+      const [kind, id] = overviewScope.query.split('='); assert.equal(destination.searchParams.get(kind), id);
+      const table = destination.searchParams.get('discoveryView') === 'patch-management' ? '.patch-results' : '.vulnerability-results';
+      assert.equal(await page.$eval(table + ' .endpoint-toolbar h2 span', node => Number(node.textContent.replaceAll(',', ''))), link.count);
+      assert(await page.$(table + ' .endpoint-active-filters'));
+      if (table === '.patch-results') {
+        const initial = await page.$eval(table + ' .endpoint-toolbar h2 span', node => node.textContent);
+        await page.click('#patch-explorer-tab-restarts'); await page.click('#patch-explorer-tab-posture');
+        assert.equal(await page.$eval(table + ' .endpoint-toolbar h2 span', node => node.textContent), initial);
+      }
+    }
+  }
+  await navigate('/discovery-coverage?discoveryView=overview', 'network=missing-network');
+  assert((await page.$eval('[data-discovery-security]', node => node.textContent)).includes('N/A patched & verified'));
+  assert((await page.$eval('[data-discovery-security]', node => node.textContent)).includes('No vulnerability observations'));
+  await navigate('/discovery-coverage?discoveryView=endpoints');
+  const endpointLayout = await page.$eval('.endpoint-results', node => ({
+    width: node.getBoundingClientRect().width,
+    cellPadding: getComputedStyle(node.querySelector('tbody td')).padding,
+    toolbarPadding: getComputedStyle(node.querySelector('.endpoint-toolbar')).padding,
+    minTableWidth: getComputedStyle(node.querySelector('table')).minWidth
+  }));
+  async function verifyInventoryLayoutAndCharts(selector, chartTitle, patchTabs = false) {
+    assert.equal(await page.$eval(selector, node => node.getBoundingClientRect().width), endpointLayout.width);
+    assert.deepEqual(await page.$eval(selector, node => ({
+      cellPadding: getComputedStyle(node.querySelector('tbody td')).padding,
+      toolbarPadding: getComputedStyle(node.querySelector('.endpoint-toolbar')).padding,
+      minTableWidth: getComputedStyle(node.querySelector('table')).minWidth
+    })), { cellPadding: endpointLayout.cellPadding, toolbarPadding: endpointLayout.toolbarPadding, minTableWidth: endpointLayout.minTableWidth });
+    const body = selector + ' .endpoint-table-scroll';
+    const originalHeight = await page.$eval(body, node => node.clientHeight);
+    assert(originalHeight > 220 && originalHeight < 700, 'Inventory rows need useful space within a bounded desktop panel.');
+    await page.select(selector + ' .endpoint-pagination select', '250');
+    assert(Math.abs(await page.$eval(body, node => node.clientHeight) - originalHeight) <= 1, 'Increasing page size must not grow the table panel.');
+    assert(await page.$eval(body, node => node.scrollHeight > node.clientHeight));
+    await page.select(selector + ' .endpoint-pagination select', '50');
+    assert.equal(await page.$$('.endpoint-charts .endpoint-chart').then(charts => charts.length), 4);
+    const chart = `[aria-label="${chartTitle} summary chart"]`;
+    const button = chart + ' .endpoint-chart-bars > button:first-child';
+    const count = await page.$eval(button + ' strong', node => Number(node.textContent.replaceAll(',', '')));
+    const total = await page.$eval(selector + ' h2 span', node => node.textContent);
+    await page.focus(button); await page.keyboard.press('Space');
+    await page.waitForSelector(button + '[aria-pressed="true"]');
+    assert.equal(await page.$eval(selector + ' h2 span', node => Number(node.textContent.replaceAll(',', ''))), count);
+    assert(await page.$(selector + ' .endpoint-active-filters'));
+    assert.equal(await page.$eval(button + ' strong', node => Number(node.textContent.replaceAll(',', ''))), count, 'Chart facets ignore their own selection.');
+    if (patchTabs) {
+      await page.click('#patch-explorer-tab-restarts'); await page.click('#patch-explorer-tab-posture');
+      assert.equal(await page.$eval(button, node => node.getAttribute('aria-pressed')), 'true');
+      assert.equal(await page.$eval(selector + ' h2 span', node => Number(node.textContent.replaceAll(',', ''))), count);
+    }
+    await page.click(selector + ' .endpoint-clear-all');
+    await page.waitForSelector(button + '[aria-pressed="false"]');
+    assert.equal(await page.$eval(selector + ' h2 span', node => node.textContent), total);
+  }
+  await navigate("/discovery-coverage?discoveryView=patch-management");
+  await verifyInventoryLayoutAndCharts('.patch-results', 'Patch status', true);
+  const patchSearch = 'input[aria-label="Search server patch records table"]';
+  const patchAsset = await page.$eval('.patch-results [data-cmdb-asset-id]', node => node.getAttribute('data-cmdb-asset-id'));
+  await page.focus('.explorer-guidance summary'); await page.keyboard.press('Enter');
+  await page.waitForSelector('.explorer-guidance[open]');
+  assert((await page.$eval('.explorer-guidance[open]', node => node.textContent)).includes('Patched requires current assessment evidence'));
+  await page.keyboard.press('Enter'); await page.waitForSelector('.explorer-guidance:not([open])');
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) { fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR, { recursive: true }); await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "patch-posture.png"), fullPage: true }); }
+  await page.type(patchSearch, patchAsset);
+  await page.waitForFunction(() => document.querySelectorAll('.patch-results [data-cmdb-asset-id]').length === 1);
+  const patchDownloadDirectory = path.join(directory, 'patch-downloads');
+  fs.mkdirSync(patchDownloadDirectory);
+  await browser.defaultBrowserContext().setDownloadBehavior({ policy: 'allow', downloadPath: patchDownloadDirectory });
+  const patchDownload = page.waitForResponse(response => response.url().includes('/api/discovery-coverage/patch-management/export'));
+  await page.click('.patch-results .endpoint-export');
+  const patchWorkbook = await patchDownload;
+  assert.equal(patchWorkbook.status(), 200);
+  assert(patchWorkbook.headers()['content-type']?.includes('spreadsheetml.sheet'), 'Patch export must return an Excel workbook.');
+  // Validate the completed browser download; DevTools can expose an empty body after a blob download.
+  const patchFile = path.join(patchDownloadDirectory, `patch-management-explorer-${date}.xlsx`);
+  const patchDownloadDeadline = Date.now() + 30000;
+  while (!fs.existsSync(patchFile) && Date.now() < patchDownloadDeadline) await new Promise(resolve => setTimeout(resolve, 100));
+  assert(fs.existsSync(patchFile), 'Patch workbook download did not complete.');
+  const patchBytes = fs.readFileSync(patchFile);
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) fs.writeFileSync(path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'patch-export.xlsx'), patchBytes);
+  const patchSheet = readXlsxEntries(patchBytes).get('xl/worksheets/sheet1.xml').toString();
+  assert.equal((patchSheet.match(/<row /g) ?? []).length, 2);
+  assert(patchSheet.includes(patchAsset) && patchSheet.includes('Last Restarted (UTC)') && patchSheet.includes('Change Reference'));
+  await page.focus('#patch-explorer-tab-posture'); await page.keyboard.press('ArrowRight');
+  await page.waitForSelector('#patch-explorer-tab-restarts[aria-selected="true"]');
+  assert((await page.$eval('.patch-results', node => node.textContent)).includes('Assessment Valid Until'));
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "patch-restarts.png"), fullPage: true });
+  await page.focus('#patch-explorer-tab-restarts'); await page.keyboard.press('End');
+  await page.waitForSelector('#patch-explorer-tab-planning[aria-selected="true"]');
+  assert((await page.$eval('.patch-results', node => node.textContent)).includes('Maintenance Window'));
+  await page.focus('#patch-explorer-tab-planning'); await page.keyboard.press('Home');
+  await page.waitForSelector('#patch-explorer-tab-posture[aria-selected="true"]');
+  assert.equal(await page.$eval(patchSearch, node => node.value), patchAsset);
+  await page.focus('.patch-results [data-cmdb-asset-id]'); await page.keyboard.press('Enter');
+  await page.waitForSelector('[data-cmdb-drill-through][data-load-state="ready"]');
+  await page.waitForSelector('[data-cmdb-network-impact]');
+  await page.keyboard.press('Escape'); await page.waitForSelector('dialog[open]', { hidden: true });
+  await page.waitForFunction(id => document.activeElement?.getAttribute('data-cmdb-asset-id') === id, {}, patchAsset);
+  await page.click(patchSearch, { clickCount: 3 }); await page.type(patchSearch, 'no-such-patch-server');
+  await page.waitForFunction(() => document.querySelector('.patch-results')?.textContent.includes('No matching records'));
+  await page.click(patchSearch, { clickCount: 3 }); await page.keyboard.press('Backspace');
+  await page.setViewport({ width: 390, height: 844 }); await page.click('[aria-label="Hide sidebar"]');
+  await page.waitForFunction(() => document.querySelector('.workspace-sidebar')?.getBoundingClientRect().width < 50);
+  assert(await page.$eval('.workspace-content', node => node.scrollWidth <= node.clientWidth + 1));
+  assert(await page.$eval('.patch-results .endpoint-table-scroll', node => node.scrollWidth > node.clientWidth));
+  assert(await page.$eval('.patch-results .endpoint-table-scroll', node => node.clientHeight <= 34 * parseFloat(getComputedStyle(document.documentElement).fontSize) + 1));
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "patch-narrow.png"), fullPage: true });
+  await page.setViewport({ width: 1600, height: 1000 }); await page.click('[aria-label="Show sidebar"]');
+  await navigate('/discovery-coverage?discoveryView=patch-management', 'system=sys-1'); assert(await page.$('.patch-results [data-cmdb-asset-id]'));
+  await navigate('/discovery-coverage?discoveryView=patch-management', 'network=missing-network');
+  assert((await page.$eval('.patch-results', node => node.textContent)).includes('No matching records'));
+  await navigate("/discovery-coverage?discoveryView=security-vulnerabilities");
+  await verifyInventoryLayoutAndCharts('.vulnerability-results', 'Severity');
+  const vulnerabilitySearch = 'input[aria-label="Search security vulnerabilities table"]';
+  assert(await page.$('.vulnerability-results [data-cmdb-asset-id]'));
+  await page.type(vulnerabilitySearch, "CVE-2024-34750");
+  await page.waitForFunction(() => [...document.querySelectorAll('.vulnerability-results tbody tr')].every(row => row.textContent.includes('CVE-2024-34750')));
+  const filteredWorkbook = await request("/api/discovery-coverage/security-vulnerabilities/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: { network: ["net-1"], system: [], dataDate: date }, filters: { search: "CVE-2024-34750", columns: {} } }) });
+  const vulnerabilitySheet = readXlsxEntries(filteredWorkbook.bytes).get("xl/worksheets/sheet1.xml").toString();
+  assert(vulnerabilitySheet.includes("Tomcat") && vulnerabilitySheet.includes("CVE-2024-34750") && vulnerabilitySheet.includes("Date CVE Code Created"));
+  assert(!vulnerabilitySheet.includes("CVE-2024-38475"));
+  await page.focus('.vulnerability-results [data-cmdb-asset-id]');
+  const focusedAsset = await page.$eval('.vulnerability-results [data-cmdb-asset-id]', node => node.getAttribute('data-cmdb-asset-id'));
+  await page.keyboard.press("Enter");
+  await page.waitForSelector('[data-cmdb-drill-through][data-load-state="ready"]', { timeout: 30000 });
+  await page.keyboard.press("Escape"); await page.waitForSelector('dialog[open]', { hidden: true });
+  await page.waitForFunction(id => document.activeElement?.getAttribute('data-cmdb-asset-id') === id, {}, focusedAsset);
+  await page.$eval('.vulnerability-results .endpoint-table-scroll', node => { node.scrollLeft = 0; });
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) { fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR, { recursive: true }); await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "vulnerability-desktop.png"), fullPage: true }); }
+  await page.setViewport({ width: 390, height: 844 });
+  await page.click('[aria-label="Hide sidebar"]');
+  await page.waitForFunction(() => document.querySelector('.workspace-sidebar')?.getBoundingClientRect().width < 50);
+  assert(await page.$eval('.workspace-content', node => node.scrollWidth <= node.clientWidth + 1));
+  assert(await page.$eval('.vulnerability-results .endpoint-table-scroll', node => node.scrollWidth > node.clientWidth));
+  assert(await page.$eval('.vulnerability-results .endpoint-table-scroll', node => node.clientHeight <= 34 * parseFloat(getComputedStyle(document.documentElement).fontSize) + 1));
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "vulnerability-narrow.png"), fullPage: true });
+  await page.$eval('.vulnerability-results', node => node.scrollIntoView({ block: "start" }));
+  if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "vulnerability-narrow-table.png"), fullPage: true });
+  await page.click(vulnerabilitySearch, { clickCount: 3 }); await page.type(vulnerabilitySearch, "no-such-cve-record");
+  await page.waitForFunction(() => document.querySelector('.vulnerability-results')?.textContent.includes('No matching records'));
+  await page.setViewport({ width: 1600, height: 1000 });
+  await navigate("/discovery-coverage?discoveryView=security-vulnerabilities", "system=sys-1");
+  assert(await page.$('.vulnerability-results'));
+  await navigate("/discovery-coverage?discoveryView=security-vulnerabilities", "network=missing-network");
+  assert((await page.$eval('.vulnerability-results', node => node.textContent)).includes('No matching records'));
   await navigate("/settings");
   await page.waitForSelector('dialog[open] #settings-tab-database-settings');
   assert.equal(await page.$eval('#settings-tab-database-settings', node => node.textContent.trim()), "JSON Data Files");
@@ -172,10 +407,60 @@ try {
       assert.equal(await page.$("dialog[open]"), null);
     }
   }
-  await navigate("/discovery-coverage?discoveryView=endpoints");
-  await page.click("[data-cmdb-asset-id]");
-  await page.waitForSelector('[data-cmdb-drill-through][data-load-state="ready"]', { timeout: 30000 });
-  await page.keyboard.press("Escape"); await page.waitForSelector("dialog[open]", { hidden: true });
+  for (const assetScope of ["network=net-1", "system=sys-1"]) {
+    await navigate("/discovery-coverage?discoveryView=endpoints", assetScope);
+    const originUrl = page.url();
+    const assetId = await page.$eval('[data-cmdb-asset-id]', node => node.getAttribute('data-cmdb-asset-id'));
+    await page.focus('[data-cmdb-asset-id]'); await page.keyboard.press("Enter");
+    await page.waitForSelector('[data-cmdb-drill-through][data-load-state="ready"]', { timeout: 30000 });
+    const cmdb = (await getJson(`/api/assets/cmdb-details?assetId=${encodeURIComponent(assetId)}&dataDate=${date}`)).asset;
+    if (assetScope.startsWith("network")) {
+      await page.setViewport({ width: 390, height: 844 });
+      await page.waitForFunction(() => {
+        const bounds = document.querySelector('[data-cmdb-network-impact]')?.getBoundingClientRect();
+        return bounds && bounds.left >= 0 && bounds.right <= innerWidth;
+      });
+      if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "cmdb-impact-narrow.png"), fullPage: true });
+      await page.setViewport({ width: 1600, height: 1000 });
+    }
+    const targetPromise = browser.waitForTarget(target => target.type() === "page" && target.url().startsWith(base + "/cyber-cop?") &&
+      new URL(target.url()).searchParams.get("impactAssetId") === assetId, { timeout: 45000 });
+    await page.focus('[data-cmdb-network-impact]'); await page.keyboard.press("Enter");
+    const popup = await (await targetPromise).page();
+    assert(popup, "CMDB impact action must open a separate window");
+    popup.on("pageerror", error => errors.push(error.message));
+    await popup.setViewport({ width: 1440, height: 960 });
+    await popup.waitForSelector('[data-network-impact-asset]', { timeout: 45000 });
+    assert.equal(await popup.$eval('[data-network-impact-asset]', node => node.getAttribute('data-network-impact-asset')), assetId);
+    const targetUrl = new URL(popup.url());
+    assert.equal(targetUrl.searchParams.get("dataDate"), date);
+    assert.equal(targetUrl.searchParams.get(assetScope.split("=")[0]), assetScope.split("=")[1]);
+    assert.equal(await popup.evaluate(() => window.opener === null), true);
+    await popup.waitForSelector('canvas[aria-label*="Canvas WebGL"]', { timeout: 30000 });
+    await popup.waitForFunction(() => !document.querySelector("main")?.textContent.includes("Loading Diagram"), { timeout: 30000 });
+    const query = `${assetScope}&dataDate=${date}&diagramNetworkIds=${encodeURIComponent(cmdb.networkId)}&impactAssetId=${encodeURIComponent(assetId)}`;
+    const diagram = await getJson("/api/cyber-cop/impact-analyser-2?" + query);
+    assert(diagram.rows.length > 0 && diagram.rows.every(row => row.assetId === assetId));
+    const findingSpi = diagram.rows.find(row => row.spiId)?.spiId ?? 1;
+    const findings = await getJson("/api/cyber-cop/impact-analyser-2/findings?" + query + "&spiId=" + findingSpi);
+    assert(findings.allFindings.every(row => row.assetId === assetId));
+    assert.equal(findings.totalCount, diagram.rows.filter(row => row.findingId && row.spiId === findingSpi).length);
+    if (process.env.TSAAT_TEST_ARTIFACT_DIR) await popup.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "asset-impact-" + assetScope.split("=")[0] + ".png"), fullPage: true });
+    await popup.reload({ waitUntil: "networkidle0" });
+    await popup.waitForSelector('[data-network-impact-asset]');
+    await popup.click('[data-network-impact-asset] button');
+    await popup.waitForFunction(() => !new URL(location.href).searchParams.has("impactAssetId"));
+    await popup.waitForSelector('[aria-label="Select networks for the Network Impact Analyser"]:not([disabled])');
+    assert.equal(await popup.$('[data-network-impact-asset]'), null);
+    await popup.close(); await page.bringToFront();
+    assert.equal(page.url(), originUrl);
+    assert(await page.$('[data-cmdb-drill-through][open]'));
+    await page.keyboard.press("Escape"); await page.waitForSelector("dialog[open]", { hidden: true });
+    await page.waitForFunction(id => document.activeElement?.getAttribute('data-cmdb-asset-id') === id, {}, assetId);
+  }
+  await navigate("/cyber-cop?copView=network-impact-analyser&impactAssetId=missing-asset");
+  assert((await page.$eval('[data-network-impact-asset]', node => node.textContent)).includes("unavailable"));
+  assert.equal(await page.$('canvas[aria-label*="Canvas WebGL"]'), null);
   for (const kind of ["network", "ict-system"]) {
     await navigate("/cyber-cop?copView=" + kind + "-impact-analyser", kind === "network" ? "network=net-1" : "system=sys-1");
     await page.click(kind === "network" ? '[aria-label="Select networks for the Network Impact Analyser"]' : '[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
@@ -194,7 +479,7 @@ try {
   const scope = { network: ["net-1"], system: [], dataDate: date };
   const post = value => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
   let workbookCount = 0;
-  for (const kind of ["endpoints", "installed-software", "shadow-it", "compliance"]) {
+  for (const kind of ["endpoints", "installed-software", "security-vulnerabilities", "shadow-it", "compliance"]) {
     const result = await request("/api/discovery-coverage/" + kind + "/export", post({ scope, filters: { search: "", columns: {}, recency: [] } }));
     assert(readXlsxEntries(result.bytes).has("xl/workbook.xml")); workbookCount++;
   }

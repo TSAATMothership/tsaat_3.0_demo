@@ -7,7 +7,7 @@ const details: CmdbAssetDetails = {
   snapshotDate: "2026-10-30", assetId: "ci-1", assetName: "Server One", assetHostname: "server-1",
   assetType: "server", assetIpAddress: "192.0.2.1", networkId: "net-1", networkName: "Network One",
   hasIctSystem: true, systemId: "sys-1", systemName: "System One", environmentType: "Production",
-  securityDomain: "Protected", cmdbRecordUrl: "https://cmdb.example.test/ci-1",
+  securityDomain: "PROTECTED", cmdbRecordUrl: "https://cmdb.example.test/ci-1",
   lifecycleEolStatus: "Supported", lifecycleWarrantyStatus: "Unknown", operatingSystemSummary: "Windows Server 2022 | Supported",
   networkOsSummary: null, patchStateSummary: null, installedSoftwareCount: 0, vulnerabilityCount: 2, criticalVulnerabilityCount: 1
 };

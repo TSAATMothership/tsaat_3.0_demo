@@ -24,7 +24,7 @@ function serverAsset(vulnerabilities: Vulnerability[]): Asset {
     name: "Server 1",
     hostname: "server-1",
     networkId: "net-1",
-    securityDomain: "Protected",
+    securityDomain: "PROTECTED",
     lifecycle: {
       eolStatus: "Supported",
       warrantyStatus: "InWarranty"

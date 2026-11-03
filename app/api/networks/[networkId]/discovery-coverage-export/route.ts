@@ -1,3 +1,4 @@
+import { matchesSecurityDomain, securityDomainFilter } from "@/lib/security-domain.mjs";
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
@@ -110,12 +111,12 @@ export async function GET(
   const analytics = buildAnalytics(
     dataset,
     dataset.ictSystems,
-    { managedNetwork: network.id },
+    { managedNetwork: network.id, securityDomain: securityDomainFilter(request.nextUrl.searchParams.get("securityDomain")) },
     spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
-  const assets = dataset.assets.filter((asset) => asset.networkId === network.id);
+  const assets = dataset.assets.filter((asset) => matchesSecurityDomain(asset.securityDomain, request.nextUrl.searchParams.get("securityDomain")) && asset.networkId === network.id);
   const allFindings = analytics.findings;
   const requestedKpiFilter = request.nextUrl.searchParams.get("kpiFilter") ?? undefined;
   const selectedKpiFilter = isKpiFilterKey(requestedKpiFilter) ? requestedKpiFilter : undefined;

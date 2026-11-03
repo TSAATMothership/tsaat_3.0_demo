@@ -875,6 +875,7 @@ function buildNetworkNode(
     details: {
       description: networkDetails.description,
       classification: network?.classification ?? "Unknown",
+      securityDomain: network?.securityDomain ?? "UNKNOWN",
       discoveryStatus: network?.discoveryStatus ?? "Unknown",
       criticality: network?.criticality ?? "Unknown",
       owner: networkDetails.owner,

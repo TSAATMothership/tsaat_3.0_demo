@@ -36,7 +36,7 @@ describe("analytics findings filtering", () => {
       snapshotDate: "2026-02-28",
       spiEvaluations: [],
       managedNetworks: [
-        {
+        { securityDomain: "UNKNOWN",
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
@@ -58,7 +58,7 @@ describe("analytics findings filtering", () => {
           diisDefined: true,
           networkId: "net-1",
           criticality: "Critical",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           missionCapabilities: [],
           businessServices: [],
           environments: [
@@ -74,7 +74,7 @@ describe("analytics findings filtering", () => {
           hostname: "srv-1",
           type: "server",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,
@@ -87,7 +87,7 @@ describe("analytics findings filtering", () => {
           hostname: "wks-1",
           type: "workstation",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,
@@ -117,7 +117,7 @@ describe("analytics findings filtering", () => {
       snapshotDate: "2026-02-28",
       spiEvaluations: [],
       managedNetworks: [
-        {
+        { securityDomain: "UNKNOWN",
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
@@ -139,7 +139,7 @@ describe("analytics findings filtering", () => {
           diisDefined: true,
           networkId: "net-1",
           criticality: "Critical",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           missionCapabilities: [],
           businessServices: [],
           environments: [{ id: "env-1", name: "Production", type: "Production", assetIds: ["srv-1", "wks-1"] }]
@@ -152,7 +152,7 @@ describe("analytics findings filtering", () => {
           hostname: "srv-1",
           type: "server",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,
@@ -165,7 +165,7 @@ describe("analytics findings filtering", () => {
           hostname: "wks-1",
           type: "workstation",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,
@@ -219,7 +219,7 @@ describe("analytics findings filtering", () => {
       snapshotDate: "2026-02-28",
       spiEvaluations: [],
       managedNetworks: [
-        {
+        { securityDomain: "UNKNOWN",
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
@@ -241,7 +241,7 @@ describe("analytics findings filtering", () => {
           diisDefined: true,
           networkId: "net-1",
           criticality: "Critical",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           missionCapabilities: [],
           businessServices: [],
           environments: [{ id: "env-1", name: "Production", type: "Production", assetIds: ["srv-1"] }]
@@ -254,7 +254,7 @@ describe("analytics findings filtering", () => {
           hostname: "srv-1",
           type: "server",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,
@@ -296,7 +296,7 @@ describe("analytics findings filtering", () => {
       snapshotDate: "2026-02-28",
       spiEvaluations: [],
       managedNetworks: [
-        {
+        { securityDomain: "UNKNOWN",
           id: "net-1",
           name: "Network 1",
           criticality: "Critical",
@@ -318,7 +318,7 @@ describe("analytics findings filtering", () => {
           diisDefined: true,
           networkId: "net-1",
           criticality: "Critical",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           missionCapabilities: [],
           businessServices: [],
           environments: [{ id: "env-1", name: "Production", type: "Production", assetIds: ["srv-1", "wks-1"] }]
@@ -331,7 +331,7 @@ describe("analytics findings filtering", () => {
           hostname: "srv-1",
           type: "server",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,
@@ -344,7 +344,7 @@ describe("analytics findings filtering", () => {
           hostname: "wks-1",
           type: "workstation",
           networkId: "net-1",
-          securityDomain: "Protected",
+          securityDomain: "PROTECTED",
           lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
           vulnerabilities: [],
           operatingSystem: null,

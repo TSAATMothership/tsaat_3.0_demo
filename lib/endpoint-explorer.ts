@@ -1,4 +1,5 @@
 export interface EndpointRecord {
+  securityDomain: string;
   assetId: string;
   name: string;
   ciType: string;
@@ -13,6 +14,7 @@ export interface EndpointRecord {
 export const ENDPOINT_COLUMNS = [
   { key: "name", label: "Name" },
   { key: "ciType", label: "CI Type" },
+  { key: "securityDomain", label: "Security Domain" },
   { key: "ipAddress", label: "IP Address" },
   { key: "macAddress", label: "MAC Address" },
   { key: "deviceModel", label: "Device Model" },

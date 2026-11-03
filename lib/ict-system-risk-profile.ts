@@ -54,7 +54,7 @@ export function buildIctSystemRiskProfile({ dataset, analytics, filters, severit
       .flatMap(id => { const network = networksById.get(id); return network ? [network] : []; });
     return {
       ...summarizeRiskAssets(systemAssets, evaluationsBySystem.get(system.id) ?? [], findingsBySystem.get(system.id) ?? [], dataset.snapshotDate),
-      id: system.id, name: system.name, classification: system.securityDomain,
+      id: system.id, name: system.name, securityDomain: system.securityDomain, classification: system.securityDomain,
       criticality: system.criticality, modellingStatus: system.modellingStatus,
       owner: system.owner?.trim() || "Not recorded", description: system.description?.trim() || "",
       context: hosts.length ? hosts.map(network => network.name).join(", ") : assignedNetwork ? `${assignedNetwork.name} (assigned network)` : "No managed network recorded",

@@ -14,7 +14,7 @@ export const exportContext: FindingsExportContext = {
   scope: { network: ["net-1"], system: [], dataDate: "2026-11-01" }, asOf: "2026-10-30", status: "open"
 };
 export const asset: Asset = {
-  id: "0001", name: "=1+1 <gateway> & partner", hostname: "gateway-1", networkId: "net-1", type: "network-device", securityDomain: "Protected",
+  id: "0001", name: "=1+1 <gateway> & partner", hostname: "gateway-1", networkId: "net-1", type: "network-device", securityDomain: "PROTECTED",
   ipAddress: "010.001.001.002", deviceModel: "Edge Model 100", lastDiscoveredDate: "2026-11-01T23:15:00Z", discoveredBy: "Discovery Scanner",
   lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" }, vulnerabilities: [], networkOs: null, patchState: null,
   systemContext: { systemId: "sys-1", environmentType: "Production" }

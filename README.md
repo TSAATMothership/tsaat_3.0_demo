@@ -59,8 +59,15 @@ Review affected human-written documentation before regenerating inventories. The
 
 ## Current workspace
 
-Cyber Security contains Network Risk Profile, ICT System Risk Profile, Service Impact Analyser, Network Impact Analyser and ICT System Impact Analyser. Discovery contains Overview, Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer and Shadow IT Explorer. Observed Measures contains Measures Summary, KPIs and SPIs. Findings contains the Findings Register. Briefs & Reports is separate; Settings is in the header menu.
+Governance appears first in the sidebar with empty Overview, Trends and Insights pages. They retain the applied scope and snapshot date and are ready for future content.
+
+Cyber Security contains Network Risk Profile, ICT System Risk Profile, Service Impact Analyser, Network Impact Analyser and ICT System Impact Analyser. Discovery contains Overview, Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Patch Management Explorer and Shadow IT Explorer. Observed Measures contains Measures Summary, KPIs and SPIs. Findings contains the Findings Register. Briefs & Reports is separate; Settings is in the header menu.
+
+Patch Management Explorer tracks server installation, restart and verification evidence with maintenance planning and filtered Excel export. Fresh samples include labelled patch observations. Preview existing-store sample population with `npm run populate:patches`, then explicitly apply with `-- --apply --demo`. SQL requires forward migration 029. See [status rules, sources and recovery](docs/patch-management-explorer.md).
 
 ## Repository boundary
 
 Includes current source, tests, assets, SQL schema/migrations/loaders/reference data, JSON initialization data and maintained documentation. Includes the integrity-locked third-party archives and provenance manifest in vendor/npm as the sole dependency-vendoring exception. Excludes independently maintained duplicate apps, installed node_modules, host runtimes, credentials, mutable JSON stores, build outputs, reports and logs. The rejected standalone Demo distribution has been removed. Compatibility routes remain for existing bookmarks and APIs. [Baseline provenance](docs/import-baseline.md) records the import. A local repository does not configure remote hosting, branch protection or deployment services.
+
+
+The header Security Domain filter defaults to PROTECTED, SECRET and UNKNOWN selected. Each endpoint, ICT-system model and network model has its own domain. See [security domain scope and upgrade](docs/security-domains.md) for migration 030 and the explicit JSON migration.

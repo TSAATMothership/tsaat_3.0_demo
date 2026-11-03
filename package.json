@@ -29,11 +29,14 @@
     "build:all": "npm run build:sql && npm run build:nosql",
     "setup:nosql": "node scripts/setup-json-store.mjs",
     "populate:nosql": "node scripts/populate-json-store.mjs",
+    "populate:vulnerabilities": "node scripts/populate-vulnerability-metadata.mjs",
+    "populate:patches": "node scripts/populate-patch-management.mjs",
     "storage:check": "node scripts/check-data-providers.mjs",
     "test:nosql": "node --import tsx scripts/test-nosql.mjs",
     "offline:check": "node scripts/offline-dependencies.mjs --check",
     "offline:refresh": "node scripts/offline-dependencies.mjs --refresh",
-    "enrich:nosql": "node --import tsx scripts/enrich-nosql-coverage.mjs"
+    "enrich:nosql": "node --import tsx scripts/enrich-nosql-coverage.mjs",
+    "migrate:security-domains": "node scripts/migrate-security-domains.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

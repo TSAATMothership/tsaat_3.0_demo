@@ -31,7 +31,7 @@ const systems: ICTSystem[] = [
     diisDefined: true,
     networkId: "network-1",
     criticality: "Critical",
-    securityDomain: "Secret",
+    securityDomain: "SECRET",
     missionCapabilities: [],
     businessServices: [],
     environments: []
@@ -39,7 +39,7 @@ const systems: ICTSystem[] = [
 ];
 
 const networks: ManagedNetwork[] = [
-  {
+  { securityDomain: "UNKNOWN",
     id: "network-1",
     name: "Core Network",
     criticality: "Critical",
@@ -59,7 +59,7 @@ const serverAsset: Asset = {
   hostname: "pay-srv-01.example.test",
   cmdbRecordUrl: "https://cmdb.example.test/assets/server-1",
   networkId: "network-1",
-  securityDomain: "Secret",
+  securityDomain: "SECRET",
   lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
   vulnerabilities: [
     {
@@ -95,7 +95,7 @@ const workstationAsset: Asset = {
   name: "PAY-WKS-01",
   hostname: "pay-wks-01.example.test",
   networkId: "network-1",
-  securityDomain: "Secret",
+  securityDomain: "SECRET",
   lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
   vulnerabilities: [],
   systemContext: { systemId: "system-1", environmentType: "Production" },
@@ -171,7 +171,7 @@ function dependencyServer(id: string, name: string, systemContext?: Asset["syste
     hostname: `${id}.example.test`,
     cmdbRecordUrl: `https://cmdb.example.test/assets/${id}`,
     networkId: "network-1",
-    securityDomain: "Secret",
+    securityDomain: "SECRET",
     lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
     vulnerabilities: [],
     systemContext,
@@ -187,7 +187,7 @@ function dependencyWorkstation(id: string, name: string): Asset {
     name,
     hostname: `${id}.example.test`,
     networkId: "network-1",
-    securityDomain: "Secret",
+    securityDomain: "SECRET",
     lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
     vulnerabilities: [],
     type: "workstation",
@@ -451,7 +451,7 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
       serverId: "server-1",
       serverName: "PAY-SRV-01",
       serverHostname: "pay-srv-01.example.test",
-      securityDomain: "Secret",
+      securityDomain: "SECRET",
       severity: "Critical Exposure",
       spiId: 3,
       spiLabel: "SPI 3",
@@ -469,10 +469,10 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
     const rows = buildCyberCopImpactAnalyserRows([serverAsset, workstationAsset], findings, systems);
 
     expect(filterCyberCopImpactAnalyserRows(rows, { environment: "Production", spiId: 3 })).toHaveLength(1);
-    expect(filterCyberCopImpactAnalyserRows(rows, { environment: ["Production"], securityDomain: ["Secret"] })).toHaveLength(1);
+    expect(filterCyberCopImpactAnalyserRows(rows, { environment: ["Production"], securityDomain: ["SECRET"] })).toHaveLength(1);
     expect(filterCyberCopImpactAnalyserRows(rows, { environment: "Production,UAT" })).toHaveLength(1);
     expect(filterCyberCopImpactAnalyserRows(rows, { findingCriticality: "High Risk" })).toHaveLength(0);
-    expect(filterCyberCopImpactAnalyserRows(rows, { securityDomain: "Protected" })).toHaveLength(0);
+    expect(filterCyberCopImpactAnalyserRows(rows, { securityDomain: "PROTECTED" })).toHaveLength(0);
     expect(filterCyberCopImpactAnalyserRows(rows, { search: "pay-srv" })).toHaveLength(1);
     expect(filterCyberCopImpactAnalyserRows(rows, { search: "missing" })).toHaveLength(0);
   });
@@ -491,7 +491,7 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         serverId: "server-1",
         serverName: "PAY-SRV-01",
         serverHostname: "pay-srv-01.example.test",
-        securityDomain: "Secret",
+        securityDomain: "SECRET",
         severity: "High Risk",
         spiId: 1,
         spiLabel: "SPI 1"
@@ -508,7 +508,7 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         serverId: "server-2",
         serverName: "PAY-SRV-10",
         serverHostname: "pay-srv-10.example.test",
-        securityDomain: "Secret",
+        securityDomain: "SECRET",
         severity: "High Risk",
         spiId: 10,
         spiLabel: "SPI 10"
@@ -539,7 +539,7 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         serverId: "server-1",
         serverName: "PAY-SRV-01",
         serverHostname: "pay-srv-01.example.test",
-        securityDomain: "Secret",
+        securityDomain: "SECRET",
         severity: "Critical Exposure",
         spiId: 3,
         spiLabel: "SPI 3"
@@ -556,7 +556,7 @@ describe("Cyber COP ICT System Impact Analyser helpers", () => {
         serverId: "server-2",
         serverName: "LOG-SRV-01",
         serverHostname: "log-srv-01.example.test",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         severity: "High Risk",
         spiId: 4,
         spiLabel: "SPI 4"

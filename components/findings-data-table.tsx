@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { FilterHeader } from "@/components/inventory-explorer-controls";
+import { FilterHeader, SummaryChart } from "@/components/inventory-explorer-controls";
 import { emptyExplorerTableFilters, hasExplorerNumberRange, prepareExplorerRows, queryExplorerRows, type ExplorerColumn, type ExplorerNumberRange, type ExplorerTableFilters, type ExplorerTableSort } from "@/lib/explorer-table";
 
 const number = (value: number) => value.toLocaleString("en-AU");
@@ -9,11 +9,14 @@ const rangeLabel = ({ min, max }: ExplorerNumberRange, unit: string) =>
   `${min !== undefined && max !== undefined ? `${number(min)}\u2013${number(max)}` : min !== undefined ? `At least ${number(min)}` : `Up to ${number(max!)}`} ${unit}`;
 
 /** Shared explorer controls; callers retain their cells, drill-through actions and page filters. */
-export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchText, searchable = true, columnFilters = true, actions, onFilteredRowsChange, initialFilters, emptyMessage = "No records are available in the selected scope.", className = "", paginate = true, defaultPageSize = 50, pageSizeOptions = [25, 50, 100, 250] }: {
+export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchText, searchable = true, columnFilters = true, actions, onFilteredRowsChange, onFiltersChange, initialFilters, summaryCharts, summaryTitle = "Inventory at a glance", emptyMessage = "No records are available in the selected scope.", className = "", paginate = true, defaultPageSize = 50, pageSizeOptions = [25, 50, 100, 250] }: {
   title: string; rows: T[]; columns: ExplorerColumn<T>[]; renderRow: (row: T, index: number) => ReactNode;
   searchText?: (row: T) => string; searchable?: boolean; columnFilters?: boolean; actions?: (matchingRows: T[]) => ReactNode;
   onFilteredRowsChange?: (matchingRows: T[]) => void;
+  onFiltersChange?: (filters: ExplorerTableFilters) => void;
   initialFilters?: ExplorerTableFilters;
+  summaryCharts?: { key: string; title: string; subtitle: string; tone: string }[];
+  summaryTitle?: string;
   emptyMessage?: ReactNode; className?: string; paginate?: boolean; defaultPageSize?: number; pageSizeOptions?: number[];
 }) {
   const [filters, setFilters] = useState(() => initialFilters ?? emptyExplorerTableFilters());
@@ -25,6 +28,7 @@ export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchTe
   const prepared = useMemo(() => prepareExplorerRows(rows, columns, searchText), [rows, columns, searchText]);
   const { filtered, facets } = useMemo(() => queryExplorerRows(prepared, columns, filters, sort), [prepared, columns, filters, sort]);
   useEffect(() => { onFilteredRowsChange?.(filtered); }, [filtered, onFilteredRowsChange]);
+  useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
   const activeColumns = columns.filter(({ key }) => filters.columns[key]?.length);
   const activeRanges = columns.filter(({ key, range }) => range && hasExplorerNumberRange(filters.ranges?.[key]));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -37,7 +41,16 @@ export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchTe
   const changeRange = (key: string, range: ExplorerNumberRange) => {
     setFilters(current => ({ ...current, ranges: { ...current.ranges, [key]: range } })); setPage(1);
   };
-  return <section className={`endpoint-results findings-data-table ${className}`} aria-label={`${title} results`}>
+  return <>
+    {summaryCharts && <>
+      {summaryTitle && <div className="endpoint-summary-caption"><span>{summaryTitle}</span><span>Click a chart bar to filter · Counts respect other filters</span></div>}
+      <div className="endpoint-charts">{summaryCharts.map(chart => <SummaryChart key={chart.key} title={chart.title} subtitle={chart.subtitle} tone={chart.tone}
+        counts={facets[chart.key] ?? []} selected={filters.columns[chart.key] ?? []} onSelect={value => {
+          const selected = filters.columns[chart.key] ?? [];
+          changeColumn(chart.key, selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]);
+        }} />)}</div>
+    </>}
+    <section className={`endpoint-results findings-data-table ${className}`} aria-label={`${title} results`}>
     <header className="endpoint-toolbar">
       <div><h2>{title} <span>{number(filtered.length)}</span></h2><p role="status">{number(filtered.length)} matching records / {number(rows.length)} in current scope</p></div>
       <div className="endpoint-toolbar-actions">
@@ -74,5 +87,6 @@ export function FindingsDataTable<T>({ title, rows, columns, renderRow, searchTe
         <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>{currentPage} / {pages}</span>
         <button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
     </footer>}
-  </section>;
+    </section>
+  </>;
 }

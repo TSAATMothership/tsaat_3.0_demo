@@ -5,7 +5,7 @@ import { activeWorkspaceItem, hasWorkspaceScope, isWorkspaceItemVisible, resolve
 import type { Asset, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 const systems = ["a", "b", "c"].map((id) => ({
-  id: `sys-${id}`, name: `System ${id}`, networkId: `net-${id}`, criticality: "Critical", securityDomain: "Protected",
+  id: `sys-${id}`, name: `System ${id}`, networkId: `net-${id}`, criticality: "Critical", securityDomain: "PROTECTED",
   adfPlatform: false, enterprisePlatform: false, modellingStatus: true, diisDefined: true,
   missionCapabilities: [], businessServices: [], environments: []
 })) as ICTSystem[];

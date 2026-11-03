@@ -1,5 +1,7 @@
 # Architecture
 
+Discovery Overview and the patch/vulnerability explorers omit repeated demo-data notices. This is a shared presentation-only change; source records, provenance fields, aggregations and export/provider operations remain unchanged.
+
 ## Runtime boundaries
 
 TSAAT uses Next.js 14 App Router, React 18 and strict TypeScript. Server pages/API handlers compose snapshot-scoped models; client components render interactions, charts, explorer tables and dialogs. Tailwind and app/globals.css implement the shared visual system. Build-time provider selection chooses SQL Server or a persistent JSON file store for runtime data and configurable rules. Feature code uses the same typed data facade in both artifacts.
@@ -38,6 +40,8 @@ Provider-backed KPI/SPI catalogues govern measure definitions, applicability, ca
 
 Network/ICT analysers use lazy APIs and worker-assisted filtering/rendering. Separate asset actions open CMDB and compliance. The shared compliance view is native-modal, Settings-sized and snapshot-aware. Service Impact has Scope & Selection and Explore the Impact tabs. Shared risk-profile models support entity explorers, details panels, trends and device/SPI heatmaps.
 
+CMDB-to-network-impact navigation is centralized in lib/network-impact-navigation.ts. The shared CMDB view carries canonical networkId routing metadata independently of configurable display fields. The server resolves impactAssetId against already scoped snapshot assets and eligible networks; a valid preset initializes the existing run panel. Data and findings APIs apply the same exact-ID predicate after network/topology/header scoping, before local filters and counts. The URL persists the selection across reloads; removing it restores the existing manual run workflow. This uses existing provider facades and adds no storage operation or calculation rule.
+
 ## Compatibility and limits
 
 Retired `/networks`, `/systems` and entity paths redirect to current risk profiles/details, preserving scope/date. Existing report/export/API paths and internal compatibility contracts remain. Removed sidebar pages are not restored. [Generated routes](generated/application-inventory.md) distinguish available routes from visible navigation.
@@ -50,6 +54,16 @@ Unreachable legacy presentation modules are removed rather than maintained besid
 
 ## Storage provider boundary
 
+Governance's Overview, Trends and Insights routes share a heading-only server component and the normal route-ready marker inside the authenticated workspace. Their content does not call a data provider; shared header options and scope/date navigation remain unchanged. Both builds expose the same placeholders without APIs or storage changes.
+
+Discovery Overview composes the existing coverage, endpoint, software, Shadow IT, vulnerability and patch facade operations at the same resolved snapshot. Its pure aggregation counts canonical explorer rows; patch status and overdue calculations remain in the shared patch projector. Scope/date drill-through links use discoveryExplorerHref and validated destination filters, with patch posture accepting the same initial-filter contract as the other explorers. No new provider query implementation, store, schema, external service or cached summary table is introduced.
+
+Server patch observations are optional typed evidence on the existing Dataset, stored in SQL's snapshot-keyed server_patch_observation table or JSON's server patchManagement object. Shared facade operations load a full cached snapshot and use one scope/status projection for both providers. The export reuses the same projection and selected table-view filtering. This does not alter network-device patch rules or configurable measures. See [ADR 0011](adr/0011-server-patch-observations.md).
+
+Patch and vulnerability explorers opt into FindingsDataTable's SummaryChart presentation using its existing facet computation and filter state. Chart selections are ordinary column filters, so pagination, per-patch-view persistence and canonical exports remain consistent without another dataset or filter engine. Scoped inventory CSS matches End Point Explorer's panel sizing while retaining the existing table layout for other consumers. This presentation change adds no provider queries, dependencies, schema or calculation changes.
+
+Security Vulnerability Explorer uses a dedicated snapshot-scoped operation on the existing facade. SQL joins vulnerability, endpoint and OS rows on snapshot/asset keys; JSON projects the same persisted observation fields. Shared table filtering is reapplied by the server export. Optional additive metadata and explicit sourced sample population follow [ADR 0010](adr/0010-security-vulnerability-explorer.md).
+
 The shared lib/data-loader.ts facade selects lib/sql-data-loader.ts or lib/json-store/data-loader.ts using a compiled constant. The CMDB facade does the same for per-type attributes. All pages/APIs/reports use these facades. The JSON provider satisfies the SQL operation types, evaluates registered rules on the server and persists settings using atomic file replacement and an exclusive writer lock. Separate output directories allow both builds to coexist.
 
 Settings replaces only Database Settings with JSON Data Files in No-SQL. Authentication/password handling and all other settings remain shared. SQL execution is explicitly blocked in No-SQL. Reference/snapshot revisions and settings timestamps participate in cache invalidation. Persisted finding history is required for imported JSON snapshots; no historical events are fabricated.
@@ -60,8 +74,13 @@ See [data providers](data-providers.md) and [ADR 0006](adr/0006-dual-data-provid
 
 ## Offline build boundary
 
+The shared launcher resolves the installed Next.js CLI before initializing JSON storage or configuring a build. A missing CLI exits with an offline installation instruction for both providers; dependency installation stays explicit and precedes runtime/build side effects.
+
 All application and compiler dependency archives live in vendor/npm, with local file resolutions in package-lock.json and original registry URLs/SHA-512 values in a provenance manifest. Node/npm and Windows/PowerShell are preinstalled host tools. npm lifecycle scripts are disabled; current native tools load their packaged platform binaries. Both build commands verify the archive closure, disable telemetry and preload a network-denial guard into Next and inherited Node children/workers. A shared attempt log makes even caught network attempts fail the build. Runtime start/dev keep normal provider networking. CI adds an outbound firewall rule for Node during installation, checks and compilation, using a new empty cache. See [ADR 0007](adr/0007-offline-compilation.md) and the [build contract](offline-builds.md).
 
 The pure SPI evaluator in lib/spi-evaluation.ts is shared by the JSON server and the explicit sample maintenance command. The command reads existing reference/settings files under the store writer lock and uses the existing snapshot publication boundary. It never synthesizes findings in a page request or build. Original history remains immutable; appended sample observations carry provenance and are checked against current applicable evaluations. SQL classification and settings precedence are retained without changing SQL procedures or JSON applicability. See [ADR 0009](adr/0009-explicit-sample-finding-coverage.md).
 
 Risk-profile explorer drill-throughs share the RiskProfile component and existing riskProfileHref scope/date serializer. Native new-tab anchors narrow the destination to the selected row and retain any intersecting applied scope, resolved snapshot, and destination filter. Entity names reuse the existing networkDetails/systemDetails query contract; no new route, storage operation or data dependency is introduced.
+
+
+Security domains use lib/security-domain.mjs across selectors, SQL query/cache scope and JSON read compatibility. Each entity retains its own required canonical domain. Header scope is propagated through navigation and exports; NONE explicitly returns no entities. See [security-domain decision](adr/0012-security-domain-scope.md).

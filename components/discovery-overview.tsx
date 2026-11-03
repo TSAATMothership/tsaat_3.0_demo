@@ -6,25 +6,34 @@ import { NOT_RECORDED, type EndpointFilters, type DiscoveryAge } from "@/lib/end
 import type { SoftwareFilters } from "@/lib/installed-software-explorer";
 import type { ShadowFilters } from "@/lib/shadow-it-explorer";
 import type { DiscoveryComplianceFilters } from "@/lib/discovery-compliance-explorer";
+import type { ExplorerTableFilters } from "@/lib/explorer-table";
 import type { WorkspaceSearchParams } from "@/lib/workspace-navigation";
 
 const number = (value: number) => value.toLocaleString("en-AU");
 function Arrow() { return <span aria-hidden="true">↗</span>; }
 function Finding({ label, count, href, unit }: { label: string; count: number; href: string; unit?: string }) {
-  return <Link prefetch={false} href={href} className="discovery-overview-finding"><span>{label}</span><strong>{number(count)}{unit && <small> {unit}</small>}</strong><Arrow /></Link>;
+  return <Link prefetch={false} href={href} data-overview-count={count} className="discovery-overview-finding"><span>{label}</span><strong>{number(count)}{unit && <small> {unit}</small>}</strong><Arrow /></Link>;
 }
 
 export function DiscoveryOverview({ model, scope }: { model: DiscoveryOverviewModel; scope: WorkspaceSearchParams }) {
-  const { coverage, endpoints, software, shadow, snapshotDate } = model;
+  const { coverage, endpoints, software, shadow, vulnerabilities, patches, snapshotDate } = model;
   const complianceLink = (columns: DiscoveryComplianceFilters["columns"] = {}) => discoveryExplorerHref("compliance", scope, snapshotDate, { search: "", columns });
   const endpointLink = (columns: EndpointFilters["columns"] = {}, recency: DiscoveryAge[] = []) => discoveryExplorerHref("endpoints", scope, snapshotDate, { search: "", columns, recency });
   const softwareLink = (columns: SoftwareFilters["columns"] = {}, recency: DiscoveryAge[] = []) => discoveryExplorerHref("installed-software", scope, snapshotDate, { search: "", columns, recency });
   const shadowLink = (columns: ShadowFilters["columns"] = {}, recency: DiscoveryAge[] = []) => discoveryExplorerHref("shadow-it", scope, snapshotDate, { search: "", columns, recency });
+  const vulnerabilityLink = (columns: ExplorerTableFilters["columns"] = {}) => discoveryExplorerHref("security-vulnerabilities", scope, snapshotDate, { search: "", columns });
+  const patchLink = (columns: ExplorerTableFilters["columns"] = {}, ranges: ExplorerTableFilters["ranges"] = {}) => discoveryExplorerHref("patch-management", scope, snapshotDate, { search: "", columns, ranges });
+  const severeVulnerabilitiesLink = vulnerabilityLink({ severity: ["Critical", "High"] });
+  const overduePatchesLink = patchLink({}, { daysOverdue: { min: 1 } });
+  const unknownPatchesLink = patchLink({ status: ["Unknown"] });
   const toolsLink = discoveryExplorerHref("tools", scope, snapshotDate);
   const gapsLink = complianceLink({ compliant: ["Coverage gaps"] });
   const staleEndpointsLink = endpointLink({}, STALE_DISCOVERY_AGES);
   const versionLink = softwareLink({ softwareVersion: [NOT_RECORDED] });
   const actions = [
+    { title: "Review critical and high CVE observations", detail: "Validate the exposure and review the recorded remediation action.", count: vulnerabilities.criticalHigh, unit: "observations", href: severeVulnerabilitiesLink },
+    { title: "Review overdue patch actions", detail: "Check recorded deadlines, ownership and maintenance plans, including exceptions.", count: patches.overdue, unit: "servers", href: overduePatchesLink },
+    { title: "Refresh unknown patch evidence", detail: "Complete missing evidence or refresh stale assessments before confirming patch status.", count: patches.unknown, unit: "servers", href: unknownPatchesLink },
     { title: "Close required tool coverage gaps", detail: "Inspect missing tools for each CI and restore discovery coverage.", count: coverage.gaps, unit: "CIs", href: gapsLink },
     { title: "Identify unknown IP nodes", detail: "Use IP scan and ARP evidence to investigate unidentified devices.", count: shadow.total, unit: "IP nodes", href: shadowLink() },
     { title: "Refresh older endpoint discoveries", detail: "Review discoveries more than 30 days before the snapshot.", count: endpoints.stale, unit: "endpoints", href: staleEndpointsLink },
@@ -34,18 +43,43 @@ export function DiscoveryOverview({ model, scope }: { model: DiscoveryOverviewMo
 
   return <div className="workspace-page discovery-overview">
     <header className="endpoint-hero discovery-overview-hero">
-      <div><h1>Discovery Overview</h1><div className="discovery-overview-context"><span><strong>{number(coverage.total)}</strong> CIs in scope</span><span><strong>{number(coverage.tools.length)}</strong> applicable tools</span><span>Select a finding to investigate</span></div></div>
+      <div><h1>Discovery Overview</h1><p className="discovery-overview-note">Discovery coverage, inventory evidence, security vulnerabilities and server patch readiness.</p><div className="discovery-overview-context"><span><strong>{number(coverage.total)}</strong> CIs in scope</span><span><strong>{number(coverage.tools.length)}</strong> applicable tools</span><span>Select a finding to investigate</span></div></div>
       <div className="discovery-overview-snapshot"><span>Snapshot</span><strong>{snapshotDate}</strong></div>
     </header>
 
     <section className="discovery-overview-metrics" aria-label="Discovery findings at a glance">
       {[
+        { label: "Critical / high CVE observations", value: vulnerabilities.criticalHigh, note: `Out of ${number(vulnerabilities.total)} recorded observations`, href: severeVulnerabilitiesLink, tone: "rose" },
+        { label: "Servers with overdue patch actions", value: patches.overdue, note: `${number(patches.unknown)} servers have unknown patch status`, href: overduePatchesLink, tone: "amber" },
         { label: "CIs with coverage gaps", value: coverage.gaps, note: `${number(coverage.missingChecks)} missing tool-to-CI checks`, href: gapsLink, tone: "amber" },
         { label: "Endpoints last seen >30 days ago", value: endpoints.stale, note: `${number(endpoints.undated)} without a discovery date`, href: staleEndpointsLink, tone: "cyan" },
         { label: "Software with no version", value: software.missingVersion, note: `Out of ${number(software.total)} recorded installations`, href: versionLink, tone: "violet" },
         { label: "Unidentified IP nodes", value: shadow.total, note: `${number(shadow.ipScan)} IP scan / ${number(shadow.arp)} ARP table`, href: shadowLink(), tone: "teal" }
-      ].map((metric) => <Link prefetch={false} key={metric.label} href={metric.href} className={`discovery-overview-metric tone-${metric.tone}`}><strong>{number(metric.value)}</strong><div><span>{metric.label}</span><small>{metric.note}</small></div><Arrow /></Link>)}
+      ].map((metric) => <Link prefetch={false} key={metric.label} href={metric.href} data-overview-count={metric.value} className={`discovery-overview-metric tone-${metric.tone}`}><strong>{number(metric.value)}</strong><div><span>{metric.label}</span><small>{metric.note}</small></div><Arrow /></Link>)}
     </section>
+
+    <div className="discovery-overview-security" data-discovery-security>
+      <section className="discovery-overview-panel" aria-labelledby="overview-vulnerabilities-title">
+        <header><h2 id="overview-vulnerabilities-title">Security vulnerabilities</h2><Link prefetch={false} href={vulnerabilityLink()} aria-label="Open Security Vulnerability Explorer"><Arrow /></Link></header>
+        <p className="discovery-overview-inventory-total"><strong>{number(vulnerabilities.total)}</strong> observations <span>{number(vulnerabilities.distinctCves)} distinct CVEs / {number(vulnerabilities.affectedEndpoints)} affected endpoints</span></p>
+        <div className="discovery-overview-findings">
+          {vulnerabilities.severities.map(({ severity, count }) => <Finding key={severity} label={`${severity} severity`} count={count} unit="observations" href={vulnerabilityLink({ severity: [severity] })} />)}
+          <Finding label="Remediation not recorded" count={vulnerabilities.missingRemediation} unit="observations" href={vulnerabilityLink({ remediationGuidance: [NOT_RECORDED] })} />
+        </div>
+        {!vulnerabilities.total && <p className="discovery-overview-empty">No vulnerability observations are recorded for this scope and snapshot.</p>}
+        <p className="discovery-overview-note">Counts describe recorded observations, not open remediation cases. No observations does not establish that an endpoint is vulnerability-free.</p>
+      </section>
+      <section className="discovery-overview-panel" aria-labelledby="overview-patches-title">
+        <header><h2 id="overview-patches-title">Server patch management</h2><Link prefetch={false} href={patchLink()} aria-label="Open Patch Management Explorer"><Arrow /></Link></header>
+        <p className="discovery-overview-inventory-total"><strong>{number(patches.total)}</strong> servers <span>{patches.verifiedPercent === null ? "N/A" : `${patches.verifiedPercent}%`} patched &amp; verified</span></p>
+        <div className="discovery-overview-patch-statuses">
+          {patches.statuses.map(({ status, count }) => <Finding key={status} label={status === "Patched" ? "Patched & verified" : status === "Unknown" ? "Unknown / stale evidence" : status} count={count} href={patchLink({ status: [status] })} />)}
+        </div>
+        <Finding label="Overdue actions" count={patches.overdue} unit="servers" href={overduePatchesLink} />
+        {!patches.total && <p className="discovery-overview-empty">No servers are recorded for this scope and snapshot.</p>}
+        <p className="discovery-overview-note">Patched requires current, verified evidence and no required restart. Missing or stale evidence remains Unknown; exceptions do not hide overdue work.</p>
+      </section>
+    </div>
 
     <div className="discovery-overview-primary">
       <section className="discovery-overview-panel" aria-labelledby="overview-coverage-title">
@@ -61,7 +95,7 @@ export function DiscoveryOverview({ model, scope }: { model: DiscoveryOverviewMo
         <header><h2 id="overview-actions-title">Suggested next actions</h2><span className="discovery-overview-badge">{actions.length} checks to review</span></header>
         <p className="discovery-overview-note">Counts can overlap across these checks.</p>
         {actions.length ? <ol>{actions.map((action) => <li key={action.title}><Link prefetch={false} href={action.href}><div className="discovery-overview-action-heading"><h3>{action.title}</h3><span className="discovery-overview-action-count"><strong>{number(action.count)}</strong><small>{action.unit}</small><Arrow /></span></div><p>{action.detail}</p></Link></li>)}</ol>
-          : <div className="discovery-overview-empty"><strong>{coverage.total || software.total || shadow.total ? "No findings in these five checks" : "No discovery records in this scope"}</strong><p>Review the explorer summaries below or change the scope and snapshot.</p></div>}
+          : <div className="discovery-overview-empty"><strong>{coverage.total || software.total || shadow.total || vulnerabilities.total || patches.total ? "No actions in these overview checks" : "No discovery records in this scope"}</strong><p>Review the explorer summaries or change the scope and snapshot.</p></div>}
       </section>
     </div>
 
@@ -100,6 +134,8 @@ export function DiscoveryOverview({ model, scope }: { model: DiscoveryOverviewMo
     <details className="discovery-overview-method"><summary>Calculation notes</summary><div>
       <p>Coverage uses the saved tool-to-CI type mappings. Discovery age is measured against the selected snapshot; over 30 days is a review prompt and does not change coverage compliance.</p>
       <p>Software counts represent individual installations, including repeated products on different endpoints.</p>
+      <p>Vulnerability totals use the same scoped observations as Security Vulnerability Explorer, detected on or before the snapshot. Repeated CVEs on different endpoints remain separate observations; source severity is not a new risk score.</p>
+      <p>Patch totals use the same server status and recorded due dates as Patch Management Explorer. The verified percentage includes unknown servers in its denominator and is N/A when no servers are in scope. CVE observations do not prove that an OS patch is missing.</p>
       <p>ARP owner endpoints supply the observation table; they are distinct from the unidentified IP nodes. Shadow IT includes observations associated with selected systems through these owners.</p>
     </div></details>
   </div>;

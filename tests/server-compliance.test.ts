@@ -14,7 +14,7 @@ function serverAsset(overrides: Partial<ServerAsset & { ipAddress: string }> = {
     ipAddress: "10.20.30.40",
     type: "server",
     networkId: "network-1",
-    securityDomain: "Protected",
+    securityDomain: "PROTECTED",
     lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
     vulnerabilities: [],
     operatingSystem: null,
@@ -30,7 +30,7 @@ function workstationAsset(): Asset {
     hostname: "workstation-01",
     type: "workstation",
     networkId: "network-1",
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
     vulnerabilities: [],
     operatingSystem: null,
@@ -45,7 +45,7 @@ function canonicalAsset(assetType: CanonicalAssetType): Asset {
     hostname: `${assetType}-01`,
     type: assetType,
     networkId: "network-1",
-    securityDomain: "Protected" as const,
+    securityDomain: "PROTECTED" as const,
     lifecycle: { eolStatus: "Supported" as const, warrantyStatus: "InWarranty" as const },
     vulnerabilities: []
   };
@@ -59,7 +59,7 @@ function canonicalAsset(assetType: CanonicalAssetType): Asset {
 }
 
 function managedNetwork(): ManagedNetwork {
-  return {
+  return { securityDomain: "UNKNOWN",
     id: "network-1",
     name: "Protected Network",
     criticality: "Critical",
@@ -82,7 +82,7 @@ function system(id: string, name: string, environmentType: "Production" | "Devel
     diisDefined: true,
     networkId: "network-1",
     criticality: "Critical",
-    securityDomain: "Protected",
+    securityDomain: "PROTECTED",
     missionCapabilities: [],
     businessServices: [],
     environments: [
@@ -240,7 +240,7 @@ describe("buildServerComplianceModel", () => {
       environmentType: "Development",
       systemName: "Beta System",
       networkName: "Protected Network",
-      securityDomain: "Protected"
+      securityDomain: "PROTECTED"
     });
     expect(model?.complianceOverview).toMatchObject({
       score: 50,

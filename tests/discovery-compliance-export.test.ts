@@ -6,7 +6,7 @@ import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
 const load = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/app-data", () => ({ getCoreAppData: load }));
-const scope = { network: "net-1", system: "sys-1", dataDate: "2026-10-31", environment: "Production", securityDomain: "Protected", assetType: "server", mission: "mission-1", service: "service-1" };
+const scope = { network: "net-1", system: "sys-1", dataDate: "2026-10-31", environment: "Production", securityDomain: "PROTECTED", assetType: "server", mission: "mission-1", service: "service-1" };
 const request = (body: unknown) => new NextRequest("http://localhost/api/discovery-coverage/compliance/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 beforeEach(() => {
   load.mockReset();

@@ -2,13 +2,17 @@ import type { DiscoveryComplianceFilters } from "@/lib/discovery-compliance-expl
 import type { EndpointFilters } from "@/lib/endpoint-explorer";
 import type { SoftwareFilters } from "@/lib/installed-software-explorer";
 import type { ShadowFilters } from "@/lib/shadow-it-explorer";
+import type { ExplorerTableFilters } from "@/lib/explorer-table";
 import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
+import { securityDomainFilter } from "@/lib/security-domain.mjs";
 
 type ExplorerFilters = {
   tools: never;
   compliance: DiscoveryComplianceFilters;
   endpoints: EndpointFilters;
   "installed-software": SoftwareFilters;
+  "security-vulnerabilities": ExplorerTableFilters;
+  "patch-management": ExplorerTableFilters;
   "shadow-it": ShadowFilters;
 };
 
@@ -17,6 +21,8 @@ export function discoveryExplorerHref<V extends keyof ExplorerFilters>(
   view: V, scope: WorkspaceSearchParams, snapshotDate: string, filters?: ExplorerFilters[V]
 ): string {
   const query = new URLSearchParams({ discoveryView: view, dataDate: snapshotDate });
+  const domain = securityDomainFilter(scope.securityDomain);
+  if (domain) query.set("securityDomain", domain);
   for (const key of ["network", "system"] as const) {
     const ids = scopeIds(scope[key]);
     if (ids.length) query.set(key, ids.join(","));

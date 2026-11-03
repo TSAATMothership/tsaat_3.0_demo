@@ -4,15 +4,15 @@ import type { Asset, Dataset, ICTSystem, ManagedNetwork } from "@/lib/types";
 
 const system = (id: string, networkId: string, assetIds: string[] = []): ICTSystem => ({
   id, name: id, networkId, adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
-  diisDefined: true, criticality: "Critical", securityDomain: "Protected", missionCapabilities: [], businessServices: [],
+  diisDefined: true, criticality: "Critical", securityDomain: "PROTECTED", missionCapabilities: [], businessServices: [],
   environments: [{ id: `${id}-prod`, name: "Production", type: "Production", assetIds }]
 });
-const network = (id: string): ManagedNetwork => ({
+const network = (id: string): ManagedNetwork => ({ securityDomain: "UNKNOWN",
   id, name: id, adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
   criticality: "Critical", discoveryStatus: "Discovery Enabled", assetIds: [], ictSystemIds: []
 });
 const asset = (id: string, networkId: string, systemId?: string): Asset => ({
-  id, name: id, hostname: id, type: "server", networkId, securityDomain: "Protected", vulnerabilities: [],
+  id, name: id, hostname: id, type: "server", networkId, securityDomain: "PROTECTED", vulnerabilities: [],
   lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" }, operatingSystem: null, installedSoftware: [],
   ...(systemId ? { systemContext: { systemId, environmentType: "Production" } } : {})
 });

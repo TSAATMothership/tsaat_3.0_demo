@@ -1,3 +1,4 @@
+import { normalizeNetworkSecurityDomain } from "../lib/security-domain.mjs";
 import { promises as fs } from "fs";
 import path from "path";
 import { ASSET_TYPES } from "../lib/asset-taxonomy";
@@ -131,7 +132,7 @@ const PRINTER_DEVICE_NAMES = ["Laser", "Inkjet", "MFP", "Label", "Thermal"];
 const OTHER_DEVICE_NAMES = ["IoT", "Controller", "Sensor", "Console", "Appliance"];
 
 const ENV_TYPES: EnvironmentType[] = ["Development", "UAT", "Test"];
-const SECURITY_DOMAINS: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
+const SECURITY_DOMAINS: SecurityDomain[] = ["SECRET", "PROTECTED", "UNKNOWN"];
 
 const TOTAL_ASSET_COUNT = 1000;
 const MODELLED_ASSET_RATIO = 0.7;
@@ -882,6 +883,7 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       enterprisePlatform: chance(random, 0.35),
       modellingStatus: false,
       classification,
+      securityDomain: normalizeNetworkSecurityDomain(undefined, classification),
       diisId: `DIIS-NET-${referenceOrdinal}`,
       atoNumber: `ATO-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
@@ -901,6 +903,7 @@ function buildNetworks(random: Random): ManagedNetwork[] {
       enterprisePlatform: chance(random, 0.35),
       modellingStatus: false,
       classification,
+      securityDomain: normalizeNetworkSecurityDomain(undefined, classification),
       diisId: `DIIS-NET-${referenceOrdinal}`,
       atoNumber: `ATO-NET-${referenceOrdinal}`,
       discoveryStatus: "Discovery Non Enabled" as const,
@@ -910,6 +913,7 @@ function buildNetworks(random: Random): ManagedNetwork[] {
   });
   const disabledReferenceOrdinal = formatNetworkReferenceOrdinal(referenceBase + newNetworks.length + 1);
   const disabledReferenceNetwork: ManagedNetwork = {
+    securityDomain: "UNKNOWN",
     id: DISABLED_REFERENCE_NETWORK_ID,
     name: DISABLED_REFERENCE_NETWORK_NAME,
     description: DISABLED_REFERENCE_NETWORK_DESCRIPTION,
@@ -929,12 +933,12 @@ function buildNetworks(random: Random): ManagedNetwork[] {
 
 function securityDomainForNetwork(network: ManagedNetwork): SecurityDomain {
   if (network.classification === "Protected") {
-    return "Protected";
+    return "PROTECTED";
   }
   if (network.classification === "Restricted") {
-    return "Secret";
+    return "SECRET";
   }
-  return "Unclassified";
+  return "UNKNOWN";
 }
 
 function buildSystems(random: Random, networks: ManagedNetwork[]): ICTSystem[] {
@@ -1020,7 +1024,7 @@ function buildUnmodelledSystems(random: Random, startIndex: number, count: numbe
       apmNumber: `APM-SYS-${systemReferenceOrdinal}`,
       networkId: "",
       criticality: "Non-Critical",
-      securityDomain: "Unclassified",
+      securityDomain: "UNKNOWN",
       missionCapabilities: [],
       businessServices: [],
       environments: []
@@ -1050,7 +1054,7 @@ function buildServer(random: Random, index: number, networkId: string, versions:
     hostname: `${id}.dct.local`,
     type: "server",
     networkId,
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "server", id),
     operatingSystem: buildOperatingSystem(random, "server", versions),
@@ -1071,7 +1075,7 @@ function buildWorkstation(
     hostname: `${id}.dct.local`,
     type: "workstation",
     networkId,
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "workstation", id),
     operatingSystem: buildOperatingSystem(random, "workstation", versions),
@@ -1093,7 +1097,7 @@ function buildDevice(
     hostname: `${id}.dct.local`,
     type: "network-device",
     networkId,
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "network-device", id),
     networkOs: buildOperatingSystem(random, "network-device", versions),
@@ -1114,7 +1118,7 @@ function buildStorageDevice(random: Random, index: number, networkId: string): S
     hostname: `${id}.dct.local`,
     type: "storage-device",
     networkId,
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "storage-device", id)
   };
@@ -1128,7 +1132,7 @@ function buildPrinterDevice(random: Random, index: number, networkId: string): P
     hostname: `${id}.dct.local`,
     type: "printer-device",
     networkId,
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "printer-device", id)
   };
@@ -1142,7 +1146,7 @@ function buildOtherAsset(random: Random, index: number, networkId: string): Othe
     hostname: `${id}.dct.local`,
     type: "other",
     networkId,
-    securityDomain: "Unclassified",
+    securityDomain: "UNKNOWN",
     lifecycle: buildLifecycle(random),
     vulnerabilities: buildVulnerabilities(random, "other", id)
   };

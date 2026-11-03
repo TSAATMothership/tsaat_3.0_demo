@@ -265,3 +265,6 @@ Validation Rules Applied by loader/validator
     - 1% with 51..150 edges
 
 Migration 027 removes unused KPI parameter import and the network APM mapping. Current KPI reference JSON contains two calculations, no parameters, and one report detail definition. System apmNumber still maps to ict_system.apm_number for APP-ID. CMDB attribute catalogue and per-type mappings are initialized by the schema and migration 025, outside the snapshot load-order list above.
+
+
+securityDomain maps to security_domain for managed networks, ICT systems and assets. Legacy Secret/Protected become uppercase; Unclassified/unsupported become UNKNOWN. Missing network domain derives Restricted -> SECRET or Protected -> PROTECTED, otherwise UNKNOWN. Explicit domains are authoritative. JSON normalization and SQL load-data.sql use equivalent mappings.

@@ -87,6 +87,38 @@ test('network preload blocks HTTP, fetch, TCP, TLS, DNS and UDP, recording caugh
   } finally { cleanup(f.root); }
 });
 
+test('missing or partial Next installation gives offline recovery before storage or build setup for both providers', () => {
+  const f = fixture();
+  try {
+    const scripts = path.join(f.root, 'scripts');
+    fs.mkdirSync(scripts);
+    for (const name of ['run-app.mjs', 'offline-dependencies.mjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(scripts, name));
+    fs.writeFileSync(path.join(scripts, 'setup-json-store.mjs'), `import fs from 'node:fs'; import { fileURLToPath } from 'node:url'; export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url)); export async function initializeJsonStore() { fs.writeFileSync(new URL('../store-touched', import.meta.url), 'changed'); throw new Error('Storage must not be initialized before dependency validation'); }`);
+    for (const partial of [false, true]) {
+      if (partial) {
+        const next = path.join(f.root, 'node_modules/next');
+        fs.mkdirSync(next, { recursive: true });
+        fs.writeFileSync(path.join(next, 'package.json'), JSON.stringify({ name: 'next', version: '14.2.35' }));
+      }
+      for (const mode of ['sql', 'nosql']) for (const command of ['dev', 'start', 'build']) {
+        const child = spawnSync(process.execPath, [path.join(scripts, 'run-app.mjs'), command, mode], {
+          encoding: 'utf8', timeout: 10000, windowsHide: true,
+          env: { ...process.env, TEMP: f.root, TMP: f.root, TMPDIR: f.root }
+        });
+        assert.equal(child.status, 1, child.stderr);
+        assert.match(child.stderr, /Next\.js is missing or incomplete in node_modules/);
+        assert.match(child.stderr, /npm ci --offline/);
+        assert.ok(child.stderr.includes(f.root));
+        assert.ok(child.stderr.includes(`npm run ${command}:${mode}`));
+        assert.doesNotMatch(child.stderr, /MODULE_NOT_FOUND|Require stack|Storage must not/);
+        assert.equal(child.stdout, '');
+        assert.equal(fs.existsSync(path.join(f.root, 'store-touched')), false);
+        assert.equal(fs.readdirSync(f.root).some(name => name.startsWith('tsaat-offline-build-')), false);
+      }
+    }
+  } finally { cleanup(f.root); }
+});
+
 test('both build wrappers fail even when a compiler catches its network error; runtime remains unguarded', () => {
   const f = fixture();
   try {
@@ -106,8 +138,10 @@ test('both build wrappers fail even when a compiler catches its network error; r
       const succeeded = spawnSync(process.execPath, [path.join(scripts, 'run-app.mjs'), 'build', mode], { encoding: 'utf8', timeout: 10000, windowsHide: true });
       assert.equal(succeeded.status, 0, succeeded.stderr);
       fs.writeFileSync(compiler, `if (process.env.TSAAT_OFFLINE_ATTEMPTS || process.env.NODE_OPTIONS?.includes('offline-network')) process.exit(3);`);
-      const runtime = spawnSync(process.execPath, [path.join(scripts, 'run-app.mjs'), 'start', mode], { encoding: 'utf8', timeout: 10000, windowsHide: true });
-      assert.equal(runtime.status, 0, runtime.stderr);
+      for (const command of ['dev', 'start']) {
+        const runtime = spawnSync(process.execPath, [path.join(scripts, 'run-app.mjs'), command, mode], { encoding: 'utf8', timeout: 10000, windowsHide: true });
+        assert.equal(runtime.status, 0, runtime.stderr);
+      }
     }
   } finally { cleanup(f.root); }
 });

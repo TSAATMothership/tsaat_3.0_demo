@@ -17,6 +17,7 @@ import { FindingsDataTable } from "@/components/findings-data-table";
 import type { CmdbAssetView, CmdbAttributeRow } from "@/lib/cmdb-attributes";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
 import type { ExplorerColumn } from "@/lib/explorer-table";
+import { buildNetworkImpactHref } from "@/lib/network-impact-navigation";
 
 const PANEL_TWEEN_MS = 220;
 const FOCUSABLE_SELECTOR =
@@ -26,6 +27,7 @@ interface CmdbRequest {
   assetId: string;
   assetName: string;
   dataDate: string | null;
+  workspaceSearch: string;
 }
 
 interface CmdbSelection extends CmdbRequest {
@@ -124,7 +126,8 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
       const request: CmdbRequest = {
         assetId: normalizedAssetId,
         assetName: assetName?.trim() || normalizedAssetId,
-        dataDate: currentDataDate()
+        dataDate: currentDataDate(),
+        workspaceSearch: browserWorkspaceSearch(window.location)
       };
       loadDetails(request);
       window.requestAnimationFrame(() => setIsOpen(true));
@@ -265,6 +268,22 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
                 <span>Asset details for <strong>{details?.assetName ?? selection.assetName}</strong></span>
                 {(details?.snapshotDate ?? selection.dataDate) && <span>Snapshot · {details?.snapshotDate ?? selection.dataDate}</span>}
               </p>
+                {details && (
+                  <div className="cmdb-scope-actions">
+                    <button
+                      type="button"
+                      className="cmdb-network-impact-button"
+                      data-cmdb-network-impact
+                      onClick={() => window.open(
+                        buildNetworkImpactHref(details, selection.workspaceSearch),
+                        "_blank",
+                        "popup=yes,width=1440,height=960,noopener,noreferrer"
+                      )}
+                    >
+                      Open Network Impact Analyser <span>(new window)</span>
+                    </button>
+                  </div>
+                )}
                 {selection.state === "loading" ? (
                   <div className="cmdb-scope-state" role="status">
                     Loading CMDB details...

@@ -67,12 +67,12 @@ describe("observed measures page wiring", () => {
   });
   it("uses the same infrastructure-derived system scope for calculations and linked tallies", async () => {
     const system = { id: "sys-shared", name: "Shared system", networkId: "net-other", adfPlatform: false, enterprisePlatform: false,
-      modellingStatus: true, diisDefined: true, criticality: "Critical" as const, securityDomain: "Protected" as const,
+      modellingStatus: true, diisDefined: true, criticality: "Critical" as const, securityDomain: "PROTECTED" as const,
       missionCapabilities: [], businessServices: [], environments: [{ id: "prod", name: "Production", type: "Production" as const, assetIds: ["shared-ci"] }] };
-    const network = { id: "net-1", name: "Selected network", adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
+    const network = { securityDomain: "UNKNOWN" as const, id: "net-1", name: "Selected network", adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
       criticality: "Critical" as const, discoveryStatus: "Discovery Enabled" as const, assetIds: ["shared-ci"], ictSystemIds: [] };
     const asset = { id: "shared-ci", name: "Shared CI", hostname: "shared-ci", networkId: "net-1", type: "server" as const,
-      securityDomain: "Protected" as const, operatingSystem: null, installedSoftware: [], vulnerabilities: [],
+      securityDomain: "PROTECTED" as const, operatingSystem: null, installedSoftware: [], vulnerabilities: [],
       lifecycle: { eolStatus: "Unknown" as const, warrantyStatus: "Unknown" as const } };
     vi.mocked(getCoreAppData).mockResolvedValue({ ...core, filters: { managedNetwork: "net-1" }, systems: [], networks: [network],
       dataset: { ...core.dataset, ictSystems: [system], managedNetworks: [network], assets: [asset] } });

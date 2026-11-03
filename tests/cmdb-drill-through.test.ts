@@ -12,7 +12,7 @@ const dataset: Dataset = {
   generatedAt: "2026-07-16T00:00:00.000Z",
   snapshotDate: "2026-07-15",
   managedNetworks: [
-    {
+    { securityDomain: "UNKNOWN",
       id: "network-1",
       name: "Operational Network",
       criticality: "Critical",
@@ -34,7 +34,7 @@ const dataset: Dataset = {
       diisDefined: true,
       networkId: "network-1",
       criticality: "Critical",
-      securityDomain: "Secret",
+      securityDomain: "SECRET",
       missionCapabilities: [],
       businessServices: [],
       environments: [
@@ -54,7 +54,7 @@ const dataset: Dataset = {
       hostname: "app-server-1",
       cmdbRecordUrl: "https://cmdb.example.test/assets/asset-1",
       networkId: "network-1",
-      securityDomain: "Secret",
+      securityDomain: "SECRET",
       lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
       vulnerabilities: [
         {
@@ -90,7 +90,7 @@ const dataset: Dataset = {
       hostname: "core-switch-1",
       cmdbRecordUrl: null,
       networkId: "network-1",
-      securityDomain: "Protected",
+      securityDomain: "PROTECTED",
       lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" },
       vulnerabilities: [],
       type: "network-device",

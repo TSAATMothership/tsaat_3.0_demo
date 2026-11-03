@@ -12,7 +12,7 @@ function buildAnalyticsResult(): AnalyticsResult {
         networkId: "net-core",
         systemId: "sys-core",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: true,
         evaluations: [{ spiId: 1, status: "Compliant", evidence: {}, reasons: [] }]
@@ -23,7 +23,7 @@ function buildAnalyticsResult(): AnalyticsResult {
         networkId: "net-dep",
         systemId: "sys-dep",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: false,
         evaluations: [{ spiId: 1, status: "Non-compliant", evidence: {}, reasons: [] }]
@@ -34,7 +34,7 @@ function buildAnalyticsResult(): AnalyticsResult {
         networkId: "net-dep",
         systemId: "sys-dep",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: true,
         evaluations: [{ spiId: 1, status: "Compliant", evidence: {}, reasons: [] }]
@@ -45,7 +45,7 @@ function buildAnalyticsResult(): AnalyticsResult {
         networkId: UNASSIGNED_NETWORK_ID,
         systemId: "sys-core",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: true,
         evaluations: [{ spiId: 1, status: "Compliant", evidence: {}, reasons: [] }]
@@ -72,7 +72,7 @@ function buildDataset(): Dataset {
     snapshotDate: "2026-04-12",
     spiEvaluations: [],
     managedNetworks: [
-      {
+      { securityDomain: "UNKNOWN",
         id: "net-core",
         name: "Core Network",
         criticality: "Critical",
@@ -83,7 +83,7 @@ function buildDataset(): Dataset {
         ictSystemIds: ["sys-core"],
         assetIds: ["asset-core-1"]
       },
-      {
+      { securityDomain: "UNKNOWN",
         id: "net-dep",
         name: "Dependent Network",
         criticality: "Critical",
@@ -94,7 +94,7 @@ function buildDataset(): Dataset {
         ictSystemIds: ["sys-dep"],
         assetIds: ["asset-dep-in-model", "asset-dep-out-of-model"]
       },
-      {
+      { securityDomain: "UNKNOWN",
         id: UNASSIGNED_NETWORK_ID,
         name: "Unassigned Systems",
         criticality: "Non-Critical",
@@ -116,7 +116,7 @@ function buildDataset(): Dataset {
         diisDefined: true,
         networkId: "net-core",
         criticality: "Critical",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         missionCapabilities: [],
         businessServices: [],
         environments: [
@@ -137,7 +137,7 @@ function buildDataset(): Dataset {
         diisDefined: true,
         networkId: "net-dep",
         criticality: "Critical",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         missionCapabilities: [],
         businessServices: [],
         environments: [
@@ -157,7 +157,7 @@ function buildDataset(): Dataset {
         hostname: "core-1",
         type: "server",
         networkId: "net-core",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
         vulnerabilities: [],
         operatingSystem: null,
@@ -170,7 +170,7 @@ function buildDataset(): Dataset {
         hostname: "dep-in-model",
         type: "server",
         networkId: "net-dep",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
         vulnerabilities: [],
         operatingSystem: null,
@@ -183,7 +183,7 @@ function buildDataset(): Dataset {
         hostname: "dep-out-of-model",
         type: "server",
         networkId: "net-dep",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
         vulnerabilities: [],
         operatingSystem: null,
@@ -196,7 +196,7 @@ function buildDataset(): Dataset {
         hostname: "unassigned-1",
         type: "server",
         networkId: UNASSIGNED_NETWORK_ID,
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
         vulnerabilities: [],
         operatingSystem: null,

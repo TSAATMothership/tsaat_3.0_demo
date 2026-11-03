@@ -4,6 +4,7 @@ import type { Asset, ICTSystem, ManagedNetwork } from "@/lib/types";
 export interface RiskEntityDetailsModel {
   id: string;
   name: string;
+  securityDomain: ManagedNetwork["securityDomain"];
   description: string;
   owner: string;
   supportEmail: string;
@@ -20,7 +21,7 @@ export function buildRiskEntityDetails(entity: ManagedNetwork | ICTSystem, asset
   const counts = new Map<Asset["type"], number>();
   for (const asset of assets) counts.set(asset.type, (counts.get(asset.type) ?? 0) + 1);
   return {
-    id: entity.id, name: entity.name,
+    id: entity.id, name: entity.name, securityDomain: entity.securityDomain,
     description: entity.description?.trim() || "", owner: entity.owner?.trim() || "",
     supportEmail: entity.supportEmail?.trim() || "", serviceCatalogueUrl: entity.serviceCatalogueUrl?.trim() || "",
     atoNumber: entity.atoNumber?.trim() || "", grcUrl: entity.grcUrl?.trim() || "",

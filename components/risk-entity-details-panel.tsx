@@ -45,7 +45,7 @@ export function RiskEntityDetailsPanel({ details, entityLabel, snapshotDate, onC
     }}>
     <div className="measure-scope-content">
       <header><div><p className="endpoint-eyebrow">{entityLabel} Details</p><h2 id={titleId}>{details.name}</h2>
-        <p className="network-details-meta">{details.id} · Snapshot {snapshotDate}</p></div>
+        <p className="network-details-meta">{details.id} · Security Domain: {details.securityDomain} · Snapshot {snapshotDate}</p></div>
         <button type="button" autoFocus onClick={onClose} aria-label={`Close ${entityLabel} Details panel`}>Close</button></header>
       <div className={`network-details-body${appId !== undefined ? " network-details-with-app-id" : ""}`}>
         <section className="network-details-card network-details-wide"><h3>{entityLabel} Description</h3><p className="network-details-description">{details.description || "No description recorded."}</p></section>

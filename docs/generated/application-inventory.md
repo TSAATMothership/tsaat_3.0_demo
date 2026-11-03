@@ -6,6 +6,9 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 
 | Item | Route | Scope restriction |
 | --- | --- | --- |
+| Overview | `/governance/overview` | Both scope types |
+| Trends | `/governance/trends` | Both scope types |
+| Insights | `/governance/insights` | Both scope types |
 | Network Risk Profile | `/network-risk-profile` | network |
 | ICT System Risk Profile | `/ict-system-risk-profile` | system |
 | Service Impact Analyser | `/cyber-cop?copView=impact` | Both scope types |
@@ -16,6 +19,8 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | Discovery Compliance Explorer | `/discovery-coverage?discoveryView=compliance` | Both scope types |
 | End Point Explorer | `/discovery-coverage?discoveryView=endpoints` | Both scope types |
 | Installed Software Explorer | `/discovery-coverage?discoveryView=installed-software` | Both scope types |
+| Security Vulnerability Explorer | `/discovery-coverage?discoveryView=security-vulnerabilities` | Both scope types |
+| Patch Management Explorer | `/discovery-coverage?discoveryView=patch-management` | Both scope types |
 | Shadow IT Explorer | `/discovery-coverage?discoveryView=shadow-it` | Both scope types |
 | Measures Summary | `/measures` | Both scope types |
 | Key Performance Indicators (KPIs) | `/measures?measuresTab=measures-kpi` | Both scope types |
@@ -39,7 +44,9 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/discovery-coverage/endpoints/export` | POST | [Source](../../app/api/discovery-coverage/endpoints/export/route.ts) |
 | `/api/discovery-coverage/installed-software/export` | POST | [Source](../../app/api/discovery-coverage/installed-software/export/route.ts) |
 | `/api/discovery-coverage/network-report` | GET | [Source](../../app/api/discovery-coverage/network-report/route.ts) |
+| `/api/discovery-coverage/patch-management/export` | POST | [Source](../../app/api/discovery-coverage/patch-management/export/route.ts) |
 | `/api/discovery-coverage/remediation-report` | GET | [Source](../../app/api/discovery-coverage/remediation-report/route.ts) |
+| `/api/discovery-coverage/security-vulnerabilities/export` | POST | [Source](../../app/api/discovery-coverage/security-vulnerabilities/export/route.ts) |
 | `/api/discovery-coverage/shadow-it/export` | POST | [Source](../../app/api/discovery-coverage/shadow-it/export/route.ts) |
 | `/api/discovery-coverage/target-state-template` | GET | [Source](../../app/api/discovery-coverage/target-state-template/route.ts) |
 | `/api/discovery-coverage/tool-assets` | GET | [Source](../../app/api/discovery-coverage/tool-assets/route.ts) |
@@ -74,6 +81,9 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/cyber-cop` | Page | [Source](../../app/cyber-cop/page.tsx) |
 | `/discovery-coverage` | Page | [Source](../../app/discovery-coverage/page.tsx) |
 | `/findings` | Page | [Source](../../app/findings/page.tsx) |
+| `/governance/insights` | Page | [Source](../../app/governance/insights/page.tsx) |
+| `/governance/overview` | Page | [Source](../../app/governance/overview/page.tsx) |
+| `/governance/trends` | Page | [Source](../../app/governance/trends/page.tsx) |
 | `/ict-system-risk-profile` | Page | [Source](../../app/ict-system-risk-profile/page.tsx) |
 | `/login` | Page | [Source](../../app/login/page.tsx) |
 | `/measures` | Page | [Source](../../app/measures/page.tsx) |

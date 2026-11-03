@@ -1,3 +1,4 @@
+import { securityDomainFilter } from "@/lib/security-domain.mjs";
 import { notFound, redirect } from "next/navigation";
 import { extractDataDateParam } from "@/lib/data-date";
 import { networkDetailsHref } from "@/lib/network-details";
@@ -9,5 +10,5 @@ export default function NetworkDetailsPage({ params, searchParams }: {
   params: { networkId: string }; searchParams: WorkspaceSearchParams;
 }) {
   if (isUnassignedNetworkId(params.networkId)) notFound();
-  redirect(networkDetailsHref(params.networkId, extractDataDateParam(searchParams)));
+  redirect(networkDetailsHref(params.networkId, extractDataDateParam(searchParams), securityDomainFilter(searchParams.securityDomain)));
 }

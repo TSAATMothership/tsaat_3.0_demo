@@ -3,6 +3,7 @@ import { ASSET_TYPES } from "@/lib/asset-taxonomy";
 import {
   __resetDataLoaderCachesForTest,
   loadDatasetForDate,
+  loadPatchManagementExplorerData,
   loadWorkspaceFilterOptionsForDate,
   loadFindingDisplayConfiguration,
   loadFindingPriorityDefinitions,
@@ -422,8 +423,8 @@ describe("data loader caches", () => {
     const [first, concurrent] = await Promise.all([
       loadWorkspaceFilterOptionsForDate("2026-05-01"), loadWorkspaceFilterOptionsForDate("2026-05-01")
     ]);
-    expect(first).toEqual({ networks: [{ id: "net-a", label: "Alpha" }, { id: "net-z", label: "Zulu" }],
-      systems: [{ id: "sys-a", label: "Alpha" }, { id: "sys-z", label: "Zulu" }] });
+    expect(first).toEqual({ networks: [{ id: "net-a", label: "Alpha", securityDomain: "UNKNOWN" }, { id: "net-z", label: "Zulu", securityDomain: "UNKNOWN" }],
+      systems: [{ id: "sys-a", label: "Alpha", securityDomain: "UNKNOWN" }, { id: "sys-z", label: "Zulu", securityDomain: "UNKNOWN" }] });
     expect(concurrent).toBe(first);
     expect(await loadWorkspaceFilterOptionsForDate("2026-05-15")).toBe(first);
     expect(executeSqlJsonMock).toHaveBeenCalledTimes(2);
@@ -433,6 +434,24 @@ describe("data loader caches", () => {
     __resetDataLoaderCachesForTest();
     await loadWorkspaceFilterOptionsForDate("2026-06-01");
     expect(executeSqlJsonMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("hydrates server patch observations and OS levels with exact scope through the shared SQL facade", async () => {
+    expect((await loadPatchManagementExplorerData({})).rows).toEqual([]);
+    expect(executeSqlJsonMock).not.toHaveBeenCalled();
+    const defaultQuery = executeSqlJsonMock.getMockImplementation()!;
+    executeSqlJsonMock.mockImplementation(async (sql: string) => {
+      if (!sql.includes("DECLARE @snapshotId BIGINT")) return defaultQuery(sql);
+      expect(sql).toContain("[server_patch_observation]"); expect(sql).toContain("pm.[snapshot_id] = @snapshotId");
+      return { ...emptySnapshotPayload, assets: [{ id: "server-1", name: "Server One", hostname: "srv-1", type: "server", networkId: "net-1", systemId: "sys-1", environmentType: "Production", securityDomain: "PROTECTED" }],
+        assetOperatingSystems: [{ assetId: "server-1", family: "Windows Server", vendor: "Microsoft", version: "2022", patchLevel: "Recorded baseline", supportStatus: "Supported" }],
+        serverPatchObservations: [{ assetId: "server-1", missingUpdates: 3, missingCriticalUpdates: 1, assessmentDate: "2026-04-30T00:00:00Z", assessmentValidUntil: "2026-05-01", source: "Scanner" }] };
+    });
+    const result = await loadPatchManagementExplorerData({ network: "net-1", dataDate: "2026-05-01" });
+    expect(result.snapshotDate).toBe("2026-04-30");
+    expect(result.rows).toMatchObject([{ assetId: "server-1", status: "Not patched", missingUpdates: 3, installedPatchLevel: "Recorded baseline" }]);
+    expect((await loadPatchManagementExplorerData({ system: "sys-1" })).rows).toHaveLength(1);
+    expect((await loadPatchManagementExplorerData({ network: "net-10" })).rows).toEqual([]);
   });
 
   it("reuses snapshot metadata and snapshot datasets within the cache window", async () => {

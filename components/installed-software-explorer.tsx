@@ -14,7 +14,7 @@ const number = (value: number) => value.toLocaleString("en-AU");
 const toggle = <T extends string,>(values: T[], value: T): T[] => values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 
 export function InstalledSoftwareExplorer({ rows, snapshotDate, scope, initialFilters }: {
-  rows: InstalledSoftwareRecord[]; snapshotDate: string; scope: { network: string[]; system: string[]; dataDate: string };
+  rows: InstalledSoftwareRecord[]; snapshotDate: string; scope: { network: string[]; system: string[]; securityDomain?: string; dataDate: string };
   initialFilters?: SoftwareFilters;
 }) {
   const [filters, setFilters] = useState<SoftwareFilters>(() => initialFilters ?? emptySoftwareFilters());

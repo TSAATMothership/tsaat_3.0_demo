@@ -23,6 +23,21 @@ function exportFixture() {
 }
 
 describe("SQL export conversion",()=>{
+  it("imports nullable server patch observations without changing inventory or legacy exports", () => {
+    const source = exportFixture();
+    Object.assign(source.tables, { server_patch_observation: [{ snapshot_id: 8, asset_id: "server-1", assessment_date: "2026-04-23T00:00:00",
+      last_restarted_date: "2026-04-22T01:00:00", missing_updates: 0, missing_critical_updates: 0, restart_required: false,
+      deployment_status: "Succeeded", source: "Recorded scanner", exception_reason: null }] });
+    const [dataset] = datasetsFromSqlExport(source);
+    expect(dataset.assets[0]).toMatchObject({ patchManagement: { assessmentDate: "2026-04-23T00:00:00.000Z", lastRestartedDate: "2026-04-22T01:00:00.000Z", missingUpdates: 0, restartRequired: false, source: "Recorded scanner" }, operatingSystem: { patchLevel: "Original patch" } });
+    expect(datasetsFromSqlExport(exportFixture())[0].assets[0]).not.toHaveProperty("patchManagement");
+  });
+  it("retains optional CVE metadata without conflating creation and detection dates", () => {
+    const source = exportFixture();
+    Object.assign(source.tables.asset_vulnerability[0], { cve_name: "Recorded CVE name", cve_created_date: "2024-05-08", software_name: "Tomcat", software_version: "10.1.19", reference_url: "https://www.cve.org/CVERecord?id=CVE-2024-34750" });
+    const [dataset] = datasetsFromSqlExport(source);
+    expect(dataset.assets[0].vulnerabilities[0]).toMatchObject({ cveName: "Recorded CVE name", cveCreatedDate: "2024-05-08", softwareName: "Tomcat", softwareVersion: "10.1.19", detectedDate: "2026-03-01", referenceUrl: "https://www.cve.org/CVERecord?id=CVE-2024-34750" });
+  });
   it("preserves database identity, inventory details, relationships and finding history",()=>{
     const source=exportFixture(), before=JSON.stringify(source), [dataset]=datasetsFromSqlExport(source);
     expect(dataset.snapshotId).toBe(8);expect(dataset.snapshotDate).toBe("2026-04-23");expect(dataset.generatedAt).toBe("2026-04-23T02:00:00.000Z");

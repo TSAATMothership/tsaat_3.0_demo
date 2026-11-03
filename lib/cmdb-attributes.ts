@@ -22,7 +22,7 @@ export interface CmdbAttributeRow {
   value: string;
   href?: string;
 }
-export interface CmdbAssetView extends Pick<CmdbAssetDetails, "snapshotDate" | "assetId" | "assetName" | "assetType"> {
+export interface CmdbAssetView extends Pick<CmdbAssetDetails, "snapshotDate" | "assetId" | "assetName" | "assetType" | "networkId"> {
   attributes: CmdbAttributeRow[];
 }
 
@@ -56,5 +56,5 @@ export function buildCmdbAssetView(details: CmdbAssetDetails, definitions: CmdbA
       : key === "environmentType" ? details.environmentType ?? "Unassigned" : details[key];
     return { key, label, value: value === null || value === undefined || value === "" ? "Not supplied" : String(value) };
   });
-  return { snapshotDate: details.snapshotDate, assetId: details.assetId, assetName: details.assetName, assetType: details.assetType, attributes };
+  return { snapshotDate: details.snapshotDate, assetId: details.assetId, assetName: details.assetName, assetType: details.assetType, networkId: details.networkId, attributes };
 }

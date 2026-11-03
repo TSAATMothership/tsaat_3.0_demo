@@ -1,10 +1,11 @@
 import type { CanonicalAssetType } from "@/lib/asset-taxonomy";
+import type { SecurityDomain } from "@/lib/security-domain.mjs";
+export type { SecurityDomain } from "@/lib/security-domain.mjs";
 
 export type AssetType = CanonicalAssetType;
 
 export type EnvironmentType = "Production" | "Development" | "UAT" | "Test";
 
-export type SecurityDomain = "Secret" | "Protected" | "Unclassified";
 
 export type SupportStatus = "Supported" | "OutOfSupport" | "Unknown";
 
@@ -40,6 +41,7 @@ export interface BusinessService {
 export interface ManagedNetwork {
   id: string;
   name: string;
+  securityDomain: SecurityDomain;
   criticality: Criticality;
   adfPlatform: boolean;
   enterprisePlatform: boolean;
@@ -119,10 +121,39 @@ export interface PatchState {
   lastPatchedDate: string | null;
 }
 
+/** Snapshot evidence from a patch-management tool; absent values are unknown. */
+export interface ServerPatchRecord {
+  assessmentDate?: string | null;
+  assessmentValidUntil?: string | null;
+  lastPatchedDate?: string | null;
+  lastRestartedDate?: string | null;
+  verifiedDate?: string | null;
+  installedPatchLevel?: string | null;
+  targetPatchLevel?: string | null;
+  missingUpdates?: number | null;
+  missingCriticalUpdates?: number | null;
+  restartRequired?: boolean | null;
+  deploymentStatus?: "Succeeded" | "Failed" | "In progress" | "Scheduled" | "Unknown" | null;
+  dueDate?: string | null;
+  plannedDate?: string | null;
+  owner?: string | null;
+  maintenanceWindow?: string | null;
+  changeReference?: string | null;
+  exceptionReason?: string | null;
+  exceptionExpiresDate?: string | null;
+  source?: string | null;
+}
+
 export interface Vulnerability {
   id: string;
   assetId: string;
   cve: string;
+  cveName?: string | null;
+  /** CVE record creation/reservation date, independent of endpoint detection or capture. */
+  cveCreatedDate?: string | null;
+  softwareName?: string | null;
+  softwareVersion?: string | null;
+  referenceUrl?: string | null;
   description: string;
   remediationGuidance: string;
   criticality: VulnerabilitySeverity;
@@ -173,6 +204,7 @@ interface BaseAsset {
 
 export interface ServerAsset extends BaseAsset {
   type: "server";
+  patchManagement?: ServerPatchRecord | null;
   operatingSystem: OperatingSystem | null;
   installedSoftware: InstalledSoftware[];
 }
@@ -348,7 +380,8 @@ export interface Filters {
   managedNetwork?: string;
   ictSystem?: string;
   systemCriticality?: SystemCriticality;
-  securityDomain?: SecurityDomain;
+  /** Canonical comma-separated domains; undefined means all, NONE means empty. */
+  securityDomain?: string;
   environment?: EnvironmentType;
   assetType?: AssetType;
   severity?: FindingSeverity;

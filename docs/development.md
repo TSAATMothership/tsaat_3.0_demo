@@ -34,6 +34,7 @@ For unattended setup, provide TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD in t
 | npm run test:nosql | Authenticated production browser/API smoke and restart persistence |
 | npm run setup:login | Set or replace the application username/password for either provider |
 | npm run populate:nosql | Preview current-store enrichment; --source selects a SQL export and --apply --demo publishes with backup |
+| npm run populate:patches | Preview missing sample server patch records; --apply --demo publishes with backup |
 | npm run setup:nosql | Initialize missing JSON storage without replacing existing data |
 | npm run storage:check | Require review when SQL calculation contracts change |
 | npm run start:sql / start:nosql | Serve the corresponding compiled artifact; production login requires HTTPS |
@@ -51,9 +52,13 @@ For UI work, check representative snapshot data, desktop/narrow layouts, keyboar
 
 ## Troubleshooting
 
+If dev, start or build reports that Next.js is missing or incomplete (or an older launcher reports `Cannot find module 'next/dist/bin/next'`), stop this checkout's app processes, run `npm ci --offline` from the repository root, then retry the original command. This repairs `node_modules` from the committed archives without changing credentials or JSON data. The launcher checks for Next.js before JSON initialization or build setup and prints this recovery command when it is absent.
+
 Create missing DPAPI files under the runtime identity. Configure sqlcmd if absent. Hard-refresh stale Next hot-update references after a restart; stop the corresponding server before clearing its .next-sql or .next-nosql output. Never clear NoSQL/data as a build fix. Fix build errors rather than bypassing them. Deployment troubleshooting is in [operations](operations.md).
 
 ## Provider development
+
+Security Vulnerability Explorer uses `populate:vulnerabilities` to preview existing-store CVE additions and `populate:vulnerabilities -- --apply --demo` to publish with backup. SQL migration 028 is required before running the SQL app. Actual SQL parity requires an explicitly selected disposable `TSAAT_VulnerabilityParity_*` database and trusted TLS; the commands and source catalogue are in [the feature contract](security-vulnerability-explorer.md).
 
 SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all and performs npm ci --offline before checks/builds. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
 
@@ -66,3 +71,8 @@ To preview missing known-endpoint measure findings, run `npm run enrich:nosql`. 
 Optional read-only SQL parity: provision a separate `TSAAT_CoverageParity_*` disposable database with trusted TLS, set `TSAAT_COVERAGE_PARITY_DATABASE` to that exact name, then run `npm exec -- vitest run tests/nosql-coverage-sql.test.ts`. The test selects that database explicitly, compares configured SQL and shared JSON SPI results, and checks sample finding coverage without SQL writes. It never installs a schema or relaxes TLS and is skipped unless explicitly selected.
 
 The production No-SQL smoke follows all eight row drill-throughs on each risk-profile explorer in real new tabs. It checks keyboard activation, selected-item/date presets, severity/duration filters, detail-panel loading, and unchanged source-table search/order/scope. This shared navigation has no provider-specific SQL behavior.
+
+
+Security-domain changes add no dependencies. Run tests/security-domain*.test.ts plus provider/navigation tests and the production smoke gate. Live SQL migration verification requires explicitly configured TSAAT_DOMAIN_PARITY_SERVER and an empty TSAAT_DomainParity_* database; absence skips it. See [scope and migration](security-domains.md).
+
+The shared pure domain module is native ESM for use by offline setup/migration scripts. Its .d.mts declaration uses the already installed TypeScript ESLint parser override, keeping declaration files linted.

@@ -13,7 +13,7 @@ const request = (body: unknown) => new NextRequest("http://localhost/api/discove
 
 beforeEach(() => {
   load.mockReset();
-  load.mockResolvedValue({ snapshotDate: "2026-10-31", rows: Array.from({ length: 80 }, (_, index) => ({
+  load.mockResolvedValue({ snapshotDate: "2026-10-31", rows: Array.from({ length: 80 }, (_, index) => ({ securityDomain: "UNKNOWN",
     assetId: `a${index}`, name: `Device ${index}`, ciType: index < 75 ? "Server" : "Workstation", ipAddress: "10.0.0.1",
     macAddress: null, deviceModel: null, lastDiscoveredDate: null, discoveredBy: null, managedNetwork: "West"
   })) });
@@ -29,7 +29,7 @@ describe("endpoint export route", () => {
     const sheet = readXlsxEntries(Buffer.from(await response.arrayBuffer())).get("xl/worksheets/sheet1.xml")!.toString("utf8");
     expect(sheet.match(/<row /g)).toHaveLength(76);
     expect(sheet).not.toContain("Workstation");
-    expect(sheet.match(/<c r="I\d+" s="2"/g)).toHaveLength(75);
+    expect(sheet.match(/<c r="J\d+" s="2"/g)).toHaveLength(75);
   });
 
   it.each([{ ...scope, network: [] }, { ...scope, system: ["sys-1"] }, { ...scope, network: [123] },

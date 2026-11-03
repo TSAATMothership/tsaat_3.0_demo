@@ -291,7 +291,7 @@ describe("seed dataset", () => {
         (network) => network.id === DISABLED_REFERENCE_NETWORK_ID
       );
 
-      expect(disabledNetwork).toMatchObject({
+      expect(disabledNetwork).toMatchObject({ securityDomain: "UNKNOWN",
         id: DISABLED_REFERENCE_NETWORK_ID,
         name: DISABLED_REFERENCE_NETWORK_NAME,
         description: DISABLED_REFERENCE_NETWORK_DESCRIPTION,

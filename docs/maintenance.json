@@ -3,7 +3,7 @@
   "areas": [
     {
       "name": "Workspace and navigation",
-      "pattern": "workspace|route-loading|app/page\\.tsx|app/layout\\.tsx",
+      "pattern": "workspace|governance|route-loading|app/page\\.tsx|app/layout\\.tsx",
       "documents": [
         "Requirements Documentation/01-Home-Redirect.md",
         "docs/ui-design.md"
@@ -116,6 +116,15 @@
         "docs/offline-builds.md",
         "docs/sdlc.md",
         "Requirements Documentation/14-Offline-Compilation.md"
+      ]
+    },
+    {
+      "name": "Security domain scope",
+      "pattern": "security-domain|migrate-security-domains",
+      "documents": [
+        "docs/security-domains.md",
+        "docs/data-providers.md",
+        "Requirements Documentation/01-Home-Redirect.md"
       ]
     }
   ],

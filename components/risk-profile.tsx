@@ -86,7 +86,7 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
     : order === "findings" ? b.openFindings - a.openFindings || a.name.localeCompare(b.name) : 0), [selected.rows, order]);
   const focus = (view: Review) => { setReview(view); selectTab("explorer", true); };
   const exportCsv = (matching: RiskProfileRow[]) => {
-    const csv = Papa.unparse(matching.map(row => ({ [entityLabel]: row.name, [isSystem ? "Security domain" : "Classification"]: row.classification, Criticality: row.criticality,
+    const csv = Papa.unparse(matching.map(row => ({ [entityLabel]: row.name, "Security Domain": row.securityDomain, ...(!isSystem ? { Classification: row.classification } : {}), Criticality: row.criticality,
       Posture: row.status, CIs: row.ciCount, ...(isSystem ? { "Networks hosting CIs": row.networkCount, ATO: row.atoNumber, DIIS: row.diisId, "APP-ID": row.systemDetails?.apmNumber ?? "" } : { "ICT systems using CIs": row.systemCount }), "CIs without SPI assessments": row.unassessedCis, "SPI compliance (%)": row.spi.percent ?? "",
       "Discovery coverage (%)": row.discovery.percent ?? "", "Open findings": row.openFindings, "Critical Exposure": row.critical,
       "High Risk": row.high, "Open over 90 days": row.overdue, "Oldest open finding (days)": row.oldestDays ?? "",
@@ -154,12 +154,12 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
         </header>
         <div className="network-risk-views" role="group" aria-label={`${entityLabel} review focus`}>{views.map(view => <button type="button" key={view.id} aria-pressed={view.id === review} onClick={() => setReview(view.id)}>{view.label} <span>{number(view.rows.length)}</span></button>)}</div>
         <div className="network-risk-table-host"><FindingsDataTable key={`${review}:${order}`} title={isSystem ? "ICT Systems" : "Networks"} rows={rows} columns={columns} paginate={false}
-          className={`network-risk-table${isSystem ? " ict-system-risk-table" : ""}`} searchText={row => `${row.id} ${row.classification} ${row.criticality} ${row.context} ${row.owner} ${row.description} ${row.atoNumber ?? ""} ${row.diisId ?? ""}`}
+          className={`network-risk-table${isSystem ? " ict-system-risk-table" : ""}`} searchText={row => `${row.id} ${row.securityDomain} ${row.classification} ${row.criticality} ${row.context} ${row.owner} ${row.description} ${row.atoNumber ?? ""} ${row.diisId ?? ""}`}
           emptyMessage={`No ${entities} match this review focus. Choose All ${entities} to see the selected scope. Define the scope in the header if none are available.`}
           actions={matching => <button type="button" className="endpoint-export" disabled={!matching.length} onClick={() => exportCsv(matching)}>Export CSV</button>}
           renderRow={row => <tr key={row.id}>
             <td className="network-risk-name"><ExplorerDrillThrough label={`Open ${entityLabel} Details for ${row.name}`} href={detailsHref(row.id)}>{row.name} <span aria-hidden="true">↗</span></ExplorerDrillThrough>
-              <small>{row.classification} · {row.criticality}</small><small>{row.context}</small></td>
+              <small>Security Domain: {row.securityDomain} · {row.criticality}</small>{!isSystem && <small>Classification: {row.classification}</small>}<small>{row.context}</small></td>
             <td><span className={`network-risk-status ${row.status === "Compliant" ? "is-good" : row.status === "Non-compliant" ? "is-gap" : "is-unknown"}`}>{row.status}</span></td>
             <td><ExplorerDrillThrough label={`${row.name}: ${row.ciCount} CIs`} href={href("/discovery-coverage", row.id, { discoveryView: "endpoints" })}>{number(row.ciCount)}</ExplorerDrillThrough></td>
             <td className="network-risk-score"><ExplorerDrillThrough label={`Review ${row.name} SPI compliance`} href={href("/measures", row.id, { measuresTab: "measures-spi" })}><CoverageBar label={`${row.name} SPI compliance`} counts={row.spi} /></ExplorerDrillThrough></td>
@@ -174,7 +174,7 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
       <section role="tabpanel" id={`${idPrefix}-panel-heatmap`} aria-labelledby={`${idPrefix}-tab-heatmap`} hidden={activeTab !== "heatmap"}>
         <ComplianceHeatmap model={model.heatmap} active={activeTab === "heatmap"} />
       </section>
-      {!isSystem && selectedRow?.networkDetails && <NetworkDetailsPanel network={selectedRow.networkDetails} snapshotDate={model.snapshotDate} onClose={() => setSelectedEntityId(null)} />}
-      {isSystem && selectedRow?.systemDetails && <IctSystemDetailsPanel system={selectedRow.systemDetails} snapshotDate={model.snapshotDate} onClose={() => setSelectedEntityId(null)} />}
+      {!isSystem && selectedRow?.networkDetails && <NetworkDetailsPanel network={selectedRow.networkDetails} snapshotDate={model.snapshotDate} securityDomain={filters.securityDomain} onClose={() => setSelectedEntityId(null)} />}
+      {isSystem && selectedRow?.systemDetails && <IctSystemDetailsPanel system={selectedRow.systemDetails} snapshotDate={model.snapshotDate} securityDomain={filters.securityDomain} onClose={() => setSelectedEntityId(null)} />}
   </div>;
 }

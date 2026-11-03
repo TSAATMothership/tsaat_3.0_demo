@@ -11,7 +11,7 @@ describe("rollup precedence", () => {
         networkId: "net-1",
         systemId: "sys-1",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: true,
         evaluations: [
@@ -25,7 +25,7 @@ describe("rollup precedence", () => {
         networkId: "net-1",
         systemId: "sys-1",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: true,
         evaluations: [

@@ -186,3 +186,6 @@ Indexes (selected)
   - `IX_ci_dependency_type`
 
 Current cleanup (027): 66 tables; only the ATO and DIIS KPI calculations and generic KPI report detail remain. kpi_calculation_parameter, fn_kpi_stable_hash and managed_network.apm_number are removed. ict_system.apm_number remains the APP-ID source. Snapshot, finding, hierarchy, settings/version and audit structures are retained.
+
+
+Migration 030: managed_network gains security_domain NVARCHAR(20) NOT NULL; all three entity tables enforce PROTECTED/SECRET/UNKNOWN with binary case checks and default UNKNOWN. Network classification is preserved separately.

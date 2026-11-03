@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { buildServiceImpactModel, selectServiceImpact, serviceImpactRows } from "@/lib/service-impact";
 import type { Asset, Dataset, Finding, ICTSystem, ManagedNetwork } from "@/lib/types";
 
-const system = (id: string, networkId: string): ICTSystem => ({ id, name: id, networkId, criticality: "Critical", securityDomain: "Protected",
+const system = (id: string, networkId: string): ICTSystem => ({ id, name: id, networkId, criticality: "Critical", securityDomain: "PROTECTED",
   adfPlatform: false, enterprisePlatform: true, modellingStatus: true, diisDefined: true, apmNumber: ` APP-${id} `,
   businessServices: [{ id: "shared", name: "Shared service", criticality: "Critical" }],
   missionCapabilities: [{ id: `mission-${id}`, name: `Mission ${id}`, criticality: "Non-Critical" }], environments: [] });
 const asset = (id: string, networkId: string, systemId?: string): Asset => ({ id, name: id, hostname: id, type: "server", networkId,
-  systemContext: systemId ? { systemId, environmentType: "Production" } : undefined, securityDomain: "Protected",
+  systemContext: systemId ? { systemId, environmentType: "Production" } : undefined, securityDomain: "PROTECTED",
   ipAddress: "10.0.0.1", deviceModel: "Stored model", discoveredBy: "Stored scanner", lastDiscoveredDate: "2026-10-30",
   vulnerabilities: [], lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" }, operatingSystem: null, installedSoftware: [] });
 const finding = (id: string, assetId: string, severity: string): Finding => ({ id, spiId: 1, priorityRank: 1, severity, status: "open",

@@ -19,7 +19,7 @@ export default async function MeasuresPage({ searchParams }: { searchParams: Wor
   const activeTab = resolveMeasuresTab(first(searchParams.measuresTab));
   if (activeTab === "spi-settings") {
     const scope = new URLSearchParams();
-    for (const key of ["network", "system", "dataDate"]) {
+    for (const key of ["network", "system", "securityDomain", "dataDate"]) {
       const value = searchParams[key];
       if (value) scope.set(key, Array.isArray(value) ? value.join(",") : value);
     }
@@ -28,7 +28,7 @@ export default async function MeasuresPage({ searchParams }: { searchParams: Wor
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/measures" searchParams={searchParams} />;
   const scopedSearchParams = { ...searchParams };
   if (activeTab === "measures-kpi" || activeTab === "measures-spi") {
-    for (const key of ["securityDomain", "environment", "assetType", "severity"]) delete scopedSearchParams[key];
+    for (const key of ["environment", "assetType", "severity"]) delete scopedSearchParams[key];
   }
   const { analytics, filters, dataset, kpiDefinitions, spiDefinitions,
     severityDefinitions, priorityDefinitions, measuresSettings } = await getCoreAppData(scopedSearchParams, { profile: "summary" });

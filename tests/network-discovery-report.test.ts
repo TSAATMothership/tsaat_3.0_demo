@@ -39,7 +39,7 @@ function createDataset(): Dataset {
   alphaTargets["printer-device"] = ["Alpha Printer 01"];
 
   const networks: ManagedNetwork[] = [
-    {
+    { securityDomain: "UNKNOWN",
       id: "net-alpha",
       name: "Alpha Network",
       criticality: "Critical",
@@ -56,7 +56,7 @@ function createDataset(): Dataset {
       assetIds: ["asset-alpha-server", "asset-alpha-printer"],
       targetStateAssets: alphaTargets
     },
-    {
+    { securityDomain: "UNKNOWN",
       id: "net-beta",
       name: "Beta Network",
       criticality: "Non-Critical",
@@ -76,7 +76,7 @@ function createDataset(): Dataset {
       hostname: "alpha-srv-01",
       type: "server",
       networkId: "net-alpha",
-      securityDomain: "Secret",
+      securityDomain: "SECRET",
       lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
       vulnerabilities: [vulnerability("asset-alpha-server")],
       systemContext: { systemId: "sys-alpha", environmentType: "Production" },
@@ -89,7 +89,7 @@ function createDataset(): Dataset {
       hostname: "alpha-prn-01",
       type: "printer-device",
       networkId: "net-alpha",
-      securityDomain: "Secret",
+      securityDomain: "SECRET",
       lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" },
       vulnerabilities: []
     },
@@ -99,7 +99,7 @@ function createDataset(): Dataset {
       hostname: "beta-srv-01",
       type: "server",
       networkId: "net-beta",
-      securityDomain: "Protected",
+      securityDomain: "PROTECTED",
       lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
       vulnerabilities: [vulnerability("asset-beta-server")],
       systemContext: { systemId: "sys-beta", environmentType: "Production" },
@@ -146,7 +146,7 @@ function createDataset(): Dataset {
         diisDefined: true,
         networkId: "net-alpha",
         criticality: "Critical",
-        securityDomain: "Secret",
+        securityDomain: "SECRET",
         missionCapabilities: [],
         businessServices: [],
         environments: []
@@ -160,7 +160,7 @@ function createDataset(): Dataset {
         diisDefined: true,
         networkId: "net-beta",
         criticality: "Non-Critical",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         missionCapabilities: [],
         businessServices: [],
         environments: []
@@ -284,7 +284,7 @@ describe("network discovery report model", () => {
 
   it("does not generate reports for the synthetic Unassigned Systems bucket", () => {
     const dataset = createDataset();
-    dataset.managedNetworks.push({
+    dataset.managedNetworks.push({ securityDomain: "UNKNOWN",
       id: UNASSIGNED_NETWORK_ID,
       name: "Unassigned Systems",
       criticality: "Non-Critical",

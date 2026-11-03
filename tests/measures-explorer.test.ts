@@ -13,9 +13,9 @@ const row = (id: string, overrides: Partial<MeasureRecord> = {}): MeasureRecord 
   reportHref: "/current", trendHref: "/trend", assetTypeBreakdown: [], ...overrides
 });
 const rows = [row("KPI-1"), row("KPI-2", { compliant: 10, nonCompliant: 0, unknown: 0, scorePercent: 100 }), row("KPI-3", { total: 0, compliant: 0, nonCompliant: 0, unknown: 0, scorePercent: 0, reportHref: null, trendHref: null })];
-const scope: Filters = { managedNetwork: "net-1,net-2", ictSystem: "sys-1", securityDomain: "Protected", environment: "Production", assetType: "server", severity: "High Risk", missionCapability: "mission-1", businessService: "service-1", systemCriticality: "Critical" };
+const scope: Filters = { managedNetwork: "net-1,net-2", ictSystem: "sys-1", securityDomain: "PROTECTED", environment: "Production", assetType: "server", severity: "High Risk", missionCapability: "mission-1", businessService: "service-1", systemCriticality: "Critical" };
 const snapshotDate = "2026-10-31";
-const evaluation = (id: string): AssetSpiEvaluation => ({ assetId: id, assetType: "server", networkId: "net-1", systemId: "sys-1", environmentType: "Production", securityDomain: "Protected", systemCriticality: "Critical", discoveryCoverageCompliant: false,
+const evaluation = (id: string): AssetSpiEvaluation => ({ assetId: id, assetType: "server", networkId: "net-1", systemId: "sys-1", environmentType: "Production", securityDomain: "PROTECTED", systemCriticality: "Critical", discoveryCoverageCompliant: false,
   evaluations: [{ spiId: 1, status: "Non-compliant", evidence: {}, reasons: [] }, { spiId: 2, status: "Unknown", evidence: {}, reasons: [] }] });
 const finding = (id: string, overrides: Partial<Finding> = {}): Finding => ({ id, spiId: 1, status: "open", complianceStatus: "Non-compliant", severity: "High Risk", priorityRank: 2, timestamp: snapshotDate,
   scope: { assetId: "ci-1", networkId: "net-1", systemId: "sys-1", environmentType: "Production" }, title: "Finding", evidence: {}, recommendedAction: "Review", ...overrides });
@@ -99,8 +99,8 @@ describe("measure report preservation and navigation", () => {
   });
   it("lists distinct systems and real networks represented by each SPI's assessed CIs", () => {
     const system = { id: "sys-1", name: "Assessed system", networkId: "net-1", atoNumber: "ATO-1", diisId: "DIIS-1", adfPlatform: false, enterprisePlatform: false,
-      modellingStatus: true, diisDefined: true, criticality: "Critical" as const, securityDomain: "Protected" as const, missionCapabilities: [], businessServices: [], environments: [] };
-    const network = { id: "net-1", name: "Assessed network", criticality: "Critical" as const, adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
+      modellingStatus: true, diisDefined: true, criticality: "Critical" as const, securityDomain: "PROTECTED" as const, missionCapabilities: [], businessServices: [], environments: [] };
+    const network = { securityDomain: "UNKNOWN" as const, id: "net-1", name: "Assessed network", criticality: "Critical" as const, adfPlatform: false, enterprisePlatform: false, modellingStatus: true,
       discoveryStatus: "Discovery Enabled" as const, assetIds: [], ictSystemIds: [system.id] };
     const source = { ...dataset, ictSystems: [system, { ...system, id: "sys-unused" }], managedNetworks: [network, { ...network, id: "net-unused" }, { ...network, id: "net-unassigned" }] };
     const assessed = { ...analytics, evaluations: [...analytics.evaluations, { ...evaluation("ci-3"), systemId: null, networkId: "net-unassigned", evaluations: [] }] };
@@ -126,7 +126,7 @@ describe("measure report preservation and navigation", () => {
   it("preserves every page scope field and the actual snapshot on drill-through", () => {
     const selection = { search: "", columns: { id: ["SPI-1"] } };
     const params = new URL(measuresHref("measures-spi", scope, snapshotDate, selection), "http://localhost").searchParams;
-    expect(Object.fromEntries(params)).toMatchObject({ network: "net-1,net-2", system: "sys-1", securityDomain: "Protected", environment: "Production", assetType: "server", severity: "High Risk", mission: "mission-1", service: "service-1", criticality: "Critical", dataDate: snapshotDate });
+    expect(Object.fromEntries(params)).toMatchObject({ network: "net-1,net-2", system: "sys-1", securityDomain: "PROTECTED", environment: "Production", assetType: "server", severity: "High Risk", mission: "mission-1", service: "service-1", criticality: "Critical", dataDate: snapshotDate });
     expect(initialMeasureFilters(Object.fromEntries(params))).toEqual(selection);
     const findingParams = new URL(measuresFindingsHref(scope, snapshotDate, { severity: "Data Gap" }), "http://localhost").searchParams;
     expect(Object.fromEntries(findingParams)).toMatchObject({ findingsTab: "open", asOf: snapshotDate, dataDate: snapshotDate, severity: "Data Gap" });

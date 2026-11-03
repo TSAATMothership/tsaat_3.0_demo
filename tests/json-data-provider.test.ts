@@ -34,7 +34,7 @@ afterAll(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 const baseline = (): ServerAsset => ({
-  id: "test-server", name: "Test server", hostname: "test.example.invalid", type: "server", networkId: "net-1", securityDomain: "Protected",
+  id: "test-server", name: "Test server", hostname: "test.example.invalid", type: "server", networkId: "net-1", securityDomain: "PROTECTED",
   systemContext: { systemId: "sys-1", environmentType: "Production" }, vulnerabilities: [],
   lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
   operatingSystem: { family: "OS", vendor: "Vendor", version: "1", majorVersion: 1, currentSupportedMajor: 3, nMinus: 2, supportStatus: "Supported" },
@@ -45,6 +45,39 @@ const vulnerability = { id: "v1", assetId: "test-server", cve: "CVE-2025-0001", 
 function evaluate(id: number, asset: Asset) { return evaluateSpi(asset, definitions.find(d => d.spiId === id)!); }
 
 describe("JSON datastore calculation contract", () => {
+  it("projects sample server patch records through network, system and historical scopes", async () => {
+    const result = await data.loadPatchManagementExplorerData({ network: "net-1", dataDate: sample.snapshotDate });
+    const expected = sample.assets.filter(asset => asset.type === "server" && asset.networkId === "net-1");
+    expect(result.rows).toHaveLength(expected.length);
+    expect(result.rows.every(row => expected.some(asset => asset.id === row.assetId) && row.source?.startsWith("Sample"))).toBe(true);
+    expect((await data.loadPatchManagementExplorerData({})).rows).toEqual([]);
+    expect((await data.loadPatchManagementExplorerData({ network: "missing" })).rows).toEqual([]);
+    const system = expected.find(asset => asset.systemContext)?.systemContext?.systemId;
+    const selected = await data.loadPatchManagementExplorerData({ system, dataDate: "2026-03-05" });
+    expect(selected.snapshotDate).toBe("2026-03-05");
+    expect(selected.rows.length).toBeGreaterThan(0);
+    expect(selected.rows.every(row => sample.assets.some(asset => asset.id === row.assetId && asset.systemContext?.systemId === system))).toBe(true);
+  });
+  it("scopes vulnerability observations to their endpoint and snapshot, with sourced software mappings", async () => {
+    const scope = { network: "net-1", dataDate: sample.snapshotDate };
+    const result = await data.loadSecurityVulnerabilityExplorerData(scope);
+    const ids = new Set(sample.assets.filter(asset => asset.networkId === "net-1").map(asset => asset.id));
+    expect(result.rows.length).toBeGreaterThan(0);
+    expect(result.rows.every(row => ids.has(row.assetId) && row.detectedDate <= result.snapshotDate)).toBe(true);
+    const mapped = result.rows.filter(row => row.source.startsWith("Sample inventory match"));
+    expect(mapped.length).toBeGreaterThan(0);
+    expect(mapped.every(row => row.softwareName && row.softwareVersion && row.cveCreatedDate && row.referenceUrl)).toBe(true);
+    expect((await data.loadSecurityVulnerabilityExplorerData({})).rows).toEqual([]);
+    expect((await data.loadSecurityVulnerabilityExplorerData({ network: "net-unassigned", dataDate: sample.snapshotDate })).rows).toEqual([]);
+    const system = sample.assets.find(asset => asset.networkId === "net-1" && asset.systemContext)?.systemContext?.systemId;
+    expect(system).toBeDefined();
+    const selected = await data.loadSecurityVulnerabilityExplorerData({ system, dataDate: sample.snapshotDate });
+    const systemIds = new Set(sample.assets.filter(asset => asset.systemContext?.systemId === system).map(asset => asset.id));
+    expect(selected.rows.every(row => systemIds.has(row.assetId))).toBe(true);
+    const older = await data.loadSecurityVulnerabilityExplorerData({ network: "net-1", dataDate: "2026-03-05" });
+    expect(older.snapshotDate <= "2026-03-05").toBe(true);
+    expect(older.rows.every(row => row.detectedDate <= older.snapshotDate)).toBe(true);
+  });
   it("exposes MAC and model data for every scoped known endpoint while retaining unidentified nodes", async () => {
     const result = await data.loadEndpointExplorerData({ network: sample.managedNetworks.map(n => n.id), dataDate: sample.snapshotDate });
     const known = new Set(sample.assets.filter(a => a.type !== "ip-node").map(a => a.id));
@@ -236,4 +269,19 @@ describe("JSON datastore calculation contract", () => {
       expect(createHash("sha256").update(source).digest("hex"), file + ": review JSON evaluators/tests before updating contract").toBe(expected);
     }
   });
+});
+
+it("applies the same domain partition to endpoint, software, vulnerability and patch projections",async()=>{
+ const network=sample.managedNetworks.filter(n=>n.id!=="net-unassigned").map(n=>n.id),scope={network,dataDate:sample.snapshotDate};
+ for(const loader of [data.loadEndpointExplorerData,data.loadInstalledSoftwareExplorerData,data.loadSecurityVulnerabilityExplorerData,data.loadPatchManagementExplorerData]){
+   const all=await loader(scope),partitioned=[];
+   for(const securityDomain of ["PROTECTED","SECRET","UNKNOWN"]){
+     const result=await loader({...scope,securityDomain});
+     expect(result.snapshotDate).toBe(all.snapshotDate);
+     expect(result.rows.every(row=>sample.assets.some(a=>a.id===row.assetId&&a.securityDomain===securityDomain))).toBe(true);
+     partitioned.push(...result.rows);
+   }
+   expect(partitioned).toHaveLength(all.rows.length);
+   expect((await loader({...scope,securityDomain:"NONE"})).rows).toEqual([]);
+ }
 });

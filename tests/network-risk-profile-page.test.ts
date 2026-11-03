@@ -18,8 +18,8 @@ describe("network risk profile route", () => {
       dataset: { snapshotDate: "2026-10-30", generatedAt: "2026-10-30", assets: [], managedNetworks: [{ id: "net-a", name: "Network A", ictSystemIds: [] }], ictSystems: [], spiEvaluations: [] },
       analytics: { evaluations: [], findings: [] }, filters: { managedNetwork: "net-a,net-b" }, severityDefinitions: [], spiDefinitions: [], measuresSettings: { updatedAt: "", severityMatrix: {}, priorityMatrix: {} }
     } as unknown as Awaited<ReturnType<typeof getCoreAppData>>);
-    const page = await NetworkRiskProfilePage({ searchParams: { network: ["net-a", "net-b"], networkDetails: "net-a", dataDate: "2026-10-31", severity: "High Risk", assetType: "server", securityDomain: "Protected" } });
-    expect(getCoreAppData).toHaveBeenCalledExactlyOnceWith({ network: ["net-a", "net-b"], system: undefined, dataDate: "2026-10-31" }, { profile: "risk-summary" });
+    const page = await NetworkRiskProfilePage({ searchParams: { network: ["net-a", "net-b"], networkDetails: "net-a", dataDate: "2026-10-31", severity: "High Risk", assetType: "server", securityDomain: "PROTECTED" } });
+    expect(getCoreAppData).toHaveBeenCalledExactlyOnceWith({ network: ["net-a", "net-b"], system: undefined, securityDomain: "PROTECTED", dataDate: "2026-10-31" }, { profile: "risk-summary" });
     const profile = (page.props.children as ReactElement[]).find(child => child.type === NetworkRiskProfile) as ReactElement<ComponentProps<typeof NetworkRiskProfile>>;
     expect(profile.props.model.snapshotDate).toBe("2026-10-30");
     expect(profile.props.filters).toEqual({ managedNetwork: "net-a,net-b" });

@@ -1,3 +1,4 @@
+import { securityDomainFilter } from "@/lib/security-domain.mjs";
 import { DiscoveryOverview } from "@/components/discovery-overview";
 import { buildDiscoveryOverview } from "@/lib/discovery-overview";
 import { initialDiscoveryFilters } from "@/lib/discovery-explorer-links";
@@ -18,6 +19,13 @@ import { filterDiscoveryAssets, removeUnassignedNetworkOption, sanitizeDiscovery
 import { hasWorkspaceScope, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { EndpointExplorer } from "@/components/endpoint-explorer";
 import { InstalledSoftwareExplorer } from "@/components/installed-software-explorer";
+import { SecurityVulnerabilityExplorer } from "@/components/security-vulnerability-explorer";
+import { PatchManagementExplorer } from "@/components/patch-management-explorer";
+import { parsePatchFilters } from "@/lib/patch-management-explorer";
+import { loadPatchManagementExplorerData } from "@/lib/data-loader";
+import { parseVulnerabilityFilters } from "@/lib/security-vulnerability-explorer";
+import { emptyExplorerTableFilters } from "@/lib/explorer-table";
+import { loadSecurityVulnerabilityExplorerData } from "@/lib/data-loader";
 import { ShadowItExplorer } from "@/components/shadow-it-explorer";
 import { loadDatasetForDate, loadDiscoveryToolsSettings, loadEndpointExplorerData, loadInstalledSoftwareExplorerData, loadShadowItExplorerData } from "@/lib/data-loader";
 import { scopeIds } from "@/lib/workspace-navigation";
@@ -29,20 +37,38 @@ const pendingDiscoveryViews: Record<string, string> = {
 export default async function DiscoveryCoveragePage({ searchParams }: { searchParams: WorkspaceSearchParams }) {
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
   const requestedView = Array.isArray(searchParams.discoveryView) ? searchParams.discoveryView[0] : searchParams.discoveryView;
+  if (requestedView === "patch-management") {
+    const data = await loadPatchManagementExplorerData(searchParams);
+    const initialFilters = initialDiscoveryFilters(searchParams.discoveryFilters, parsePatchFilters, emptyExplorerTableFilters);
+    return <><RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
+      <PatchManagementExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain, initialFilters])}
+        rows={data.rows} snapshotDate={data.snapshotDate}
+        scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: data.snapshotDate }} /></>;
+  }
+  if (requestedView === "security-vulnerabilities") {
+    const data = await loadSecurityVulnerabilityExplorerData(searchParams);
+    const initialFilters = initialDiscoveryFilters(searchParams.discoveryFilters, parseVulnerabilityFilters, emptyExplorerTableFilters);
+    return <><RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
+      <SecurityVulnerabilityExplorer key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain, initialFilters])}
+        initialFilters={initialFilters} rows={data.rows} snapshotDate={data.snapshotDate}
+        scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: data.snapshotDate }} /></>;
+  }
   if (requestedView === "overview") {
     // All summaries share the workspace scope, just like the inventory explorers.
-    const scope = { network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: searchParams.dataDate };
+    const scope = { network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: searchParams.dataDate };
     const selectedDate = Array.isArray(scope.dataDate) ? scope.dataDate[0] : scope.dataDate;
     const [dataset, settings] = await Promise.all([
       loadDatasetForDate(selectedDate, { profile: "summary" }), loadDiscoveryToolsSettings()
     ]);
     const snapshotScope = { ...scope, dataDate: dataset.snapshotDate };
-    const [endpoints, software, shadow] = await Promise.all([
-      loadEndpointExplorerData(snapshotScope), loadInstalledSoftwareExplorerData(snapshotScope), loadShadowItExplorerData(snapshotScope)
+    const [endpoints, software, shadow, vulnerabilities, patches] = await Promise.all([
+      loadEndpointExplorerData(snapshotScope), loadInstalledSoftwareExplorerData(snapshotScope), loadShadowItExplorerData(snapshotScope),
+      loadSecurityVulnerabilityExplorerData(snapshotScope), loadPatchManagementExplorerData(snapshotScope)
     ]);
     const assets = filterDiscoveryAssets(applyAssetFilters(dataset.assets, dataset.ictSystems, parseFilters(snapshotScope)));
     const coverage = buildScopedDiscoveryToolCoverage(assets, settings, dataset.discoveryCoverageEvaluations);
-    const model = buildDiscoveryOverview({ coverage, endpoints: endpoints.rows, software: software.rows, shadow: shadow.rows, snapshotDate: dataset.snapshotDate });
+    const model = buildDiscoveryOverview({ coverage, endpoints: endpoints.rows, software: software.rows, shadow: shadow.rows,
+      vulnerabilities: vulnerabilities.rows, patches: patches.rows, snapshotDate: dataset.snapshotDate });
     return <><RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} /><DiscoveryOverview model={model} scope={snapshotScope} /></>;
   }
   if (requestedView === "shadow-it") {
@@ -51,8 +77,8 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
     const selectedDate = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
     return <>
       <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
-      <ShadowItExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), initialFilters])}
-        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: selectedDate ?? data.snapshotDate }} />
+      <ShadowItExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain, initialFilters])}
+        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: selectedDate ?? data.snapshotDate }} />
     </>;
   }
   if (requestedView === "installed-software") {
@@ -61,8 +87,8 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
     const selectedDate = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
     return <>
       <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
-      <InstalledSoftwareExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), initialFilters])}
-        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: selectedDate ?? data.snapshotDate }} />
+      <InstalledSoftwareExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain, initialFilters])}
+        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: selectedDate ?? data.snapshotDate }} />
     </>;
   }
   if (requestedView === "endpoints") {
@@ -71,8 +97,8 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
     const selectedDate = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
     return <>
       <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />
-      <EndpointExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), initialFilters])}
-        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: selectedDate ?? data.snapshotDate }} />
+      <EndpointExplorer initialFilters={initialFilters} key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain, initialFilters])}
+        rows={data.rows} snapshotDate={data.snapshotDate} scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: selectedDate ?? data.snapshotDate }} />
     </>;
   }
   if (requestedView && Object.hasOwn(pendingDiscoveryViews, requestedView)) {

@@ -106,7 +106,7 @@ export function riskProfileHref(path: string, filters: Filters, snapshotDate: st
 }
 
 export type RiskProfileRow = ReturnType<typeof summarizeRiskAssets> & {
-  id: string; name: string; classification: string; criticality: Criticality; modellingStatus: boolean;
+  id: string; name: string; securityDomain: string; classification: string; criticality: Criticality; modellingStatus: boolean;
   owner: string; description: string; context: string;
   systemCount?: number; discoveryStatus?: NetworkDiscoveryStatus;
   networkCount?: number; atoNumber?: string; diisId?: string;

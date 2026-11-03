@@ -1,3 +1,4 @@
+import { normalizeDatasetSecurityDomains } from "../lib/security-domain.mjs";
 import { validateDemoDataset } from "./enrich-demo-dataset.mjs";
 
 const requiredTables = ["dataset_snapshot", "managed_network", "managed_network_hierarchy", "network_declared_system", "network_declared_asset", "network_target_state_asset", "ict_system", "ict_system_hierarchy", "system_mission_capability", "system_business_service", "system_environment", "system_environment_asset", "asset", "asset_operating_system", "asset_network_os", "asset_patch_state", "asset_installed_software", "asset_vulnerability", "ci_dependency", "finding"];
@@ -21,6 +22,7 @@ export function datasetsFromSqlExport(source) {
   if (!source || typeof source.databaseName!=="string" || !source.tables) throw new Error("Invalid SQL export envelope.");
   for (const table of requiredTables) if (!Array.isArray(source.tables[table])) throw new Error("SQL export is missing table: " + table);
   const tables=source.tables;
+  if (tables.server_patch_observation !== undefined && !Array.isArray(tables.server_patch_observation)) throw new Error("Invalid server patch observation table.");
   const snapshots=[...tables.dataset_snapshot].sort((a,b)=>String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
   const ids=new Set(), dates=new Set();
   if (!snapshots.length) throw new Error("SQL export has no snapshots.");
@@ -32,6 +34,7 @@ export function datasetsFromSqlExport(source) {
     const scoped=Object.fromEntries(requiredTables.slice(1).map(name=>[name,rows(name)]));
     const byAsset=name=>new Map(scoped[name].map(row=>[row.asset_id,row]));
     const endpointOs=byAsset("asset_operating_system"),networkOs=byAsset("asset_network_os"),patches=byAsset("asset_patch_state");
+    const serverPatches = new Map((tables.server_patch_observation ?? []).filter(row => row.snapshot_id === id).map(row => [row.asset_id, row]));
     const software=new Map(),vulnerabilities=new Map();
     for(const row of scoped.asset_installed_software){if(!software.has(row.asset_id))software.set(row.asset_id,[]);software.get(row.asset_id).push(row);}
     for(const row of scoped.asset_vulnerability){if(!vulnerabilities.has(row.asset_id))vulnerabilities.set(row.asset_id,[]);vulnerabilities.get(row.asset_id).push(row);}
@@ -41,7 +44,7 @@ export function datasetsFromSqlExport(source) {
       const children=scoped.managed_network_hierarchy.filter(h=>h.parent_network_id===networkId).map(h=>h.child_network_id);
       const targets={};
       for(const target of scoped.network_target_state_asset.filter(t=>t.network_id===networkId)){(targets[target.asset_type]??=[]).push(target.asset_name);}
-      return {...fields(row,{id:"network_id",name:"name",criticality:"criticality",adfPlatform:"adf_platform",enterprisePlatform:"enterprise_platform",modellingStatus:"modelling_status",classification:"classification",description:"description",owner:"owner",supportEmail:"support_email",serviceCatalogueUrl:"service_catalogue_url",diisId:"diis_id",atoNumber:"ato_number",diisUrl:"diis_url",grcUrl:"grc_url",discoveryStatus:"discovery_status"}),
+      return {...fields(row,{id:"network_id",name:"name",criticality:"criticality",adfPlatform:"adf_platform",enterprisePlatform:"enterprise_platform",modellingStatus:"modelling_status",classification:"classification",securityDomain:"security_domain",description:"description",owner:"owner",supportEmail:"support_email",serviceCatalogueUrl:"service_catalogue_url",diisId:"diis_id",atoNumber:"ato_number",diisUrl:"diis_url",grcUrl:"grc_url",discoveryStatus:"discovery_status"}),
         ...(parent?{parentNetworkId:parent}:{}),...(children.length?{childNetworkIds:children}:{}),
         ictSystemIds:scoped.network_declared_system.filter(r=>r.network_id===networkId).map(r=>r.system_id),
         assetIds:scoped.network_declared_asset.filter(r=>r.network_id===networkId).map(r=>r.asset_id),targetStateAssets:targets};
@@ -60,9 +63,13 @@ export function datasetsFromSqlExport(source) {
       const assetId=row.asset_id;
       const asset={...fields(row,{id:"asset_id",name:"name",hostname:"hostname",type:"asset_type",ipAddress:"ip_address",macAddress:"mac_address",deviceModel:"device_model",discoveredBy:"discovered_by",cmdbRecordUrl:"cmdb_record_url",networkId:"network_id",securityDomain:"security_domain"}),
         lastDiscoveredDate:timestamp(row.last_discovered_date),lifecycle:{eolStatus:row.lifecycle_eol_status,warrantyStatus:row.lifecycle_warranty_status},
-        vulnerabilities:(vulnerabilities.get(assetId)??[]).map(v=>({...fields(v,{id:"vulnerability_id",assetId:"asset_id",cve:"cve",description:"description",remediationGuidance:"remediation_guidance",criticality:"criticality",severity:"severity",exploitability:"exploitability",source:"source"}),detectedDate:String(v.detected_date).slice(0,10),capturedAt:timestamp(v.captured_at)})),
+        vulnerabilities:(vulnerabilities.get(assetId)??[]).map(v=>({...fields(v,{id:"vulnerability_id",assetId:"asset_id",cve:"cve",cveName:"cve_name",cveCreatedDate:"cve_created_date",softwareName:"software_name",softwareVersion:"software_version",referenceUrl:"reference_url",description:"description",remediationGuidance:"remediation_guidance",criticality:"criticality",severity:"severity",exploitability:"exploitability",source:"source"}),detectedDate:String(v.detected_date).slice(0,10),capturedAt:timestamp(v.captured_at)})),
         ...(row.system_id&&row.environment_type?{systemContext:{systemId:row.system_id,environmentType:row.environment_type}}:{})};
       if(row.asset_type==="server"||row.asset_type==="workstation"){
+        if (row.asset_type === "server" && serverPatches.has(assetId)) {
+          const patch = serverPatches.get(assetId);
+          asset.patchManagement = { ...fields(patch,{installedPatchLevel:"installed_patch_level",targetPatchLevel:"target_patch_level",missingUpdates:"missing_updates",missingCriticalUpdates:"missing_critical_updates",restartRequired:"restart_required",deploymentStatus:"deployment_status",owner:"owner",maintenanceWindow:"maintenance_window",changeReference:"change_reference",exceptionReason:"exception_reason",source:"source"}), assessmentDate:timestamp(patch["assessment_date"]),assessmentValidUntil:patch["assessment_valid_until"]?String(patch["assessment_valid_until"]).slice(0,10):null,lastPatchedDate:timestamp(patch["last_patched_date"]),lastRestartedDate:timestamp(patch["last_restarted_date"]),verifiedDate:timestamp(patch["verified_date"]),dueDate:patch["due_date"]?String(patch["due_date"]).slice(0,10):null,plannedDate:patch["planned_date"]?String(patch["planned_date"]).slice(0,10):null,exceptionExpiresDate:patch["exception_expires_date"]?String(patch["exception_expires_date"]).slice(0,10):null };
+        }
         asset.operatingSystem=osRecord(endpointOs.get(assetId));
         asset.installedSoftware=(software.get(assetId)??[]).sort((a,b)=>a.software_ordinal-b.software_ordinal).map(s=>({...fields(s,{name:"name",version:"version",supportStatus:"support_status",filePath:"file_path",discoveredBy:"discovered_by"}),lastDiscoveredDate:timestamp(s.last_discovered_date)}));
       } else if(row.asset_type==="network-device") {
@@ -78,6 +85,6 @@ export function datasetsFromSqlExport(source) {
     const ciDependencies=scoped.ci_dependency.map(row=>({...fields(row,{id:"dependency_id",sourceAssetId:"source_asset_id",targetAssetId:"target_asset_id",dependencyType:"dependency_type",protocol:"flow_protocol",sourcePort:"source_port",targetPort:"target_port",observationMethod:"observation_method"}),...(row.observed_at?{observedAt:timestamp(row.observed_at)}:{})}));
     const dataset={snapshotId:id,snapshotDate:date,generatedAt:timestamp(snapshot.generated_at),managedNetworks,ictSystems,assets,findings,ciDependencies,spiEvaluations:[]};
     validateDemoDataset(dataset);
-    return dataset;
+    return normalizeDatasetSecurityDomains(dataset);
   });
 }

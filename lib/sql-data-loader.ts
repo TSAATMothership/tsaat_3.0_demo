@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeSecurityDomain, normalizeNetworkSecurityDomain, securityDomainSelection } from "@/lib/security-domain.mjs";
 
 import { createHash } from "node:crypto";
 import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
@@ -54,6 +55,9 @@ import { ServerMemoryCache } from "@/lib/server-cache";
 import { filterRealNetworks } from "@/lib/network-scope";
 import type { EndpointRecord } from "@/lib/endpoint-explorer";
 import type { InstalledSoftwareRecord } from "@/lib/installed-software-explorer";
+import { buildPatchManagementRows, type PatchManagementData } from "@/lib/patch-management-explorer";
+import type { ServerPatchRecord } from "@/lib/types";
+import type { SecurityVulnerabilityRecord } from "@/lib/security-vulnerability-explorer";
 import type { ShadowItRecord } from "@/lib/shadow-it-explorer";
 import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import {
@@ -88,12 +92,13 @@ type DatasetLoadOptions = {
 };
 
 export interface WorkspaceFilterOptions {
-  networks: Array<{ id: string; label: string }>;
-  systems: Array<{ id: string; label: string }>;
+  networks: Array<{ id: string; label: string; securityDomain: string }>;
+  systems: Array<{ id: string; label: string; securityDomain: string }>;
 }
 
 export interface EndpointExplorerData { snapshotDate: string; rows: EndpointRecord[] }
 export interface InstalledSoftwareExplorerData { snapshotDate: string; rows: InstalledSoftwareRecord[] }
+export interface SecurityVulnerabilityExplorerData { snapshotDate: string; rows: SecurityVulnerabilityRecord[] }
 export interface ShadowItExplorerData { snapshotDate: string; rows: ShadowItRecord[] }
 
 type SettingsVersionRow = {
@@ -102,6 +107,7 @@ type SettingsVersionRow = {
 };
 
 type ManagedNetworkRow = {
+  securityDomain: string | null;
   id: string;
   name: string;
   criticality: "Critical" | "Non-Critical";
@@ -159,7 +165,7 @@ type SystemRow = {
   modellingStatus: boolean;
   diisDefined: boolean;
   criticality: "Critical" | "Non-Critical";
-  securityDomain: "Secret" | "Protected" | "Unclassified";
+  securityDomain: string | null;
 };
 
 type SystemHierarchyRow = {
@@ -208,7 +214,7 @@ type AssetRow = {
   cmdbRecordUrl: string | null;
   type: AssetType;
   networkId: string;
-  securityDomain: "Secret" | "Protected" | "Unclassified";
+  securityDomain: string | null;
   systemId: string | null;
   environmentType: EnvironmentType | null;
   eolStatus: "Supported" | "EOL" | "Unknown";
@@ -216,6 +222,7 @@ type AssetRow = {
 };
 
 type AssetOperatingSystemRow = {
+  patchLevel?: string | null;
   assetId: string;
   family: string;
   vendor: string;
@@ -244,6 +251,11 @@ type AssetVulnerabilityRow = {
   assetId: string;
   id: string;
   cve: string;
+  cveName?: string | null;
+  cveCreatedDate?: string | null;
+  softwareName?: string | null;
+  softwareVersion?: string | null;
+  referenceUrl?: string | null;
   description: string;
   remediationGuidance: string;
   criticality: "Low" | "Medium" | "High" | "Critical";
@@ -303,6 +315,7 @@ type SnapshotPayload = {
   assetOperatingSystems: AssetOperatingSystemRow[];
   assetNetworkOperatingSystems: AssetOperatingSystemRow[];
   assetPatchStates: AssetPatchStateRow[];
+  serverPatchObservations: Array<ServerPatchRecord & { assetId: string }>;
   assetInstalledSoftware: AssetInstalledSoftwareRow[];
   assetVulnerabilities: AssetVulnerabilityRow[];
   ciDependencies: CiDependencyRow[];
@@ -571,6 +584,9 @@ const installedSoftwareExplorerCache = new ServerMemoryCache<InstalledSoftwareEx
 
 const shadowItExplorerCache = new ServerMemoryCache<ShadowItExplorerData>({
   namespace: "data:shadow-it-explorer", ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS, maxEntries: 36
+});
+const securityVulnerabilityExplorerCache = new ServerMemoryCache<SecurityVulnerabilityExplorerData>({
+  namespace: "data:security-vulnerability-explorer", ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS, maxEntries: 36
 });
 
 const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
@@ -918,6 +934,7 @@ SELECT
       n.[enterprise_platform] AS [enterprisePlatform],
       n.[modelling_status] AS [modellingStatus],
       n.[classification] AS [classification],
+      n.[security_domain] AS [securityDomain],
       n.[description] AS [description],
       n.[owner] AS [owner],
       n.[support_email] AS [supportEmail],
@@ -1075,6 +1092,7 @@ SELECT
       aos.[vendor] AS [vendor],
       aos.[major_version] AS [majorVersion],
       aos.[version] AS [version],
+      aos.[patch_level] AS [patchLevel],
       aos.[support_status] AS [supportStatus],
       aos.[current_supported_major] AS [currentSupportedMajor],
       aos.[n_minus] AS [nMinus]
@@ -1108,6 +1126,32 @@ SELECT
     ORDER BY ps.[asset_id]
     FOR JSON PATH
   )) AS [assetPatchStates],
+  JSON_QUERY((
+    SELECT pm.[asset_id] AS [assetId],
+      CASE WHEN pm.[assessment_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[assessment_date], 126) + N'Z' END AS [assessmentDate],
+            CONVERT(CHAR(10), pm.[assessment_valid_until], 23) AS [assessmentValidUntil],
+            CASE WHEN pm.[last_patched_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[last_patched_date], 126) + N'Z' END AS [lastPatchedDate],
+            CASE WHEN pm.[last_restarted_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[last_restarted_date], 126) + N'Z' END AS [lastRestartedDate],
+            CASE WHEN pm.[verified_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[verified_date], 126) + N'Z' END AS [verifiedDate],
+            pm.[installed_patch_level] AS [installedPatchLevel],
+            pm.[target_patch_level] AS [targetPatchLevel],
+            pm.[missing_updates] AS [missingUpdates],
+            pm.[missing_critical_updates] AS [missingCriticalUpdates],
+            pm.[restart_required] AS [restartRequired],
+            pm.[deployment_status] AS [deploymentStatus],
+            CONVERT(CHAR(10), pm.[due_date], 23) AS [dueDate],
+            CONVERT(CHAR(10), pm.[planned_date], 23) AS [plannedDate],
+            pm.[owner] AS [owner],
+            pm.[maintenance_window] AS [maintenanceWindow],
+            pm.[change_reference] AS [changeReference],
+            pm.[exception_reason] AS [exceptionReason],
+            CONVERT(CHAR(10), pm.[exception_expires_date], 23) AS [exceptionExpiresDate],
+            pm.[source] AS [source]
+    FROM [${DATA_SCHEMA}].[server_patch_observation] pm
+    WHERE pm.[snapshot_id] = @snapshotId
+    ORDER BY pm.[asset_id]
+    FOR JSON PATH
+  )) AS [serverPatchObservations],
   JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
     SELECT
       sw.[asset_id] AS [assetId],
@@ -1125,6 +1169,9 @@ SELECT
       v.[asset_id] AS [assetId],
       v.[vulnerability_id] AS [id],
       v.[cve] AS [cve],
+      v.[cve_name] AS [cveName],
+      CONVERT(CHAR(10), v.[cve_created_date], 23) AS [cveCreatedDate],
+      v.[software_name] AS [softwareName], v.[software_version] AS [softwareVersion], v.[reference_url] AS [referenceUrl],
       v.[description] AS [description],
       v.[remediation_guidance] AS [remediationGuidance],
       v.[criticality] AS [criticality],
@@ -1195,6 +1242,7 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     assetOperatingSystems: Array.isArray(raw.assetOperatingSystems) ? raw.assetOperatingSystems : [],
     assetNetworkOperatingSystems: Array.isArray(raw.assetNetworkOperatingSystems) ? raw.assetNetworkOperatingSystems : [],
     assetPatchStates: Array.isArray(raw.assetPatchStates) ? raw.assetPatchStates : [],
+    serverPatchObservations: Array.isArray(raw.serverPatchObservations) ? raw.serverPatchObservations : [],
     assetInstalledSoftware: Array.isArray(raw.assetInstalledSoftware) ? raw.assetInstalledSoftware : [],
     assetVulnerabilities: Array.isArray(raw.assetVulnerabilities) ? raw.assetVulnerabilities : [],
     ciDependencies: Array.isArray(raw.ciDependencies) ? raw.ciDependencies : [],
@@ -1340,6 +1388,7 @@ function buildDatasetFromSnapshotRow(
           : Boolean(network.modellingStatus),
       ...(networkParentByChild.get(network.id) ? { parentNetworkId: networkParentByChild.get(network.id) } : {}),
       ...(childNetworkIds.length ? { childNetworkIds } : {}),
+      securityDomain: normalizeNetworkSecurityDomain(network.securityDomain, network.classification),
       ...(network.classification ? { classification: network.classification } : {}),
       ...(network.description ? { description: network.description } : {}),
       ...(network.owner ? { owner: network.owner } : {}),
@@ -1420,7 +1469,7 @@ function buildDatasetFromSnapshotRow(
       diisDefined: Boolean(system.diisDefined),
       networkId: system.networkId,
       criticality: system.criticality,
-      securityDomain: system.securityDomain,
+      securityDomain: normalizeSecurityDomain(system.securityDomain),
       missionCapabilities,
       businessServices,
       environments
@@ -1432,6 +1481,7 @@ function buildDatasetFromSnapshotRow(
     (row) => row.assetId,
     (row) => ({
       family: row.family,
+      patchLevel: row.patchLevel ?? null,
       vendor: row.vendor,
       majorVersion: row.majorVersion,
       version: row.version,
@@ -1465,6 +1515,7 @@ function buildDatasetFromSnapshotRow(
   );
 
   const installedSoftwareRowsByAssetId = toArrayMap(payload.assetInstalledSoftware, (row) => row.assetId);
+  const serverPatchesByAssetId = toFirstValueMap(payload.serverPatchObservations, row => row.assetId, ({ assetId: _assetId, ...record }) => record);
   const vulnerabilitiesByAssetId = toArrayMap(payload.assetVulnerabilities, (row) => row.assetId);
 
   const assets = payload.assets.map((assetRow) => {
@@ -1472,6 +1523,9 @@ function buildDatasetFromSnapshotRow(
       id: row.id,
       assetId: row.assetId,
       cve: row.cve,
+      cveName: row.cveName ?? null,
+      cveCreatedDate: row.cveCreatedDate ?? null,
+      softwareName: row.softwareName ?? null, softwareVersion: row.softwareVersion ?? null, referenceUrl: row.referenceUrl ?? null,
       description: row.description,
       remediationGuidance: row.remediationGuidance,
       criticality: row.criticality,
@@ -1500,7 +1554,7 @@ function buildDatasetFromSnapshotRow(
       discoveredBy: assetRow.discoveredBy ?? null,
       cmdbRecordUrl: assetRow.cmdbRecordUrl ?? null,
       networkId: assetRow.networkId,
-      securityDomain: assetRow.securityDomain,
+      securityDomain: normalizeSecurityDomain(assetRow.securityDomain),
       lifecycle: {
         eolStatus: assetRow.eolStatus,
         warrantyStatus: assetRow.warrantyStatus
@@ -1538,6 +1592,7 @@ function buildDatasetFromSnapshotRow(
         ...withIpAddress,
         type: assetRow.type,
         operatingSystem: operatingSystemsByAssetId.get(assetRow.id) ?? null,
+        ...(assetRow.type === "server" ? { patchManagement: serverPatchesByAssetId.get(assetRow.id) ?? null } : {}),
         installedSoftware
       } as Asset;
     }
@@ -1648,6 +1703,13 @@ async function loadDatasetBySnapshotId(
   );
 }
 
+export async function loadPatchManagementExplorerData(params: WorkspaceSearchParams): Promise<PatchManagementData> {
+  const date = Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate;
+  if (!scopeIds(params.network).length && !scopeIds(params.system).length) return { snapshotDate: normalizeDataDate(date) ?? todayDateKey(), rows: [] };
+  const dataset = await loadDatasetForDate(date, { profile: "full" });
+  return { snapshotDate: dataset.snapshotDate, rows: buildPatchManagementRows(dataset, params) };
+}
+
 export async function loadCurrentDataset(options: DatasetLoadOptions = {}): Promise<Dataset> {
   const snapshots = await loadSnapshotRows();
   const latest = latestSnapshot(snapshots);
@@ -1688,14 +1750,14 @@ export async function loadWorkspaceFilterOptionsForDate(requestedDate?: string):
 DECLARE @workspaceSnapshotId BIGINT = ${snapshotId};
 SELECT
   JSON_QUERY((
-    SELECT n.[network_id] AS [id], n.[name] AS [label]
+    SELECT n.[network_id] AS [id], n.[name] AS [label], n.[security_domain] AS [securityDomain]
     FROM [${DATA_SCHEMA}].[managed_network] n
     WHERE n.[snapshot_id] = @workspaceSnapshotId
     ORDER BY n.[network_id]
     FOR JSON PATH
   )) AS [networks],
   JSON_QUERY((
-    SELECT s.[system_id] AS [id], s.[name] AS [label]
+    SELECT s.[system_id] AS [id], s.[name] AS [label], s.[security_domain] AS [securityDomain]
     FROM [${DATA_SCHEMA}].[ict_system] s
     WHERE s.[snapshot_id] = @workspaceSnapshotId
     ORDER BY s.[system_id]
@@ -1705,8 +1767,8 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `);
     const byLabel = (left: { label: string }, right: { label: string }) => left.label.localeCompare(right.label);
     return {
-      networks: filterRealNetworks(options.networks ?? []).sort(byLabel),
-      systems: [...(options.systems ?? [])].sort(byLabel)
+      networks: filterRealNetworks(options.networks ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel),
+      systems: (options.systems ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel)
     };
   });
 }
@@ -1716,19 +1778,21 @@ export async function loadEndpointExplorerData(searchParams: WorkspaceSearchPara
   const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
   const networks = scopeIds(searchParams.network);
   const systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
   if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
   const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
   const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
-  const key = JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems]);
+  const key = JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]);
   return endpointExplorerCache.getOrSet(key, async () => {
     const rows = await executeSqlJson<EndpointRecord[]>(`
 DECLARE @endpointSnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
 SELECT
   a.[asset_id] AS [assetId],
   COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [name],
-  a.[asset_type] AS [ciType], a.[ip_address] AS [ipAddress],
+  a.[asset_type] AS [ciType], a.[security_domain] AS [securityDomain], a.[ip_address] AS [ipAddress],
   a.[mac_address] AS [macAddress], a.[device_model] AS [deviceModel],
   CASE WHEN a.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), a.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
   a.[discovered_by] AS [discoveredBy],
@@ -1739,6 +1803,7 @@ WHERE a.[snapshot_id] = @endpointSnapshotId
   AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
   AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
   AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+  AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
 ORDER BY a.[name], a.[asset_id]
 FOR JSON PATH, INCLUDE_NULL_VALUES;
 `);
@@ -1751,14 +1816,16 @@ export async function loadInstalledSoftwareExplorerData(searchParams: WorkspaceS
   const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
   const networks = scopeIds(searchParams.network);
   const systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
   if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
   const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
   const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
-  return installedSoftwareExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems]), async () => {
+  return installedSoftwareExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]), async () => {
     const rows = await executeSqlJson<InstalledSoftwareRecord[]>(`
 DECLARE @softwareSnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
 SELECT sw.[asset_id] AS [assetId], sw.[software_ordinal] AS [softwareOrdinal],
   sw.[name] AS [softwareName], sw.[version] AS [softwareVersion], sw.[file_path] AS [filePath],
   CASE WHEN sw.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), sw.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
@@ -1776,7 +1843,49 @@ WHERE sw.[snapshot_id] = @softwareSnapshotId
   AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
   AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
   AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+  AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
 ORDER BY sw.[name], sw.[version], a.[name], sw.[asset_id], sw.[software_ordinal]
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows };
+  });
+}
+
+/** Vulnerability observations join endpoint/OS data within the selected snapshot. */
+export async function loadSecurityVulnerabilityExplorerData(searchParams: WorkspaceSearchParams): Promise<SecurityVulnerabilityExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network), systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return securityVulnerabilityExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]), async () => {
+    const rows = await executeSqlJson<SecurityVulnerabilityRecord[]>(`
+DECLARE @vulnerabilitySnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
+SELECT v.[asset_id] AS [assetId], v.[vulnerability_id] AS [vulnerabilityId], v.[cve] AS [cve],
+  v.[cve_name] AS [cveName], v.[description] AS [description],
+  CONVERT(CHAR(10), v.[detected_date], 23) AS [detectedDate],
+  CONVERT(CHAR(10), v.[cve_created_date], 23) AS [cveCreatedDate],
+  v.[software_name] AS [softwareName], v.[software_version] AS [softwareVersion], v.[reference_url] AS [referenceUrl],
+  v.[remediation_guidance] AS [remediationGuidance], v.[severity] AS [severity], v.[source] AS [source],
+  COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [deviceName], a.[device_model] AS [deviceModel],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[family] ELSE nos.[family] END AS [osName],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[version] ELSE nos.[version] END AS [osVersion],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[patch_level] ELSE nos.[patch_level] END AS [osPatchLevel]
+FROM [${DATA_SCHEMA}].[asset_vulnerability] v
+JOIN [${DATA_SCHEMA}].[asset] a ON a.[snapshot_id] = v.[snapshot_id] AND a.[asset_id] = v.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_operating_system] os ON os.[snapshot_id] = a.[snapshot_id] AND os.[asset_id] = a.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_network_os] nos ON nos.[snapshot_id] = a.[snapshot_id] AND nos.[asset_id] = a.[asset_id]
+WHERE v.[snapshot_id] = @vulnerabilitySnapshotId AND v.[detected_date] <= ${toSqlUnicodeLiteral(snapshot.snapshotDate)}
+  AND a.[asset_type] <> N'ip-node'
+  AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
+  AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+  AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
+ORDER BY v.[cve], a.[name], v.[asset_id], v.[vulnerability_id]
 FOR JSON PATH, INCLUDE_NULL_VALUES;
 `);
     return { snapshotDate: snapshot.snapshotDate, rows };
@@ -1788,14 +1897,16 @@ export async function loadShadowItExplorerData(searchParams: WorkspaceSearchPara
   const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
   const networks = scopeIds(searchParams.network);
   const systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
   if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
   const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
   const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
-  return shadowItExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems]), async () => {
+  return shadowItExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]), async () => {
     const rows = await executeSqlJson<ShadowItRecord[]>(`
 DECLARE @shadowSnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
 SELECT node.[asset_id] AS [assetId], owner.[asset_id] AS [ownerAssetId],
   node.[ip_address] AS [ipAddress], node.[discovery_approach] AS [discoveryApproach],
   CASE WHEN node.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), node.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
@@ -1808,6 +1919,7 @@ LEFT JOIN [${DATA_SCHEMA}].[asset] owner ON node.[discovery_approach] = N'ARP Ta
   AND owner.[snapshot_id] = node.[snapshot_id] AND owner.[asset_id] = node.[arp_owner_asset_id] AND owner.[network_id] = node.[network_id]
 LEFT JOIN [${DATA_SCHEMA}].[managed_network] network ON network.[snapshot_id] = owner.[snapshot_id] AND network.[network_id] = owner.[network_id]
 WHERE node.[snapshot_id] = @shadowSnapshotId AND node.[asset_type] = N'ip-node'
+  AND node.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
   AND node.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(node.[network_id])) <> N''
   AND (@networks IS NULL OR node.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
   AND (@systems IS NULL OR node.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)) OR owner.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
@@ -2971,6 +3083,7 @@ export function clearDataLoaderCaches(): void {
   workspaceFilterOptionsCache.clear();
   endpointExplorerCache.clear();
   installedSoftwareExplorerCache.clear();
+  securityVulnerabilityExplorerCache.clear();
   shadowItExplorerCache.clear();
   referenceVersionsCache.clear();
   kpiDefinitionsCache.clear();
@@ -2994,6 +3107,7 @@ export function __resetDataLoaderCachesForTest(): void {
   workspaceFilterOptionsCache.resetStats();
   endpointExplorerCache.resetStats();
   installedSoftwareExplorerCache.resetStats();
+  securityVulnerabilityExplorerCache.resetStats();
   shadowItExplorerCache.resetStats();
   referenceVersionsCache.resetStats();
   kpiDefinitionsCache.resetStats();

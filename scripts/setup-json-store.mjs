@@ -1,4 +1,7 @@
 ﻿import fs from "node:fs/promises";
+import { normalizeDatasetSecurityDomains } from "../lib/security-domain.mjs";
+import { enrichVulnerabilityMetadata } from "./enrich-vulnerability-metadata.mjs";
+import { enrichPatchManagement } from "./enrich-patch-management.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -25,7 +28,7 @@ export async function initializeJsonStore({ target = process.env.TSAAT_JSON_DATA
       let value = JSON.parse((await fs.readFile(path.join(input, name), "utf8")).replace(/^\uFEFF/, ""));
       if (value.snapshotDate === current.snapshotDate) value = current;
       if (!Array.isArray(value.findings)) throw new Error("JSON snapshots must include persisted finding history: " + name);
-      value = enrichDemoDataset(value);
+      value = normalizeDatasetSecurityDomains(enrichPatchManagement(enrichVulnerabilityMetadata(enrichDemoDataset(value))));
       const file = "snapshots/" + name;
       await fs.writeFile(path.join(staging, file), JSON.stringify(value) + "\n");
       snapshots.push({ id: index + 1, date: value.snapshotDate, file });

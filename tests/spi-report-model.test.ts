@@ -19,7 +19,7 @@ function baseAsset(id: string, name: string, type: AssetType): Asset {
     lastDiscoveredDate: "2026-04-29T12:00:00Z",
     discoveredBy: "Test discovery",
     networkId: "net-1",
-    securityDomain: "Protected" as const,
+    securityDomain: "PROTECTED" as const,
     lifecycle: { eolStatus: "Supported" as const, warrantyStatus: "InWarranty" as const },
     vulnerabilities: [],
     systemContext: { systemId: "sys-1", environmentType: "Production" as const }

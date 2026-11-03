@@ -1,3 +1,4 @@
+import { matchesSecurityDomain, securityDomainFilter } from "@/lib/security-domain.mjs";
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
@@ -81,12 +82,12 @@ export async function GET(request: NextRequest, { params }: { params: { systemId
   const analytics = buildAnalytics(
     dataset,
     dataset.ictSystems,
-    { ictSystem: system.id },
+    { ictSystem: system.id, securityDomain: securityDomainFilter(request.nextUrl.searchParams.get("securityDomain")) },
     spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
-  const assets = dataset.assets.filter((asset) => asset.systemContext?.systemId === system.id);
+  const assets = dataset.assets.filter((asset) => matchesSecurityDomain(asset.securityDomain, request.nextUrl.searchParams.get("securityDomain")) && asset.systemContext?.systemId === system.id);
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12Findings = analytics.findings.filter((finding) => finding.priorityRank <= 2);
   const requestedEnvironment = request.nextUrl.searchParams.get("environment")?.trim();

@@ -20,7 +20,7 @@ function baseAnalytics(): AnalyticsResult {
         networkId: "network-1",
         systemId: "system-1",
         environmentType: "Production",
-        securityDomain: "Protected",
+        securityDomain: "PROTECTED",
         systemCriticality: "Critical",
         discoveryCoverageCompliant: true,
         evaluations: [

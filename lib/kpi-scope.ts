@@ -2,6 +2,7 @@ import { filterRealNetworks } from "@/lib/network-scope";
 import { filterSystems } from "@/lib/selectors";
 import type { Dataset, Filters, ICTSystem, ManagedNetwork } from "@/lib/types";
 import { scopeIds } from "@/lib/workspace-navigation";
+import { matchesSecurityDomain } from "@/lib/security-domain.mjs";
 
 export interface KpiScope {
   systems: ICTSystem[];
@@ -34,7 +35,7 @@ export function resolveKpiScope(dataset: Dataset, filters: Filters): KpiScope {
     .filter((system) => !selectedNetworks.size ||
       [...(networksBySystem.get(system.id) ?? [])].some((id) => selectedNetworks.has(id)));
   const systemNetworkIds = new Set(systems.flatMap((system) => [...(networksBySystem.get(system.id) ?? [])]));
-  const networks = filterRealNetworks(dataset.managedNetworks).filter((network) =>
-    selectedNetworks.size ? selectedNetworks.has(network.id) : systemNetworkIds.has(network.id));
+  const networks = filterRealNetworks(dataset.managedNetworks).filter((network) => matchesSecurityDomain(network.securityDomain, filters.securityDomain) &&
+    (selectedNetworks.size ? selectedNetworks.has(network.id) : systemNetworkIds.has(network.id)));
   return { systems, networks };
 }

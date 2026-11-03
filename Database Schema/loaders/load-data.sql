@@ -1604,6 +1604,7 @@ BEGIN
       [enterprise_platform] BIT '$.enterprisePlatform',
       [modelling_status] BIT '$.modellingStatus',
       [classification] NVARCHAR(255) '$.classification',
+      [security_domain] NVARCHAR(20) '$.securityDomain',
       [description] NVARCHAR(2000) '$.description',
       [owner] NVARCHAR(255) '$.owner',
       [support_email] NVARCHAR(320) '$.supportEmail',
@@ -1624,6 +1625,7 @@ BEGIN
     [enterprise_platform],
     [modelling_status],
     [classification],
+    [security_domain],
     [description],
     [owner],
     [support_email],
@@ -1649,6 +1651,7 @@ BEGIN
       END
     ),
     n.[classification],
+    CASE UPPER(LTRIM(RTRIM(COALESCE(n.[security_domain], CASE WHEN UPPER(LTRIM(RTRIM(n.[classification]))) = N'RESTRICTED' THEN N'SECRET' ELSE n.[classification] END)))) WHEN N'PROTECTED' THEN N'PROTECTED' WHEN N'SECRET' THEN N'SECRET' ELSE N'UNKNOWN' END,
     n.[description],
     n.[owner],
     n.[support_email],
@@ -1833,7 +1836,7 @@ BEGIN
     s.[modelling_status],
     s.[diis_defined],
     s.[criticality],
-    s.[security_domain]
+    CASE UPPER(LTRIM(RTRIM(s.[security_domain]))) WHEN N'PROTECTED' THEN N'PROTECTED' WHEN N'SECRET' THEN N'SECRET' ELSE N'UNKNOWN' END
   FROM system_source AS s;
 
   ;WITH parent_links AS (
@@ -1995,7 +1998,7 @@ BEGIN
     a.[cmdb_record_url],
     a.[asset_type],
     a.[network_id],
-    a.[security_domain],
+    CASE UPPER(LTRIM(RTRIM(a.[security_domain]))) WHEN N'PROTECTED' THEN N'PROTECTED' WHEN N'SECRET' THEN N'SECRET' ELSE N'UNKNOWN' END,
     a.[system_id],
     a.[environment_type],
     a.[lifecycle_eol_status],
@@ -2175,6 +2178,35 @@ BEGIN
     [last_patched_date] NVARCHAR(50) '$.lastPatchedDate'
   ) AS ps;
 
+  INSERT INTO [tsaat].[server_patch_observation] ([snapshot_id], [asset_id], [assessment_date], [assessment_valid_until], [last_patched_date], [last_restarted_date], [verified_date], [installed_patch_level], [target_patch_level], [missing_updates], [missing_critical_updates], [restart_required], [deployment_status], [due_date], [planned_date], [owner], [maintenance_window], [change_reference], [exception_reason], [exception_expires_date], [source])
+  SELECT @SnapshotId, a.[asset_id], pm.[assessment_date], pm.[assessment_valid_until], pm.[last_patched_date], pm.[last_restarted_date], pm.[verified_date], pm.[installed_patch_level], pm.[target_patch_level], pm.[missing_updates], pm.[missing_critical_updates], pm.[restart_required], pm.[deployment_status], pm.[due_date], pm.[planned_date], pm.[owner], pm.[maintenance_window], pm.[change_reference], pm.[exception_reason], pm.[exception_expires_date], pm.[source]
+  FROM OPENJSON(@Json, '$.assets') WITH (
+    [asset_id] NVARCHAR(255) '$.id', [asset_type] NVARCHAR(30) '$.type', [patch_record] NVARCHAR(MAX) '$.patchManagement' AS JSON
+  ) a
+  CROSS APPLY OPENJSON(a.[patch_record]) WITH (
+    [assessment_date] DATETIME2(3) '$.assessmentDate',
+    [assessment_valid_until] DATE '$.assessmentValidUntil',
+    [last_patched_date] DATETIME2(3) '$.lastPatchedDate',
+    [last_restarted_date] DATETIME2(3) '$.lastRestartedDate',
+    [verified_date] DATETIME2(3) '$.verifiedDate',
+    [installed_patch_level] NVARCHAR(255) '$.installedPatchLevel',
+    [target_patch_level] NVARCHAR(255) '$.targetPatchLevel',
+    [missing_updates] INT '$.missingUpdates',
+    [missing_critical_updates] INT '$.missingCriticalUpdates',
+    [restart_required] BIT '$.restartRequired',
+    [deployment_status] NVARCHAR(20) '$.deploymentStatus',
+    [due_date] DATE '$.dueDate',
+    [planned_date] DATE '$.plannedDate',
+    [owner] NVARCHAR(255) '$.owner',
+    [maintenance_window] NVARCHAR(255) '$.maintenanceWindow',
+    [change_reference] NVARCHAR(500) '$.changeReference',
+    [exception_reason] NVARCHAR(2000) '$.exceptionReason',
+    [exception_expires_date] DATE '$.exceptionExpiresDate',
+    [source] NVARCHAR(255) '$.source'
+  ) pm
+  WHERE a.[asset_type] = N'server';
+
+
   INSERT INTO [tsaat].[asset_installed_software] (
     [snapshot_id],
     [asset_id],
@@ -2207,6 +2239,11 @@ BEGIN
     [asset_id],
     [vulnerability_id],
     [cve],
+    [cve_name],
+    [cve_created_date],
+    [software_name],
+    [software_version],
+    [reference_url],
     [description],
     [remediation_guidance],
     [criticality],
@@ -2221,6 +2258,11 @@ BEGIN
     a.[asset_id],
     JSON_VALUE(vuln.[value], '$.id'),
     JSON_VALUE(vuln.[value], '$.cve'),
+    JSON_VALUE(vuln.[value], '$.cveName'),
+    TRY_CONVERT(DATE, JSON_VALUE(vuln.[value], '$.cveCreatedDate')),
+    JSON_VALUE(vuln.[value], '$.softwareName'),
+    JSON_VALUE(vuln.[value], '$.softwareVersion'),
+    JSON_VALUE(vuln.[value], '$.referenceUrl'),
     JSON_VALUE(vuln.[value], '$.description'),
     JSON_VALUE(vuln.[value], '$.remediationGuidance'),
     JSON_VALUE(vuln.[value], '$.criticality'),

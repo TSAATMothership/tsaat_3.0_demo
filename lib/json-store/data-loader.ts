@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeDatasetSecurityDomains, matchesSecurityDomain } from "@/lib/security-domain.mjs";
 import type * as SqlLoader from "@/lib/sql-data-loader";
 import type { Dataset, Finding, ICTSystem, ManagedNetwork, ReferenceVersions, StoredKpiEvaluation } from "@/lib/types";
 import { normalizeSpiDefinitions, normalizeSeverityDefinitions } from "@/lib/spi-definitions";
@@ -11,6 +12,8 @@ import { clearAppDataCaches } from "@/lib/app-data-cache";
 import { normalizeDataDate, todayDateKey, subtractCalendarMonthsDateKey } from "@/lib/data-date";
 import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { buildSecurityVulnerabilityRows } from "@/lib/security-vulnerability-explorer";
+import { buildPatchManagementRows, type PatchManagementData } from "@/lib/patch-management-explorer";
 import { readJson, fileVersion, loadStoreManifest, atomicWriteJson, withStoreWriteLock, jsonStoreDirectory } from "./files";
 import { reference, spiReferenceRows, kpiReferenceRows, clearReferenceCaches } from "./references";
 import { evaluateSpi, evaluateDiscovery, type DetectionRule } from "./evaluations";
@@ -73,7 +76,7 @@ async function snapshot(id: number): Promise<Dataset> {
   const key = JSON.stringify([jsonStoreDirectory(), id, version, spis, measures, discovery, rules]);
   const cached = datasets.get(key);
   if (cached) return cached;
-  const dataset = await readJson<Dataset>(source.file);
+  const dataset = normalizeDatasetSecurityDomains(await readJson<Dataset>(source.file));
   if (dataset.snapshotDate !== source.date || !Array.isArray(dataset.assets) || !Array.isArray(dataset.managedNetworks) ||
       !Array.isArray(dataset.ictSystems) || !Array.isArray(dataset.findings)) throw new Error("Invalid snapshot data: " + source.file);
   const assetIds = new Set(dataset.assets.map(asset => asset.id));
@@ -116,22 +119,22 @@ export async function loadSnapshotEffectiveFindings(snapshotId: number, asOfDate
 export async function loadWorkspaceFilterOptionsForDate(date?: string) {
   const dataset = await loadDatasetForDate(date);
   return {
-    networks: dataset.managedNetworks.filter(n => n.id !== "net-unassigned").map(n => ({ id: n.id, label: n.name })).sort((a,b) => a.label.localeCompare(b.label)),
-    systems: dataset.ictSystems.map(s => ({ id: s.id, label: s.name })).sort((a,b) => a.label.localeCompare(b.label))
+    networks: dataset.managedNetworks.filter(n => n.id !== "net-unassigned").map(n => ({ id: n.id, label: n.name, securityDomain: n.securityDomain })).sort((a,b) => a.label.localeCompare(b.label)),
+    systems: dataset.ictSystems.map(s => ({ id: s.id, label: s.name, securityDomain: s.securityDomain })).sort((a,b) => a.label.localeCompare(b.label))
   };
 }
 
 async function inventory(params: WorkspaceSearchParams) {
   const dataset = await loadDatasetForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
   const networks = scopeIds(params.network), systems = scopeIds(params.system);
-  const assets = dataset.assets.filter(a => (networks.length || systems.length) && a.networkId !== "net-unassigned" &&
+  const assets = dataset.assets.filter(a => matchesSecurityDomain(a.securityDomain, params.securityDomain) && (networks.length || systems.length) && a.networkId !== "net-unassigned" &&
     (!networks.length || networks.includes(a.networkId)) && (!systems.length || systems.includes(a.systemContext?.systemId ?? "")));
   return { dataset, assets };
 }
 export async function loadEndpointExplorerData(params: WorkspaceSearchParams): Promise<SqlLoader.EndpointExplorerData> {
   const { dataset, assets } = await inventory(params);
   return { snapshotDate: dataset.snapshotDate, rows: assets.map(a => ({
-    assetId: a.id, name: a.name, ciType: formatAssetTypeLabel(a.type), ipAddress: a.ipAddress ?? null, macAddress: a.macAddress ?? null,
+    assetId: a.id, name: a.name, securityDomain: a.securityDomain, ciType: formatAssetTypeLabel(a.type), ipAddress: a.ipAddress ?? null, macAddress: a.macAddress ?? null,
     deviceModel: a.deviceModel ?? null, lastDiscoveredDate: a.lastDiscoveredDate ?? null, discoveredBy: a.discoveredBy ?? null,
     managedNetwork: dataset.managedNetworks.find(n => n.id === a.networkId)?.name ?? a.networkId
   })) };
@@ -149,7 +152,7 @@ export async function loadShadowItExplorerData(params: WorkspaceSearchParams): P
   const networks = scopeIds(params.network), systems = scopeIds(params.system);
   const byId = new Map(dataset.assets.map(asset => [asset.id, asset]));
   return { snapshotDate: dataset.snapshotDate, rows: dataset.assets.flatMap(a => {
-    if (a.type !== "ip-node" || (!networks.length && !systems.length) || !a.networkId.trim() || a.networkId === "net-unassigned") return [];
+    if (!matchesSecurityDomain(a.securityDomain, params.securityDomain) || a.type !== "ip-node" || (!networks.length && !systems.length) || !a.networkId.trim() || a.networkId === "net-unassigned") return [];
     const candidate = a.discoveryApproach === "ARP Table" ? byId.get(a.arpOwnerAssetId ?? "") : undefined;
     const owner = candidate?.networkId === a.networkId ? candidate : undefined;
     if (networks.length && !networks.includes(a.networkId)) return [];
@@ -161,6 +164,21 @@ export async function loadShadowItExplorerData(params: WorkspaceSearchParams): P
       endpointLastDiscoveredDate: owner?.lastDiscoveredDate ?? null, endpointDiscoveredBy: owner?.discoveredBy ?? null,
       endpointManagedNetwork: dataset.managedNetworks.find(n => n.id === owner?.networkId)?.name ?? null }];
   }) };
+}
+export async function loadPatchManagementExplorerData(params: WorkspaceSearchParams): Promise<PatchManagementData> {
+  const date = Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate;
+  if (!scopeIds(params.network).length && !scopeIds(params.system).length) return { snapshotDate: normalizeDataDate(date) ?? todayDateKey(), rows: [] };
+  const dataset = await loadDatasetForDate(date, { profile: "full" });
+  return { snapshotDate: dataset.snapshotDate, rows: buildPatchManagementRows(dataset, params) };
+}
+
+export async function loadSecurityVulnerabilityExplorerData(params: WorkspaceSearchParams): Promise<SqlLoader.SecurityVulnerabilityExplorerData> {
+  if (!scopeIds(params.network).length && !scopeIds(params.system).length) {
+    const date = Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate;
+    return { snapshotDate: normalizeDataDate(date) ?? todayDateKey(), rows: [] };
+  }
+  const { dataset, assets } = await inventory(params);
+  return { snapshotDate: dataset.snapshotDate, rows: buildSecurityVulnerabilityRows(assets.filter(asset => asset.networkId.trim()), dataset.snapshotDate) };
 }
 export async function loadSnapshotKpiEvaluationsForScope(input: {
   snapshotId: number; assetIds: Iterable<string>; systemIds: Iterable<string>; networkIds: Iterable<string>; findings: Finding[]; kpiDefinitions?: KpiDefinition[];
@@ -205,6 +223,8 @@ export const jsonDataProvider = {
   loadWorkspaceFilterOptionsForDate,
   loadEndpointExplorerData,
   loadInstalledSoftwareExplorerData,
+  loadSecurityVulnerabilityExplorerData,
+  loadPatchManagementExplorerData,
   loadShadowItExplorerData,
   loadLatestSnapshotsForDate,
   loadSnapshotsForDateWindow,

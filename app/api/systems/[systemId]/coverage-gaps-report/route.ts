@@ -1,3 +1,4 @@
+import { matchesSecurityDomain, securityDomainFilter } from "@/lib/security-domain.mjs";
 import { drawDeviceReportTable } from "@/lib/device-report-pdf";
 import { deviceCoverageRows, DEVICE_COVERAGE_COLUMNS } from "@/lib/device-report";
 import { NextRequest, NextResponse } from "next/server";
@@ -5,7 +6,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { buildAnalytics } from "@/lib/analytics";
 import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import {
-  loadCurrentDataset,
+  loadDatasetForDate,
   loadDiscoveryToolsSettings,
   loadMeasuresSettings,
   loadSeverityDefinitions,
@@ -197,7 +198,7 @@ export async function GET(
   { params }: { params: { systemId: string } }
 ) {
   const [dataset, discoveryToolsSettings, spiDefinitions, severityDefinitions] = await Promise.all([
-    loadCurrentDataset(),
+    loadDatasetForDate(request.nextUrl.searchParams.get("dataDate") ?? undefined),
     loadDiscoveryToolsSettings(),
     loadSpiDefinitions(),
     loadSeverityDefinitions()
@@ -213,12 +214,12 @@ export async function GET(
   const analytics = buildAnalytics(
     dataset,
     dataset.ictSystems,
-    { ictSystem: system.id },
+    { ictSystem: system.id, securityDomain: securityDomainFilter(request.nextUrl.searchParams.get("securityDomain")) },
     spiDefinitions,
     measuresSettings,
     discoveryToolsSettings
   );
-  const assets = dataset.assets.filter((asset) => asset.systemContext?.systemId === system.id);
+  const assets = dataset.assets.filter((asset) => matchesSecurityDomain(asset.securityDomain, request.nextUrl.searchParams.get("securityDomain")) && asset.systemContext?.systemId === system.id);
   const evaluationByAssetId = new Map(analytics.evaluations.map((evaluation) => [evaluation.assetId, evaluation]));
   const p12Findings = analytics.findings.filter((finding) => finding.priorityRank <= 2);
 

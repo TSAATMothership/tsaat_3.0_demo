@@ -17,3 +17,7 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0008: Explicit No-SQL data population](0008-explicit-nosql-data-population.md)
 
 - [0009: Explicit sample finding coverage](0009-explicit-sample-finding-coverage.md)
+- [0010: Security vulnerability explorer](0010-security-vulnerability-explorer.md)
+- [0011: Server patch observations](0011-server-patch-observations.md)
+
+- [0012: Canonical security domain scope](0012-security-domain-scope.md)

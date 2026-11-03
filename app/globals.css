@@ -558,6 +558,14 @@ a {
 .discovery-overview-snapshot > span { color: #92acbf; font-size: .73rem; }.discovery-overview-snapshot strong { font-size: .85rem; font-variant-numeric: tabular-nums; color: #d8f2fc; }
 .discovery-overview-context { display: flex; flex-wrap: wrap; gap: .2rem 1rem; margin-top: .2rem; color: #94afc2; font-size: .73rem; }.discovery-overview-context strong { color: #dceef8; font-weight: 600; }
 .discovery-overview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; }
+.discovery-overview > .discovery-overview-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.discovery-overview-security { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.discovery-overview-patch-statuses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem; }
+.discovery-overview .discovery-overview-metric.tone-rose { --metric-color: #f49ba9; }
+@container (max-width: 980px) { .discovery-overview > .discovery-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 820px) { .discovery-overview-security { grid-template-columns: 1fr; } }
+@container (max-width: 560px) { .discovery-overview-patch-statuses { grid-template-columns: 1fr; } }
+@container (max-width: 280px) { .discovery-overview > .discovery-overview-metrics { grid-template-columns: 1fr; } }
 .discovery-overview-metric { --metric-color: #eab96b; min-width: 0; display: flex; align-items: center; gap: .75rem; padding: .7rem .85rem; border: 1px solid #38505b; border-top: 2px solid var(--metric-color); border-radius: .55rem; background: linear-gradient(130deg, #142939, #0b1a29); }
 .discovery-overview-metric.tone-cyan { --metric-color: #5ccde0; }.discovery-overview-metric.tone-violet { --metric-color: #ac9ae5; }.discovery-overview-metric.tone-teal { --metric-color: #5fc4b1; }
 .discovery-overview-metric > strong { flex: none; font-size: 1.8rem; line-height: 1.15; letter-spacing: -.04em; color: var(--metric-color); font-variant-numeric: tabular-nums; }
@@ -855,6 +863,24 @@ a {
 .cmdb-scope-panel.is-open { transform: translateX(0); }.cmdb-scope-panel::backdrop { background: #02061700; transition: background-color 220ms ease-out; }.cmdb-scope-panel.is-open::backdrop { background: #02061790; }
 .cmdb-scope-panel .measure-scope-content { min-height: 0; overflow: hidden; }.cmdb-scope-panel header > div { min-width: 0; }.cmdb-scope-panel header button { flex: none; }.cmdb-scope-panel :focus-visible { outline: 2px solid #92d8e6; outline-offset: 3px; }
 .cmdb-scope-description { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .35rem 1rem; overflow-wrap: anywhere; }.cmdb-scope-description > span { min-width: 0; }.cmdb-scope-description strong { color: #d5eaf5; font-weight: 500; }.cmdb-scope-description > span:last-child { color: #91adbf; font-size: .75rem; }
+.cmdb-scope-actions { display: flex; flex-wrap: wrap; margin-bottom: .75rem; }
+.cmdb-network-impact-button, .network-impact-asset-filter button { padding: .5rem .75rem; border: 1px solid #37829b; border-radius: .4rem; background: #123344; color: #cffafe; font-size: .8rem; text-align: left; }
+.cmdb-network-impact-button:hover, .network-impact-asset-filter button:hover { background: #1a465b; }
+.cmdb-network-impact-button:focus-visible, .network-impact-asset-filter button:focus-visible { outline: 2px solid #67e8f9; outline-offset: 3px; }
+.cmdb-network-impact-button span { color: #accbd8; white-space: nowrap; }
+.network-impact-asset-filter { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; padding: .6rem .75rem; border: 1px solid #31566a; border-radius: .5rem; background: #091a28; font-size: .85rem; color: #c7e1ee; }
+.network-impact-asset-filter p { min-width: 0; overflow-wrap: anywhere; }
+.patch-table-panel { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 30rem; gap: 1rem; }
+.patch-view-toolbar { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 1rem; }
+.patch-view-toolbar .endpoint-summary-caption { flex-direction: column; gap: .35rem; }
+.patch-view-toolbar .service-impact-tabs { margin: 0; }
+.patch-results td { max-width: 24rem; white-space: normal; overflow-wrap: anywhere; }
+.patch-status { display: inline-block; white-space: nowrap; padding: .25rem .5rem; border-radius: .4rem; border: 1px solid #4c6478; color: #c4d4e3; background: #1e3043; }
+.patch-status[data-status="Patched"] { color: #a7f3d0; background: #064e3b50; border-color: #34d39960; }
+.patch-status[data-status="Not patched"], .patch-status[data-status="Failed"] { color: #fecdd3; background: #88133740; border-color: #fb718560; }
+.patch-status[data-status="Restart required"], .patch-status[data-status="In progress"] { color: #fde68a; background: #78350f40; border-color: #fbbf2460; }
+.patch-overdue { color: #fda4af; }
+@media (max-width: 650px) { .patch-management-explorer .service-impact-tabs { flex-wrap: wrap; } }
 .cmdb-scope-panel .cmdb-details-table table { min-width: 0; table-layout: fixed; }.cmdb-details-table th:first-child { width: 34%; }.cmdb-details-table td { overflow-wrap: anywhere; vertical-align: top; }.cmdb-details-table td:first-child { color: #adc4d2; }.cmdb-details-table td:has(a) { min-width: 0; }
 .cmdb-record-link { color: #8dd6e5; text-decoration: underline; text-underline-offset: .2rem; }.cmdb-record-link:hover { color: #e0f7ff; }
 .cmdb-scope-state { padding: 1rem; border: 1px solid #31566a; border-radius: .65rem; background: #091a28; color: #adc4d2; font-size: .85rem; }.cmdb-scope-state.is-error { border-color: #8c4558; color: #fecdd3; background: #431c2929; }.cmdb-scope-state button { margin-top: .75rem; padding: .4rem .75rem; border: 1px solid #9e6676; border-radius: .4rem; }
@@ -937,3 +963,29 @@ a {
   .findings-drillthrough .findings-table-host { flex: none; height: 28rem; min-height: 28rem; }
   .findings-drillthrough .findings-data-table { height: 100%; }
 }
+
+/* Keep vulnerability evidence readable within the shared scrolling explorer. */
+.vulnerability-explorer .vulnerability-text { min-width: 20rem; max-width: 30rem; white-space: normal; overflow-wrap: anywhere; }
+.vulnerability-explorer .vulnerability-name { min-width: 14rem; max-width: 20rem; }
+
+/* Full-page inventory tables use the End Point Explorer's sizing and spacing. */
+.endpoint-scope-facts { margin-top: .45rem; color: #92abba; font-size: .7rem; }
+.explorer-guidance { flex: none; color: #92abba; font-size: .7rem; padding: 0 1rem .5rem; }
+.explorer-guidance summary { cursor: pointer; color: #b7cbd8; }
+.explorer-guidance > p { margin-top: .65rem; line-height: 1.6; }
+.inventory-results.findings-data-table { height: auto; min-height: 15rem; }
+.inventory-results .endpoint-toolbar { padding: 1rem; gap: 1rem; }
+.inventory-results .endpoint-toolbar-actions > input { width: clamp(12rem, 19vw, 23rem); }
+.inventory-results .endpoint-table { min-width: 1200px; }
+.inventory-results .endpoint-table td { padding: .85rem; vertical-align: middle; }
+.inventory-results .endpoint-table-scroll { border-top: 1px solid #4c7488; }
+.inventory-results .endpoint-pagination { padding: .75rem 1rem; }
+.patch-management-explorer .service-impact-tabs { flex: none; }
+.patch-management-explorer :focus-visible, .vulnerability-explorer :focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+@media (max-width: 1250px) {
+  .patch-view-toolbar { align-items: stretch; flex-direction: column; }
+  .patch-table-panel { flex: none; }
+  .inventory-results.findings-data-table { flex: none; }
+  .inventory-results .endpoint-table-scroll { max-height: 34rem; }
+}
+@media (max-width: 760px) { .inventory-results .endpoint-toolbar-actions > input { width: 100%; } }

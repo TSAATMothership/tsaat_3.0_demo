@@ -38,6 +38,7 @@ erDiagram
   asset ||--o{ asset_operating_system : "asset_id"
   asset ||--o{ asset_network_os : "asset_id"
   asset ||--o{ asset_patch_state : "asset_id"
+  asset ||--o| server_patch_observation : "snapshot_id + asset_id"
   asset ||--o{ asset_installed_software : "asset_id"
   asset ||--o{ asset_vulnerability : "asset_id"
   asset ||--o{ finding : "asset_id"
@@ -352,3 +353,8 @@ erDiagram
   - `vw_persisted_finding_normalized`, `usp_generate_spi_findings_snapshot`, `usp_get_effective_findings_snapshot`, `usp_get_finding_history_snapshot`, and `usp_get_finding_spi_history_snapshot` provide SQL-backed effective findings and history datasets.
 
 Migration 027 removes the retired KPI parameter relationship and network-only APP-ID; ICT-system APP-ID remains. The current base schema has 66 tables. Historical migration definitions are retained as upgrade history, not current entities.
+
+Migration 028 adds optional CVE name/reservation date, affected software/version and reference URL to asset_vulnerability. Its snapshot/asset/vulnerability identity and relationships are unchanged. See [CVE data mapping](../docs/security-vulnerability-explorer.md).
+
+
+Security Domain: managed_network.security_domain, ict_system.security_domain and asset.security_domain are required canonical PROTECTED/SECRET/UNKNOWN values with UNKNOWN defaults. Migration 030 fills legacy data; network classification remains separate. Entity domains need not match parent records.

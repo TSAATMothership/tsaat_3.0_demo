@@ -30,7 +30,7 @@ function asset(type: AssetType, overrides: Partial<Asset> = {}): Asset {
     name: `Asset ${type}`,
     hostname: `host-${type}`,
     networkId: "net-1",
-    securityDomain: "Protected" as const,
+    securityDomain: "PROTECTED" as const,
     lifecycle: {
       eolStatus: "Supported" as const,
       warrantyStatus: "InWarranty" as const

@@ -14,7 +14,7 @@ const number = (value: number) => value.toLocaleString("en-AU");
 const toggle = <T extends string,>(values: T[], value: T): T[] => values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 
 export function EndpointExplorer({ rows, snapshotDate, scope, initialFilters }: {
-  rows: EndpointRecord[]; snapshotDate: string; scope: { network: string[]; system: string[]; dataDate: string };
+  rows: EndpointRecord[]; snapshotDate: string; scope: { network: string[]; system: string[]; securityDomain?: string; dataDate: string };
   initialFilters?: EndpointFilters;
 }) {
   const [filters, setFilters] = useState<EndpointFilters>(() => initialFilters ?? emptyEndpointFilters());

@@ -4,7 +4,7 @@ import { UNASSIGNED_NETWORK_ID } from "@/lib/network-scope";
 import type { ICTSystem, ManagedNetwork } from "@/lib/types";
 
 const networks: ManagedNetwork[] = [
-  {
+  { securityDomain: "UNKNOWN",
     id: "net-alpha",
     name: "Alpha Network",
     criticality: "Critical",
@@ -15,7 +15,7 @@ const networks: ManagedNetwork[] = [
     ictSystemIds: [],
     assetIds: []
   },
-  {
+  { securityDomain: "UNKNOWN",
     id: UNASSIGNED_NETWORK_ID,
     name: "Unassigned Systems",
     criticality: "Non-Critical",
@@ -38,7 +38,7 @@ const systems: ICTSystem[] = [
     diisDefined: true,
     networkId: "net-alpha",
     criticality: "Critical",
-    securityDomain: "Protected",
+    securityDomain: "PROTECTED",
     missionCapabilities: [],
     businessServices: [],
     environments: []

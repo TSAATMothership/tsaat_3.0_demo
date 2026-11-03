@@ -37,8 +37,9 @@ async function readPlan(target, sourceDatasets, transformDataset) {
   snapshots.sort((a,b)=>a.entry.date.localeCompare(b.entry.date));
   return { manifest, snapshots };
 }
-export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_DIR || path.join(repositoryRoot,"NoSQL/data"), apply = false, demo = false, sourceExport, transformDataset = enrichDemoDataset, profile = DEMO_DATA_PROFILE, backupDirectory = path.join(repositoryRoot,".local/nosql-backups") } = {}) {
-  if (apply && !demo) throw new Error("This adds demonstration values. Use --apply --demo only for a sample data store.");
+export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_DIR || path.join(repositoryRoot,"NoSQL/data"), apply = false, demo = false, sourceExport, transformDataset = enrichDemoDataset, profile = DEMO_DATA_PROFILE, migration, backupDirectory = path.join(repositoryRoot,".local/nosql-backups") } = {}) {
+  if (migration && (migration !== "security-domains-v1" || transformDataset === enrichDemoDataset || sourceExport)) throw new Error("Invalid data migration.");
+  if (apply && !demo && !migration) throw new Error("This adds demonstration values. Use --apply --demo only for a sample data store.");
   target = await fs.realpath(path.resolve(target));
   let lock, stage, temporaryManifest, committed = false;
   const lockPath = path.join(target,".write-lock");
@@ -46,7 +47,7 @@ export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_D
     if (apply) {
       try { lock = await fs.open(lockPath,"wx",0o600); }
       catch (error) { if (error.code === "EEXIST") throw new Error("JSON store is busy; no population was applied."); throw error; }
-      await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),operation:"populate-demo"}));
+      await lock.writeFile(JSON.stringify({pid:process.pid,startedAt:new Date().toISOString(),operation:migration ?? "populate-demo"}));
     }
     let sourceDatasets, provenance;
     if (sourceExport) {
@@ -79,7 +80,7 @@ export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_D
       try { await handle.writeFile(JSON.stringify(snapshot.populated) + "\n"); await handle.sync(); } finally { await handle.close(); }
       nextEntries.push({...snapshot.entry,file});
     }
-    const nextManifest = {...manifest,sampleDataProfile:profile,...(provenance?{dataProvenance:provenance}:{}),snapshots:nextEntries};
+    const nextManifest = {...manifest,...(migration ? { dataMigrations: [...new Set([...(manifest.dataMigrations ?? []), migration])] } : { sampleDataProfile:profile }),...(provenance?{dataProvenance:provenance}:{}),snapshots:nextEntries};
     temporaryManifest = path.join(target,"store.json.populate-" + revision + ".tmp");
     const handle = await fs.open(temporaryManifest,"wx",0o600);
     try { await handle.writeFile(JSON.stringify(nextManifest,null,2) + "\n"); await handle.sync(); } finally { await handle.close(); }

@@ -1,3 +1,4 @@
+import { securityDomainFilter } from "@/lib/security-domain.mjs";
 import { getCoreAppData } from "@/lib/app-data";
 import { deviceReportDetails } from "@/lib/device-report";
 import { loadSnapshotEffectiveFindings } from "@/lib/data-loader";
@@ -18,7 +19,6 @@ export async function loadFindingsRegisterData(searchParams: WorkspaceSearchPara
     ...searchParams,
     findingsViewTab: undefined,
     criticality: undefined,
-    securityDomain: undefined,
     environment: undefined,
     assetType: undefined,
     severity: undefined,
@@ -51,7 +51,7 @@ export async function loadFindingsRegisterData(searchParams: WorkspaceSearchPara
     .map(asset => [asset.id, { ...deviceReportDetails(asset, asset.id), assetType: asset.type }]));
 
   const exportContext: FindingsExportContext = {
-    scope: { network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), dataDate: today },
+    scope: { network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: today },
     asOf: selectedAsOf, status: selectedStatus
   };
   return { findings, assetDetailsByAssetId, findingDisplayConfiguration, today, historyStart, selectedAsOf,

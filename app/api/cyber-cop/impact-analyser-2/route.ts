@@ -7,6 +7,7 @@ import {
 } from "@/lib/cyber-cop-impact-analyser";
 import { buildNetworkTopologyData } from "@/lib/network-topology";
 import { applyAssetFilters } from "@/lib/selectors";
+import { filterNetworkImpactAssetRows } from "@/lib/network-impact-navigation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -47,13 +48,13 @@ export async function GET(request: NextRequest) {
       }
     }
     const networkNameById = new Map(dataset.managedNetworks.map((network) => [network.id, network.name]));
-    const rows = buildNetworkImpactAnalyserRows({
+    const rows = filterNetworkImpactAssetRows(buildNetworkImpactAnalyserRows({
       assets: networkScopedAssets,
       findings: analytics.findings,
       systems: dataset.ictSystems,
       modelAssetIds,
       networkNameById
-    });
+    }), request.nextUrl.searchParams);
 
     return NextResponse.json({
       snapshotDate: dataset.snapshotDate,
@@ -69,7 +70,9 @@ export async function GET(request: NextRequest) {
         return systemId ? diagramSystemIds.has(systemId) : false;
       })
     : filteredAssets;
-  const rows = buildCyberCopImpactAnalyserRows(analyserAssets, analytics.findings, systems);
+  const rows = filterNetworkImpactAssetRows(
+    buildCyberCopImpactAnalyserRows(analyserAssets, analytics.findings, systems), request.nextUrl.searchParams
+  );
 
   return NextResponse.json({
     snapshotDate: dataset.snapshotDate,

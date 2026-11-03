@@ -1,3 +1,4 @@
+import { securityDomainFilter } from "@/lib/security-domain.mjs";
 export type WorkspaceSearchParams = Record<string, string | string[] | undefined>;
 
 /** Scope IDs use comma-separated values; repeated query parameters are accepted too. */
@@ -10,8 +11,14 @@ export function hasWorkspaceScope(params: WorkspaceSearchParams): boolean {
   return scopeIds(params.network).length > 0 || scopeIds(params.system).length > 0;
 }
 
-export function updateWorkspaceScope(params: URLSearchParams, kind: "network" | "system", ids: string[]): URLSearchParams {
+export function updateWorkspaceScope(params: URLSearchParams, kind: "network" | "system" | "securityDomain", ids: string[]): URLSearchParams {
   const next = new URLSearchParams(params);
+  if (kind === "securityDomain") {
+    const domain = securityDomainFilter(ids);
+    if (domain) next.set(kind, domain); else next.delete(kind);
+    for (const key of ["page", "assetId", "systemPage", "networkPage", "discoveryFilters", "impactAssetId"]) next.delete(key);
+    return next;
+  }
   next.delete(kind);
   const selected = scopeIds(ids);
   if (selected.length) {
@@ -24,7 +31,7 @@ export function updateWorkspaceScope(params: URLSearchParams, kind: "network" | 
 }
 
 export function sameWorkspaceScope(left: URLSearchParams, right: URLSearchParams): boolean {
-  return ["network", "system"].every((kind) =>
+  return securityDomainFilter(left.has("securityDomain") ? left.getAll("securityDomain") : undefined) === securityDomainFilter(right.has("securityDomain") ? right.getAll("securityDomain") : undefined) && ["network", "system"].every((kind) =>
     JSON.stringify(scopeIds(left.getAll(kind))) === JSON.stringify(scopeIds(right.getAll(kind))));
 }
 
@@ -46,7 +53,7 @@ export function workspaceScopeUpdateHref(pathname: string, params: URLSearchPara
 /** Retired posture pages return to the risk profile with the applied header scope and date. */
 export function postureReplacementHref(pathname: "/networks" | "/systems", searchParams: WorkspaceSearchParams): string {
   const params = new URLSearchParams();
-  for (const key of ["network", "system", "dataDate"]) {
+  for (const key of ["network", "system", "securityDomain", "dataDate"]) {
     const value = searchParams[key];
     if (value) params.set(key, Array.isArray(value) ? value.join(",") : value);
   }
@@ -57,6 +64,11 @@ export interface WorkspaceItem { label: string; href: string; scope?: "network" 
 export interface WorkspaceGroup { label: string; items: WorkspaceItem[] }
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
+  { label: "Governance", items: [
+    { label: "Overview", href: "/governance/overview" },
+    { label: "Trends", href: "/governance/trends" },
+    { label: "Insights", href: "/governance/insights" }
+  ] },
   { label: "Cyber Security", items: [
     { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
     { label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" },
@@ -70,6 +82,8 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
     { label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
     { label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
+    { label: "Security Vulnerability Explorer", href: "/discovery-coverage?discoveryView=security-vulnerabilities" },
+    { label: "Patch Management Explorer", href: "/discovery-coverage?discoveryView=patch-management" },
     { label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" }
   ] },
   { label: "Observed Measures", items: [
@@ -94,7 +108,7 @@ export function resolveCopView(value: string | string[] | undefined): CopView {
 
 export function workspaceHref(href: string, current: URLSearchParams): string {
   const target = new URL(href, "http://localhost");
-  for (const key of ["network", "system", "dataDate"]) {
+  for (const key of ["network", "system", "securityDomain", "dataDate"]) {
     const value = current.getAll(key).join(",");
     if (value) target.searchParams.set(key, value);
   }

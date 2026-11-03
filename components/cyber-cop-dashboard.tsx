@@ -32,6 +32,7 @@ import {
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
+import { NETWORK_IMPACT_ASSET_PARAM, type NetworkImpactAssetFilter } from "@/lib/network-impact-navigation";
 
 export interface CyberCopImpactItem {
   id: string;
@@ -112,6 +113,7 @@ export interface CyberCopDashboardProps {
   snapshotDate: string;
   filtersSlot?: ReactNode;
   networkOptions: CyberCopNetworkOption[];
+  networkImpactAsset?: NetworkImpactAssetFilter | null;
   spiDefinitions: SpiDefinition[];
   complianceScoreCards: OverviewScoreCard[];
   riskProfile: {
@@ -149,7 +151,7 @@ const impactChartTabs: Array<{ id: ImpactChartTabId; label: string }> = [
 ];
 
 const impactEnvironmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"] as const;
-const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
+const securityDomainOrder: SecurityDomain[] = ["SECRET", "PROTECTED", "UNKNOWN"];
 
 function chartSurfaceClass(embedded?: boolean): string {
   return embedded
@@ -1398,11 +1400,13 @@ function IctSystemImpactAnalyserRunPanel({
 function NetworkImpactAnalyserRunPanel({
   networkOptions: availableNetworks,
   spiDefinitions,
-  dataDate
+  dataDate,
+  assetFilter
 }: {
   networkOptions: CyberCopNetworkOption[];
   spiDefinitions: SpiDefinition[];
   dataDate: string;
+  assetFilter: NetworkImpactAssetFilter | null;
 }) {
   const networkSelectorId = useId();
   const [isNetworkSelectorOpen, setIsNetworkSelectorOpen] = useState(false);
@@ -1425,11 +1429,12 @@ function NetworkImpactAnalyserRunPanel({
   const isLoading = loadState === "loading";
 
   useEffect(() => {
-    setSelectedNetworkIds([]);
-    setAppliedNetworkIds([]);
-    setLoadState("idle");
+    const initialNetworkIds = assetFilter?.networkId ? [assetFilter.networkId] : [];
+    setSelectedNetworkIds(initialNetworkIds);
+    setAppliedNetworkIds(initialNetworkIds);
+    setLoadState(initialNetworkIds.length ? "loading" : "idle");
     setIsNetworkSelectorOpen(false);
-  }, [networkOptionKey]);
+  }, [networkOptionKey, assetFilter?.assetId, assetFilter?.networkId]);
 
   const updateSelectedNetworkIds = useCallback((nextNetworkIds: string[]) => {
     setSelectedNetworkIds(nextNetworkIds);
@@ -1466,6 +1471,20 @@ function NetworkImpactAnalyserRunPanel({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col p-1">
+      {assetFilter && (
+        <div className="network-impact-asset-filter" data-network-impact-asset={assetFilter.assetId}>
+          <p role="status">
+            {assetFilter.networkId
+              ? <>Filtered to asset: <strong>{assetFilter.assetName}</strong> <span>({assetFilter.assetId})</span></>
+              : "The selected asset is unavailable in this scope or snapshot. Clear the asset filter to choose a network."}
+          </p>
+          <button type="button" onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete(NETWORK_IMPACT_ASSET_PARAM);
+            window.location.assign(url.href);
+          }}>Clear asset filter</button>
+        </div>
+      )}
       <div className="relative z-50 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-sky-300/15 bg-slate-950/55 p-2">
         <div
           className="relative flex h-8 min-w-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
@@ -1482,7 +1501,7 @@ function NetworkImpactAnalyserRunPanel({
             aria-label="Select networks for the Network Impact Analyser"
             aria-controls={networkSelectorId}
             aria-expanded={isNetworkSelectorOpen}
-            disabled={!networkOptions.length}
+            disabled={!networkOptions.length || Boolean(assetFilter)}
             onClick={() => setIsNetworkSelectorOpen((current) => !current)}
             className="flex h-8 w-64 min-w-0 items-center justify-between gap-2 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/50 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70"
           >
@@ -1699,6 +1718,7 @@ export function CyberCopDashboard({
   snapshotDate,
   filtersSlot,
   networkOptions,
+  networkImpactAsset = null,
   spiDefinitions,
   complianceScoreCards,
   riskProfile,
@@ -2214,6 +2234,7 @@ export function CyberCopDashboard({
                 networkOptions={networkOptions}
                 spiDefinitions={spiDefinitions}
                 dataDate={snapshotDate}
+                assetFilter={networkImpactAsset}
               />
             </div>
             <CyberCopTabFooter />

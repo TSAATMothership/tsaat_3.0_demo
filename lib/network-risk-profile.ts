@@ -3,6 +3,7 @@ import { buildNetworkDetails } from "@/lib/network-details";
 import type { MeasuresSettings } from "@/lib/measures-settings";
 import { isRealNetworkId } from "@/lib/network-scope";
 import { applyAssetFilters } from "@/lib/selectors";
+import { matchesSecurityDomain } from "@/lib/security-domain.mjs";
 import { scopeIds } from "@/lib/workspace-navigation";
 import { compareRiskRows, groupRiskItems, riskProfileHref, summarizeRiskAssets, summarizeRiskFindings } from "@/lib/risk-profile";
 import type { SeverityDefinition, SpiDefinition } from "@/lib/spi-definitions";
@@ -21,7 +22,7 @@ export function buildNetworkRiskProfile({ dataset, analytics, filters, severityD
   const candidateAssets = applyAssetFilters(dataset.assets, dataset.ictSystems, filters).filter(asset => isRealNetworkId(asset.networkId));
   const systemNetworks = new Set(candidateAssets.map(asset => asset.networkId));
   for (const system of dataset.ictSystems) if (systemIds.includes(system.id)) systemNetworks.add(system.networkId);
-  const networks = dataset.managedNetworks.filter(network => isRealNetworkId(network.id)
+  const networks = dataset.managedNetworks.filter(network => matchesSecurityDomain(network.securityDomain, filters.securityDomain) && isRealNetworkId(network.id)
     && (!networkIds.length || networkIds.includes(network.id)) && (!systemIds.length || systemNetworks.has(network.id)));
   const scopedNetworkIds = new Set(networks.map(network => network.id));
   const assets = candidateAssets.filter(asset => scopedNetworkIds.has(asset.networkId));
@@ -56,7 +57,7 @@ export function buildNetworkRiskProfile({ dataset, analytics, filters, severityD
       .flatMap(id => { const system = systemsById.get(id); return system ? [system] : []; });
     return {
       ...summarizeRiskAssets(networkAssets, evaluationsByNetwork.get(network.id) ?? [], findingsByNetwork.get(network.id) ?? [], dataset.snapshotDate),
-      id: network.id, name: network.name, classification: network.classification?.trim() || "Not recorded",
+      id: network.id, name: network.name, securityDomain: network.securityDomain, classification: network.classification?.trim() || "Not recorded",
       criticality: network.criticality, modellingStatus: network.modellingStatus, discoveryStatus: network.discoveryStatus,
       owner: network.owner?.trim() || "Not recorded", description: network.description?.trim() || "",
       context: network.discoveryStatus, systemCount: systemCount(networkAssets),

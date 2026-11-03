@@ -52,7 +52,7 @@ const dataset: Dataset = {
   snapshotDate: "2026-04-30",
   spiEvaluations: [],
   managedNetworks: [
-    {
+    { securityDomain: "UNKNOWN",
       id: "net-1",
       name: "Network 1",
       criticality: "Critical",
@@ -74,7 +74,7 @@ const dataset: Dataset = {
       diisDefined: true,
       networkId: "net-1",
       criticality: "Critical",
-      securityDomain: "Protected",
+      securityDomain: "PROTECTED",
       missionCapabilities: [],
       businessServices: [],
       environments: []
@@ -87,7 +87,7 @@ const dataset: Dataset = {
       hostname: "asset-1",
       type: "server",
       networkId: "net-1",
-      securityDomain: "Protected",
+      securityDomain: "PROTECTED",
       lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" },
       vulnerabilities: [],
       operatingSystem: null,

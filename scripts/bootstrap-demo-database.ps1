@@ -20,4 +20,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Demo database provisioning failed.' }
 # This demonstration-only backfill must run after snapshot import.
 & $sqlcmd @connection '-d' $DatabaseName '-i' (Join-Path $repoRoot 'Database Schema/migrations/026_populate_demo_entity_panel_details.sql')
 if ($LASTEXITCODE -ne 0) { throw 'Demo contact backfill failed.' }
+# The guarded bootstrap has created a NEW disposable sample database. Populate
+# the same reviewed CVE inventory examples used by fresh JSON stores.
+$cvePopulationSql = Get-Content -LiteralPath (Join-Path $repoRoot 'Database Schema/loaders/populate-sample-cve-metadata.sql') -Raw
+$cvePopulationSql = $cvePopulationSql -replace '(?m)^\s*GO\s*$', ''
+& $sqlcmd @connection '-d' $DatabaseName '-Q' ("EXEC sys.sp_set_session_context @key=N'TSAAT_SAMPLE_CVE_METADATA', @value=1;`n" + $cvePopulationSql)
+if ($LASTEXITCODE -ne 0) { throw 'Demo CVE inventory population failed.' }
+$patchPopulationSql = Get-Content -LiteralPath (Join-Path $repoRoot 'Database Schema/loaders/populate-sample-server-patches.sql') -Raw
+$patchPopulationSql = $patchPopulationSql -replace '(?m)^\s*GO\s*$', ''
+& $sqlcmd @connection '-d' $DatabaseName '-Q' ("EXEC sys.sp_set_session_context @key=N'TSAAT_SAMPLE_PATCH_MANAGEMENT', @value=1;`n" + $patchPopulationSql)
+if ($LASTEXITCODE -ne 0) { throw 'Demo patch observation population failed.' }
 Write-Host "Demo database '$DatabaseName' is ready. Configure DB_config separately with npm run setup:database."

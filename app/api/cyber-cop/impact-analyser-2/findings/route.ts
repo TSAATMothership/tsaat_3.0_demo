@@ -11,6 +11,7 @@ import {
 } from "@/lib/cyber-cop-impact-analyser";
 import { buildNetworkTopologyData } from "@/lib/network-topology";
 import { applyAssetFilters } from "@/lib/selectors";
+import { filterNetworkImpactAssetRows } from "@/lib/network-impact-navigation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -71,6 +72,8 @@ export async function GET(request: NextRequest) {
       networkNameById
     });
   }
+
+  allRows = filterNetworkImpactAssetRows(allRows, request.nextUrl.searchParams);
 
   const locallyFilteredRows = filterCyberCopImpactAnalyserRows(allRows, {
     environment: request.nextUrl.searchParams.get("diagramEnvironment"),

@@ -1,8 +1,8 @@
 {
-  "reviewedAgainst": "JSON seed rules and fresh-install SQL contract, 2026-11-02",
+  "reviewedAgainst": "Security domain schema (030): canonical values, network domain/default constraints only; shared selector, JSON migration/projection and SQL query/cache regression review; SPI/KPI/discovery rules unchanged. Live SQL parity remains opt-in with trusted disposable target. 2026-11-03",
   "instructions": "Review lib/spi-evaluation.ts, lib/json-store/evaluations.ts, data-loader.ts, NoSQL/cmdb-attributes.json and regression tests whenever SQL contracts change. Refresh checksums only after validating both providers.",
   "files": {
-    "Database Schema/database-schema.sql": "a241e8f26bb67ede7c2f1b20d985b4c7300efa5cffed01463cf6f9db1f35b936",
+    "Database Schema/database-schema.sql": "3a555c5a71948ab37ca9d8f78f3d2136d0a57dfd9aab248a10a5a376a58b7172",
     "Database Schema/data/spi-sql-calculations.json": "5225ccaee34c9e9768cb4b726bf6a672b50ba9aeda5884207c22e933e0ac4397",
     "Database Schema/data/spi-rule-definitions.json": "357da2972ac0f8ba89d262e4fc14f785096a64c85e319faadc4cd0732f91f509",
     "Database Schema/data/discovery-coverage-rules.json": "99be18dd4bc78804ca1537c1f6a504e5e9c2e7073c42bc198abcc0b7189aea82",

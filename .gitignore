@@ -5,7 +5,7 @@ coverage/
 output/
 tmp/
 .local/
-Dependencies/
+/Dependencies/
 TSAATDemo*/
 DB_config*
 logindetails*

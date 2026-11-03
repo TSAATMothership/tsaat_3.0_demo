@@ -10,7 +10,7 @@ import type { ManagedNetwork } from "@/lib/types";
 import { describe, expect, it } from "vitest";
 
 function createManagedNetwork(id: string, targetStateAssets?: ManagedNetwork["targetStateAssets"]): ManagedNetwork {
-  return {
+  return { securityDomain: "UNKNOWN",
     id,
     name: id,
     criticality: "Non-Critical",

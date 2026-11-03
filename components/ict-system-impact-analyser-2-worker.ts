@@ -1,5 +1,5 @@
 type FindingSeverity = "High Risk" | "Critical Exposure" | "Major" | "Moderate" | "Data Gap";
-type SecurityDomain = "Secret" | "Protected" | "Unclassified";
+type SecurityDomain = "SECRET" | "PROTECTED" | "UNKNOWN";
 type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies";
 
 interface ImpactAnalyser2Row {
@@ -108,7 +108,7 @@ const workerScope = self as unknown as {
 };
 const environmentOrder = ["Production", "Development", "UAT", "Test", "Unassigned"];
 const severityOrder: FindingSeverity[] = ["Critical Exposure", "High Risk", "Major", "Moderate", "Data Gap"];
-const securityDomainOrder: SecurityDomain[] = ["Secret", "Protected", "Unclassified"];
+const securityDomainOrder: SecurityDomain[] = ["SECRET", "PROTECTED", "UNKNOWN"];
 const assetTypeOrder = ["server", "workstation", "network-device", "storage-device", "printer-device", "other"];
 const NOT_MODELLED_DEPENDENT_SYSTEM_LABEL = "Not Modelled";
 const searchCategoryOrder = [

@@ -4,10 +4,10 @@ import type { Asset, AssetSpiEvaluation, ComplianceStatus } from "@/lib/types";
 import type { SpiDefinition } from "@/lib/spi-definitions";
 import { testSeverityDefinitions, testSpiDefinitions } from "./spi-definition-fixtures";
 
-const asset = (id: string, name = id): Asset => ({ id, name, hostname: id, networkId: "net-1", type: "server", securityDomain: "Protected",
+const asset = (id: string, name = id): Asset => ({ id, name, hostname: id, networkId: "net-1", type: "server", securityDomain: "PROTECTED",
   lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" }, vulnerabilities: [], operatingSystem: null, installedSoftware: [], ipAddress: "192.0.2.1" });
 const evaluation = (id: string, statuses: ComplianceStatus[]): AssetSpiEvaluation => ({ assetId: id, assetType: "server", networkId: "net-1",
-  systemId: null, environmentType: null, securityDomain: "Protected", systemCriticality: null, discoveryCoverageCompliant: true,
+  systemId: null, environmentType: null, securityDomain: "PROTECTED", systemCriticality: null, discoveryCoverageCompliant: true,
   evaluations: statuses.map((status, index) => ({ spiId: index + 1, status, evidence: {}, reasons: [] })) });
 function input() {
   return {

@@ -1,3 +1,4 @@
+import { matchesSecurityDomain } from "@/lib/security-domain.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
 import {
@@ -25,11 +26,11 @@ export async function GET(request: NextRequest, { params }: { params: { networkI
   const topologyData = buildNetworkTopologyData(dataset, analytics, network.id, network.name);
   const modelAssetIds = buildNetworkImpactAnalyserModelAssetIds({
     network,
-    assets: dataset.assets,
+    assets: dataset.assets.filter(asset => matchesSecurityDomain(asset.securityDomain, request.nextUrl.searchParams.get("securityDomain"))),
     topologyModelAssetIds: topologyData.modelAssetIds
   });
   const rows = buildNetworkImpactAnalyserRows({
-    assets: dataset.assets,
+    assets: dataset.assets.filter(asset => matchesSecurityDomain(asset.securityDomain, request.nextUrl.searchParams.get("securityDomain"))),
     findings: analytics.findings,
     systems,
     modelAssetIds,

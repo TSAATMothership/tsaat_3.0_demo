@@ -5,7 +5,7 @@ import { drawDeviceReportTable } from "@/lib/device-report-pdf";
 import type { Asset, Dataset, Finding } from "@/lib/types";
 
 const asset: Asset = { id: "ci-1", name: "Server 1", hostname: "server-1", ipAddress: "192.0.2.1", deviceModel: "Example Model",
-  lastDiscoveredDate: "2026-10-31T23:30:00Z", discoveredBy: "Discovery Tool", networkId: "net-1", type: "server", securityDomain: "Protected",
+  lastDiscoveredDate: "2026-10-31T23:30:00Z", discoveredBy: "Discovery Tool", networkId: "net-1", type: "server", securityDomain: "PROTECTED",
   lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" }, vulnerabilities: [], operatingSystem: null, installedSoftware: [],
   systemContext: { systemId: "sys-1", environmentType: "Production" } };
 const dataset: Dataset = { snapshotDate: "2026-11-01", generatedAt: "2026-11-01", assets: [asset], spiEvaluations: [],

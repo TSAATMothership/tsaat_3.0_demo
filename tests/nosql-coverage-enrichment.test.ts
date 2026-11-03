@@ -20,7 +20,7 @@ afterEach(async () => {
   }
 });
 function singleServer(): Dataset {
-  const asset: ServerAsset = { id: "server-test", type: "server", name: "Source server", hostname: "server.test", networkId: "net-1", securityDomain: "Protected",
+  const asset: ServerAsset = { id: "server-test", type: "server", name: "Source server", hostname: "server.test", networkId: "net-1", securityDomain: "PROTECTED",
     lifecycle: { eolStatus: "Supported", warrantyStatus: "InWarranty" }, vulnerabilities: [],
     operatingSystem: { family: "OS", vendor: "Vendor", version: "1", supportStatus: "Supported", nMinus: 0, majorVersion: 1, currentSupportedMajor: 1 },
     installedSoftware: [{ name: "App", version: "1", supportStatus: "Supported" }] };

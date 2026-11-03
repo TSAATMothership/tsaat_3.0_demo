@@ -2,7 +2,7 @@
 
 Generated from the base schema and migration inventory. Do not edit by hand. This is source DDL, not an assertion about a deployed database. Read the migration README and database lifecycle before execution.
 
-Base schema declares **64 tables**. [Schema source](../../Database%20Schema/database-schema.sql) · [Maintained ERD](../../Database%20Schema/ERD.md) · [Database lifecycle](../database.md).
+Base schema declares **65 tables**. [Schema source](../../Database%20Schema/database-schema.sql) · [Maintained ERD](../../Database%20Schema/ERD.md) · [Database lifecycle](../database.md).
 
 ## tsaat.reference_version_set
 
@@ -746,6 +746,7 @@ CHECK ([condition_key] IN (N'non_compliant', N'unknown', N'compliant'))
 | enterprise_platform | BIT NOT NULL |
 | modelling_status | BIT NOT NULL |
 | classification | NVARCHAR(255) NULL |
+| security_domain | NVARCHAR(20) NOT NULL CONSTRAINT [DF_managed_network_security_domain] DEFAULT (N'UNKNOWN') |
 | description | NVARCHAR(2000) NULL |
 | owner | NVARCHAR(255) NULL |
 | support_email | NVARCHAR(320) NULL |
@@ -767,6 +768,8 @@ Declared constraints:
 CONSTRAINT [PK_managed_network] PRIMARY KEY CLUSTERED ([snapshot_id], [network_id]),
 CONSTRAINT [FK_managed_network_snapshot]
 FOREIGN KEY ([snapshot_id]) REFERENCES [tsaat].[dataset_snapshot]([snapshot_id]),
+CONSTRAINT [CK_managed_network_security_domain]
+CHECK ([security_domain] COLLATE Latin1_General_100_BIN2 IN (N'PROTECTED', N'SECRET', N'UNKNOWN')),
 CONSTRAINT [CK_managed_network_criticality]
 CHECK ([criticality] IN (N'Critical', N'Non-Critical')),
 CONSTRAINT [CK_managed_network_discovery_status]
@@ -819,7 +822,7 @@ CONSTRAINT [CK_managed_network_hierarchy_not_self] CHECK ([parent_network_id] <>
 | modelling_status | BIT NOT NULL |
 | diis_defined | BIT NOT NULL |
 | criticality | NVARCHAR(20) NOT NULL |
-| security_domain | NVARCHAR(20) NOT NULL |
+| security_domain | NVARCHAR(20) NOT NULL CONSTRAINT [DF_ict_system_security_domain] DEFAULT (N'UNKNOWN') |
 | created_at_utc | DATETIME2(3) NOT NULL CONSTRAINT [DF_ict_system_created_at_utc] DEFAULT (SYSUTCDATETIME()) |
 | created_by | SYSNAME NOT NULL CONSTRAINT [DF_ict_system_created_by] DEFAULT (SUSER_SNAME()) |
 | updated_at_utc | DATETIME2(3) NOT NULL CONSTRAINT [DF_ict_system_updated_at_utc] DEFAULT (SYSUTCDATETIME()) |
@@ -838,7 +841,7 @@ FOREIGN KEY ([snapshot_id], [network_id]) REFERENCES [tsaat].[managed_network]([
 CONSTRAINT [CK_ict_system_criticality]
 CHECK ([criticality] IN (N'Critical', N'Non-Critical')),
 CONSTRAINT [CK_ict_system_security_domain]
-CHECK ([security_domain] IN (N'Secret', N'Protected', N'Unclassified'))
+CHECK ([security_domain] COLLATE Latin1_General_100_BIN2 IN (N'PROTECTED', N'SECRET', N'UNKNOWN'))
 ```
 
 ## tsaat.ict_system_hierarchy
@@ -969,7 +972,7 @@ CHECK ([environment_type] IN (N'Production', N'Development', N'UAT', N'Test'))
 | cmdb_record_url | NVARCHAR(1024) NULL |
 | asset_type | NVARCHAR(20) NOT NULL |
 | network_id | NVARCHAR(255) NOT NULL |
-| security_domain | NVARCHAR(20) NOT NULL |
+| security_domain | NVARCHAR(20) NOT NULL CONSTRAINT [DF_asset_security_domain] DEFAULT (N'UNKNOWN') |
 | system_id | NVARCHAR(255) NULL |
 | environment_type | NVARCHAR(20) NULL |
 | lifecycle_eol_status | NVARCHAR(20) NOT NULL |
@@ -1011,7 +1014,7 @@ FOREIGN KEY ([snapshot_id], [system_id], [environment_type]) REFERENCES [tsaat].
 CONSTRAINT [CK_asset_type]
 CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node')),
 CONSTRAINT [CK_asset_security_domain]
-CHECK ([security_domain] IN (N'Secret', N'Protected', N'Unclassified')),
+CHECK ([security_domain] COLLATE Latin1_General_100_BIN2 IN (N'PROTECTED', N'SECRET', N'UNKNOWN')),
 CONSTRAINT [CK_asset_environment_type]
 CHECK ([environment_type] IS NULL OR [environment_type] IN (N'Production', N'Development', N'UAT', N'Test')),
 CONSTRAINT [CK_asset_lifecycle_eol_status]
@@ -1189,6 +1192,43 @@ CONSTRAINT [FK_asset_patch_state_asset]
 FOREIGN KEY ([snapshot_id], [asset_id]) REFERENCES [tsaat].[asset]([snapshot_id], [asset_id])
 ```
 
+## tsaat.server_patch_observation
+
+| Column | Source definition |
+| --- | --- |
+| snapshot_id | BIGINT NOT NULL |
+| asset_id | NVARCHAR(255) NOT NULL |
+| assessment_date | DATETIME2(3) NULL |
+| assessment_valid_until | DATE NULL |
+| last_patched_date | DATETIME2(3) NULL |
+| last_restarted_date | DATETIME2(3) NULL |
+| verified_date | DATETIME2(3) NULL |
+| installed_patch_level | NVARCHAR(255) NULL |
+| target_patch_level | NVARCHAR(255) NULL |
+| missing_updates | INT NULL |
+| missing_critical_updates | INT NULL |
+| restart_required | BIT NULL |
+| deployment_status | NVARCHAR(20) NULL |
+| due_date | DATE NULL |
+| planned_date | DATE NULL |
+| owner | NVARCHAR(255) NULL |
+| maintenance_window | NVARCHAR(255) NULL |
+| change_reference | NVARCHAR(500) NULL |
+| exception_reason | NVARCHAR(2000) NULL |
+| exception_expires_date | DATE NULL |
+| source | NVARCHAR(255) NULL |
+
+Declared constraints:
+
+```sql
+CONSTRAINT [PK_server_patch_observation] PRIMARY KEY ([snapshot_id], [asset_id]),
+CONSTRAINT [FK_server_patch_observation_asset] FOREIGN KEY ([snapshot_id], [asset_id])
+REFERENCES [tsaat].[asset]([snapshot_id], [asset_id]),
+CONSTRAINT [CK_server_patch_missing] CHECK ([missing_updates] IS NULL OR [missing_updates] >= 0),
+CONSTRAINT [CK_server_patch_critical] CHECK ([missing_critical_updates] IS NULL OR
+CONSTRAINT [CK_server_patch_deployment] CHECK ([deployment_status] IS NULL OR [deployment_status] IN
+```
+
 ## tsaat.asset_installed_software
 
 | Column | Source definition |
@@ -1222,6 +1262,11 @@ CHECK ([support_status] IN (N'Supported', N'OutOfSupport', N'Unknown'))
 | asset_id | NVARCHAR(255) NOT NULL |
 | vulnerability_id | NVARCHAR(255) NOT NULL |
 | cve | NVARCHAR(255) NOT NULL |
+| cve_name | NVARCHAR(500) NULL |
+| cve_created_date | DATE NULL |
+| software_name | NVARCHAR(255) NULL |
+| software_version | NVARCHAR(100) NULL |
+| reference_url | NVARCHAR(2048) NULL |
 | description | NVARCHAR(MAX) NOT NULL |
 | remediation_guidance | NVARCHAR(MAX) NOT NULL |
 | criticality | NVARCHAR(20) NOT NULL |
@@ -1613,3 +1658,6 @@ Apply approved missing upgrades only; 026 contains demonstration metadata.
 | [025_cmdb_asset_type_attributes.sql](../../Database%20Schema/migrations/025_cmdb_asset_type_attributes.sql) | 341d5881bd67ff101089f056377b8fefa1e0ebce1792f3349a923f6f0c8d1551 |
 | [026_populate_demo_entity_panel_details.sql](../../Database%20Schema/migrations/026_populate_demo_entity_panel_details.sql) | a8335a7fcb19b1a21c3764690637ee2f313dd7051ae606fcdc13f39fada66dcf |
 | [027_remove_retired_runtime_structures.sql](../../Database%20Schema/migrations/027_remove_retired_runtime_structures.sql) | c6db131b85b452ff7b95b140dcf41fff46b38079f8017e2ea91384a85ffa334e |
+| [028_security_vulnerability_explorer.sql](../../Database%20Schema/migrations/028_security_vulnerability_explorer.sql) | ed0b97849ea1239d01f4f07e0cfeb23e53ab2db97239cdb8c1edbba59b2842da |
+| [029_patch_management_explorer.sql](../../Database%20Schema/migrations/029_patch_management_explorer.sql) | 2be23efa47df491ead314674ed95d7abfe784245942c355ad525c0e438bb466c |
+| [030_security_domains.sql](../../Database%20Schema/migrations/030_security_domains.sql) | e408cbb2f53a8ccf75a2c2e68215be71916e432f253ee819a527fa2db2ac1a60 |

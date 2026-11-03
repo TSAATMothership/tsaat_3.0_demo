@@ -5,7 +5,7 @@ import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
 
 // One shared contract; the build fixes the provider for every page and API.
 const provider: typeof sql = IS_JSON_BUILD ? jsonDataProvider : sql;
-export type { DatasetLoadProfile, WorkspaceFilterOptions, EndpointExplorerData, InstalledSoftwareExplorerData, ShadowItExplorerData, KpiEvaluationScopeInput } from "@/lib/sql-data-loader";
+export type { DatasetLoadProfile, WorkspaceFilterOptions, EndpointExplorerData, InstalledSoftwareExplorerData, SecurityVulnerabilityExplorerData, ShadowItExplorerData, KpiEvaluationScopeInput } from "@/lib/sql-data-loader";
 export const loadSnapshotEffectiveFindings = provider.loadSnapshotEffectiveFindings;
 export const loadCurrentDataset = provider.loadCurrentDataset;
 export const loadSnapshots = provider.loadSnapshots;
@@ -15,6 +15,8 @@ export const loadDatasetForDate = provider.loadDatasetForDate;
 export const loadWorkspaceFilterOptionsForDate = provider.loadWorkspaceFilterOptionsForDate;
 export const loadEndpointExplorerData = provider.loadEndpointExplorerData;
 export const loadInstalledSoftwareExplorerData = provider.loadInstalledSoftwareExplorerData;
+export const loadSecurityVulnerabilityExplorerData = provider.loadSecurityVulnerabilityExplorerData;
+export const loadPatchManagementExplorerData = provider.loadPatchManagementExplorerData;
 export const loadShadowItExplorerData = provider.loadShadowItExplorerData;
 export const loadLatestSnapshotsForDate = provider.loadLatestSnapshotsForDate;
 export const loadSnapshotsForDateWindow = provider.loadSnapshotsForDateWindow;

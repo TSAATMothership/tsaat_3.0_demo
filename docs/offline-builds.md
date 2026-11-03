@@ -8,6 +8,14 @@ The host supplies Windows, Node 24.13.1/npm and PowerShell. These platform tools
 
 ## Disconnected use
 
+The legacy `/Dependencies/` exclusion is anchored at the repository root. It must not hide application API folders named `dependencies`, including the existing impact-analyser dependency route, from complete checkouts. Governance's empty pages add no package, build asset or storage requirement.
+
+The Discovery Overview vulnerability/patch summaries reuse existing provider operations, projections and local navigation. They add no packages, build assets, external services or data population. The lockfile/vendor set and existing-store retention contract remain unchanged; the standard empty-cache installation and both offline builds apply.
+
+Patch Management Explorer uses existing packages and local sample-patch-profiles.json data. The shared projector, workbook and explicit sample maintenance command require no network, agent download or remote patch catalogue. Existing JSON stores are retained during either build; the explicit population command alone appends missing sample observations with backup. The dependency lockfile and vendor archive set are unchanged.
+
+The Security Vulnerability Explorer catalogue contains reviewed CVE/vendor facts and exact software-version matches as local JSON. Source research is an explicit maintenance activity; installation, compilation, population and page loads do not fetch CVEs. No dependency/archive changes are needed. See [CVE provenance and population](security-vulnerability-explorer.md).
+
 From the repository root, after transferring the complete checkout and provisioning the host tools:
 
 ~~~powershell
@@ -61,6 +69,8 @@ The placeholder must be replaced with the selected package and version. offline:
 Review package/license notices, transitive changes, native binaries and lifecycle requirements. Preserve the original unmodified archives and their included notices. Commit package.json, package-lock.json, vendor/npm/manifest.json, changed archives, meaningful tests and affected documentation together. Then prove a fresh offline install, run docs:generate, check, both builds and test:nosql. Missing artifacts or unsupported installation behavior must be fixed before merging. Online dependency/advisory review is separate from the offline release build.
 
 ## Failure and recovery
+
+Missing Next.js CLI or partial `node_modules`: stop this checkout's app processes, run `npm ci --offline` from the repository root, then retry the original dev/start/build command. All six provider commands check the Next.js CLI before storage initialization or build setup and print the offline installation command on failure. Installation remains an explicit step using the committed archives; the launcher never downloads or installs dependencies automatically.
 
 Missing/corrupt archive: restore the reviewed archive from the compatible repository commit or run the explicit connected maintenance process before transferring a new complete checkout. Do not fall back to the registry in a build.
 

@@ -9,7 +9,7 @@ import {
 import { buildNetworkTargetStateSummary } from "../lib/network-target-state";
 import { Asset, Dataset } from "../lib/types";
 
-const SECURITY_DOMAINS = new Set(["Secret", "Protected", "Unclassified"]);
+const SECURITY_DOMAINS = new Set(["SECRET", "PROTECTED", "UNKNOWN"]);
 const SYSTEM_CRITICALITY = new Set(["Critical", "Non-Critical"]);
 const ENTITY_CRITICALITY = new Set(["Critical", "Non-Critical"]);
 const VULNERABILITY_CRITICALITY = new Set(["Low", "Medium", "High", "Critical"]);
@@ -380,9 +380,10 @@ async function main() {
     "Every business service must include valid criticality."
   );
   assert(
-    modelledSystems.every((system) => SECURITY_DOMAINS.has(system.securityDomain)),
-    "Every modelled ICT system must include a valid security domain."
+    current.ictSystems.every((system) => SECURITY_DOMAINS.has(system.securityDomain)),
+    "Every ICT system must include a valid security domain."
   );
+  assert(current.managedNetworks.every(network => SECURITY_DOMAINS.has(network.securityDomain)), "Every network must include a valid security domain.");
   assert(current.assets.every((asset) => SECURITY_DOMAINS.has(asset.securityDomain)), "Every asset must include a valid security domain.");
   assert(Array.isArray(current.findings) && current.findings.length > 0, "Current dataset must include findings.");
 

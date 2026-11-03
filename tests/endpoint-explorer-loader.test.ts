@@ -12,7 +12,7 @@ beforeEach(() => {
       { snapshotId: 1, snapshotDate: "2026-09-30", generatedAt: "2026-09-30T00:00:00Z" },
       { snapshotId: 2, snapshotDate: "2026-10-31", generatedAt: "2026-10-31T00:00:00Z" }
     ];
-    if (query.includes("DECLARE @endpointSnapshotId")) return [{ assetId: "a1", name: "Device 1", ciType: "server", ipAddress: "10.0.0.1",
+    if (query.includes("DECLARE @endpointSnapshotId")) return [{ securityDomain: "UNKNOWN", assetId: "a1", name: "Device 1", ciType: "server", ipAddress: "10.0.0.1",
       macAddress: null, deviceModel: null, lastDiscoveredDate: null, discoveredBy: null, managedNetwork: "West" }];
     throw new Error("Unexpected SQL: explorer must not load analytics or SPI evaluations.");
   });
@@ -47,4 +47,14 @@ describe("endpoint CMDB query", () => {
     expect(sql.mock.calls[2][0]).toContain("OPENJSON(@systems)");
     expect(sql.mock.calls[3][0]).toContain("@endpointSnapshotId BIGINT = 2");
   });
+});
+
+it("separates domain caches and sends an explicit empty SQL domain list for none", async () => {
+  for(const securityDomain of ["SECRET","PROTECTED","NONE"]) await loadEndpointExplorerData({network:"net-1",securityDomain});
+  expect(sql).toHaveBeenCalledTimes(4);
+  for(const [index,domains] of [[1,'["SECRET"]'],[2,'["PROTECTED"]'],[3,'[]']] as const){
+    expect(sql.mock.calls[index][0]).toContain("@domains NVARCHAR(MAX) = N'"+domains+"'");
+    expect(sql.mock.calls[index][0]).toContain("a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))");
+  }
+  await loadEndpointExplorerData({network:"net-1",securityDomain:"SECRET"}); expect(sql).toHaveBeenCalledTimes(4);
 });

@@ -668,6 +668,7 @@ CREATE TABLE [tsaat].[managed_network] (
   [enterprise_platform] BIT NOT NULL,
   [modelling_status] BIT NOT NULL,
   [classification] NVARCHAR(255) NULL,
+  [security_domain] NVARCHAR(20) NOT NULL CONSTRAINT [DF_managed_network_security_domain] DEFAULT (N'UNKNOWN'),
   [description] NVARCHAR(2000) NULL,
   [owner] NVARCHAR(255) NULL,
   [support_email] NVARCHAR(320) NULL,
@@ -685,6 +686,8 @@ CREATE TABLE [tsaat].[managed_network] (
   CONSTRAINT [PK_managed_network] PRIMARY KEY CLUSTERED ([snapshot_id], [network_id]),
   CONSTRAINT [FK_managed_network_snapshot]
     FOREIGN KEY ([snapshot_id]) REFERENCES [tsaat].[dataset_snapshot]([snapshot_id]),
+  CONSTRAINT [CK_managed_network_security_domain]
+    CHECK ([security_domain] COLLATE Latin1_General_100_BIN2 IN (N'PROTECTED', N'SECRET', N'UNKNOWN')),
   CONSTRAINT [CK_managed_network_criticality]
     CHECK ([criticality] IN (N'Critical', N'Non-Critical')),
   CONSTRAINT [CK_managed_network_discovery_status]
@@ -729,7 +732,7 @@ CREATE TABLE [tsaat].[ict_system] (
   [modelling_status] BIT NOT NULL,
   [diis_defined] BIT NOT NULL,
   [criticality] NVARCHAR(20) NOT NULL,
-  [security_domain] NVARCHAR(20) NOT NULL,
+  [security_domain] NVARCHAR(20) NOT NULL CONSTRAINT [DF_ict_system_security_domain] DEFAULT (N'UNKNOWN'),
   [created_at_utc] DATETIME2(3) NOT NULL CONSTRAINT [DF_ict_system_created_at_utc] DEFAULT (SYSUTCDATETIME()),
   [created_by] SYSNAME NOT NULL CONSTRAINT [DF_ict_system_created_by] DEFAULT (SUSER_SNAME()),
   [updated_at_utc] DATETIME2(3) NOT NULL CONSTRAINT [DF_ict_system_updated_at_utc] DEFAULT (SYSUTCDATETIME()),
@@ -744,7 +747,7 @@ CREATE TABLE [tsaat].[ict_system] (
   CONSTRAINT [CK_ict_system_criticality]
     CHECK ([criticality] IN (N'Critical', N'Non-Critical')),
   CONSTRAINT [CK_ict_system_security_domain]
-    CHECK ([security_domain] IN (N'Secret', N'Protected', N'Unclassified'))
+    CHECK ([security_domain] COLLATE Latin1_General_100_BIN2 IN (N'PROTECTED', N'SECRET', N'UNKNOWN'))
 );
 GO
 
@@ -919,7 +922,7 @@ CREATE TABLE [tsaat].[asset] (
   [cmdb_record_url] NVARCHAR(1024) NULL,
   [asset_type] NVARCHAR(20) NOT NULL,
   [network_id] NVARCHAR(255) NOT NULL,
-  [security_domain] NVARCHAR(20) NOT NULL,
+  [security_domain] NVARCHAR(20) NOT NULL CONSTRAINT [DF_asset_security_domain] DEFAULT (N'UNKNOWN'),
   [system_id] NVARCHAR(255) NULL,
   [environment_type] NVARCHAR(20) NULL,
   [lifecycle_eol_status] NVARCHAR(20) NOT NULL,
@@ -954,7 +957,7 @@ CREATE TABLE [tsaat].[asset] (
   CONSTRAINT [CK_asset_type]
     CHECK ([asset_type] IN (N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node')),
   CONSTRAINT [CK_asset_security_domain]
-    CHECK ([security_domain] IN (N'Secret', N'Protected', N'Unclassified')),
+    CHECK ([security_domain] COLLATE Latin1_General_100_BIN2 IN (N'PROTECTED', N'SECRET', N'UNKNOWN')),
   CONSTRAINT [CK_asset_environment_type]
     CHECK ([environment_type] IS NULL OR [environment_type] IN (N'Production', N'Development', N'UAT', N'Test')),
   CONSTRAINT [CK_asset_lifecycle_eol_status]
@@ -1094,6 +1097,40 @@ CREATE TABLE [tsaat].[asset_patch_state] (
 );
 GO
 
+CREATE TABLE [tsaat].[server_patch_observation] (
+  [snapshot_id] BIGINT NOT NULL,
+  [asset_id] NVARCHAR(255) NOT NULL,
+  [assessment_date] DATETIME2(3) NULL,
+  [assessment_valid_until] DATE NULL,
+  [last_patched_date] DATETIME2(3) NULL,
+  [last_restarted_date] DATETIME2(3) NULL,
+  [verified_date] DATETIME2(3) NULL,
+  [installed_patch_level] NVARCHAR(255) NULL,
+  [target_patch_level] NVARCHAR(255) NULL,
+  [missing_updates] INT NULL,
+  [missing_critical_updates] INT NULL,
+  [restart_required] BIT NULL,
+  [deployment_status] NVARCHAR(20) NULL,
+  [due_date] DATE NULL,
+  [planned_date] DATE NULL,
+  [owner] NVARCHAR(255) NULL,
+  [maintenance_window] NVARCHAR(255) NULL,
+  [change_reference] NVARCHAR(500) NULL,
+  [exception_reason] NVARCHAR(2000) NULL,
+  [exception_expires_date] DATE NULL,
+  [source] NVARCHAR(255) NULL,
+  CONSTRAINT [PK_server_patch_observation] PRIMARY KEY ([snapshot_id], [asset_id]),
+  CONSTRAINT [FK_server_patch_observation_asset] FOREIGN KEY ([snapshot_id], [asset_id])
+    REFERENCES [tsaat].[asset]([snapshot_id], [asset_id]),
+  CONSTRAINT [CK_server_patch_missing] CHECK ([missing_updates] IS NULL OR [missing_updates] >= 0),
+  CONSTRAINT [CK_server_patch_critical] CHECK ([missing_critical_updates] IS NULL OR
+    ([missing_critical_updates] >= 0 AND ([missing_updates] IS NULL OR [missing_critical_updates] <= [missing_updates]))),
+  CONSTRAINT [CK_server_patch_deployment] CHECK ([deployment_status] IS NULL OR [deployment_status] IN
+    (N'Succeeded', N'Failed', N'In progress', N'Scheduled', N'Unknown'))
+);
+GO
+
+
 CREATE TABLE [tsaat].[asset_installed_software] (
   [snapshot_id] BIGINT NOT NULL,
   [asset_id] NVARCHAR(255) NOT NULL,
@@ -1118,6 +1155,11 @@ CREATE TABLE [tsaat].[asset_vulnerability] (
   [asset_id] NVARCHAR(255) NOT NULL,
   [vulnerability_id] NVARCHAR(255) NOT NULL,
   [cve] NVARCHAR(255) NOT NULL,
+  [cve_name] NVARCHAR(500) NULL,
+  [cve_created_date] DATE NULL,
+  [software_name] NVARCHAR(255) NULL,
+  [software_version] NVARCHAR(100) NULL,
+  [reference_url] NVARCHAR(2048) NULL,
   [description] NVARCHAR(MAX) NOT NULL,
   [remediation_guidance] NVARCHAR(MAX) NOT NULL,
   [criticality] NVARCHAR(20) NOT NULL,

@@ -5,12 +5,12 @@ import {
 } from "@/lib/endpoint-explorer";
 
 const snapshot = "2026-10-31";
-const row = (overrides: Partial<EndpointRecord>): EndpointRecord => ({
+const row = (overrides: Partial<EndpointRecord>): EndpointRecord => ({ securityDomain: "UNKNOWN",
   assetId: "a1", name: "Gateway", ciType: "Server", ipAddress: "10.0.0.1", macAddress: "00:00:01:AA:BB:CC",
   deviceModel: "Model A", lastDiscoveredDate: "2026-10-28T05:00:00Z", discoveredBy: "Scanner A", managedNetwork: "East", ...overrides
 });
-const rows = [row({}), row({ assetId: "a2", name: "Laptop", ciType: "Workstation", managedNetwork: "West", discoveredBy: "Scanner B" }),
-  row({ assetId: "a3", name: "Printer", ciType: "Printer", managedNetwork: "East", macAddress: null, deviceModel: null, lastDiscoveredDate: null })];
+const rows = [row({}), row({ securityDomain: "UNKNOWN", assetId: "a2", name: "Laptop", ciType: "Workstation", managedNetwork: "West", discoveredBy: "Scanner B" }),
+  row({ securityDomain: "UNKNOWN", assetId: "a3", name: "Printer", ciType: "Printer", managedNetwork: "East", macAddress: null, deviceModel: null, lastDiscoveredDate: null })];
 
 describe("endpoint filtering", () => {
   it("combines OR selections within a column with AND across columns and search", () => {

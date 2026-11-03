@@ -13,7 +13,7 @@ import type { ManagedNetwork } from "@/lib/types";
 import { describe, expect, it } from "vitest";
 
 function createNetwork(overrides: Partial<ManagedNetwork> = {}): ManagedNetwork {
-  return {
+  return { securityDomain: "UNKNOWN",
     id: "net-alpha",
     name: "Alpha Network",
     criticality: "Critical",

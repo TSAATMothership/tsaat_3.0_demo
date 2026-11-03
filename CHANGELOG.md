@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-11-03 - Global Security Domain filter
+
+- Added PROTECTED, SECRET and UNKNOWN to the header, all selected by default, with staged Update and retained scope/date across pages, impact windows and exports.
+- Added canonical domains to every endpoint, ICT system and network model, including historical JSON snapshots; displayed domains in endpoint/model views.
+- Added forward SQL migration 030, matching fresh-schema/import/export handling, and a backed-up, idempotent JSON migration that preserves settings and observations.
+
+
+## 2026-11-03 - Remove demo-data notices
+
+- Removed the sample-observation and simulated-patch notices from Discovery Overview and related notices in the vulnerability and patch explorers.
+- Kept the existing records, calculations, evidence fields and exports unchanged in both providers.
+
+## 2026-11-03 - Consistent vulnerability and patch explorer design
+
+- Aligned Security Vulnerability Explorer and Patch Management Explorer with End Point Explorer's hero, interactive chart cards, toolbar, table spacing and pagination.
+- Constrained patch results to the available panel height with internal scrolling and the same narrow-layout table cap as End Point Explorer.
+- Connected chart selections to table filters and Excel export, preserving patch-tab filters, scope/date, sample labels, evidence and CMDB actions in both providers.
+
+## 2026-11-03 - Governance navigation placeholders
+
+- Added Governance as the first sidebar section, with empty Overview, Trends and Insights pages.
+- Preserved authentication, applied scope/date, active-page highlighting, keyboard navigation and blank content without scope. Both providers use the same pages with no data migration.
+- Corrected the root legacy-dependency ignore rule so the existing impact-analyser dependency API is included in fresh checkouts.
+
+## 2026-11-03 - Discovery Overview security and patch summaries
+
+- Added vulnerability observation/severity/remediation summaries and server patch status, verified percentage, overdue and unknown-evidence summaries to Discovery Overview.
+- Added matching explorer drill-throughs and suggested actions, preserving header scope, the resolved snapshot, sample labels and existing discovery calculations.
+- Patch Management Explorer now accepts validated Overview filter presets, retaining them across tab switches and Excel export. Both providers use existing data; no migration or population is required for this update.
+
+## 2026-11-03 - Patch Management Explorer
+
+- Added a Discovery page below Security Vulnerability Explorer for server patch status, installation/restart dates, patch levels, missing updates, overdue actions, ownership, maintenance windows and exceptions.
+- Added evidence-aware status and three searchable/filterable table views with CMDB impact navigation and full-field Excel export. Missing/stale evidence stays Unknown; exceptions do not hide overdue work.
+- Added optional JSON observations, forward SQL migration 029 and explicit backed-up, labelled sample population. Existing inventory, settings, findings and network-device patch rules are preserved; both builds remain offline.
+
+## 2026-11-03 - CMDB asset impact navigation
+
+- Added Open Network Impact Analyser to CMDB slide-out panels. It requests a new window, retains the selected snapshot/header scope and automatically loads the selected asset's network.
+- Added exact asset filtering for diagrams, finding counts and drill-throughs, a visible selection banner and Clear asset filter. Unavailable assets show an empty state; normal sidebar entry keeps manual Run behavior.
+- Shared behavior across SQL and No-SQL without schema or stored-data changes.
+
+## 2026-11-03 - Security Vulnerability Explorer
+
+- Added a Discovery view below Installed Software Explorer with CVE metadata, remediation, affected software and endpoint/OS context, searchable column facets, CMDB drill-through and filtered Excel export.
+- Added four sourced public CVEs matched to seven exact inventory versions, with explicit sample-exposure provenance and backed-up No-SQL population. Existing observations and settings are preserved; ambiguous versions remain unmatched.
+- Added forward SQL migration 028, matching SQL/JSON loaders and a separate opt-in SQL sample population script. Creation/reservation dates remain distinct from detection dates. Builds remain offline and preserve existing stores.
+
+## 2026-11-03 - Missing dependency startup recovery
+
+- SQL and No-SQL dev/start/build commands now explain how to repair a missing or incomplete Next.js installation with `npm ci --offline` instead of an unhandled module stack trace.
+- Dependency validation happens before JSON initialization or build setup; existing data, settings and credentials are preserved.
+
 ## 2026-11-02 - Risk explorer drill-through tabs
 
 - Network and ICT System Explorer names, CI counts, compliance links and finding counts now open new browser tabs with the selected row, snapshot and matching filters preset. Name links open the existing details panel in the new tab.

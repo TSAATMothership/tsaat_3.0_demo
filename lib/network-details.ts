@@ -14,8 +14,9 @@ export function buildNetworkDetails(network: ManagedNetwork, assets: Asset[], li
   };
 }
 
-export function networkDetailsHref(networkId: string, dataDate?: string): string {
+export function networkDetailsHref(networkId: string, dataDate?: string, securityDomain?: string): string {
   const params = new URLSearchParams({ network: networkId, networkDetails: networkId });
   if (dataDate) params.set("dataDate", dataDate);
+  if (securityDomain) params.set("securityDomain", securityDomain);
   return `/network-risk-profile?${params}`;
 }

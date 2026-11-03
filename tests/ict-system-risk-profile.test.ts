@@ -6,17 +6,17 @@ import type { AnalyticsResult, Asset, AssetSpiEvaluation, ComplianceStatus, Data
 import { testSeverityDefinitions, testSpiDefinitions, testMeasuresSettings } from "./spi-definition-fixtures";
 
 const system = (id: string, overrides: Partial<ICTSystem> = {}): ICTSystem => ({ id, name: id, networkId: "net-b",
-  criticality: "Critical", securityDomain: "Protected", adfPlatform: false, enterprisePlatform: false,
+  criticality: "Critical", securityDomain: "PROTECTED", adfPlatform: false, enterprisePlatform: false,
   modellingStatus: false, diisDefined: false, missionCapabilities: [], businessServices: [], environments: [], ...overrides });
-const network = (id: string): ManagedNetwork => ({ id, name: id, criticality: "Critical", adfPlatform: false,
+const network = (id: string): ManagedNetwork => ({ securityDomain: "UNKNOWN", id, name: id, criticality: "Critical", adfPlatform: false,
   enterprisePlatform: false, modellingStatus: true, discoveryStatus: "Discovery Enabled", assetIds: [], ictSystemIds: [] });
 const asset = (id: string, networkId: string, systemId?: string): Asset => ({ id, name: id, hostname: id, type: "server",
-  networkId, securityDomain: "Protected", operatingSystem: null, installedSoftware: [], vulnerabilities: [],
+  networkId, securityDomain: "PROTECTED", operatingSystem: null, installedSoftware: [], vulnerabilities: [],
   lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" },
   ...(systemId ? { systemContext: { systemId, environmentType: "Production" as const } } : {}) });
 const evaluation = (ci: Asset, statuses: ComplianceStatus[], covered = true): AssetSpiEvaluation => ({ assetId: ci.id,
   assetType: ci.type, networkId: ci.networkId, systemId: ci.systemContext?.systemId ?? null, environmentType: "Production",
-  securityDomain: "Protected", systemCriticality: "Critical", discoveryCoverageCompliant: covered,
+  securityDomain: "PROTECTED", systemCriticality: "Critical", discoveryCoverageCompliant: covered,
   evaluations: statuses.map((status, index) => ({ spiId: index + 1, status, reasons: [], evidence: {} })) });
 const finding = (ci: Asset, overrides: Partial<Finding> = {}): Finding => ({ id: ci.id, spiId: 1, priorityRank: 1,
   severity: "Critical Exposure", complianceStatus: "Non-compliant", status: "open", timestamp: "2026-07-01",

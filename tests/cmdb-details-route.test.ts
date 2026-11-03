@@ -11,7 +11,7 @@ vi.mock("@/lib/cmdb-attribute-loader", () => ({ loadCmdbAttributeDefinitions: vi
 const dataset: Dataset = {
   generatedAt: "2026-10-30T00:00:00Z", snapshotDate: "2026-10-30", managedNetworks: [], ictSystems: [], spiEvaluations: [],
   assets: [{ id: "ci-1", name: "Printer One", hostname: "printer-1", type: "printer-device", networkId: "net-1",
-    securityDomain: "Protected", lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" }, vulnerabilities: [] }]
+    securityDomain: "PROTECTED", lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" }, vulnerabilities: [] }]
 };
 const request = (query = "assetId=ci-1&dataDate=2026-10-30") => new NextRequest(`http://localhost/api/assets/cmdb-details?${query}`);
 
@@ -27,7 +27,7 @@ describe("CMDB attribute API", () => {
     expect(loadCmdbAttributeDefinitions).toHaveBeenCalledWith("printer-device");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(await response.json()).toEqual({ snapshotDate: "2026-10-30", asset: {
-      snapshotDate: "2026-10-30", assetId: "ci-1", assetName: "Printer One", assetType: "printer-device",
+      snapshotDate: "2026-10-30", assetId: "ci-1", assetName: "Printer One", assetType: "printer-device", networkId: "net-1",
       attributes: [{ key: "assetName", label: "Printer", value: "Printer One" }]
     } });
   });

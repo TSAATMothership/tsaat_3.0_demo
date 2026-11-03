@@ -40,7 +40,7 @@ function kpiRows(scorePercent = 50): KpiRow[] {
 }
 
 function network(id: string, name: string, modellingStatus: boolean): ManagedNetwork {
-  return {
+  return { securityDomain: "UNKNOWN",
     id,
     name,
     criticality: "Critical",
@@ -66,14 +66,14 @@ function system(id: string, name: string, networkId: string, modellingStatus: bo
     diisDefined: true,
     networkId,
     criticality: "Critical",
-    securityDomain: networkId === "net-a" ? "Secret" : "Protected",
+    securityDomain: networkId === "net-a" ? "SECRET" : "PROTECTED",
     missionCapabilities: [],
     businessServices: [],
     environments: []
   };
 }
 
-function asset(id: string, networkId: string, systemId: string, securityDomain: "Secret" | "Protected", unknownLifecycle = false): Asset {
+function asset(id: string, networkId: string, systemId: string, securityDomain: "SECRET" | "PROTECTED", unknownLifecycle = false): Asset {
   return {
     id,
     name: id,
@@ -99,7 +99,7 @@ function evaluation(
   assetId: string,
   networkId: string,
   systemId: string,
-  securityDomain: "Secret" | "Protected",
+  securityDomain: "SECRET" | "PROTECTED",
   discoveryCoverageCompliant: boolean,
   statuses: AssetSpiEvaluation["evaluations"]
 ): AssetSpiEvaluation {
@@ -151,9 +151,9 @@ function fixture() {
   const networks = [network("net-a", "Alpha Network", true), network("net-b", "Beta Network", false)];
   const systems = [system("sys-a", "Alpha System", "net-a", true), system("sys-b", "Beta System", "net-b", false)];
   const assets = [
-    asset("asset-1", "net-a", "sys-a", "Secret"),
-    asset("asset-2", "net-a", "sys-a", "Protected"),
-    asset("asset-3", "net-b", "sys-b", "Protected", true)
+    asset("asset-1", "net-a", "sys-a", "SECRET"),
+    asset("asset-2", "net-a", "sys-a", "PROTECTED"),
+    asset("asset-3", "net-b", "sys-b", "PROTECTED", true)
   ];
   assets[0].vulnerabilities = [
     {
@@ -171,15 +171,15 @@ function fixture() {
     }
   ];
   const evaluations = [
-    evaluation("asset-1", "net-a", "sys-a", "Secret", true, [
+    evaluation("asset-1", "net-a", "sys-a", "SECRET", true, [
       { spiId: 1, status: "Compliant", evidence: {}, reasons: [] },
       { spiId: 2, status: "Non-compliant", evidence: {}, reasons: [] }
     ]),
-    evaluation("asset-2", "net-a", "sys-a", "Protected", false, [
+    evaluation("asset-2", "net-a", "sys-a", "PROTECTED", false, [
       { spiId: 1, status: "Unknown", evidence: {}, reasons: [] },
       { spiId: 3, status: "Non-compliant", evidence: {}, reasons: [] }
     ]),
-    evaluation("asset-3", "net-b", "sys-b", "Protected", false, [
+    evaluation("asset-3", "net-b", "sys-b", "PROTECTED", false, [
       { spiId: 1, status: "Compliant", evidence: {}, reasons: [] }
     ])
   ];
@@ -236,14 +236,14 @@ describe("performance report model", () => {
       networks,
       systems,
       kpiDefinitions,
-      kpiRowsByMatrixRowId: new Map([["Secret::net-a", kpiRows(50)]]),
+      kpiRowsByMatrixRowId: new Map([["SECRET::net-a", kpiRows(50)]]),
       spiDefinitions: testSpiDefinitions,
       severityDefinitions: testSeverityDefinitions,
       asOfDate: snapshotDate
     });
 
     const alphaSecret = model.domainEntityRows.find(
-      (row) => row.securityDomain === "Secret" && row.entityName === "Alpha Network"
+      (row) => row.securityDomain === "SECRET" && row.entityName === "Alpha Network"
     );
     expect(alphaSecret).toMatchObject({
       scorePercent: 50,
@@ -253,11 +253,11 @@ describe("performance report model", () => {
       total: 2
     });
 
-    const alphaSecretKpis = model.kpiMatrixRows.find((row) => row.id === "Secret::net-a")?.kpis ?? [];
+    const alphaSecretKpis = model.kpiMatrixRows.find((row) => row.id === "SECRET::net-a")?.kpis ?? [];
     expect(alphaSecretKpis).toHaveLength(2);
     expect(alphaSecretKpis.find((kpi) => kpi.id === "KPI-1")?.scorePercent).toBe(50);
 
-    const alphaSecretSpiRow = model.spiMatrixRows.find((row) => row.id === "Secret::net-a");
+    const alphaSecretSpiRow = model.spiMatrixRows.find((row) => row.id === "SECRET::net-a");
     expect(alphaSecretSpiRow?.entityDetails).toMatchObject({
       scopeType: "network",
       id: "net-a",
@@ -295,7 +295,7 @@ describe("performance report model", () => {
       }
     ]);
 
-    const protectedAlphaSpis = model.spiMatrixRows.find((row) => row.id === "Protected::net-a")?.spis ?? [];
+    const protectedAlphaSpis = model.spiMatrixRows.find((row) => row.id === "PROTECTED::net-a")?.spis ?? [];
     expect(protectedAlphaSpis.find((spi) => spi.spiId === 1)).toMatchObject({
       scorePercent: 0,
       compliant: 0,
@@ -304,10 +304,10 @@ describe("performance report model", () => {
       total: 1
     });
 
-    const protectedAlphaDiscovery = model.discoveryGapRows.find((row) => row.id === "Protected::net-a");
+    const protectedAlphaDiscovery = model.discoveryGapRows.find((row) => row.id === "PROTECTED::net-a");
     expect(protectedAlphaDiscovery).toMatchObject({ scorePercent: 0, compliant: 0, nonCompliant: 1, other: 0 });
 
-    const protectedBetaDiscovery = model.discoveryGapRows.find((row) => row.id === "Protected::net-b");
+    const protectedBetaDiscovery = model.discoveryGapRows.find((row) => row.id === "PROTECTED::net-b");
     expect(protectedBetaDiscovery).toMatchObject({ scorePercent: 0, compliant: 0, nonCompliant: 0, other: 1 });
 
     expect(model.modellingGapRows.map((row) => row.entityName)).toEqual(["Beta Network"]);
@@ -363,8 +363,8 @@ describe("performance report model", () => {
     });
 
     expect(model.entityLabelSingular).toBe("ICT System");
-    expect(model.domainEntityRows.some((row) => row.id === "Secret::sys-a")).toBe(true);
-    expect(model.spiMatrixRows.find((row) => row.id === "Secret::sys-a")?.entityDetails).toMatchObject({
+    expect(model.domainEntityRows.some((row) => row.id === "SECRET::sys-a")).toBe(true);
+    expect(model.spiMatrixRows.find((row) => row.id === "SECRET::sys-a")?.entityDetails).toMatchObject({
       scopeType: "system",
       id: "sys-a",
       name: "Alpha System",

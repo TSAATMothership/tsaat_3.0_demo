@@ -1,3 +1,4 @@
+import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
 import { buildAnalytics } from "@/lib/analytics";
@@ -187,7 +188,7 @@ export async function POST(request: NextRequest) {
       || !validDate(input.scope?.dataDate) || !validDate(input.asOf)
       || (input.status !== "open" && input.status !== "closed")
       || !validIds(input.findingIds, 1048575) || !input.findingIds.length) throw new Error("Invalid export.");
-    const scope = { network: scopeIds(input.scope.network), system: scopeIds(input.scope.system), dataDate: input.scope.dataDate };
+    const scope = { network: scopeIds(input.scope.network), system: scopeIds(input.scope.system), securityDomain: parseSecurityDomainScope(input.scope.securityDomain), dataDate: input.scope.dataDate };
     if ((!scope.network.length && !scope.system.length) || (scope.network.length && scope.system.length)) throw new Error("Invalid scope.");
     context = { scope, asOf: input.asOf, status: input.status };
     findingIds = [...new Set(input.findingIds as string[])];
