@@ -6,6 +6,7 @@
       "pattern": "workspace|governance|route-loading|app/page\\.tsx|app/layout\\.tsx",
       "documents": [
         "Requirements Documentation/01-Home-Redirect.md",
+        "Requirements Documentation/15-Governance-Insights.md",
         "docs/ui-design.md"
       ]
     },

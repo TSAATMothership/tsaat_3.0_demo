@@ -5,6 +5,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Need | Document |
 | --- | --- |
 | Product behavior and acceptance contracts | [Solution design index](../Requirements%20Documentation/TSAAT-Solution-Design-Index.md) |
+| Executive Cyber Terrain Posture briefing | [Governance Insights](../Requirements%20Documentation/15-Governance-Insights.md) |
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
 | Server patch evidence, status rules and sample population | [Patch Management Explorer](patch-management-explorer.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |

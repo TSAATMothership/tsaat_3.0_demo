@@ -45,7 +45,7 @@ npm run check, npm run build:all and npm run test:nosql remain the comprehensive
 
 ## Current workspace
 
-Governance appears first in the sidebar with empty Overview, Trends and Insights pages. They retain the applied scope and snapshot date and are ready for future content.
+Governance appears first in the sidebar. Insights presents a scrolling executive Cyber Terrain Posture briefing covering visibility, exposure, service impact, patch assurance and leadership priorities, using the applied scope and snapshot. Overview and Trends remain empty placeholders. See the [Insights contract](Requirements%20Documentation/15-Governance-Insights.md).
 
 Cyber Security contains Network Risk Profile, ICT System Risk Profile, Service Impact Analyser, ICT System Impact Analyser and ICT System Dependencies. Discovery contains Overview, Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Patch Management Explorer and Shadow IT Explorer. Observed Measures contains Measures Summary, KPIs and SPIs. Findings contains the Findings Register. Briefs & Reports is separate; Settings is in the header menu.
 

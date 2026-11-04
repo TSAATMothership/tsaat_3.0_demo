@@ -54,6 +54,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/discovery-tools/settings` | GET, PUT | [Source](../../app/api/discovery-tools/settings/route.ts) |
 | `/api/findings/asset-details` | GET | [Source](../../app/api/findings/asset-details/route.ts) |
 | `/api/findings/export` | GET, POST | [Source](../../app/api/findings/export/route.ts) |
+| `/api/governance/insights/report` | GET | [Source](../../app/api/governance/insights/report/route.ts) |
 | `/api/measures/settings` | GET, PUT | [Source](../../app/api/measures/settings/route.ts) |
 | `/api/networks/[networkId]/discovery-coverage-export` | GET | [Source](../../app/api/networks/%5BnetworkId%5D/discovery-coverage-export/route.ts) |
 | `/api/networks/[networkId]/impact-analyser/findings` | GET | [Source](../../app/api/networks/%5BnetworkId%5D/impact-analyser/findings/route.ts) |

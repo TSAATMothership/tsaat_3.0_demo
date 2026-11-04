@@ -14,6 +14,7 @@ import { populatePatchManagement } from "./populate-patch-management.mjs";
 import { populateJsonStore } from "./populate-json-store.mjs";
 import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 import { checkServiceImpactGraph } from "./service-impact-graph-smoke.mjs";
+import { checkGovernanceInsights, checkGovernanceInsightsPdf } from "./governance-insights-smoke.mjs";
 
 assert(fs.existsSync(path.join(repositoryRoot, ".next-nosql", "BUILD_ID")), "Run npm run build:nosql first.");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-nosql-runtime-"));
@@ -138,11 +139,16 @@ try {
     await page.focus(`.workspace-nav-group:first-child a[href^="/governance/${view}"]`);
     await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
     await page.waitForFunction(selected => window.location.pathname === '/governance/' + selected &&
-      document.querySelector('.governance-placeholder h1')?.textContent === selected[0].toUpperCase() + selected.slice(1), {}, view);
+      (selected === 'insights' ? document.querySelector('.governance-insights h1') : document.querySelector('.governance-placeholder h1')?.textContent === selected[0].toUpperCase() + selected.slice(1)), {}, view);
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
     assert.equal(new URL(page.url()).searchParams.get('network'), 'net-1');
     assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
-    assert.equal(await page.$eval('.governance-placeholder h1', node => node.textContent), view[0].toUpperCase() + view.slice(1));
+    if (view === 'insights') {
+      assert.equal(await page.$eval('.governance-insights', node => node.dataset.insightsSnapshot), date);
+      assert.equal(await page.$$eval('.insight-chapters a', nodes => nodes.length), 5);
+      await checkGovernanceInsights(page, { date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+      await checkGovernanceInsightsPdf(page, { date, directory: downloadDirectory });
+    } else assert.equal(await page.$eval('.governance-placeholder h1', node => node.textContent), view[0].toUpperCase() + view.slice(1));
     assert.equal(await page.$$eval('.workspace-navigation [aria-current="page"]', nodes => nodes.length), 1);
     assert.equal(await page.$eval('.workspace-navigation [aria-current="page"]', node => new URL(node.href).pathname), '/governance/' + view);
     assert.equal(await page.$$eval('.governance-placeholder table, .governance-placeholder canvas, .governance-placeholder button', nodes => nodes.length), 0);

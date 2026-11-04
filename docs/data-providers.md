@@ -4,7 +4,9 @@ Removing demo-data notices from Discovery Overview and the patch/vulnerability e
 
 ## One app, two builds
 
-The Governance placeholder routes add no provider operations or business-data reads. They use the existing shared shell, shared header options and scope/date navigation in both builds. No SQL/JSON schema, calculation-contract, migration, sample-population or dependency changes are needed.
+Governance Overview and Trends remain placeholders. Insights reads existing Discovery Overview and Service Impact projections through the shared facades, with header scope/domains and one resolved snapshot. Its presentation aggregation adds no provider operation, SQL query, schema, persisted calculation, JSON format, migration or sample population. Existing discovery applicability, CVE observation, patch status and finding-classification rules remain authoritative; the SQL/JSON calculation contract is unchanged.
+
+The Insights PDF uses the same loader and exposes the existing `Dataset.generatedAt` as its recorded snapshot timestamp, normalized to UTC separately from PDF export time. This is the dataset generation timestamp, not a new assertion about each asset's observation time. Missing, invalid or timezone-less values display **Not recorded**. Both SQL and JSON already supply this field; the report requires no schema/JSON upgrade, data population or calculation-contract refresh.
 
 The current Next.js app compiles with SQL or JSON storage. Pages, API URLs, scope/date behavior, direct access, reports, workers and visual components are shared. Both require the normal Node app server; the supported host is Windows. SQL uses PowerShell/DPAPI for DB_config. No-SQL has no SQL Server/sqlcmd/configuration dependency.
 

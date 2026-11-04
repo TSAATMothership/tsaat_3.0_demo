@@ -2,6 +2,26 @@
 
 Historical evidence below describes the releases/dates recorded at the time. Application login was retired on 2026-11-04; current access behavior and validation are defined in [ADR 0014](adr/0014-retire-application-login.md).
 
+## Insights infographic PDF - 2026-11-04
+
+Impact assessment: new report download control, scoped GET API, PDF presentation and timestamp exposure from the existing dataset metadata. The report reuses the Insights loader and current Discovery/Service Impact projections. SQL/JSON queries, storage formats, schemas, calculation rules, packages and compiler configuration are unchanged. No migrations, sample population, checksum refresh, fresh installation or live SQL integration was selected. The full application suite and full No-SQL regression were not repeated; focused report/runtime checks cover this change. Both guarded builds were selected for the new API and renderer. New API inventory and affected feature/design/architecture/data documentation were reviewed and regenerated.
+
+All 22 Insights loader/rollup/PDF/API tests passed, covering snapshot pinning, timestamp provenance and timezone handling, missing metadata, complete chapters, long-name/tool-list pagination, empty denominators, invalid requests, safe failures and response headers. Lint, strict type checking, script syntax, documentation inventories/links, repository hygiene and whitespace checks passed. Both SQL and No-SQL production builds passed with all 618 dependency archives verified and Node build network access blocked.
+
+Compiled No-SQL browser checks used an isolated store and confirmed actual seven-page downloads for network scope, historical ICT-system scope and NONE/empty selection. PDF metadata matched the selected store's recorded snapshot timestamp. Checks passed for keyboard activation, progress/duplicate prevention, simulated failure and retry, focus recovery, filename, unchanged scope/date, desktop and 390px layouts. An initial keyboard check exposed focus loss during button disable; restoring focus only when it had fallen to the document body fixed the regression. The shared regression helper is included in test:nosql for subsequent full runs.
+
+All seven populated-report pages were rendered locally with Windows.Data.Pdf and visually inspected for typography, charts, spacing, page breaks and timestamp footers; empty-data cover, coverage and priorities were also inspected. Screenshots and PDFs remain under ignored .local and tmp/pdfs paths. No operational data/configuration was changed. SQL evidence is shared-model coverage and compilation, not live database parity.
+
+## Governance Insights executive briefing - 2026-11-04
+
+Impact assessment: new server-rendered presentation and a pure executive summary of existing Discovery/Service Impact models, plus local SVG artwork, scoped evidence links and affected documentation. Both provider consumers were reviewed; no SQL query, schema, JSON format, persisted rule, dependency or compiler configuration changed. The calculation contract was reviewed and left unchanged. New schemas, migrations, sample population and fresh npm installation were not needed. Existing route/API/navigation inventories are unchanged, so regeneration was not selected.
+
+The 57 focused tests passed across executive rollups, snapshot pinning, scope/domain links, deduplication, empty/error states, discovery/report models, service impact, workspace scope and route readiness. Lint, strict type checking, documentation checks, repository hygiene, script syntax and storage:check passed. Both guarded SQL and No-SQL production builds passed using repository dependencies with network access blocked.
+
+Focused browser checks passed for network and ICT-system scope, historical snapshots, PROTECTED and all-domain selections, NONE/empty data, no-scope behavior, endpoint count agreement with Discovery Overview, local images, all five chapter links, keyboard navigation, evidence links, vertical scrolling and 390px layouts. Desktop chapter and phone screenshots were visually reviewed under ignored .local/governance-insights-artifacts. The production No-SQL regression also passed: direct access, 21 views, 16 explorer drill-through tabs, heatmaps/analysers including graph controls, Settings/CMDB, 44 PDFs, seven workbooks, settings persistence and restart. Smoke data and runtime configuration were disposable; operational stores were untouched.
+
+Live SQL business-data integration was not repeated because provider operations and queries are unchanged; SQL compatibility evidence here is compilation and shared-model regression, not a live parity claim. Documentation and implementation retain the existing offline/provider contracts.
+
 ## Preserve impact graph zoom on selection - 2026-11-04
 
 Impact assessment: client camera interaction only; SQL/JSON data, schemas, providers, calculations, dependencies and generated inventories are unchanged. No data checks, migrations, SQL parity, fresh installation, dual build, full-suite run or inventory regeneration was selected.

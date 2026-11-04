@@ -3,6 +3,7 @@
 The feature contracts below describe both SQL and JSON-backed No-SQL builds of the current application. Both use the same app server with direct page/API access, pages, APIs and reports; storage-specific details follow the [data provider contract](../docs/data-providers.md). Exact interfaces, SQL fields and API methods are linked through the generated inventories. The former combined specification is an entrypoint rather than a duplicate copy.
 
 - [Workspace, navigation and scope](01-Home-Redirect.md)
+- [Governance Insights executive briefing](15-Governance-Insights.md)
 - [Cyber Security and impact analysers](02-Cyber-COP.md)
 - [Network Risk Profile](03-Networks.md)
 - [Network Details panel](04-Network-Detail.md)

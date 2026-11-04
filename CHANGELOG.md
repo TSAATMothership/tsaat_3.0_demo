@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-04 - Insights infographic PDF
+
+- Add Generate PDF to Governance Insights, with progress and retry handling, preserving applied scope, security domains and snapshot.
+- Export every infographic chapter as a clean A4 report with vector artwork/charts, tool coverage cards, page numbering and the recorded snapshot timestamp. Label PDF generation time separately; unavailable source timestamps remain Not recorded.
+
+## 2026-11-04 - Executive Governance Insights
+
+- Replace the Insights placeholder with a vertically scrolling Cyber Terrain Posture infographic: local branding/terrain imagery, coverage rings and tool cards, finding/CVE exposure, service context, patch assurance and leadership priorities.
+- Use existing scoped data at one resolved snapshot, retain domains/date in evidence links, and distinguish empty evidence, unavailable data and zero findings. Overview and Trends remain placeholders.
+- Support desktop and narrow layouts with keyboard chapter navigation and accessible text for all charts. No schema, provider-rule, package or persistent-data changes.
+
 ## 2026-11-04 - Preserve impact graph zoom on selection
 
 - Keep the current zoom and pan when selecting graph nodes, search results or connected-node links. Fit graph and the 0 key remain explicit view resets.
