@@ -1,7 +1,7 @@
 "use client";
 
 import { type CopView } from "@/lib/workspace-navigation";
-import { ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -32,7 +32,6 @@ import {
 import { ScoreCard as OverviewScoreCardTile, type OverviewScoreCard } from "@/components/overview-compliance-score-strip";
 import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, Criticality, EnvironmentType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
-import { NETWORK_IMPACT_ASSET_PARAM, type NetworkImpactAssetFilter } from "@/lib/network-impact-navigation";
 
 export interface CyberCopImpactItem {
   id: string;
@@ -85,10 +84,6 @@ export interface CyberCopImpactLinks {
   missionToSystems: Record<string, string[]>;
 }
 
-export interface CyberCopNetworkOption {
-  id: string;
-  name: string;
-}
 
 export interface CyberCopAssetTypeHeatmapAsset {
   id: string;
@@ -112,8 +107,7 @@ export interface CyberCopDashboardProps {
   activeTab: CopView;
   snapshotDate: string;
   filtersSlot?: ReactNode;
-  networkOptions: CyberCopNetworkOption[];
-  networkImpactAsset?: NetworkImpactAssetFilter | null;
+  ictSystemOptions: Array<{ id: string; name: string }>;
   spiDefinitions: SpiDefinition[];
   complianceScoreCards: OverviewScoreCard[];
   riskProfile: {
@@ -1122,21 +1116,21 @@ function MissionBusinessBlastRadiusChart({
 function IctSystemImpactAnalyserRunPanel({
   systemOptions: availableSystems,
   spiDefinitions,
-  dataDate
+  dataDate,
+  view = "impact"
 }: {
-  systemOptions: CyberCopImpactItem[];
+  systemOptions: Array<{ id: string; name: string }>;
   spiDefinitions: SpiDefinition[];
   dataDate: string;
+  view?: "impact" | "dependencies";
 }) {
+  const isDependenciesView = view === "dependencies";
+  const analyserName = isDependenciesView ? "ICT System Dependencies" : "ICT System Impact Analyser";
   const [isSystemSelectorOpen, setIsSystemSelectorOpen] = useState(false);
   const [selectedSystemIds, setSelectedSystemIds] = useState<string[]>([]);
   const [appliedSystemIds, setAppliedSystemIds] = useState<string[]>([]);
   const [loadState, setLoadState] = useState<ImpactAnalyser2LoadState>("idle");
   const [runRequestId, setRunRequestId] = useState(0);
-  const [isDependenciesOpen, setIsDependenciesOpen] = useState(false);
-  const [dependencyRequestId, setDependencyRequestId] = useState(0);
-  const dependenciesTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const dependenciesCloseRef = useRef<HTMLButtonElement | null>(null);
   const systemOptions = useMemo(
     () => [...availableSystems].sort((left, right) => left.name.localeCompare(right.name)),
     [availableSystems]
@@ -1156,33 +1150,12 @@ function IctSystemImpactAnalyserRunPanel({
     setAppliedSystemIds([]);
     setLoadState("idle");
     setIsSystemSelectorOpen(false);
-    setIsDependenciesOpen(false);
   }, [systemOptionKey]);
-
-  useEffect(() => {
-    if (!isDependenciesOpen) {
-      return;
-    }
-    const focusFrame = window.requestAnimationFrame(() => dependenciesCloseRef.current?.focus());
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setIsDependenciesOpen(false);
-        window.requestAnimationFrame(() => dependenciesTriggerRef.current?.focus());
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [dependencyRequestId, isDependenciesOpen]);
 
   const updateSelectedSystemIds = useCallback((nextSystemIds: string[]) => {
     setSelectedSystemIds(nextSystemIds);
     setAppliedSystemIds([]);
     setLoadState("idle");
-    setIsDependenciesOpen(false);
   }, []);
 
   const toggleSelectedSystem = useCallback(
@@ -1204,26 +1177,12 @@ function IctSystemImpactAnalyserRunPanel({
     setAppliedSystemIds([...selectedSystemIds]);
     setRunRequestId((current) => current + 1);
     setLoadState("loading");
-    setIsDependenciesOpen(false);
   }, [isLoading, selectedSystemIds]);
 
   const handleLoadStateChange = useCallback((nextLoadState: ImpactAnalyser2LoadState) => {
     setLoadState((currentLoadState) =>
       currentLoadState === "loading" && nextLoadState === "idle" ? currentLoadState : nextLoadState
     );
-  }, []);
-
-  const openDependencies = useCallback(() => {
-    if (loadState !== "ready" || !appliedSystemIds.length) {
-      return;
-    }
-    setDependencyRequestId((current) => current + 1);
-    setIsDependenciesOpen(true);
-  }, [appliedSystemIds.length, loadState]);
-
-  const closeDependencies = useCallback(() => {
-    setIsDependenciesOpen(false);
-    window.requestAnimationFrame(() => dependenciesTriggerRef.current?.focus());
   }, []);
 
   return (
@@ -1241,7 +1200,7 @@ function IctSystemImpactAnalyserRunPanel({
           <span className="shrink-0">ICT System</span>
           <button
             type="button"
-            aria-label="Select ICT systems for the ICT System Impact Analyser"
+            aria-label={"Select ICT systems for " + analyserName}
             aria-haspopup="listbox"
             aria-expanded={isSystemSelectorOpen}
             disabled={!systemOptions.length}
@@ -1322,283 +1281,29 @@ function IctSystemImpactAnalyserRunPanel({
       <div className="mt-2 min-h-0 min-w-0 flex-1">
         {appliedSystemIds.length ? (
           <IctSystemImpactAnalyser2Chart
-            key={`cyber-cop-impact-analyser-run-${runRequestId}`}
+            key={"cyber-cop-" + view + "-run-" + runRequestId}
             embedded
             systemScopeIds={appliedSystemIds}
             dataDate={dataDate}
             spiDefinitions={spiDefinitions}
-            complianceActionScope="risk-servers"
+            dataPath={isDependenciesView ? "/api/cyber-cop/impact-analyser-2/dependencies" : undefined}
+            diagramMode={isDependenciesView ? "dependencies" : "risk"}
+            analyserName={analyserName}
+            analyserSlug={isDependenciesView ? "ict-system-dependencies" : "ict-system-impact-analyser"}
+            title={isDependenciesView ? analyserName : "ICT System Impact Analyser Diagram"}
+            headingTooltip={isDependenciesView ? "Directed server-to-server dependencies for the applied ICT system scope." : undefined}
+            complianceActionScope={isDependenciesView ? "dependency-servers" : "risk-servers"}
+            initialEnvironments={isDependenciesView ? ["Production"] : []}
+            initialFindingSeverities={isDependenciesView ? [] : ["Critical Exposure", "High Risk"]}
             onLoadStateChange={handleLoadStateChange}
-            hideFilterRow={isDependenciesOpen}
-            extraControls={
-              <button
-                ref={dependenciesTriggerRef}
-                type="button"
-                aria-expanded={isDependenciesOpen}
-                aria-controls="cyber-cop-ict-system-dependencies-overlay"
-                disabled={loadState !== "ready"}
-                onClick={openDependencies}
-                className="ml-auto h-8 shrink-0 rounded-md border border-violet-300/45 bg-violet-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-violet-100 transition hover:border-violet-200/65 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
-              >
-                ICT System Dependencies
-              </button>
-            }
-            diagramOverlay={
-              isDependenciesOpen ? (
-                <div
-                  id="cyber-cop-ict-system-dependencies-overlay"
-                  role="dialog"
-                  aria-label="ICT System Dependencies"
-                  className="h-full min-h-0 min-w-0 bg-slate-950 p-1"
-                >
-                  <IctSystemImpactAnalyser2Chart
-                    key={`cyber-cop-ict-system-dependencies-${runRequestId}-${dependencyRequestId}`}
-                    embedded
-                    systemScopeIds={appliedSystemIds}
-                    dataDate={dataDate}
-                    dataPath="/api/cyber-cop/impact-analyser-2/dependencies"
-                    diagramMode="dependencies"
-                    analyserName="ICT System Dependencies"
-                    analyserSlug="ict-system-dependencies"
-                    title="ICT System Dependencies"
-                    headingTooltip="Directed server-to-server dependencies for the applied ICT system scope."
-                    assetAxisLabel="Server"
-                    assetSearchCategory="Server"
-                    complianceActionScope="dependency-servers"
-                    onRetry={() => setDependencyRequestId((current) => current + 1)}
-                    extraControls={
-                      <button
-                        ref={dependenciesCloseRef}
-                        type="button"
-                        aria-label="Close ICT System Dependencies"
-                        onClick={closeDependencies}
-                        className="ml-auto h-8 shrink-0 rounded-md border border-rose-300/45 bg-rose-500/15 px-3 text-xs font-semibold uppercase tracking-[0.12em] text-rose-100 hover:border-rose-200/65 hover:bg-rose-500/25"
-                      >
-                        Close
-                      </button>
-                    }
-                  />
-                </div>
-              ) : null
-            }
+            onRetry={() => setRunRequestId((current) => current + 1)}
           />
         ) : (
           <div className="flex h-full min-h-[20rem] items-center justify-center rounded-lg border border-dashed border-sky-300/20 bg-slate-950/35 p-6 text-center">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-200">ICT System Impact Analyser</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-200">{analyserName}</p>
               <p className="mt-2 text-sm text-slate-300/75">
                 Select one or more ICT systems, then select Run to load the analyser.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function NetworkImpactAnalyserRunPanel({
-  networkOptions: availableNetworks,
-  spiDefinitions,
-  dataDate,
-  assetFilter
-}: {
-  networkOptions: CyberCopNetworkOption[];
-  spiDefinitions: SpiDefinition[];
-  dataDate: string;
-  assetFilter: NetworkImpactAssetFilter | null;
-}) {
-  const networkSelectorId = useId();
-  const [isNetworkSelectorOpen, setIsNetworkSelectorOpen] = useState(false);
-  const [selectedNetworkIds, setSelectedNetworkIds] = useState<string[]>([]);
-  const [appliedNetworkIds, setAppliedNetworkIds] = useState<string[]>([]);
-  const [loadState, setLoadState] = useState<ImpactAnalyser2LoadState>("idle");
-  const [runRequestId, setRunRequestId] = useState(0);
-  const networkOptions = useMemo(
-    () => [...availableNetworks].sort((left, right) => left.name.localeCompare(right.name)),
-    [availableNetworks]
-  );
-  const networkOptionKey = useMemo(() => networkOptions.map((network) => network.id).join(","), [networkOptions]);
-  const selectedNetworkIdSet = useMemo(() => new Set(selectedNetworkIds), [selectedNetworkIds]);
-  const selectedNetworkLabel =
-    selectedNetworkIds.length === 0
-      ? "Select Networks"
-      : selectedNetworkIds.length === 1
-        ? networkOptions.find((network) => network.id === selectedNetworkIds[0])?.name ?? "1 selected"
-        : `${selectedNetworkIds.length} selected`;
-  const isLoading = loadState === "loading";
-
-  useEffect(() => {
-    const initialNetworkIds = assetFilter?.networkId ? [assetFilter.networkId] : [];
-    setSelectedNetworkIds(initialNetworkIds);
-    setAppliedNetworkIds(initialNetworkIds);
-    setLoadState(initialNetworkIds.length ? "loading" : "idle");
-    setIsNetworkSelectorOpen(false);
-  }, [networkOptionKey, assetFilter?.assetId, assetFilter?.networkId]);
-
-  const updateSelectedNetworkIds = useCallback((nextNetworkIds: string[]) => {
-    setSelectedNetworkIds(nextNetworkIds);
-    setAppliedNetworkIds([]);
-    setLoadState("idle");
-  }, []);
-
-  const toggleSelectedNetwork = useCallback(
-    (networkId: string) => {
-      const nextSelectedNetworkIds = selectedNetworkIdSet.has(networkId)
-        ? selectedNetworkIds.filter((id) => id !== networkId)
-        : networkOptions
-            .filter((network) => selectedNetworkIdSet.has(network.id) || network.id === networkId)
-            .map((network) => network.id);
-      updateSelectedNetworkIds(nextSelectedNetworkIds);
-    },
-    [networkOptions, selectedNetworkIdSet, selectedNetworkIds, updateSelectedNetworkIds]
-  );
-
-  const handleRun = useCallback(() => {
-    if (!selectedNetworkIds.length || isLoading) {
-      return;
-    }
-    setAppliedNetworkIds([...selectedNetworkIds]);
-    setRunRequestId((current) => current + 1);
-    setLoadState("loading");
-  }, [isLoading, selectedNetworkIds]);
-
-  const handleLoadStateChange = useCallback((nextLoadState: ImpactAnalyser2LoadState) => {
-    setLoadState((currentLoadState) =>
-      currentLoadState === "loading" && nextLoadState === "idle" ? currentLoadState : nextLoadState
-    );
-  }, []);
-
-  return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col p-1">
-      {assetFilter && (
-        <div className="network-impact-asset-filter" data-network-impact-asset={assetFilter.assetId}>
-          <p role="status">
-            {assetFilter.networkId
-              ? <>Filtered to asset: <strong>{assetFilter.assetName}</strong> <span>({assetFilter.assetId})</span></>
-              : "The selected asset is unavailable in this scope or snapshot. Clear the asset filter to choose a network."}
-          </p>
-          <button type="button" onClick={() => {
-            const url = new URL(window.location.href);
-            url.searchParams.delete(NETWORK_IMPACT_ASSET_PARAM);
-            window.location.assign(url.href);
-          }}>Clear asset filter</button>
-        </div>
-      )}
-      <div className="relative z-50 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-sky-300/15 bg-slate-950/55 p-2">
-        <div
-          className="relative flex h-8 min-w-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
-          onBlur={(event) => {
-            const nextTarget = event.relatedTarget;
-            if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-              setIsNetworkSelectorOpen(false);
-            }
-          }}
-        >
-          <span className="shrink-0">Network</span>
-          <button
-            type="button"
-            aria-label="Select networks for the Network Impact Analyser"
-            aria-controls={networkSelectorId}
-            aria-expanded={isNetworkSelectorOpen}
-            disabled={!networkOptions.length || Boolean(assetFilter)}
-            onClick={() => setIsNetworkSelectorOpen((current) => !current)}
-            className="flex h-8 w-64 min-w-0 items-center justify-between gap-2 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/50 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:text-slate-400/70"
-          >
-            <span className="truncate">{networkOptions.length ? selectedNetworkLabel : "No networks available"}</span>
-            <span className="shrink-0 text-[10px] text-slate-400">{isNetworkSelectorOpen ? "Close" : "Select"}</span>
-          </button>
-          {isNetworkSelectorOpen ? (
-            <div
-              id={networkSelectorId}
-              role="group"
-              aria-label="Networks"
-              className="absolute left-0 top-[calc(100%+0.25rem)] z-[60] max-h-72 w-[22rem] max-w-[calc(100vw-3rem)] overflow-auto rounded-md border border-sky-400/35 bg-slate-950/95 p-1 shadow-[0_10px_26px_rgba(0,0,0,0.5)]"
-            >
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => updateSelectedNetworkIds([])}
-                disabled={!selectedNetworkIds.length}
-                className="mb-1 flex w-full items-center justify-between rounded-md border border-sky-400/15 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/85 disabled:cursor-not-allowed disabled:text-slate-500"
-              >
-                <span>Clear selection</span>
-                <span>{selectedNetworkIds.length} selected</span>
-              </button>
-              <div className="space-y-1">
-                {networkOptions.map((network) => {
-                  const checked = selectedNetworkIdSet.has(network.id);
-                  return (
-                    <label
-                      key={`impact-analyser-network-option-${network.id}`}
-                      data-impact-analyser-selection-option="network"
-                      onMouseDown={(event) => {
-                        if (!(event.target instanceof HTMLInputElement)) {
-                          event.preventDefault();
-                        }
-                      }}
-                      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs normal-case tracking-normal ${
-                        checked
-                          ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                          : "border-sky-400/15 bg-slate-900/70 text-slate-200 hover:border-sky-300/45 hover:bg-slate-800/85"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSelectedNetwork(network.id)}
-                        className="h-3.5 w-3.5 rounded border-sky-300/45 bg-slate-950 text-cyan-300"
-                      />
-                      <span className="truncate" title={network.name}>
-                        {network.name}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          onClick={handleRun}
-          disabled={!selectedNetworkIds.length || isLoading}
-          className="h-8 rounded-md border border-cyan-300/40 bg-cyan-500/15 px-4 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/60 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:border-slate-500/30 disabled:bg-slate-900/70 disabled:text-slate-400/70"
-        >
-          {isLoading ? "Running..." : "Run"}
-        </button>
-        <p className="min-w-0 text-xs text-slate-300/75">
-          {selectedNetworkIds.length
-            ? `${selectedNetworkIds.length} network${selectedNetworkIds.length === 1 ? "" : "s"} ready to run.`
-            : "Select one or more networks to enable Run."}
-        </p>
-      </div>
-
-      <div className="mt-2 min-h-0 min-w-0 flex-1">
-        {appliedNetworkIds.length ? (
-          <IctSystemImpactAnalyser2Chart
-            key={`cyber-cop-network-impact-analyser-run-${runRequestId}`}
-            embedded
-            networkScopeIds={appliedNetworkIds}
-            dataDate={dataDate}
-            analyserName="Network Impact Analyser"
-            analyserSlug="network-impact-analyser"
-            title="Network Impact Analyser"
-            headingTooltip="Scalable Canvas/WebGL analyser for open findings across selected network topology models, ICT systems, environments, assets, severity, and SPI."
-            assetAxisLabel="Assets"
-            assetSearchCategory="Assets"
-            includeNetworkAxis
-            showAssetTypeFilter
-            spiDefinitions={spiDefinitions}
-            complianceActionScope="risk-all-assets"
-            onLoadStateChange={handleLoadStateChange}
-          />
-        ) : (
-          <div className="flex h-full min-h-[20rem] items-center justify-center rounded-lg border border-dashed border-sky-300/20 bg-slate-950/35 p-6 text-center">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-200">Network Impact Analyser</p>
-              <p className="mt-2 text-sm text-slate-300/75">
-                Select one or more networks, then select Run to load the analyser.
               </p>
             </div>
           </div>
@@ -1717,8 +1422,7 @@ export function CyberCopDashboard({
   activeTab,
   snapshotDate,
   filtersSlot,
-  networkOptions,
-  networkImpactAsset = null,
+  ictSystemOptions,
   spiDefinitions,
   complianceScoreCards,
   riskProfile,
@@ -2221,26 +1925,28 @@ export function CyberCopDashboard({
         </div>
       ) : null}
 
-      {activeTab === "network-impact-analyser" ? (
+      {activeTab === "ict-system-dependencies" ? (
         <div
-          id="cyber-cop-tabpanel-network-impact-analyser"
+          id="cyber-cop-tabpanel-ict-system-dependencies"
           role="region"
-          aria-label="cyber-cop-network-impact-analyser"
+          aria-label="ICT System Dependencies"
           className={tabPanelClass}
         >
           <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-2">
             <div className="min-h-0 min-w-0">
-              <NetworkImpactAnalyserRunPanel
-                networkOptions={networkOptions}
+              <IctSystemImpactAnalyserRunPanel
+                view="dependencies"
+                systemOptions={ictSystemOptions}
                 spiDefinitions={spiDefinitions}
                 dataDate={snapshotDate}
-                assetFilter={networkImpactAsset}
               />
             </div>
             <CyberCopTabFooter />
           </div>
         </div>
       ) : null}
+
+
     </div>
   );
 }

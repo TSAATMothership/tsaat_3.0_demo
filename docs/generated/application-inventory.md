@@ -12,8 +12,8 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | Network Risk Profile | `/network-risk-profile` | network |
 | ICT System Risk Profile | `/ict-system-risk-profile` | system |
 | Service Impact Analyser | `/cyber-cop?copView=impact` | Both scope types |
-| Network Impact Analyser | `/cyber-cop?copView=network-impact-analyser` | network |
 | ICT System Impact Analyser | `/cyber-cop?copView=ict-system-impact-analyser` | system |
+| ICT System Dependencies | `/cyber-cop?copView=ict-system-dependencies` | system |
 | Overview | `/discovery-coverage?discoveryView=overview` | Both scope types |
 | Discovery Tool Coverage | `/discovery-coverage` | Both scope types |
 | Discovery Compliance Explorer | `/discovery-coverage?discoveryView=compliance` | Both scope types |
@@ -44,6 +44,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/discovery-coverage/endpoints/export` | POST | [Source](../../app/api/discovery-coverage/endpoints/export/route.ts) |
 | `/api/discovery-coverage/installed-software/export` | POST | [Source](../../app/api/discovery-coverage/installed-software/export/route.ts) |
 | `/api/discovery-coverage/network-report` | GET | [Source](../../app/api/discovery-coverage/network-report/route.ts) |
+| `/api/discovery-coverage/overview-report` | GET | [Source](../../app/api/discovery-coverage/overview-report/route.ts) |
 | `/api/discovery-coverage/patch-management/export` | POST | [Source](../../app/api/discovery-coverage/patch-management/export/route.ts) |
 | `/api/discovery-coverage/remediation-report` | GET | [Source](../../app/api/discovery-coverage/remediation-report/route.ts) |
 | `/api/discovery-coverage/security-vulnerabilities/export` | POST | [Source](../../app/api/discovery-coverage/security-vulnerabilities/export/route.ts) |

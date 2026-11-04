@@ -73,8 +73,8 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
     { label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" },
     { label: "Service Impact Analyser", href: "/cyber-cop?copView=impact" },
-    { label: "Network Impact Analyser", href: "/cyber-cop?copView=network-impact-analyser", scope: "network" },
-    { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" }
+    { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
+    { label: "ICT System Dependencies", href: "/cyber-cop?copView=ict-system-dependencies", scope: "system" }
   ] },
   { label: "Discovery", items: [
     { label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
@@ -99,7 +99,7 @@ export const WORKSPACE_LINKS: WorkspaceItem[] = [
   { label: "Briefs & Reports", href: "/report" }
 ];
 
-export const COP_VIEWS = ["overview", "impact", "network-impact-analyser", "ict-system-impact-analyser"] as const;
+export const COP_VIEWS = ["overview", "impact", "ict-system-impact-analyser", "ict-system-dependencies"] as const;
 export type CopView = typeof COP_VIEWS[number];
 export function resolveCopView(value: string | string[] | undefined): CopView {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -134,12 +134,14 @@ export function activeWorkspaceItem(pathname: string, params: URLSearchParams): 
 }
 
 export function isWorkspaceItemVisible(item: WorkspaceItem, params: URLSearchParams, activeHref?: string): boolean {
+  // ICT System Impact Analyser stays hidden under managed-network scope, even when active.
+  if (item.href === "/cyber-cop?copView=ict-system-impact-analyser" && scopeIds(params.getAll("network")).length) return false;
   // Risk profiles follow the applied header scope, including when the other profile was active.
   if (item.href === "/network-risk-profile" || item.href === "/ict-system-risk-profile") {
     if (scopeIds(params.getAll("network")).length) return item.scope === "network";
     if (scopeIds(params.getAll("system")).length) return item.scope === "system";
   }
-  // Applying another scope must not hide or deselect the view the user is updating.
+  // Other views retain their active item when the user updates its scope.
   if (item.href === activeHref) return true;
   if (scopeIds(params.getAll("network")).length) return item.scope !== "system";
   if (scopeIds(params.getAll("system")).length) return item.scope !== "network";

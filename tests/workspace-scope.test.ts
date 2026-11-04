@@ -17,12 +17,43 @@ describe("workspace scope", () => {
     const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
     const hiddenHrefs = (query: string) => items.filter((item) => !isWorkspaceItemVisible(item, new URLSearchParams(query))).map((item) => item.href);
     expect(hiddenHrefs("network=net-a,net-b")).toEqual([
-      "/ict-system-risk-profile", "/cyber-cop?copView=ict-system-impact-analyser"
+      "/ict-system-risk-profile", "/cyber-cop?copView=ict-system-impact-analyser", "/cyber-cop?copView=ict-system-dependencies"
     ]);
     expect(hiddenHrefs("system=sys-a,sys-b")).toEqual([
-      "/network-risk-profile", "/cyber-cop?copView=network-impact-analyser"
+      "/network-risk-profile"
     ]);
     expect(hiddenHrefs("")).toEqual([]);
+  });
+  it("hides ICT System Impact Analyser for an applied network even when it is active", () => {
+    const analyser = WORKSPACE_GROUPS.flatMap(group => group.items)
+      .find(item => item.href === "/cyber-cop?copView=ict-system-impact-analyser")!;
+    for (const active of [undefined, analyser.href, "/network-risk-profile"]) {
+      for (const query of ["network=net-a", "network=net-a,net-b", "network=net-a&network=net-b"]) {
+        expect(isWorkspaceItemVisible(analyser, new URLSearchParams(query), active)).toBe(false);
+      }
+      for (const query of ["", "network=", "network=,", "system=sys-a,sys-b"]) {
+        expect(isWorkspaceItemVisible(analyser, new URLSearchParams(query), active)).toBe(true);
+      }
+    }
+    const applied = new URLSearchParams("copView=ict-system-impact-analyser&system=sys-a&securityDomain=SECRET&dataDate=2026-10-30");
+    const pending = updateWorkspaceScope(applied, "network", ["net-a"]);
+    expect(isWorkspaceItemVisible(analyser, applied, analyser.href)).toBe(true);
+    expect(isWorkspaceItemVisible(analyser, pending, analyser.href)).toBe(false);
+    expect(pending.get("securityDomain")).toBe("SECRET");
+    expect(pending.get("dataDate")).toBe("2026-10-30");
+    expect(isWorkspaceItemVisible(analyser, updateWorkspaceScope(pending, "network", []), analyser.href)).toBe(true);
+  });
+  it("opens dependencies immediately after impact with retained scope, domains and snapshot", () => {
+    const items = WORKSPACE_GROUPS.find(group => group.label === "Cyber Security")!.items;
+    const impactIndex = items.findIndex(item => item.label === "ICT System Impact Analyser");
+    const dependencies = items[impactIndex + 1];
+    expect(dependencies.label).toBe("ICT System Dependencies");
+    expect(resolveCopView("ict-system-dependencies")).toBe("ict-system-dependencies");
+    const target = new URL(workspaceHref(dependencies.href, new URLSearchParams("system=sys-a,sys-b&securityDomain=SECRET&dataDate=2026-10-30")), "http://localhost");
+    expect(activeWorkspaceItem(target.pathname, target.searchParams)).toBe(dependencies);
+    expect(target.searchParams.get("system")).toBe("sys-a,sys-b");
+    expect(target.searchParams.get("securityDomain")).toBe("SECRET");
+    expect(target.searchParams.get("dataDate")).toBe("2026-10-30");
   });
   it("keeps header selections on the empty workspace until a sidebar view is chosen", () => {
     const current = new URLSearchParams("system=sys-a&copView=ict-system-impact-analyser&dataDate=2026-10-30&page=3");
@@ -143,7 +174,7 @@ describe("workspace scope", () => {
       expect(target.searchParams.has("severity")).toBe(false);
       expect(activeWorkspaceItem(target.pathname, target.searchParams)?.label).toBe(item.label);
     }
-    for (const retiredView of ["action", "networks-spi-heatmap", "systems-spi-heatmap"]) {
+    for (const retiredView of ["action", "networks-spi-heatmap", "systems-spi-heatmap", "network-impact-analyser"]) {
       expect(resolveCopView(retiredView)).toBe("overview");
       expect(activeWorkspaceItem("/cyber-cop", new URLSearchParams(`copView=${retiredView}&network=net-a`))).toBeUndefined();
       expect(WORKSPACE_GROUPS.flatMap(group => group.items).some(item => item.href.includes(`copView=${retiredView}`))).toBe(false);

@@ -1,5 +1,62 @@
 # Validation records
 
+Historical evidence below describes the releases/dates recorded at the time. Application login was retired on 2026-11-04; current access behavior and validation are defined in [ADR 0014](adr/0014-retire-application-login.md).
+
+## Preserve impact graph zoom on selection - 2026-11-04
+
+Impact assessment: client camera interaction only; SQL/JSON data, schemas, providers, calculations, dependencies and generated inventories are unchanged. No data checks, migrations, SQL parity, fresh installation, dual build, full-suite run or inventory regeneration was selected.
+
+A browser regression reproduced selection resetting a panned graph from 125% to 100%. After removing the selection-triggered camera reset, the isolated guarded No-SQL build and browser regression passed. Pointer, Enter, Space, connected-node and search-result selections retained both the zoom value and SVG viewBox; Fit graph and the 0 key still reset zoom. Existing graph controls, layouts, nested dialogs and narrow-screen behavior passed. The 30 focused graph/route tests, component lint, type checking, documentation and smoke-script syntax checks also passed. Operational data and configuration were untouched.
+
+## Default impact graph severities - 2026-11-04
+
+Impact assessment: client filter defaults only; SQL/JSON data, schemas, provider operations, calculations, dependencies and generated inventories are unchanged. No migrations, SQL parity, fresh installation, dual build, full-suite run or inventory regeneration was selected.
+
+The 30 focused graph/route tests, component lint, type checking, documentation checks and smoke-script syntax passed. An isolated guarded No-SQL build and focused browser regression passed. Browser checks verified Critical Exposure/High Risk on open, reopen and reset, Min 1, matching node counts, manual Select all with Min 0, and existing expansion, layout and nested-dialog behavior. The smoke waits for the number field to refresh before asserting reset values. Desktop and 390px screenshots were reviewed. Operational data and configuration were untouched.
+
+## Expand all affected CIs - 2026-11-04
+
+Impact assessment: client graph expansion and control presentation only. SQL/JSON data, structures, providers, calculations, dependencies and generated inventories are unchanged. No data migration, SQL parity, fresh installation, dual build, inventory regeneration or full-suite rerun was selected.
+
+The 30 focused graph/route tests, component lint, type checking, documentation checks and smoke-script syntax passed. An isolated guarded No-SQL build and focused browser regression passed. Keyboard checks verified expansion of all matching nodes within the existing 140-node limit, collapse, pressed state, leaving connection focus, unchanged severity/range values and totals, and disabling the toggle when no CIs match. Existing layouts, nested findings/CMDB and focus behavior also passed. Desktop and 390px screenshots were reviewed; the button fits below Risk severity without overflow. Browser data was temporary; operational data and configuration were untouched.
+
+## Left CMDB drawer and nested findings - 2026-11-04
+
+Impact assessment: shared drawer presentation and Service Impact modal navigation only. SQL/JSON data, schemas, provider operations, CMDB attribute mappings, calculations and dependencies are unchanged; no migration, SQL parity, fresh installation or full-suite run was selected. Feature/UI documentation changed, but generated inventories did not.
+
+The 36 focused CMDB/Service Impact/graph tests, component lint, type checking, documentation checks and smoke-script syntax passed. An isolated guarded No-SQL production build and focused browser regression passed. Browser checks verified left-edge placement and an exact 20% width reduction at 1600px and 390px, no drawer overflow, nested Findings/Affected CIs searches and expanded evidence retained after CMDB closes, preserved scroll/tab state, focus containment/return, Escape closing only the top dialog, and a standalone End Point Explorer launch. Existing graph controls/layouts also passed. Desktop/phone screenshots were visually reviewed under ignored .local/impact-controls-artifacts. Operational data and configuration were not changed.
+
+## Graph focus control placement - 2026-11-04
+
+UI-only positioning change: Focus connections / Show scope is anchored to the top-right of the graph canvas. Lint, type checking, documentation checks, smoke-script syntax and an isolated guarded No-SQL build passed. The focused browser regression verified corner placement at desktop and 390px widths, keyboard activation/toggle state, focus return, graph interactions and the Hierarchical / Top down default. Screenshots were visually reviewed. The smoke now waits for Settings to close and return focus before opening the graph. No data/provider, schema, calculation, dependency or generated-inventory changes were made; SQL parity, fresh installation and the full application suite were not repeated.
+
+## Impact graph controls - 2026-11-04
+
+Impact assessment: scoped client presentation filtering, control layout, graph regression coverage and feature/design documentation. SQL/JSON data, schemas, queries, persisted calculations, dependencies and build configuration are unchanged. No migrations, SQL parity, fresh installation or full-suite rerun was selected. Generated inventories are unaffected; docs:generate was not needed.
+
+The 27 graph tests and two service-impact route tests passed, along with lint, type checking, documentation checks and smoke-script syntax checks. A guarded No-SQL production build passed in the isolated validation copy to support focused browser testing. The graph browser regression passed on enriched temporary sample data: selected critical and combined critical/high counts, severity-dependent range maxima, exact badges above 99, matching inspector details, inclusive ranges, grouped controls, all layout families, animation/reduced motion, scope/search/expansion, nested findings, keyboard/focus and narrow layouts. Desktop and 390px screenshots were visually reviewed and remain ignored under .local/impact-controls-artifacts. Operational data was not changed.
+
+## Application login retirement - 2026-11-04
+
+Impact assessment: shared page/API access, header and Settings behavior, legacy routes, setup tooling and current documentation are affected. The breadth of the access change justified the comprehensive gate, fresh offline installation, both production compilations and runtime smoke. SQL/JSON queries, schemas, persisted data, calculation rules and package dependencies are unchanged; no migration or live SQL parity run was needed. SQL credentials and strict TLS remain unchanged.
+
+Validation used Windows, Node 24.13.1 and installed Chrome. Builds and runtime checks used an isolated source copy and temporary stores without operational DB_config, logindetails or NoSQL/data.
+
+| Check | Result |
+| --- | --- |
+| Comprehensive source gate | npm run check passed: 618 dependency archives, repository/documentation checks, lint/types, 674 tests passed with 15 skipped, 11 tooling tests and the existing SQL/JSON calculation contract |
+| Offline installation | npm ci --offline --ignore-scripts installed 571 packages from a new empty cache with the Node network guard enabled |
+| Production builds | Both SQL and No-SQL builds passed with network access blocked; rebuilt after the graph scene correction below |
+| Focused regression after correction | 53 tests passed across login retirement, graph projection/layouts, service-impact page and workspace popups; builds also repeated lint/type checking |
+| Both compiled shells | Direct page/API access, safe legacy-login destination, header controls at 1600px and 390px, Settings keyboard/focus return, no account controls and no session polling passed |
+| Compiled No-SQL smoke | Passed without cookies or application credentials: 21 views, 16 explorer drill-through tabs, both heatmaps/analysers, Settings, CMDB, 44 PDFs, seven workbooks, settings writes and restart persistence |
+| Compatibility | Legacy login redirects retain scope/date/domains and reject external destinations; obsolete cookies do not gate data APIs; login/password writes return 410; old logout expires its cookie |
+| Final documentation/tooling review | docs:generate, docs:check, smoke-script syntax checks and git diff --check passed |
+
+Broader validation found matching graph devices could remain collapsed after count filtering removed their parent system. A failing regression test reproduced this; the scene now shows those matching devices without restoring excluded parents or edges. The browser smoke now uses an observed finding count instead of assuming the enriched store contains exactly two critical findings, waits for focus restoration, and checks that the retired Network Impact Analyser action is absent from patch CMDB details. Legacy-login checks verify the browser destination because Next.js can deliver redirects through a streamed shell.
+
+Live SQL business-data integration was not run. SQL shell checks used an unavailable SQL executable and exercised only access/header/Settings-shell behavior. Existing local credential files and operational data were left untouched. Screenshots and test artifacts remain ignored under .local/login-removal-artifacts. Existing Browserslist, optional sharp and chart-size notices did not fail the checks.
+
 ## Dual-provider builds - 2026-11-02
 
 Validation used Windows, Node 24 and installed Chrome. No operational SQL data or configuration was changed. The original TSAAT repository remained clean.

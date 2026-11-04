@@ -2,15 +2,17 @@
 
 ## Acceptance contract
 
-A complete checkout must install and compile both SQL and JSON-backed No-SQL versions without network access, an existing node_modules directory, a populated npm cache, a sibling checkout or an external artifact store. All application code, build assets, development tools and native compiler packages required by the locked graph are committed as regular files. This applies to every future change.
+A complete checkout must install and compile both SQL and JSON-backed No-SQL versions without network access, an existing node_modules directory, a populated npm cache, a sibling checkout or an external artifact store. All application code, build assets, development tools and native compiler packages required by the locked graph are committed as regular files. Preserve this capability for every change. Repeat the full proof for dependency/build changes and release candidates; unrelated UI, documentation or tooling changes use the [SDLC impact assessment](sdlc.md).
 
-The host supplies Windows, Node 24.13.1/npm and PowerShell. These platform tools are prerequisites, not downloaded by the build. CI validates Windows x64; archives for all optional platforms in the lockfile are retained, but this does not claim other operating systems support Windows DPAPI authentication. Chrome/Edge is a preinstalled prerequisite for the browser smoke. SQL runtime needs sqlcmd, its configured SQL Server and trusted TLS; compilation does not. No-SQL uses local JSON and the same local authentication. External business links still require their destination services when clicked.
+The host supplies Windows, Node 24.13.1/npm and PowerShell. These platform tools are prerequisites, not downloaded by the build. CI validates Windows x64; archives for all optional platforms in the lockfile are retained, but this does not claim other operating systems support SQL Windows DPAPI configuration. Chrome/Edge is a preinstalled prerequisite for the browser smoke. SQL runtime needs sqlcmd, its configured SQL Server and trusted TLS; compilation does not. No-SQL uses local JSON and direct workspace access. External business links still require their destination services when clicked.
+
+Routine CI uses changed-area validation; workflow_dispatch, validation:full and dependency/build changes select the full offline gate. A clean CI runner still installs local dependencies when selected tests require them. Existing production build guards remain enforced whenever a build is run.
 
 ## Disconnected use
 
 The legacy `/Dependencies/` exclusion is anchored at the repository root. It must not hide application API folders named `dependencies`, including the existing impact-analyser dependency route, from complete checkouts. Governance's empty pages add no package, build asset or storage requirement.
 
-The Discovery Overview vulnerability/patch summaries reuse existing provider operations, projections and local navigation. They add no packages, build assets, external services or data population. The lockfile/vendor set and existing-store retention contract remain unchanged; the standard empty-cache installation and both offline builds apply.
+The Discovery Overview vulnerability/patch summaries reuse existing provider operations, projections and local navigation. They add no packages, build assets, external services or data population. The lockfile/vendor set and existing-store retention contract remain unchanged; the SDLC assessment selects validation; fresh empty-cache installation and both builds are not required solely for presentation edits.
 
 Patch Management Explorer uses existing packages and local sample-patch-profiles.json data. The shared projector, workbook and explicit sample maintenance command require no network, agent download or remote patch catalogue. Existing JSON stores are retained during either build; the explicit population command alone appends missing sample observations with backup. The dependency lockfile and vendor archive set are unchanged.
 
@@ -26,11 +28,11 @@ npm run build:all
 npm run test:nosql
 ~~~
 
-compileApp.cmd sql, nosql or all performs archive verification, npm ci --offline, checks and the selected compilation. It reinstalls node_modules; stop local app processes before using it. Ordinary npm run build/build:sql/build:nosql/build:all expect npm ci first. Run the selected artifact using start:sql or start:nosql and provision login/storage as described in the main README. Builds keep existing NoSQL/data and never seed an operational SQL database.
+compileApp.cmd sql, nosql or all performs archive verification, npm ci --offline, checks and the selected compilation. It reinstalls node_modules; stop local app processes before using it. Ordinary npm run build/build:sql/build:nosql/build:all expect npm ci first. Run the selected artifact using start:sql or start:nosql and configure storage as described in the main README. Builds keep existing NoSQL/data and never seed an operational SQL database.
 
 JSON sample enrichment, SQL-export conversion and population use local source files and Node built-ins. No export or database connection is attempted during either build; pre-existing JSON stores remain intact.
 
-Login setup and credential replacement use the existing local PowerShell, DPAPI and PBKDF2 implementation; npm run setup:login adds no packages or downloads for either provider.
+Application login and credential provisioning are retired. SQL DB_config continues to use the existing local PowerShell/DPAPI implementation.
 
 The repository .npmrc sets offline=true, ignore-scripts=true, audit=false, update-notifier=false and the existing legacy-peer-deps policy. npm ci remains the installation contract. The lockfile resolves every package, including its legacy v2 dependency table, to file:vendor/npm archives. Native SWC, esbuild, Rollup and resolver binaries are packaged dependencies; no compiler or browser download is needed. Current dependencies work without install lifecycle scripts. A future package requiring a lifecycle-generated artifact needs an explicit reviewed local preparation step and new offline evidence; do not simply enable dependency scripts.
 
@@ -49,8 +51,8 @@ Use a never-before-used cache path for each proof. CI performs this using a GUID
 
 - npm run offline:check verifies every archive's SHA-512 against the lockfile and provenance manifest, rejects remote/missing/unused entries and unexpected vendor files, and runs as part of npm run check and each production build.
 - Build wrappers disable telemetry and preload scripts/offline-network.cjs into Node and inherited children/workers. HTTP(S), fetch, TCP (including loopback), TLS, DNS and UDP attempts throw. Local named-pipe IPC remains available. An attempt log makes caught/suppressed requests fail the overall build too. The guard is build-only; runtime provider networking is unchanged.
-- CI installs with an empty cache and uses a temporary Windows outbound firewall rule for the Node executable during npm ci, source checks and both compilations. It removes that exact rule in finally, then runs the authenticated No-SQL browser smoke. Host checkout and Node provisioning occur before this gate. The Node preload is a regression guard, not an OS sandbox for arbitrary native executables; reviewers must reject download subprocesses too.
-- Documentation impact checks cover the manifest, lockfile, tooling and CI. Required PR review includes offline evidence. Never store the archives as Git LFS pointers or replace them with external download links.
+- Full validation CI installs with an empty cache and uses a temporary Windows outbound firewall rule for the Node executable during npm ci, source checks and both compilations. It removes that exact rule in finally, then runs the No-SQL browser smoke without application credentials. Host checkout and Node provisioning occur before this gate. The Node preload is a regression guard, not an OS sandbox for arbitrary native executables; reviewers must reject download subprocesses too.
+- Review documentation impacts for manifest, lockfile, tooling and CI changes. Require fresh offline evidence for dependency/build changes and releases; routine PRs record their assessed checks. Never store the archives as Git LFS pointers or replace them with external download links.
 
 CI firewall setup is for the disposable Windows runner only. Developers need not modify their workstation firewall. Local guarded builds and the fresh empty-cache install are testable without administrator access once the host tools are available.
 
@@ -80,4 +82,7 @@ Dependency rollback: restore the previous package manifest, lockfile and vendor 
 
 The explicit `enrich:nosql` command uses the already pinned local tsx package and shared TypeScript rule code. It adds no packages or network calls, and builds do not invoke it against existing stores.
 
-Risk-profile explorer new-tab links use the existing Next/React packages and local routes; no dependency or build asset changes are required. The same empty-cache offline installation and both-build checks apply.
+Risk-profile explorer new-tab links use the existing Next/React packages and local routes; no dependency or build asset changes are required. These navigation changes use focused validation unless the assessed scope also affects data/build behavior.
+
+
+Discovery Overview PDF uses the pinned pdf-lib package, standard local fonts and vector drawing. It adds no packages, build assets, browser download or runtime network fetch. Archive integrity and offline compilation remain supported; repeat the full install/build proof when dependency/build impact or release validation requires it.

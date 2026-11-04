@@ -8,8 +8,7 @@ TSAAT uses Next.js 14 App Router, React 18 and strict TypeScript. Server pages/A
 
 ```mermaid
 flowchart LR
-  Browser[Workspace] --> Gate[Middleware and signed sessions]
-  Gate --> Routes[App Router pages and APIs]
+  Browser[Workspace] --> Routes[App Router pages and APIs]
   Routes --> Models[Typed models and scope rules]
   Models --> Cache[Versioned caches]
   Cache --> Loader[Build-selected data provider]
@@ -24,9 +23,9 @@ flowchart LR
 
 ## Ownership
 
-- `app/`: route composition, request parsing, response contracts and authentication boundaries.
+- `app/`: route composition, request parsing, response contracts and input validation.
 - `components/`: presentation and client interactions. FindingsDataTable/FilterHeader own table controls; WorkspaceTabs owns shared keyboard tab behavior.
-- `lib/`: typed domain contracts, scoping, SQL access, caches, reports and authentication helpers.
+- `lib/`: typed domain contracts, scoping, SQL access, caches, reports and compatibility helpers.
 - `Database Schema/`: schema, ordered migrations, SQL evaluation procedures, reference catalogue and import/validation scripts.
 - `tests/`: unit, route, contract and explicitly gated SQL integration checks.
 
@@ -38,23 +37,27 @@ Provider-backed KPI/SPI catalogues govern measure definitions, applicability, ca
 
 ## Large interactions
 
-Network/ICT analysers use lazy APIs and worker-assisted filtering/rendering. Separate asset actions open CMDB and compliance. The shared compliance view is native-modal, Settings-sized and snapshot-aware. Service Impact has Scope & Selection and Explore the Impact tabs. Shared risk-profile models support entity explorers, details panels, trends and device/SPI heatmaps.
+Network/ICT analysers use lazy APIs and worker-assisted filtering/rendering. Separate asset actions open CMDB and compliance. The shared compliance view is native-modal, Settings-sized and snapshot-aware. Service Impact keeps Scope & Selection on the page and opens a Settings-sized graph dialog from Explore selection. Its presentation adapter (lib/service-impact-graph.ts) projects the already scoped shared model into typed nodes and recorded edges without new provider operations, persistence or risk calculations. A bounded deterministic SVG layout supports interactive exploration, complete-scope search and existing finding details. Shared risk-profile models support entity explorers, details panels, trends and device/SPI heatmaps.
 
-CMDB-to-network-impact navigation is centralized in lib/network-impact-navigation.ts. The shared CMDB view carries canonical networkId routing metadata independently of configurable display fields. The server resolves impactAssetId against already scoped snapshot assets and eligible networks; a valid preset initializes the existing run panel. Data and findings APIs apply the same exact-ID predicate after network/topology/header scoping, before local filters and counts. The URL persists the selection across reloads; removing it restores the existing manual run workflow. This uses existing provider facades and adds no storage operation or calculation rule.
+The Service Impact adapter also performs display-only severity/count filtering and deduplicated filtered summaries over existing finding rows. It supplies force, directional hierarchy, circular/radial and custom-coordinate layouts. Coordinates are generated once from the full scoped graph and held in client state so filtering does not relocate spatial nodes; edits are never persisted. use-impact-graph-layout.ts owns a cancellable animation frame loop for position interpolation and respects reduced motion. Nodes, edges and camera bounds share the interpolated positions. The SQL/JSON loaders, severity definitions, calculation contract and schemas are unchanged; no network assets or additional packages are introduced.
+
+serviceImpactRiskView derives range limits and displayed nodes from one selected-severity projection before applying the inclusive count range. The graph, exact count badges, node breakdown and finding detail rows share that projection. This is client presentation filtering over the existing model, with no provider or stored calculation changes.
+
+Network Impact Analyser is retired from the shared UI. Its former page redirects before data loading to the scope-appropriate risk profile. Shared analyser APIs and canonical CMDB networkId response metadata remain compatible; lib/network-impact-navigation.ts now retains only the exact-ID API filter, with no UI link builders or preset resolution. ICT impact/dependencies and provider facades retain their existing behavior.
 
 ## Compatibility and limits
 
 Retired `/networks`, `/systems` and entity paths redirect to current risk profiles/details, preserving scope/date. Existing report/export/API paths and internal compatibility contracts remain. Removed sidebar pages are not restored. [Generated routes](generated/application-inventory.md) distinguish available routes from visible navigation.
 
-The setup:login command invokes scripts/ensure-logindetails.ps1 with -Configure to create or replace the shared application credentials. Replacement reuses the existing DPAPI/PBKDF2 envelope and increments the stored session version checked by lib/auth-session.ts. Calling the helper without -Configure remains idempotent for a usable existing file. Credential collection and validation finish before persistence.
+Application pages and APIs open directly without login/session middleware or a client session guard. Signed in, Logout, Password Settings and credential provisioning are retired. Legacy login bookmarks redirect to validated local destinations; credential/password APIs return 410 and the session endpoint reports authenticationRequired=false without creating an identity. See [ADR 0014](adr/0014-retire-application-login.md).
 
-Windows DPAPI/PowerShell remain runtime/setup dependencies for both builds. Only SQL requires sqlcmd and DB_config. Linux-only deployment is not claimed. Production cookies require HTTPS. Identity-provider, SQL-driver, framework-major or storage-model changes need an ADR and parity/migration plan.
+SQL retains Windows DPAPI/PowerShell for encrypted DB_config, sqlcmd and strict TLS. No-SQL no longer needs application-login DPAPI operations. Linux-only deployment is not claimed. Identity-provider, SQL-driver, framework-major or storage-model changes need an ADR and parity/migration plan.
 
 Unreachable legacy presentation modules are removed rather than maintained beside their replacements. Repository checks trace all routes, scripts and worker dependencies; TypeScript rejects unused private declarations. Compatibility roots remain supported. KPI SQL evaluates only the two current system metrics, retaining high-priority finding counts without executing retired SPI/discovery KPI calculations. See [ADR 0004](adr/0004-retired-runtime-cleanup.md).
 
 ## Storage provider boundary
 
-Governance's Overview, Trends and Insights routes share a heading-only server component and the normal route-ready marker inside the authenticated workspace. Their content does not call a data provider; shared header options and scope/date navigation remain unchanged. Both builds expose the same placeholders without APIs or storage changes.
+Governance's Overview, Trends and Insights routes share a heading-only server component and the normal route-ready marker inside the workspace. Their content does not call a data provider; shared header options and scope/date navigation remain unchanged. Both builds expose the same placeholders without APIs or storage changes.
 
 Discovery Overview composes the existing coverage, endpoint, software, Shadow IT, vulnerability and patch facade operations at the same resolved snapshot. Its pure aggregation counts canonical explorer rows; patch status and overdue calculations remain in the shared patch projector. Scope/date drill-through links use discoveryExplorerHref and validated destination filters, with patch posture accepting the same initial-filter contract as the other explorers. No new provider query implementation, store, schema, external service or cached summary table is introduced.
 
@@ -66,7 +69,7 @@ Security Vulnerability Explorer uses a dedicated snapshot-scoped operation on th
 
 The shared lib/data-loader.ts facade selects lib/sql-data-loader.ts or lib/json-store/data-loader.ts using a compiled constant. The CMDB facade does the same for per-type attributes. All pages/APIs/reports use these facades. The JSON provider satisfies the SQL operation types, evaluates registered rules on the server and persists settings using atomic file replacement and an exclusive writer lock. Separate output directories allow both builds to coexist.
 
-Settings replaces only Database Settings with JSON Data Files in No-SQL. Authentication/password handling and all other settings remain shared. SQL execution is explicitly blocked in No-SQL. Reference/snapshot revisions and settings timestamps participate in cache invalidation. Persisted finding history is required for imported JSON snapshots; no historical events are fabricated.
+Settings replaces only Database Settings with JSON Data Files in No-SQL. Application login/password settings are retired; all remaining settings are shared. SQL execution is explicitly blocked in No-SQL. Reference/snapshot revisions and settings timestamps participate in cache invalidation. Persisted finding history is required for imported JSON snapshots; no historical events are fabricated.
 
 Data population is an explicit maintenance operation. SQL table exports are converted into the shared Dataset shape, preserving IDs, dates, inventory details, scope and persisted findings. Missing demonstration attributes are enriched before validated snapshot revisions are published through one manifest replacement; source provenance and a full pre-import backup support recovery. Existing reference/settings files remain authoritative. JSON Shadow IT system scope includes the ARP owner, matching the SQL predicate. See [ADR 0008](adr/0008-explicit-nosql-data-population.md).
 
@@ -84,3 +87,6 @@ Risk-profile explorer drill-throughs share the RiskProfile component and existin
 
 
 Security domains use lib/security-domain.mjs across selectors, SQL query/cache scope and JSON read compatibility. Each entity retains its own required canonical domain. Header scope is propagated through navigation and exports; NONE explicitly returns no entities. See [security-domain decision](adr/0012-security-domain-scope.md).
+
+
+Discovery Overview and its PDF share lib/discovery-overview-data.ts for snapshot resolution and facade reads. The pure overview model, suggested actions and calculation notes are shared; lib/discovery-overview-report-pdf.ts renders vector charts and paginated tables with existing pdf-lib. No provider-specific query or calculation is added. See [report design](discovery-overview-report.md).

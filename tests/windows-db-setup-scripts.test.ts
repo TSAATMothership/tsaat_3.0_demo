@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function listTrackedFiles(patterns: string[]): string[] {
-  const result = spawnSync("git", ["ls-files", "--", ...patterns], {
+  const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", ...patterns], {
     cwd: REPO_ROOT,
     encoding: "utf8"
   });
@@ -17,7 +17,8 @@ function listTrackedFiles(patterns: string[]): string[] {
   return result.stdout
     .split(/\r?\n/)
     .filter(Boolean)
-    .map((relativePath) => path.join(REPO_ROOT, relativePath));
+    .map((relativePath) => path.join(REPO_ROOT, relativePath))
+    .filter(existsSync); // Retired scripts can be deleted in the working tree before staging.
 }
 
 function hasOnlyCrlfNewlines(filePath: string): boolean {

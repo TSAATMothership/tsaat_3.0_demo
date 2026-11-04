@@ -1,12 +1,11 @@
 import { securityDomainFilter } from "@/lib/security-domain.mjs";
 import { DiscoveryOverview } from "@/components/discovery-overview";
-import { buildDiscoveryOverview } from "@/lib/discovery-overview";
+import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
 import { initialDiscoveryFilters } from "@/lib/discovery-explorer-links";
 import { emptyEndpointFilters, parseEndpointFilters } from "@/lib/endpoint-explorer";
 import { emptySoftwareFilters, parseSoftwareFilters } from "@/lib/installed-software-explorer";
 import { emptyShadowFilters, parseShadowFilters } from "@/lib/shadow-it-explorer";
 import { emptyDiscoveryComplianceFilters, parseDiscoveryComplianceFilters } from "@/lib/discovery-compliance-explorer";
-import { applyAssetFilters, parseFilters } from "@/lib/selectors";
 import { DiscoveryCoverageCiTotals } from "@/components/discovery-coverage-ci-totals";
 import { DiscoveryCoverageByToolSection } from "@/components/discovery-coverage-by-tool-section";
 import { DiscoveryComplianceExplorer } from "@/components/discovery-compliance-explorer";
@@ -27,7 +26,7 @@ import { parseVulnerabilityFilters } from "@/lib/security-vulnerability-explorer
 import { emptyExplorerTableFilters } from "@/lib/explorer-table";
 import { loadSecurityVulnerabilityExplorerData } from "@/lib/data-loader";
 import { ShadowItExplorer } from "@/components/shadow-it-explorer";
-import { loadDatasetForDate, loadDiscoveryToolsSettings, loadEndpointExplorerData, loadInstalledSoftwareExplorerData, loadShadowItExplorerData } from "@/lib/data-loader";
+import { loadEndpointExplorerData, loadInstalledSoftwareExplorerData, loadShadowItExplorerData } from "@/lib/data-loader";
 import { scopeIds } from "@/lib/workspace-navigation";
 
 const pendingDiscoveryViews: Record<string, string> = {
@@ -54,21 +53,7 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
         scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: data.snapshotDate }} /></>;
   }
   if (requestedView === "overview") {
-    // All summaries share the workspace scope, just like the inventory explorers.
-    const scope = { network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: searchParams.dataDate };
-    const selectedDate = Array.isArray(scope.dataDate) ? scope.dataDate[0] : scope.dataDate;
-    const [dataset, settings] = await Promise.all([
-      loadDatasetForDate(selectedDate, { profile: "summary" }), loadDiscoveryToolsSettings()
-    ]);
-    const snapshotScope = { ...scope, dataDate: dataset.snapshotDate };
-    const [endpoints, software, shadow, vulnerabilities, patches] = await Promise.all([
-      loadEndpointExplorerData(snapshotScope), loadInstalledSoftwareExplorerData(snapshotScope), loadShadowItExplorerData(snapshotScope),
-      loadSecurityVulnerabilityExplorerData(snapshotScope), loadPatchManagementExplorerData(snapshotScope)
-    ]);
-    const assets = filterDiscoveryAssets(applyAssetFilters(dataset.assets, dataset.ictSystems, parseFilters(snapshotScope)));
-    const coverage = buildScopedDiscoveryToolCoverage(assets, settings, dataset.discoveryCoverageEvaluations);
-    const model = buildDiscoveryOverview({ coverage, endpoints: endpoints.rows, software: software.rows, shadow: shadow.rows,
-      vulnerabilities: vulnerabilities.rows, patches: patches.rows, snapshotDate: dataset.snapshotDate });
+    const { model, scope: snapshotScope } = await loadDiscoveryOverview(searchParams);
     return <><RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} /><DiscoveryOverview model={model} scope={snapshotScope} /></>;
   }
   if (requestedView === "shadow-it") {

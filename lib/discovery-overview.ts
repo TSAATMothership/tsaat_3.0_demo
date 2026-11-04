@@ -90,3 +90,25 @@ export function buildDiscoveryOverview({ coverage, endpoints, software, shadow, 
   };
 }
 export type DiscoveryOverviewModel = ReturnType<typeof buildDiscoveryOverview>;
+
+export function discoveryOverviewActions({ coverage, endpoints, software, shadow, vulnerabilities, patches }: DiscoveryOverviewModel) {
+  return [
+    { title: "Review critical and high CVE observations", detail: "Validate the exposure and review the recorded remediation action.", count: vulnerabilities.criticalHigh, unit: "observations", id: "action-0" as const },
+    { title: "Review overdue patch actions", detail: "Check recorded deadlines, ownership and maintenance plans, including exceptions.", count: patches.overdue, unit: "servers", id: "action-1" as const },
+    { title: "Refresh unknown patch evidence", detail: "Complete missing evidence or refresh stale assessments before confirming patch status.", count: patches.unknown, unit: "servers", id: "action-2" as const },
+    { title: "Close required tool coverage gaps", detail: "Inspect missing tools for each CI and restore discovery coverage.", count: coverage.gaps, unit: "CIs", id: "action-3" as const },
+    { title: "Identify unknown IP nodes", detail: "Use IP scan and ARP evidence to investigate unidentified devices.", count: shadow.total, unit: "IP nodes", id: "action-4" as const },
+    { title: "Refresh older endpoint discoveries", detail: "Review discoveries more than 30 days before the snapshot.", count: endpoints.stale, unit: "endpoints", id: "action-5" as const },
+    { title: "Resolve missing discovery dates", detail: "Check collection evidence where the discovery date is missing.", count: endpoints.undated, unit: "endpoints", id: "action-6" as const },
+    { title: "Complete software version evidence", detail: "Review software installations with no recorded version.", count: software.missingVersion, unit: "installations", id: "action-7" as const }
+  ].filter((action) => action.count > 0);
+
+}
+
+export const DISCOVERY_OVERVIEW_NOTES = [
+  "Coverage uses the saved tool-to-CI type mappings. Discovery age is measured against the selected snapshot; over 30 days is a review prompt and does not change coverage compliance.",
+  "Software counts represent individual installations, including repeated products on different endpoints.",
+  "Vulnerability totals use the same scoped observations as Security Vulnerability Explorer, detected on or before the snapshot. Repeated CVEs on different endpoints remain separate observations; source severity is not a new risk score.",
+  "Patch totals use the same server status and recorded due dates as Patch Management Explorer. The verified percentage includes unknown servers in its denominator and is N/A when no servers are in scope. CVE observations do not prove that an OS patch is missing.",
+  "ARP owner endpoints supply the observation table; they are distinct from the unidentified IP nodes. Shadow IT includes observations associated with selected systems through these owners."
+];

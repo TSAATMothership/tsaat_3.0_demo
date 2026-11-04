@@ -1,7 +1,7 @@
 ﻿import http from "node:http";
 import next from "next";
 import { repositoryRoot } from "./setup-json-store.mjs";
-// Isolated production server; use the actual ephemeral port for middleware's session subrequests.
+// Isolated production server on an ephemeral local port.
 let handler;
 const server = http.createServer((request, response) => {
   if (handler) return handler(request, response);

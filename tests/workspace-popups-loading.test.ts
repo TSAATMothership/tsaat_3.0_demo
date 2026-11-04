@@ -58,7 +58,8 @@ describe("settings popup integration", () => {
     expect(menu).not.toContain('workspaceHref("/settings"');
     expect(popup).toContain("dialog.showModal()");
     expect(popup).toContain("controller.abort()");
-    expect(popup).toContain("<PasswordSettingsPanel />");
+    expect(popup).not.toContain("PasswordSettingsPanel");
+    expect(tabs).not.toContain("password-settings");
     expect(popup).toContain("<DatabaseSettingsPanel initialSettings={settings}");
     expect(tabs).not.toContain("router.replace");
     expect(read("app/settings/page.tsx")).toContain("<SettingsRoutePopup");

@@ -2,8 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { fork, execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { fork } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import { PDFDocument } from "pdf-lib";
 import workbookTools from "../lib/network-target-state-template-workbook.ts";
@@ -14,12 +13,12 @@ import { populateVulnerabilityMetadata } from "./populate-vulnerability-metadata
 import { populatePatchManagement } from "./populate-patch-management.mjs";
 import { populateJsonStore } from "./populate-json-store.mjs";
 import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
+import { checkServiceImpactGraph } from "./service-impact-graph-smoke.mjs";
 
 assert(fs.existsSync(path.join(repositoryRoot, ".next-nosql", "BUILD_ID")), "Run npm run build:nosql first.");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-nosql-runtime-"));
-const password = randomBytes(24).toString("base64url");
 const env = { ...process.env, TSAAT_DATA_PROVIDER: "json", TSAAT_JSON_DATA_DIR: path.join(directory, "store"),
-  SQLCMD_PATH: path.join(directory, "sql-must-not-run.exe"), TSAAT_LOGIN_USERNAME: "provider-test", TSAAT_LOGIN_PASSWORD: password };
+  SQLCMD_PATH: path.join(directory, "sql-must-not-run.exe") };
 let server, browser, serverOutput = "";
 async function startServer() {
   server = fork(path.join(repositoryRoot, "scripts/nosql-smoke-server.mjs"), [], { cwd: directory, env, execArgv: [], silent: true, windowsHide: true });
@@ -45,44 +44,50 @@ try {
   await populateVulnerabilityMetadata({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-vulnerability-population") });
   await populatePatchManagement({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-patch-population") });
   await enrichJsonStore({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-coverage-enrichment") });
-  fs.mkdirSync(path.join(directory, "scripts"));
-  fs.copyFileSync(path.join(repositoryRoot, "scripts/invoke-dpapi.ps1"), path.join(directory, "scripts/invoke-dpapi.ps1"));
   fs.mkdirSync(path.join(directory, "data/templates"), { recursive: true });
   fs.copyFileSync(path.join(repositoryRoot, "data/templates/network-target-state-template.xlsx"), path.join(directory, "data/templates/network-target-state-template.xlsx"));
-  execFileSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(repositoryRoot, "scripts/ensure-logindetails.ps1"),
-    "-RepoRoot", repositoryRoot, "-LoginDetailsPath", path.join(directory, "logindetails")], { env, windowsHide: true, stdio: "pipe" });
   let base = await startServer();
-  assert.equal((await fetch(base + "/api/workspace-options")).status, 401, "Data APIs must require authentication.");
-  async function login() {
-    const response = await fetch(base + "/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "provider-test", password }) });
-    assert.equal(response.status, 200, await response.clone().text());
-    return response.headers.get("set-cookie").split(";")[0];
-  }
-  let cookie = await login();
+  assert.equal((await fetch(base + "/api/workspace-options")).status, 200, "Data APIs open without credentials.");
+  assert.equal((await fetch(base + "/api/workspace-options", { headers: { Cookie: "tsaat_session=obsolete-token" } })).status, 200, "Old cookies do not gate API access.");
+  assert.equal((await fetch(base + "/api/auth/login", { method: "POST", body: "not-json" })).status, 410);
+  assert.equal((await fetch(base + "/api/settings/password", { method: "PUT", body: "not-json" })).status, 410);
+  assert.deepEqual(await (await fetch(base + "/api/auth/session")).json(), { authenticationRequired: false, authenticated: false });
   async function request(url, init = {}) {
-    const response = await fetch(base + url, { ...init, headers: { Cookie: cookie, ...init.headers } });
+    const response = await fetch(base + url, init);
     const bytes = Buffer.from(await response.arrayBuffer());
     assert.equal(response.status, 200, url + ": " + bytes.toString().slice(0,300) + "\n" + serverOutput.slice(-1200));
     return { response, bytes };
   }
   async function getJson(url, init) { return JSON.parse((await request(url, init)).bytes.toString()); }
+  assert.equal((await fetch(base+'/api/discovery-coverage/overview-report')).status,400);
   const storage = await getJson("/api/settings/storage");
   assert.equal(storage.provider, "json");
   assert.equal(storage.directory, env.TSAAT_JSON_DATA_DIR);
   const date = storage.snapshots.at(-1).date;
-  assert.equal((await fetch(base + "/api/settings/database", { headers: { Cookie: cookie } })).status, 409);
+  const oldDestination = `/discovery-coverage?discoveryView=overview&network=net-1&securityDomain=SECRET&dataDate=${date}`;
+  assert.equal((await fetch(base + "/api/settings/database")).status, 409);
   const executablePath = process.env.TSAAT_TEST_BROWSER || ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"].find(file => fs.existsSync(file));
   assert(executablePath, "Set TSAAT_TEST_BROWSER to Chrome or Edge.");
   browser = await puppeteer.launch({ executablePath, headless: true });
-  const page = await browser.newPage(), errors = [], sqlRequests = [];
+  const downloadDirectory=path.join(directory,'downloads'); fs.mkdirSync(downloadDirectory);
+  const downloadSession=await browser.target().createCDPSession();
+  await downloadSession.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloadDirectory});
+  const page = await browser.newPage(), errors = [], sqlRequests = [], authRequests = [];
+  page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/auth/")) authRequests.push(request.url()); });
   page.on("request", request => { if (new URL(request.url()).pathname.startsWith("/api/settings/database")) sqlRequests.push(request.url()); });
   page.on("pageerror", error => errors.push(error.message));
   await page.setViewport({ width: 1600, height: 1000 });
-  await page.setCookie({ name: "tsaat_session", value: cookie.slice(cookie.indexOf("=") + 1), url: base, httpOnly: true, secure: true, sameSite: "Lax" });
+  // Next.js can deliver redirects through the streamed shell; verify the browser destination.
+  await page.goto(base + '/login?next=' + encodeURIComponent(oldDestination), { waitUntil: 'networkidle0' });
+  await page.waitForFunction(expected => window.location.href === expected, {}, base + oldDestination);
+  await page.goto(base + '/login?next=' + encodeURIComponent('//example.org'), { waitUntil: 'networkidle0' });
+  await page.waitForFunction(expected => window.location.href === expected, {}, base + '/');
+  assert.equal(await page.$('.workspace-signed-in, .workspace-logout, input[type="password"]'), null);
   async function navigate(route, scope = "network=net-1") {
     const response = await page.goto(base + route + (route.includes("?") ? "&" : "?") + scope + "&dataDate=" + date, { waitUntil: "networkidle0", timeout: 45000 });
     assert.equal(response.status(), 200, route);
-    assert(!page.url().includes("/login"), "Authentication did not persist in the browser");
+    assert(!page.url().includes("/login"), "Pages must not require login");
+    assert.equal(await page.$(".workspace-signed-in, .workspace-logout"), null);
     assert(!await page.$('[data-nextjs-dialog-overlay]'), route);
     assert(!await page.evaluate(() => document.body.innerText.includes('Application error')), route + ': server rendering failed');
     assert.deepEqual(errors, [], route + ': browser runtime errors');
@@ -90,12 +95,14 @@ try {
   const routes = ["/governance/overview", "/governance/trends", "/governance/insights", "/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
     "/discovery-coverage?discoveryView=overview", "/discovery-coverage", "/discovery-coverage?discoveryView=compliance", "/discovery-coverage?discoveryView=endpoints",
     "/discovery-coverage?discoveryView=security-vulnerabilities", "/discovery-coverage?discoveryView=patch-management", "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/network-risk-profile", "/ict-system-risk-profile",
-    "/cyber-cop?copView=impact", "/cyber-cop?copView=network-impact-analyser", "/cyber-cop?copView=ict-system-impact-analyser", "/report"];
+    "/cyber-cop?copView=impact", "/cyber-cop?copView=ict-system-impact-analyser", "/cyber-cop?copView=ict-system-dependencies", "/report"];
   const reports = new Set();
   for (const route of routes) {
     await navigate(route, route.includes("ict-system") ? "system=sys-1" : "network=net-1");
     (await page.$$eval("a", nodes => nodes.map(node => node.getAttribute("href")).filter(href => href?.startsWith("/api/")))).forEach(href => reports.add(href));
   }
+  await navigate('/cyber-cop?copView=impact');
+  await checkServiceImpactGraph(page, { date });
   // Domain scope defaults to all, stages edits, survives navigation and supports an explicit empty scope.
   await navigate('/discovery-coverage?discoveryView=endpoints');
   const domainTrigger='button[aria-controls="security-domain-options"]';
@@ -156,6 +163,30 @@ try {
     assert(await page.$('[aria-label="Open Security Vulnerability Explorer"]'));
     assert(await page.$('[aria-label="Open Patch Management Explorer"]'));
     assert.equal(await page.$eval('.discovery-overview-snapshot strong', node => node.textContent), overviewScope.date);
+    const reportSelector='button[data-overview-report]';
+    const reportHref=await page.$eval(reportSelector,node=>node.getAttribute('data-overview-report'));
+    const reportQuery=new URL(reportHref,base).searchParams;
+    assert.equal(reportQuery.get('dataDate'),overviewScope.date);
+    assert.equal(reportQuery.get(overviewScope.query.startsWith('network') ? 'network' : 'system'),overviewScope.query.split('=')[1]);
+    const reportResponsePromise=page.waitForResponse(response=>response.url()===base+reportHref);
+    await page.focus(reportSelector); await page.keyboard.press('Enter');
+    const reportResponse=await reportResponsePromise;
+    assert.equal(reportResponse.status(),200);
+    assert(reportResponse.headers()['content-type'].includes('application/pdf'));
+    // Chrome may evict the fetch response body after a Blob download; verify the actual saved file.
+    const downloadedReport=path.join(downloadDirectory,'discovery-overview-'+overviewScope.date+'.pdf');
+    const downloadDeadline=Date.now()+15000;
+    while(!fs.existsSync(downloadedReport)&&Date.now()<downloadDeadline) await new Promise(resolve=>setTimeout(resolve,100));
+    assert(fs.existsSync(downloadedReport),'The Overview PDF must download successfully');
+    const overviewPdf=fs.readFileSync(downloadedReport);
+    const overviewDocument=await PDFDocument.load(overviewPdf);
+    assert.equal(overviewDocument.getTitle(),'Discovery Overview Report');
+    assert(overviewDocument.getPageCount()>=9);
+    await page.waitForFunction(()=>!document.querySelector('button[data-overview-report]')?.disabled);
+    if(process.env.TSAAT_TEST_ARTIFACT_DIR){
+      fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR,{recursive:true});
+      fs.writeFileSync(path.join(process.env.TSAAT_TEST_ARTIFACT_DIR,overviewScope.query.startsWith('network') ? 'discovery-overview.pdf' : 'discovery-overview-historical-system.pdf'),overviewPdf);
+    }
     const overviewLinks = await page.$$eval('.discovery-overview a[data-overview-count]', nodes => nodes.map(node => ({ href: node.getAttribute('href'), count: Number(node.getAttribute('data-overview-count')) })));
     const overviewTargets = overviewLinks.filter(link => {
       const params = new URL(link.href, base).searchParams;
@@ -277,7 +308,7 @@ try {
   assert.equal(await page.$eval(patchSearch, node => node.value), patchAsset);
   await page.focus('.patch-results [data-cmdb-asset-id]'); await page.keyboard.press('Enter');
   await page.waitForSelector('[data-cmdb-drill-through][data-load-state="ready"]');
-  await page.waitForSelector('[data-cmdb-network-impact]');
+  assert.equal(await page.$('[data-cmdb-network-impact]'), null, 'Retired analyser action must not be offered from patch CMDB details');
   await page.keyboard.press('Escape'); await page.waitForSelector('dialog[open]', { hidden: true });
   await page.waitForFunction(id => document.activeElement?.getAttribute('data-cmdb-asset-id') === id, {}, patchAsset);
   await page.click(patchSearch, { clickCount: 3 }); await page.type(patchSearch, 'no-such-patch-server');
@@ -331,7 +362,8 @@ try {
   await page.waitForSelector('dialog[open] #settings-tab-database-settings');
   assert.equal(await page.$eval('#settings-tab-database-settings', node => node.textContent.trim()), "JSON Data Files");
   await page.waitForFunction(directory => document.querySelector('dialog[open]')?.textContent.includes(directory), {}, env.TSAAT_JSON_DATA_DIR);
-  for (const tab of ["password-settings", "discovery-tools-settings", "spi-risk-matrix", "spi-priority-matrix"]) {
+  assert.equal(await page.$("#settings-tab-password-settings"), null);
+  for (const tab of [ "discovery-tools-settings", "spi-risk-matrix", "spi-priority-matrix"]) {
     await page.click('#settings-tab-' + tab);
     await page.waitForFunction(id => document.getElementById('settings-tab-' + id)?.getAttribute('aria-selected') === 'true', {}, tab);
   }
@@ -413,62 +445,47 @@ try {
     const assetId = await page.$eval('[data-cmdb-asset-id]', node => node.getAttribute('data-cmdb-asset-id'));
     await page.focus('[data-cmdb-asset-id]'); await page.keyboard.press("Enter");
     await page.waitForSelector('[data-cmdb-drill-through][data-load-state="ready"]', { timeout: 30000 });
-    const cmdb = (await getJson(`/api/assets/cmdb-details?assetId=${encodeURIComponent(assetId)}&dataDate=${date}`)).asset;
+    assert.equal(await page.$("[data-cmdb-network-impact]"), null, "Retired analyser action must not be offered");
     if (assetScope.startsWith("network")) {
       await page.setViewport({ width: 390, height: 844 });
       await page.waitForFunction(() => {
-        const bounds = document.querySelector('[data-cmdb-network-impact]')?.getBoundingClientRect();
+        const bounds = document.querySelector("[data-cmdb-drill-through]")?.getBoundingClientRect();
         return bounds && bounds.left >= 0 && bounds.right <= innerWidth;
       });
-      if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "cmdb-impact-narrow.png"), fullPage: true });
       await page.setViewport({ width: 1600, height: 1000 });
     }
-    const targetPromise = browser.waitForTarget(target => target.type() === "page" && target.url().startsWith(base + "/cyber-cop?") &&
-      new URL(target.url()).searchParams.get("impactAssetId") === assetId, { timeout: 45000 });
-    await page.focus('[data-cmdb-network-impact]'); await page.keyboard.press("Enter");
-    const popup = await (await targetPromise).page();
-    assert(popup, "CMDB impact action must open a separate window");
-    popup.on("pageerror", error => errors.push(error.message));
-    await popup.setViewport({ width: 1440, height: 960 });
-    await popup.waitForSelector('[data-network-impact-asset]', { timeout: 45000 });
-    assert.equal(await popup.$eval('[data-network-impact-asset]', node => node.getAttribute('data-network-impact-asset')), assetId);
-    const targetUrl = new URL(popup.url());
-    assert.equal(targetUrl.searchParams.get("dataDate"), date);
-    assert.equal(targetUrl.searchParams.get(assetScope.split("=")[0]), assetScope.split("=")[1]);
-    assert.equal(await popup.evaluate(() => window.opener === null), true);
-    await popup.waitForSelector('canvas[aria-label*="Canvas WebGL"]', { timeout: 30000 });
-    await popup.waitForFunction(() => !document.querySelector("main")?.textContent.includes("Loading Diagram"), { timeout: 30000 });
-    const query = `${assetScope}&dataDate=${date}&diagramNetworkIds=${encodeURIComponent(cmdb.networkId)}&impactAssetId=${encodeURIComponent(assetId)}`;
-    const diagram = await getJson("/api/cyber-cop/impact-analyser-2?" + query);
-    assert(diagram.rows.length > 0 && diagram.rows.every(row => row.assetId === assetId));
-    const findingSpi = diagram.rows.find(row => row.spiId)?.spiId ?? 1;
-    const findings = await getJson("/api/cyber-cop/impact-analyser-2/findings?" + query + "&spiId=" + findingSpi);
-    assert(findings.allFindings.every(row => row.assetId === assetId));
-    assert.equal(findings.totalCount, diagram.rows.filter(row => row.findingId && row.spiId === findingSpi).length);
-    if (process.env.TSAAT_TEST_ARTIFACT_DIR) await popup.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, "asset-impact-" + assetScope.split("=")[0] + ".png"), fullPage: true });
-    await popup.reload({ waitUntil: "networkidle0" });
-    await popup.waitForSelector('[data-network-impact-asset]');
-    await popup.click('[data-network-impact-asset] button');
-    await popup.waitForFunction(() => !new URL(location.href).searchParams.has("impactAssetId"));
-    await popup.waitForSelector('[aria-label="Select networks for the Network Impact Analyser"]:not([disabled])');
-    assert.equal(await popup.$('[data-network-impact-asset]'), null);
-    await popup.close(); await page.bringToFront();
     assert.equal(page.url(), originUrl);
     assert(await page.$('[data-cmdb-drill-through][open]'));
     await page.keyboard.press("Escape"); await page.waitForSelector("dialog[open]", { hidden: true });
     await page.waitForFunction(id => document.activeElement?.getAttribute('data-cmdb-asset-id') === id, {}, assetId);
   }
-  await navigate("/cyber-cop?copView=network-impact-analyser&impactAssetId=missing-asset");
-  assert((await page.$eval('[data-network-impact-asset]', node => node.textContent)).includes("unavailable"));
-  assert.equal(await page.$('canvas[aria-label*="Canvas WebGL"]'), null);
-  for (const kind of ["network", "ict-system"]) {
-    await navigate("/cyber-cop?copView=" + kind + "-impact-analyser", kind === "network" ? "network=net-1" : "system=sys-1");
-    await page.click(kind === "network" ? '[aria-label="Select networks for the Network Impact Analyser"]' : '[aria-label="Select ICT systems for the ICT System Impact Analyser"]');
+  for (const scope of ["network=net-1", "system=sys-1"]) {
+    await navigate("/cyber-cop?copView=network-impact-analyser&impactAssetId=missing-asset", scope);
+    const destination = new URL(page.url());
+    assert.equal(destination.pathname, scope.startsWith("network") ? "/network-risk-profile" : "/ict-system-risk-profile");
+    assert.equal(destination.searchParams.get("dataDate"), date);
+    assert.equal(destination.searchParams.has("copView"), false);
+    assert.equal(destination.searchParams.has("impactAssetId"), false);
+    assert.equal(await page.$('a[href*="copView=network-impact-analyser"]'), null);
+  }
+  for (const kind of ["ict-system", "dependencies"]) {
+    const view = kind === "dependencies" ? "ict-system-dependencies" : kind + "-impact-analyser";
+    await navigate("/cyber-cop?copView=" + view, "system=sys-1");
+    await page.click(kind === "dependencies" ? '[aria-label="Select ICT systems for ICT System Dependencies"]' : '[aria-label="Select ICT systems for ICT System Impact Analyser"]');
     await page.waitForSelector('main input[type="checkbox"]');
     await page.click('main input[type="checkbox"]');
     await page.evaluate(() => [...document.querySelectorAll("main button")].find(button => button.textContent.trim().toLowerCase() === "run").click());
     await page.waitForSelector('canvas[aria-label*="Canvas WebGL"]', { timeout: 30000 });
     await page.waitForFunction(() => !document.querySelector("main")?.textContent.includes("Loading Diagram"), { timeout: 30000 });
+    {
+      const filter = kind === "dependencies" ? "Environment" : "Findings Severity";
+      const selector = '[data-impact-analyser-multi-filter="' + filter + '"]';
+      await page.click(selector + " > button");
+      const checked = await page.$$eval(selector + " label", labels => labels.filter(label => label.querySelector("input").checked).map(label => label.textContent.trim()));
+      assert.deepEqual(checked, kind === "dependencies" ? ["Production"] : ["Critical Exposure", "High Risk"]);
+      await page.click(selector + " > button");
+      assert.equal(await page.$("[data-impact-analyser-diagram-overlay]"), null);
+    }
   }
   let pdfCount = 0;
   for (const report of reports) {
@@ -500,15 +517,17 @@ try {
   assert(updatedFindings.length > 0, "Persistence check must include findings affected by the matrix change");
   assert(updatedFindings.every(f => f.priorityRank === settings.priorityMatrix["1"]));
   await browser.close(); browser = undefined;
-  await stopServer(); base = await startServer(); cookie = await login();
+  await stopServer(); base = await startServer();
   const afterRestart = (await getJson("/api/measures/settings")).settings;
   assert.equal(afterRestart.priorityMatrix["1"], settings.priorityMatrix["1"]);
   assert.equal(afterRestart.severityMatrix["1:server"], "Critical Exposure");
   assert.deepEqual((await getJson("/api/discovery-tools/settings")).settings.tools, savedDiscovery.tools);
+  assert(!fs.existsSync(path.join(directory, "logindetails")), "Runtime must not create application credentials");
   assert(!fs.existsSync(path.join(directory, "DB_config")), "No-SQL runtime created SQL configuration");
   assert.deepEqual(errors, []);
   assert.deepEqual(sqlRequests, [], "No-SQL UI must not request SQL administration");
-  console.log("No-SQL production smoke passed: authentication, " + routes.length + " views, " + drillThroughTabs + " explorer drill-through tabs, both heatmaps/analysers, Settings, CMDB, " + pdfCount + " PDFs, " + workbookCount + " workbooks, disk settings and restart persistence; no SQL configuration or executable.");
+  assert.deepEqual(authRequests, [], "Workspace must not poll sessions or request authentication");
+  console.log("No-SQL production smoke passed: direct access without credentials, " + routes.length + " views, " + drillThroughTabs + " explorer drill-through tabs, both heatmaps/analysers, Settings, CMDB, " + pdfCount + " PDFs, " + workbookCount + " workbooks, disk settings and restart persistence; no SQL configuration or executable.");
 } catch (error) {
   console.error(serverOutput.slice(-3000)); throw error;
 } finally {

@@ -311,7 +311,7 @@ erDiagram
 
 ## Operational Notes
 - Connection/auth settings are external to this ERD and are configured in local encrypted repository root `DB_config`, which Settings or `npm run setup:database` can create/update under the runtime Windows identity. Compilation does not provision credentials or alter the database.
-- Application login credentials are external to this ERD and are configured in local encrypted repository root `logindetails`.
+- Application login is retired. There are no current application user/session tables or credential-file requirements; SQL connection credentials remain in encrypted DB_config. Published migrations 006/007 remain unchanged historical records.
 - `managed_network` includes platform flags:
   - `adf_platform` (`BIT`)
   - `enterprise_platform` (`BIT`)

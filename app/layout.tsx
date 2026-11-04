@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { headers } from "next/headers";
 import { Suspense } from "react";
 import "./globals.css";
-import { AuthenticatedSessionGuard } from "@/components/authenticated-session-guard";
 import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
@@ -23,23 +21,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const requestHeaders = headers();
-  const pathname = requestHeaders.get("x-tsaat-pathname") ?? "";
-  const authenticatedUsername = (requestHeaders.get("x-tsaat-auth-user") ?? "").trim();
-  const isLoginRoute = pathname === "/login";
-
-  if (isLoginRoute) {
-    return (
-      <html lang="en">
-        <body className={`${bodyFontClass} antialiased`}>
-          <div className="app-bg" />
-          <div className="topography-overlay" />
-          <main className="mx-auto max-w-[1400px] px-4 py-5 md:px-6 md:py-8">{children}</main>
-        </body>
-      </html>
-    );
-  }
-
   return (
     <html lang="en">
       <body className={`${bodyFontClass} antialiased`}>
@@ -58,7 +39,7 @@ export default function RootLayout({
                 </div>
                 <div className="min-w-0">
                   <Suspense fallback={<div className="h-[38px]" />}>
-                    <MenuNavigation authenticatedUsername={authenticatedUsername} />
+                    <MenuNavigation />
                   </Suspense>
                 </div>
               </div>
@@ -69,9 +50,6 @@ export default function RootLayout({
             <WorkspaceShell><CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider></WorkspaceShell>
           </Suspense>
         </div>
-        <Suspense fallback={null}>
-          <AuthenticatedSessionGuard />
-        </Suspense>
         <Suspense fallback={null}>
           <FilterLoadingOverlay />
         </Suspense>

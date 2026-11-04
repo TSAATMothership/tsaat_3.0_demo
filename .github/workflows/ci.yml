@@ -1,8 +1,9 @@
-﻿name: Source and documentation quality
+name: Source and documentation quality
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,6 +18,10 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
       TSAAT_SQL_INTEGRATION: '0'
       DOCS_BASE_REF: ${{ github.event.pull_request.base.sha }}
+      IMPACT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+      IMPACT_FULL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'validation:full') }}
+      IMPACT_DATA: ${{ contains(github.event.pull_request.labels.*.name, 'validation:data') }}
+      IMPACT_DOCS: ${{ contains(github.event.pull_request.labels.*.name, 'validation:docs') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,9 +29,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - name: Install and compile both providers with Node outbound traffic denied
+      - name: Assess changed areas before selecting checks
+        id: impact
+        run: node scripts/change-impact.mjs
+      - name: Check validation selection for a full run
+        if: steps.impact.outputs.full == 'true'
+        run: node --test tests/change-impact.test.mjs
+      - name: Full offline release and build validation
+        if: steps.impact.outputs.full == 'true'
         shell: powershell
         run: ./scripts/ci-offline.ps1
-      - run: npm run test:nosql
+      - name: Install local dependencies for affected checks
+        if: steps.impact.outputs.full != 'true' && steps.impact.outputs.install == 'true'
+        run: npm ci --offline --ignore-scripts --no-audit
+      - name: Run checks selected by impact
+        if: steps.impact.outputs.full != 'true'
+        run: node scripts/change-impact.mjs --run
+      - name: Compile both providers for data changes
+        if: steps.impact.outputs.full != 'true' && steps.impact.outputs.data == 'true'
+        run: npm run build:all
+      - name: Validate the compiled No-SQL app
+        if: steps.impact.outputs.build == 'true'
+        run: npm run test:nosql
       - name: Verify tracked source stayed clean
         run: git diff --exit-code

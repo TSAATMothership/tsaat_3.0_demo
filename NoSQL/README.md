@@ -2,7 +2,7 @@
 
 This folder holds the reviewed CMDB mapping and SQL calculation contract for the JSON-backed build of the main TSAAT app. It does not contain a second UI or standalone demo.
 
-Run npm run build:nosql then npm run start:nosql from the repository root. Provision the normal login with npm run setup:login. The app uses NoSQL/data for mutable snapshots, reference definitions and saved settings, unless TSAAT_JSON_DATA_DIR selects another directory. Setup/build/start initialize missing stores from sample JSON and preserve existing data.
+Run npm run build:nosql then npm run start:nosql from the repository root. Pages and APIs open directly; no login provisioning is needed. The app uses NoSQL/data for mutable snapshots, reference definitions and saved settings, unless TSAAT_JSON_DATA_DIR selects another directory. Setup/build/start initialize missing stores from sample JSON and preserve existing data.
 
 Fresh stores have 1,000 identified endpoints plus 240 IP Scan/ARP observations per snapshot, populated endpoint/software fields and network/system profiles. Existing stores are never enriched automatically during build/start.
 

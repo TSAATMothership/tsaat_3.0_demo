@@ -4,9 +4,9 @@ Removing demo-data notices from Discovery Overview and the patch/vulnerability e
 
 ## One app, two builds
 
-The Governance placeholder routes add no provider operations or business-data reads. They use the existing authenticated shell, shared header options and scope/date navigation in both builds. No SQL/JSON schema, calculation-contract, migration, sample-population or dependency changes are needed.
+The Governance placeholder routes add no provider operations or business-data reads. They use the existing shared shell, shared header options and scope/date navigation in both builds. No SQL/JSON schema, calculation-contract, migration, sample-population or dependency changes are needed.
 
-The current Next.js app compiles with SQL or JSON storage. Pages, API URLs, scope/date behavior, authentication, reports, workers and visual components are shared. Both require the normal Node app server, Windows and PowerShell for existing DPAPI authentication. No-SQL has no SQL Server/sqlcmd/configuration dependency.
+The current Next.js app compiles with SQL or JSON storage. Pages, API URLs, scope/date behavior, direct access, reports, workers and visual components are shared. Both require the normal Node app server; the supported host is Windows. SQL uses PowerShell/DPAPI for DB_config. No-SQL has no SQL Server/sqlcmd/configuration dependency.
 
 scripts/run-app.mjs selects TSAAT_DATA_PROVIDER before compilation. next.config.mjs embeds NEXT_PUBLIC_TSAAT_DATA_PROVIDER and uses .next-sql or .next-nosql, allowing both artifacts to coexist. Changing a variable after compilation does not convert an artifact; rebuild and use the matching start command. The default npm build/start/dev commands select SQL. NoSQL is the user-facing name for file storage, not a separate database product.
 
@@ -14,7 +14,7 @@ Both providers require an installed Next.js CLI. The launcher checks it before b
 
 lib/data-loader.ts and lib/cmdb-attribute-loader.ts select typed providers. SQL code remains in lib/sql-data-loader.ts and lib/sql-cmdb-attribute-loader.ts; JSON implementations live in lib/json-store. The JSON operation object must satisfy the SQL loader's exported operation types. Feature code must import the shared facades. New storage operations require implementations in both providers. The SQL execution adapter rejects calls in a No-SQL build, and SQL settings APIs return 409 there.
 
-Both builds share the root logindetails file independently of the selected storage provider. npm run setup:login creates or replaces its encrypted username/password metadata and invalidates existing sessions when replacing a usable login. It does not change SQL data, JSON snapshots/settings, credential envelope version or calculation contracts; no SQL or JSON migration is required.
+Both builds open pages and APIs without application credentials. No logindetails file or login setup is required. Existing credential files are ignored and left untouched. SQL DB_config and its strict TLS policy are unchanged; no SQL/JSON migration is needed.
 
 ## JSON store, format version 1
 
@@ -86,19 +86,22 @@ A future incompatible JSON format requires an explicit versioned migration and b
 
 ## Validation and future work contract
 
-Run npm run check, npm run build:all and npm run test:nosql. CI performs these gates. The No-SQL smoke launches the compiled app in an isolated directory with its own login, JSON store, no DB_config and an invalid sqlcmd path. It exercises normal HTTP pages, heatmaps, analysers, CMDB, reports/workbooks and settings across an app restart. Unit tests cover rule behavior, settings, dates/scope and safe initialization/writes. SQL integration remains explicit against a disposable database; default CI does not provision one.
+For data, query, calculation, schema, persistence or CMDB mapping changes, review both providers and run relevant regression tests, npm run storage:check, npm run build:all and npm run test:nosql, plus applicable disposable-SQL parity. CI selects these gates when data paths are affected or validation:data is requested. Unrelated presentation/documentation changes do not require provider checks; compatibility remains required. Releases use the full validation gate. The No-SQL smoke launches the compiled app in an isolated directory with an isolated JSON store and no application credentials, no DB_config and an invalid sqlcmd path. It exercises normal HTTP pages, heatmaps, analysers, CMDB, reports/workbooks and settings across an app restart. Unit tests cover rule behavior, settings, dates/scope and safe initialization/writes. SQL integration remains explicit against a disposable database; default CI does not provision one.
 
-For every change, update both providers, migrations/data fixtures, tests, relevant requirements and operational documentation together. See [SDLC](sdlc.md) and [ADR 0006](adr/0006-dual-data-provider-builds.md). The removed browser-only Demo app is not a third supported build.
+When contracts change, align both providers, required migrations/data fixtures, tests and affected documentation in the same change. Do not edit provider/data documents or run their checks for unrelated changes. See [SDLC](sdlc.md) and [ADR 0006](adr/0006-dual-data-provider-builds.md). The removed browser-only Demo app is not a third supported build.
 
 ## Offline compilation requirement
 
-Both providers compile using only repository source, assets and vendor/npm archives, after an offline npm ci. Compilation must not contact SQL Server, registry services or remote asset/code hosts. The same guard and dependency verification apply to build:sql and build:nosql. No-SQL still initializes only a missing store and preserves existing data/settings. SQL runtime still requires access to its configured SQL Server and strict TLS; the compilation guarantee does not remove runtime database or authentication requirements. No schema, calculation rule or JSON format/data migration is introduced by offline packaging. See [offline builds](offline-builds.md).
+Both providers compile using only repository source, assets and vendor/npm archives, after an offline npm ci. Compilation must not contact SQL Server, registry services or remote asset/code hosts. The same guard and dependency verification apply to build:sql and build:nosql. No-SQL still initializes only a missing store and preserves existing data/settings. SQL runtime still requires access to its configured SQL Server and strict TLS; the compilation guarantee does not remove runtime database connection or SQL authentication requirements. No schema, calculation rule or JSON format/data migration is introduced by offline packaging. See [offline builds](offline-builds.md).
 
 Risk-profile explorer new-tab navigation is shared by SQL and JSON builds. Selected-row, snapshot and destination-filter presets use the existing URLs and shared data facades. This interaction change introduces no SQL/JSON migration or calculation-contract change and leaves stored snapshots/settings untouched.
 
-CMDB Network Impact Analyser windows likewise use shared snapshot assets, network IDs and header scope. The optional impactAssetId URL filter is applied equally to diagram rows and findings after provider-independent scoping; neither provider query/schema changes. The additional CMDB networkId response metadata is already present in both Dataset implementations. SQL/JSON data, per-type mappings and NoSQL/calculation-contract.json remain unchanged by this navigation feature; no migration or population is required. Regression tests exercise canonical dataset transforms and routes, with real JSON browser coverage. Live SQL integration still requires an explicitly selected disposable database with trusted TLS.
+Retiring the Network Impact Analyser removes its UI and CMDB launch action without changing provider operations, stored data, calculations or the canonical CMDB networkId response field. Existing analyser APIs retain their scope and optional exact impactAssetId filter for compatibility. No SQL/JSON migration, population or calculation-contract checksum change is required.
 
 
 Security domain upgrade: [canonical domain scope](security-domains.md) describes forward SQL migration 030 and npm run migrate:security-domains. All endpoints, systems and networks require PROTECTED, SECRET or UNKNOWN. JSON read compatibility normalizes legacy stores without writing; explicit backed-up migration publishes all snapshot versions. SQL queries and caches include selected domains; no selection means empty, omitted means all. The schema checksum review covers domain DDL only; SPI/KPI/discovery rule checksums and definitions remain unchanged.
 
 The explicit security-domain migration is an exception to manual bulk-edit downtime: it uses the shared writer lock and immutable files with atomic manifest publication, so readers may remain active. Settings writes cannot interleave with its backup/publication. Manual edits and restore still require stopping app processes.
+
+
+Discovery Overview PDF reuses the page's snapshot-pinned shared facade loader and pure overview aggregation in both SQL and JSON builds. Domain selection, saved tool applicability, CVE observations, patch status/denominator rules and ARP ownership scope are unchanged. No schema/data migration, settings mutation, source population or NoSQL/calculation-contract.json checksum update is needed. See [report contract](discovery-overview-report.md).

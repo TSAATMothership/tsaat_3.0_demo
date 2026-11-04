@@ -2,29 +2,31 @@
 
 Describe the trigger, previous behavior and result. Link acceptance criteria.
 
-## Validation
+## Impact assessment (before selecting checks)
 
-- [ ] npm run check
-- [ ] npm run build:all (SQL and No-SQL)
-- [ ] npm run test:nosql (compiled app, exports, persistent settings and restart)
-- [ ] Applicable browser/keyboard/mobile, PDF/export and disposable-SQL checks recorded
+Mark each category Affected or Not affected and briefly explain. Reassess against the final diff.
 
-## Documentation and provider compatibility
+| Category | Assessment and reason |
+| --- | --- |
+| UI/runtime behavior, reports and accessibility | |
+| SQL/JSON data, structures, queries, rules, persistence and CMDB mappings | |
+| Application access, scope/date and compatibility routes | |
+| Documentation and generated inventories | |
+| Dependencies, offline installation and builds | |
+| Shared behavior, tooling/CI and release risk | |
 
-- [ ] Shared UI/API/report behavior works with both storage providers
-- [ ] SQL/JSON rules, scope/date behavior, reference data and CMDB mappings reviewed
-- [ ] Calculation-contract hashes refreshed only after equivalent behavior is verified
-- [ ] Relevant feature/design/architecture/data docs and CHANGELOG updated
-- [ ] npm run docs:generate reviewed
-- [ ] Authentication and existing API/redirect contracts preserved
+## Selected validation and results
 
-## Data and release impact
+List the commands/manual checks actually run and their results. Explain omitted categories and any unavailable checks. Use the [SDLC matrix](../docs/sdlc.md); the full suite is not required for every PR.
 
-State SQL migrations and JSON format/data upgrade steps, rollout/recovery and limitations, or explain why none apply. Existing JSON stores must survive builds and upgrades; seed changes alone are not migrations. Never include secrets, mutable stores or operational extracts.
+- Focused tests, lint/types and relevant UI/keyboard/narrow-layout/PDF checks:
+- Data/provider checks, both builds, No-SQL smoke and disposable-SQL parity, if affected:
+- Documentation checks/regeneration, if affected:
+- Offline integrity/fresh-install/full build evidence, for dependency/build changes or releases:
+- CI assessment reviewed; validation:data, validation:docs or validation:full applied if broader coverage is needed:
 
-## Mandatory offline compilation
+## Documentation, data and release impact
 
-- [ ] All build packages/assets are repository-contained; no registry, CDN, lifecycle or build-time download fallback
-- [ ] npm run offline:check passed; dependency changes include reviewed archives, lockfile and provenance manifest
-- [ ] Fresh npm ci --offline with an empty cache passed, and both guarded builds passed
-- [ ] CI outbound-denial gate passed; any prerequisite or dependency/license change is documented
+State affected documentation, SQL migrations/JSON upgrade steps and rollout/recovery needs, or why none apply. No documentation-only edits are required for unchanged meaning. Existing JSON stores must survive builds/upgrades; seeds alone are not migrations. Do not include secrets, mutable stores or operational extracts.
+
+Confirm shared provider compatibility, offline capability, the current application access model and scope/date contracts remain intact. Explain calculation-checksum changes if any; refresh only after equivalent behavior is verified.

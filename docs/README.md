@@ -8,6 +8,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
 | Server patch evidence, status rules and sample population | [Patch Management Explorer](patch-management-explorer.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
+| Discovery Overview PDF sections and scope | [Discovery Overview report](discovery-overview-report.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |
@@ -15,7 +16,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Mandatory offline compilation and dependency maintenance | [Offline builds](offline-builds.md) |
 | Schema, migrations, configuration and integration | [Database lifecycle](database.md) |
 | Release, deployment and recovery | [Operations](operations.md) |
-| Change control and documentation obligations | [SDLC](sdlc.md) |
+| Impact assessment, selective checks and release gates | [SDLC](sdlc.md) |
 | Significant decisions | [ADRs](adr/README.md) |
 | Retired code and SQL removal evidence | [Cleanup audit](cleanup-audit.md) |
 | Current pages, APIs, navigation and dependencies | [Generated application inventory](generated/application-inventory.md) |

@@ -2,17 +2,15 @@
 
 ## Environment
 
-Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci --offline` installs only committed vendor/npm archives, using the checked-in legacy-peer-deps setting, with lifecycle scripts, audit and update notices disabled. No populated npm cache or network is required. The checkout does not require a sibling TSAAT folder or vendored host runtime. The [offline compilation contract](offline-builds.md) is mandatory for all changes. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
+Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci --offline` installs only committed vendor/npm archives, using the checked-in legacy-peer-deps setting, with lifecycle scripts, audit and update notices disabled. No populated npm cache or network is required. The checkout does not require a sibling TSAAT folder or vendored host runtime. The [offline compilation contract](offline-builds.md) remains a product requirement; repeat fresh-install/both-build evidence for dependency/build changes and releases, not unrelated routine edits. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
 
-Both builds use `npm run setup:login` for local DPAPI credentials. For SQL, `npm run setup:database` provisions DB_config. Choose an existing development database for ordinary work. `npm run db:bootstrap` requires a new database name and refuses an existing one. sqlcmd must be on PATH or selected by SQLCMD_PATH.
+Both builds open directly without application credentials. For SQL, `npm run setup:database` provisions encrypted DB_config for the runtime Windows identity. Choose an existing development database for ordinary work; db:bootstrap requires a new disposable database.
 
-## Setting the application login
+## Select checks before running them
 
-Run `npm run setup:login` in a terminal under the Windows identity that runs TSAAT. Enter the username, then a password of 8-256 characters, and confirm the password. Password prompts hide the input. Usernames are trimmed and lowercased; passwords retain case and are trimmed, matching the application's existing credential rules. Mismatched confirmation or invalid input leaves any existing login unchanged; rerun the command to try again.
+Use the [SDLC impact matrix](sdlc.md) before selecting validation. node scripts/change-impact.mjs prints a conservative plan for local changes; --base <commit> compares committed changes and --run executes selected source checks. Use --data, --docs or --full to broaden it. For a mixed working tree, assess the actual task separately from unrelated existing edits.
 
-Running setup again lets you replace both credentials without deleting logindetails. Saving increments the existing session version, so old sessions expire, and retains the original creation timestamp. The encrypted file format is unchanged. The direct ensure-logindetails.ps1 helper without -Configure still validates an existing usable file without rewriting it.
-
-For unattended setup, provide TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD in the process environment, run the same npm command, then remove them from that environment. These values supply the corresponding prompts; password confirmation is only requested for a typed password. Do not put real passwords into command-line arguments, scripts or repository files. A redirected input stream with missing values fails clearly without replacing usable credentials. Recovery of an unreadable DPAPI file retains the existing recreation flow under the current Windows identity.
+UI-only changes normally need lint/types, focused tests and relevant visual/keyboard checks. Data/provider checks and live SQL parity are not routine UI gates. Skip documentation checks when neither documentation nor generated inventories are affected. Record reasons and limitations in the PR; choose the explicit full gate for releases, dependency/build risk or uncertain broad behavior.
 
 ## Commands
 
@@ -22,27 +20,26 @@ For unattended setup, provide TSAAT_LOGIN_USERNAME and TSAAT_LOGIN_PASSWORD in t
 | npm run offline:check | Verify local lockfile closure, archive integrity and provenance |
 | npm run offline:refresh | Explicit connected maintenance only: vendor reviewed locked packages |
 | npm run dev:sql / dev:nosql | Development server using the selected provider |
-| npm run docs:generate | Regenerate inventories/checksums after documentation review |
-| npm run docs:check | Verify links, inventories, source freshness and PR documentation impact |
+| npm run docs:generate | Regenerate affected inventories; refresh the informational source snapshot |
+| npm run docs:check | Verify links/inventories; suggest PR documentation review areas |
 | npm run repo:check | Reject tracked secrets, generated folders, oversized files and unreachable runtime modules |
 | npm run lint | ESLint/Next checks |
 | npm run typecheck | Strict checking of app, scripts and tests, including unused locals/parameters |
 | npm test | Full default suite; SQL integration remains opt-in |
-| npm run check | All source/documentation gates |
+| npm run check | Explicit comprehensive source/documentation gate; not the routine default |
 | npm run build:all | Both production compilations with network access blocked and local archives verified |
 | npm run build:sql / build:nosql | Compile a single provider |
-| npm run test:nosql | Authenticated production browser/API smoke and restart persistence |
-| npm run setup:login | Set or replace the application username/password for either provider |
+| npm run test:nosql | Direct-access production browser/API smoke and restart persistence |
 | npm run populate:nosql | Preview current-store enrichment; --source selects a SQL export and --apply --demo publishes with backup |
 | npm run populate:patches | Preview missing sample server patch records; --apply --demo publishes with backup |
 | npm run setup:nosql | Initialize missing JSON storage without replacing existing data |
 | npm run storage:check | Require review when SQL calculation contracts change |
-| npm run start:sql / start:nosql | Serve the corresponding compiled artifact; production login requires HTTPS |
+| npm run start:sql / start:nosql | Serve the corresponding compiled artifact; deployment uses HTTPS |
 | npm run seed / seed:validate | Regenerate/validate sample JSON; generation intentionally changes fixture data |
 
 ## Validation strategy
 
-Use `npm test -- tests/name.test.ts` for focused checks. The full suite limits workers to four and permits 30 seconds per test/hook because native PowerShell/DPAPI processes are slower under load. Authentication tests use isolated temporary credentials. Retired-page tests assert redirects; risk-profile tests cover replacement behavior. Fix fixture types instead of suppressing compiler errors.
+Use `npm test -- tests/name.test.ts` for focused checks. The CI planner uses Vitest related tests for changed imports plus explicitly changed tests. Add tests that use dynamic imports or read source files when relevant; import-based selection cannot find all of them. The full suite limits workers to four and permits 30 seconds per test/hook because native PowerShell/DPAPI processes are slower under load. Retired-login tests check safe redirects and endpoints without creating credentials. Retired-page tests assert redirects; risk-profile tests cover replacement behavior. Fix fixture types instead of suppressing compiler errors.
 
 Set TSAAT_SQL_INTEGRATION=1 only against an explicitly selected disposable compatible database. Review each SQL suite: temporary migration/mapping fixtures roll back, while the entity-panel coverage test expects populated demo snapshots. Record database/schema and results separately. Default CI does not provision or mutate SQL Server.
 
@@ -62,7 +59,7 @@ Security Vulnerability Explorer uses `populate:vulnerabilities` to preview exist
 
 SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all and performs npm ci --offline before checks/builds. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
 
-The No-SQL smoke needs installed Chrome or Edge; TSAAT_TEST_BROWSER overrides its executable. It starts the compiled app with isolated credentials/data and an unavailable SQL executable, exercises both scope types, reports and saved settings, then restarts to verify persistence. It does not touch local DB_config, logindetails or NoSQL/data. Unit tests also use temporary stores. Set TSAAT_TEST_SQL_EXPORT to an authorized local export file to run the same compiled smoke against imported/enriched SQL records in isolation; it never writes the active store. Population tests cover field coverage, history preservation, stable identities, idempotence, backup/publication, failure safety and source conversion.
+The No-SQL smoke needs installed Chrome or Edge; TSAAT_TEST_BROWSER overrides its executable. It starts the compiled app with isolated data without application credentials and an unavailable SQL executable, exercises both scope types, reports and saved settings, then restarts to verify persistence. It does not touch local DB_config, logindetails or NoSQL/data. Unit tests also use temporary stores. Set TSAAT_TEST_SQL_EXPORT to an authorized local export file to run the same compiled smoke against imported/enriched SQL records in isolation; it never writes the active store. Population tests cover field coverage, history preservation, stable identities, idempotence, backup/publication, failure safety and source conversion.
 
 All new feature code uses the shared data facades. Type checking requires the JSON operation set to match SQL. Add behavior tests for both providers when data or rule semantics change; review the SQL calculation hash guard only after implementation and regression validation. The No-SQL provider does not execute arbitrary SQL text.
 

@@ -2,11 +2,10 @@
 
 import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
 
-export type SettingsTabId = "database-settings" | "password-settings" | "discovery-tools-settings" | "spi-risk-matrix" | "spi-priority-matrix";
+export type SettingsTabId = "database-settings" | "discovery-tools-settings" | "spi-risk-matrix" | "spi-priority-matrix";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: "database-settings", label: IS_JSON_BUILD ? "JSON Data Files" : "Database Settings" },
-  { id: "password-settings", label: "Password Settings" },
   { id: "discovery-tools-settings", label: "Discovery Tools Settings" },
   { id: "spi-risk-matrix", label: "SPI Risk Matrix" },
   { id: "spi-priority-matrix", label: "SPI Priority Matrix" }

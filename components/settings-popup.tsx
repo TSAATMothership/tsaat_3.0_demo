@@ -6,7 +6,6 @@ import { JsonStorageSettingsPanel } from "@/components/json-storage-settings-pan
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import { DatabaseSettingsPanel } from "@/components/database-settings-panel";
-import { PasswordSettingsPanel } from "@/components/password-settings-panel";
 import { SettingsTabs, type SettingsTabId } from "@/components/settings-tabs";
 import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
@@ -108,9 +107,6 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
             {IS_JSON_BUILD ? <JsonStorageSettingsPanel /> : settings ? <DatabaseSettingsPanel initialSettings={settings} /> : error ? (
               <div className="panel p-5"><p role="alert">{error}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setRetry((value) => value + 1)}>Retry</button></div>
             ) : <p role="status" className="flex items-center gap-3 p-5"><span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />Loading settings...</p>}
-          </div>
-          <div role="tabpanel" id="settings-panel-password-settings" aria-labelledby="settings-tab-password-settings" hidden={activeTab !== "password-settings"}>
-            <PasswordSettingsPanel />
           </div>
           <div role="tabpanel" id="settings-panel-discovery-tools-settings" aria-labelledby="settings-tab-discovery-tools-settings" hidden={activeTab !== "discovery-tools-settings"} className="h-full min-h-[420px]">
             {discoverySettings ? <DiscoveryToolsSettingsPanel initialSettings={discoverySettings} /> : discoveryError ? (

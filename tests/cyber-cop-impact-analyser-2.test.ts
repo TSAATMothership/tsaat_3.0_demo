@@ -903,37 +903,35 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(page).not.toContain("impactNetworkDiagramRows");
   });
 
-  it("opens the lazy ICT System Dependencies overlay with the exact directed six-axis contract", () => {
+  it("opens ICT System Dependencies independently with the exact directed six-axis contract", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
     const worker = readRepoFile("components/ict-system-impact-analyser-2-worker.ts");
     const dependencyExport = readRepoFile("lib/ict-system-dependencies-export.ts");
     const dependencyRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/dependencies/route.ts");
     const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
-    const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
-    const ictPanel = dashboard.slice(ictPanelStart, networkPanelStart);
-    const networkPanel = dashboard.slice(networkPanelStart);
+    const panelEnd = dashboard.indexOf("function ImpactChartTabs");
+    const ictPanel = dashboard.slice(ictPanelStart, panelEnd);
 
-    expect(ictPanel).toContain("ICT System Dependencies");
-    expect(ictPanel).toContain('disabled={loadState !== "ready"}');
-    expect(ictPanel).toContain('aria-controls="cyber-cop-ict-system-dependencies-overlay"');
-    expect(ictPanel).toContain("diagramOverlay={");
-    expect(ictPanel).toContain("hideFilterRow={isDependenciesOpen}");
-    expect(ictPanel).toContain('role="dialog"');
-    expect(ictPanel).toContain('event.key === "Escape"');
-    expect(ictPanel).toContain('aria-label="Close ICT System Dependencies"');
-    expect(ictPanel).toContain('dataPath="/api/cyber-cop/impact-analyser-2/dependencies"');
-    expect(ictPanel).toContain('diagramMode="dependencies"');
+    expect(dashboard).toContain('activeTab === "ict-system-dependencies"');
+    expect(dashboard).toContain('id="cyber-cop-tabpanel-ict-system-dependencies"');
+    expect(dashboard).toContain('view="dependencies"');
+    expect(dashboard).toContain("systemOptions={ictSystemOptions}");
+    expect(ictPanel).not.toContain("isDependenciesOpen");
+    expect(ictPanel).not.toContain("diagramOverlay");
+    expect(ictPanel).toContain('dataPath={isDependenciesView ? "/api/cyber-cop/impact-analyser-2/dependencies" : undefined}');
+    expect(ictPanel).toContain('diagramMode={isDependenciesView ? "dependencies" : "risk"}');
     expect(ictPanel).toContain("systemScopeIds={appliedSystemIds}");
-    expect(ictPanel).toContain('complianceActionScope="risk-servers"');
-    expect(ictPanel).toContain('complianceActionScope="dependency-servers"');
-    expect(networkPanel).toContain('complianceActionScope="risk-all-assets"');
-    expect(networkPanel).not.toContain("ICT System Dependencies");
-
+    expect(ictPanel).toContain('complianceActionScope={isDependenciesView ? "dependency-servers" : "risk-servers"}');
+    expect(ictPanel).toContain('initialEnvironments={isDependenciesView ? ["Production"] : []}');
+    expect(ictPanel).toContain('initialFindingSeverities={isDependenciesView ? [] : ["Critical Exposure", "High Risk"]}');
+    expect(component).toContain("() => [...initialEnvironments]");
+    expect(component).toContain("() => [...initialFindingSeverities]");
+    expect(component).toContain("new Set([...environmentOptions, ...selectedEnvironments])");
+    expect(component).not.toContain("current.filter((environment) => environmentOptions.includes(environment))");
     expect(component).toContain('type ImpactAnalyser2DiagramMode = "risk" | "ci" | "dependencies"');
-    expect(component).toContain('data-impact-analyser-diagram-overlay="true"');
+    expect(component).not.toContain("data-impact-analyser-diagram-overlay");
     expect(component).toContain("data-impact-analyser-filter-row={diagramMode}");
-    expect(component).toContain("!hideFilterRow");
     expect(component).toContain('label="Dependent ICT Systems"');
     expect(component).toContain('aria-label="Export ICT System Dependencies to Excel"');
     expect(component).toContain("buildIctSystemDependenciesWorkbookXml(filteredDependencyRows)");
@@ -1114,41 +1112,19 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(dashboard).toContain('setAppliedSystemIds([])');
     expect(dashboard).toContain('onLoadStateChange={handleLoadStateChange}');
     expect(dashboard).toContain("Select one or more ICT systems, then select Run to load the analyser.");
-    expect(dashboard).toContain("key={`cyber-cop-impact-analyser-run-${runRequestId}`}");
+    expect(dashboard).toContain('key={"cyber-cop-" + view + "-run-" + runRequestId}');
   });
 
-  it("opens a run-gated Network Impact Analyser from the sidebar", () => {
+  it("retains compatibility data API scoping without a Network Impact Analyser UI", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
-    const page = readRepoFile("app/cyber-cop/page.tsx");
     const dataRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/route.ts");
     const findingsRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/findings/route.ts");
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
-    const navigation = readRepoFile("lib/workspace-navigation.ts");
-    expect(navigation).toContain('href: "/cyber-cop?copView=network-impact-analyser"');
-    expect(navigation.indexOf('label: "Network Impact Analyser"')).toBeLessThan(navigation.indexOf('label: "ICT System Impact Analyser"'));
-    expect(dashboard).not.toContain('aria-label="Cyber COP dashboard tabs"');
-    expect(dashboard).toContain('activeTab === "network-impact-analyser"');
-    expect(dashboard).toContain('id="cyber-cop-tabpanel-network-impact-analyser"');
-    expect(dashboard).toContain("function NetworkImpactAnalyserRunPanel");
-    expect(dashboard).toContain('const [selectedNetworkIds, setSelectedNetworkIds] = useState<string[]>([])');
-    expect(dashboard).toContain('const [appliedNetworkIds, setAppliedNetworkIds] = useState<string[]>([])');
-    expect(dashboard).toContain('aria-label="Select networks for the Network Impact Analyser"');
-    expect(dashboard).toContain('role="group"');
-    expect(dashboard).toContain("event.currentTarget.contains(nextTarget)");
-    expect(dashboard).toContain('disabled={!selectedNetworkIds.length || isLoading}');
-    expect(dashboard).toContain("setAppliedNetworkIds([...selectedNetworkIds])");
-    expect(dashboard).toContain("setAppliedNetworkIds([])");
-    expect(dashboard).toContain("networkScopeIds={appliedNetworkIds}");
-    expect(dashboard).toContain("dataDate={snapshotDate}");
-    expect(dashboard).toContain('analyserName="Network Impact Analyser"');
-    expect(dashboard).toContain('assetAxisLabel="Assets"');
-    expect(dashboard).toContain('assetSearchCategory="Assets"');
-    expect(dashboard).toContain("includeNetworkAxis");
-    expect(dashboard).toContain("showAssetTypeFilter");
-    expect(dashboard).toContain("Select one or more networks, then select Run to load the analyser.");
-    expect(dashboard).toContain("key={`cyber-cop-network-impact-analyser-run-${runRequestId}`}");
-    expect(page).toContain("networkOptions={networks.map(({ id, name }) => ({ id, name }))}");
-
+    const drawer = readRepoFile("components/cmdb-drill-through.tsx");
+    expect(dashboard).not.toContain("NetworkImpactAnalyserRunPanel");
+    expect(dashboard).not.toContain('activeTab === "network-impact-analyser"');
+    expect(drawer).not.toContain("Open Network Impact Analyser");
+    expect(drawer).not.toContain("data-cmdb-network-impact");
     expect(component).toContain("networkScopeIds?: string[]");
     expect(component).toContain("dataDate?: string");
     expect(component).toContain("...(dataDate ? { dataDate } : {})");
@@ -1175,21 +1151,16 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     );
   });
 
-  it("toggles ICT system and network selections from the full option row", () => {
+  it("toggles ICT system selections from the full option row", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
-    const networkPanelStart = dashboard.indexOf("function NetworkImpactAnalyserRunPanel");
-    const ictPanel = dashboard.slice(ictPanelStart, networkPanelStart);
-    const networkPanel = dashboard.slice(networkPanelStart);
+    const panelEnd = dashboard.indexOf("function ImpactChartTabs");
+    const ictPanel = dashboard.slice(ictPanelStart, panelEnd);
 
     expect(ictPanel).toContain('data-impact-analyser-selection-option="ict-system"');
     expect(ictPanel).toContain("if (!(event.target instanceof HTMLInputElement))");
     expect(ictPanel).toContain("event.preventDefault()");
     expect(ictPanel).toContain("onChange={() => toggleSelectedSystem(system.id)}");
-    expect(networkPanel).toContain('data-impact-analyser-selection-option="network"');
-    expect(networkPanel).toContain("if (!(event.target instanceof HTMLInputElement))");
-    expect(networkPanel).toContain("event.preventDefault()");
-    expect(networkPanel).toContain("onChange={() => toggleSelectedNetwork(network.id)}");
   });
 
 

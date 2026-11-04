@@ -2,13 +2,13 @@
 
 ## Release preparation
 
-Choose an approved commit; run npm ci --offline, npm run check, npm run build:all and npm run test:nosql. Verify npm run offline:check and record an empty-cache install before release. Review CHANGELOG, SQL migration needs, affected APIs/reports and dependency advisories. Browser-check relevant scopes/dates and run SQL integration on a disposable database. Default CI builds both artifacts and browser-tests No-SQL without provisioning SQL.
+Choose an approved commit; run npm ci --offline, npm run check, npm run build:all and npm run test:nosql. Verify npm run offline:check and record an empty-cache install before release. Review CHANGELOG, SQL migration needs, affected APIs/reports and dependency advisories. Browser-check relevant scopes/dates and run SQL integration on a disposable database. The manual workflow_dispatch/full CI gate builds both artifacts and browser-tests No-SQL without provisioning SQL. Run it for the exact release commit; ordinary PR/push CI selects checks by impact and is not complete release evidence.
 
 ## Deployment
 
 Package the release source, complete vendor/npm archives/manifest, lockfile and compiled output through the organization's delivery process. An offline source delivery must include the actual archives, not links or Git LFS pointers. Install dependencies reproducibly with npm ci --offline; host runtimes and compiled outputs belong outside Git. Run both builds on Windows with Node 24 and PowerShell. Compilation needs no SQL service, sqlcmd, database credentials or network. SQL runtime additionally needs sqlcmd and its configured database; configure SQLCMD_PATH when needed. Pre-provision Node/npm, Windows/PowerShell and Chrome/Edge for runtime/browser validation on disconnected hosts. See [offline build and upgrade procedures](offline-builds.md).
 
-Provision logindetails, and DB_config for SQL only, under the service identity, or use supported approved secret provisioning. Do not copy another identity's DPAPI files. Use a service manager and HTTPS reverse proxy in front of npm run start:sql or npm run start:nosql for the matching artifact. Production cookies are secure; plain HTTP is not a valid production login test.
+Provision DB_config for SQL only under the service identity; do not copy another identity's DPAPI file. Use a service manager and HTTPS reverse proxy in front of the matching start command. Pages and APIs, including settings and exports, no longer enforce application authentication. Deployment access controls are external to TSAAT.
 
 Restrict configuration/database access. Apply separately reviewed migrations to the explicit database before switching traffic when required. Compilation does not seed a database.
 
@@ -16,7 +16,9 @@ For cleanup migration 027, stop app traffic to the selected database, retain a v
 
 ## Smoke checks
 
-Verify login/logout/expiry, empty workspace, header Update, both scope types and dates. Check risk profiles, explorers/details, heatmaps, Service Impact tabs and both diagram analysers. Confirm CMDB and Settings-sized compliance dialogs, evidence/remediation and keyboard/focus behavior. Check Measures Summary, the two KPIs, configured SPIs, findings, discovery and representative PDF/workbook exports. Confirm saved severity/priority settings affect subsequent evaluation.
+Verify direct page/API access without cookies, safe legacy-login redirects, the header without account controls, empty workspace, header Update, both scope types and dates. Check risk profiles, explorers/details, heatmaps, Service Impact selection/graph popup and the ICT impact and dependency diagrams. Confirm CMDB and Settings-sized compliance/impact dialogs, evidence/remediation and keyboard/focus behavior. The Service Impact browser regression checks Settings dimensions, table/selection scope, graph search/expansion/drag/zoom, nested findings, empty scope and narrow layouts; it also runs in the compiled No-SQL smoke. Check Measures Summary, the two KPIs, configured SPIs, findings, discovery and representative PDF/workbook exports. Confirm saved severity/priority settings affect subsequent evaluation.
+
+The graph regression also checks severity selection/empty selection, inclusive finding-count ranges, filtered finding details, every layout family/direction, intermediate animation frames, rapid layout switching, reduced motion and generated/custom coordinate stability across filters. These are focused UI checks over the shared model; repeat provider/build/offline gates when their behavior changes or for a release, as defined by the SDLC.
 
 ## Observability and recovery
 
@@ -26,7 +28,7 @@ Keep the previous artifact and a tested database backup. Stop rollout on failed 
 
 ## No-SQL deployment and recovery
 
-Deploy the normal app with .next-nosql and use npm run start:nosql. Set TSAAT_JSON_DATA_DIR to a stable absolute path outside disposable release directories. Initial setup uses repository sample JSON only when no store exists; build/start never replaces existing data. No DB_config or SQL service is needed. Use the same login/session and HTTPS controls as SQL. Do not distribute the removed Demo folder.
+Deploy the normal app with .next-nosql and use npm run start:nosql. Set TSAAT_JSON_DATA_DIR to a stable absolute path outside disposable release directories. Initial setup uses repository sample JSON only when no store exists; build/start never replaces existing data. No DB_config or SQL service is needed. Use the same deployment access and HTTPS controls as SQL. Do not distribute the removed Demo folder.
 
 Back up the entire JSON data directory with the compatible release while app processes are stopped. Include snapshots, references, current settings and setting history. Review JSON schema/data upgrades alongside SQL migrations for every release. Incompatible versions must have an explicit migration and rollback procedure. Restore the previous compatible app and complete JSON backup together if needed.
 

@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Papa from "papaparse";
 import { FindingsDataTable } from "@/components/findings-data-table";
-import { useCmdbDrillThrough } from "@/components/cmdb-drill-through";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { severityBarColors } from "@/components/findings-duration-panel";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { findingsByDuration } from "@/lib/findings-duration";
@@ -41,7 +41,6 @@ export function ServiceImpactFindingsPanel({ title, findings, model, onClose, in
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
   const [tab, setTab] = useState<ServiceImpactDetailTab>(initialTab);
-  const { openCmdbDrillThrough } = useCmdbDrillThrough();
   const assets = useMemo(() => { const ids = new Set(findings.map(finding => finding.assetId)); return model.assets.filter(asset => ids.has(asset.id)); }, [findings, model.assets]);
   const byId = useMemo(() => new Map(assets.map(asset => [asset.id, asset])), [assets]);
   const cves = useMemo(() => assets.flatMap(asset => asset.vulnerabilities.map(cve => ({ ...cve, asset }))), [assets]);
@@ -66,9 +65,7 @@ export function ServiceImpactFindingsPanel({ title, findings, model, onClose, in
     const node = dialog.current; node?.showModal();
     return () => { node?.close(); document.body.style.overflow = overflow; trigger?.focus(); };
   }, []);
-  const device = (asset: ServiceImpactAsset) => <button type="button" className="service-impact-link" onClick={() => {
-    onClose(); setTimeout(() => openCmdbDrillThrough(asset.id, asset.name), 0);
-  }}>{asset.name}</button>;
+  const device = (asset: ServiceImpactAsset) => <CmdbDeviceName assetId={asset.id} name={asset.name} className="service-impact-link" />;
   return createPortal(<dialog ref={dialog} className="measure-scope-panel service-impact-findings" aria-labelledby={`${id}-title`}
     onKeyDown={event => { if (event.key === "Escape" && !event.currentTarget.querySelector(".endpoint-filter-popup")) { event.preventDefault(); onClose(); } }}
     onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>

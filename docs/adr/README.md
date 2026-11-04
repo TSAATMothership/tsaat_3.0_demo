@@ -21,3 +21,7 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0011: Server patch observations](0011-server-patch-observations.md)
 
 - [0012: Canonical security domain scope](0012-security-domain-scope.md)
+
+- [0013: Validation by change impact](0013-impact-based-validation.md)
+
+- [0014: Retire application login](0014-retire-application-login.md)

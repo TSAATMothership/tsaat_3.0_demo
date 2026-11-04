@@ -1,4 +1,5 @@
-import { hasWorkspaceScope, resolveCopView, WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
+import { redirect } from "next/navigation";
+import { hasWorkspaceScope, postureReplacementHref, resolveCopView, WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
 import { ServiceImpactAnalyser } from "@/components/service-impact-analyser";
 import { buildServiceImpactModel } from "@/lib/service-impact";
 import {
@@ -17,7 +18,6 @@ import { extractDataDateParam, todayDateKey } from "@/lib/data-date";
 import { getCoreAppData } from "@/lib/app-data";
 import { ASSET_TYPES, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { applyAssetFilters } from "@/lib/selectors";
-import { resolveNetworkImpactAssetFilter } from "@/lib/network-impact-navigation";
 import { SpiDefinition } from "@/lib/spi-definitions";
 import { Asset, ComplianceStatus, Criticality, Finding, FindingSeverity } from "@/lib/types";
 
@@ -793,6 +793,8 @@ export default async function CyberCopPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  const requestedView = Array.isArray(searchParams.copView) ? searchParams.copView[0] : searchParams.copView;
+  if (requestedView === "network-impact-analyser") redirect(postureReplacementHref("/networks", searchParams));
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />;
 
   if (resolveCopView(searchParams.copView) === "impact") {
@@ -814,9 +816,6 @@ export default async function CyberCopPage({
   );
 
   const filteredAssets = applyAssetFilters(dataset.assets, systems, filters);
-  const networkImpactAsset = resolveCopView(searchParams.copView) === "network-impact-analyser"
-    ? resolveNetworkImpactAssetFilter(searchParams.impactAssetId, filteredAssets, networks)
-    : null;
   const filteredAssetsById = new Map(filteredAssets.map((asset) => [asset.id, asset]));
   const allAssetsById = new Map(dataset.assets.map((asset) => [asset.id, asset]));
   const highRiskCvesByAssetId = buildHighRiskCveIndexByAssetId(filteredAssets);
@@ -954,9 +953,9 @@ export default async function CyberCopPage({
       className="workspace-page"
     >
       <RouteReadyMarker pathname="/cyber-cop" searchParams={searchParams} />
-      <h1 className="workspace-view-title">{WORKSPACE_GROUPS[0].items.find((item) => item.href === (resolveCopView(searchParams.copView) === "overview" ? "/cyber-cop" : `/cyber-cop?copView=${resolveCopView(searchParams.copView)}`))?.label}</h1>
+      <h1 className="workspace-view-title">{WORKSPACE_GROUPS.flatMap((group) => group.items).find((item) => item.href === (resolveCopView(searchParams.copView) === "overview" ? "/cyber-cop" : `/cyber-cop?copView=${resolveCopView(searchParams.copView)}`))?.label}</h1>
       <CyberCopDashboard
-        key={`${resolveCopView(searchParams.copView)}:${filters.managedNetwork ?? ""}:${filters.ictSystem ?? ""}:${dataset.snapshotDate}:${networkImpactAsset?.assetId ?? ""}`}
+        key={`${resolveCopView(searchParams.copView)}:${filters.managedNetwork ?? ""}:${filters.ictSystem ?? ""}:${dataset.snapshotDate}`}
         activeTab={resolveCopView(searchParams.copView)}
         snapshotDate={dataset.snapshotDate}
         filtersSlot={
@@ -969,8 +968,7 @@ export default async function CyberCopPage({
             />
           </div>
         }
-        networkOptions={networks.map(({ id, name }) => ({ id, name }))}
-        networkImpactAsset={networkImpactAsset}
+        ictSystemOptions={systems.map(({ id, name }) => ({ id, name }))}
         spiDefinitions={spiDefinitions}
         complianceScoreCards={complianceScoreCards}
         riskProfile={{

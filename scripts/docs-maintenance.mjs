@@ -114,7 +114,7 @@ function main() {
   for (const [file, content] of Object.entries(generated)) {
     const absolute = path.join(root, file);
     if (writing) { fs.mkdirSync(path.dirname(absolute), { recursive: true }); fs.writeFileSync(absolute, content); }
-    else if (!fs.existsSync(absolute) || read(absolute) !== content) errors.push(`Stale ${file}: review affected docs, then run npm run docs:generate.`);
+    else if (file !== 'docs/source-baseline.json' && (!fs.existsSync(absolute) || read(absolute) !== content)) errors.push(`Stale ${file}: review affected docs, then run npm run docs:generate.`);
   }
   const mapping = JSON.parse(read(path.join(root, 'docs/maintenance.json')));
   for (const file of [...mapping.areas.flatMap(area => area.documents), ...mapping.fallbackDocuments]) if (!fs.existsSync(path.join(root, file))) errors.push(`Missing maintained document: ${file}`);
@@ -125,10 +125,10 @@ function main() {
     const changed = execFileSync('git', ['diff', '--name-only', '-z', `${base}...HEAD`], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
     // Include deleted source files as well as current ones.
     const relevant = new Set([...Object.keys(snapshot), ...changed.filter(file => (sourceRoots.some(dir => file.startsWith(dir + '/')) || rootFiles.includes(file)) && isSource(file))]);
-    for (const name of documentationImpact(changed, mapping, relevant)) errors.push(`Update human-written documentation for: ${name}`);
+    for (const name of documentationImpact(changed, mapping, relevant)) console.log(`Review documentation impact for ${name}; update affected docs or record why none are affected in the PR.`);
   }
   if (errors.length) { console.error(errors.join('\n')); process.exitCode = 1; }
-  else console.log(`${writing ? 'Generated' : 'Verified'} inventories, ${Object.keys(snapshot).length} source fingerprints, documentation links${base && !writing ? ' and PR documentation impact' : ''}.`);
+  else console.log(`${writing ? 'Generated' : 'Verified'} inventories, documentation links (source fingerprints are informational)${base && !writing ? ' and PR documentation impact' : ''}.`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

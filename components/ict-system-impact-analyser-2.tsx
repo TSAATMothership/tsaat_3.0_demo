@@ -266,7 +266,7 @@ function MultiSelectFilter<T extends string>({
   return (
     <div
       data-impact-analyser-multi-filter={label}
-      className="relative flex h-8 shrink-0 items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
+      className="relative flex min-h-8 max-w-full flex-wrap items-center gap-2 whitespace-nowrap text-[11px] uppercase tracking-[0.12em] text-slate-300/80"
       onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
     >
       <span>{label}</span>
@@ -274,7 +274,7 @@ function MultiSelectFilter<T extends string>({
         type="button"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
-        className={`${widthClassName} flex h-8 items-center justify-between gap-2 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/50`}
+        className={`${widthClassName} flex h-8 max-w-full items-center justify-between gap-2 rounded-md border border-sky-300/25 bg-slate-900/90 px-2 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/50`}
       >
         <span className="truncate">{multiFilterLabel(selectedValues, formatOption)}</span>
         <span className="text-[10px] text-slate-400">{isOpen ? "Close" : "Select"}</span>
@@ -488,8 +488,8 @@ export function IctSystemImpactAnalyser2Chart({
   onSelectedNodeChange,
   onLoadStateChange,
   extraControls,
-  diagramOverlay,
-  hideFilterRow = false,
+  initialEnvironments = [],
+  initialFindingSeverities = [],
   onRetry
 }: {
   embedded?: boolean;
@@ -516,8 +516,8 @@ export function IctSystemImpactAnalyser2Chart({
   onSelectedNodeChange?: (node: ImpactAnalyser2SelectedNode | null) => void;
   onLoadStateChange?: (loadState: ImpactAnalyser2LoadState) => void;
   extraControls?: ReactNode;
-  diagramOverlay?: ReactNode;
-  hideFilterRow?: boolean;
+  initialEnvironments?: readonly ImpactAnalyser2EnvironmentOption[];
+  initialFindingSeverities?: readonly ImpactAnalyser2FindingCriticalityOption[];
   onRetry?: () => void;
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
@@ -550,11 +550,11 @@ export function IctSystemImpactAnalyser2Chart({
   const [securityDomainOptions, setSecurityDomainOptions] = useState<SecurityDomain[]>([]);
   const [assetTypeOptions, setAssetTypeOptions] = useState<CanonicalAssetType[]>([]);
   const [dependentIctSystemOptions, setDependentIctSystemOptions] = useState<string[]>([]);
-  const [selectedEnvironments, setSelectedEnvironments] = useState<ImpactAnalyser2EnvironmentOption[]>([]);
+  const [selectedEnvironments, setSelectedEnvironments] = useState<ImpactAnalyser2EnvironmentOption[]>(() => [...initialEnvironments]);
   const [selectedSecurityDomains, setSelectedSecurityDomains] = useState<SecurityDomain[]>([]);
   const [selectedAssetTypes, setSelectedAssetTypes] = useState<CanonicalAssetType[]>([]);
   const [selectedDependentIctSystems, setSelectedDependentIctSystems] = useState<string[]>([]);
-  const [selectedFindingCriticalities, setSelectedFindingCriticalities] = useState<ImpactAnalyser2FindingCriticalityOption[]>([]);
+  const [selectedFindingCriticalities, setSelectedFindingCriticalities] = useState<ImpactAnalyser2FindingCriticalityOption[]>(() => [...initialFindingSeverities]);
   const [diagramSearch, setDiagramSearch] = useState("");
   const [selectedSearchOption, setSelectedSearchOption] = useState<ImpactAnalyser2SelectedSearchOption | null>(null);
   const [isDiagramSearchFocused, setIsDiagramSearchFocused] = useState(false);
@@ -1173,9 +1173,7 @@ export function IctSystemImpactAnalyser2Chart({
     applyQueuedDiagramViewportAction(workerResult);
   }, [workerResult, applyQueuedDiagramViewportAction]);
 
-  useEffect(() => {
-    setSelectedEnvironments((current) => current.filter((environment) => environmentOptions.includes(environment)));
-  }, [environmentOptions]);
+  // Retain an explicit environment even when it has no rows; do not silently broaden to All.
 
   useEffect(() => {
     setSelectedSecurityDomains((current) => current.filter((domain) => securityDomainOptions.includes(domain)));
@@ -1735,22 +1733,21 @@ export function IctSystemImpactAnalyser2Chart({
         <div className="flex min-w-0 shrink-0 flex-col gap-2">
           <div className="min-w-0">
             <h3
-              className="inline-block whitespace-nowrap text-sm uppercase tracking-[0.14em] text-slate-100"
+              className="inline-block text-sm uppercase tracking-[0.14em] text-slate-100"
               title={headingTooltip}
             >
               {title}
             </h3>
           </div>
-          {!hideFilterRow ? (
-            <div
-              data-impact-analyser-filter-row={diagramMode}
-              className="flex w-full min-w-0 flex-nowrap items-start justify-start gap-2 overflow-visible"
-            >
-            <div className="relative flex h-8 shrink-0 items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
+          <div
+            data-impact-analyser-filter-row={diagramMode}
+            className="flex w-full min-w-0 flex-wrap items-start justify-start gap-2 overflow-visible"
+          >
+            <div className="relative flex min-h-8 max-w-full flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-300/80">
               <label htmlFor={diagramSearchInputId} className="whitespace-nowrap">
                 Text Search
               </label>
-              <div className="relative w-52 shrink-0">
+              <div className="relative w-52 max-w-full">
                 <input
                   id={diagramSearchInputId}
                   type="search"
@@ -1838,7 +1835,7 @@ export function IctSystemImpactAnalyser2Chart({
             </div>
             <MultiSelectFilter
               label="Environment"
-              options={environmentOptions}
+              options={Array.from(new Set([...environmentOptions, ...selectedEnvironments])).sort(sortEnvironmentLabel)}
               selectedValues={selectedEnvironments}
               onChange={(values) => {
                 setSelectedEnvironments(values);
@@ -1911,19 +1908,10 @@ export function IctSystemImpactAnalyser2Chart({
               </button>
             ) : null}
             {extraControls}
-            </div>
-          ) : null}
+          </div>
         </div>
 
         <div className="relative mt-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-sky-300/15 bg-slate-950/45 p-2">
-          {diagramOverlay ? (
-            <div
-              data-impact-analyser-diagram-overlay="true"
-              className="absolute inset-0 z-50 min-h-0 min-w-0 bg-slate-950"
-            >
-              {diagramOverlay}
-            </div>
-          ) : null}
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
             <p
               data-impact-analyser-filtered-row-count={workerResult?.filteredRowCount ?? ""}

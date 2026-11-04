@@ -30,3 +30,6 @@ Retired network-status/discovery-by-network presentation modules are removed. Cu
 
 
 All Discovery views additionally honor the global Security Domain scope. Endpoint, software, vulnerability and patch rows filter using the endpoint domain; model lists use their own domain. End Point Explorer table and workbook expose Security Domain. Overview counts and destination links retain the same applied domain and selected snapshot.
+
+
+Discovery Overview now provides Download overview PDF. The generated report includes every overview section, vector charts and tables, a per-tool coverage report-card chart, shared suggested actions and calculation notes. It preserves header scope/domains and the actual snapshot, including empty results. See [report design and contract](../docs/discovery-overview-report.md).
