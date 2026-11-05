@@ -1661,3 +1661,4 @@ Apply approved missing upgrades only; 026 contains demonstration metadata.
 | [028_security_vulnerability_explorer.sql](../../Database%20Schema/migrations/028_security_vulnerability_explorer.sql) | ed0b97849ea1239d01f4f07e0cfeb23e53ab2db97239cdb8c1edbba59b2842da |
 | [029_patch_management_explorer.sql](../../Database%20Schema/migrations/029_patch_management_explorer.sql) | 2be23efa47df491ead314674ed95d7abfe784245942c355ad525c0e438bb466c |
 | [030_security_domains.sql](../../Database%20Schema/migrations/030_security_domains.sql) | e408cbb2f53a8ccf75a2c2e68215be71916e432f253ee819a527fa2db2ac1a60 |
+| [031_persona_navigation_settings.sql](../../Database%20Schema/migrations/031_persona_navigation_settings.sql) | 0c5dabbd96dc120e4238533777c8bac3c19a742c6b9de0b6e8950a0f55be7436 |

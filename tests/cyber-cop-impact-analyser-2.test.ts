@@ -1006,20 +1006,20 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
 
     const actionMarker = 'data-impact-analyser-node-action="compliance"';
     const actionMarkerIndex = component.indexOf(actionMarker);
-    const actionStart = component.lastIndexOf("<button", actionMarkerIndex);
-    const actionEnd = component.indexOf("</button>", actionMarkerIndex);
+    const actionStart = component.lastIndexOf("<PersonaPopupButton", actionMarkerIndex);
+    const actionEnd = component.indexOf("</PersonaPopupButton>", actionMarkerIndex);
     expect(actionMarkerIndex).toBeGreaterThanOrEqual(0);
     expect(actionStart).toBeGreaterThanOrEqual(0);
     expect(actionEnd).toBeGreaterThan(actionMarkerIndex);
-    const actionButton = component.slice(actionStart, actionEnd + "</button>".length);
-    expect(actionButton).toContain('<button');
+    const actionButton = component.slice(actionStart, actionEnd + "</PersonaPopupButton>".length);
+    expect(actionButton).toContain('<PersonaPopupButton popup="asset-compliance"');
     expect(actionButton).toContain("ref={complianceTriggerRef}");
     expect(actionButton).toContain('type="button"');
     expect(actionButton).toContain(actionMarker);
     expect(actionButton).toContain(
       'aria-label={`Open Compliance View for ${complianceNodeAction.assetName}`}'
     );
-    expect(actionButton).toMatch(/>\s*C\s*<\/button>/);
+    expect(actionButton).toMatch(/>\s*C\s*<\/PersonaPopupButton>/);
 
     expect(component).toContain('type ImpactAnalyser2ActionHit = "none" | "spi-findings" | "asset-details"');
     expect(component).not.toContain('"asset-focus"');
@@ -1305,8 +1305,8 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("const canOpenAssetDetails = useCallback");
     expect(component).toContain('if (isRelationshipDiagramMode && axisKey === "relatedAsset")');
     expect(component).toContain("relatedAssetMetaById.has(value)");
-    expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value))");
-    expect(component).toContain("if (isSelected && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11)");
+    expect(component).toContain("if (isSelected && cmdbAllowed && canOpenAssetDetails(axis.key, value))");
+    expect(component).toContain("if (isSelected && cmdbAllowed && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11)");
     expect(component).not.toContain('context.fillText("F"');
     expect(component).toContain('context.fillText("D"');
     expect(component).not.toContain("Open CI Analyser for ${displayNodeLabel(hit.node.axisKey, hit.node.value)}");

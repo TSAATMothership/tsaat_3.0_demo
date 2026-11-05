@@ -1,5 +1,9 @@
 "use client";
 
+import { PersonaPopup } from "@/components/persona-popup";
+
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { ServiceImpactFindingsPanel } from "@/components/service-impact-findings-panel";
@@ -36,7 +40,10 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
 }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
+  const fullScreenButton = useRef<HTMLButtonElement>(null);
   const svg = useRef<SVGSVGElement>(null);
+  const [fullScreen, setFullScreen] = useState(false);
+  const [controlsExpanded, setControlsExpanded] = useState(false);
   const baseGraph = useMemo(() => buildServiceImpactGraph(model, systemIds), [model, systemIds]);
   const scopeSummary = useMemo(() => selectServiceImpact(model, systemIds), [model, systemIds]);
   const severityOptions = useMemo(() => [...new Map([...model.severities, ...model.findings.map(row => ({ key: row.severity,
@@ -163,19 +170,33 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
   const endDrag = () => { suppressClick.current = drag.current?.moved ?? false; drag.current = null; };
   if (!mounted) return null;
   return createPortal(<>
-    <dialog ref={dialog} className="settings-popup service-impact-graph-popup" aria-labelledby={`${id}-title`} data-impact-layout={layoutKind} data-impact-animating={animating}
-      onCancel={event => { event.preventDefault(); onClose(); }}>
+    <dialog ref={dialog} className={`settings-popup service-impact-graph-popup${fullScreen ? " is-fullscreen" : ""}${controlsExpanded ? "" : " is-controls-minimised"}`} aria-labelledby={`${id}-title`} data-impact-layout={layoutKind} data-impact-animating={animating}
+      onCancel={event => {
+        event.preventDefault();
+        if (fullScreen) { setFullScreen(false); fullScreenButton.current?.focus(); }
+        else onClose();
+      }}>
       <div className="settings-popup-frame">
         <header className="impact-graph-header"><div><p className="endpoint-eyebrow">Service Impact / Explore selection</p><h2 id={`${id}-title`}>Impact graph</h2>
           <p>{scopeLabel} · {focusLabel} · Snapshot {model.snapshotDate}</p></div>
-          <button type="button" autoFocus className="endpoint-export" aria-label="Close impact graph" onClick={onClose}>Close</button></header>
+          <div className="impact-graph-view-actions">
+            <button type="button" className="endpoint-export" data-impact-toggle-controls aria-expanded={controlsExpanded} aria-controls={`${id}-controls`}
+              onClick={() => setControlsExpanded(current => !current)}>{controlsExpanded ? "Hide filters & layout" : "Show filters & layout"}</button>
+            <button ref={fullScreenButton} type="button" className="endpoint-export" data-impact-fullscreen aria-pressed={fullScreen}
+              aria-label={fullScreen ? "Exit full screen" : "Enter full screen"} onClick={() => setFullScreen(current => !current)}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d={fullScreen ? "M9 3v6H3m12-6v6h6M3 15h6v6m12-6h-6v6" : "M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"} />
+              </svg>{fullScreen ? "Exit full screen" : "Full screen"}
+            </button>
+            <button type="button" autoFocus className="endpoint-export" aria-label="Close impact graph" onClick={onClose}>Close</button>
+          </div></header>
         <div className="impact-graph-summary" aria-label="Filtered graph totals">
           <span><strong>{number(summary.systems)}</strong> ICT systems</span><span><strong>{number(summary.findings)}</strong> matching findings</span>
           <span className="service-impact-critical"><strong>{number(summary.critical)}</strong> critical</span><span className="service-impact-high"><strong>{number(summary.high)}</strong> high</span>
           <span><strong>{number(summary.affectedCis)}</strong> affected CIs</span>
           <button type="button" className="service-impact-link" disabled={!summary.findings} onClick={() => setDetails("all")}>View filtered findings ↗</button>
         </div>
-        <div className="impact-graph-controls" aria-label="Risk filters and layout">
+        <div id={`${id}-controls`} className="impact-graph-controls" aria-label="Risk filters and layout" hidden={!controlsExpanded}>
           <section className="impact-graph-control-group impact-graph-filter-group" aria-labelledby={`${id}-filters`}>
             <header><h3 id={`${id}-filters`}>Filters</h3><button type="button" className="service-impact-link" data-impact-reset-filters onClick={resetRiskFilters}>Reset filters</button></header>
             <div className="impact-graph-filter-fields">
@@ -290,7 +311,7 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
               <dl><div><dt>Matching findings</dt><dd data-impact-selected-findings>{number(selected.findings)}</dd></div><div><dt>Affected CIs</dt><dd>{number(selected.affectedCis)}</dd></div></dl>
               <dl className="impact-graph-severity-breakdown" aria-label="Selected severity findings">{selectedSeverityOptions.map(option =>
                 <div key={option.key}><dt>{option.label}</dt><dd>{number(selected.severities[option.key] ?? 0)}</dd></div>)}</dl>
-              <button type="button" className="endpoint-export" disabled={!selected.findings} onClick={() => setDetails(selected)}>View findings &amp; CIs ↗</button>
+              <PersonaPopupButton popup="impact-details" type="button" className="endpoint-export" disabled={!selected.findings} onClick={() => setDetails(selected)}>View findings &amp; CIs ↗</PersonaPopupButton>
               {selected.kind === "system" && <button type="button" className="endpoint-export" disabled={!selected.affectedCis || focus} aria-pressed={expanded.includes(selected.sourceId)} onClick={() => {
                 setExpanded(current => current.includes(selected.sourceId) ? current.filter(value => value !== selected.sourceId) : [...current, selected.sourceId]); resetCamera();
               }}>{expanded.includes(selected.sourceId) ? "Collapse" : "Expand"} affected CIs ({number(selected.affectedCis)})</button>}
@@ -303,6 +324,6 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
         </div>
       </div>
     </dialog>
-    {details && <ServiceImpactFindingsPanel title={details === "all" ? "Findings matching graph risk filters" : details.name} findings={details === "all" ? summary.findingRows : details.findingRows} model={model} onClose={() => setDetails(null)} />}
+    {details && <PersonaPopup popup="impact-details"><ServiceImpactFindingsPanel title={details === "all" ? "Findings matching graph risk filters" : details.name} findings={details === "all" ? summary.findingRows : details.findingRows} model={model} onClose={() => setDetails(null)} /></PersonaPopup>}
   </>, document.body);
 }

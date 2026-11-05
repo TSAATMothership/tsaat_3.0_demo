@@ -9,6 +9,7 @@ import { DatabaseSettingsPanel } from "@/components/database-settings-panel";
 import { SettingsTabs, type SettingsTabId } from "@/components/settings-tabs";
 import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
+import { PersonasSettingsPanel } from "@/components/personas-settings-panel";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 
 type SpiMatrixSettings = Omit<ComponentProps<typeof MeasuresSettingsMatrix>, "activeMatrix">;
@@ -91,7 +92,7 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
 
   if (!mounted) return null;
   return createPortal(
-    <dialog ref={dialogRef} className="settings-popup" aria-labelledby="settings-popup-title"
+    <dialog ref={dialogRef} className={`settings-popup${activeTab === "personas" ? " is-personas" : ""}`} aria-labelledby="settings-popup-title"
       onCancel={(event) => { event.preventDefault(); onClose(); }}>
       <div className="settings-popup-frame">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-sky-300/20 p-5">
@@ -101,8 +102,11 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
           </div>
           <button type="button" autoFocus onClick={onClose} className="rounded border border-sky-300/35 px-3 py-2 text-sm hover:bg-sky-500/10" aria-label="Close settings">Close</button>
         </header>
-        <div className="shrink-0 px-5 pt-4"><SettingsTabs activeTab={activeTab} onSelect={setActiveTab} /></div>
-        <div className="min-h-0 flex-1 overflow-auto p-5">
+        <div className="settings-popup-tabs shrink-0 px-5 pt-4"><SettingsTabs activeTab={activeTab} onSelect={setActiveTab} /></div>
+        <div className="settings-popup-body min-h-0 flex-1 overflow-auto p-5">
+          <div role="tabpanel" id="settings-panel-personas" aria-labelledby="settings-tab-personas" hidden={activeTab !== "personas"}>
+            <PersonasSettingsPanel />
+          </div>
           <div role="tabpanel" id="settings-panel-database-settings" aria-labelledby="settings-tab-database-settings" hidden={activeTab !== "database-settings"}>
             {IS_JSON_BUILD ? <JsonStorageSettingsPanel /> : settings ? <DatabaseSettingsPanel initialSettings={settings} /> : error ? (
               <div className="panel p-5"><p role="alert">{error}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setRetry((value) => value + 1)}>Retry</button></div>

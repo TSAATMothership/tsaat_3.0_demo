@@ -33,5 +33,7 @@ export const loadMeasuresSettings = provider.loadMeasuresSettings;
 export const saveMeasuresSettings = provider.saveMeasuresSettings;
 export const loadDiscoveryToolsSettings = provider.loadDiscoveryToolsSettings;
 export const saveDiscoveryToolsSettings = provider.saveDiscoveryToolsSettings;
+export const loadPersonaSettings = provider.loadPersonaSettings;
+export const savePersonaSettings = provider.savePersonaSettings;
 export const clearDataLoaderCaches = provider.clearDataLoaderCaches;
 export const __resetDataLoaderCachesForTest = provider.__resetDataLoaderCachesForTest;

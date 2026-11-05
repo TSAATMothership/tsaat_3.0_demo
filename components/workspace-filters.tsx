@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { activeWorkspaceItem, sameWorkspaceScope, scopeIds, updateWorkspaceScope, workspaceHref, workspaceScopeUpdateHref } from "@/lib/workspace-navigation";
 import { buildLocationKey } from "@/lib/location-key";
 import { startRouteLoading } from "@/lib/route-loading";
+import { usePersona } from "@/components/persona-provider";
+import { PERSONAS } from "@/lib/personas";
 import { matchesSecurityDomain, SECURITY_DOMAINS, securityDomainSelection, type SecurityDomain } from "@/lib/security-domain.mjs";
 
 interface Option { id: string; label: string; securityDomain?: SecurityDomain }
@@ -74,6 +76,7 @@ function ScopeSelect({ label, options, selected, pending, loading, error, onChan
 }
 
 export function WorkspaceFilters({ dataDate }: { dataDate: string }) {
+  const { activePersona } = usePersona();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
@@ -119,6 +122,10 @@ export function WorkspaceFilters({ dataDate }: { dataDate: string }) {
     startTransition(() => router.replace(href, { scroll: false }));
   };
   return <div className="flex min-w-0 flex-wrap gap-2" aria-busy={pending}>
+    <div className="workspace-persona" role="status" aria-live="polite" aria-atomic="true" title="Change persona in Menu → Settings → Personas">
+      <span className="workspace-field-label">Persona</span>
+      <span data-active-persona>{PERSONAS.find(persona => persona.id === activePersona)?.label ?? "All sections (no persona)"}</span>
+    </div>
     <ScopeSelect label="Security Domain" options={SECURITY_DOMAINS.map(domain => ({ id: domain, label: domain }))} selected={selectedDomains} pending={pending} loading={false} error="" onChange={ids => change("securityDomain", ids)} onUpdate={currentDraft?.edited === "securityDomain" ? applyDraft : undefined} allowSelectAll />
     <ScopeSelect label="Managed Network" options={options.networks.filter(option => matchesSecurityDomain(option.securityDomain, selectedDomains) || scopeIds(selectedParams.getAll("network")).includes(option.id))} selected={scopeIds(selectedParams.getAll("network"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("network", ids)} onUpdate={currentDraft?.edited === "network" ? applyDraft : undefined} allowSelectAll />
     <ScopeSelect label="ICT System" options={options.systems.filter(option => matchesSecurityDomain(option.securityDomain, selectedDomains) || scopeIds(selectedParams.getAll("system")).includes(option.id))} selected={scopeIds(selectedParams.getAll("system"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("system", ids)} onUpdate={currentDraft?.edited === "system" ? applyDraft : undefined} />

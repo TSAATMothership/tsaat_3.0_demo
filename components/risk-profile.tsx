@@ -1,6 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { PersonaPopup } from "@/components/persona-popup";
+
+import Link from "@/components/persona-link";
 import Papa from "papaparse";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ComplianceHeatmap } from "@/components/compliance-heatmap";
@@ -174,7 +176,7 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
       <section role="tabpanel" id={`${idPrefix}-panel-heatmap`} aria-labelledby={`${idPrefix}-tab-heatmap`} hidden={activeTab !== "heatmap"}>
         <ComplianceHeatmap model={model.heatmap} active={activeTab === "heatmap"} />
       </section>
-      {!isSystem && selectedRow?.networkDetails && <NetworkDetailsPanel network={selectedRow.networkDetails} snapshotDate={model.snapshotDate} securityDomain={filters.securityDomain} onClose={() => setSelectedEntityId(null)} />}
-      {isSystem && selectedRow?.systemDetails && <IctSystemDetailsPanel system={selectedRow.systemDetails} snapshotDate={model.snapshotDate} securityDomain={filters.securityDomain} onClose={() => setSelectedEntityId(null)} />}
+      {!isSystem && selectedRow?.networkDetails && <PersonaPopup popup="network-details"><NetworkDetailsPanel network={selectedRow.networkDetails} snapshotDate={model.snapshotDate} securityDomain={filters.securityDomain} onClose={() => setSelectedEntityId(null)} /></PersonaPopup>}
+      {isSystem && selectedRow?.systemDetails && <PersonaPopup popup="ict-system-details"><IctSystemDetailsPanel system={selectedRow.systemDetails} snapshotDate={model.snapshotDate} securityDomain={filters.securityDomain} onClose={() => setSelectedEntityId(null)} /></PersonaPopup>}
   </div>;
 }

@@ -6,6 +6,7 @@ import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
+import { PersonaProvider } from "@/components/persona-provider";
 import { APP_NAME } from "@/lib/constants";
 
 const bodyFontClass = "font-['Segoe_UI','Trebuchet_MS','Arial',sans-serif]";
@@ -26,7 +27,7 @@ export default function RootLayout({
       <body className={`${bodyFontClass} antialiased`}>
         <div className="app-bg" />
         <div className="topography-overlay" />
-        <div className="app-workspace-shell">
+        <PersonaProvider><div className="app-workspace-shell">
           <header className="workspace-header no-print">
             <div className="w-full px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-4">
@@ -49,7 +50,7 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <WorkspaceShell><CmdbDrillThroughProvider>{children}</CmdbDrillThroughProvider></WorkspaceShell>
           </Suspense>
-        </div>
+        </div></PersonaProvider>
         <Suspense fallback={null}>
           <FilterLoadingOverlay />
         </Suspense>

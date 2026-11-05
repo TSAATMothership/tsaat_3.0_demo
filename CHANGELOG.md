@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-11-05 - Weekly and monthly Trends history
+
+- Replace snapshot-count history choices with 1 week and 1 month, defaulting to 1 month and ending on the selected header date.
+- Update chart dates/points, baseline comparisons, snapshot inspection and CSV evidence together for the selected period; exclude older and future observations.
+
+## 2026-11-05 - Remove Governance Overview
+
+- Remove Governance Overview from the sidebar and persona page configuration. Governance now starts with Trends, followed by Cyber Terrain Insights.
+- Redirect old Overview bookmarks to Trends while retaining query selections. Discard the retired permission from older persona settings without enabling any replacement page.
+
+## 2026-11-05 - Executive Trends briefing
+
+- Replace the Governance Trends placeholder with an infographic covering compliance, lifecycle and discovery direction, counts and management priorities.
+- Compare 6, 12 or 24 recorded snapshots within the selected scope/date, with interactive charts, explicit evidence gaps, population changes and downloadable CSV evidence.
+- Preserve persona-controlled navigation and support keyboard and narrow-screen use.
+
+## 2026-11-05 - Compact Personas layout
+
+- Group persona permissions into section and popup views, with compact grids, visible Save/Discard actions and more usable dialog space.
+- Use a group selector and Previous/Next permission pages on smaller screens so the controls fit without vertical scrolling at standard laptop and phone sizes.
+
+## 2026-11-05 - Business Reporting persona
+
+- Add Business Reporting to Menu → Settings → Personas with configurable sections, pages and popups, and a browser-remembered active selection in the header.
+- Start the new persona with all options enabled. Preserve existing four-persona configurations on read and reject incomplete saves from stale clients.
+
+## 2026-11-05 - Cyber Terrain Insights navigation label
+
+- Rename the Governance page link from Insights to Cyber Terrain Insights, including its label in Personas settings.
+
+## 2026-11-05 - Focused persona configuration
+
+- Show only the selected persona's configuration in Menu → Settings → Personas. Keep unsaved edits when switching personas and save or discard them together.
+- Display the active persona immediately to the left of Security Domain in the header, while keeping persona selection exclusively in Settings.
+
+## 2026-11-05 - Discovery Life Cycle Management
+
+- Add a server attention queue and hardware warranty, software support and OS-version registers under Discovery.
+- Highlight overlapping lifecycle issues, include exactly N-2 and older OS versions, and distinguish missing evidence from confirmed problems.
+- Preserve scope/snapshot and persona controls; support keyboard navigation, narrow layouts and matching CSV exports using existing SQL/JSON evidence.
+
+## 2026-11-05 - Impact graph view controls
+
+- Add a Full screen / Exit full screen toggle to expand the Impact graph across the browser window and restore its normal dialog size. Escape exits full screen before closing the graph.
+- Minimise Filters and Layout & view by default, with a Show/Hide filters & layout toggle. Both view toggles preserve filters, graph layout, node selection, zoom, pan and applied scope/date.
+
+## 2026-11-05 - Persona pages and popup permissions
+
+- Configure individual sidebar pages within each section, with mixed-state section checkboxes. Disable drill-through links to unavailable pages, including new-tab links.
+- Configure twelve popup families independently of page visibility; disable their buttons/chart actions while keeping Menu and Settings available.
+- Upgrade existing section-only settings without changing their visible pages or popup behavior. Both providers write version 2 only on explicit save; no additional SQL migration is required.
+
+## 2026-11-05 - Persona navigation settings
+
+- Add Menu → Settings → Personas for Analyst, Life Cycle Management, Configuration Management and DSOC Analyst, with per-section checkboxes, Show all/Hide all, Save and Discard.
+- Keep persona selection and configuration exclusively in Menu → Settings → Personas. The browser-remembered selection filters the left navigation while preserving scope, date, direct page access and access to Settings. All sections are enabled initially.
+- Persist shared configurations in both providers: SQL forward migration 031 and an optional No-SQL persona settings file created on the first save. Preserve existing stores, calculations and the login-free access model.
+
 ## 2026-11-04 - Insights infographic PDF
 
 - Add Generate PDF to Governance Insights, with progress and retry handling, preserving applied scope, security domains and snapshot.

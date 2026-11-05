@@ -1,5 +1,7 @@
 import { securityDomainFilter } from "@/lib/security-domain.mjs";
 import { DiscoveryOverview } from "@/components/discovery-overview";
+import { LifeCycleManagement } from "@/components/life-cycle-management";
+import { loadLifeCycleManagement } from "@/lib/life-cycle-management-data";
 import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
 import { initialDiscoveryFilters } from "@/lib/discovery-explorer-links";
 import { emptyEndpointFilters, parseEndpointFilters } from "@/lib/endpoint-explorer";
@@ -36,6 +38,21 @@ const pendingDiscoveryViews: Record<string, string> = {
 export default async function DiscoveryCoveragePage({ searchParams }: { searchParams: WorkspaceSearchParams }) {
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
   const requestedView = Array.isArray(searchParams.discoveryView) ? searchParams.discoveryView[0] : searchParams.discoveryView;
+  if (requestedView === "life-cycle-management") {
+    const ready = <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
+    try {
+      const model = await loadLifeCycleManagement(searchParams);
+      return <>{ready}<LifeCycleManagement model={model} key={JSON.stringify([model.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain])} /></>;
+    } catch {
+      const query = new URLSearchParams({ discoveryView: "life-cycle-management" });
+      for (const key of ["network", "system", "securityDomain", "dataDate"] as const) {
+        const value = searchParams[key]; if (value) query.set(key, Array.isArray(value) ? value.join(",") : value);
+      }
+      return <>{ready}<section className="panel p-5" role="alert"><p className="endpoint-eyebrow">Discovery / Life Cycle Management</p>
+        <h1 className="mt-2 text-2xl font-semibold">Lifecycle evidence is temporarily unavailable</h1><p className="my-4 text-slate-300">The selected inventory snapshot could not be loaded. Retry to refresh the evidence.</p>
+        <a className="endpoint-export" href={`/discovery-coverage?${query}`}>Try again</a></section></>;
+    }
+  }
   if (requestedView === "patch-management") {
     const data = await loadPatchManagementExplorerData(searchParams);
     const initialFilters = initialDiscoveryFilters(searchParams.discoveryFilters, parsePatchFilters, emptyExplorerTableFilters);

@@ -37,7 +37,8 @@ export function sameWorkspaceScope(left: URLSearchParams, right: URLSearchParams
 
 function workspaceViewPathname(pathname: string): string {
   return pathname === "/networks" || pathname.startsWith("/networks/") ? "/network-risk-profile"
-    : pathname === "/systems" || pathname.startsWith("/systems/") ? "/ict-system-risk-profile" : pathname;
+    : pathname === "/systems" || pathname.startsWith("/systems/") ? "/ict-system-risk-profile"
+    : pathname === "/governance/overview" ? "/governance/trends" : pathname;
 }
 
 /** Apply a pending selection to the current sidebar view, preserving its local tab and date. */
@@ -60,43 +61,43 @@ export function postureReplacementHref(pathname: "/networks" | "/systems", searc
   return workspaceScopeUpdateHref(pathname, params);
 }
 
-export interface WorkspaceItem { label: string; href: string; scope?: "network" | "system" }
-export interface WorkspaceGroup { label: string; items: WorkspaceItem[] }
+export interface WorkspaceItem { id: string; label: string; href: string; scope?: "network" | "system" }
+export interface WorkspaceGroup { id: string; label: string; items: WorkspaceItem[] }
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
-  { label: "Governance", items: [
-    { label: "Overview", href: "/governance/overview" },
-    { label: "Trends", href: "/governance/trends" },
-    { label: "Insights", href: "/governance/insights" }
+  { id: "governance", label: "Governance", items: [
+    { id: "governance-trends", label: "Trends", href: "/governance/trends" },
+    { id: "governance-insights", label: "Cyber Terrain Insights", href: "/governance/insights" }
   ] },
-  { label: "Cyber Security", items: [
-    { label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
-    { label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" },
-    { label: "Service Impact Analyser", href: "/cyber-cop?copView=impact" },
-    { label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
-    { label: "ICT System Dependencies", href: "/cyber-cop?copView=ict-system-dependencies", scope: "system" }
+  { id: "cyber-security", label: "Cyber Security", items: [
+    { id: "network-risk-profile", label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
+    { id: "ict-system-risk-profile", label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" },
+    { id: "service-impact", label: "Service Impact Analyser", href: "/cyber-cop?copView=impact" },
+    { id: "ict-system-impact", label: "ICT System Impact Analyser", href: "/cyber-cop?copView=ict-system-impact-analyser", scope: "system" },
+    { id: "ict-system-dependencies", label: "ICT System Dependencies", href: "/cyber-cop?copView=ict-system-dependencies", scope: "system" }
   ] },
-  { label: "Discovery", items: [
-    { label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
-    { label: "Discovery Tool Coverage", href: "/discovery-coverage" },
-    { label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
-    { label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
-    { label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
-    { label: "Security Vulnerability Explorer", href: "/discovery-coverage?discoveryView=security-vulnerabilities" },
-    { label: "Patch Management Explorer", href: "/discovery-coverage?discoveryView=patch-management" },
-    { label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" }
+  { id: "discovery", label: "Discovery", items: [
+    { id: "discovery-overview", label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
+    { id: "discovery-tools", label: "Discovery Tool Coverage", href: "/discovery-coverage" },
+    { id: "discovery-compliance", label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
+    { id: "discovery-endpoints", label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
+    { id: "discovery-software", label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
+    { id: "discovery-vulnerabilities", label: "Security Vulnerability Explorer", href: "/discovery-coverage?discoveryView=security-vulnerabilities" },
+    { id: "discovery-patches", label: "Patch Management Explorer", href: "/discovery-coverage?discoveryView=patch-management" },
+    { id: "discovery-life-cycle", label: "Life Cycle Management", href: "/discovery-coverage?discoveryView=life-cycle-management" },
+    { id: "discovery-shadow-it", label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" }
   ] },
-  { label: "Observed Measures", items: [
-    { label: "Measures Summary", href: "/measures" },
-    { label: "Key Performance Indicators (KPIs)", href: "/measures?measuresTab=measures-kpi" },
-    { label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" }
+  { id: "observed-measures", label: "Observed Measures", items: [
+    { id: "measures-summary", label: "Measures Summary", href: "/measures" },
+    { id: "measures-kpi", label: "Key Performance Indicators (KPIs)", href: "/measures?measuresTab=measures-kpi" },
+    { id: "measures-spi", label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" }
   ] },
-  { label: "Findings", items: [
-    { label: "Findings Register", href: "/findings" }
+  { id: "findings", label: "Findings", items: [
+    { id: "findings-register", label: "Findings Register", href: "/findings" }
   ] }
 ];
 export const WORKSPACE_LINKS: WorkspaceItem[] = [
-  { label: "Briefs & Reports", href: "/report" }
+  { id: "briefs-reports", label: "Briefs & Reports", href: "/report" }
 ];
 
 export const COP_VIEWS = ["overview", "impact", "ict-system-impact-analyser", "ict-system-dependencies"] as const;

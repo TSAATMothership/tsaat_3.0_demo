@@ -1,5 +1,9 @@
 "use client";
 
+import { PersonaPopup } from "@/components/persona-popup";
+
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -92,13 +96,13 @@ export function NetworkRiskTrend({ model, active }: { model: RiskProfileModel; a
   return <section className="discovery-overview-panel" aria-labelledby="network-risk-trend-title">
     <header><h2 id="network-risk-trend-title">Critical &amp; high findings over time</h2>
       <div className="network-risk-trend-actions"><TrendPeriod days={days} onChange={setDays} />
-        <button type="button" className="settings-open-button" aria-haspopup="dialog" aria-expanded={expanded && active}
-          aria-label="Expand critical and high findings chart" onClick={() => setExpanded(true)}>Expand chart <span aria-hidden="true">↗</span></button>
+        <PersonaPopupButton popup="risk-trend" type="button" className="settings-open-button" aria-haspopup="dialog" aria-expanded={expanded && active}
+          aria-label="Expand critical and high findings chart" onClick={() => setExpanded(true)}>Expand chart <span aria-hidden="true">↗</span></PersonaPopupButton>
       </div></header>
     <p className="discovery-overview-note">Recorded opening and closure dates, ending at the selected snapshot.</p>
     <TrendLegend />
     {active && <TrendChart points={points} snapshotDate={model.snapshotDate} />}
     <UndatedFindings count={model.trend.undated} />
-    {expanded && active && <TrendPopup model={model} points={points} days={days} onChange={setDays} onClose={() => setExpanded(false)} />}
+    {expanded && active && <PersonaPopup popup="risk-trend"><TrendPopup model={model} points={points} days={days} onChange={setDays} onClose={() => setExpanded(false)} /></PersonaPopup>}
   </section>;
 }

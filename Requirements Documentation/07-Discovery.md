@@ -1,8 +1,10 @@
 # Discovery workspace
 
+Life Cycle Management follows Patch Management Explorer, highlighting servers with overlapping expired warranties, unsupported software and OS at N-2 or older. Hardware, software and OS registers expose the evidence and unknowns. Scope/snapshot and Personas controls apply. See [lifecycle rules and priority order](16-Life-Cycle-Management.md).
+
 Current contract: TSAAT UI 3 baseline, 2026-11-03. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 
-Current sidebar views are Overview, Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Patch Management Explorer and Shadow IT Explorer. They share applied header scope and snapshot. Target State Analyser is not a navigation page; compatibility report/template APIs may remain.
+Current sidebar views are Overview, Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Patch Management Explorer, Life Cycle Management and Shadow IT Explorer. They share applied header scope and snapshot. Target State Analyser is not a navigation page; compatibility report/template APIs may remain.
 
 Security Vulnerability Explorer follows Installed Software Explorer and maps CVE code, name, description, detection date, CVE creation/reservation date and remediation action to the same endpoint/OS context. It also shows affected software/version and evidence source. Search, column facets, pagination, CMDB links and filtered Excel export use shared patterns. Unknown metadata stays Not recorded. Public CVE mappings use exact reviewed installed versions and visibly distinguish inferred sample exposure from scanner observations. See the [feature, provenance and rollout contract](../docs/security-vulnerability-explorer.md).
 

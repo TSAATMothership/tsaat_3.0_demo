@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/persona-link";
 import { FindingsDurationPanel, severityBarColors } from "@/components/findings-duration-panel";
 import { IndicatorReviewScroll } from "@/components/indicator-review-scroll";
 import { OpenSettingsButton } from "@/components/open-settings-button";

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/components/persona-link";
 import type { CSSProperties, ReactNode } from "react";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { insightsHref } from "@/lib/governance-insights";

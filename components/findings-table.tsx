@@ -1,5 +1,8 @@
 "use client";
 
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+import { usePersonaAccess } from "@/components/persona-provider";
+
 import { FindingsDataTable } from "@/components/findings-data-table";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -74,6 +77,7 @@ export function FindingsTable({
   assetDetailsByAssetId?: Record<string, AssetDeviceDetails>;
 }) {
   const [exporting, setExporting] = useState(false);
+  const { canOpenPopup } = usePersonaAccess();
   const [exportError, setExportError] = useState("");
   const [selectedFindingForAssets, setSelectedFindingForAssets] = useState<Finding | null>(null);
   const [isAssetDetailsPanelVisible, setIsAssetDetailsPanelVisible] = useState(false);
@@ -238,13 +242,13 @@ renderRow={(finding) => {
                 return (
                   <tr key={finding.id} className="border-t border-sky-400/10 align-top">
                     <td className="px-3 py-2 text-slate-100">
-                      <button
+                      <PersonaPopupButton popup="affected-cis"
                         type="button"
                         onClick={() => openAssetDetailsPanel(finding)}
                         className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                       >
                         {`SPI ${finding.spiId}-${finding.title}`}
-                      </button>
+                      </PersonaPopupButton>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-slate-200">
                       P{finding.priorityRank}
@@ -282,7 +286,7 @@ renderRow={(finding) => {
                 );
               }} /></div>
 
-        {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
+        {canOpenPopup("affected-cis") && isAssetDetailsPanelVisible && selectedFindingForAssets ? (
           <div className="absolute inset-0 z-[4]">
             <div
               className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${

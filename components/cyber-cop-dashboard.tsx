@@ -1,5 +1,9 @@
 "use client";
 
+import { PersonaPopup } from "@/components/persona-popup";
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+import { usePersonaAccess } from "@/components/persona-provider";
+
 import { type CopView } from "@/lib/workspace-navigation";
 import { ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
@@ -712,7 +716,7 @@ function AssetTypeHeatmapChart({
           {serverAssets.length ? (
             <div className="flex w-full flex-wrap content-start gap-1">
               {serverAssets.map((asset) => (
-                <button
+                <PersonaPopupButton popup="cmdb-details"
                   type="button"
                   key={`asset-heatmap-cell-${asset.id}`}
                   aria-label={`Open CMDB Drill Through for ${asset.name}; Server, ${asset.criticalExposureCount} critical, ${asset.highRiskCount} high`}
@@ -750,6 +754,8 @@ function SpiDriverChart({
   embedded?: boolean;
 }) {
   const [selectedSpiId, setSelectedSpiId] = useState<number | null>(null);
+  const { canOpenPopup } = usePersonaAccess();
+  const findingsAllowed = canOpenPopup("finding-details");
   if (!rows.length) {
     return (
       <section className={chartSurfaceClass(embedded)}>
@@ -772,6 +778,7 @@ function SpiDriverChart({
   const selectedSpiTotalCount = selectedSpiRow?.count ?? selectedSpiFindings.length;
 
   const openSpiDrillThrough = (spiId: number) => {
+    if (!findingsAllowed) return;
     setSelectedSpiId(spiId);
   };
 
@@ -824,7 +831,8 @@ function SpiDriverChart({
                       fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
                       stroke={selected ? "#e2e8f0" : "transparent"}
                       strokeWidth={selected ? 1.4 : 0}
-                      onClick={() => openSpiDrillThrough(row.spiId)}
+                      aria-disabled={!findingsAllowed} style={{ cursor: findingsAllowed ? "pointer" : "not-allowed" }}
+                      onClick={findingsAllowed ? () => openSpiDrillThrough(row.spiId) : undefined}
                     />
                   );
                 })}
@@ -846,7 +854,8 @@ function SpiDriverChart({
                       fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
                       stroke={selected ? "#e2e8f0" : "transparent"}
                       strokeWidth={selected ? 1.4 : 0}
-                      onClick={() => openSpiDrillThrough(row.spiId)}
+                      aria-disabled={!findingsAllowed} style={{ cursor: findingsAllowed ? "pointer" : "not-allowed" }}
+                      onClick={findingsAllowed ? () => openSpiDrillThrough(row.spiId) : undefined}
                     />
                   );
                 })}
@@ -870,7 +879,8 @@ function SpiDriverChart({
                       fillOpacity={selectedSpiId && !selected ? 0.52 : 1}
                       stroke={selected ? "#e2e8f0" : "transparent"}
                       strokeWidth={selected ? 1.4 : 0}
-                      onClick={() => openSpiDrillThrough(row.spiId)}
+                      aria-disabled={!findingsAllowed} style={{ cursor: findingsAllowed ? "pointer" : "not-allowed" }}
+                      onClick={findingsAllowed ? () => openSpiDrillThrough(row.spiId) : undefined}
                     />
                   );
                 })}
@@ -881,7 +891,7 @@ function SpiDriverChart({
       </section>
 
       {selectedSpiId ? (
-        <RiskFindingsDrillThrough
+        <PersonaPopup popup="finding-details"><RiskFindingsDrillThrough
           selection={{
             id: `cyber-cop-spi-driver-${selectedSpiId}`,
             label: `SPI ${selectedSpiId}`,
@@ -895,7 +905,7 @@ function SpiDriverChart({
           assetHighRiskCvesByAssetId={assetHighRiskCvesByAssetId}
           asOfDate={asOfDate}
           onClose={() => setSelectedSpiId(null)}
-        />
+        /></PersonaPopup>
       ) : null}
     </>
   );

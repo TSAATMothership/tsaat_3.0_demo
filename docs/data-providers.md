@@ -1,10 +1,16 @@
 # SQL and No-SQL data providers
 
+Retired Governance Overview permissions are discarded by the shared persona parser in both providers. Older stored configurations remain readable without writes; explicit saves omit only the retired page ID and never grant Trends as a replacement. Existing version-2 payloads, SQL migration 031 and JSON store version 1 remain compatible. See [retirement and upgrade](personas.md#retired-governance-overview).
+
+Business Reporting extends the persona catalogue to five entries. Both providers add the new all-enabled persona only in memory when reading valid original four-persona settings, and require all five on writes to protect against stale clients. SQL migration 031 and persona payload version 2 remain sufficient; existing JSON stores are retained and upgrade only on explicit save. See [persona upgrade and rollback](personas.md#business-reporting). Calculation-contract checksums are unchanged.
+
+Life Cycle Management reads existing lifecycle status, OS support/N-minus and software support through `loadDatasetForDate` with `profile: "full"`; SQL summary loads omit software. Its shared projection adds no query, schema, persisted field, calculation definition or JSON upgrade. Calculation-contract checksums and existing persona page selections remain unchanged.
+
 Removing demo-data notices from Discovery Overview and the patch/vulnerability explorers changes presentation only. Existing source/provenance fields, SQL and JSON records, calculations and exports are retained; no schema, calculation-contract, migration or population change is required.
 
 ## One app, two builds
 
-Governance Overview and Trends remain placeholders. Insights reads existing Discovery Overview and Service Impact projections through the shared facades, with header scope/domains and one resolved snapshot. Its presentation aggregation adds no provider operation, SQL query, schema, persisted calculation, JSON format, migration or sample population. Existing discovery applicability, CVE observation, patch status and finding-classification rules remain authoritative; the SQL/JSON calculation contract is unchanged.
+Governance Overview is retired; old bookmarks redirect to Trends. Trends presents a scoped executive history of compliance, lifecycle and discovery. Insights reads existing Discovery Overview and Service Impact projections through the shared facades, with header scope/domains and one resolved snapshot. Its presentation aggregation adds no provider operation, SQL query, schema, persisted calculation, JSON format, migration or sample population. Existing discovery applicability, CVE observation, patch status and finding-classification rules remain authoritative; the SQL/JSON calculation contract is unchanged.
 
 The Insights PDF uses the same loader and exposes the existing `Dataset.generatedAt` as its recorded snapshot timestamp, normalized to UTC separately from PDF export time. This is the dataset generation timestamp, not a new assertion about each asset's observation time. Missing, invalid or timezone-less values display **Not recorded**. Both SQL and JSON already supply this field; the report requires no schema/JSON upgrade, data population or calculation-contract refresh.
 
@@ -34,6 +40,7 @@ Set TSAAT_JSON_DATA_DIR to an absolute directory, or use NoSQL/data under the wo
 | references/cmdb-attributes.json | Canonical attribute keys, labels and display order for each asset type |
 | settings/measures-settings.json | Current severity and priority matrices, including updatedAt |
 | settings/discovery-tools-settings.json | Current tool applicability settings, including updatedAt |
+| settings/personas.json (optional) | Shared persona sections, pages and independent popup switches, payload schemaVersion 2 and updatedAt; legacy version 1 upgrades in memory, written only on explicit save |
 | settings/history/*.json | Saved setting revisions; current settings files are authoritative |
 | .write-lock | Temporary single-host writer lock, containing PID and start time |
 
@@ -107,3 +114,5 @@ The explicit security-domain migration is an exception to manual bulk-edit downt
 
 
 Discovery Overview PDF reuses the page's snapshot-pinned shared facade loader and pure overview aggregation in both SQL and JSON builds. Domain selection, saved tool applicability, CVE observations, patch status/denominator rules and ARP ownership scope are unchanged. No schema/data migration, settings mutation, source population or NoSQL/calculation-contract.json checksum update is needed. See [report contract](discovery-overview-report.md).
+
+Governance Trends consumes full snapshots through the existing one-month date-window facade, then applies strict inclusive week/calendar-month boundaries ending on the requested header date. This excludes older resolved history and any earliest-snapshot fallback, with no snapshot-count cap. Full SQL profiles retain installed software; JSON snapshots already contain it. The shared presentation reuses SPI results, lifecycle rules and required-tool coverage, with null rates for empty denominators. Current provider rule/settings semantics apply to historical inventory; no SQL/JSON format, migration, persistence or calculation-contract hash changes are needed. See [Trends](../Requirements%20Documentation/17-Governance-Trends.md).

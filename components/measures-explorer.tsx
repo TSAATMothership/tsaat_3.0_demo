@@ -1,5 +1,9 @@
 "use client";
 
+import { PersonaPopup } from "@/components/persona-popup";
+
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+
 import { Fragment, useMemo, useState } from "react";
 import { FilterHeader } from "@/components/inventory-explorer-controls";
 import { MeasureScopePanel } from "@/components/measure-scope-panel";
@@ -56,7 +60,7 @@ export function MeasuresExplorer({ rows, mode, initialFilters }: {
       <div className="endpoint-table-scroll"><table className="endpoint-table measures-table"><caption className="sr-only">{label} performance and compliance in the selected scope</caption><thead><tr>{columns.map((column) => <th scope="col" key={column.key}><FilterHeader column={column} selected={filters.columns[column.key] ?? []} options={facets[column.key]} open={openColumn === column.key} onOpen={(open) => setOpenColumn(open ? column.key : null)} onChange={(values) => changeColumn(column.key, values)} /></th>)}</tr></thead>
         <tbody>{filtered.slice(start, start + pageSize).map((row) => <Fragment key={row.id}>
           <tr><td className="measures-id">{row.id}</td><td className="measures-name"><button type="button" aria-expanded={expanded.includes(row.id)} aria-controls={`measure-detail-${row.id}`} aria-label={`Details for ${row.id}: ${row.name}`} onClick={() => setExpanded((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}><span aria-hidden="true">{expanded.includes(row.id) ? "▾" : "▸"}</span>{row.name}</button></td>
-            {(["ictSystems", "networks"] as const).map((kind) => <td key={kind} className="measures-numeric"><button type="button" className="measure-scope-link" aria-haspopup="dialog" aria-label={`View ${kind === "ictSystems" ? "ICT Systems" : "Networks"} in scope for ${row.id}`} onClick={() => setScopePanel({ row, kind })}>{number(row[kind]?.length ?? 0)}</button></td>)}
+            {(["ictSystems", "networks"] as const).map((kind) => <td key={kind} className="measures-numeric"><PersonaPopupButton popup="measure-scope" type="button" className="measure-scope-link" aria-haspopup="dialog" aria-label={`View ${kind === "ictSystems" ? "ICT Systems" : "Networks"} in scope for ${row.id}`} onClick={() => setScopePanel({ row, kind })}>{number(row[kind]?.length ?? 0)}</PersonaPopupButton></td>)}
             <td><div className="measure-result-badges">{measureResults(row).map((result) => <span key={result} className={`measure-result ${result === "Non-compliant" ? "is-gap" : result === "Unknown" ? "is-unknown" : result === "Fully compliant" ? "is-good" : "is-empty"}`}>{result}</span>)}</div></td>
             <td className="measures-score"><strong>{measureValues(row, "score")[0]}</strong>{row.total > 0 && <progress max={100} value={row.scorePercent} aria-label={`${row.id} compliance`} />}</td>
             <td className="measures-numeric">{number(row.total)}</td><td className="measures-numeric measure-good">{number(row.compliant)}</td><td className="measures-numeric measure-gap">{number(row.nonCompliant)}</td><td className="measures-numeric measure-unknown">{number(row.unknown)}</td>
@@ -87,6 +91,6 @@ export function MeasuresExplorer({ rows, mode, initialFilters }: {
       <footer className="endpoint-pagination"><span>{filtered.length ? `${number(start + 1)}–${number(Math.min(start + pageSize, filtered.length))}` : "0"} of {number(filtered.length)} indicators</span><div><label>Rows per page <select aria-label="Rows per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>{[10, 25, 50, 100].map((size) => <option key={size}>{size}</option>)}</select></label><button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>{currentPage} / {pages}</span><button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Next</button></div></footer>
       <p className="endpoint-export-note">Expand a measure for its definition, remediation actions and contacts{mode === "spi" ? ", and CI type breakdown" : ""}. An indicator can have both non-compliant and unknown results. Reports retain the page scope and snapshot.</p>
     </section>
-    {scopePanel && <MeasureScopePanel indicatorId={scopePanel.row.id} mode={mode} kind={scopePanel.kind} items={scopePanel.row[scopePanel.kind] ?? []} onClose={() => setScopePanel(null)} />}
+    {scopePanel && <PersonaPopup popup="measure-scope"><MeasureScopePanel indicatorId={scopePanel.row.id} mode={mode} kind={scopePanel.kind} items={scopePanel.row[scopePanel.kind] ?? []} onClose={() => setScopePanel(null)} /></PersonaPopup>}
   </div>;
 }

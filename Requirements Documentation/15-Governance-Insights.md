@@ -1,6 +1,6 @@
 # Governance Insights: Cyber Terrain Posture
 
-Insights at `/governance/insights` is an executive infographic, read vertically within the existing workspace. Overview and Trends remain placeholders. No scope means no business-data load and the standard blank workspace. A selected scope without evidence shows an explicit empty state; a failed read shows a ready error state and scoped retry, never invented zero metrics.
+The Cyber Terrain Insights sidebar link opens `/governance/insights`, an executive infographic read vertically within the existing workspace. Its stable persona page ID remains `governance-insights`. Governance Overview is retired; old bookmarks redirect to Trends. Trends presents a scoped executive history of compliance, lifecycle and discovery. No scope means no business-data load and the standard blank workspace. A selected scope without evidence shows an explicit empty state; a failed read shows a ready error state and scoped retry, never invented zero metrics.
 
 ## Executive narrative
 

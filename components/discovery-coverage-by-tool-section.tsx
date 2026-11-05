@@ -1,5 +1,8 @@
 "use client";
 
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+import { usePersonaAccess } from "@/components/persona-provider";
+
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -94,6 +97,8 @@ export function DiscoveryCoverageByToolSection({
   variant?: "classic" | "explorer";
 }) {
   const searchParams = useSearchParams();
+  const { canOpenPopup } = usePersonaAccess();
+  const toolDetailsAllowed = canOpenPopup("discovery-tool-details");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -352,6 +357,7 @@ export function DiscoveryCoverageByToolSection({
   }, [isPanelLoading, isToolRowsLoading, selectedToolId]);
 
   const openPanel = (toolId: string, toolLabel: string) => {
+    if (!toolDetailsAllowed) return;
     if (closePanelTimeoutRef.current) {
       clearTimeout(closePanelTimeoutRef.current);
       closePanelTimeoutRef.current = null;
@@ -511,7 +517,7 @@ export function DiscoveryCoverageByToolSection({
     }
   }, [buildQueryParams, debouncedSearchTerm, isExportingCsv, selectedTool, selectedToolAssetType]);
 
-  const panel = selectedTool ? (
+  const panel = selectedTool && toolDetailsAllowed ? (
     <div className={clsx("absolute inset-0 z-20 overflow-hidden", variant === "explorer" && "coverage-explorer-drawer")}>
       <div
         className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${
@@ -755,13 +761,13 @@ export function DiscoveryCoverageByToolSection({
               {toolStats.map((tool) => (
                 <tr key={tool.id} className="border-t border-sky-400/10">
                   <td className="px-3 py-2">
-                    <button
+                    <PersonaPopupButton popup="discovery-tool-details"
                       type="button"
                       onClick={() => openPanel(tool.id, tool.label)}
                       className="text-left text-sky-100 underline decoration-sky-300/40 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                     >
                       {tool.label}
-                    </button>
+                    </PersonaPopupButton>
                   </td>
                   <td className="px-3 py-2 text-emerald-200">{tool.covered}</td>
                   <td className="px-3 py-2 text-red-200">{tool.missing}</td>

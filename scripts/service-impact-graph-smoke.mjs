@@ -12,7 +12,11 @@ export async function checkServiceImpactGraph(page, { date, artifacts } = {}) {
   const systemSearch = 'input[aria-label="Search ict systems table"]';
   const bounds = selector => page.$eval(selector, node => { const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
   const press = async selector => { await page.$eval(selector, node => node.focus()); await page.keyboard.press("Enter"); };
-  const open = async () => { await press(trigger); await page.waitForSelector(popup); await checkDefaultRiskFilters(page); };
+  const open = async () => {
+    await press(trigger); await page.waitForSelector(popup); await checkDefaultRiskFilters(page);
+    await checkMinimisedDefaults(page);
+    await press('[data-impact-toggle-controls]');
+  };
   const close = async () => {
     await page.keyboard.press("Escape"); await page.waitForSelector(popup, { hidden: true });
     await page.waitForFunction(selector => document.querySelector(selector) === document.activeElement, {}, trigger);
@@ -34,6 +38,7 @@ export async function checkServiceImpactGraph(page, { date, artifacts } = {}) {
   await open();
   await checkFocusCorner();
   assert.deepEqual(await bounds(popup), settingsBounds, "Graph has the same dimensions as Settings");
+  await checkGraphViewToggles(page, { artifacts, settingsBounds });
   assert.equal(await page.$$eval('[data-impact-kind="system"]', nodes => nodes.length), systemNames.length);
   if (date) assert((await page.$eval('.impact-graph-header', node => node.textContent)).includes(date));
   const totals = await page.$eval('.impact-graph-summary', node => node.textContent);
@@ -80,6 +85,15 @@ export async function checkServiceImpactGraph(page, { date, artifacts } = {}) {
   }));
   const selectionCamera = await readCamera();
   assert.equal(selectionCamera.zoom, '125%');
+  const selectedBeforeResize = await page.$eval('[data-impact-node][aria-pressed="true"]', node => node.dataset.impactNode);
+  await press('[data-impact-toggle-controls]'); await press('[data-impact-fullscreen]');
+  assert.deepEqual(await readCamera(), selectionCamera, 'Full screen and minimised controls preserve zoom and pan');
+  assert.equal(await page.$eval('[data-impact-node][aria-pressed="true"]', node => node.dataset.impactNode), selectedBeforeResize);
+  await press('[data-impact-toggle-controls]');
+  await page.keyboard.press('Escape');
+  assert(await page.$(popup), 'Escape exits full screen before closing the graph');
+  assert.equal(await page.$eval('[data-impact-fullscreen]', node => node === document.activeElement), true);
+  assert.deepEqual(await readCamera(), selectionCamera, 'Restoring the dialog preserves zoom and pan');
   const checkSelectionCamera = async source => {
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.deepEqual(await readCamera(), selectionCamera, source + ' preserves zoom and pan');
@@ -169,6 +183,7 @@ export async function checkServiceImpactGraph(page, { date, artifacts } = {}) {
 
   await page.setViewport({ width: 390, height: 844 });
   await open();
+  await press('[data-impact-toggle-controls]');
   const narrowBounds = await bounds(popup);
   await checkFocusCorner();
   assert.equal(narrowBounds[0], 16); assert.equal(narrowBounds[2], 358);
@@ -176,11 +191,61 @@ export async function checkServiceImpactGraph(page, { date, artifacts } = {}) {
   for (let i = 0; i < 8; i++) {
     await page.keyboard.press('Tab');
     assert.equal(await page.$eval(popup, node => node.contains(document.activeElement)), true, "Keyboard focus stays inside the modal");
+    assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('.impact-graph-controls'))), false, 'Minimised controls are not keyboard-focusable');
   }
+  await press('[data-impact-fullscreen]');
+  assert.deepEqual(await bounds(popup), [0, 0, 390, 844], 'Full screen fills the narrow viewport');
+  assert.equal(await page.$eval(popup, node => node.scrollWidth <= node.clientWidth), true);
+  if (artifacts) await page.screenshot({ path: path.join(artifacts, 'impact-graph-narrow-fullscreen.png') });
+  await page.keyboard.press('Escape');
+  assert(await page.$(popup));
+  assert.deepEqual(await bounds(popup), narrowBounds);
   if (artifacts) await page.screenshot({ path: path.join(artifacts, "impact-graph-narrow.png") });
   await close();
   await page.setViewport({ width: 1600, height: 1000 });
   await checkGraphFiltersAndLayouts(page, { artifacts });
+}
+
+async function checkMinimisedDefaults(page) {
+  assert.equal(await page.$eval('[data-impact-toggle-controls]', node => node.getAttribute('aria-expanded')), 'false', 'Filters and layout start minimised on every open');
+  assert.equal(await page.$eval('.impact-graph-controls', node => getComputedStyle(node).display), 'none');
+  assert.equal(await page.$eval('[data-impact-fullscreen]', node => node.getAttribute('aria-pressed')), 'false', 'Graph opens at its standard dialog size');
+}
+
+async function checkGraphViewToggles(page, { artifacts, settingsBounds }) {
+  const popup = 'dialog.service-impact-graph-popup[open]';
+  const press = async selector => { await page.focus(selector); await page.keyboard.press('Enter'); };
+  const bounds = selector => page.$eval(selector, node => { const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
+  const state = () => page.evaluate(() => ({
+    url: location.href,
+    totals: document.querySelector('.impact-graph-summary').textContent,
+    layout: document.querySelector('[aria-label="Impact graph layout"]').value,
+    range: [...document.querySelectorAll('.impact-graph-range input')].map(input => input.value),
+    severity: [...document.querySelectorAll('.impact-graph-severity-filter input:checked')].map(input => input.value),
+    camera: document.querySelector('svg[aria-label="Service impact relationship graph"]').getAttribute('viewBox')
+  }));
+  const before = await state();
+  const expandedHeight = (await bounds('.impact-graph-canvas'))[3];
+  await press('[data-impact-toggle-controls]');
+  assert.equal(await page.$eval('[data-impact-toggle-controls]', node => node.getAttribute('aria-expanded')), 'false');
+  assert((await bounds('.impact-graph-canvas'))[3] > expandedHeight, 'Minimising the controls makes the chart taller');
+  if (artifacts) await page.screenshot({ path: path.join(artifacts, 'impact-graph-minimised.png') });
+  await press('[data-impact-fullscreen]');
+  assert.deepEqual(await bounds(popup), [0, 0, 1600, 1000]);
+  assert.equal(await page.evaluate(() => document.documentElement.clientWidth), 1600, 'Full screen removes the reserved page scrollbar strip');
+  assert.equal(await page.$eval('[data-impact-fullscreen]', node => node.getAttribute('aria-pressed')), 'true');
+  assert.deepEqual(await state(), before, 'View toggles preserve filters, layout, camera, totals and URL scope');
+  if (artifacts) await page.screenshot({ path: path.join(artifacts, 'impact-graph-fullscreen.png') });
+  await page.setViewport({ width: 1366, height: 768 });
+  assert.deepEqual(await bounds(popup), [0, 0, 1366, 768]);
+  const fullscreenHeight = (await bounds('.impact-graph-canvas'))[3];
+  assert(await page.$eval('.impact-graph-canvas', node => { const r = node.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), 'Chart fits a short desktop viewport in full screen');
+  await press('[data-impact-fullscreen]');
+  assert(fullscreenHeight > (await bounds('.impact-graph-canvas'))[3], 'Full screen gives the chart more space on short desktop windows');
+  await page.setViewport({ width: 1600, height: 1000 });
+  assert.deepEqual(await bounds(popup), settingsBounds, 'Leaving full screen restores the original Settings-sized dialog');
+  await press('[data-impact-toggle-controls]');
+  assert.deepEqual(await state(), before);
 }
 
 async function checkNestedCmdb(page, { artifacts }) {
@@ -257,6 +322,7 @@ async function checkGraphFiltersAndLayouts(page, { artifacts }) {
   };
   await press('[data-explore-service-impact]'); await page.waitForSelector(popup);
   await checkDefaultRiskFilters(page);
+  await checkMinimisedDefaults(page); await press('[data-impact-toggle-controls]');
   await press('.impact-graph-severity-filter summary');
   await press('.impact-graph-severity-actions button:first-child');
   assert(await page.$$eval('.impact-graph-severity-filter input', nodes => nodes.length > 2 && nodes.every(node => node.checked)), 'All severity categories remain selectable');
@@ -389,8 +455,11 @@ async function checkGraphFiltersAndLayouts(page, { artifacts }) {
   const zeroCritical = await page.evaluate(() => [...document.querySelectorAll('.service-impact-system-table tbody tr')]
     .find(row => row.cells[3]?.textContent.trim() === '0')?.querySelector('input[type="checkbox"]')?.getAttribute('aria-label'));
   if (zeroCritical) {
-    await page.evaluate(label => document.querySelector('.service-impact-system-table input[aria-label="' + CSS.escape(label) + '"]').click(), zeroCritical);
-    await press('[data-explore-service-impact]'); await page.waitForSelector(popup);
+    const zeroCriticalInput = await page.evaluateHandle(label => document.querySelector('.service-impact-system-table input[aria-label="' + CSS.escape(label) + '"]'), zeroCritical);
+    await zeroCriticalInput.asElement().focus(); await page.keyboard.press('Space');
+    await page.waitForFunction(label => document.querySelector('.service-impact-system-table input[aria-label="' + CSS.escape(label) + '"]')?.checked, {}, zeroCritical);
+    await page.click('[data-explore-service-impact]'); await page.waitForSelector(popup);
+    await checkMinimisedDefaults(page); await press('[data-impact-toggle-controls]');
     await chooseCritical();
     assert.equal(await page.$('[data-impact-node]'), null, 'A severity with no findings must not broaden to zero-count nodes');
     assert.equal(await page.$eval('[aria-label="Minimum matching findings"]', node => node.value), '1');

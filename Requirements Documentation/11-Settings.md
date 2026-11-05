@@ -1,6 +1,10 @@
 # Settings
 
+Personas provides an Active persona selector for Analyst, Life Cycle Management, Configuration Management, DSOC Analyst and Business Reporting, and displays only the selected persona's configuration. Each editor has section/page checkboxes, independent popup switches and Show all/Hide all. Section checkboxes select all their pages and show a mixed state for partial selection. Switching personas retains pending edits; Save personas and Discard changes apply across all edited personas. All sections (no persona) shows an explanation with no configuration editor. Menu → Settings → Personas is the only place to select and configure personas; a read-only label immediately to the left of the header Security Domain filter shows the active selection. Shared saved configurations filter sidebar pages, disable navigation to unavailable destinations and disable separately selected popup actions; active persona is remembered per browser. Menu and Settings remain accessible with everything hidden. Direct URLs/APIs retain the login-free access model. See [Personas behavior, upgrade and validation](../docs/personas.md): migration 031 remains sufficient for SQL, and version-1 persona payloads upgrade to version 2 on the next explicit save.
+
 Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
+
+The Personas editor uses section/Popup tabs with a compact permission grid and keeps Save/Discard visible. On narrow screens a group selector and three-item Previous/Next pages replace the tabs and long lists. All controls remain reachable without vertical scrolling at normal desktop, laptop and phone sizes; group/page changes retain edits and section checkboxes still select all child pages. The expanded, compact dialog layout applies only while Personas is selected. Natural overflow remains available for exceptionally short windows or enlarged text.
 
 Menu → Settings opens a native modal above the workspace. Settings sizing is shared by expanded charts and the asset compliance view. Close/Escape returns to the workspace; local tabs do not discard its applied scope/date.
 
@@ -10,7 +14,7 @@ Database Settings reads/writes encrypted DB_config and supports connection/schem
 
 Settings does not authorize destructive schema rebuilds or demo imports. Source: components/settings-popup.tsx, settings-tabs.tsx, spi-risk-settings-popup.tsx and settings forms; lib/measures-settings.ts, discovery-tools-settings.ts, db-config.ts and related APIs. Tests cover priority/risk settings behavior, password handling, SQL TLS, DB config and retired-login compatibility. Verify save/reopen and subsequent scoped results, not just successful toast text.
 
-Database schema diagnostics require the current 66-table contract after migration 027; they no longer require the unused KPI parameter table or network apm_number. Risk/priority settings and version tables are retained.
+Database schema diagnostics include persona_settings_version and its columns after migration 031; they no longer require the unused KPI parameter table or network apm_number. Risk/priority settings and version tables are retained.
 
 ## SQL and No-SQL build settings
 

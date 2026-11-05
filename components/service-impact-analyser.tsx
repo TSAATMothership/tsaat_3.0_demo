@@ -1,6 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import { PersonaPopup } from "@/components/persona-popup";
+
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+
+import Link from "@/components/persona-link";
 import { useCallback, useMemo, useState } from "react";
 import { FindingsDataTable } from "@/components/findings-data-table";
 import { ServiceImpactGraph } from "@/components/service-impact-graph";
@@ -94,8 +98,8 @@ export function ServiceImpactAnalyser({ model, filters }: { model: ServiceImpact
         { label: "Critical exposure", value: selection.critical, note: "Highest severity findings", tone: "red", rows: selection.findingRows.filter(row => row.severity === "Critical Exposure") },
         { label: "High risk", value: selection.high, note: "High severity findings", tone: "orange", rows: selection.findingRows.filter(row => row.severity === "High Risk") },
         { label: "Affected CIs", value: selection.affectedCis, note: "Distinct devices with open findings", tone: "teal", rows: selection.findingRows }].map(tile =>
-        <button className={`discovery-overview-metric tone-${tile.tone}`} type="button" key={tile.label} disabled={!tile.value} onClick={() => open(tile.label, tile.rows, tile.label === "Affected CIs" ? "devices" : "findings")}>
-          <strong>{number(tile.value)}</strong><div><span>{tile.label}</span><small>{tile.note}</small></div><span aria-hidden="true">↗</span></button>)}
+        <PersonaPopupButton popup="impact-details" className={`discovery-overview-metric tone-${tile.tone}`} type="button" key={tile.label} disabled={!tile.value} onClick={() => open(tile.label, tile.rows, tile.label === "Affected CIs" ? "devices" : "findings")}>
+          <strong>{number(tile.value)}</strong><div><span>{tile.label}</span><small>{tile.note}</small></div><span aria-hidden="true">↗</span></PersonaPopupButton>)}
     </section>
     <div className="service-impact-selectors">
       <section className="service-impact-selector"><header><div><p className="endpoint-eyebrow">1 / Choose a service or capability</p><p>Select a name to focus the systems table. Search and column filters also narrow the scope.</p></div></header>
@@ -112,7 +116,7 @@ export function ServiceImpactAnalyser({ model, filters }: { model: ServiceImpact
       <section className="service-impact-selector"><header><div><p className="endpoint-eyebrow">2 / Refine the ICT systems</p><p>Select systems for comparison, or leave none selected to analyse all matching rows.</p></div></header>
         <div className="service-impact-system-actions"><span>{number(activeSelected.length)} selected / {number(visibleSystems.length)} matching</span><button type="button" className="endpoint-export" disabled={!visibleSystems.length} onClick={() => setSelectedSystems(visibleSystems.map(row => row.id))}>Select matching</button>
           <button type="button" className="endpoint-export" disabled={!selectedSystems.length} onClick={() => setSelectedSystems([])}>Clear selection</button>
-          <button type="button" className="endpoint-export" aria-haspopup="dialog" data-explore-service-impact onClick={() => setGraphOpen(true)}>Explore selection ↗</button></div>
+          <PersonaPopupButton popup="impact-graph" type="button" className="endpoint-export" aria-haspopup="dialog" data-explore-service-impact onClick={() => setGraphOpen(true)}>Explore selection ↗</PersonaPopupButton></div>
         <FindingsDataTable key={`${kind}:${entityId}:${reset}`} title="ICT Systems" rows={systemRows} columns={systemColumns} paginate={false}
           searchText={systemSearch} className="service-impact-system-table" onFilteredRowsChange={onSystemsFiltered}
           emptyMessage="No ICT systems match this selection. Clear table filters, reset the selection or choose All systems."
@@ -127,8 +131,8 @@ export function ServiceImpactAnalyser({ model, filters }: { model: ServiceImpact
       {model.unattributedFindings > 0 && <p>{number(model.unattributedFindings)} open findings in the header scope have no in-scope ICT system association. Review them in the <Link href={`/findings?${scopeParams}`} prefetch={false}>Findings Register</Link>.</p>}</div></details>
     </section>
     <footer className="service-impact-footer">TSAAT | Cyber Operations Compliance Reporting.</footer>
-    {graphOpen && <ServiceImpactGraph model={model} systemIds={activeSystemIds} scopeLabel={selectedEntity?.name ?? "All matching services and capabilities"}
-      focusLabel={focus === "severe" ? "Critical / high impact" : "All systems"} onClose={() => setGraphOpen(false)} />}
-    {drillThrough && <ServiceImpactFindingsPanel title={drillThrough.title} findings={drillThrough.findings} initialTab={drillThrough.initialTab} model={model} onClose={() => setDrillThrough(null)} />}
+    {graphOpen && <PersonaPopup popup="impact-graph"><ServiceImpactGraph model={model} systemIds={activeSystemIds} scopeLabel={selectedEntity?.name ?? "All matching services and capabilities"}
+      focusLabel={focus === "severe" ? "Critical / high impact" : "All systems"} onClose={() => setGraphOpen(false)} /></PersonaPopup>}
+    {drillThrough && <PersonaPopup popup="impact-details"><ServiceImpactFindingsPanel title={drillThrough.title} findings={drillThrough.findings} initialTab={drillThrough.initialTab} model={model} onClose={() => setDrillThrough(null)} /></PersonaPopup>}
   </div>;
 }

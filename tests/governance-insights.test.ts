@@ -1,5 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { PersonaProvider } from "@/components/persona-provider";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDiscoveryOverview } from "@/lib/discovery-overview";
 import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-coverage";
@@ -82,12 +83,12 @@ describe("Insights scope and route contract", () => {
     await expect(loadGovernanceInsights({ system: "sys-1" })).rejects.toThrow("snapshot mismatch");
   });
   it("does not read business data before a header scope is selected", async () => {
-    const html = renderToStaticMarkup(await InsightsPage({ searchParams: {} }));
+    const html = renderToStaticMarkup(React.createElement(PersonaProvider, { children: await InsightsPage({ searchParams: {} }) }));
     expect(readOverview).not.toHaveBeenCalled(); expect(readCore).not.toHaveBeenCalled();
     expect(html).toContain("data-route-ready-key"); expect(html).not.toContain("<h1");
   });
   it("renders all five chapters with an explicit empty state, N/A and scoped evidence links", async () => {
-    const html = renderToStaticMarkup(await InsightsPage({ searchParams: { network: "net-1", securityDomain: "SECRET", dataDate: date } }));
+    const html = renderToStaticMarkup(React.createElement(PersonaProvider, { children: await InsightsPage({ searchParams: { network: "net-1", securityDomain: "SECRET", dataDate: date } }) }));
     for (const id of ["terrain", "exposure", "mission", "resilience", "decisions"]) expect(html).toContain(`id="insights-${id}"`);
     expect(html).toContain("No records in this scope and snapshot"); expect(html).toContain("N/A");
     expect(html).toContain("securityDomain=SECRET"); expect(html).toContain(`data-insights-snapshot="${date}"`);
@@ -95,7 +96,7 @@ describe("Insights scope and route contract", () => {
   });
   it("returns a ready error state with a scoped retry instead of zero metrics on failure", async () => {
     readOverview.mockRejectedValue(new Error("Provider unavailable"));
-    const html = renderToStaticMarkup(await InsightsPage({ searchParams: { system: "sys-1", dataDate: date } }));
+    const html = renderToStaticMarkup(React.createElement(PersonaProvider, { children: await InsightsPage({ searchParams: { system: "sys-1", dataDate: date } }) }));
     expect(html).toContain("Insights are temporarily unavailable"); expect(html).toContain("system=sys-1");
     expect(html).toContain("data-route-ready-key"); expect(html).not.toContain("insight-headline-metrics");
   });

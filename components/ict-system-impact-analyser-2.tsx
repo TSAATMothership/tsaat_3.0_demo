@@ -1,5 +1,10 @@
 "use client";
 
+import { PersonaPopup } from "@/components/persona-popup";
+
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+import { usePersonaAccess } from "@/components/persona-provider";
+
 import { browserWorkspaceSearch } from "@/lib/browser-location";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -521,6 +526,9 @@ export function IctSystemImpactAnalyser2Chart({
   onRetry?: () => void;
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
+  const { canOpenPopup } = usePersonaAccess();
+  const findingsAllowed = canOpenPopup("finding-details");
+  const cmdbAllowed = canOpenPopup("cmdb-details");
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1394,7 +1402,7 @@ export function IctSystemImpactAnalyser2Chart({
           context.font = `${isSelected ? "600" : "500"} 10px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`;
           context.fillText(truncateAxisLabel(displayNodeLabel(axis.key, value)), x, y + 22);
 
-          if (!isRelationshipDiagramMode && isSelected && axis.key === "spi") {
+          if (!isRelationshipDiagramMode && findingsAllowed && isSelected && axis.key === "spi") {
             context.beginPath();
             context.arc(x + 13, y - 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1412,7 +1420,7 @@ export function IctSystemImpactAnalyser2Chart({
             context.lineTo(x + 13, y - 9.5);
             context.stroke();
           }
-          if (isSelected && canOpenAssetDetails(axis.key, value)) {
+          if (isSelected && cmdbAllowed && canOpenAssetDetails(axis.key, value)) {
             context.beginPath();
             context.arc(x + 13, y + 13, 7, 0, Math.PI * 2);
             context.fillStyle = "#0f172a";
@@ -1434,6 +1442,8 @@ export function IctSystemImpactAnalyser2Chart({
     [
       assetShapeTypeForNode,
       canOpenAssetDetails,
+      cmdbAllowed,
+      findingsAllowed,
       displayNodeLabel,
       isDependenciesDiagramMode,
       isRelationshipDiagramMode
@@ -1491,7 +1501,7 @@ export function IctSystemImpactAnalyser2Chart({
           const topRightBadgeDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY - 13));
           const bottomRightBadgeDistance = Math.hypot(x - (axisPixelX + 13), virtualY - (nodeY + 13));
           const isSelected = isSelectedNode(selectedNodeRef.current, axis.key, value);
-          if (isSelected && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11) {
+          if (isSelected && cmdbAllowed && canOpenAssetDetails(axis.key, value) && bottomRightBadgeDistance <= 11) {
             return {
               node: { axisKey: axis.key, value },
               action: "asset-details"
@@ -1502,7 +1512,7 @@ export function IctSystemImpactAnalyser2Chart({
             axis.key === "spi" &&
             isSelected &&
             topRightBadgeDistance <= 11;
-          if (isSelectedActionBadge) {
+          if (isSelectedActionBadge && findingsAllowed) {
             return {
               node: { axisKey: axis.key, value },
               action: "spi-findings"
@@ -1515,11 +1525,12 @@ export function IctSystemImpactAnalyser2Chart({
       }
       return bestMatch;
     },
-    [canOpenAssetDetails, isRelationshipDiagramMode]
+    [canOpenAssetDetails, cmdbAllowed, findingsAllowed, isRelationshipDiagramMode]
   );
 
   const openSpiDrillThrough = useCallback(
     async (spiId: number) => {
+      if (!findingsAllowed) return;
       setIsDrillThroughLoading(true);
       setDrillThroughError(null);
       try {
@@ -1551,6 +1562,7 @@ export function IctSystemImpactAnalyser2Chart({
       }
     },
     [
+      findingsAllowed,
       diagramSearch,
       dataDate,
       findingsPath,
@@ -1778,7 +1790,7 @@ export function IctSystemImpactAnalyser2Chart({
                             <li key={`impact-analyser-2-search-${option.id}`}>
                               {isCmdbDevice ? (
                                 <div className="w-full rounded-md border border-sky-400/20 bg-slate-900/70 px-2 py-1.5 text-left text-xs normal-case tracking-normal text-slate-100 hover:border-sky-300/45 hover:bg-slate-800/85">
-                                  <button
+                                  <PersonaPopupButton popup="cmdb-details"
                                     type="button"
                                     data-cmdb-asset-id={option.value}
                                     aria-label={`Open CMDB Drill Through for ${option.label}`}
@@ -1792,7 +1804,7 @@ export function IctSystemImpactAnalyser2Chart({
                                     className="block w-full truncate text-left text-cyan-200 underline decoration-cyan-300/55 underline-offset-2 hover:text-cyan-100"
                                   >
                                     {option.label}
-                                  </button>
+                                  </PersonaPopupButton>
                                   <button
                                     type="button"
                                     aria-label={`Select ${option.label} in the diagram`}
@@ -1984,7 +1996,7 @@ export function IctSystemImpactAnalyser2Chart({
                   onPointerLeave={() => setHoverInfo(null)}
                 />
                 {complianceNodeAction ? (
-                  <button
+                  <PersonaPopupButton popup="asset-compliance"
                     ref={complianceTriggerRef}
                     type="button"
                     data-impact-analyser-node-action="compliance"
@@ -2002,7 +2014,7 @@ export function IctSystemImpactAnalyser2Chart({
                     style={{ left: complianceNodeAction.x, top: complianceNodeAction.y }}
                   >
                     C
-                  </button>
+                  </PersonaPopupButton>
                 ) : null}
                 {workerResult && workerResult.filteredRowCount === 0 ? (
                   <p className="pointer-events-none absolute left-3 top-3 z-20 max-w-sm rounded-md border border-sky-300/15 bg-slate-900/80 px-3 py-2 text-xs text-slate-300/80 shadow-lg">
@@ -2062,7 +2074,7 @@ export function IctSystemImpactAnalyser2Chart({
       </section>
 
       {!isRelationshipDiagramMode && drillThroughData ? (
-        <RiskFindingsDrillThrough
+        <PersonaPopup popup="finding-details"><RiskFindingsDrillThrough
           selection={{
             id: `${analyserSlug}-spi-${drillThroughData.selectedSpiId}`,
             label: `SPI ${drillThroughData.selectedSpiId}`,
@@ -2076,17 +2088,17 @@ export function IctSystemImpactAnalyser2Chart({
           assetHighRiskCvesByAssetId={drillThroughData.assetHighRiskCvesByAssetId}
           asOfDate={drillThroughData.snapshotDate}
           onClose={() => setDrillThroughData(null)}
-        />
+        /></PersonaPopup>
       ) : null}
       {complianceAsset ? (
-        <ServerComplianceView
+        <PersonaPopup popup="asset-compliance"><ServerComplianceView
           assetId={complianceAsset.assetId}
           assetName={complianceAsset.assetName}
           systemId={complianceAsset.systemId}
           dataDate={dataDate}
           dataPath={compliancePath}
           onClose={closeComplianceView}
-        />
+        /></PersonaPopup>
       ) : null}
     </>
   );

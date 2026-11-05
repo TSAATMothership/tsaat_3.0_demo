@@ -3,7 +3,7 @@
 ## Authoritative artifacts
 
 - `Database Schema/database-schema.sql`: fresh-install objects, constraints and routines. It drops/recreates existing schema objects and is destructive on an existing TSAAT database.
-- `Database Schema/migrations/`: ordered upgrades through 029; retain history for existing installations.
+- `Database Schema/migrations/`: ordered upgrades through 031; retain history for existing installations.
 - `Database Schema/data/`: reference/configuration JSON and build manifest.
 - `Database Schema/loaders/`: import and validation. The low-level loader rebuilds schema and imports demo data; it is not a production migration runner.
 - [ERD](../Database%20Schema/ERD.md), schema description and data mapping: domain relationships and source mappings.
@@ -34,6 +34,8 @@ The schema after migration 027 had 66 tables; migration 029 adds server_patch_ob
 Apply only 027 to a database already through 026, using an explicit target, verified backup and sqlcmd -b. It refuses custom/retired KPI bindings that need review and is transactional/rerunnable. Never replay 001-026 on an upgraded database. The fresh bootstrap runs the entire historical chain followed by 027; it then imports only current reference data. Older app loaders require the removed network column, so use a separate restored database if the older app must continue running. Recovery restores the backup and matching old app together.
 
 ## Existing database upgrade
+
+For Personas, apply additive migration 031 before deploying the new SQL application. It creates persona_settings_version without changing inventory, existing settings or calculations; Database Settings schema diagnostics check the new table and columns. Empty tables supply all-enabled defaults, and saves append complete shared configurations. See [Personas upgrade and recovery](personas.md).
 
 For Security Vulnerability Explorer, apply additive migration 028 before deploying the new SQL application. It adds nullable `cve_name`, `cve_created_date`, `software_name`, `software_version` and `reference_url` to `asset_vulnerability`, retaining its key and all original observations. No rule/configuration or sample data is changed. The separate sample-only population script is explicitly opt-in and never part of a production migration. See [CVE mapping and SQL/JSON rollout](security-vulnerability-explorer.md).
 

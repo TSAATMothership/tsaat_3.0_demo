@@ -1,4 +1,5 @@
 import "server-only";
+export { loadPersonaSettings, savePersonaSettings } from "@/lib/sql-persona-settings";
 import { normalizeSecurityDomain, normalizeNetworkSecurityDomain, securityDomainSelection } from "@/lib/security-domain.mjs";
 
 import { createHash } from "node:crypto";

@@ -23,3 +23,5 @@ Preconditions: schema through 026, explicit target database, verified restorable
 
 
 030_security_domains.sql: run after 029; transactional, rerunnable domain normalization and managed-network column. Back up first; retain strict TLS. Do not bootstrap operational databases. JSON upgrade and disposable SQL parity instructions: docs/security-domains.md.
+
+031_persona_navigation_settings.sql adds persona_settings_version for shared sidebar visibility preferences. Apply after approved preceding upgrades with sqlcmd -b and strict TLS; back up the explicit target first. It is additive and rerunnable, retains every existing configuration and changes no snapshots/calculations. JSON stores gain an optional personas.json file on first explicit save; builds never overwrite settings. See docs/personas.md for upgrade/recovery and disposable SQL parity validation.

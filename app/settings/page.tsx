@@ -14,6 +14,7 @@ function firstParam(value: string | string[] | undefined): string | undefined {
 
 function resolveActiveTab(value: string | undefined): SettingsTabId {
   const normalized = value?.trim().toLowerCase();
+  if (normalized === "personas") return "personas";
   if (normalized === "spi-risk-matrix") return "spi-risk-matrix";
   if (normalized === "spi-priority-matrix") return "spi-priority-matrix";
   if (normalized === "discovery-tools-settings" || normalized === "placeholder-2") {

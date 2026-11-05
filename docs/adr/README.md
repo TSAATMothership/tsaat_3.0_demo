@@ -25,3 +25,4 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0013: Validation by change impact](0013-impact-based-validation.md)
 
 - [0014: Retire application login](0014-retire-application-login.md)
+- [0015: Persona navigation preferences](0015-persona-navigation-preferences.md)

@@ -15,6 +15,9 @@ import { populateJsonStore } from "./populate-json-store.mjs";
 import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 import { checkServiceImpactGraph } from "./service-impact-graph-smoke.mjs";
 import { checkGovernanceInsights, checkGovernanceInsightsPdf } from "./governance-insights-smoke.mjs";
+import { checkGovernanceTrends } from "./governance-trends-smoke.mjs";
+import { checkPersonas } from "./personas-smoke.mjs";
+import { checkLifeCycleManagement } from "./life-cycle-management-smoke.mjs";
 
 assert(fs.existsSync(path.join(repositoryRoot, ".next-nosql", "BUILD_ID")), "Run npm run build:nosql first.");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-nosql-runtime-"));
@@ -93,9 +96,9 @@ try {
     assert(!await page.evaluate(() => document.body.innerText.includes('Application error')), route + ': server rendering failed');
     assert.deepEqual(errors, [], route + ': browser runtime errors');
   }
-  const routes = ["/governance/overview", "/governance/trends", "/governance/insights", "/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
+  const routes = ["/governance/trends", "/governance/insights", "/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
     "/discovery-coverage?discoveryView=overview", "/discovery-coverage", "/discovery-coverage?discoveryView=compliance", "/discovery-coverage?discoveryView=endpoints",
-    "/discovery-coverage?discoveryView=security-vulnerabilities", "/discovery-coverage?discoveryView=patch-management", "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/network-risk-profile", "/ict-system-risk-profile",
+    "/discovery-coverage?discoveryView=security-vulnerabilities", "/discovery-coverage?discoveryView=patch-management", "/discovery-coverage?discoveryView=life-cycle-management", "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/network-risk-profile", "/ict-system-risk-profile",
     "/cyber-cop?copView=impact", "/cyber-cop?copView=ict-system-impact-analyser", "/cyber-cop?copView=ict-system-dependencies", "/report"];
   const reports = new Set();
   for (const route of routes) {
@@ -104,6 +107,7 @@ try {
   }
   await navigate('/cyber-cop?copView=impact');
   await checkServiceImpactGraph(page, { date });
+  await checkLifeCycleManagement(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   // Domain scope defaults to all, stages edits, survives navigation and supports an explicit empty scope.
   await navigate('/discovery-coverage?discoveryView=endpoints');
   const domainTrigger='button[aria-controls="security-domain-options"]';
@@ -132,14 +136,17 @@ try {
   await page.focus(domainTrigger); await page.keyboard.press('Enter'); await page.keyboard.press('Escape');
   assert.equal(await page.$eval(domainTrigger,node=>document.activeElement===node),true);
   await navigate('/governance/overview');
-  assert.equal(await page.$eval('.workspace-nav-group:first-child .workspace-group-toggle', node => node.textContent.trim()), 'Governance');
-  assert.deepEqual(await page.$$eval('.workspace-nav-group:first-child a', nodes => nodes.map(node => node.textContent.trim())), ['Overview', 'Trends', 'Insights']);
-  for (const view of ['trends', 'insights', 'overview']) {
+  assert.equal(new URL(page.url()).pathname, '/governance/trends', 'Retired Overview bookmarks redirect to Trends');
+  assert.equal(new URL(page.url()).searchParams.get('network'), 'net-1');
+  assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
+  assert.equal(await page.$eval('.workspace-nav-group .workspace-group-toggle', node => node.textContent.trim()), 'Governance');
+  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights']);
+  for (const view of ['insights', 'trends']) {
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
-    await page.focus(`.workspace-nav-group:first-child a[href^="/governance/${view}"]`);
+    await page.focus(`#workspace-group-0 a[href^="/governance/${view}"]`);
     await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
     await page.waitForFunction(selected => window.location.pathname === '/governance/' + selected &&
-      (selected === 'insights' ? document.querySelector('.governance-insights h1') : document.querySelector('.governance-placeholder h1')?.textContent === selected[0].toUpperCase() + selected.slice(1)), {}, view);
+      document.querySelector('.governance-' + selected + ' h1'), {}, view);
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
     assert.equal(new URL(page.url()).searchParams.get('network'), 'net-1');
     assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
@@ -148,10 +155,14 @@ try {
       assert.equal(await page.$$eval('.insight-chapters a', nodes => nodes.length), 5);
       await checkGovernanceInsights(page, { date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
       await checkGovernanceInsightsPdf(page, { date, directory: downloadDirectory });
-    } else assert.equal(await page.$eval('.governance-placeholder h1', node => node.textContent), view[0].toUpperCase() + view.slice(1));
+      // The PDF helper owns a temporary page CDP session. Restore this run's download policy after it detaches.
+      await downloadSession.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
+    } else if (view === 'trends') {
+      await checkGovernanceTrends(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+      await downloadSession.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
+    }
     assert.equal(await page.$$eval('.workspace-navigation [aria-current="page"]', nodes => nodes.length), 1);
     assert.equal(await page.$eval('.workspace-navigation [aria-current="page"]', node => new URL(node.href).pathname), '/governance/' + view);
-    assert.equal(await page.$$eval('.governance-placeholder table, .governance-placeholder canvas, .governance-placeholder button', nodes => nodes.length), 0);
   }
   if (process.env.TSAAT_TEST_ARTIFACT_DIR) {
     fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR, { recursive: true });
@@ -159,9 +170,10 @@ try {
   }
   await navigate('/governance/insights', 'system=sys-1');
   assert.equal(new URL(page.url()).searchParams.get('system'), 'sys-1');
-  assert.equal(await page.$$eval('.workspace-nav-group:first-child a', nodes => nodes.length), 3);
-  await navigate('/governance/trends', '');
-  assert.equal(await page.$('.governance-placeholder h1'), null);
+  assert.equal(await page.$$eval('#workspace-group-0 a', nodes => nodes.length), 2);
+  await navigate('/governance/overview', '');
+  assert.equal(new URL(page.url()).pathname, '/governance/trends');
+  assert.equal(await page.$('.governance-trends h1'), null);
   // Overview counts and destinations must agree for both scope kinds and resolved historical dates.
   for (const overviewScope of [{ query: 'network=net-1', date }, { query: 'system=sys-1', date: storage.snapshots[0].date }]) {
     const overviewUrl = base + '/discovery-coverage?discoveryView=overview&' + overviewScope.query + '&dataDate=' + overviewScope.date;
@@ -364,6 +376,14 @@ try {
   assert(await page.$('.vulnerability-results'));
   await navigate("/discovery-coverage?discoveryView=security-vulnerabilities", "network=missing-network");
   assert((await page.$eval('.vulnerability-results', node => node.textContent)).includes('No matching records'));
+  await navigate("/governance/overview", "network=net-1&securityDomain=SECRET");
+  assert.equal(new URL(page.url()).pathname, '/governance/trends');
+  assert.equal(new URL(page.url()).searchParams.get('securityDomain'), 'SECRET');
+  const savedPersonas = await checkPersonas(page, { artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await navigate("/settings?settingsTab=personas");
+  await page.waitForSelector("#settings-tab-personas[aria-selected=true]");
+  await page.keyboard.press("Escape");
+  await page.waitForSelector("dialog.settings-popup[open]", { hidden: true });
   await navigate("/settings");
   await page.waitForSelector('dialog[open] #settings-tab-database-settings');
   assert.equal(await page.$eval('#settings-tab-database-settings', node => node.textContent.trim()), "JSON Data Files");
@@ -524,6 +544,7 @@ try {
   assert(updatedFindings.every(f => f.priorityRank === settings.priorityMatrix["1"]));
   await browser.close(); browser = undefined;
   await stopServer(); base = await startServer();
+  assert.deepEqual((await getJson("/api/settings/personas")).settings, savedPersonas);
   const afterRestart = (await getJson("/api/measures/settings")).settings;
   assert.equal(afterRestart.priorityMatrix["1"], settings.priorityMatrix["1"]);
   assert.equal(afterRestart.severityMatrix["1:server"], "Critical Exposure");

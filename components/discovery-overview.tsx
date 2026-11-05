@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/persona-link";
 import { DiscoveryOverviewReportButton } from "@/components/discovery-overview-report-button";
 import { discoveryOverviewReportHref } from "@/lib/discovery-overview-report-links";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";

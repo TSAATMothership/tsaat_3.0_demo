@@ -1,5 +1,7 @@
 "use client";
 
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+
 import { useMemo, useState } from "react";
 import { ASSET_TYPES, ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { FilterHeader } from "@/components/inventory-explorer-controls";
@@ -71,7 +73,7 @@ export function CoverageToolExplorer({ tools, onOpenTool }: {
           onOpen={(open) => setOpenColumn(open ? column.key : null)} onChange={(values) => changeFilter(column.key, values)} />
       </th>)}</tr></thead>
       <tbody>{filtered.slice(start, start + pageSize).map((tool) => <tr key={tool.id}>
-        <td className="endpoint-name"><button type="button" className="coverage-tool-link" onClick={() => onOpenTool(tool.id, tool.label)}>{tool.label}</button><small>{tool.id}</small></td>
+        <td className="endpoint-name"><PersonaPopupButton popup="discovery-tool-details" type="button" className="coverage-tool-link" onClick={() => onOpenTool(tool.id, tool.label)}>{tool.label}</PersonaPopupButton><small>{tool.id}</small></td>
         <td><span className={`coverage-status ${!tool.applicable ? "is-neutral" : tool.missing ? "has-gaps" : "is-covered"}`}>{coverageToolStatus(tool)}</span></td>
         <td className="coverage-number">
           {number(tool.applicable)}
@@ -83,8 +85,8 @@ export function CoverageToolExplorer({ tools, onOpenTool }: {
           </details>}
         </td>
         <td className="coverage-number text-emerald-200">{number(tool.covered)}</td>
-        <td className="coverage-number"><button type="button" className={tool.missing ? "coverage-gap-link" : "coverage-tool-link"}
-          aria-label={`View ${number(tool.missing)} coverage gaps for ${tool.label}`} onClick={() => onOpenTool(tool.id, tool.label)}>{number(tool.missing)} <span aria-hidden="true">↗</span></button></td>
+        <td className="coverage-number"><PersonaPopupButton popup="discovery-tool-details" type="button" className={tool.missing ? "coverage-gap-link" : "coverage-tool-link"}
+          aria-label={`View ${number(tool.missing)} coverage gaps for ${tool.label}`} onClick={() => onOpenTool(tool.id, tool.label)}>{number(tool.missing)} <span aria-hidden="true">↗</span></PersonaPopupButton></td>
         <td><div className="coverage-percent"><span>{coverageToolValue(tool, "coveragePercent")}</span>
           {tool.applicable > 0 && <progress aria-label={`${tool.label} coverage`} value={tool.coveragePercent} max={100} />}</div></td>
       </tr>)}{!filtered.length && <tr><td colSpan={COVERAGE_TOOL_COLUMNS.length}><div className="endpoint-empty"><strong>{tools.length ? "No matching tools" : "No applicable discovery tools"}</strong>

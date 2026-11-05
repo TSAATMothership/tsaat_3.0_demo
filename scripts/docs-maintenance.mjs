@@ -56,7 +56,7 @@ function applicationInventory(root) {
   const pkg = JSON.parse(read(path.join(root, 'package.json')));
   let text = '# Generated application inventory\n\nGenerated from routes, navigation, package metadata and SQL reference JSON. Do not edit by hand. A route can exist for compatibility without appearing in navigation.\n\n## Visible navigation\n\n| Item | Route | Scope restriction |\n| --- | --- | --- |\n';
   const nav = read(path.join(root, 'lib/workspace-navigation.ts'));
-  for (const match of nav.matchAll(/\{ label: "([^"]+)", href: "([^"]+)"(?:, scope: "([^"]+)")? \}/g)) text += `| ${match[1]} | \`${match[2]}\` | ${match[3] ?? 'Both scope types'} |\n`;
+  for (const match of nav.matchAll(/\{ (?:id: "[^"]+", )?label: "([^"]+)", href: "([^"]+)"(?:, scope: "([^"]+)")? \}/g)) text += `| ${match[1]} | \`${match[2]}\` | ${match[3] ?? 'Both scope types'} |\n`;
   text += '\n## Pages and APIs\n\n| Route | Kind / HTTP methods | Source |\n| --- | --- | --- |\n';
   for (const file of walk(root, 'app').filter(file => /\/(page\.tsx|route\.ts)$/.test(file))) {
     const route = '/' + file.replace(/^app\//, '').replace(/\/(page\.tsx|route\.ts)$/, '').replace(/^(page\.tsx|route\.ts)$/, '');

@@ -6,9 +6,8 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 
 | Item | Route | Scope restriction |
 | --- | --- | --- |
-| Overview | `/governance/overview` | Both scope types |
 | Trends | `/governance/trends` | Both scope types |
-| Insights | `/governance/insights` | Both scope types |
+| Cyber Terrain Insights | `/governance/insights` | Both scope types |
 | Network Risk Profile | `/network-risk-profile` | network |
 | ICT System Risk Profile | `/ict-system-risk-profile` | system |
 | Service Impact Analyser | `/cyber-cop?copView=impact` | Both scope types |
@@ -21,6 +20,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | Installed Software Explorer | `/discovery-coverage?discoveryView=installed-software` | Both scope types |
 | Security Vulnerability Explorer | `/discovery-coverage?discoveryView=security-vulnerabilities` | Both scope types |
 | Patch Management Explorer | `/discovery-coverage?discoveryView=patch-management` | Both scope types |
+| Life Cycle Management | `/discovery-coverage?discoveryView=life-cycle-management` | Both scope types |
 | Shadow IT Explorer | `/discovery-coverage?discoveryView=shadow-it` | Both scope types |
 | Measures Summary | `/measures` | Both scope types |
 | Key Performance Indicators (KPIs) | `/measures?measuresTab=measures-kpi` | Both scope types |
@@ -68,6 +68,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/settings/database/test-schema` | POST | [Source](../../app/api/settings/database/test-schema/route.ts) |
 | `/api/settings/database/test-ssl` | POST | [Source](../../app/api/settings/database/test-ssl/route.ts) |
 | `/api/settings/password` | PUT | [Source](../../app/api/settings/password/route.ts) |
+| `/api/settings/personas` | GET, PUT | [Source](../../app/api/settings/personas/route.ts) |
 | `/api/settings/storage` | GET | [Source](../../app/api/settings/storage/route.ts) |
 | `/api/systems/[systemId]/coverage-gaps-report` | GET | [Source](../../app/api/systems/%5BsystemId%5D/coverage-gaps-report/route.ts) |
 | `/api/systems/[systemId]/discovery-coverage-export` | GET | [Source](../../app/api/systems/%5BsystemId%5D/discovery-coverage-export/route.ts) |

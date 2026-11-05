@@ -1,5 +1,8 @@
 "use client";
 
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+import { usePersonaAccess } from "@/components/persona-provider";
+
 import { FindingsDataTable } from "@/components/findings-data-table";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -286,6 +289,7 @@ export function RiskFindingsDrillThrough({
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [spiFilter, setSpiFilter] = useState<string>(selection.lockedSpiId ? String(selection.lockedSpiId) : "all");
+  const { canOpenPopup } = usePersonaAccess();
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("all");
   const [selectedAgingBucketFilter, setSelectedAgingBucketFilter] = useState<string | null>(null);
   const [isFindingsPanelOpen, setIsFindingsPanelOpen] = useState(false);
@@ -937,7 +941,7 @@ export function RiskFindingsDrillThrough({
   }
 
   const cveDetailsModal =
-    isMounted && isCveDetailsModalVisible && selectedAssetForCveDetails
+    canOpenPopup("cve-details") && isMounted && isCveDetailsModalVisible && selectedAssetForCveDetails
       ? createPortal(
           <div
             className={`fixed inset-0 z-[10010] ${
@@ -1257,13 +1261,13 @@ renderRow={(finding) => {
                           <td className="whitespace-nowrap px-3 py-2 text-slate-200">SPI {finding.spiId}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-slate-200">P{finding.priorityRank}</td>
                           <td className="px-3 py-2 text-slate-100">
-                            <button
+                            <PersonaPopupButton popup="affected-cis"
                               type="button"
                               onClick={() => openAssetDetailsPanel(finding)}
                               className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                             >
                               {finding.title}
-                            </button>
+                            </PersonaPopupButton>
                           </td>
                           <td className="whitespace-nowrap px-3 py-2 text-slate-200">{totals.server}</td>
                           <td className="whitespace-nowrap px-3 py-2 text-slate-200">{totals.workstation}</td>
@@ -1274,7 +1278,7 @@ renderRow={(finding) => {
                     }} /></div>
             </div>
 
-            {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
+            {canOpenPopup("affected-cis") && isAssetDetailsPanelVisible && selectedFindingForAssets ? (
               <div className={`absolute inset-0 z-[3] ${isAssetDetailsPanelOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
                 <div className={`absolute inset-0 bg-slate-950/92 backdrop-blur-[1px] transition-opacity duration-200 ${isAssetDetailsPanelOpen ? "opacity-100" : "opacity-0"}`} onClick={closeAssetDetailsPanel} />
                 <aside
@@ -1327,13 +1331,13 @@ renderRow={(device) => (
                               <td className="whitespace-nowrap px-3 py-2 text-slate-200">{device.totalOpenFindings}</td>
                               <td className="whitespace-nowrap px-3 py-2">
                                 {device.totalHighRiskCveVulnerabilities > 0 ? (
-                                  <button
+                                  <PersonaPopupButton popup="cve-details"
                                     type="button"
                                     onClick={() => openCveDetailsModal(device)}
                                     className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                                   >
                                     {device.totalHighRiskCveVulnerabilities}
-                                  </button>
+                                  </PersonaPopupButton>
                                 ) : (
                                   <span className="text-slate-400/90">0</span>
                                 )}
@@ -1360,7 +1364,7 @@ export function NetworkDetailRiskCharts({
   asOfDate = new Date().toISOString().slice(0, 10),
   scopeDescription = "Open findings by severity in current network detail scope.",
   layout = "side-by-side",
-  enableFindingsDrillThrough = true
+  enableFindingsDrillThrough: requestedFindingsDrillThrough = true
 }: {
   riskProfile: {
     openFindings: number;
@@ -1379,6 +1383,8 @@ export function NetworkDetailRiskCharts({
   enableFindingsDrillThrough?: boolean;
 }) {
   const [selectedSeverity, setSelectedSeverity] = useState<FindingSeverity | null>(null);
+  const { canOpenPopup } = usePersonaAccess();
+  const enableFindingsDrillThrough = requestedFindingsDrillThrough && canOpenPopup("finding-details");
   const [searchTerm, setSearchTerm] = useState("");
   const [spiFilter, setSpiFilter] = useState<string>("all");
   const [assetTypeFilter, setAssetTypeFilter] = useState<string>("all");
@@ -2093,7 +2099,7 @@ export function NetworkDetailRiskCharts({
     );
   };
   const cveDetailsModal =
-    isMounted && isCveDetailsModalVisible && selectedAssetForCveDetails
+    canOpenPopup("cve-details") && isMounted && isCveDetailsModalVisible && selectedAssetForCveDetails
       ? createPortal(
           <div
             className={`fixed inset-0 z-[10010] ${
@@ -2640,13 +2646,13 @@ renderRow={(finding) => {
                             <td className="whitespace-nowrap px-3 py-2 text-slate-200">SPI {finding.spiId}</td>
                             <td className="whitespace-nowrap px-3 py-2 text-slate-200">P{finding.priorityRank}</td>
                             <td className="px-3 py-2 text-slate-100">
-                              <button
+                              <PersonaPopupButton popup="affected-cis"
                                 type="button"
                                 onClick={() => openAssetDetailsPanel(finding)}
                                 className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                               >
                                 {finding.title}
-                              </button>
+                              </PersonaPopupButton>
                             </td>
                             <td className="whitespace-nowrap px-3 py-2 text-slate-200">{totals.server}</td>
                             <td className="whitespace-nowrap px-3 py-2 text-slate-200">{totals.workstation}</td>
@@ -2657,7 +2663,7 @@ renderRow={(finding) => {
                       }} /></div>
               </div>
 
-              {isAssetDetailsPanelVisible && selectedFindingForAssets ? (
+              {canOpenPopup("affected-cis") && isAssetDetailsPanelVisible && selectedFindingForAssets ? (
                 <div
                   className={`absolute inset-0 z-[3] ${
                     isAssetDetailsPanelOpen ? "pointer-events-auto" : "pointer-events-none"
@@ -2719,13 +2725,13 @@ renderRow={(device) => (
                                 <td className="whitespace-nowrap px-3 py-2 text-slate-200">{device.totalOpenFindings}</td>
                                 <td className="whitespace-nowrap px-3 py-2">
                                   {device.totalHighRiskCveVulnerabilities > 0 ? (
-                                    <button
+                                    <PersonaPopupButton popup="cve-details"
                                       type="button"
                                       onClick={() => openCveDetailsModal(device)}
                                       className="text-left text-sky-100 underline decoration-sky-300/45 underline-offset-2 transition hover:text-cyan-100 hover:decoration-cyan-300/80"
                                     >
                                       {device.totalHighRiskCveVulnerabilities}
-                                    </button>
+                                    </PersonaPopupButton>
                                   ) : (
                                     <span className="text-slate-400/90">0</span>
                                   )}

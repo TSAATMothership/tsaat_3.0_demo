@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/persona-link";
 import { measuresFindingsHref } from "@/lib/measures-explorer";
 import type { MeasuresSummaryModel } from "@/lib/measures-summary";
 import type { Filters } from "@/lib/types";

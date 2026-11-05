@@ -1,5 +1,8 @@
 "use client";
 
+import { PersonaPopupButton } from "@/components/persona-popup-button";
+import { usePersonaAccess } from "@/components/persona-provider";
+
 import { browserWorkspaceSearch } from "@/lib/browser-location";
 
 import {
@@ -63,6 +66,8 @@ function detailsEndpoint(request: CmdbRequest): string {
 }
 
 export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) {
+  const { canOpenPopup } = usePersonaAccess();
+  const cmdbAllowed = canOpenPopup("cmdb-details");
   const [selection, setSelection] = useState<CmdbSelection | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -111,6 +116,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
 
   const openCmdbDrillThrough = useCallback(
     (assetId: string, assetName?: string) => {
+      if (!cmdbAllowed) return;
       const normalizedAssetId = assetId.trim();
       if (!normalizedAssetId) {
         return;
@@ -131,7 +137,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
       loadDetails(request);
       window.requestAnimationFrame(() => setIsOpen(true));
     },
-    [loadDetails]
+    [loadDetails, cmdbAllowed]
   );
 
   const close = useCallback(() => {
@@ -146,7 +152,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
       closeTimerRef.current = null;
     }, PANEL_TWEEN_MS);
   }, []);
-  const hasSelection = selection !== null;
+  const hasSelection = selection !== null && cmdbAllowed;
   const selectedAssetId = selection?.assetId;
 
   useEffect(() => {
@@ -232,7 +238,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   const tableRows = details?.attributes ?? [];
 
   const panel =
-    isMounted && selection
+    isMounted && selection && cmdbAllowed
       ? createPortal(
             <dialog
               ref={panelRef}
@@ -323,7 +329,7 @@ export function CmdbDeviceName({
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
   return (
-    <button
+    <PersonaPopupButton popup="cmdb-details"
       type="button"
       data-cmdb-asset-id={assetId}
       aria-label={`Open CMDB Drill Through for ${name}`}
@@ -336,6 +342,6 @@ export function CmdbDeviceName({
       className={`cursor-pointer text-left ${className}`}
     >
       {name}
-    </button>
+    </PersonaPopupButton>
   );
 }

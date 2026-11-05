@@ -122,7 +122,7 @@ describe("ICT system risk profile", () => {
   it("appears directly after Network Risk Profile and supports the header date", () => {
     const items = WORKSPACE_GROUPS.find(group => group.label === "Cyber Security")!.items;
     const index = items.findIndex(item => item.href === "/network-risk-profile");
-    expect(items[index + 1]).toEqual({ label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" });
+    expect(items[index + 1]).toEqual({ id: "ict-system-risk-profile", label: "ICT System Risk Profile", href: "/ict-system-risk-profile", scope: "system" });
     expect(isDataDateScopedPath("/ict-system-risk-profile")).toBe(true);
   });
 });

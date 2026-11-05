@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/persona-link";
 import { FindingsDataTable } from "@/components/findings-data-table";
 import { RiskEntityDetailsPanel } from "@/components/risk-entity-details-panel";
 import type { ExplorerColumn } from "@/lib/explorer-table";

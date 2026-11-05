@@ -102,6 +102,7 @@ const REQUIRED_TABLES: string[] = [
   "spi_tasking_action_template",
   "spi_tasking_condition_template",
   "discovery_tools_settings_version",
+  "persona_settings_version",
   "discovery_tool",
   "discovery_tool_asset_scope",
   "discovery_coverage_source",
@@ -114,6 +115,9 @@ const REQUIRED_TABLES: string[] = [
 ];
 
 const REQUIRED_COLUMNS: Array<{ tableName: string; columnName: string }> = [
+  { tableName: "persona_settings_version", columnName: "settings_version_id" },
+  { tableName: "persona_settings_version", columnName: "settings_json" },
+  { tableName: "persona_settings_version", columnName: "created_at_utc" },
   { tableName: "dataset_snapshot", columnName: "snapshot_date" },
   { tableName: "managed_network", columnName: "network_id" },
   { tableName: "managed_network", columnName: "adf_platform" },

@@ -6,9 +6,12 @@ This documentation describes the current source. SQL and TypeScript define exact
 | --- | --- |
 | Product behavior and acceptance contracts | [Solution design index](../Requirements%20Documentation/TSAAT-Solution-Design-Index.md) |
 | Executive Cyber Terrain Posture briefing | [Governance Insights](../Requirements%20Documentation/15-Governance-Insights.md) |
+| Executive compliance, lifecycle and discovery trends | [Governance Trends](../Requirements%20Documentation/17-Governance-Trends.md) |
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
 | Server patch evidence, status rules and sample population | [Patch Management Explorer](patch-management-explorer.md) |
+| Lifecycle evidence and server priorities | [Life Cycle Management](../Requirements%20Documentation/16-Life-Cycle-Management.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
+| Persona selection, sidebar visibility and settings upgrades | [Personas](personas.md) |
 | Discovery Overview PDF sections and scope | [Discovery Overview report](discovery-overview-report.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |

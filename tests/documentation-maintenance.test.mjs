@@ -55,6 +55,8 @@ test('documentation checks accept implementation-only drift but still reject cha
     write('docs/database.md', '# Database');
     write('docs/maintenance.json', JSON.stringify({ areas: [], fallbackDocuments: [] }));
     assert.equal(run('--write').status, 0);
+    write('lib/workspace-navigation.ts', '{ id: "overview", label: "Overview", href: "/overview" }');
+    assert.equal(run('--check').status, 0, 'Stable persona IDs must retain navigation inventory entries');
     const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true });
     git(['init', '--quiet']);
     git(['add', '.']);

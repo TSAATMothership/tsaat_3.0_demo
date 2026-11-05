@@ -1,4 +1,5 @@
 import "server-only";
+import { loadPersonaSettings, savePersonaSettings } from "./persona-settings";
 import { normalizeDatasetSecurityDomains, matchesSecurityDomain } from "@/lib/security-domain.mjs";
 import type * as SqlLoader from "@/lib/sql-data-loader";
 import type { Dataset, Finding, ICTSystem, ManagedNetwork, ReferenceVersions, StoredKpiEvaluation } from "@/lib/types";
@@ -241,6 +242,8 @@ export const jsonDataProvider = {
   saveMeasuresSettings,
   loadDiscoveryToolsSettings,
   saveDiscoveryToolsSettings,
+  loadPersonaSettings,
+  savePersonaSettings,
   clearDataLoaderCaches,
   __resetDataLoaderCachesForTest
 } satisfies typeof SqlLoader;
