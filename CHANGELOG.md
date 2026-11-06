@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-06 - Complete database setup
+
+- Make `npm run setup:database` prompt for connection details, create a missing database, apply schema/migrations and bundled data, validate it, and save encrypted configuration so the app is ready to run.
+- Default new database settings and database builds to SSL/TLS with Trust Server Certificate. Preserve saved policies and the Strict option; use TCP and correct the encryption diagnostic.
+- Validate existing databases without rebuilding or reseeding them, and preserve DB_config if setup fails.
+
 ## 2026-11-05 - Weekly and monthly Trends history
 
 - Replace snapshot-count history choices with 1 week and 1 month, defaulting to 1 month and ending on the selected header date.

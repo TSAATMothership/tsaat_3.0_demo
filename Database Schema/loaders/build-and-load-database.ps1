@@ -3,12 +3,12 @@ param(
   [string]$ServerInstance = 'localhost\SQLEXPRESS',
   [string]$AdminDatabase = 'master',
   [string]$DatabaseName,
-  [switch]$RequireNewDatabase,
+  [switch]$RequireNewDatabase = $true,
   [string]$SqlUser,
   [string]$SqlPassword,
   [switch]$UseTrustedConnection,
-  [switch]$EncryptConnection,
-  [switch]$TrustServerCertificate,
+  [switch]$EncryptConnection = $true,
+  [switch]$TrustServerCertificate = $true,
   [string]$DataLoadMode,
   [string]$SqlServerPackageDataRoot,
   [string]$SqlServerSnapshotsRoot
@@ -27,7 +27,7 @@ if ($hasSqlUser -xor $hasSqlPassword) {
 $sqlAuthMode = 'trusted'
 if ($hasSqlUser -and $hasSqlPassword) {
   $sqlAuthMode = 'sql'
-  $sqlAuthArgs = @('-U', $SqlUser, '-P', $SqlPassword)
+  $sqlAuthArgs = @('-U', $SqlUser)
 } elseif ($UseTrustedConnection.IsPresent -or (-not $hasSqlUser -and -not $hasSqlPassword)) {
   $sqlAuthMode = 'trusted'
   $sqlAuthArgs = @('-E')
@@ -81,6 +81,11 @@ function Resolve-SqlcmdServerTarget {
   }
 
   $normalized = $Server.Trim()
+  if ($EncryptConnection -or $TrustServerCertificate) {
+    if ($normalized -match '^(?i)(lpc|np):') { throw 'SSL requires TCP/IP. Use tcp:server,port.' }
+    if ($normalized -match '^(?i)tcp:') { return $normalized }
+    return "tcp:$normalized"
+  }
   if ($normalized -match '^(?i)(tcp|np|lpc):') {
     return $normalized
   }
@@ -370,6 +375,9 @@ END;
   Invoke-SqlText -Server $Server -Database $Database -SqlText $sql -AuthArgs $AuthArgs -SecurityArgs $SecurityArgs
 }
 
+$previousSqlcmdPassword = $env:SQLCMDPASSWORD
+try {
+if ($sqlAuthMode -eq 'sql') { $env:SQLCMDPASSWORD = $SqlPassword }
 $script:SqlcmdExecutable = Resolve-SqlcmdExecutable
 $sqlcmdServerInstance = Resolve-SqlcmdServerTarget -Server $ServerInstance
 $normalizedDataLoadMode = Normalize-DataLoadMode -Value $DataLoadMode
@@ -412,6 +420,9 @@ if ([string]::IsNullOrWhiteSpace($DatabaseName)) {
 
 if ([string]::IsNullOrWhiteSpace($DatabaseName)) {
   throw 'Could not discover application database name from repository artefacts.'
+}
+if ($DatabaseName -notmatch '^[A-Za-z][A-Za-z0-9_]{0,127}$' -or $DatabaseName -in @('master', 'model', 'msdb', 'tempdb')) {
+  throw 'Select an application database name containing only letters, numbers and underscores, starting with a letter (maximum 128 characters).'
 }
 
 $snapshotsRoot = Join-Path $repoRoot 'data\snapshots'
@@ -580,7 +591,7 @@ if ($normalizedDataLoadMode -eq 'ClientPayload') {
       -AuthMode $sqlAuthMode `
       -User $SqlUser `
       -Password $SqlPassword `
-      -Encrypt $EncryptConnection.IsPresent `
+      -Encrypt ($EncryptConnection.IsPresent -or $TrustServerCertificate.IsPresent) `
       -TrustServerCertificate $TrustServerCertificate.IsPresent `
       -PayloadFiles $payloadFiles `
       -LoadDataSql $loadDataSql `
@@ -623,3 +634,4 @@ $script:summaryOutput | Set-Content -LiteralPath $summaryFile -Encoding UTF8
 
 Write-Host 'Database build and load completed successfully.'
 Write-Host "Summary written to: $summaryFile"
+} finally { $env:SQLCMDPASSWORD = $previousSqlcmdPassword }

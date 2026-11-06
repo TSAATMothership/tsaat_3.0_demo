@@ -5,7 +5,7 @@
 - `Database Schema/database-schema.sql`: fresh-install objects, constraints and routines. It drops/recreates existing schema objects and is destructive on an existing TSAAT database.
 - `Database Schema/migrations/`: ordered upgrades through 031; retain history for existing installations.
 - `Database Schema/data/`: reference/configuration JSON and build manifest.
-- `Database Schema/loaders/`: import and validation. The low-level loader rebuilds schema and imports demo data; it is not a production migration runner.
+- `Database Schema/loaders/`: import and validation. The low-level loader creates schema and imports demo data, requiring a new database by default; it is not a production migration runner. Explicitly disabling its new-database guard is destructive and is never appropriate for an operational database.
 - [ERD](../Database%20Schema/ERD.md), schema description and data mapping: domain relationships and source mappings.
 - [Generated catalogue](generated/database-catalogue.md): base-schema fields, foreign keys, routines and migration inventory. It documents source, not the actual deployed schema.
 
@@ -19,9 +19,19 @@ KPI/SPI definitions, calculations, SPI parameters, outcome text, report bindings
 
 Seven asset types are supported. CMDB presentation uses cmdb_attribute_definition and cmdb_asset_type_attribute; canonical values remain typed. Migration 025 initially maps 18 fields to each type and preserves later custom mappings on rerun. See [CMDB attributes](cmdb-asset-type-attributes.md).
 
-## New development database
+## One-command database setup
 
-Run `npm run db:bootstrap -- -DatabaseName TSAAT_UI3_Dev`, adding TrustServerCertificate only for appropriate local TLS configuration. This Windows-authenticated entrypoint requires an explicit name and refuses an existing database. It applies schema, ordered migrations, reference data and eight demo snapshots, then reapplies demo-only 026 after import to populate panel metadata. Configure DB_config separately.
+After `npm ci --offline`, run `npm run setup:database` under the Windows identity that will run the app. Supply a TCP-enabled SQL Server endpoint (`tcp:server,port` avoids reliance on SQL Browser), an application database name, and Windows or SQL authentication. SQL Server and sqlcmd must already be installed. The account needs permission to create the new database and its objects. Setup does not install SQL Server, create server logins, enable network protocols or restart services.
+
+New connections default to SSL/TLS encryption with Trust Server Certificate. This encrypts traffic but skips certificate validation. Choose `strict` to validate the server certificate; existing saved choices are preserved. Runtime, setup and data import use the same TLS policy, with no retry that disables encryption or certificate validation. Encrypted connections require TCP; shared memory is not a TLS endpoint. The SSL diagnostic reads the current session's `sys.dm_exec_connections` encryption state (requiring VIEW SERVER STATE, or VIEW SERVER PERFORMANCE STATE on SQL Server 2022+).
+
+For a missing database, setup confirms the target, creates it with a race-safe CREATE, applies the base schema and ordered migrations, streams local reference JSON and eight sample snapshots through the connection, and populates the existing sample entity/CVE/patch details. No SQL Server file shares are needed. The data is bundled demonstration material. It then runs the application's connection, TLS and current-schema checks. Only after success does it save DPAPI-encrypted DB_config. Run `npm run dev:sql`, or `npm run build:sql` followed by `npm run start:sql` for a compiled app.
+
+For an existing database, setup performs read-only connection/TLS/schema/snapshot validation and saves the selected configuration only on success. It never reapplies the base schema, replays migrations or replaces data. An incomplete or old database produces a failure with migration guidance; apply reviewed missing migrations separately. A failed new build may leave an incomplete database for inspection; setup never automatically drops it or silently rebuilds it on retry. Choose a new name or have the database owner review recovery. A failed setup leaves the previous DB_config unchanged.
+
+Unattended setup requires `TSAAT_DB_CONFIG_ASSUME_YES=true`, `TSAAT_SQL_SERVER`, `TSAAT_APP_DATABASE`, and either `TSAAT_SQL_TRUSTED_CONNECTION=true` or both `TSAAT_SQL_USER`/`TSAAT_SQL_PASSWORD`. These supply new configuration; an existing readable DB_config takes precedence. Set `TSAAT_SQL_TRUST_SERVER_CERTIFICATE=false` for strict validation. Explicit legacy `TSAAT_SQL_ENCRYPT=false` remains supported when certificate trust is not enabled. Use process environment variables for secrets, never command-line password arguments. `-- -DbConfigPath <path>` supports an isolated setup configuration; the app itself reads DB_config in its working directory.
+
+The lower-level `npm run db:bootstrap -- -DatabaseName TSAAT_UI3_Dev` remains available with encrypted certificate-trust defaults and refuses an existing database. For strict validation, invoke the PowerShell script with `-TrustServerCertificate:$false`. It does not save DB_config; use `setup:database` for the complete workflow. Direct `ensure-db-config.ps1` without `-SetupDatabase` remains configuration-only for compatibility.
 
 Repository JSON is demo/test material, not an export of the running database. Database cleanup is validated using isolated restored/fresh databases; the original database is not implicitly rebuilt or migrated.
 
@@ -47,7 +57,7 @@ Regenerate docs after SQL/reference changes and inspect ERD/mappings. Run valida
 
 ## No-SQL build relationship
 
-The same app also compiles with a JSON data provider. SQL implementation moved behind lib/data-loader.ts into lib/sql-data-loader.ts; the schema, migrations and strict TLS configuration are unchanged by this build split. CMDB SQL access similarly remains behind the shared attribute-loader facade.
+The same app also compiles with a JSON data provider. SQL implementation remains behind lib/data-loader.ts in lib/sql-data-loader.ts; CMDB SQL access similarly remains behind the shared attribute-loader facade. The setup/TLS changes add no schema or JSON format change, so no new SQL migration, JSON upgrade or calculation-contract checksum refresh is needed. Existing JSON stores are untouched.
 
 No-SQL loads snapshots, references and settings from its own server directory. Initial seed JSON is sample material, not an export of this database. Existing SQL data is not accessed or mutated during builds. Explicit authorized read-only SQL exports can populate No-SQL snapshots through the backed-up import workflow; the source database is not modified. Imported values, dates, relationships and persisted findings are preserved, with only missing demonstration attributes enriched when --demo is selected. Runtime extracts stay outside Git. See [data-provider population and recovery](data-providers.md). SQL rule/schema changes require equivalent JSON calculations and regression review before updating NoSQL/calculation-contract.json. Per-type defaults are in NoSQL/cmdb-attributes.json; runtime overrides live in the store references directory.
 

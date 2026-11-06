@@ -46,7 +46,13 @@ describe("database settings password handling", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it("does not return stored SQL password in defaults", async () => {
+  it("defaults new settings to encrypted trust mode", async () => {
+    const defaults = await loadDatabaseSettingsDefaults();
+    expect(defaults.sslEnabled).toBe(true);
+    expect(defaults.sslType).toBe("trust-server-certificate");
+  });
+
+  it("does not return stored SQL password or change saved TLS settings in defaults", async () => {
     await saveDatabaseConnectionSettingsToFile({
       server: "localhost\\SQLEXPRESS",
       database: "TSAAT",
@@ -61,6 +67,8 @@ describe("database settings password handling", () => {
     expect(defaults.authMode).toBe("sql");
     expect(defaults.hasStoredPassword).toBe(true);
     expect(defaults.password).toBe(STORED_DB_PASSWORD_PLACEHOLDER);
+    expect(defaults.sslEnabled).toBe(false);
+    expect(defaults.sslType).toBe("strict");
   });
 
   it("resolves stored password placeholder for processing", async () => {

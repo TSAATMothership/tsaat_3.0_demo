@@ -232,8 +232,8 @@ export async function loadDatabaseSettingsDefaults(): Promise<DatabaseSettingsVi
     authMode: fileSettings?.authMode ?? "trusted",
     userId: fileSettings?.userId?.trim() || "",
     password: hasStoredPassword ? STORED_DB_PASSWORD_PLACEHOLDER : "",
-    sslEnabled: fileSettings?.sslEnabled ?? false,
-    sslType: fileSettings?.sslType ?? "strict",
+    sslEnabled: fileSettings?.sslEnabled ?? true,
+    sslType: fileSettings?.sslType ?? "trust-server-certificate",
     hasStoredPassword
   };
 }
@@ -342,9 +342,11 @@ export async function testDatabaseSsl(settings: EditableDatabaseConnectionInput)
     const payload = await executeSqlJsonWithConnection<SslValidationPayload>(
       `
 SELECT
-  CAST(CONNECTIONPROPERTY('encrypt_option') AS NVARCHAR(60)) AS [encryptOption],
-  CAST(CONNECTIONPROPERTY('auth_scheme') AS NVARCHAR(60)) AS [authScheme],
-  CAST(CONNECTIONPROPERTY('protocol_type') AS NVARCHAR(60)) AS [protocolType]
+  CAST(encrypt_option AS NVARCHAR(60)) AS [encryptOption],
+  CAST(auth_scheme AS NVARCHAR(60)) AS [authScheme],
+  CAST(protocol_type AS NVARCHAR(60)) AS [protocolType]
+FROM sys.dm_exec_connections
+WHERE session_id = @@SPID
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `,
       connection

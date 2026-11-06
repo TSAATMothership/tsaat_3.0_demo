@@ -105,6 +105,9 @@ describe("ensure-db-config.ps1", () => {
       env
     );
     expect(createResult.status).toBe(0);
+    const emitDefaults = runPowerShell(EMIT_SCRIPT, ["-RepoRoot", REPO_ROOT, "-DbConfigPath", dbConfigPath], env);
+    expect(emitDefaults.stdout).toContain('set "DB_CONF_ENCRYPT=true"');
+    expect(emitDefaults.stdout).toContain('set "DB_CONF_TRUST_SERVER_CERTIFICATE=true"');
 
     const before = await fs.readFile(dbConfigPath, "utf8");
     const beforeHash = sha256(before);

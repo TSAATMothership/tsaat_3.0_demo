@@ -23,7 +23,7 @@ Select the smallest sufficient checks before implementation, then reassess after
 1. Define the change and record its impact assessment and intended checks.
 2. Review relevant requirements/design; update them only when affected. Record substantial decisions in an ADR.
 3. Implement with meaningful regression coverage. Preserve header scope, dates, configurable definitions, the current application access model, compatibility routes and shared data facades.
-4. Run the selected checks; record actual results and reasons for omitted categories. Treat unavailable SQL infrastructure as an explicit limitation, not a passing test. Never relax TLS or use operational databases for validation.
+4. Run the selected checks; record actual results and reasons for omitted categories. Treat unavailable SQL infrastructure as an explicit limitation, not a passing test. Never silently downgrade the selected TLS policy or use operational databases for validation. New-connection defaults follow [ADR 0016](adr/0016-complete-database-setup.md); explicit Strict policies remain strict.
 5. Request independent review of behavior, impact assessment, maintainability, security/accessibility and applicable documentation/migration/recovery notes.
 6. Merge after the selected CI checks and review pass. Before release, complete the full release gate for the specific commit/tag and record post-deployment checks.
 

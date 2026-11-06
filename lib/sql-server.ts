@@ -93,12 +93,12 @@ function redactSecrets(text: string): string {
     .replace(/(user\s*id\s*=\s*)([^;\r\n]+)/gi, "$1[REDACTED]");
 }
 
-function normalizeSslConfig(input: { sslEnabled?: boolean; sslType?: DatabaseSslType }): {
+export function normalizeSslConfig(input: { sslEnabled?: boolean; sslType?: DatabaseSslType }): {
   sslEnabled: boolean;
   sslType: DatabaseSslType;
 } {
-  const sslType = input.sslType === "trust-server-certificate" ? "trust-server-certificate" : "strict";
-  const sslEnabled = input.sslEnabled === true || sslType === "trust-server-certificate";
+  const sslType = input.sslType ?? (input.sslEnabled === false ? "strict" : "trust-server-certificate");
+  const sslEnabled = (input.sslEnabled ?? true) || sslType === "trust-server-certificate";
 
   if (!sslEnabled) {
     return { sslEnabled: false, sslType: "strict" };
@@ -259,8 +259,14 @@ function resolveSqlcmdExecutable(): string {
   return "sqlcmd";
 }
 
-function resolveSqlcmdServerTarget(server: string): string {
+export function resolveSqlcmdServerTarget(server: string, sslEnabled = false): string {
   const normalized = server.trim();
+  if (sslEnabled) {
+    if (/^(np|lpc):/i.test(normalized)) {
+      throw new Error("SSL requires a TCP SQL Server address. Use tcp:server,port and enable TCP/IP on SQL Server.");
+    }
+    return /^tcp:/i.test(normalized) ? normalized : `tcp:${normalized}`;
+  }
   if (/^(tcp|np|lpc):/i.test(normalized)) {
     return normalized;
   }
@@ -370,7 +376,7 @@ async function executeSqlFileAgainstConnection(
   const sqlcmd = resolveSqlcmdExecutable();
 
   const runSqlcmd = async (targetConnection: ResolvedSqlConnection): Promise<string> => {
-    const targetServer = resolveSqlcmdServerTarget(targetConnection.server);
+    const targetServer = resolveSqlcmdServerTarget(targetConnection.server, targetConnection.sslEnabled);
     const { stdout, stderr } = await execFileAsync(
       sqlcmd,
       [
@@ -411,7 +417,7 @@ async function executeSqlFileAgainstConnection(
     error: { code?: number; message?: string; stdout?: string; stderr?: string }
   ): string =>
     [
-      `sqlcmd failed against server '${targetConnection.server}' (target '${resolveSqlcmdServerTarget(targetConnection.server)}') database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication (SSL ${targetConnection.sslEnabled ? targetConnection.sslType : "disabled"}).`,
+      `sqlcmd failed against server '${targetConnection.server}' database '${targetConnection.database}' using ${targetConnection.auth.mode} authentication (SSL ${targetConnection.sslEnabled ? targetConnection.sslType : "disabled"}).`,
       error.message ? `Message: ${redactSecrets(error.message)}` : undefined,
       error.code !== undefined ? `Exit code: ${error.code}` : undefined,
       error.stderr?.trim() ? `stderr: ${redactSecrets(error.stderr.trim())}` : undefined,

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$RepoRoot,
-  [string]$DbConfigPath
+  [string]$DbConfigPath,
+  [switch]$SetupDatabase
 )
 
 $ErrorActionPreference = 'Stop'
@@ -189,7 +190,7 @@ function Normalize-DbSettings {
   $userId = Optional-String -Name 'User Id' -Value $InputValue.userId
   $password = Optional-String -Name 'Password' -Value $InputValue.password
 
-  $sslEnabled = $false
+  $sslEnabled = $true
   if ($InputValue.sslEnabled -is [bool]) {
     $sslEnabled = [bool]$InputValue.sslEnabled
   } elseif ($null -ne $InputValue.sslEnabled) {
@@ -197,7 +198,7 @@ function Normalize-DbSettings {
     $sslEnabled = $parsedSslEnabled -eq $true
   }
 
-  $sslType = 'strict'
+  $sslType = if ($sslEnabled) { 'trust-server-certificate' } else { 'strict' }
   if (-not [string]::IsNullOrWhiteSpace([string]$InputValue.sslType)) {
     $sslType = ([string]$InputValue.sslType).Trim().ToLowerInvariant()
   }
@@ -286,6 +287,9 @@ function Write-DbConfigFile {
     [Parameter(Mandatory = $true)][ValidateSet('dpapi-current-user', 'dpapi-local-machine')][string]$KeyProvider
   )
 
+  # Publish settings only after the selected database is ready. A failure leaves
+  # the previous encrypted config intact and never prints the candidate password.
+  Complete-DatabaseSetup -Settings $Payload
   $now = [DateTimeOffset]::UtcNow.ToString('o')
   $payloadJson = ConvertTo-CanonicalJson -Value $Payload
   $payloadBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payloadJson))
@@ -381,11 +385,11 @@ function Build-CandidateSettings {
 
   $sslEnabled = $ExistingPayload.sslEnabled
   if ($null -eq $sslEnabled) {
-    $sslEnabled = $false
+    $sslEnabled = $true
   }
   $sslType = $ExistingPayload.sslType
   if ([string]::IsNullOrWhiteSpace($sslType)) {
-    $sslType = 'strict'
+    $sslType = if ($sslEnabled) { 'trust-server-certificate' } else { 'strict' }
   }
 
   $envEncrypt = Parse-Boolean -Value $env:TSAAT_SQL_ENCRYPT
@@ -396,7 +400,7 @@ function Build-CandidateSettings {
   if ($envTrustServerCertificate -eq $true -and [string]::IsNullOrWhiteSpace($ExistingPayload.sslType)) {
     $sslEnabled = $true
     $sslType = 'trust-server-certificate'
-  } elseif ($envEncrypt -eq $true -and [string]::IsNullOrWhiteSpace($ExistingPayload.sslType)) {
+  } elseif (($envTrustServerCertificate -eq $false -or $envEncrypt -eq $false) -and [string]::IsNullOrWhiteSpace($ExistingPayload.sslType)) {
     $sslType = 'strict'
   }
 
@@ -547,6 +551,13 @@ function Read-InteractiveSettings {
   })
 }
 
+function Complete-DatabaseSetup {
+  param([Parameter(Mandatory = $true)][object]$Settings)
+  if (-not $SetupDatabase) { return }
+  & (Join-Path $script:RepoRoot 'scripts\prepare-database.ps1') -Settings $Settings -RepoRoot $script:RepoRoot -Interactive:($interactive -and -not $assumeYes)
+  Write-Host 'Database ready. After setup finishes, run npm run dev:sql (or npm run build:sql then npm run start:sql).'
+}
+
 $script:RepoRoot = Resolve-RepoRoot -InputRoot $RepoRoot
 if ([string]::IsNullOrWhiteSpace($DbConfigPath)) {
   $DbConfigPath = Join-Path $script:RepoRoot 'DB_config'
@@ -567,6 +578,7 @@ if (Test-Path -LiteralPath $DbConfigPath) {
 
   if ($null -ne $existing) {
     if ($assumeYes -or -not $interactive) {
+      Complete-DatabaseSetup -Settings $existing.payload
       Write-Host "Validated encrypted DB_config file: $DbConfigPath"
       exit 0
     }
@@ -623,11 +635,7 @@ $settingsToWrite = $defaults
 
 if ($interactive -and -not $assumeYes) {
   Write-Host 'DB_config is missing. Confirm database settings to create it.'
-  Write-SettingsSummary -Settings $defaults
-  $acceptDefaults = Read-YesNo -Prompt 'Use these database settings?' -DefaultValue $true
-  if (-not $acceptDefaults) {
-    $settingsToWrite = Read-InteractiveSettings -Defaults $defaults
-  }
+  $settingsToWrite = Read-InteractiveSettings -Defaults $defaults
 }
 
 $newKeyProvider = Resolve-KeyProvider -ExistingKeyProvider $null

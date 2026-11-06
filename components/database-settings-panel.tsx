@@ -388,7 +388,7 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
         <div>
           <h2 className="text-sm uppercase tracking-[0.14em] text-slate-200/85">Database Settings</h2>
           <p className="mt-1 text-xs text-slate-300/80">
-            Choose authentication, then configure SSL if needed. Save is enabled only after connection and schema tests
+            New connections use SSL with Trust Server Certificate. Save is enabled only after connection and schema tests
             pass, plus SSL test when SSL is enabled.
           </p>
         </div>
@@ -471,11 +471,14 @@ export function DatabaseSettingsPanel({ initialSettings }: { initialSettings: Da
                 disabled={!draftSettings.sslEnabled}
                 className="rounded-md border border-sky-400/20 bg-slate-950/70 px-2 py-2 text-sm normal-case tracking-normal text-slate-100 disabled:opacity-60"
               >
-                <option value="strict">Strict (validate certificate chain)</option>
                 <option value="trust-server-certificate">Trust Server Certificate</option>
+                <option value="strict">Strict (validate certificate chain)</option>
               </select>
             </label>
           </div>
+          <p className="mt-2 text-xs text-slate-300/80">
+            Trust Server Certificate encrypts the connection without validating the server certificate. Choose Strict to validate it.
+          </p>
         </fieldset>
 
         <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.11em] text-slate-300/85">

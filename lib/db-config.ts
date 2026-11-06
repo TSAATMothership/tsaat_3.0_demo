@@ -350,8 +350,9 @@ export function normalizeEditableDatabaseConnectionInput(input: unknown): Editab
     candidate.trustServerCertificate
   );
 
-  let sslEnabled = sslEnabledInput ?? encryptInput ?? false;
-  let sslType: DatabaseSslType = sslTypeInput ?? (trustServerCertificateInput === true ? "trust-server-certificate" : "strict");
+  let sslEnabled = sslEnabledInput ?? encryptInput ?? true;
+  let sslType: DatabaseSslType = sslTypeInput ??
+    (trustServerCertificateInput === false || !sslEnabled ? "strict" : "trust-server-certificate");
 
   if (sslType === "trust-server-certificate" || trustServerCertificateInput === true) {
     sslEnabled = true;

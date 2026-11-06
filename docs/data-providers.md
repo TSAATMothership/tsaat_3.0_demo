@@ -22,7 +22,7 @@ Both providers require an installed Next.js CLI. The launcher checks it before b
 
 lib/data-loader.ts and lib/cmdb-attribute-loader.ts select typed providers. SQL code remains in lib/sql-data-loader.ts and lib/sql-cmdb-attribute-loader.ts; JSON implementations live in lib/json-store. The JSON operation object must satisfy the SQL loader's exported operation types. Feature code must import the shared facades. New storage operations require implementations in both providers. The SQL execution adapter rejects calls in a No-SQL build, and SQL settings APIs return 409 there.
 
-Both builds open pages and APIs without application credentials. No logindetails file or login setup is required. Existing credential files are ignored and left untouched. SQL DB_config and its strict TLS policy are unchanged; no SQL/JSON migration is needed.
+Both builds open pages and APIs without application credentials. No logindetails file or login setup is required. Existing credential files are ignored and left untouched. SQL DB_config remains encrypted. New SQL settings default to SSL/TLS with Trust Server Certificate; saved policies and the Strict option are retained. Explicit `setup:database` initializes missing SQL databases and validates existing ones; app builds never seed SQL. No provider data model, calculation, SQL migration or JSON upgrade is needed; calculation-contract checksums remain unchanged.
 
 ## JSON store, format version 1
 
@@ -101,7 +101,7 @@ When contracts change, align both providers, required migrations/data fixtures, 
 
 ## Offline compilation requirement
 
-Both providers compile using only repository source, assets and vendor/npm archives, after an offline npm ci. Compilation must not contact SQL Server, registry services or remote asset/code hosts. The same guard and dependency verification apply to build:sql and build:nosql. No-SQL still initializes only a missing store and preserves existing data/settings. SQL runtime still requires access to its configured SQL Server and strict TLS; the compilation guarantee does not remove runtime database connection or SQL authentication requirements. No schema, calculation rule or JSON format/data migration is introduced by offline packaging. See [offline builds](offline-builds.md).
+Both providers compile using only repository source, assets and vendor/npm archives, after an offline npm ci. Compilation must not contact SQL Server, registry services or remote asset/code hosts. The same guard and dependency verification apply to build:sql and build:nosql. No-SQL still initializes only a missing store and preserves existing data/settings. SQL runtime still requires access to its configured SQL Server using the selected TLS policy; the compilation guarantee does not remove runtime database connection or SQL authentication requirements. No schema, calculation rule or JSON format/data migration is introduced by offline packaging. See [offline builds](offline-builds.md).
 
 Risk-profile explorer new-tab navigation is shared by SQL and JSON builds. Selected-row, snapshot and destination-filter presets use the existing URLs and shared data facades. This interaction change introduces no SQL/JSON migration or calculation-contract change and leaves stored snapshots/settings untouched.
 

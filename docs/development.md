@@ -4,7 +4,7 @@
 
 Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci --offline` installs only committed vendor/npm archives, using the checked-in legacy-peer-deps setting, with lifecycle scripts, audit and update notices disabled. No populated npm cache or network is required. The checkout does not require a sibling TSAAT folder or vendored host runtime. The [offline compilation contract](offline-builds.md) remains a product requirement; repeat fresh-install/both-build evidence for dependency/build changes and releases, not unrelated routine edits. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
 
-Both builds open directly without application credentials. For SQL, `npm run setup:database` provisions encrypted DB_config for the runtime Windows identity. Choose an existing development database for ordinary work; db:bootstrap requires a new disposable database.
+Both builds open directly without application credentials. For SQL, `npm run setup:database` prompts for connection details, initializes a missing database with schema and bundled data, validates it, and saves encrypted DB_config for the runtime Windows identity. Existing databases are validated without rebuilding. New settings use encrypted TCP with Trust Server Certificate; Strict remains selectable. See [database setup](database.md#one-command-database-setup). The separate db:bootstrap still requires a new disposable database.
 
 ## Select checks before running them
 

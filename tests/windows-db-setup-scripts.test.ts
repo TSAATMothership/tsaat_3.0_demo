@@ -53,6 +53,12 @@ describe("Windows database setup scripts", () => {
     expect(bootstrap).toContain("Database already exists");
     expect(bootstrap).toContain("-RequireNewDatabase");
     expect(bootstrap).toContain("Parameter(Mandatory = $true)");
+    const loader = readFileSync(path.join(REPO_ROOT, "Database Schema/loaders/build-and-load-database.ps1"), "utf8");
+    expect(loader).toContain("[switch]$RequireNewDatabase = $true");
+    expect(loader).toContain("[switch]$EncryptConnection = $true");
+    expect(loader).toContain("[switch]$TrustServerCertificate = $true");
+    expect(bootstrap).toContain("'-i' $temporarySql");
+    expect(bootstrap).not.toContain("'-Q' (\"EXEC sys.sp_set_session_context");
     expect(compile).toContain("npm run check");
     expect(compile).toContain("npm run build");
     expect(compile).not.toContain("CreateDB");
