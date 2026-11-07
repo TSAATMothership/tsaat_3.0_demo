@@ -13,6 +13,13 @@ const settings: EditableDatabaseConnectionInput = {
 describe("SQL encryption diagnostics", () => {
   beforeEach(() => { execute.mockReset(); });
 
+  it("skips the SSL query for a username/password connection with SSL disabled", async () => {
+    const result = await testDatabaseSsl({ ...settings, authMode: "sql", userId: "tsaat_app", password: "test-secret", sslEnabled: false, sslType: "strict" });
+    expect(result.success).toBe(true);
+    expect(result.diagnostics).toContain("SSL is disabled");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("checks the current connection DMV and preserves the chosen TLS policy", async () => {
     execute.mockResolvedValue({ encryptOption: "TRUE", authScheme: "NTLM", protocolType: "TSQL" });
     expect((await testDatabaseSsl(settings)).success).toBe(true);

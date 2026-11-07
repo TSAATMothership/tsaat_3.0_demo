@@ -17,12 +17,12 @@ describe("workspace scope", () => {
     const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
     const hiddenHrefs = (query: string) => items.filter((item) => !isWorkspaceItemVisible(item, new URLSearchParams(query))).map((item) => item.href);
     expect(hiddenHrefs("network=net-a,net-b")).toEqual([
-      "/ict-system-risk-profile", "/cyber-cop?copView=ict-system-impact-analyser", "/cyber-cop?copView=ict-system-dependencies"
+      "/ict-system-risk-profile", "/cyber-cop?copView=ict-system-impact-analyser", "/cyber-cop?copView=ict-system-dependencies", "/discovery-coverage?discoveryView=installed-software-insights"
     ]);
     expect(hiddenHrefs("system=sys-a,sys-b")).toEqual([
-      "/network-risk-profile"
+      "/network-risk-profile", "/discovery-coverage?discoveryView=installed-software-insights"
     ]);
-    expect(hiddenHrefs("")).toEqual([]);
+    expect(hiddenHrefs("")).toEqual(["/discovery-coverage?discoveryView=installed-software-insights"]);
   });
   it("hides ICT System Impact Analyser for an applied network even when it is active", () => {
     const analyser = WORKSPACE_GROUPS.flatMap(group => group.items)
@@ -106,7 +106,7 @@ describe("workspace scope", () => {
       expect(updated.searchParams.get("system")).toBe("sys-a,sys-b");
       expect(updated.searchParams.has("network")).toBe(false);
       expect(updated.searchParams.has("page")).toBe(false);
-      expect(isWorkspaceItemVisible(selected, updated.searchParams, selected.href)).toBe(true);
+      expect(isWorkspaceItemVisible(selected, updated.searchParams, selected.href)).toBe(selected.sidebar !== false);
       const cleared = updateWorkspaceScope(draft, "system", []);
       expect(activeWorkspaceItem(updated.pathname, cleared)?.href).toBe(expectedHref);
       expect(hasWorkspaceScope(Object.fromEntries(cleared))).toBe(false);

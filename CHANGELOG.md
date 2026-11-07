@@ -1,7 +1,149 @@
 # Changelog
 
+## 2026-11-07 - Topology mouse-wheel zoom
+
+- Added mouse-wheel zoom over the Impact Topology canvas in Topology Explorer, in both modes and full screen. Scroll up to zoom in and down to zoom out; scrolling outside the canvas remains available.
+
+## 2026-11-07 - Impact Topology naming
+
+- Standardised the name Impact Topology across Topology Explorer, Service Impact, accessible controls, persona settings, Cyber Terrain briefing/PDF and documentation.
+
+## 2026-11-07 - Compact topology navigation controls
+
+- Replaced the Topology Explorer's padded Layout & navigation card with a slim toolbar. Layout, zoom and Fit graph share a row where space permits and wrap on narrow screens, leaving more room for the graph.
+
+## 2026-11-07 - Centred topology filter counts
+
+- Centred the selected-count badge within each Find a configuration item filter, independently of its label width, while keeping labels readable and chevrons aligned right.
+
+## 2026-11-07 - Graph mode controls inside Impact Topology
+
+- Moved Business Impact and Dependencies into the Impact Topology header and removed their separate page row. Both tabs remain available in full screen, with mode changes keeping the expanded graph open.
+
+## 2026-11-07 - Filter popup opening position
+
+- Fixed the brief top-left flash when opening Topology lookup and shared Explorer filters by positioning each popup before paint and preventing its initial focus from scrolling the page.
+
+## 2026-11-07 - Topology full-screen graph
+
+- Added Full screen / Exit full screen to Topology Explorer's Impact Topology, with Escape and focus return. Layout, zoom, moved nodes, graph search and selection are retained; CMDB remains available while expanded.
+
+## 2026-11-07 - Aligned Topology panels
+
+- Matched the Impact Topology panel height to Matching CIs, with internal scrolling and aligned edges on desktop. Phone panels retain their stacked layout.
+
+## 2026-11-07 - Consistent Impact Topology styling
+
+- Matched Topology Explorer's Impact Topology to the Service Impact Analyser with shared node visuals, canvas, relationship labels, controls, summary and inspector styling.
+- Added graph-local CI search and connected-CI badges. Both topology modes retain their scope, communication direction and external-peer indicators; the inspector adapts to narrow panels.
+
+## 2026-11-07 - Topology graph modes
+
+- Added Business Impact and Dependencies modes, preserving the selected CI, filters and snapshot when switching.
+- Business Impact now includes model relationships upstream and downstream. Dependencies shows incoming/outgoing communication and each peer's business context, including direct peers outside the selected network/system while respecting Security Domains.
+- Added communication evidence with protocol, ports, source and observation time, outside-scope indicators, and explicit navigation into a peer's scope.
+
+## 2026-11-07 - Topology lookup filters
+
+- Updated Find a configuration item to use the End Point Explorer table-header filter menus, with searchable values, checkboxes, counts, multiple selection and clear controls.
+- Added removable filter chips and reloadable selections while retaining legacy lookup bookmarks, selected CI, scope and snapshot.
+
+## 2026-11-07 - Software dashboard sidebar removal
+
+- Removed Installed Software Dashboard from the Discovery sidebar for every scope.
+- Retained Installed Software Insights in Governance, the dashboard bookmark URL and existing persona preferences.
+
+## 2026-11-07 - Software Insights in Governance
+
+- Moved the Software Insights briefing into its own Installed Software Insights page below Cyber Terrain Insights in Governance, retaining Generate PDF.
+- Kept the compact Installed Software Dashboard in Discovery above Installed Software Explorer and removed the tab strip.
+- Preserved header scope, snapshot selection, evidence links and the existing dashboard URL. The new Governance page has its own persona preference; saved selections remain unchanged.
+
+## 2026-11-07 - Software Insights PDF
+
+- Added Generate PDF to the Software Insights tab, matching Cyber Terrain Insights' download interaction.
+- The printable infographic includes software footprint, product concentration, version variation and evidence priorities for the selected scope and snapshot, with timestamps and page numbers.
+- Downloads provide progress feedback, keyboard focus retention and retryable errors.
+
+## 2026-11-07 - Discovery Compliance Explorer styling
+
+- Aligned Discovery Compliance Explorer with Installed Software Explorer's header, four interactive chart cards, table controls and responsive layout.
+- Chart bars filter compliance status, missing tools, discovery sources and discovery dates using the existing filters. Matching tool coverage, CMDB links and Excel export remain available.
+
+## 2026-11-07 - Discovery Compliance Explorer filters
+
+- Removed the Environment and Asset Type controls and their filter row from Discovery Compliance Explorer.
+
+## 2026-11-07 - Discovery Tool Coverage filters
+
+- Removed the Environment and Asset Type controls and their filter row from Discovery Tool Coverage.
+
+## 2026-11-07 - Compact software dashboard
+
+- Reduced the software dashboard header, metric cards and chart spacing; all six charts now share a three-column, two-row desktop layout.
+- Kept evidence links and counts available, with responsive layouts for smaller screens. Software Insights retains its existing briefing design.
+
+## 2026-11-07 - Software Insights visual refresh
+
+- Renamed the Installed Software Insights tabs to Insalled Sofware Dashboard and Software Insights.
+- Restyled Software Insights to match Cyber Terrain Insights, with an illustrated masthead, headline metrics, chapter navigation and evidence action cards. Existing scope, snapshot counts and Explorer links are preserved.
+
+## 2026-11-07 - Explore Topology from CMDB
+
+- Added an Explore Topology button to the CMDB popup. It opens Topology Explorer with the CI selected and preserves the originating scope, security domains and loaded snapshot.
+- The action respects persona page access and remains disabled until CI details load. Stale lookup filters are cleared when opening the selected CI.
+
+## 2026-11-07 - Topology Explorer
+
+- Added Topology Explorer below Shadow IT Explorer in Discovery, with combined CI name/hostname/ID, installed software/version, CVE and IP lookup plus CI type filtering.
+- Endpoint CIs trace upstream to recorded systems, networks, business services and mission capabilities. Model CIs show downstream systems and networks, including CIs without findings.
+- Added interactive Impact Topology layouts, node inspection/CMDB, keyboard pan/zoom, a compact phone layout and exact path evidence. Header scope, security domains, snapshot and saved persona choices remain respected in both SQL and No-SQL builds.
+
+## 2026-11-07 - Measures Trends
+
+- Added Measures Trends above Measures Summary, with separate KPI and SPI tabs and 1 week, 4 weeks, 3 months, 6 months and 12 months ranges.
+- Search and select any configured indicator to view dated compliance charts, percentage-point changes, populations, snapshot results and CSV evidence. Header scope, security domains and selected dates are preserved.
+- Longer ranges show available history explicitly; missing evidence and empty denominators remain distinct from zero compliance. Both providers reuse the existing measure calculations.
+
+## 2026-11-07 - Aligned weekly evidence
+
+- SQL and JSON setup use the same eight weekly samples, from 19 September to 7 November, with endpoint/software discovery, ownership, patch, vulnerability, Shadow IT and applicable finding evidence.
+- Fixed missing SQL software discovery/OS patch attributes, empty inventory scopes and raw finding classification parity. Meaningful unknowns remain visible; fictional vulnerability scenarios are labelled as samples.
+- Added audited, backed-up append commands that preserve existing sample dates and settings. Builds preserve existing stores.
+- SDLC now requires SQL and JSON data, structures, schema, snapshots and upgrades to evolve together, supported by cross-provider regression evidence.
+
+## 2026-11-07 - Installed Software Insights
+
+- Added Installed Software Insights immediately above Installed Software Explorer in Discovery.
+- Dashboard Summary charts software footprint, discovery freshness, recorded versions, operating systems and discovery sources. Infographic Story explains concentration, version variation and evidence gaps in four visual chapters.
+- Both tabs follow header scope and snapshot; chart/evidence links open matching Explorer records. Keyboard tabs, narrow layouts, empty/error states and persona preferences are supported in SQL and No-SQL builds.
+
+## 2026-11-07 - Simplify Database Settings
+
+- Removed the SSL/TLS checkbox, certificate-mode selector and separate Test SSL button from Database Settings.
+- Connection testing automatically validates the saved transport policy when needed. Reset and save retain that policy; the form keeps connection/schema validation, masked-password handling and diagnostics.
+
+## 2026-11-06 - Replace existing database during setup
+
+- `setup:database` now detects an existing target, asks for its exact name, then deletes and rebuilds it with schema and bundled data. Replacement disconnects active sessions, discards existing data/settings, and does not create a backup.
+- Unattended replacement requires `TSAAT_DB_REPLACE_EXISTING` to match the target name. Cancellation preserves the database and configuration; verified app logins retain their SID/password across a successful rebuild.
+
+## 2026-11-06 - SQL username/password setup without SSL
+
+- Database setup asks for a new application username/password and separate administrator connection, creates a dedicated SQL login/user for TSAATDB, and disables SSL for setup and the saved app connection.
+- Existing data is preserved; reruns validate setup-managed logins without resetting passwords or adopting unrelated accounts. Administrator credentials are never saved, and DB_config is published only after app-login validation succeeds.
+- Runtime SQL passwords use a child environment instead of process arguments. Falling back from a failed SQL login to Windows authentication now requires explicit opt-in.
+- Fresh SQL databases correctly load default persona settings before the first settings save.
+
+## 2026-11-06 - Database endpoint prompt and TSAATDB
+
+- Ask whether the endpoint is `localhost\SQLEXPRESS` on each interactive database setup; ask for another endpoint after No.
+- Resolve the local instance's configured TCP port when available and prepare `TSAATDB`, retaining the encrypted TLS default and validation before saving.
+- Leave other databases intact and preserve explicit unattended configuration targets.
+
 ## 2026-11-06 - Complete database setup
 
+- Explain that existing connection settings are reused, and provide server/port and certificate-policy recovery steps when setup cannot connect.
 - Make `npm run setup:database` prompt for connection details, create a missing database, apply schema/migrations and bundled data, validate it, and save encrypted configuration so the app is ready to run.
 - Default new database settings and database builds to SSL/TLS with Trust Server Certificate. Preserve saved policies and the Strict option; use TCP and correct the encryption diagnostic.
 - Validate existing databases without rebuilding or reseeding them, and preserve DB_config if setup fails.
@@ -47,9 +189,9 @@
 - Highlight overlapping lifecycle issues, include exactly N-2 and older OS versions, and distinguish missing evidence from confirmed problems.
 - Preserve scope/snapshot and persona controls; support keyboard navigation, narrow layouts and matching CSV exports using existing SQL/JSON evidence.
 
-## 2026-11-05 - Impact graph view controls
+## 2026-11-05 - Impact Topology view controls
 
-- Add a Full screen / Exit full screen toggle to expand the Impact graph across the browser window and restore its normal dialog size. Escape exits full screen before closing the graph.
+- Add a Full screen / Exit full screen toggle to expand the Impact Topology across the browser window and restore its normal dialog size. Escape exits full screen before closing the graph.
 - Minimise Filters and Layout & view by default, with a Show/Hide filters & layout toggle. Both view toggles preserve filters, graph layout, node selection, zoom, pan and applied scope/date.
 
 ## 2026-11-05 - Persona pages and popup permissions
@@ -75,17 +217,17 @@
 - Use existing scoped data at one resolved snapshot, retain domains/date in evidence links, and distinguish empty evidence, unavailable data and zero findings. Overview and Trends remain placeholders.
 - Support desktop and narrow layouts with keyboard chapter navigation and accessible text for all charts. No schema, provider-rule, package or persistent-data changes.
 
-## 2026-11-04 - Preserve impact graph zoom on selection
+## 2026-11-04 - Preserve Impact Topology zoom on selection
 
 - Keep the current zoom and pan when selecting graph nodes, search results or connected-node links. Fit graph and the 0 key remain explicit view resets.
 
-## 2026-11-04 - Default impact graph severities
+## 2026-11-04 - Default Impact Topology severities
 
-- Open and reset the Impact graph with Critical Exposure and High Risk selected and a minimum of one matching finding per node. Other severities and Select all remain available.
+- Open and reset the Impact Topology with Critical Exposure and High Risk selected and a minimum of one matching finding per node. Other severities and Select all remain available.
 
 ## 2026-11-04 - Expand all affected CIs
 
-- Added an Expand all affected CIs / Collapse all affected CIs toggle to the Impact graph Filters card, preserving severity and finding-count filters.
+- Added an Expand all affected CIs / Collapse all affected CIs toggle to the Impact Topology Filters card, preserving severity and finding-count filters.
 - Bulk expansion leaves connection focus and fits the scene; existing rendering limits and individual system expansion remain supported.
 
 ## 2026-11-04 - Left CMDB drawer and nested findings
@@ -97,12 +239,12 @@
 
 - Moved Focus connections / Show scope to the top-right corner of the graph workspace, retaining its selection, toggle and keyboard behavior.
 
-## 2026-11-04 - Default impact graph layout
+## 2026-11-04 - Default Impact Topology layout
 
-- Open the Impact graph in Hierarchical layout with Top down direction. Other layouts remain selectable.
+- Open the Impact Topology in Hierarchical layout with Top down direction. Other layouts remain selectable.
 - Presentation default only; no SQL/JSON data, schema, provider or dependency changes.
 
-## 2026-11-04 - Impact graph control alignment
+## 2026-11-04 - Impact Topology control alignment
 
 - Grouped severity/count/reset controls under Filters and layout/direction/zoom/fit controls under Layout & view, with aligned fields and responsive stacking.
 - Aligned range limits, exact node badges and finding details with the selected risk severities. Removed the 99+ badge cap and added the selected severity breakdown and counting context.
@@ -115,7 +257,7 @@
 - Retained safe legacy-login redirects and explicit retired-API responses; SQL credential protection and TLS remain unchanged. Existing logindetails files are ignored and left untouched.
 
 
-## 2026-11-04 - Impact graph filters and animated layouts
+## 2026-11-04 - Impact Topology filters and animated layouts
 
 - Added dynamic severity selection and an inclusive finding-count range with sliders and numeric inputs. Graph counts, search and finding details follow the selected severities and range.
 - Keep matching devices visible when count filters exclude their parent system, without restoring excluded nodes or connections.
@@ -123,9 +265,9 @@
 - Generate stable X/Y workspace positions for spatial views, with optional node edits retained while the popup is open. No geographic locations are inferred or persisted.
 - Retained header/table scope, modal sizing and keyboard behavior. No SQL/JSON schema, provider, package or build changes.
 
-## 2026-11-04 - Service Impact graph popup
+## 2026-11-04 - Service Impact Topology popup
 
-- Replaced the Explore the Impact tab with a Settings-sized Impact graph popup opened by Explore selection.
+- Replaced the Explore the Impact tab with a Settings-sized Impact Topology popup opened by Explore selection.
 - Added interactive service, capability, ICT system and affected-device nodes with risk counts, search, connection inspection, expansion, focus, pan/zoom and finding details.
 - Preserved applied scope, table filters, selections, snapshot and severity calculations, with keyboard controls, focus return and narrow layouts. No SQL/JSON data, schema or dependency changes.
 

@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { hasExplorerNumberRange, type ExplorerNumberRange, type ExplorerSortDirection } from "@/lib/explorer-table";
 
 type Count = { value: string; count: number };
 const number = (value: number) => value.toLocaleString("en-AU");
 const toggle = (values: string[], value: string) => values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+// Client placement must finish before paint; server-rendered closed controls need no layout work.
+const useClientLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
-export function FilterHeader({ column, selected, options, open, onOpen, onChange, layer, range, sort }: {
+export function FilterHeader({ column, selected, options, open, onOpen, onChange, layer, range, sort, valueLabel }: {
   layer?: number; column: { key: string; label: string }; selected: string[]; options: Count[]; open: boolean;
   onOpen: (open: boolean) => void; onChange: (values: string[]) => void;
+  valueLabel?: (value: string) => string;
   range?: { selected?: ExplorerNumberRange; unit: string; min?: number; step?: number; onChange: (value: ExplorerNumberRange) => void };
   sort?: { direction?: ExplorerSortDirection; onChange: (direction?: ExplorerSortDirection) => void };
 }) {
@@ -18,12 +21,12 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
   const [search, setSearch] = useState("");
   const [minimum, setMinimum] = useState("");
   const [maximum, setMaximum] = useState("");
-  const [position, setPosition] = useState({ top: 0, left: 0, maxHeight: 420 });
+  const [position, setPosition] = useState({ top: 0, left: 0, maxHeight: 420, maxWidth: 312 });
   const trigger = useRef<HTMLButtonElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const minimumInput = useRef<HTMLInputElement>(null);
-  useEffect(() => {
+  useClientLayoutEffect(() => {
     if (!open) return;
     setSearch("");
     setMinimum(range?.selected?.min === undefined ? "" : String(range.selected.min));
@@ -33,11 +36,13 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
       if (!rect) return;
       const maxHeight = Math.min(range ? 560 : 420, window.innerHeight - 24);
       const below = window.innerHeight - rect.bottom - 12;
-      setPosition({ left: Math.max(12, Math.min(rect.left, window.innerWidth - 324)),
+      // A stable scrollbar gutter can reserve space even when clientWidth reports the full viewport.
+      const viewportWidth = Math.min(document.documentElement.clientWidth, document.documentElement.getBoundingClientRect().width);
+      setPosition({ left: Math.max(12, Math.min(rect.left, viewportWidth - 324)), maxWidth: Math.max(0, viewportWidth - 24),
         top: below >= 240 ? rect.bottom + 6 : Math.max(12, rect.top - maxHeight - 6),
         maxHeight: Math.max(180, below >= 240 ? Math.min(maxHeight, below) : Math.min(maxHeight, rect.top - 18)) });
     };
-    place(); (range ? minimumInput.current : input.current)?.focus();
+    place(); (range ? minimumInput.current : input.current)?.focus({ preventScroll: true });
     const dismiss = (event: PointerEvent) => {
       if (!popup.current?.contains(event.target as Node) && !trigger.current?.contains(event.target as Node)) onOpen(false);
     };
@@ -57,8 +62,9 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
   }, [open]);
   const allOptions = [...options];
   for (const value of selected) if (!allOptions.some((option) => option.value === value)) allOptions.push({ value, count: 0 });
-  const matches = allOptions.filter((option) => option.value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-    .sort((a, b) => a.value.localeCompare(b.value, undefined, { numeric: true }));
+  const displayValue = (value: string) => valueLabel?.(value) ?? value;
+  const matches = allOptions.filter((option) => [option.value, displayValue(option.value)].some(value => value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())))
+    .sort((a, b) => displayValue(a.value).localeCompare(displayValue(b.value), undefined, { numeric: true }));
   const rangeActive = hasExplorerNumberRange(range?.selected);
   const reversedRange = minimum !== "" && maximum !== "" && Number(minimum) > Number(maximum);
   const clearRange = () => { setMinimum(""); setMaximum(""); range?.onChange({}); };
@@ -105,7 +111,7 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
         <button type="button" disabled={!matches.length} onClick={() => onChange([...new Set([...selected, ...matches.map((option) => option.value)])])}>Select matches</button></div>
       <div className="endpoint-filter-values">{matches.slice(0, 150).map((option) => <label key={option.value}>
         <input type="checkbox" checked={selected.includes(option.value)} onChange={() => onChange(toggle(selected, option.value))} />
-        <span title={option.value}>{option.value}</span><small>{number(option.count)}</small>
+        <span title={displayValue(option.value)}>{displayValue(option.value)}</span><small>{number(option.count)}</small>
       </label>)}{matches.length === 0 && <p>No matching values.</p>}</div>
       <p className="endpoint-filter-hint">{matches.length > 150 ? `Showing 150 of ${number(matches.length)} values. Refine your search.` : `${number(matches.length)} available values · Select multiple`}</p>
     </div>, trigger.current?.closest("dialog") ?? document.body)}

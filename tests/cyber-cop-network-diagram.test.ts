@@ -62,7 +62,8 @@ describe("Cyber COP overview Risk Profile", () => {
     const dashboard = readRepoFile("components/cyber-cop-dashboard.tsx");
     const riskCharts = readRepoFile("components/network-detail-risk-charts.tsx");
 
-    expect(riskCharts).toContain("enableFindingsDrillThrough = true");
+    expect(riskCharts).toContain("enableFindingsDrillThrough: requestedFindingsDrillThrough = true");
+    expect(riskCharts).toContain('requestedFindingsDrillThrough && canOpenPopup("finding-details")');
     expect(riskCharts).toContain("if (!enableFindingsDrillThrough)");
     expect(riskCharts).toContain("enableFindingsDrillThrough && isFindingsPanelVisible && selectedSeverity");
     expect(dashboard).toContain("enableFindingsDrillThrough={false}");

@@ -8,6 +8,7 @@ import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "
 import { createPortal } from "react-dom";
 import { ServiceImpactFindingsPanel } from "@/components/service-impact-findings-panel";
 import { useImpactGraphLayout } from "@/components/use-impact-graph-layout";
+import { ImpactGraphNodeVisual, impactGraphNodeRadius } from "@/components/impact-graph-node-visual";
 import { buildServiceImpactGraph, generateImpactCoordinates, impactGraphNeighbours, impactGraphTotals, layoutServiceImpactGraph, serviceImpactRiskView, serviceImpactScene,
   type ImpactCircularMode, type ImpactDirection, type ImpactGraphNode, type ImpactLayout, type ImpactNodeKind, type ImpactNodePosition } from "@/lib/service-impact-graph";
 import { selectServiceImpact, type ServiceImpactModel } from "@/lib/service-impact";
@@ -18,7 +19,7 @@ const categories: Record<ImpactNodeKind, { name: string; short: string; color: s
   system: { name: "ICT system", short: "SYS", color: "#79bfff" },
   asset: { name: "Affected CI", short: "CI", color: "#f1cb80" }
 };
-const radius = (node: ImpactGraphNode) => node.kind === "asset" ? 20 : node.kind === "system" ? 29 : 25;
+const radius = (node: ImpactGraphNode) => impactGraphNodeRadius(node.kind);
 const number = (value: number) => value.toLocaleString("en-AU");
 
 function GraphNumberInput({ label, value, min, max, disabled = false, onValueChange }: {
@@ -177,7 +178,7 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
         else onClose();
       }}>
       <div className="settings-popup-frame">
-        <header className="impact-graph-header"><div><p className="endpoint-eyebrow">Service Impact / Explore selection</p><h2 id={`${id}-title`}>Impact graph</h2>
+        <header className="impact-graph-header"><div><p className="endpoint-eyebrow">Service Impact / Explore selection</p><h2 id={`${id}-title`}>Impact Topology</h2>
           <p>{scopeLabel} · {focusLabel} · Snapshot {model.snapshotDate}</p></div>
           <div className="impact-graph-view-actions">
             <button type="button" className="endpoint-export" data-impact-toggle-controls aria-expanded={controlsExpanded} aria-controls={`${id}-controls`}
@@ -188,7 +189,7 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
                 <path d={fullScreen ? "M9 3v6H3m12-6v6h6M3 15h6v6m12-6h-6v6" : "M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"} />
               </svg>{fullScreen ? "Exit full screen" : "Full screen"}
             </button>
-            <button type="button" autoFocus className="endpoint-export" aria-label="Close impact graph" onClick={onClose}>Close</button>
+            <button type="button" autoFocus className="endpoint-export" aria-label="Close Impact Topology" onClick={onClose}>Close</button>
           </div></header>
         <div className="impact-graph-summary" aria-label="Filtered graph totals">
           <span><strong>{number(summary.systems)}</strong> ICT systems</span><span><strong>{number(summary.findings)}</strong> matching findings</span>
@@ -227,7 +228,7 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
           </section>
           <section className="impact-graph-control-group impact-graph-layout-group" aria-labelledby={`${id}-layout`}>
           <header><h3 id={`${id}-layout`}>Layout &amp; view</h3><span role="status">{animating ? "Arranging layout…" : ""}</span></header>
-          <div className="impact-graph-layout-options"><label>Layout<select aria-label="Impact graph layout" value={layoutKind} onChange={event => { prepareLayout(); setLayoutKind(event.target.value as ImpactLayout); }}>
+          <div className="impact-graph-layout-options"><label>Layout<select aria-label="Impact Topology layout" value={layoutKind} onChange={event => { prepareLayout(); setLayoutKind(event.target.value as ImpactLayout); }}>
             <option value="force">Force-Directed</option><option value="hierarchical">Hierarchical</option><option value="circular">Circular / Radial</option><option value="spatial">Coordinate / Spatial</option>
           </select></label>
           {layoutKind === "hierarchical" && <label>Direction<select aria-label="Hierarchy direction" value={direction} onChange={event => { prepareLayout(); setDirection(event.target.value as ImpactDirection); }}>
@@ -275,7 +276,7 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
                 })}
                 {scene.nodes.map(node => {
                   const position = positions.get(node.id)!, category = categories[node.kind], r = radius(node);
-                  const badge = number(node.findings), badgeWidth = Math.max(24, badge.length * 6 + 12);
+                  const badge = number(node.findings);
                   return <g key={node.id} transform={`translate(${position.x},${position.y})`} className={`impact-graph-node${node.id === selectedId ? " is-selected" : ""}`}
                     role="button" tabIndex={0} aria-pressed={node.id === selectedId} data-impact-node={node.id} data-impact-kind={node.kind} data-impact-findings={node.findings}
                     aria-label={`${category.name}: ${node.name}. ${node.findings} matching findings, ${node.critical} critical, ${node.high} high. Inspect connections.`}
@@ -283,12 +284,8 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
                     onPointerDown={event => startDrag(event, node.id)} onClick={() => { if (!suppressClick.current) choose(node.id); }}
                     onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(node.id); } }}>
                     <title>{node.name} — {category.name}\n{node.description}\n{badge} matching findings · {severityLabel}</title>
-                    <circle className="impact-graph-halo" r={r + 6} stroke={node.critical ? "#f97285" : node.high ? "#fbad69" : "#4e6577"} />
-                    <circle className="impact-graph-disc" r={r} fill={category.color} />
-                    <text className="impact-graph-glyph" y="4">{category.short}</text>
-                    <text className="impact-graph-label" y={r + 24}>{node.name.length > 24 ? `${node.name.slice(0, 22)}…` : node.name}</text>
-                    <rect x={r - 1 - badgeWidth / 2} y={-r - 11} width={badgeWidth} height={24} rx={12} fill="#132a3a" stroke={category.color} />
-                    <text className="impact-graph-count" x={r - 1} y={-r + 5}>{badge}</text>
+                    <ImpactGraphNodeVisual name={node.name} color={category.color} glyph={category.short} radius={r} badge={badge}
+                      haloColor={node.critical ? "#f97285" : node.high ? "#fbad69" : "#4e6577"} />
                   </g>;
                 })}
               </svg> : <div className="endpoint-empty"><strong>{baseGraph.nodes.length ? "No nodes match these risk filters" : "No ICT systems in this selection"}</strong>

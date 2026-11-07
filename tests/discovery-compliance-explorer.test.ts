@@ -68,7 +68,7 @@ describe("discovery compliance explorer", () => {
   it("places the renamed explorer immediately below Discovery Tool Coverage and retains existing links", () => {
     const items = WORKSPACE_GROUPS.find((group) => group.label === "Discovery")!.items;
     const index = items.findIndex((item) => item.label === "Discovery Tool Coverage");
-    expect(items[index + 1]).toEqual({ label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" });
+    expect(items[index + 1]).toEqual({ id: "discovery-compliance", label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" });
     const url = new URL(workspaceHref(items[index + 1].href, new URLSearchParams("network=net-1&dataDate=2026-10-31")), "http://localhost");
     expect(activeWorkspaceItem(url.pathname, url.searchParams)?.label).toBe("Discovery Compliance Explorer");
     expect(url.searchParams.get("network")).toBe("net-1");

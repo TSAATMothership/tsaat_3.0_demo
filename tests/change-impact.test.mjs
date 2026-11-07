@@ -24,7 +24,7 @@ test('documentation-only changes need no installation, builds or provider checks
   assert.deepEqual(validationCommands(plan), [['scripts/repository-check.mjs'], ['scripts/docs-maintenance.mjs', '--check']]);
 });
 test('SQL, JSON, calculation and persistence changes expand provider validation', () => {
-  for (const file of ['Database Schema/migrations/031_example.sql', 'NoSQL/reference.json', 'lib/json-store/store.ts', 'lib/sql-data-loader.ts', 'lib/types.ts', 'lib/spi-evaluation.ts', 'lib/measures-settings.ts', 'scripts/populate-json-store.mjs']) {
+  for (const file of ['Database Schema/migrations/031_example.sql', 'NoSQL/reference.json', 'lib/json-store/store.ts', 'lib/sql-data-loader.ts', 'lib/types.ts', 'lib/spi-evaluation.ts', 'lib/measures-settings.ts', 'lib/measures-trends.ts', 'lib/measures-trends-data.ts', 'lib/topology-explorer.ts', 'lib/topology-explorer-data.ts', 'scripts/populate-json-store.mjs', 'scripts/sample-evidence.mjs', 'scripts/append-sample-evidence.ps1', 'scripts/check-evidence-parity.ts', 'scripts/check-sample-evidence.ts', 'scripts/prepare-sample-evidence.ts']) {
     const plan = assess(file);
     assert.equal(plan.data, true, file);
     assert.equal(plan.build, true, file);

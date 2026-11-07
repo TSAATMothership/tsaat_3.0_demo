@@ -1,4 +1,5 @@
 import { normalizeNetworkSecurityDomain } from "../lib/security-domain.mjs";
+import { prepareSampleEvidence } from "./prepare-sample-evidence";
 import { promises as fs } from "fs";
 import path from "path";
 import { ASSET_TYPES } from "../lib/asset-taxonomy";
@@ -1729,6 +1730,7 @@ async function main() {
   console.log(
     `Seed generated with ${networks.length} networks, ${systems.length} systems, ${assets.length} assets and ${snapshots.length} snapshots.`
   );
+  await prepareSampleEvidence({ apply: true });
 }
 
 main().catch((error) => {

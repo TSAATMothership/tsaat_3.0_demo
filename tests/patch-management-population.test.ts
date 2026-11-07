@@ -7,6 +7,7 @@ import { populatePatchManagement } from "../scripts/populate-patch-management.mj
 import { buildPatchManagementRows } from "@/lib/patch-management-explorer";
 import type { Dataset } from "@/lib/types";
 const original: Dataset = JSON.parse(await fs.readFile("data/current.json", "utf8"));
+for (const asset of original.assets) if (asset.type === 'server') delete asset.patchManagement;
 describe("sample server patch population", () => {
   it("adds only server observations, preserves existing evidence and produces all workflow states", () => {
     const input = structuredClone(original);

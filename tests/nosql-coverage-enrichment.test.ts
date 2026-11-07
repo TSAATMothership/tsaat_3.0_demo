@@ -12,6 +12,7 @@ import { testSpiDefinitions, testMeasuresSettings } from "./spi-definition-fixtu
 
 const configuration = { definitions: testSpiDefinitions, settings: testMeasuresSettings };
 const original: Dataset = JSON.parse(await fs.readFile("data/current.json", "utf8"));
+original.findings = original.findings!.filter(f => !f.id.startsWith('sample-coverage-'));
 const temporary: string[] = [];
 afterEach(async () => {
   for (const root of temporary.splice(0)) {
@@ -87,6 +88,11 @@ describe("explicit No-SQL finding coverage", () => {
     const configuration = await loadCoverageConfiguration(target);
     expect(configuration.definitions).toEqual(testSpiDefinitions);
     const before = await fs.readFile(path.join(target, "store.json"), "utf8");
+    for (const entry of JSON.parse(before).snapshots) {
+      const file = path.join(target, entry.file), dataset: Dataset = JSON.parse(await fs.readFile(file, 'utf8'));
+      dataset.findings = dataset.findings!.filter(f => !f.id.startsWith('sample-coverage-'));
+      await fs.writeFile(file, JSON.stringify(dataset));
+    }
     const preview = JSON.parse(execFileSync(process.execPath, ["--import", "tsx", "scripts/enrich-nosql-coverage.mjs", "--target", target], { encoding: "utf8", windowsHide: true }));
     expect(preview.applied).toBe(false); expect(preview.changedSnapshots).toBe(8);
     expect(await fs.readFile(path.join(target, "store.json"), "utf8")).toBe(before);

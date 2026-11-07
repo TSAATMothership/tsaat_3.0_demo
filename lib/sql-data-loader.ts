@@ -245,6 +245,9 @@ type AssetInstalledSoftwareRow = {
   ordinal: number;
   name: string;
   version: string;
+  filePath?: string | null;
+  lastDiscoveredDate?: string | null;
+  discoveredBy?: string | null;
   supportStatus: "Supported" | "OutOfSupport" | "Unknown";
 };
 
@@ -1109,6 +1112,7 @@ SELECT
       nos.[vendor] AS [vendor],
       nos.[major_version] AS [majorVersion],
       nos.[version] AS [version],
+      nos.[patch_level] AS [patchLevel],
       nos.[support_status] AS [supportStatus],
       nos.[current_supported_major] AS [currentSupportedMajor],
       nos.[n_minus] AS [nMinus]
@@ -1159,6 +1163,9 @@ SELECT
       sw.[software_ordinal] AS [ordinal],
       sw.[name] AS [name],
       sw.[version] AS [version],
+      sw.[file_path] AS [filePath],
+      CASE WHEN sw.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), sw.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+      sw.[discovered_by] AS [discoveredBy],
       sw.[support_status] AS [supportStatus]
     FROM [${DATA_SCHEMA}].[asset_installed_software] sw
     WHERE sw.[snapshot_id] = @snapshotId
@@ -1375,7 +1382,7 @@ function buildDatasetFromSnapshotRow(
     const childNetworkIds = sortedValues(childRows.map((row) => row.childNetworkId));
     const systemIds = sortedValues(networkSystemIds.get(network.id) ?? []);
     const assetIds = sortedValues(networkAssetIds.get(network.id) ?? []);
-    const targetStateAssets = networkTargetStateAssets.get(network.id);
+    const targetStateAssets = networkTargetStateAssets.get(network.id) ?? createAssetTypeRecord<string[]>(() => []);
 
     return {
       id: network.id,
@@ -1497,6 +1504,7 @@ function buildDatasetFromSnapshotRow(
     (row) => row.assetId,
     (row) => ({
       family: row.family,
+      patchLevel: row.patchLevel ?? null,
       vendor: row.vendor,
       majorVersion: row.majorVersion,
       version: row.version,
@@ -1542,6 +1550,9 @@ function buildDatasetFromSnapshotRow(
       .map((row) => ({
         name: row.name,
         version: row.version,
+        filePath: row.filePath ?? null,
+        lastDiscoveredDate: row.lastDiscoveredDate ?? null,
+        discoveredBy: row.discoveredBy ?? null,
         supportStatus: row.supportStatus
       }));
 
@@ -1790,7 +1801,7 @@ DECLARE @endpointSnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
 DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
-SELECT
+SELECT COALESCE((SELECT
   a.[asset_id] AS [assetId],
   COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [name],
   a.[asset_type] AS [ciType], a.[security_domain] AS [securityDomain], a.[ip_address] AS [ipAddress],
@@ -1806,7 +1817,7 @@ WHERE a.[snapshot_id] = @endpointSnapshotId
   AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
   AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
 ORDER BY a.[name], a.[asset_id]
-FOR JSON PATH, INCLUDE_NULL_VALUES;
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
 `);
     return { snapshotDate: snapshot.snapshotDate, rows: rows.map((row) => ({ ...row, ciType: formatAssetTypeLabel(row.ciType) })) };
   });
@@ -1827,7 +1838,7 @@ DECLARE @softwareSnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
 DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
-SELECT sw.[asset_id] AS [assetId], sw.[software_ordinal] AS [softwareOrdinal],
+SELECT COALESCE((SELECT sw.[asset_id] AS [assetId], sw.[software_ordinal] AS [softwareOrdinal],
   sw.[name] AS [softwareName], sw.[version] AS [softwareVersion], sw.[file_path] AS [filePath],
   CASE WHEN sw.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), sw.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
   sw.[discovered_by] AS [discoveredBy],
@@ -1846,7 +1857,7 @@ WHERE sw.[snapshot_id] = @softwareSnapshotId
   AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
   AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
 ORDER BY sw.[name], sw.[version], a.[name], sw.[asset_id], sw.[software_ordinal]
-FOR JSON PATH, INCLUDE_NULL_VALUES;
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
 `);
     return { snapshotDate: snapshot.snapshotDate, rows };
   });
@@ -1866,7 +1877,7 @@ DECLARE @vulnerabilitySnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
 DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
-SELECT v.[asset_id] AS [assetId], v.[vulnerability_id] AS [vulnerabilityId], v.[cve] AS [cve],
+SELECT COALESCE((SELECT v.[asset_id] AS [assetId], v.[vulnerability_id] AS [vulnerabilityId], v.[cve] AS [cve],
   v.[cve_name] AS [cveName], v.[description] AS [description],
   CONVERT(CHAR(10), v.[detected_date], 23) AS [detectedDate],
   CONVERT(CHAR(10), v.[cve_created_date], 23) AS [cveCreatedDate],
@@ -1887,7 +1898,7 @@ WHERE v.[snapshot_id] = @vulnerabilitySnapshotId AND v.[detected_date] <= ${toSq
   AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
   AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
 ORDER BY v.[cve], a.[name], v.[asset_id], v.[vulnerability_id]
-FOR JSON PATH, INCLUDE_NULL_VALUES;
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
 `);
     return { snapshotDate: snapshot.snapshotDate, rows };
   });
@@ -1908,7 +1919,7 @@ DECLARE @shadowSnapshotId BIGINT = ${snapshotId};
 DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
 DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
 DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
-SELECT node.[asset_id] AS [assetId], owner.[asset_id] AS [ownerAssetId],
+SELECT COALESCE((SELECT node.[asset_id] AS [assetId], owner.[asset_id] AS [ownerAssetId],
   node.[ip_address] AS [ipAddress], node.[discovery_approach] AS [discoveryApproach],
   CASE WHEN node.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), node.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
   node.[discovered_by] AS [discoveredBy], owner.[name] AS [endpointName], owner.[asset_type] AS [endpointCiType],
@@ -1925,7 +1936,7 @@ WHERE node.[snapshot_id] = @shadowSnapshotId AND node.[asset_type] = N'ip-node'
   AND (@networks IS NULL OR node.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
   AND (@systems IS NULL OR node.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)) OR owner.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
 ORDER BY node.[ip_address], node.[asset_id]
-FOR JSON PATH, INCLUDE_NULL_VALUES;
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
 `);
     return { snapshotDate: snapshot.snapshotDate, rows: rows.map((row) => ({ ...row,
       endpointCiType: row.endpointCiType ? formatAssetTypeLabel(row.endpointCiType) : null })) };

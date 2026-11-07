@@ -29,6 +29,7 @@ async function readPlan(target, sourceDatasets, transformDataset) {
     snapshots.push({ entry, original, populated, changed: JSON.stringify(original) !== JSON.stringify(populated) });
   }
   for (const source of sourceDatasets ?? []) {
+    if (!Number.isSafeInteger(source.snapshotId) || source.snapshotId < 1 || !/^\d{4}-\d{2}-\d{2}$/.test(source.snapshotDate)) throw new Error('Invalid source snapshot identity.');
     if (dates.has(source.snapshotDate)) continue;
     if (ids.has(source.snapshotId)) throw new Error("Source snapshot ID conflicts with a different local date.");
     ids.add(source.snapshotId); dates.add(source.snapshotDate);
@@ -37,7 +38,8 @@ async function readPlan(target, sourceDatasets, transformDataset) {
   snapshots.sort((a,b)=>a.entry.date.localeCompare(b.entry.date));
   return { manifest, snapshots };
 }
-export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_DIR || path.join(repositoryRoot,"NoSQL/data"), apply = false, demo = false, sourceExport, transformDataset = enrichDemoDataset, profile = DEMO_DATA_PROFILE, migration, backupDirectory = path.join(repositoryRoot,".local/nosql-backups") } = {}) {
+export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_DIR || path.join(repositoryRoot,"NoSQL/data"), apply = false, demo = false, sourceExport, appendDatasets, transformDataset = enrichDemoDataset, profile = DEMO_DATA_PROFILE, migration, backupDirectory = path.join(repositoryRoot,".local/nosql-backups") } = {}) {
+  if (appendDatasets && (sourceExport || migration)) throw new Error('Choose one import source.');
   if (migration && (migration !== "security-domains-v1" || transformDataset === enrichDemoDataset || sourceExport)) throw new Error("Invalid data migration.");
   if (apply && !demo && !migration) throw new Error("This adds demonstration values. Use --apply --demo only for a sample data store.");
   target = await fs.realpath(path.resolve(target));
@@ -55,6 +57,12 @@ export async function populateJsonStore({ target = process.env.TSAAT_JSON_DATA_D
       const source = JSON.parse(bytes.toString("utf8").replace(/^\uFEFF/,""));
       sourceDatasets = datasetsFromSqlExport(source);
       provenance = {kind:"sql-export",database:source.databaseName,exportedAtUtc:source.exportedAtUtc,sha256:createHash("sha256").update(bytes).digest("hex")};
+    }
+    if (appendDatasets) {
+      const existing = JSON.parse(await fs.readFile(path.join(target, 'store.json'), 'utf8'));
+      const dates = new Set(existing.snapshots.map(entry => entry.date));
+      if (new Set(appendDatasets.map(dataset => dataset.snapshotDate)).size !== appendDatasets.length) throw new Error('Duplicate source snapshot date.');
+      sourceDatasets = appendDatasets.filter(dataset => !dates.has(dataset.snapshotDate));
     }
     const { manifest, snapshots } = await readPlan(target, sourceDatasets, transformDataset);
     const report = { directory:target, profile, applied:false, changedSnapshots:snapshots.filter(s=>s.changed).length,

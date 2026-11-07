@@ -21,6 +21,8 @@ describe("SQL persona provider", () => {
   it("uses additive defaults for an empty migrated table", async () => {
     vi.mocked(executeSqlJson).mockResolvedValue(null);
     expect(await loadPersonaSettings()).toEqual(defaultPersonaSettings());
+    expect(vi.mocked(executeSqlJson).mock.calls[0][0]).toContain("FOR JSON PATH, WITHOUT_ARRAY_WRAPPER), N'null')");
+    expect(executeSqlText).not.toHaveBeenCalled();
   });
   it("loads stored sections without filling deliberately hidden sections", async () => {
     const saved = defaultPersonaSettings(); saved.personas[0].sections = [];

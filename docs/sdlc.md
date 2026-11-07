@@ -18,12 +18,24 @@ If SQL and JSON data, structures and behavior are unaffected, do not force stora
 
 Select the smallest sufficient checks before implementation, then reassess after the final diff. Add checks when scope grows, failures expose another affected area or reviewer evidence warrants it. Do not run the full suite merely by habit, and do not add meaningless documentation changes to satisfy a path match.
 
-## Change flow
+## Coordinated SQL and No-SQL data-change gate
+
+Data, fields, structures, schema, relationships, mappings, calculations, snapshots/history, reference data and seed/population/import/export changes are one cross-provider change. SQL and No-SQL must ship together; implementing one path and deferring the other is not complete.
+
+1. Name the affected feature and record its field/relationship, identity, null/unknown, scope/domain, temporal and persistence contracts. Review `lib/types.ts`, both provider implementations, CMDB mappings and `NoSQL/calculation-contract.json`.
+2. Change both readers/writers and the common evidence source in the same PR. Bundled SQL and JSON setup consume the same reviewed weekly snapshots, including all applicable attributes and evidence. Keep at least four complete weeks (five weekly boundaries minimum); the standard fixture contains eight weekly snapshots. Historical observations cannot use future detections. Unknown and inapplicable states must be explicit and meaningful, not fabricated completion.
+3. Pair forward SQL migrations with versioned JSON upgrades whenever structures change. Pair SQL sample-data updates with JSON sample-data updates when evidence changes. Supply preview, selected-target guards, backup, idempotency, interruption/recovery and rollback instructions. New seeds alone do not upgrade existing installations. Builds must never overwrite existing stores or provision operational SQL.
+4. Run focused provider/feature/regression tests, `npm run evidence:check`, `npm run storage:check`, both guarded builds and the compiled No-SQL smoke. Compare SQL and No-SQL against the same explicitly selected disposable SQL database and isolated JSON store, using multiple weekly dates, network/system/domain scopes, calculations, explorers, findings, CMDB, reports and settings where affected. Validate fresh setup and existing-store upgrade; record intentional representation differences and prove identical app meaning.
+5. Record actual results, snapshot dates, targets and remaining limitations. Missing infrastructure or unperformed parity is a blocker to claiming aligned data acceptance. Refresh pinned hashes only after reviewing behavior and parity evidence. Preserve settings, credentials, history and intentional missing/inapplicable states during upgrades.
+
+`storage:check` validates the pinned calculation contract and executes the common evidence audit, which verifies applicable attributes, temporal consistency, weekly coverage, current/latest equality and finding coverage. CI data-impact selection must include new sample/snapshot/import/export tooling; update its classifiers and tests when adding a new path. Changes confined to presentation still follow the selective checks above.
+
+## Implementation flow
 
 1. Define the change and record its impact assessment and intended checks.
 2. Review relevant requirements/design; update them only when affected. Record substantial decisions in an ADR.
 3. Implement with meaningful regression coverage. Preserve header scope, dates, configurable definitions, the current application access model, compatibility routes and shared data facades.
-4. Run the selected checks; record actual results and reasons for omitted categories. Treat unavailable SQL infrastructure as an explicit limitation, not a passing test. Never silently downgrade the selected TLS policy or use operational databases for validation. New-connection defaults follow [ADR 0016](adr/0016-complete-database-setup.md); explicit Strict policies remain strict.
+4. Run the selected checks; record actual results and reasons for omitted categories. Treat unavailable SQL infrastructure as an explicit limitation, not a passing test. Never silently downgrade the selected TLS policy or use operational databases for validation. Interactive setup uses the explicitly requested SQL login/no-SSL workflow in [ADR 0017](adr/0017-dedicated-database-login.md); advanced TLS choices remain available and connection failures never trigger a TLS downgrade.
 5. Request independent review of behavior, impact assessment, maintainability, security/accessibility and applicable documentation/migration/recovery notes.
 6. Merge after the selected CI checks and review pass. Before release, complete the full release gate for the specific commit/tag and record post-deployment checks.
 

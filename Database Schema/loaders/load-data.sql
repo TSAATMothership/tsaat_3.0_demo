@@ -1562,6 +1562,7 @@ BEGIN
     THROW 51000, @LoadError, 1;
   END;
 
+  -- BEGIN SHARED SNAPSHOT IMPORT
   INSERT INTO [tsaat].[dataset_snapshot] (
     [snapshot_id],
     [snapshot_date],
@@ -2624,8 +2625,8 @@ BEGIN
     @SnapshotId,
     f.[id],
     f.[spi_id],
-    f.[priority_rank],
-    f.[severity],
+    COALESCE(f.[raw_priority_rank], f.[priority_rank]),
+    COALESCE(f.[raw_severity], f.[severity]),
     f.[compliance_status],
     f.[network_id],
     f.[system_id],
@@ -2642,6 +2643,8 @@ BEGIN
     [spi_id] SMALLINT '$.spiId',
     [priority_rank] INT '$.priorityRank',
     [severity] NVARCHAR(30) '$.severity',
+    [raw_priority_rank] INT '$.rawPriorityRank',
+    [raw_severity] NVARCHAR(30) '$.rawSeverity',
     [compliance_status] NVARCHAR(20) '$.complianceStatus',
     [network_id] NVARCHAR(255) '$.scope.networkId',
     [system_id] NVARCHAR(255) '$.scope.systemId',
@@ -2655,6 +2658,7 @@ BEGIN
     [closed_at] DATETIMEOFFSET(7) '$.closedTimestamp'
   ) AS f;
 
+  -- END SHARED SNAPSHOT IMPORT
   PRINT CONCAT('Loaded snapshot ', @SnapshotId, ' from ', @SnapshotFile);
 
   FETCH NEXT FROM snapshot_cursor INTO @SnapshotId, @SnapshotFile;

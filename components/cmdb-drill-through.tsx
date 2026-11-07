@@ -20,6 +20,7 @@ import { FindingsDataTable } from "@/components/findings-data-table";
 import type { CmdbAssetView, CmdbAttributeRow } from "@/lib/cmdb-attributes";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
 import type { ExplorerColumn } from "@/lib/explorer-table";
+import { cmdbTopologyHref } from "@/lib/cmdb-topology-navigation";
 
 const PANEL_TWEEN_MS = 220;
 const FOCUSABLE_SELECTOR =
@@ -30,6 +31,7 @@ interface CmdbRequest {
   assetName: string;
   dataDate: string | null;
   workspaceSearch: string;
+  topologyNetworkId?: string;
 }
 
 interface CmdbSelection extends CmdbRequest {
@@ -39,7 +41,7 @@ interface CmdbSelection extends CmdbRequest {
 }
 
 interface CmdbDrillThroughContextValue {
-  openCmdbDrillThrough: (assetId: string, assetName?: string) => void;
+  openCmdbDrillThrough: (assetId: string, assetName?: string, topologyNetworkId?: string) => void;
 }
 
 const CmdbDrillThroughContext = createContext<CmdbDrillThroughContextValue | null>(null);
@@ -66,7 +68,7 @@ function detailsEndpoint(request: CmdbRequest): string {
 }
 
 export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) {
-  const { canOpenPopup } = usePersonaAccess();
+  const { canOpenPopup, canNavigate } = usePersonaAccess();
   const cmdbAllowed = canOpenPopup("cmdb-details");
   const [selection, setSelection] = useState<CmdbSelection | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -115,7 +117,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const openCmdbDrillThrough = useCallback(
-    (assetId: string, assetName?: string) => {
+    (assetId: string, assetName?: string, topologyNetworkId?: string) => {
       if (!cmdbAllowed) return;
       const normalizedAssetId = assetId.trim();
       if (!normalizedAssetId) {
@@ -132,7 +134,8 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
         assetId: normalizedAssetId,
         assetName: assetName?.trim() || normalizedAssetId,
         dataDate: currentDataDate(),
-        workspaceSearch: browserWorkspaceSearch(window.location)
+        workspaceSearch: browserWorkspaceSearch(window.location),
+        topologyNetworkId
       };
       loadDetails(request);
       window.requestAnimationFrame(() => setIsOpen(true));
@@ -236,6 +239,8 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   const contextValue = useMemo(() => ({ openCmdbDrillThrough }), [openCmdbDrillThrough]);
   const details = selection?.details ?? null;
   const tableRows = details?.attributes ?? [];
+  const topologyHref = details && selection ? cmdbTopologyHref(details, selection.workspaceSearch, selection.topologyNetworkId) : null;
+  const topologyAllowed = canNavigate(topologyHref ?? "/discovery-coverage?discoveryView=topology");
 
   const panel =
     isMounted && selection && cmdbAllowed
@@ -273,6 +278,16 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
                 <span>Asset details for <strong>{details?.assetName ?? selection.assetName}</strong></span>
                 {(details?.snapshotDate ?? selection.dataDate) && <span>Snapshot · {details?.snapshotDate ?? selection.dataDate}</span>}
               </p>
+              <div className="cmdb-scope-actions">
+                <button type="button" className="endpoint-export" data-cmdb-explore-topology
+                  disabled={!topologyHref || !topologyAllowed} data-persona-disabled={!topologyAllowed || undefined}
+                  title={!topologyAllowed ? "Unavailable for the active persona" : !topologyHref ? "Load the CI details to explore its topology" : "Open Topology Explorer with this CI selected"}
+                  onClick={() => {
+                    // A document navigation also clears any underlying stacked dialogs and
+                    // initializes the selected CI when already viewing Topology Explorer.
+                    if (topologyHref && topologyAllowed) window.location.assign(topologyHref);
+                  }}>Explore Topology</button>
+              </div>
                 {selection.state === "loading" ? (
                   <div className="cmdb-scope-state" role="status">
                     Loading CMDB details...
@@ -321,10 +336,12 @@ export function useCmdbDrillThrough(): CmdbDrillThroughContextValue {
 export function CmdbDeviceName({
   assetId,
   name,
+  topologyNetworkId,
   className = "text-cyan-200 underline decoration-cyan-300/55 underline-offset-2 hover:text-cyan-100"
 }: {
   assetId: string;
   name: string;
+  topologyNetworkId?: string;
   className?: string;
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
@@ -337,7 +354,7 @@ export function CmdbDeviceName({
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        openCmdbDrillThrough(assetId, name);
+        openCmdbDrillThrough(assetId, name, topologyNetworkId);
       }}
       className={`cursor-pointer text-left ${className}`}
     >

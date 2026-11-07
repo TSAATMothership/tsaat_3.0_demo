@@ -22,7 +22,7 @@ export const PERSONA_POPUPS = [
   { id: "ict-system-details", label: "ICT system details" },
   { id: "measure-scope", label: "KPI / SPI scope details" },
   { id: "risk-trend", label: "Expanded risk trend chart" },
-  { id: "impact-graph", label: "Service impact graph" },
+  { id: "impact-graph", label: "Service Impact Topology" },
   { id: "impact-details", label: "Service impact findings & CIs" },
   { id: "finding-details", label: "Finding drill-through lists" },
   { id: "affected-cis", label: "Affected CI details" },

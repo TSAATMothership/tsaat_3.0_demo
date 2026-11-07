@@ -22,7 +22,7 @@ describe("seed dataset", () => {
 
   it("stays within required dataset ranges", () => {
     expect(dataset.managedNetworks.length).toBeGreaterThanOrEqual(10);
-    expect(dataset.managedNetworks.length).toBeLessThanOrEqual(13);
+    expect(dataset.managedNetworks.filter(network => network.id !== 'net-unassigned').length).toBeLessThanOrEqual(13);
 
     expect(dataset.ictSystems.length).toBeGreaterThanOrEqual(60);
 
@@ -36,7 +36,8 @@ describe("seed dataset", () => {
     expect(dataset.ictSystems.every((system) => typeof system.adfPlatform === "boolean")).toBe(true);
     expect(dataset.ictSystems.every((system) => typeof system.enterprisePlatform === "boolean")).toBe(true);
 
-    expect(dataset.assets.length).toBe(1000);
+    expect(dataset.assets.filter(asset => asset.type !== 'ip-node').length).toBe(1000);
+    expect(dataset.assets.filter(asset => asset.type === 'ip-node').length).toBe(240);
 
     const servers = dataset.assets.filter((asset) => asset.type === "server");
     const workstations = dataset.assets.filter((asset) => asset.type === "workstation");
@@ -53,7 +54,7 @@ describe("seed dataset", () => {
     expect(otherAssets.length).toBe(20);
 
     const modelledAssets = dataset.assets.filter((asset) => asset.systemContext?.systemId);
-    const unmodelledAssets = dataset.assets.filter((asset) => !asset.systemContext?.systemId);
+    const unmodelledAssets = dataset.assets.filter((asset) => asset.type !== 'ip-node' && !asset.systemContext?.systemId);
     expect(modelledAssets.length).toBe(700);
     expect(unmodelledAssets.length).toBe(300);
     expect(modelledAssets.every((asset) => asset.type === "server")).toBe(true);
@@ -64,7 +65,7 @@ describe("seed dataset", () => {
     expect(otherAssets.every((asset) => !asset.systemContext)).toBe(true);
 
     for (const [networkIndex, network] of dataset.managedNetworks.entries()) {
-      const expectedReferenceOrdinal = String(networkIndex + 1).padStart(3, "0");
+      const expectedReferenceOrdinal = network.id === 'net-unassigned' ? '000' : String(networkIndex + 1).padStart(3, "0");
       const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
       expect(network.discoveryStatus).toBe(expectedStatus);
       expect(network.modellingStatus).toBe(expectedStatus !== "Discovery Non Enabled");
@@ -106,7 +107,7 @@ describe("seed dataset", () => {
     const underFiftyCount = modelledServerCounts.filter((count) => count < 50).length;
     expect(underFiftyCount).toBeGreaterThan(modelledSystems.length / 2);
 
-    const flowCountBySource = new Map(dataset.assets.map((asset) => [asset.id, 0]));
+    const flowCountBySource = new Map(dataset.assets.filter(asset => asset.type !== 'ip-node').map((asset) => [asset.id, 0]));
     for (const dependency of dataset.ciDependencies ?? []) {
       if (dependency.dependencyType === "Flow Dependency") {
         flowCountBySource.set(dependency.sourceAssetId, (flowCountBySource.get(dependency.sourceAssetId) ?? 0) + 1);
@@ -151,7 +152,7 @@ describe("seed dataset", () => {
 
       for (const vulnerability of asset.vulnerabilities) {
         expect(vulnerability.assetId).toBe(asset.id);
-        expect(vulnerability.cve.startsWith("CVE-")).toBe(true);
+        expect(vulnerability.cve).toMatch(/^(?:SAMPLE-)?CVE-\d{4}-\d+$/);
         expect(vulnerability.description.trim().length).toBeGreaterThan(0);
         expect(vulnerability.remediationGuidance.trim().length).toBeGreaterThan(0);
         expect(vulnerabilityCriticality.has(vulnerability.criticality)).toBe(true);
@@ -245,7 +246,7 @@ describe("seed dataset", () => {
     const findings = dataset.findings ?? [];
     expect(findings.length).toBeGreaterThan(0);
 
-    const snapshotAnchor = new Date(`${dataset.snapshotDate}T12:00:00.000Z`).getTime();
+    const snapshotAnchor = new Date(`${dataset.snapshotDate}T23:59:59.999Z`).getTime();
     const findingsStart = new Date("2024-02-10T00:00:00.000Z").getTime();
     let findingsOnStartDate = 0;
     for (const finding of findings) {

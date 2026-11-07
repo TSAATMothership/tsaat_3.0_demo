@@ -27,3 +27,8 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0014: Retire application login](0014-retire-application-login.md)
 - [0015: Persona navigation preferences](0015-persona-navigation-preferences.md)
 - [0016: Complete database setup](0016-complete-database-setup.md)
+- [0017: Dedicated database login](0017-dedicated-database-login.md)
+- [0018: Replace database during setup](0018-replace-database-during-setup.md)
+- [0019: Shared weekly SQL and JSON evidence](0019-shared-weekly-evidence.md)
+
+- [0020: Topology modes and communication context](0020-topology-modes-and-context.md)

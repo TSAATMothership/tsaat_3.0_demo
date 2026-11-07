@@ -162,7 +162,7 @@ function resolveAuthFromDbConfig(config: ParsedDatabaseConnectionSettings | null
 
 function buildSqlcmdAuthArgs(auth: ResolvedSqlAuth): string[] {
   if (auth.mode === "sql") {
-    return ["-U", auth.userId, "-P", auth.password];
+    return ["-U", auth.userId];
   }
 
   return ["-E"];
@@ -182,7 +182,7 @@ export function buildSqlcmdSecurityArgs(input: { sslEnabled: boolean; sslType: D
 
 function allowTrustedRuntimeFallback(): boolean {
   const explicit = parseBoolean(process.env.TSAAT_SQL_TRUSTED_FALLBACK ?? process.env.SQL_TRUSTED_FALLBACK);
-  return explicit !== false;
+  return explicit === true;
 }
 
 function isSqlLoginFailure(error: { message?: string; stderr?: string }): boolean {
@@ -377,6 +377,10 @@ async function executeSqlFileAgainstConnection(
 
   const runSqlcmd = async (targetConnection: ResolvedSqlConnection): Promise<string> => {
     const targetServer = resolveSqlcmdServerTarget(targetConnection.server, targetConnection.sslEnabled);
+    const childEnvironment = { ...process.env };
+    // Keep SQL passwords out of process arguments and execFile error messages.
+    if (targetConnection.auth.mode === "sql") childEnvironment.SQLCMDPASSWORD = targetConnection.auth.password;
+    else delete childEnvironment.SQLCMDPASSWORD;
     const { stdout, stderr } = await execFileAsync(
       sqlcmd,
       [
@@ -398,7 +402,8 @@ async function executeSqlFileAgainstConnection(
       ],
       {
         maxBuffer: SQLCMD_MAX_BUFFER,
-        windowsHide: true
+        windowsHide: true,
+        env: childEnvironment
       }
     );
 

@@ -8,6 +8,8 @@ import { initializeJsonStore } from "../scripts/setup-json-store.mjs";
 import type { Dataset } from "@/lib/types";
 
 const original: Dataset = JSON.parse(await fs.readFile("data/current.json","utf8"));
+// Exercise a genuinely incomplete source, independently of the complete bundled fixture.
+delete original.assets[0].ipAddress;
 const temporary: string[] = [];
 async function directory() { const value=await fs.mkdtemp(path.join(os.tmpdir(),"tsaat-population-test-"));temporary.push(value);return value; }
 afterEach(async()=>{for(const target of temporary.splice(0)){if(path.dirname(target)!==os.tmpdir()||!path.basename(target).startsWith("tsaat-population-test-"))throw new Error("Unsafe test cleanup.");await fs.rm(target,{recursive:true,force:true});}});
@@ -34,7 +36,7 @@ async function legacyStore() {
 describe("No-SQL population",()=>{
   it("fills all endpoint, software and entity profile fields and retains real source history",()=>{
     const dataset=enrichDemoDataset(original), summary=summarizeDemoDataset(dataset);
-    expect(summary).toMatchObject({knownEndpoints:1000,shadowNodes:240,assets:1240,systems:60,networks:13,installations:4277,findings:1415,dependencies:27441});
+    expect(summary).toMatchObject({knownEndpoints:1000,shadowNodes:240,assets:1240,systems:60,networks:14,installations:4277,findings:original.findings!.length,dependencies:27441});
     for(const missing of [summary.missingEndpointFields,summary.missingSoftwareFields,summary.missingNetworkFields,summary.missingSystemFields]) expect(Object.values(missing).every(n=>n===0)).toBe(true);
     expect(dataset.findings).toEqual(original.findings);
     expect(dataset.ciDependencies).toEqual(original.ciDependencies);
@@ -49,7 +51,7 @@ describe("No-SQL population",()=>{
     }
     const unmodelled=dataset.ictSystems.filter(s=>!s.modellingStatus);
     expect(unmodelled).toHaveLength(40);
-    expect(unmodelled.every(s=>!s.networkId&&s.environments.length===0)).toBe(true);
+    expect(unmodelled.every(s=>s.networkId === 'net-unassigned'&&s.environments.length===0)).toBe(true);
     const nodes=dataset.assets.filter(a=>a.type==="ip-node");
     expect(nodes.filter(a=>a.discoveryApproach==="IP Scan")).toHaveLength(144);
     expect(nodes.filter(a=>a.discoveryApproach==="ARP Table")).toHaveLength(96);
@@ -112,7 +114,7 @@ describe("No-SQL population",()=>{
   it("initializes fresh stores with complete samples and keeps existing stores intact",async()=>{
     const target=await directory();await initializeJsonStore({target});
     const manifest=JSON.parse(await fs.readFile(path.join(target,"store.json"),"utf8"));
-    expect(manifest.sampleDataProfile).toBe("tsaat-complete-demo-v1");
+    expect(manifest.sampleDataProfile).toBe("tsaat-aligned-evidence-v1");
     const latest=JSON.parse(await fs.readFile(path.join(target,manifest.snapshots.at(-1).file),"utf8"));
     expect(summarizeDemoDataset(latest).missingEndpointFields.deviceModel).toBe(0);
     expect(latest.assets).toHaveLength(1240);

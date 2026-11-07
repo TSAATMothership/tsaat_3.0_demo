@@ -4,13 +4,13 @@ import path from "node:path";
 import Papa from "papaparse";
 
 /** Exercise the compiled executive briefing against a disposable provider store. */
-export async function checkGovernanceTrends(page, { date, historicalDate, directory, artifacts } = {}) {
+export async function checkGovernanceTrends(page, { date, historicalDate, directory, artifacts, snapshotDates: suppliedDates } = {}) {
   const initial = page.url(), base = new URL(initial).origin;
   const through = new Date(`${date}T00:00:00Z`);
   const previousMonthEnd = new Date(Date.UTC(through.getUTCFullYear(), through.getUTCMonth(), 0));
   const monthFrom = new Date(Date.UTC(previousMonthEnd.getUTCFullYear(), previousMonthEnd.getUTCMonth(), Math.min(through.getUTCDate(), previousMonthEnd.getUTCDate()))).toISOString().slice(0, 10);
   const weekFrom = new Date(through.getTime() - 7 * 86400000).toISOString().slice(0, 10);
-  const snapshotDates = await page.evaluate(async () => (await (await fetch('/api/settings/storage')).json()).snapshots.map(snapshot => snapshot.date));
+  const snapshotDates = suppliedDates ?? await page.evaluate(async () => (await (await fetch('/api/settings/storage')).json()).snapshots.map(snapshot => snapshot.date));
   const expectedDates = from => [...new Set(snapshotDates.filter(day => day >= from && day <= date))].sort();
   const go = async params => {
     await page.goto(`${base}/governance/trends?${params}`, { waitUntil: "networkidle0" });

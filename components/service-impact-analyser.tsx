@@ -125,7 +125,7 @@ export function ServiceImpactAnalyser({ model, filters }: { model: ServiceImpact
             <td>{row.appId || "Not provided"}</td><td>{row.criticality}</td><td className="service-impact-critical">{number(row.critical)}</td><td className="service-impact-high">{number(row.high)}</td><td>{number(row.findings)}</td><td>{number(row.affectedCis)}</td></tr>} />
       </section>
     </div>
-    <details className="discovery-overview-method"><summary>How this analysis works</summary><div><p>The header defines the network or ICT system scope and snapshot. Select a service or capability, then optionally select ICT systems. The impact graph follows the selected systems, or all matching system rows when none are selected.</p>
+    <details className="discovery-overview-method"><summary>How this analysis works</summary><div><p>The header defines the network or ICT system scope and snapshot. Select a service or capability, then optionally select ICT systems. The Impact Topology follows the selected systems, or all matching system rows when none are selected.</p>
       <p>The initial focus is systems with critical or high findings. Choose All systems to include lower-severity findings and systems with no open findings. Zero findings does not confirm compliance.</p>
       <p>Only open findings on CIs with a recorded ICT system association are included. Each finding and affected CI is counted once in the summary. Shared services and capabilities can contain the same finding.</p>
       {model.unattributedFindings > 0 && <p>{number(model.unattributedFindings)} open findings in the header scope have no in-scope ICT system association. Review them in the <Link href={`/findings?${scopeParams}`} prefetch={false}>Findings Register</Link>.</p>}</div></details>

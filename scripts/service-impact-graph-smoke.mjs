@@ -219,7 +219,7 @@ async function checkGraphViewToggles(page, { artifacts, settingsBounds }) {
   const state = () => page.evaluate(() => ({
     url: location.href,
     totals: document.querySelector('.impact-graph-summary').textContent,
-    layout: document.querySelector('[aria-label="Impact graph layout"]').value,
+    layout: document.querySelector('[aria-label="Impact Topology layout"]').value,
     range: [...document.querySelectorAll('.impact-graph-range input')].map(input => input.value),
     severity: [...document.querySelectorAll('.impact-graph-severity-filter input:checked')].map(input => input.value),
     camera: document.querySelector('svg[aria-label="Service impact relationship graph"]').getAttribute('viewBox')
@@ -301,7 +301,7 @@ async function checkNestedCmdb(page, { artifacts }) {
 }
 
 async function checkGraphFiltersAndLayouts(page, { artifacts }) {
-  const popup = 'dialog.service-impact-graph-popup[open]', layout = '[aria-label="Impact graph layout"]';
+  const popup = 'dialog.service-impact-graph-popup[open]', layout = '[aria-label="Impact Topology layout"]';
   const press = async selector => { await page.$eval(selector, node => node.focus()); await page.keyboard.press('Enter'); };
   const settle = () => page.waitForFunction(() => document.querySelector('.service-impact-graph-popup')?.dataset.impactAnimating === 'false');
   const numeric = async (selector, value) => {
@@ -333,7 +333,7 @@ async function checkGraphFiltersAndLayouts(page, { artifacts }) {
   await checkDefaultRiskFilters(page);
   assert(await page.$('.impact-graph-filter-group .impact-graph-severity-filter'));
   assert(await page.$('.impact-graph-filter-group .impact-graph-range'));
-  assert(await page.$('.impact-graph-layout-group [aria-label="Impact graph layout"]'));
+  assert(await page.$('.impact-graph-layout-group [aria-label="Impact Topology layout"]'));
   assert(await page.$('.impact-graph-layout-group [aria-label="Graph navigation"]'));
   assert.equal(await page.$eval(layout, node => node.value), 'hierarchical');
   assert.equal(await page.$eval('[aria-label="Hierarchy direction"]', node => node.value), 'top-down');

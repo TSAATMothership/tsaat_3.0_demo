@@ -1,3 +1,4 @@
+import { checkSoftwareInsightsPdf } from "./software-insights-pdf-smoke.mjs";
 ﻿import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -18,6 +19,10 @@ import { checkGovernanceInsights, checkGovernanceInsightsPdf } from "./governanc
 import { checkGovernanceTrends } from "./governance-trends-smoke.mjs";
 import { checkPersonas } from "./personas-smoke.mjs";
 import { checkLifeCycleManagement } from "./life-cycle-management-smoke.mjs";
+import { checkInstalledSoftwareInsights } from "./installed-software-insights-smoke.mjs";
+import { checkDiscoveryComplianceExplorer } from "./discovery-compliance-smoke.mjs";
+import { checkTopologyExplorer } from "./topology-explorer-smoke.mjs";
+import { checkMeasuresTrends } from "./measures-trends-smoke.mjs";
 
 assert(fs.existsSync(path.join(repositoryRoot, ".next-nosql", "BUILD_ID")), "Run npm run build:nosql first.");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-nosql-runtime-"));
@@ -96,9 +101,9 @@ try {
     assert(!await page.evaluate(() => document.body.innerText.includes('Application error')), route + ': server rendering failed');
     assert.deepEqual(errors, [], route + ': browser runtime errors');
   }
-  const routes = ["/governance/trends", "/governance/insights", "/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
-    "/discovery-coverage?discoveryView=overview", "/discovery-coverage", "/discovery-coverage?discoveryView=compliance", "/discovery-coverage?discoveryView=endpoints",
-    "/discovery-coverage?discoveryView=security-vulnerabilities", "/discovery-coverage?discoveryView=patch-management", "/discovery-coverage?discoveryView=life-cycle-management", "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/network-risk-profile", "/ict-system-risk-profile",
+  const routes = ["/governance/trends", "/governance/insights", "/governance/installed-software-insights", "/measures/trends", "/measures", "/measures?measuresTab=measures-kpi", "/measures?measuresTab=measures-spi", "/findings",
+    "/discovery-coverage?discoveryView=overview", "/discovery-coverage", "/discovery-coverage?discoveryView=compliance", "/discovery-coverage?discoveryView=endpoints", "/discovery-coverage?discoveryView=installed-software-insights",
+    "/discovery-coverage?discoveryView=security-vulnerabilities", "/discovery-coverage?discoveryView=patch-management", "/discovery-coverage?discoveryView=life-cycle-management", "/discovery-coverage?discoveryView=installed-software", "/discovery-coverage?discoveryView=shadow-it", "/discovery-coverage?discoveryView=topology", "/network-risk-profile", "/ict-system-risk-profile",
     "/cyber-cop?copView=impact", "/cyber-cop?copView=ict-system-impact-analyser", "/cyber-cop?copView=ict-system-dependencies", "/report"];
   const reports = new Set();
   for (const route of routes) {
@@ -108,6 +113,11 @@ try {
   await navigate('/cyber-cop?copView=impact');
   await checkServiceImpactGraph(page, { date });
   await checkLifeCycleManagement(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkInstalledSoftwareInsights(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkSoftwareInsightsPdf(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkDiscoveryComplianceExplorer(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkTopologyExplorer(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkMeasuresTrends(page, { date, historicalDate: storage.snapshots[0].date, snapshotDates: storage.snapshots.map(snapshot => snapshot.date), directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   // Domain scope defaults to all, stages edits, survives navigation and supports an explicit empty scope.
   await navigate('/discovery-coverage?discoveryView=endpoints');
   const domainTrigger='button[aria-controls="security-domain-options"]';
@@ -140,7 +150,7 @@ try {
   assert.equal(new URL(page.url()).searchParams.get('network'), 'net-1');
   assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
   assert.equal(await page.$eval('.workspace-nav-group .workspace-group-toggle', node => node.textContent.trim()), 'Governance');
-  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights']);
+  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights']);
   for (const view of ['insights', 'trends']) {
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
     await page.focus(`#workspace-group-0 a[href^="/governance/${view}"]`);
@@ -170,7 +180,7 @@ try {
   }
   await navigate('/governance/insights', 'system=sys-1');
   assert.equal(new URL(page.url()).searchParams.get('system'), 'sys-1');
-  assert.equal(await page.$$eval('#workspace-group-0 a', nodes => nodes.length), 2);
+  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights']);
   await navigate('/governance/overview', '');
   assert.equal(new URL(page.url()).pathname, '/governance/trends');
   assert.equal(await page.$('.governance-trends h1'), null);

@@ -14,7 +14,7 @@ function fixture(): ServiceImpactModel {
     findings: [finding("1", "a", "a", "Critical Exposure"), finding("2", "a", "a", "High Risk"), finding("3", "a", "a", "Custom severity"), finding("4", "b", "b", "High Risk")] };
 }
 
-describe("Service impact graph projection", () => {
+describe("Service Impact Topology projection", () => {
   it("uses only selected systems and their affected CIs, with scoped shared-service counts", () => {
     const graph = buildServiceImpactGraph(fixture(), ["a", "a"]);
     expect(graph.nodes.map(node => node.id).sort()).toEqual(["asset:a", "business:a", "mission:a", "system:a"]);

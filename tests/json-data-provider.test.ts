@@ -15,6 +15,7 @@ import type { SpiDefinition } from "@/lib/spi-definitions";
 
 let definitions: SpiDefinition[];
 let sample: Dataset;
+let historicalDate: string;
 const directory = mkdtempSync(path.join(os.tmpdir(), "tsaat-json-store-"));
 const previousDirectory = process.env.TSAAT_JSON_DATA_DIR;
 beforeAll(async () => {
@@ -22,6 +23,7 @@ beforeAll(async () => {
   await initializeJsonStore({ target: directory });
   definitions = await data.loadSpiDefinitions();
   sample = await data.loadCurrentDataset();
+  historicalDate = (await loadStoreManifest()).snapshots[0].date;
 });
 function restoreSettings() {
   for (const name of ["measures-settings", "discovery-tools-settings"]) copyFileSync(path.join(directory, "references", name + ".json"), path.join(directory, "settings", name + ".json"));
@@ -53,8 +55,8 @@ describe("JSON datastore calculation contract", () => {
     expect((await data.loadPatchManagementExplorerData({})).rows).toEqual([]);
     expect((await data.loadPatchManagementExplorerData({ network: "missing" })).rows).toEqual([]);
     const system = expected.find(asset => asset.systemContext)?.systemContext?.systemId;
-    const selected = await data.loadPatchManagementExplorerData({ system, dataDate: "2026-03-05" });
-    expect(selected.snapshotDate).toBe("2026-03-05");
+    const selected = await data.loadPatchManagementExplorerData({ system, dataDate: historicalDate });
+    expect(selected.snapshotDate).toBe(historicalDate);
     expect(selected.rows.length).toBeGreaterThan(0);
     expect(selected.rows.every(row => sample.assets.some(asset => asset.id === row.assetId && asset.systemContext?.systemId === system))).toBe(true);
   });
@@ -74,8 +76,8 @@ describe("JSON datastore calculation contract", () => {
     const selected = await data.loadSecurityVulnerabilityExplorerData({ system, dataDate: sample.snapshotDate });
     const systemIds = new Set(sample.assets.filter(asset => asset.systemContext?.systemId === system).map(asset => asset.id));
     expect(selected.rows.every(row => systemIds.has(row.assetId))).toBe(true);
-    const older = await data.loadSecurityVulnerabilityExplorerData({ network: "net-1", dataDate: "2026-03-05" });
-    expect(older.snapshotDate <= "2026-03-05").toBe(true);
+    const older = await data.loadSecurityVulnerabilityExplorerData({ network: "net-1", dataDate: historicalDate });
+    expect(older.snapshotDate).toBe(historicalDate);
     expect(older.rows.every(row => row.detectedDate <= older.snapshotDate)).toBe(true);
   });
   it("exposes MAC and model data for every scoped known endpoint while retaining unidentified nodes", async () => {

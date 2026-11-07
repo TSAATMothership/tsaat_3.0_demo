@@ -78,6 +78,7 @@ export function isDataDateScopedPath(pathname: string): boolean {
     pathname === "/cyber-cop" ||
     pathname === "/discovery-coverage" ||
     pathname === "/measures" ||
+    pathname === "/measures/trends" ||
     pathname === "/report" ||
     pathname === "/networks" ||
     pathname === "/network-risk-profile" ||

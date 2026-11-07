@@ -243,7 +243,7 @@ export async function createGovernanceInsightsPdf(data: GovernanceInsightsData, 
   pdf.paragraph("Ranked by critical, then high findings. Shared findings can appear under several services; service rows are not additive.", 9);
   pdf.heading("Mission awareness");
   pdf.metrics([{ label: "Capabilities linked to priority findings", value: number(insights.exposedCapabilities) }, { label: "Capabilities represented", value: number(impact.mission.length), detail: `${number(impact.business.length)} business services represented` }]);
-  pdf.paragraph("These are recorded relationships, not an outage prediction. Use the Service Impact graph and findings evidence to confirm operational consequences.", 9);
+  pdf.paragraph("These are recorded relationships, not an outage prediction. Use the Service Impact Topology and findings evidence to confirm operational consequences.", 9);
 
   pdf.pageFor("Completion needs evidence, not intention.", "04");
   pdf.metrics([{ label: "Servers verified patched", value: percent(patches.verifiedPercent), detail: `${number(patches.patched)} / ${number(patches.total)} servers` }, { label: "Overdue patch work", value: number(patches.overdue), color: amber }, { label: "Unknown patch status", value: number(patches.unknown), color: grey }], 3);

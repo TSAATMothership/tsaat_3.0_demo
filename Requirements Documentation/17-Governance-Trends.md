@@ -2,6 +2,8 @@
 
 ## Purpose and experience
 
+Bundled SQL and JSON samples provide eight weekly observations from 2026-09-19 to 2026-11-07, covering both one-week and one-month trend windows. Future data changes must preserve at least four complete weeks, complete applicable evidence and cross-provider temporal/scope parity; see [sample evidence](../docs/sample-evidence.md).
+
 `/governance/trends` is an executive infographic for managers reviewing compliance, lifecycle and discovery over time. It replaces the Trends placeholder, retains its existing sidebar/persona identity and follows the Cyber Terrain Insights visual language. Governance Overview is retired; old bookmarks redirect to Trends.
 
 The briefing contains a scope/date masthead, **1 week / 1 month** history selector (1 month by default), three headline rates and direction indicators, anchored topic sections, current evidence counts, lifecycle server priorities, discovery tool coverage, management actions and expandable methodology/snapshot evidence. CSV includes all snapshot metrics, the selected period/start/cutoff and applied scope; filenames identify the period and cutoff date. No new PDF/report is introduced.

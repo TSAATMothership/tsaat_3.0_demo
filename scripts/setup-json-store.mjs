@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { DEMO_DATA_PROFILE, enrichDemoDataset } from "./enrich-demo-dataset.mjs";
+import { SAMPLE_EVIDENCE_PROFILE, auditSampleEvidence } from "./sample-evidence.mjs";
 export const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function initializeJsonStore({ target = process.env.TSAAT_JSON_DATA_DIR || path.join(repositoryRoot, "NoSQL", "data"), sourceRoot = repositoryRoot } = {}) {
   target = path.resolve(target);
@@ -28,7 +29,13 @@ export async function initializeJsonStore({ target = process.env.TSAAT_JSON_DATA
       let value = JSON.parse((await fs.readFile(path.join(input, name), "utf8")).replace(/^\uFEFF/, ""));
       if (value.snapshotDate === current.snapshotDate) value = current;
       if (!Array.isArray(value.findings)) throw new Error("JSON snapshots must include persisted finding history: " + name);
-      value = normalizeDatasetSecurityDomains(enrichPatchManagement(enrichVulnerabilityMetadata(enrichDemoDataset(value))));
+      if (value.sampleDataProfile === SAMPLE_EVIDENCE_PROFILE) {
+        const audit = auditSampleEvidence(value);
+        if (audit.errors.length) throw new Error('Invalid bundled sample evidence: ' + audit.errors.slice(0, 5).join(', '));
+        value = normalizeDatasetSecurityDomains(value);
+      } else {
+        value = normalizeDatasetSecurityDomains(enrichPatchManagement(enrichVulnerabilityMetadata(enrichDemoDataset(value))));
+      }
       const file = "snapshots/" + name;
       await fs.writeFile(path.join(staging, file), JSON.stringify(value) + "\n");
       snapshots.push({ id: index + 1, date: value.snapshotDate, file });
@@ -43,7 +50,7 @@ export async function initializeJsonStore({ target = process.env.TSAAT_JSON_DATA
     for (const name of ["measures-settings", "discovery-tools-settings"]) {
       await fs.copyFile(path.join(referenceRoot, name + ".json"), path.join(staging, "settings", name + ".json"));
     }
-    await fs.writeFile(path.join(staging, "store.json"), JSON.stringify({ format: "tsaat-json-store", schemaVersion: 1, sampleDataProfile: DEMO_DATA_PROFILE, snapshots }, null, 2) + "\n");
+    await fs.writeFile(path.join(staging, "store.json"), JSON.stringify({ format: "tsaat-json-store", schemaVersion: 1, sampleDataProfile: current.sampleDataProfile ?? DEMO_DATA_PROFILE, snapshots }, null, 2) + "\n");
     try { await fs.rmdir(target); } catch (error) { if (error.code !== "ENOENT") throw error; }
     await fs.rename(staging, target);
     return { directory: target, created: true, snapshots: snapshots.length };

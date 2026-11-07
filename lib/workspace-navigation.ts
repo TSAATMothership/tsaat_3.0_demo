@@ -61,13 +61,14 @@ export function postureReplacementHref(pathname: "/networks" | "/systems", searc
   return workspaceScopeUpdateHref(pathname, params);
 }
 
-export interface WorkspaceItem { id: string; label: string; href: string; scope?: "network" | "system" }
+export interface WorkspaceItem { id: string; label: string; href: string; scope?: "network" | "system"; sidebar?: boolean }
 export interface WorkspaceGroup { id: string; label: string; items: WorkspaceItem[] }
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { id: "governance", label: "Governance", items: [
     { id: "governance-trends", label: "Trends", href: "/governance/trends" },
-    { id: "governance-insights", label: "Cyber Terrain Insights", href: "/governance/insights" }
+    { id: "governance-insights", label: "Cyber Terrain Insights", href: "/governance/insights" },
+    { id: "governance-software-insights", label: "Installed Software Insights", href: "/governance/installed-software-insights" }
   ] },
   { id: "cyber-security", label: "Cyber Security", items: [
     { id: "network-risk-profile", label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
@@ -81,13 +82,16 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { id: "discovery-tools", label: "Discovery Tool Coverage", href: "/discovery-coverage" },
     { id: "discovery-compliance", label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
     { id: "discovery-endpoints", label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
+    { id: "discovery-software-insights", label: "Installed Software Dashboard", href: "/discovery-coverage?discoveryView=installed-software-insights", sidebar: false },
     { id: "discovery-software", label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
     { id: "discovery-vulnerabilities", label: "Security Vulnerability Explorer", href: "/discovery-coverage?discoveryView=security-vulnerabilities" },
     { id: "discovery-patches", label: "Patch Management Explorer", href: "/discovery-coverage?discoveryView=patch-management" },
     { id: "discovery-life-cycle", label: "Life Cycle Management", href: "/discovery-coverage?discoveryView=life-cycle-management" },
-    { id: "discovery-shadow-it", label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" }
+    { id: "discovery-shadow-it", label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" },
+    { id: "discovery-topology", label: "Topology Explorer", href: "/discovery-coverage?discoveryView=topology" }
   ] },
   { id: "observed-measures", label: "Observed Measures", items: [
+    { id: "measures-trends", label: "Measures Trends", href: "/measures/trends" },
     { id: "measures-summary", label: "Measures Summary", href: "/measures" },
     { id: "measures-kpi", label: "Key Performance Indicators (KPIs)", href: "/measures?measuresTab=measures-kpi" },
     { id: "measures-spi", label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" }
@@ -135,6 +139,8 @@ export function activeWorkspaceItem(pathname: string, params: URLSearchParams): 
 }
 
 export function isWorkspaceItemVisible(item: WorkspaceItem, params: URLSearchParams, activeHref?: string): boolean {
+  // Retain bookmark identity and persona preferences without restoring a removed sidebar link.
+  if (item.sidebar === false) return false;
   // ICT System Impact Analyser stays hidden under managed-network scope, even when active.
   if (item.href === "/cyber-cop?copView=ict-system-impact-analyser" && scopeIds(params.getAll("network")).length) return false;
   // Risk profiles follow the applied header scope, including when the other profile was active.

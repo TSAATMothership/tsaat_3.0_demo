@@ -55,7 +55,7 @@ describe("network and ICT system reference persistence", () => {
 
     expect(dataset.managedNetworks.length).toBeGreaterThan(0);
     for (const [index, network] of dataset.managedNetworks.entries()) {
-      const reference = expectedReference(index);
+      const reference = network.id === 'net-unassigned' ? '000' : expectedReference(index);
       expect(network.diisId).toBe(`DIIS-NET-${reference}`);
       expect(network.atoNumber).toBe(`ATO-NET-${reference}`);
     }

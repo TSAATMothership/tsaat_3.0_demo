@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FilterHeader } from "@/components/inventory-explorer-controls";
+import { FilterHeader, SummaryChart } from "@/components/inventory-explorer-controls";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { NOT_RECORDED } from "@/lib/endpoint-explorer";
 import {
@@ -12,6 +12,12 @@ import {
 import type { WorkspaceSearchParams } from "@/lib/workspace-navigation";
 
 const number = (value: number) => value.toLocaleString("en-AU");
+const charts = [
+  { column: "compliant", title: "Discovery compliance", subtitle: "CIs by required tool coverage", tone: "tone-cyan" },
+  { column: "missingTools", title: "Missing discovery tools", subtitle: "CIs per missing tool · Counts can overlap", tone: "tone-blue" },
+  { column: "discoveredBy", title: "Discovered by", subtitle: "Recorded discovery sources", tone: "tone-violet" },
+  { column: "lastDiscoveredDate", title: "Last discovered", subtitle: "Recorded discovery dates (UTC)", tone: "tone-teal" }
+] as const;
 
 export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope, initialFilters }: {
   rows: DiscoveryComplianceRecord[]; snapshotDate: string; scope: WorkspaceSearchParams;
@@ -26,18 +32,12 @@ export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope, initial
   const filtered = useMemo(() => filterDiscoveryComplianceRows(rows, filters), [rows, filters]);
   const facets = useMemo(() => discoveryComplianceFacets(rows, filters), [rows, filters]);
   const summary = useMemo(() => discoveryComplianceSummary(rows, filters), [rows, filters]);
-  const selectedStatuses = filters.columns.compliant ?? [];
-  const selectedSummary = selectedStatuses.length === 1 ? selectedStatuses[0] : "all";
   const activeColumns = DISCOVERY_COMPLIANCE_COLUMNS.filter(({ key }) => filters.columns[key]?.length);
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
   const start = (currentPage - 1) * pageSize;
   const changeColumn = (key: DiscoveryComplianceColumn, values: string[]) => {
     setFilters((current) => ({ ...current, columns: { ...current.columns, [key]: values } })); setPage(1);
-  };
-  const selectSummary = (status: "all" | "Compliant" | "Coverage gaps") => {
-    changeColumn("compliant", status === "all" || selectedSummary === status ? [] : [status]);
-    setOpenColumn(null);
   };
   const exportRows = async () => {
     if (exporting) return;
@@ -57,30 +57,25 @@ export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope, initial
     finally { setExporting(false); }
   };
 
-  return <div className="flex min-h-0 flex-1 flex-col gap-3">
-    <section className="shrink-0" aria-label="Discovery compliance summary">
-      <div className="coverage-snapshot grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {([
-          { status: "all", label: "Total Assets In Scope", value: summary.total, action: "Show all matching CIs" },
-          { status: "Compliant", label: "Coverage Compliant Assets", value: summary.compliant, action: "Show compliant CIs" },
-          { status: "Coverage gaps", label: "Assets With Coverage Gaps", value: summary.gaps, action: "Show CIs with coverage gaps" }
-        ] as const).map((tile) => <button key={tile.status} type="button" className="panel text-left" onClick={() => selectSummary(tile.status)}
-          aria-label={tile.action} aria-pressed={selectedSummary === tile.status} aria-controls="discovery-compliance-results"
-          title={tile.status === "all" ? "Clear the compliance filter" : "Click to filter; click again to clear"}>
-          <p className="text-[11px] uppercase tracking-wider text-slate-400">{tile.label}</p>
-          <p className="mt-2 text-2xl font-semibold text-sky-100">{number(tile.value)}</p>
-        </button>)}
-        <div className="panel" title="Tool coverage across the matching table records">
-          <p className="text-[11px] uppercase tracking-wider text-slate-400">Overall Tool Coverage</p>
-          <p className="mt-2 text-2xl font-semibold text-sky-100">{summary.coveragePercent}%</p>
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-slate-400">Click a total to filter the table. Totals respect search and other column filters.</p>
-    </section>
+  return <div className="endpoint-explorer discovery-compliance-page">
+    <header className="endpoint-hero">
+      <div><p className="endpoint-eyebrow">Discovery / CI discovery compliance</p><h1>Discovery Compliance Explorer</h1>
+        <p className="endpoint-description">Explore CI discovery evidence and investigate missing tool coverage.</p></div>
+      <div className="endpoint-total"><span>Total CI records in scope</span><strong>{number(rows.length)}</strong><small>Snapshot · {snapshotDate}</small></div>
+    </header>
+    <div className="endpoint-summary-caption"><span>Discovery across your CIs</span><span>Click a chart bar to filter · Counts respect other filters</span></div>
+    <div className="endpoint-charts">{charts.map(chart => <SummaryChart key={chart.column} title={chart.title} subtitle={chart.subtitle} tone={chart.tone}
+      counts={[...facets[chart.column]].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))} selected={filters.columns[chart.column] ?? []}
+      onSelect={value => {
+        const selected = filters.columns[chart.column] ?? [];
+        changeColumn(chart.column, selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value]);
+        setOpenColumn(null);
+      }} />)}</div>
     <section id="discovery-compliance-results" className="endpoint-results discovery-compliance-results" aria-label="Discovery compliance results">
     <div className="endpoint-toolbar">
       <div><h2>Discovery compliance <span>{number(filtered.length)}</span></h2>
-        <p role="status">{number(filtered.length)} matching records · {number(rows.length)} total in scope</p></div>
+        <p role="status">{number(filtered.length)} matching records · {number(rows.length)} total in scope</p>
+        <p>{summary.coveragePercent}% of required tool checks covered across matching CIs</p></div>
       <div className="endpoint-toolbar-actions">
         <input type="search" maxLength={500} aria-label="Search all discovery compliance fields" placeholder="Search all compliance fields..." value={filters.search}
           onChange={(event) => { setFilters((current) => ({ ...current, search: event.target.value })); setPage(1); }} />

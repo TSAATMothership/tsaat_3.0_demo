@@ -56,13 +56,13 @@ async function main() {
 
   assert(current.managedNetworks.length >= 10, "Managed networks must include at least 10 entries.");
   assert(current.ictSystems.length >= 60, "ICT systems must include modelled and unmodelled entries.");
-  assert(current.assets.length === EXPECTED_ASSET_COUNT, `Assets must equal ${EXPECTED_ASSET_COUNT}.`);
+  assert(current.assets.filter(asset => asset.type !== "ip-node").length === EXPECTED_ASSET_COUNT, `Known endpoints must equal ${EXPECTED_ASSET_COUNT}; unidentified Shadow IT observations are additional.`);
   assert(snapshotFiles.length === 8, "Must include 8 snapshots.");
   assert(Array.isArray(current.ciDependencies ?? []), "ciDependencies must be an array when present.");
   const snapshotAnchor = new Date(`${current.snapshotDate}T23:59:59.999Z`);
 
   for (const [networkIndex, network] of current.managedNetworks.entries()) {
-    const expectedReferenceOrdinal = String(networkIndex + 1).padStart(3, "0");
+    const expectedReferenceOrdinal = network.id === "net-unassigned" ? "000" : String(networkIndex + 1).padStart(3, "0");
     const expectedStatus = network.assetIds.length > 0 ? "Discovery Enabled" : "Discovery Non Enabled";
     assert(
       network.discoveryStatus === expectedStatus,
@@ -205,14 +205,15 @@ async function main() {
   assert(printerAssets.length === 20, "Printer devices must equal 20.");
   assert(otherAssets.length === 20, "Other assets must equal 20.");
 
-  const modelledAssets = current.assets.filter((asset) => asset.systemContext?.systemId);
-  const unmodelledAssets = current.assets.filter((asset) => !asset.systemContext?.systemId);
+  const knownAssets = current.assets.filter((asset) => asset.type !== "ip-node");
+  const modelledAssets = knownAssets.filter((asset) => asset.systemContext?.systemId);
+  const unmodelledAssets = knownAssets.filter((asset) => !asset.systemContext?.systemId);
   assert(
-    modelledAssets.length === Math.round(current.assets.length * EXPECTED_MODELLED_RATIO),
+    modelledAssets.length === Math.round(knownAssets.length * EXPECTED_MODELLED_RATIO),
     "Modelled CI allocation must equal 70%."
   );
   assert(
-    unmodelledAssets.length === Math.round(current.assets.length * EXPECTED_UNMODELLED_RATIO),
+    unmodelledAssets.length === Math.round(knownAssets.length * EXPECTED_UNMODELLED_RATIO),
     "Unmodelled CI allocation must equal 30%."
   );
   assert(
@@ -271,7 +272,7 @@ async function main() {
 
     for (const vulnerability of asset.vulnerabilities) {
       assert(vulnerability.assetId === asset.id, `Vulnerability ${vulnerability.id} must reference its parent asset.`);
-      assert(vulnerability.cve.startsWith("CVE-"), `Vulnerability ${vulnerability.id} must use CVE format.`);
+      assert(/^(?:SAMPLE-)?CVE-\d{4}-\d+$/.test(vulnerability.cve), `Vulnerability ${vulnerability.id} must use a CVE code or an explicitly labelled SAMPLE-CVE scenario.`);
       assert(vulnerability.description.trim().length > 0, `Vulnerability ${vulnerability.id} must include description.`);
       assert(
         vulnerability.remediationGuidance.trim().length > 0,
@@ -457,7 +458,7 @@ async function main() {
   }
 
   const flowCountBySource = new Map<string, number>();
-  for (const asset of current.assets) {
+  for (const asset of knownAssets) {
     flowCountBySource.set(asset.id, 0);
   }
 
@@ -494,7 +495,7 @@ async function main() {
     throw new Error(`Unexpected flow dependency bucket value encountered: ${flowCount}`);
   }
 
-  const totalSources = current.assets.length;
+  const totalSources = knownAssets.length;
   const expectedZeroCount = Math.floor(totalSources * FLOW_ZERO_RATIO);
   const expectedHighCount = Math.floor(totalSources * FLOW_HIGH_RATIO);
   const expectedMediumCount = Math.floor(totalSources * FLOW_MEDIUM_RATIO);

@@ -2,6 +2,8 @@
 
 Status: Accepted, 2026-11-06. Implements the explicit request to replace the previous strict-default guidance for new SQL connections.
 
+The setup authentication/TLS defaults are superseded by [ADR 0017](0017-dedicated-database-login.md). The guarded bootstrap, configuration publication and advanced TLS options remain applicable.
+
 ## Context and decision
 
 Configuration-only setup left users with a separate schema/data bootstrap and an unusable app until both were completed. `setup:database` now collects connection details and initializes only a missing database through the guarded bootstrap. It reuses the application's connection/TLS/schema checks and writes the DPAPI configuration only after success. Existing databases are read-only validation targets; migrations and operational imports remain separately reviewed operations. Failed partial creation is retained for inspection, never automatically dropped or reloaded.

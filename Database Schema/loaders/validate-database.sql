@@ -318,9 +318,8 @@ IF EXISTS (
 DECLARE @ScopedAssetIdsJson NVARCHAR(MAX) = (
   SELECT N'[' + STRING_AGG(CAST(N'"' + STRING_ESCAPE([asset_id], 'json') + N'"' AS NVARCHAR(MAX)), N',') + N']'
   FROM (
-    SELECT TOP (5) [asset_id]
-    FROM [tsaat].[asset]
-    WHERE [snapshot_id] = @LatestSnapshotId
+    SELECT DISTINCT TOP (5) [asset_id]
+    FROM @SqlSpiEvaluations
     ORDER BY [asset_id]
   ) AS scoped_assets
 );

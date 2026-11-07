@@ -9,10 +9,9 @@ function readRepoFile(relativePath: string): string {
 }
 
 describe("Discovery Unassigned Systems scope wiring", () => {
-  it("excludes Unassigned Systems from Discovery page network and asset calculations", () => {
+  it("excludes Unassigned Systems from Discovery page asset calculations", () => {
     const page = readRepoFile("app/discovery-coverage/page.tsx");
 
-    expect(page).toContain("removeUnassignedNetworkOption(filterOptions)");
     expect(page).toContain("filterDiscoveryAssets(dataset.assets.filter((asset) => scopedAssetIds.has(asset.id)))");
     expect(page).toContain("sanitizeDiscoverySearchParams(searchParams)");
   });

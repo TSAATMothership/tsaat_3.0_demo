@@ -38,6 +38,15 @@
       ]
     },
     {
+      "name": "Topology Explorer",
+      "pattern": "topology-explorer",
+      "documents": [
+        "Requirements Documentation/20-Topology-Explorer.md",
+        "docs/data-providers.md",
+        "docs/ui-design.md"
+      ]
+    },
+    {
       "name": "Measures",
       "pattern": "measures|kpi|spi",
       "documents": [

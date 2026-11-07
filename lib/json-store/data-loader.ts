@@ -85,7 +85,10 @@ async function snapshot(id: number): Promise<Dataset> {
   dataset.snapshotId = id;
   dataset.spiEvaluations = dataset.assets.flatMap(asset => spis.filter(def => def.applicableAssetTypes.includes(asset.type)).map(def => evaluateSpi(asset, def)));
   dataset.discoveryCoverageEvaluations = dataset.assets.map(asset => evaluateDiscovery(asset, discovery, rules.detectionRules));
-  dataset.findings = applyMeasuresPrioritySettings(applyMeasuresSeveritySettings(dataset.findings, dataset.assets, measures), measures);
+  const persistedFindings = dataset.findings.map(finding => ({ ...finding,
+    rawPriorityRank: finding.rawPriorityRank ?? finding.priorityRank,
+    rawSeverity: finding.rawSeverity ?? finding.severity, sourceKind: finding.sourceKind ?? "persisted" as const }));
+  dataset.findings = applyMeasuresPrioritySettings(applyMeasuresSeveritySettings(persistedFindings, dataset.assets, measures), measures);
   // A new file revision must invalidate the shared model caches, on subsequent loads.
   clearAnalyticsCache(); clearAppDataCaches();
   if (datasets.size >= 16) datasets.delete(datasets.keys().next().value!);

@@ -10,12 +10,16 @@ This documentation describes the current source. SQL and TypeScript define exact
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
 | Server patch evidence, status rules and sample population | [Patch Management Explorer](patch-management-explorer.md) |
 | Lifecycle evidence and server priorities | [Life Cycle Management](../Requirements%20Documentation/16-Life-Cycle-Management.md) |
+| Software dashboard and Governance briefing | [Installed Software Insights](../Requirements%20Documentation/18-Installed-Software-Insights.md) |
+| KPI and SPI history across five periods | [Measures Trends](../Requirements%20Documentation/19-Measures-Trends.md) |
+| CI lookup, Business Impact and communication Dependencies | [Topology Explorer](../Requirements%20Documentation/20-Topology-Explorer.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
 | Persona selection, sidebar visibility and settings upgrades | [Personas](personas.md) |
 | Discovery Overview PDF sections and scope | [Discovery Overview report](discovery-overview-report.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |
+| Shared weekly evidence and safe existing-store updates | [Sample evidence](sample-evidence.md) |
 | Install, run, test and debug | [Development](development.md) |
 | Mandatory offline compilation and dependency maintenance | [Offline builds](offline-builds.md) |
 | Schema, migrations, configuration and integration | [Database lifecycle](database.md) |

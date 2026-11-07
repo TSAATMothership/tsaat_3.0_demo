@@ -57,6 +57,8 @@ test('documentation checks accept implementation-only drift but still reject cha
     assert.equal(run('--write').status, 0);
     write('lib/workspace-navigation.ts', '{ id: "overview", label: "Overview", href: "/overview" }');
     assert.equal(run('--check').status, 0, 'Stable persona IDs must retain navigation inventory entries');
+    write('lib/workspace-navigation.ts', '{ id: "overview", label: "Overview", href: "/overview", sidebar: true }\n{ id: "bookmark", label: "Bookmark only", href: "/legacy", sidebar: false }');
+    assert.equal(run('--check').status, 0, 'Bookmark-only entries must not appear in the visible navigation inventory');
     const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true });
     git(['init', '--quiet']);
     git(['add', '.']);

@@ -11,7 +11,7 @@ import { PERSONA_PAGES, personaShowsPage, personaShowsSection } from "@/lib/pers
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { activePersona, settings, error, loading } = usePersona();
   const showSection = (id: string) => !settings || personaShowsSection(settings, activePersona, id);
-  const noSections = settings && activePersona && !PERSONA_PAGES.some(page => personaShowsPage(settings, activePersona, page.id));
+  const noSections = settings && activePersona && !PERSONA_PAGES.some(page => page.sidebar !== false && personaShowsPage(settings, activePersona, page.id));
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<string[]>(() => WORKSPACE_GROUPS.map((group) => group.label));
   const pathname = usePathname() ?? "/";

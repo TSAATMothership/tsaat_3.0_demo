@@ -1,5 +1,9 @@
 # Personas
 
+Topology Explorer adds the Discovery page ID `discovery-topology`, immediately below Shadow IT Explorer. New default configurations include it; saved page selections are preserved. Enable it in Personas for a saved persona where needed. The inline graph requires no new popup permission, and CMDB retains the existing `cmdb-details` control. No settings storage/schema migration is required.
+
+Measures Trends is an Observed Measures page with stable ID `measures-trends`. New default configurations include it. Existing saved page selections remain unchanged; enable the page explicitly in Personas where required. Its links to KPI/SPI evidence use the existing persona-aware navigation checks. No settings schema or storage migration is introduced.
+
 ## Business Reporting
 
 The five personas are Analyst, Life Cycle Management, Configuration Management, DSOC Analyst and Business Reporting. Business Reporting uses the stable ID `business-reporting` and starts with every section, page and popup enabled, matching the other personas' defaults. Configure it in Menu → Settings → Personas; its selection appears in the header and is remembered in this browser.
@@ -14,7 +18,7 @@ Validation on 2026-11-05: all 95 focused tests across nine files, lint/types, st
 
 ## Retired Governance Overview
 
-Governance contains Trends and Cyber Terrain Insights. The retired `governance-overview` permission is accepted in older version-2 configurations and discarded by the shared parser on read or save. Other page, section and popup selections remain unchanged; an Overview-only selection becomes an empty page selection and does not grant Trends. Unknown IDs and duplicate IDs (including the retired ID) still fail validation. The compatibility URL resolves to Trends for link-permission checks, so it cannot bypass a disabled Trends destination. Discovery Overview is unaffected.
+Governance contains Trends, Cyber Terrain Insights and Installed Software Insights. The retired `governance-overview` permission is accepted in older version-2 configurations and discarded by the shared parser on read or save. Other page, section and popup selections remain unchanged; an Overview-only selection becomes an empty page selection and does not grant Trends. Unknown IDs and duplicate IDs (including the retired ID) still fail validation. The compatibility URL resolves to Trends for link-permission checks, so it cannot bypass a disabled Trends destination. Discovery Overview is unaffected.
 
 Upgrade: deploy the updated application and refresh browser tabs. SQL migration 031, persona schema version 2 and JSON store version 1 remain sufficient. Both providers normalize old payloads in memory without a write on read; the next explicit save appends the SQL revision or atomically saves JSON/history without the retired permission. No bulk rewrite, SQL migration or calculation-contract refresh is required. Backups and recovery follow the existing settings procedures below.
 
@@ -22,7 +26,9 @@ Impact assessment: navigation/compatibility routes, shared persona catalogue nor
 
 ## Sections, pages and popup controls
 
-Each persona now maps to all 21 sidebar pages as well as their six parent sections. A section checkbox selects or clears all its pages and shows a mixed state when only some are selected. Clearing the last page hides that section. Existing network/system scope rules still apply after these preferences. Show all/Hide all includes both page and popup switches; Save/Discard retains the existing draft behavior.
+Each persona maps to the current sidebar page catalogue and its six parent sections. A section checkbox selects or clears all its pages and shows a mixed state when only some are selected. Clearing the last page hides that section. Existing network/system scope rules still apply after these preferences. Show all/Hide all includes both page and popup switches; Save/Discard retains the existing draft behavior.
+
+Installed Software Dashboard is hidden from the sidebar under every scope, including when its bookmarked URL is active. Its `discovery-software-insights` preference and route mapping are retained for existing settings/link compatibility; the sidebar omission does not change application access or grant the Governance preference. The separate Installed Software Insights briefing uses `governance-software-insights` directly below Cyber Terrain Insights in Governance. New/default configurations include both; existing saved version-2 selections remain unchanged. Enable the new Governance page explicitly in Settings > Personas when needed. Explorer evidence links respect the separate Explorer preference. No parser/persistence, SQL migration or JSON format upgrade is required.
 
 Internal drill-through links use the same destination mapping as the sidebar, including Discovery views, KPI/SPI tabs, filtered links, compatibility routes and new-tab links. Unavailable destinations remain visible as dimmed, labelled disabled links with no href or action; keyboard, Ctrl-click and context-menu navigation cannot activate them. Filter, scope and snapshot parameters do not alter which page a link belongs to. Entity-detail URLs also require their popup switch. Directly entered URLs and APIs retain the login-free access model; these self-selected preferences are not an authorization boundary.
 
@@ -34,7 +40,7 @@ Popup switches are independent of sidebar pages. A hidden Findings page does not
 | Network details / ICT system details | Risk-profile explorer detail links and their destination dialogs |
 | KPI / SPI scope details | Measure explorer network/system counts |
 | Expanded risk trend chart | Expand chart on either risk profile |
-| Service impact graph | Explore selection |
+| Service Impact Topology | Explore selection |
 | Service impact findings & CIs | Summary tiles and graph finding-details button |
 | Finding drill-through lists | SPI charts and ICT-system analyser finding actions |
 | Affected CI details | Findings-register and finding-panel asset lists |

@@ -5,10 +5,10 @@ import { defaultPersonaSettings, parsePersonaSettings, type PersonaSettings } fr
 // No evaluation cache depends on navigation preferences. Read the latest committed revision.
 export async function loadPersonaSettings(): Promise<PersonaSettings> {
   const row = await executeSqlJson<{ settings: string } | null>(`
-SELECT TOP (1) [settings_json] AS [settings]
+SELECT COALESCE((SELECT TOP (1) [settings_json] AS [settings]
 FROM [tsaat].[persona_settings_version]
 ORDER BY [settings_version_id] DESC
-FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;`);
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER), N'null');`);
   return row ? parsePersonaSettings(JSON.parse(row.settings)) : defaultPersonaSettings();
 }
 

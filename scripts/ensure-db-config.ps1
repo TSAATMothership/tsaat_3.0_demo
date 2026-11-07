@@ -12,7 +12,7 @@ $EnvelopeVersion = 1
 $EnvelopeAlgorithm = 'dpapi'
 $EntropyText = 'TSAAT_DB_CONFIG_V1'
 $DefaultServer = 'localhost\SQLEXPRESS'
-$DefaultDatabase = 'TSAAT'
+$DefaultDatabase = 'TSAATDB'
 
 function Resolve-RepoRoot {
   param([AllowNull()][AllowEmptyString()][string]$InputRoot)
@@ -511,10 +511,56 @@ function Read-SslType {
   }
 }
 
+function Resolve-LocalSqlExpressEndpoint {
+  # A local named instance may have SQL Browser disabled. Read its configured
+  # TCP port so the accepted default does not depend on SQL Browser.
+  try {
+    $instances = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction Stop
+    $instanceId = [string]$instances.SQLEXPRESS
+    if ([string]::IsNullOrWhiteSpace($instanceId)) { return $DefaultServer }
+    $tcpPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceId\MSSQLServer\SuperSocketNetLib\Tcp"
+    $tcp = Get-ItemProperty -LiteralPath $tcpPath -ErrorAction Stop
+    if ($tcp.Enabled -ne 1) { return $DefaultServer }
+    if ($tcp.ListenOnAllIPs -eq 1) {
+      $addresses = @(Get-ItemProperty -LiteralPath "$tcpPath\IPAll" -ErrorAction Stop)
+    } else {
+      $addresses = @(Get-ChildItem -LiteralPath $tcpPath -ErrorAction Stop | ForEach-Object {
+        Get-ItemProperty -LiteralPath $_.PSPath -ErrorAction Stop
+      } | Where-Object { $_.Enabled -eq 1 -and $_.IpAddress -eq '127.0.0.1' })
+    }
+    foreach ($address in $addresses) {
+      foreach ($ports in @($address.TcpPort, $address.TcpDynamicPorts)) {
+        foreach ($value in ([string]$ports).Split(',')) {
+          $port = 0
+          if ([int]::TryParse($value.Trim(), [ref]$port) -and $port -ge 1 -and $port -le 65535) {
+            return "tcp:127.0.0.1,$port"
+          }
+        }
+      }
+    }
+  } catch {
+    # Registry inspection is optional. Explicit endpoint entry remains available.
+  }
+  return $DefaultServer
+}
+
+function Read-ServerEndpoint {
+  if (Read-YesNo -Prompt "Is the SQL Server endpoint ${DefaultServer}?" -DefaultValue $true) {
+    $endpoint = Resolve-LocalSqlExpressEndpoint
+    if ($endpoint -ne $DefaultServer) { Write-Host "Using the local SQLEXPRESS TCP endpoint: $endpoint" }
+    return $endpoint
+  }
+  while ($true) {
+    $endpoint = Read-TextWithDefault -Prompt 'SQL Server endpoint (for example tcp:server,1433 or server\instance)' -DefaultValue ''
+    try { return Require-String -Name 'SQL Server endpoint' -Value $endpoint }
+    catch { Write-Host 'Enter a nonempty SQL Server endpoint without line breaks or semicolons.' }
+  }
+}
+
 function Read-InteractiveSettings {
   param([Parameter(Mandatory = $true)][object]$Defaults)
 
-  $server = Read-TextWithDefault -Prompt 'SQL Server' -DefaultValue $Defaults.server
+  $server = Read-ServerEndpoint
   $database = Read-TextWithDefault -Prompt 'Application database' -DefaultValue $Defaults.database
   $authMode = Read-AuthMode -DefaultValue $Defaults.authMode
   $userId = ''
@@ -554,8 +600,100 @@ function Read-InteractiveSettings {
 function Complete-DatabaseSetup {
   param([Parameter(Mandatory = $true)][object]$Settings)
   if (-not $SetupDatabase) { return }
-  & (Join-Path $script:RepoRoot 'scripts\prepare-database.ps1') -Settings $Settings -RepoRoot $script:RepoRoot -Interactive:($interactive -and -not $assumeYes)
+  & (Join-Path $script:RepoRoot 'scripts\prepare-database.ps1') -Settings $Settings -Administrator $script:SetupAdministrator -RepoRoot $script:RepoRoot -Interactive:($interactive -and -not $assumeYes)
   Write-Host 'Database ready. After setup finishes, run npm run dev:sql (or npm run build:sql then npm run start:sql).'
+}
+
+function Read-RequiredSetupText {
+  param([string]$Prompt, [string]$DefaultValue = '')
+  while ($true) {
+    try { return Require-String -Name $Prompt -Value (Read-TextWithDefault -Prompt $Prompt -DefaultValue $DefaultValue) }
+    catch { Write-Host 'Enter a nonempty value without line breaks or semicolons.' }
+  }
+}
+
+function Read-SetupPassword {
+  param([string]$Prompt, [switch]$Confirm)
+  while ($true) {
+    $secure = Read-Host $Prompt -AsSecureString
+    $plain = Convert-SecureStringToPlaintext -SecureString $secure
+    $secure.Dispose()
+    try { $plain = Require-String -Name 'Password' -Value $plain }
+    catch { Write-Host 'Enter a nonempty password without line breaks or semicolons.'; continue }
+    if ($plain.Length -gt 128) { Write-Host 'SQL passwords must be at most 128 characters.'; continue }
+    if ($Confirm) {
+      $confirmation = Read-Host 'Confirm database password' -AsSecureString
+      $confirmationText = Convert-SecureStringToPlaintext -SecureString $confirmation
+      $confirmation.Dispose()
+      if ($plain -cne $confirmationText.Trim()) { Write-Host 'Passwords do not match. Try again.'; continue }
+    }
+    return $plain
+  }
+}
+
+function Invoke-SimpleDatabaseSetup {
+  param([AllowNull()][object]$Existing)
+  $saved = $Existing.payload
+  if ($interactive -and -not $assumeYes) {
+    Write-Host 'Set up TSAATDB with a dedicated SQL login. SSL is disabled for this setup and the app connection.'
+    $server = Read-ServerEndpoint
+    $database = $DefaultDatabase
+    $defaultUser = if ($saved.authMode -eq 'sql') { $saved.userId } else { 'tsaat_app' }
+    $userId = Read-RequiredSetupText -Prompt 'Database username (new login, or a login created by this setup)' -DefaultValue $defaultUser
+    $password = Read-SetupPassword -Prompt 'Database password (use the existing password on a rerun)' -Confirm
+    Write-Host 'Setup needs a SQL Server administrator to create the database and login. Administrator credentials are not saved.'
+    $adminTrusted = Read-YesNo -Prompt 'Use your current Windows account for the administrator connection?' -DefaultValue $true
+    $adminUser = ''
+    $adminPassword = ''
+    if (-not $adminTrusted) {
+      $adminUser = Read-RequiredSetupText -Prompt 'SQL administrator username'
+      $adminPassword = Read-SetupPassword -Prompt 'SQL administrator password'
+    }
+  } else {
+    if (-not $assumeYes) { throw 'Database setup needs interactive input or TSAAT_DB_CONFIG_ASSUME_YES=true with the required SQL credentials.' }
+    if ($null -ne $saved) {
+      # Never silently downgrade an old encrypted/Windows configuration in automation.
+      if ($saved.authMode -ne 'sql' -or $saved.sslEnabled) {
+        throw 'Saved DB_config uses Windows authentication or SSL. Rerun npm run setup:database interactively to choose the new database login, or use an isolated -DbConfigPath with complete environment settings.'
+      }
+      $server = $saved.server
+      $database = $saved.database
+      $userId = $saved.userId
+      $password = $saved.password
+    } else {
+      $server = Env-Value -Name 'TSAAT_SQL_SERVER'
+      $database = Env-Value -Name 'TSAAT_APP_DATABASE'
+      if (-not $database) { $database = $DefaultDatabase }
+      $userId = Env-Value -Name 'TSAAT_SQL_USER'
+      $password = Env-Value -Name 'TSAAT_SQL_PASSWORD'
+      if (-not $server -or -not $userId -or -not $password) {
+        throw 'Unattended database setup requires TSAAT_SQL_SERVER, TSAAT_SQL_USER and TSAAT_SQL_PASSWORD. TSAAT_APP_DATABASE defaults to TSAATDB.'
+      }
+    }
+    $adminUser = Env-Value -Name 'TSAAT_SQL_ADMIN_USER'
+    $adminPassword = Env-Value -Name 'TSAAT_SQL_ADMIN_PASSWORD'
+    if ([bool]$adminUser -xor [bool]$adminPassword) { throw 'Supply both TSAAT_SQL_ADMIN_USER and TSAAT_SQL_ADMIN_PASSWORD, or neither for Windows administrator authentication.' }
+    $adminTrusted = -not $adminUser
+  }
+  $settings = Normalize-DbSettings -InputValue ([pscustomobject]@{
+    server = $server; database = $database; authMode = 'sql'; userId = $userId; password = $password
+    sslEnabled = $false; sslType = 'strict'
+  })
+  if ($settings.userId.Length -gt 128 -or $settings.password.Length -gt 128) { throw 'SQL usernames and passwords must be at most 128 characters.' }
+  $script:SetupAdministrator = Normalize-DbSettings -InputValue ([pscustomobject]@{
+    server = $server; database = 'master'; authMode = $(if ($adminTrusted) { 'trusted' } else { 'sql' })
+    userId = $adminUser; password = $adminPassword; sslEnabled = $false; sslType = 'strict'
+  })
+  Write-SettingsSummary -Settings $settings
+  try {
+    if ($null -ne $saved -and (ConvertTo-CanonicalJson $saved) -ceq (ConvertTo-CanonicalJson $settings)) {
+      Complete-DatabaseSetup -Settings $settings
+    } else {
+      $keyProvider = Resolve-KeyProvider -ExistingKeyProvider $Existing.keyProvider
+      Write-DbConfigFile -Path $DbConfigPath -Payload $settings -KeyProvider $keyProvider
+    }
+    Write-Host "Confirmed encrypted DB_config file: $DbConfigPath"
+  } finally { $script:SetupAdministrator = $null }
 }
 
 $script:RepoRoot = Resolve-RepoRoot -InputRoot $RepoRoot
@@ -576,6 +714,11 @@ if (Test-Path -LiteralPath $DbConfigPath) {
     Write-Warning ("Existing DB_config cannot be decrypted or validated by this Windows identity. It may have been created by another Windows user/machine or it may be invalid. Details: {0}" -f $existingReadError)
   }
 
+  if ($SetupDatabase) {
+    Invoke-SimpleDatabaseSetup -Existing $existing
+    exit 0
+  }
+
   if ($null -ne $existing) {
     if ($assumeYes -or -not $interactive) {
       Complete-DatabaseSetup -Settings $existing.payload
@@ -583,6 +726,7 @@ if (Test-Path -LiteralPath $DbConfigPath) {
       exit 0
     }
 
+    Write-Host 'Using saved DB_config values. New setup defaults do not replace saved settings. Answer n below to edit the server or SSL type.'
     Write-SettingsSummary -Settings $existing.payload
     $acceptExisting = Read-YesNo -Prompt 'Use these database settings?' -DefaultValue $true
     $settings = if ($acceptExisting) { $existing.payload } else { Read-InteractiveSettings -Defaults $existing.payload }
@@ -619,6 +763,11 @@ if (Test-Path -LiteralPath $DbConfigPath) {
   $rewriteKeyProvider = Resolve-KeyProvider -ExistingKeyProvider $null
   Write-DbConfigFile -Path $DbConfigPath -Payload $settingsToRewrite -KeyProvider $rewriteKeyProvider
   Write-Host "Recreated encrypted DB_config file: $DbConfigPath"
+  exit 0
+}
+
+if ($SetupDatabase) {
+  Invoke-SimpleDatabaseSetup -Existing $null
   exit 0
 }
 

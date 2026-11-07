@@ -11,9 +11,9 @@ import { enrichDemoDataset, validateDemoDataset } from "./enrich-demo-dataset.mj
 export const COVERAGE_PROFILE = "tsaat-sample-measure-coverage-v1";
 export interface CoverageConfiguration { definitions: SpiDefinition[]; settings: MeasuresSettings }
 type ReferenceFile = Record<string, Record<string, unknown>[]>;
-export async function loadCoverageConfiguration(target: string): Promise<CoverageConfiguration> {
+export async function loadCoverageConfiguration(target: string, directories: { references?: string; settings?: string } = {}): Promise<CoverageConfiguration> {
   async function reference(name: string): Promise<ReferenceFile> {
-    return JSON.parse((await fs.readFile(path.join(target, "references", name + ".json"), "utf8")).replace(/^\uFEFF/, ""));
+    return JSON.parse((await fs.readFile(path.join(directories.references ?? path.join(target, "references"), name + ".json"), "utf8")).replace(/^\uFEFF/, ""));
   }
   const [spis, rules, sql, reports, classification, severity] = await Promise.all([
     reference("spi-definitions"), reference("spi-rule-definitions"), reference("spi-sql-calculations"),
@@ -29,7 +29,7 @@ export async function loadCoverageConfiguration(target: string): Promise<Coverag
   });
   const definitions = normalizeSpiDefinitions(rows);
   if (!definitions.length || definitions.length !== spis.spis.filter(r => r.enabled !== false).length) throw new Error("Invalid SPI configuration; no data was changed.");
-  const settings = normalizeMeasuresSettings(JSON.parse(await fs.readFile(path.join(target, "settings/measures-settings.json"), "utf8")),
+  const settings = normalizeMeasuresSettings(JSON.parse(await fs.readFile(path.join(directories.settings ?? path.join(target, "settings"), "measures-settings.json"), "utf8")),
     definitions, normalizeSeverityDefinitions(severity), normalizePriorityDefinitions(sql));
   return { definitions, settings };
 }
