@@ -4,6 +4,7 @@ import type { Dataset } from "@/lib/types";
 import { GET } from "@/app/api/assets/cmdb-details/route";
 import { loadDatasetForDate } from "@/lib/data-loader";
 import { loadCmdbAttributeDefinitions } from "@/lib/cmdb-attribute-loader";
+import { readFileSync } from "node:fs";
 
 vi.mock("@/lib/data-loader", () => ({ loadDatasetForDate: vi.fn() }));
 vi.mock("@/lib/cmdb-attribute-loader", () => ({ loadCmdbAttributeDefinitions: vi.fn() }));
@@ -48,5 +49,21 @@ describe("CMDB attribute API", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(await response.json()).toEqual({ error: "Unable to load the CMDB attribute configuration. Please retry." });
+  });
+  it("dispatches both model CI types, keeps their scope/date and rejects unknown types without loading data", async () => {
+    const sample = JSON.parse(readFileSync("data/current.json", "utf8")) as Dataset;
+    vi.mocked(loadDatasetForDate).mockResolvedValue(sample);
+    vi.mocked(loadCmdbAttributeDefinitions).mockResolvedValue([{ key: "ciType", label: "CI Type", displayOrder: 10 }]);
+    const system = sample.ictSystems.find(item => item.businessServices.length && item.missionCapabilities.length)!;
+    for (const [type, ci] of [["business-service", system.businessServices[0]], ["mission-capability", system.missionCapabilities[0]]] as const) {
+      const query = new URLSearchParams({ ciType: type, assetId: ci.id, system: system.id, dataDate: sample.snapshotDate });
+      const response = await GET(request(query.toString())); expect(response.status).toBe(200);
+      const body = await response.json(); expect(body.asset.assetType).toBe(type); expect(body.asset.systemIds).toEqual([system.id]);
+      expect(loadCmdbAttributeDefinitions).toHaveBeenCalledWith(type);
+      query.set("securityDomain", "NONE"); expect((await GET(request(query.toString()))).status).toBe(404);
+    }
+    vi.mocked(loadDatasetForDate).mockClear();
+    expect((await GET(request("assetId=anything&ciType=invalid"))).status).toBe(400);
+    expect(loadDatasetForDate).not.toHaveBeenCalled();
   });
 });

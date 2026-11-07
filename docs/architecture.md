@@ -1,5 +1,7 @@
 # Architecture
 
+Model CI CMDB support keeps Business Service/Mission Capability identity in their existing snapshot association sources. `lib/cmdb-ci-types.ts` declares their CMDB classes; `lib/cmdb-model-ci.ts` resolves type/ID and scoped associations through common selectors. The existing CMDB API dispatches optional model types and uses the same attribute-loader facade and modal provider. SQL migration 032 and an explicit JSON reference upgrade extend configurable fields together. See [ADR 0021](adr/0021-model-ci-cmdb.md).
+
 TopologyGraph owns transient layout, camera, moved-node, inspection and search state above the inline/modal rendering boundary. The same TopologyDiagram renders either inline or in a native dialog portal; toggling full screen retains that state without duplicating the graph or changing provider/scoping logic. Header mode tabs reset the diagram's view while retaining the graph shell and its full-screen state. The modal restores body scrolling and toggle focus on exit.
 
 `components/impact-graph-node-visual.tsx` supplies the shared SVG node presentation and sizing for Service Impact and Topology Explorer. Shared `impact-graph-*` CSS keeps their graph surfaces consistent, with container-responsive inline sizing for Topology. Each feature retains its own model, evidence/count meaning, tracing and interactions; the presentation primitive performs no provider reads or scope filtering.

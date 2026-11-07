@@ -1,5 +1,21 @@
 # CMDB attributes by asset type
 
+## Model CI support
+
+Business Service and Mission Capability are recorded model CI types. SQL stores their stable IDs, names and criticality in `system_business_service` and `system_mission_capability`; JSON snapshots carry the same records in each ICT system's `businessServices` and `missionCapabilities`. A shared projector resolves one CI per type/ID in the selected snapshot and scope. Their endpoint-independent CMDB types are `business-service` and `mission-capability`; endpoint measure applicability is unchanged. Repeated associations may record different criticalities. The panel shows those values and their related systems instead of choosing an undocumented global criticality. Related system security domains are explicitly labelled; the model CI is not assigned a fabricated domain or IP.
+
+The existing `/api/assets/cmdb-details` route accepts optional `ciType=business-service|mission-capability` with `assetId` carrying the source CI ID. Omitted `ciType` retains the endpoint contract. Model requests also carry header network/system/security-domain scope and `dataDate`; each associated system and displayed network respects its own domain. Missing/out-of-scope CIs return 404, unsupported types 400, and missing mapping configuration 503. Response identity remains compatible with the existing panel and adds model `topologyId`/`systemIds` for navigation. Model fields are `ciId`, `ciName`, `ciType`, `criticality`, `relatedSystems`, `relatedNetworks` and `relatedSecurityDomains`. Model mappings reject endpoint-only fields.
+
+Topology Explorer (both modes and full screen) and Service Impact's Impact Topology inspector offer the existing persona-controlled CMDB action for these CIs. Nested native dialogs retain Escape, focus return, loading/error/Retry, and the selected graph view. Explore Topology uses `business:`/`mission:` identity with the loaded snapshot. For external dependency context, the request uses the node's recorded system scope while retaining Security Domains; inspection does not change the workspace header.
+
+### Existing-store upgrade and recovery
+
+- SQL: back up the explicitly selected database, then apply `Database Schema/migrations/032_model_ci_cmdb_attributes.sql` using `sqlcmd -b` and its saved connection/certificate policy. It extends only CMDB metadata constraints/catalogue and adds seven default fields for each model type. An installation marker preserves later custom labels, order, disabled/deleted mappings and empty sets on rerun. It changes no endpoint or association records. Fresh SQL setup includes the same mappings.
+- JSON: run `npm run migrate:cmdb-model-cis -- --target <absolute-store-directory>` to preview, then add `--apply`. The upgrade acquires the existing writer lock, backs up the original reference file outside the store, and atomically publishes only missing model type mappings in `references/cmdb-attributes.json`. Existing keys, custom rows and explicit empty arrays are preserved. It reports the backup path; snapshots, manifest and settings are untouched. Fresh stores include these mappings; builds preserve existing stores and never run the upgrade.
+- Failed JSON publication leaves the old reference file intact. For rollback, stop app writers and restore the reported backup to that reference file, then restart. A crash can leave `.write-lock` and a uniquely named temporary file; verify the recorded process is stopped before removing those exact files. SQL changes are transactional; after a successful upgrade, keep the additive metadata for an application rollback, or restore the database backup if complete reversal is required. Avoid rerunning base schema/seed loaders on existing databases.
+
+## Endpoint fields
+
 The CMDB drill-through panel now uses SQL configuration for its fields. All seven asset types initially have the same 18 fields, labels and order as the previous panel. Asset values stay in the existing snapshot-aware `asset`, operating system, network OS, patch, software and vulnerability tables; they are not copied into an untyped attribute-value store.
 
 - `tsaat.cmdb_attribute_definition`: approved attribute key and display label.

@@ -37,7 +37,8 @@
     "offline:check": "node scripts/offline-dependencies.mjs --check",
     "offline:refresh": "node scripts/offline-dependencies.mjs --refresh",
     "enrich:nosql": "node --import tsx scripts/enrich-nosql-coverage.mjs",
-    "migrate:security-domains": "node scripts/migrate-security-domains.mjs"
+    "migrate:security-domains": "node scripts/migrate-security-domains.mjs",
+    "migrate:cmdb-model-cis": "node scripts/migrate-model-ci-cmdb.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

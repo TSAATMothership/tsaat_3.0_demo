@@ -844,7 +844,8 @@ BEGIN
       N'networkName', N'systemName', N'environmentType', N'securityDomain',
       N'lifecycleEolStatus', N'lifecycleWarrantyStatus', N'operatingSystemSummary',
       N'networkOsSummary', N'patchStateSummary', N'installedSoftwareCount',
-      N'vulnerabilityCount', N'criticalVulnerabilityCount', N'cmdbRecordUrl'
+      N'vulnerabilityCount', N'criticalVulnerabilityCount', N'cmdbRecordUrl',
+      N'ciId', N'ciName', N'ciType', N'criticality', N'relatedSystems', N'relatedNetworks', N'relatedSecurityDomains'
     )),
     CONSTRAINT [CK_cmdb_attribute_definition_label] CHECK (LEN(LTRIM(RTRIM([label]))) > 0)
   );
@@ -861,7 +862,7 @@ BEGIN
     CONSTRAINT [FK_cmdb_asset_type_attribute_definition] FOREIGN KEY ([attribute_key])
       REFERENCES [tsaat].[cmdb_attribute_definition] ([attribute_key]),
     CONSTRAINT [CK_cmdb_asset_type_attribute_type] CHECK ([asset_type] IN (
-      N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node'
+      N'server', N'workstation', N'network-device', N'storage-device', N'printer-device', N'other', N'ip-node', N'business-service', N'mission-capability'
     )),
     CONSTRAINT [CK_cmdb_asset_type_attribute_order] CHECK ([display_order] >= 0)
   );
@@ -886,7 +887,14 @@ INSERT INTO @CmdbDefaults ([attribute_key], [label], [display_order]) VALUES
   (N'installedSoftwareCount', N'Installed Software', 150),
   (N'vulnerabilityCount', N'Vulnerabilities', 160),
   (N'criticalVulnerabilityCount', N'Critical Vulnerabilities', 170),
-  (N'cmdbRecordUrl', N'CMDB Record', 180);
+  (N'cmdbRecordUrl', N'CMDB Record', 180),
+  (N'ciId', N'CI ID', 10),
+  (N'ciName', N'CI Name', 20),
+  (N'ciType', N'CI Type', 30),
+  (N'criticality', N'Recorded criticality', 40),
+  (N'relatedSystems', N'Related ICT systems and criticality', 50),
+  (N'relatedNetworks', N'Related managed networks', 60),
+  (N'relatedSecurityDomains', N'Related system security domains', 70);
 
 INSERT INTO [tsaat].[cmdb_attribute_definition] ([attribute_key], [label])
 SELECT d.[attribute_key], d.[label] FROM @CmdbDefaults AS d
@@ -901,7 +909,13 @@ BEGIN
   SELECT t.[asset_type], d.[attribute_key], d.[display_order], 1
   FROM (VALUES (N'server'), (N'workstation'), (N'network-device'), (N'storage-device'),
     (N'printer-device'), (N'other'), (N'ip-node')) AS t([asset_type])
-  CROSS JOIN @CmdbDefaults AS d;
+  CROSS JOIN @CmdbDefaults AS d WHERE d.[attribute_key] NOT IN (N'ciId', N'ciName', N'ciType', N'criticality', N'relatedSystems', N'relatedNetworks', N'relatedSecurityDomains');
+  INSERT INTO [tsaat].[cmdb_asset_type_attribute] ([asset_type], [attribute_key], [display_order], [is_enabled])
+  SELECT t.[asset_type], d.[attribute_key], d.[display_order], 1
+  FROM (VALUES (N'business-service'), (N'mission-capability')) AS t([asset_type])
+  CROSS JOIN @CmdbDefaults AS d WHERE d.[attribute_key] IN (N'ciId', N'ciName', N'ciType', N'criticality', N'relatedSystems', N'relatedNetworks', N'relatedSecurityDomains');
+  EXEC sys.sp_addextendedproperty @name=N'TSAAT_Model_CI_Mappings_v1', @value=1,
+    @level0type=N'SCHEMA', @level0name=N'tsaat', @level1type=N'TABLE', @level1name=N'cmdb_asset_type_attribute';
 END;
 
 COMMIT TRANSACTION;

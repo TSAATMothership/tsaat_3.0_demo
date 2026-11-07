@@ -52,6 +52,11 @@ test('tooling changes run Node regression tests without provider or build gates'
   assert.equal(plan.data, false);
   assert.ok(validationCommands(plan).some(args => args.includes('tests/change-impact.test.mjs')));
 });
+test('model CI projection, taxonomy and reference upgrades select coordinated data checks', () => {
+  for (const file of ['lib/cmdb-model-ci.ts', 'lib/cmdb-ci-types.ts', 'scripts/migrate-model-ci-cmdb.mjs']) {
+    const plan = assess(file); assert.equal(plan.data, true, file); assert.equal(plan.build, true, file);
+  }
+});
 test('Git paths with spaces, deletions, renames, local edits and untracked files are retained', () => {
   assert.deepEqual(parseChanges('M\0Database Schema/example.sql\0D\0lib/old.ts\0'), [{ status: 'M', file: 'Database Schema/example.sql' }, { status: 'D', file: 'lib/old.ts' }]);
   assert.throws(() => parseChanges('M\0'), /Invalid/);

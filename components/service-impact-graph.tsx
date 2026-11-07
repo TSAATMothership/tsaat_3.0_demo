@@ -7,6 +7,7 @@ import { PersonaPopupButton } from "@/components/persona-popup-button";
 import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { ServiceImpactFindingsPanel } from "@/components/service-impact-findings-panel";
+import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { useImpactGraphLayout } from "@/components/use-impact-graph-layout";
 import { ImpactGraphNodeVisual, impactGraphNodeRadius } from "@/components/impact-graph-node-visual";
 import { buildServiceImpactGraph, generateImpactCoordinates, impactGraphNeighbours, impactGraphTotals, layoutServiceImpactGraph, serviceImpactRiskView, serviceImpactScene,
@@ -308,6 +309,8 @@ export function ServiceImpactGraph({ model, systemIds, scopeLabel, focusLabel, o
               <dl><div><dt>Matching findings</dt><dd data-impact-selected-findings>{number(selected.findings)}</dd></div><div><dt>Affected CIs</dt><dd>{number(selected.affectedCis)}</dd></div></dl>
               <dl className="impact-graph-severity-breakdown" aria-label="Selected severity findings">{selectedSeverityOptions.map(option =>
                 <div key={option.key}><dt>{option.label}</dt><dd>{number(selected.severities[option.key] ?? 0)}</dd></div>)}</dl>
+              {(selected.kind === "asset" || selected.kind === "business" || selected.kind === "mission") && <p>CMDB: <CmdbDeviceName assetId={selected.sourceId} name={selected.name}
+                ciType={selected.kind === "business" ? "business-service" : selected.kind === "mission" ? "mission-capability" : undefined} /></p>}
               <PersonaPopupButton popup="impact-details" type="button" className="endpoint-export" disabled={!selected.findings} onClick={() => setDetails(selected)}>View findings &amp; CIs ↗</PersonaPopupButton>
               {selected.kind === "system" && <button type="button" className="endpoint-export" disabled={!selected.affectedCis || focus} aria-pressed={expanded.includes(selected.sourceId)} onClick={() => {
                 setExpanded(current => current.includes(selected.sourceId) ? current.filter(value => value !== selected.sourceId) : [...current, selected.sourceId]); resetCamera();

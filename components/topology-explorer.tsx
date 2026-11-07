@@ -333,7 +333,10 @@ function TopologyDiagram({ graph, root, onExplore, lookupIds, view, setView }: T
     <section className="impact-graph-node-detail" aria-label="Selected node details"><div><p className="endpoint-eyebrow" style={{ color: TOPOLOGY_KINDS[node.kind].color }}>{node.type}{node.id === root.id ? " / Starting CI" : " / Selected node"}</p><h3>{node.name}</h3><p>{node.sourceId}{node.domain ? ` · ${node.domain}` : ""}{node.ip ? ` · ${node.ip}` : ""}</p></div>
       <dl><div><dt>Connected CIs</dt><dd>{number(connected.size)}</dd></div><div><dt>Relationships</dt><dd>{number(connections.length)}</dd></div></dl>
       {!lookupIds.has(node.id) && <p className="topology-context-note">Outside lookup scope · Related context only</p>}
-      <div className="topology-inspector-actions">{node.kind === "asset" && <span>CMDB: <CmdbDeviceName assetId={node.sourceId} name={node.name} topologyNetworkId={!lookupIds.has(node.id) ? node.scope?.network : undefined} /></span>}{node.id !== root.id && <button type="button" className="endpoint-export" onClick={() => onExplore(node.id)}>{lookupIds.has(node.id) ? "Explore from this CI" : "Explore in this CI’s scope"}</button>}</div>
+      <div className="topology-inspector-actions">{(node.kind === "asset" || node.kind === "business" || node.kind === "mission") && <span>CMDB: <CmdbDeviceName assetId={node.sourceId} name={node.name}
+        ciType={node.kind === "business" ? "business-service" : node.kind === "mission" ? "mission-capability" : undefined}
+        topologyNetworkId={!lookupIds.has(node.id) ? node.scope?.network : undefined}
+        topologySystemIds={!lookupIds.has(node.id) ? node.scope?.system : undefined} /></span>}{node.id !== root.id && <button type="button" className="endpoint-export" onClick={() => onExplore(node.id)}>{lookupIds.has(node.id) ? "Explore from this CI" : "Explore in this CI’s scope"}</button>}</div>
       {!!(node.software.length || node.cves.length) && <details><summary>Software and CVE evidence ({node.software.length} software versions, {node.cves.length} CVE codes)</summary><p>{node.software.join(" · ") || "No installed software recorded"}</p><p>{node.cves.join(" · ") || "No CVE observations recorded"}</p></details>}
       <h4>Connected nodes <span>{number(connected.size)}</span></h4>
       {!connections.length && <p>No recorded connections in this graph.</p>}

@@ -642,5 +642,79 @@
       "label": "CMDB Record",
       "displayOrder": 180
     }
+  ],
+  "business-service": [
+    {
+      "key": "ciId",
+      "label": "CI ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "ciName",
+      "label": "CI Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "ciType",
+      "label": "CI Type",
+      "displayOrder": 30
+    },
+    {
+      "key": "criticality",
+      "label": "Recorded criticality",
+      "displayOrder": 40
+    },
+    {
+      "key": "relatedSystems",
+      "label": "Related ICT systems and criticality",
+      "displayOrder": 50
+    },
+    {
+      "key": "relatedNetworks",
+      "label": "Related managed networks",
+      "displayOrder": 60
+    },
+    {
+      "key": "relatedSecurityDomains",
+      "label": "Related system security domains",
+      "displayOrder": 70
+    }
+  ],
+  "mission-capability": [
+    {
+      "key": "ciId",
+      "label": "CI ID",
+      "displayOrder": 10
+    },
+    {
+      "key": "ciName",
+      "label": "CI Name",
+      "displayOrder": 20
+    },
+    {
+      "key": "ciType",
+      "label": "CI Type",
+      "displayOrder": 30
+    },
+    {
+      "key": "criticality",
+      "label": "Recorded criticality",
+      "displayOrder": 40
+    },
+    {
+      "key": "relatedSystems",
+      "label": "Related ICT systems and criticality",
+      "displayOrder": 50
+    },
+    {
+      "key": "relatedNetworks",
+      "label": "Related managed networks",
+      "displayOrder": 60
+    },
+    {
+      "key": "relatedSecurityDomains",
+      "label": "Related system security domains",
+      "displayOrder": 70
+    }
   ]
 }

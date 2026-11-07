@@ -1,5 +1,7 @@
 # UI design contract
 
+Business Services and Mission Capabilities have CMDB links in both Impact Topology inspectors, including full screen. The same slide-out renders CI Details with identity/type, recorded criticality and scoped associations; it retains loading, Retry, Escape/focus return and persona checks. It stacks above the topology dialog without resetting selection/camera. Explore Topology carries the model CI identity and resolved snapshot. Endpoint details keep their existing fields.
+
 Topology Explorer's Impact Topology canvas supports mouse-wheel zoom in both modes and full screen, using the existing zoom limits and Service Impact's wheel step. Vertical scrolling over the canvas zooms without moving the surrounding page; controls, inspector and result areas retain normal scrolling. Horizontal-only and Ctrl/Meta wheel remain browser actions. Zoom preserves inspection, pan and moved nodes; buttons, keyboard and Fit graph remain available.
 
 Shared Explorer filter popups calculate their initial position before the browser paints, including first opens and switching columns. Search/range focus does not scroll the page while placement is being committed. Resize/scroll positioning, viewport margins, selection/search stability, Escape and trigger focus return remain shared across Topology lookup, tables and modal consumers.

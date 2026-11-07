@@ -21,6 +21,7 @@ import type { CmdbAssetView, CmdbAttributeRow } from "@/lib/cmdb-attributes";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
 import type { ExplorerColumn } from "@/lib/explorer-table";
 import { cmdbTopologyHref } from "@/lib/cmdb-topology-navigation";
+import type { ModelCiType } from "@/lib/cmdb-ci-types";
 
 const PANEL_TWEEN_MS = 220;
 const FOCUSABLE_SELECTOR =
@@ -32,6 +33,8 @@ interface CmdbRequest {
   dataDate: string | null;
   workspaceSearch: string;
   topologyNetworkId?: string;
+  ciType?: ModelCiType;
+  topologySystemIds?: string;
 }
 
 interface CmdbSelection extends CmdbRequest {
@@ -41,7 +44,7 @@ interface CmdbSelection extends CmdbRequest {
 }
 
 interface CmdbDrillThroughContextValue {
-  openCmdbDrillThrough: (assetId: string, assetName?: string, topologyNetworkId?: string) => void;
+  openCmdbDrillThrough: (assetId: string, assetName?: string, topologyNetworkId?: string, modelCi?: { ciType: ModelCiType; topologySystemIds?: string }) => void;
 }
 
 const CmdbDrillThroughContext = createContext<CmdbDrillThroughContextValue | null>(null);
@@ -61,6 +64,12 @@ function currentDataDate(): string | null {
 
 function detailsEndpoint(request: CmdbRequest): string {
   const params = new URLSearchParams({ assetId: request.assetId });
+  if (request.ciType) {
+    params.set("ciType", request.ciType);
+    const source = new URLSearchParams(request.workspaceSearch);
+    for (const key of ["network", "system", "securityDomain"]) for (const value of source.getAll(key)) params.append(key, value);
+    if (request.topologySystemIds) { params.delete("network"); params.set("system", request.topologySystemIds); }
+  }
   if (request.dataDate) {
     params.set(DATA_DATE_PARAM, request.dataDate);
   }
@@ -90,26 +99,27 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
           asset?: CmdbAssetView;
           error?: string;
         };
-        if (!response.ok || !payload.asset || payload.asset.assetId !== request.assetId || !Array.isArray(payload.asset.attributes)) {
-          throw new Error(payload.error || "Unable to load CMDB details for this device.");
+        if (controller.signal.aborted) return;
+        if (!response.ok || !payload.asset || payload.asset.assetId !== request.assetId || (request.ciType && payload.asset.assetType !== request.ciType) || !Array.isArray(payload.asset.attributes)) {
+          throw new Error(payload.error || "Unable to load CMDB details for this CI.");
         }
         setSelection((current) =>
-          current?.assetId === request.assetId && current.dataDate === request.dataDate
+          current?.assetId === request.assetId && current.ciType === request.ciType && current.dataDate === request.dataDate
             ? { ...request, state: "ready", details: payload.asset ?? null, error: null }
             : current
         );
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
           return;
         }
         setSelection((current) =>
-          current?.assetId === request.assetId && current.dataDate === request.dataDate
+          current?.assetId === request.assetId && current.ciType === request.ciType && current.dataDate === request.dataDate
             ? {
                 ...request,
                 state: "error",
                 details: null,
-                error: error instanceof Error ? error.message : "Unable to load CMDB details for this device."
+                error: error instanceof Error ? error.message : "Unable to load CMDB details for this CI."
               }
             : current
         );
@@ -117,7 +127,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const openCmdbDrillThrough = useCallback(
-    (assetId: string, assetName?: string, topologyNetworkId?: string) => {
+    (assetId: string, assetName?: string, topologyNetworkId?: string, modelCi?: { ciType: ModelCiType; topologySystemIds?: string }) => {
       if (!cmdbAllowed) return;
       const normalizedAssetId = assetId.trim();
       if (!normalizedAssetId) {
@@ -135,7 +145,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
         assetName: assetName?.trim() || normalizedAssetId,
         dataDate: currentDataDate(),
         workspaceSearch: browserWorkspaceSearch(window.location),
-        topologyNetworkId
+        topologyNetworkId, ...modelCi
       };
       loadDetails(request);
       window.requestAnimationFrame(() => setIsOpen(true));
@@ -156,7 +166,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
     }, PANEL_TWEEN_MS);
   }, []);
   const hasSelection = selection !== null && cmdbAllowed;
-  const selectedAssetId = selection?.assetId;
+  const selectedAssetId = `${selection?.ciType ?? "asset"}:${selection?.assetId ?? ""}`;
 
   useEffect(() => {
     setIsMounted(true);
@@ -239,7 +249,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
   const contextValue = useMemo(() => ({ openCmdbDrillThrough }), [openCmdbDrillThrough]);
   const details = selection?.details ?? null;
   const tableRows = details?.attributes ?? [];
-  const topologyHref = details && selection ? cmdbTopologyHref(details, selection.workspaceSearch, selection.topologyNetworkId) : null;
+  const topologyHref = details && selection ? cmdbTopologyHref(details, selection.workspaceSearch, selection.topologyNetworkId, selection.topologySystemIds) : null;
   const topologyAllowed = canNavigate(topologyHref ?? "/discovery-coverage?discoveryView=topology");
 
   const panel =
@@ -275,7 +285,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
                 </button>
               </header>
               <p id="cmdb-drill-through-description" className="cmdb-scope-description">
-                <span>Asset details for <strong>{details?.assetName ?? selection.assetName}</strong></span>
+                <span>{selection.ciType ? "CI" : "Asset"} details for <strong>{details?.assetName ?? selection.assetName}</strong></span>
                 {(details?.snapshotDate ?? selection.dataDate) && <span>Snapshot · {details?.snapshotDate ?? selection.dataDate}</span>}
               </p>
               <div className="cmdb-scope-actions">
@@ -303,7 +313,7 @@ export function CmdbDrillThroughProvider({ children }: { children: ReactNode }) 
                     </button>
                   </div>
                 ) : (
-                  <FindingsDataTable key={`${selection.dataDate}:${selection.assetId}`} title="Asset Details" rows={tableRows} columns={detailColumns}
+                  <FindingsDataTable key={`${selection.dataDate}:${selectedAssetId}`} title={selection.ciType ? "CI Details" : "Asset Details"} rows={tableRows} columns={detailColumns}
                     columnFilters={false}
                     className="measure-scope-table cmdb-details-table" defaultPageSize={25} pageSizeOptions={[10, 25, 50, 100]}
                     searchText={row => row.href ?? ""}
@@ -337,11 +347,15 @@ export function CmdbDeviceName({
   assetId,
   name,
   topologyNetworkId,
+  ciType,
+  topologySystemIds,
   className = "text-cyan-200 underline decoration-cyan-300/55 underline-offset-2 hover:text-cyan-100"
 }: {
   assetId: string;
   name: string;
   topologyNetworkId?: string;
+  ciType?: ModelCiType;
+  topologySystemIds?: string;
   className?: string;
 }) {
   const { openCmdbDrillThrough } = useCmdbDrillThrough();
@@ -349,12 +363,13 @@ export function CmdbDeviceName({
     <PersonaPopupButton popup="cmdb-details"
       type="button"
       data-cmdb-asset-id={assetId}
+      data-cmdb-ci-type={ciType}
       aria-label={`Open CMDB Drill Through for ${name}`}
       title={`Open CMDB Drill Through for ${name}`}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        openCmdbDrillThrough(assetId, name, topologyNetworkId);
+        openCmdbDrillThrough(assetId, name, topologyNetworkId, ciType ? { ciType, topologySystemIds } : undefined);
       }}
       className={`cursor-pointer text-left ${className}`}
     >

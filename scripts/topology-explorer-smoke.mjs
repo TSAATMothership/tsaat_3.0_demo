@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { checkCmdbTopologyNavigation } from './cmdb-topology-smoke.mjs';
 import { checkFilterPopupOpening } from './filter-popup-smoke.mjs';
+import { checkModelCiCmdb } from './cmdb-model-ci-smoke.mjs';
 
 /** Run against either compiled provider with the shared disposable sample evidence. */
 export async function checkTopologyExplorer(page, { date, historicalDate, artifacts, provider = 'json' }) {
@@ -255,6 +256,7 @@ export async function checkTopologyExplorer(page, { date, historicalDate, artifa
   }
   await page.goto(base + '/discovery-coverage?discoveryView=topology', { waitUntil: 'networkidle0' }); assert.equal(await page.$('.topology-explorer'), null);
   await page.setViewport({ width: 1600, height: 1000 });
+  await checkModelCiCmdb(page, { date, historicalDate, artifacts });
   console.log('Topology Explorer browser checks passed: both modes, directed/external peers and context, lookup fields, layouts, keyboard, bookmarks, peer/CMDB scope navigation, history, empty and mobile states.');
   await checkCmdbTopologyNavigation(page, { date, historicalDate, artifacts });
 }

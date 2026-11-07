@@ -32,3 +32,4 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0019: Shared weekly SQL and JSON evidence](0019-shared-weekly-evidence.md)
 
 - [0020: Topology modes and communication context](0020-topology-modes-and-context.md)
+- [0021: CMDB drill-through for recorded model CIs](0021-model-ci-cmdb.md)

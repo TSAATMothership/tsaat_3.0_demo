@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-07 - Business service and mission capability CMDB
+
+- Added CMDB support for the existing Business Service and Mission Capability model CI records, with identity, type, recorded criticality and scoped system/network associations.
+- Both Impact Topology views now offer CMDB drill-through for these CIs, including full screen, with Explore Topology returning to the same model CI and snapshot.
+- Added SQL migration 032 and the explicit, backed-up `migrate:cmdb-model-cis` JSON reference upgrade. Existing endpoint fields, custom mappings and empty field sets are preserved.
+
 ## 2026-11-07 - Topology mouse-wheel zoom
 
 - Added mouse-wheel zoom over the Impact Topology canvas in Topology Explorer, in both modes and full screen. Scroll up to zoom in and down to zoom out; scrolling outside the canvas remains available.
