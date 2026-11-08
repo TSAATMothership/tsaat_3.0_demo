@@ -1,5 +1,7 @@
 # TSAAT solution design index
 
+Proposed deployment: [Tableau Dashboard Extension solution design](../docs/tableau-extension-solution-design.md) describes the planned browser/VizQL target. It is not implemented and does not change the current SQL/NoSQL feature contracts below.
+
 The feature contracts below describe both SQL and JSON-backed No-SQL builds of the current application. Both use the same app server with direct page/API access, pages, APIs and reports; storage-specific details follow the [data provider contract](../docs/data-providers.md). Exact interfaces, SQL fields and API methods are linked through the generated inventories. The former combined specification is an entrypoint rather than a duplicate copy.
 
 - [Workspace, navigation and scope](01-Home-Redirect.md)

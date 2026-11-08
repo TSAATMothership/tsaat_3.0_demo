@@ -21,6 +21,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Discovery Insights PDF sections and scope | [Discovery Insights report](discovery-overview-report.md) |
 | Endpoint and vulnerability briefing PDF exports | [Inventory Insights reports](inventory-insights-reports.md) |
 | System structure and data flow | [Architecture](architecture.md) |
+| Proposed on-premises Tableau extension and transformation plan | [Tableau extension solution design](tableau-extension-solution-design.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |
 | Shared weekly evidence and safe existing-store updates | [Sample evidence](sample-evidence.md) |

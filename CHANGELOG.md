@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-09 - Tableau Dashboard Extension solution design
+
+- Updated the proposed design for on-premises Tableau Server: VDS reads as the viewer, browser-generated PDF/Excel files, and externally maintained persona/AD-group configuration.
+- Documented the authentication/query gateway feasibility gate, current-code transformation, data contracts, feature boundaries, delivery phases and acceptance checks. No application behaviour or database changes are included.
+
 ## 2026-11-08 - Data-driven personas
 
 - Persona names, order and permissions now come from the active SQL or JSON configuration. Settings supports adding, renaming and removing personas with reversible drafts and shared saves.

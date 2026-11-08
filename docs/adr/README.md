@@ -34,3 +34,4 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0020: Topology modes and communication context](0020-topology-modes-and-context.md)
 - [0021: CMDB drill-through for recorded model CIs](0021-model-ci-cmdb.md)
 - [0022: Data-driven persona catalogue](0022-data-driven-personas.md)
+- [0023: Proposed Tableau Dashboard Extension deployment](0023-tableau-dashboard-extension-design.md)
