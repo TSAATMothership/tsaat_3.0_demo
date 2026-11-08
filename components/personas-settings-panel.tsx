@@ -1,25 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PersonaSelector } from "@/components/persona-selector";
 import { usePersona } from "@/components/persona-provider";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
-import { PERSONAS, PERSONA_PAGES, PERSONA_POPUPS, PERSONA_SECTIONS, parsePersonaSettings, personaShowsPage, type PersonaId, type PersonaSettings } from "@/lib/personas";
+import { MAX_PERSONAS, PERSONA_PAGES, PERSONA_POPUPS, PERSONA_SECTIONS, parsePersonaSettings, personaShowsPage, type PersonaId, type PersonaSettings } from "@/lib/personas";
 
 const permissionTabs = [...PERSONA_SECTIONS.map(({ id, label }) => ({ id, label })), { id: "popups", label: "Popups" }];
 const compactPageSize = 3;
 
 export function PersonasSettingsPanel() {
-  const { activePersona, settings, error, loading, reload, acceptSettings } = usePersona();
+  const { activePersona, selectPersona, settings, error, loading, reload, acceptSettings } = usePersona();
   const [draft, setDraft] = useState<PersonaSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [message, setMessage] = useState("");
+  const [editingPersona, setEditingPersona] = useState<PersonaId | null | undefined>();
+  const [conflict, setConflict] = useState(false);
+  const saveInFlight = useRef(false);
+  const nameInput = useRef<HTMLInputElement>(null);
   const [permissionView, setPermissionView] = useState(permissionTabs[0].id);
   const [permissionPage, setPermissionPage] = useState(0);
   const value = draft ?? settings;
-  const persona = PERSONAS.find(persona => persona.id === activePersona);
-  const entry = value?.personas.find(entry => entry.id === activePersona);
+  const selected = editingPersona === undefined ? activePersona : editingPersona;
+  const persona = value?.personas.find(persona => persona.id === selected);
+  const entry = persona;
   const pages = value && persona ? PERSONA_PAGES.filter(page => personaShowsPage(value, persona.id, page.id)).map(page => page.id) : [];
   const visibleCount = permissionView === "popups" ? PERSONA_POPUPS.length : PERSONA_SECTIONS.find(section => section.id === permissionView)!.pages.length;
   const selectPermissionView = (view: string) => { setPermissionView(view); setPermissionPage(0); };
@@ -28,40 +33,72 @@ export function PersonasSettingsPanel() {
     setDraft({ ...value, personas: value.personas.map(persona => persona.id === id ? { ...persona, ...changes } : persona) });
     setSaveError(""); setMessage("");
   }
+  function choosePersona(id: PersonaId | null) {
+    setEditingPersona(id); setPermissionPage(0);
+    if (id === null || settings?.personas.some(persona => persona.id === id)) selectPersona(id);
+  }
+  function addPersona() {
+    if (!value || value.personas.length >= MAX_PERSONAS) return;
+    let label = "New persona", suffix = 2;
+    while (value.personas.some(persona => persona.label.toLowerCase() === label.toLowerCase())) label = `New persona ${suffix++}`;
+    const id = `persona-${crypto.randomUUID()}`;
+    setDraft({ ...value, personas: [...value.personas, { id, label, sections: [], pages: [], popups: [] }] });
+    setEditingPersona(id); setPermissionPage(0); setMessage("New persona added. Choose its name and permissions, then save."); setSaveError("");
+    window.setTimeout(() => { nameInput.current?.focus(); nameInput.current?.select(); }, 0);
+  }
+  function removePersona() {
+    if (!value || !persona) return;
+    setDraft({ ...value, personas: value.personas.filter(entry => entry.id !== persona.id) });
+    setEditingPersona(null); setSaveError(""); setMessage(`${persona.label} removed from the draft. Save to apply or discard to undo.`);
+  }
+  function discard() { setDraft(null); setEditingPersona(undefined); setSaveError(""); setConflict(false); setMessage("Unsaved changes discarded."); }
   function changePages(id: PersonaId, pages: string[]) {
     changePersona(id, { pages, sections: PERSONA_SECTIONS.filter(section => section.pages.some(page => pages.includes(page.id))).map(section => section.id) });
   }
   async function save() {
-    if (!value) return;
+    if (!value || saveInFlight.current || conflict) return;
+    saveInFlight.current = true;
     setSaving(true); setSaveError(""); setMessage("");
     try {
-      const response = await fetch("/api/settings/personas", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+      const input = parsePersonaSettings(value, { forWrite: true });
+      const response = await fetch("/api/settings/personas", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       const payload = await response.json();
+      if (response.status === 409) setConflict(true);
       if (!response.ok) throw new Error(payload.error || "Unable to save personas. Please retry.");
       acceptSettings(parsePersonaSettings(payload.settings));
+      if (selected && input.personas.some(persona => persona.id === selected)) selectPersona(selected);
       setDraft(null); setMessage("Personas saved.");
     } catch (reason) { setSaveError(reason instanceof Error ? reason.message : "Unable to save personas. Please retry."); }
-    finally { setSaving(false); }
+    finally { saveInFlight.current = false; setSaving(false); }
   }
   return <section className="panel personas-settings" aria-labelledby="personas-title">
     <div className="personas-intro">
       <div>
         <h3 id="personas-title">Personas</h3>
-        <p>Choose a section to configure its pages, or select Popups.</p>
+        <p>Manage personas and choose the pages and popups each one shows.</p>
       </div>
-      <PersonaSelector />
+      <div className="persona-catalogue-controls">
+        <PersonaSelector personas={value?.personas} value={selected} onSelect={choosePersona} disabled={saving} />
+        {value && <button type="button" className="persona-action" data-add-persona disabled={saving || Boolean(error) || value.personas.length >= MAX_PERSONAS} onClick={addPersona}>Add persona</button>}
+      </div>
     </div>
     {error && <div className="personas-load-error"><p role="alert">{error}</p><button type="button" disabled={loading} className="persona-action" onClick={reload}>Retry loading personas</button></div>}
     {loading && !value && <p role="status">Loading personas...</p>}
     {value && <>
       {persona && entry ? <fieldset key={persona.id} className="persona-card" disabled={saving}>
-        <legend>{persona.label}</legend>
+        <legend className="sr-only">{persona.label}</legend>
+        <div className="persona-configuration-header">
+        <div className="persona-identity-editor">
+          <label>Name<input ref={nameInput} aria-label="Persona name" value={persona.label} maxLength={80} onChange={event => changePersona(persona.id, { label: event.target.value })} /></label>
+          <button type="button" className="persona-action" data-remove-persona onClick={removePersona}>Remove persona</button>
+        </div>
         <div className="persona-card-toolbar">
           <p>{pages.length}/{PERSONA_PAGES.length} pages · {entry.popups.length}/{PERSONA_POPUPS.length} popups enabled</p>
           <div>
             <button type="button" data-persona-show-all className="persona-action" onClick={() => changePersona(persona.id, { sections: PERSONA_SECTIONS.map(section => section.id), pages: PERSONA_PAGES.map(page => page.id), popups: PERSONA_POPUPS.map(popup => popup.id) })}>Show all<span className="sr-only"> for {persona.label}</span></button>
             <button type="button" data-persona-hide-all className="persona-action" onClick={() => changePersona(persona.id, { sections: [], pages: [], popups: [] })}>Hide all<span className="sr-only"> for {persona.label}</span></button>
           </div>
+        </div>
         </div>
         <div className="persona-permission-tabs"><WorkspaceTabs id="persona-permissions" label="Persona sections and popups" tabs={permissionTabs} active={permissionView} onChange={selectPermissionView} /></div>
         <label className="persona-permission-picker">Configure
@@ -103,12 +140,13 @@ export function PersonasSettingsPanel() {
         </div>}
       </fieldset> : <p className="persona-empty">All sections (no persona) keeps every page and popup available. Select an active persona to configure its permissions.</p>}
       <div className="personas-save-bar">
-        <button type="button" data-save-personas className="persona-action bg-sky-500/20" disabled={!draft || saving} onClick={() => void save()}>{saving ? "Saving..." : "Save personas"}</button>
-        <button type="button" className="persona-action" disabled={!draft || saving} onClick={() => { setDraft(null); setSaveError(""); setMessage("Unsaved changes discarded."); }}>Discard changes</button>
+        <button type="button" data-save-personas className="persona-action bg-sky-500/20" disabled={!draft || saving || conflict || Boolean(error)} onClick={() => void save()}>{saving ? "Saving..." : "Save personas"}</button>
+        <button type="button" className="persona-action" disabled={!draft || saving} onClick={discard}>Discard changes</button>
         <p role="status">{message || (draft ? "Unsaved persona changes" : "")}</p>
       </div>
     </>}
     {saveError && <p role="alert" className="personas-save-error">{saveError}</p>}
+    {conflict && <button type="button" className="persona-action" onClick={() => { discard(); reload(); }}>Reload saved personas</button>}
     <p className="personas-footnote">Edits stay when switching views or personas. Save updates shared settings. Direct URLs and data access are unchanged.</p>
   </section>;
 }

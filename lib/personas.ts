@@ -1,14 +1,11 @@
 import { activeWorkspaceItem, scopeIds, WORKSPACE_GROUPS, WORKSPACE_LINKS } from "@/lib/workspace-navigation";
 import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
+import initialSettings from "@/Database Schema/data/personas.json";
 
-export const PERSONAS = [
-  { id: "analyst", label: "Analyst" },
-  { id: "life-cycle-management", label: "Life Cycle Management" },
-  { id: "configuration-management", label: "Configuration Management" },
-  { id: "dsoc-analyst", label: "DSOC Analyst" },
-  { id: "business-reporting", label: "Business Reporting" }
-] as const;
-export type PersonaId = typeof PERSONAS[number]["id"];
+// Bootstrap and legacy upgrade only. Runtime consumers use the stored catalogue.
+export const DEFAULT_PERSONAS = initialSettings.personas.map(({ id, label }) => ({ id, label }));
+export type PersonaId = string;
+export const MAX_PERSONAS = 50;
 export const PERSONA_SECTIONS = [
   ...WORKSPACE_GROUPS.map(group => ({ id: group.id, label: group.label, pages: group.items })),
   { id: "briefs-reports", label: WORKSPACE_LINKS[0].label, pages: WORKSPACE_LINKS }
@@ -32,29 +29,30 @@ export const PERSONA_POPUPS = [
 ] as const;
 export type PersonaPopupId = typeof PERSONA_POPUPS[number]["id"];
 export interface PersonaSettings {
-  schemaVersion: 2;
+  schemaVersion: 3;
   updatedAt: string;
-  personas: Array<{ id: PersonaId; sections: string[]; pages: string[]; popups: PersonaPopupId[] }>;
+  personas: Array<{ id: PersonaId; label: string; sections: string[]; pages: string[]; popups: PersonaPopupId[] }>;
 }
 export class PersonaValidationError extends Error {}
-export function isPersonaId(value: unknown): value is PersonaId {
-  return PERSONAS.some(persona => persona.id === value);
+export class PersonaConflictError extends Error {
+  constructor() { super("Personas changed in the data source. Reload saved personas before saving again."); }
 }
-function defaultPersonaConfiguration(id: PersonaId): PersonaSettings["personas"][number] {
-  return { id, sections: PERSONA_SECTIONS.map(section => section.id),
-    pages: PERSONA_PAGES.map(page => page.id), popups: PERSONA_POPUPS.map(popup => popup.id) };
+export function isPersonaId(value: unknown): value is PersonaId {
+  return typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value);
 }
 export function defaultPersonaSettings(): PersonaSettings {
-  return { schemaVersion: 2, updatedAt: "1970-01-01T00:00:00.000Z",
-    personas: PERSONAS.map(({ id }) => defaultPersonaConfiguration(id)) };
+  return parsePersonaSettings(initialSettings);
 }
 
-/** Reads upgrade the original four-persona catalogue in memory; writes require the complete catalogue. */
-export function parsePersonaSettings(input: unknown, { requireAllPersonas = false }: { requireAllPersonas?: boolean } = {}): PersonaSettings {
-  const fail = (): never => { throw new PersonaValidationError("Provide a complete persona configuration with unique, valid sections, pages and popups (schema version 2). Reload the application if a persona is missing."); };
+/** Legacy reads preserve selections; explicit writes publish the complete data-driven catalogue. */
+export function parsePersonaSettings(input: unknown, { forWrite = false }: { forWrite?: boolean } = {}): PersonaSettings {
+  const fail = (): never => { throw new PersonaValidationError("Provide a complete persona configuration with unique IDs and names, valid sections, pages and popups (schema version 3). Reload the application if it is out of date."); };
   if (!input || typeof input !== "object") return fail();
   const candidate = input as Record<string, unknown>;
-  if (![1, 2].includes(Number(candidate.schemaVersion)) || typeof candidate.schemaVersion !== "number" || !Array.isArray(candidate.personas) || ![PERSONAS.length - 1, PERSONAS.length].includes(candidate.personas.length)) return fail();
+  if (![1, 2, 3].includes(Number(candidate.schemaVersion)) || typeof candidate.schemaVersion !== "number" || !Array.isArray(candidate.personas) || candidate.personas.length > MAX_PERSONAS) return fail();
+  const legacy = candidate.schemaVersion !== 3;
+  if (forWrite && (legacy || typeof candidate.updatedAt !== "string" || !Number.isFinite(Date.parse(candidate.updatedAt)))) return fail();
+  if (legacy && ![4, 5].includes(candidate.personas.length)) return fail();
   function selection<T extends string>(raw: unknown, ids: readonly T[]): T[] {
     if (!Array.isArray(raw) || raw.some(id => !ids.includes(id)) || new Set(raw).size !== raw.length) return fail();
     return ids.filter(id => raw.includes(id));
@@ -64,22 +62,26 @@ export function parsePersonaSettings(input: unknown, { requireAllPersonas = fals
     if (!raw || typeof raw !== "object") return fail();
     const entry = raw as Record<string, unknown>;
     if (!isPersonaId(entry.id) || personas.some(persona => persona.id === entry.id) || !Array.isArray(entry.sections)) return fail();
+    const original = DEFAULT_PERSONAS.find(persona => persona.id === entry.id);
+    if (legacy && !original) return fail();
+    const label = legacy ? original!.label : typeof entry.label === "string" ? entry.label.trim() : "";
+    if (!label || label.length > 80 || /[\u0000-\u001f\u007f]/.test(label) || personas.some(persona => persona.label.toLowerCase() === label.toLowerCase())) return fail();
     const sections = selection(entry.sections, PERSONA_SECTIONS.map(section => section.id));
     // Version 1 had only section gates. Upgrade in memory, without rewriting storage on read.
     const pages = candidate.schemaVersion === 1 ? PERSONA_PAGES.filter(page => sections.includes(page.section)).map(page => page.id)
       : selection(entry.pages, [...PERSONA_PAGES.map(page => page.id), ...RETIRED_PERSONA_PAGES]).filter(id => !RETIRED_PERSONA_PAGES.includes(id));
     const popups = candidate.schemaVersion === 1 ? PERSONA_POPUPS.map(popup => popup.id)
       : selection(entry.popups, PERSONA_POPUPS.map(popup => popup.id));
-    personas.push({ id: entry.id, sections, pages, popups });
+    personas.push({ id: entry.id, label, sections, pages, popups });
   }
   // Only Business Reporting may be absent from older saved configurations. Never refill existing selections.
-  if (!requireAllPersonas && personas.length === PERSONAS.length - 1 && !personas.some(persona => persona.id === "business-reporting")) {
-    personas.push(defaultPersonaConfiguration("business-reporting"));
+  if (legacy && personas.length === 4 && !personas.some(persona => persona.id === "business-reporting")) {
+    personas.push(defaultPersonaSettings().personas.find(persona => persona.id === "business-reporting")!);
   }
-  if (personas.length !== PERSONAS.length) return fail();
-  return { schemaVersion: 2,
+  if (legacy && DEFAULT_PERSONAS.some(persona => !personas.some(entry => entry.id === persona.id))) return fail();
+  return { schemaVersion: 3,
     updatedAt: typeof candidate.updatedAt === "string" && Number.isFinite(Date.parse(candidate.updatedAt)) ? candidate.updatedAt : "1970-01-01T00:00:00.000Z",
-    personas: PERSONAS.map(persona => personas.find(entry => entry.id === persona.id)!) };
+    personas };
 }
 
 export function personaShowsSection(settings: PersonaSettings, persona: PersonaId | null, section: string): boolean {

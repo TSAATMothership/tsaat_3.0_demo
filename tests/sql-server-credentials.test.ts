@@ -4,7 +4,12 @@ const execute = vi.hoisted(() => vi.fn());
 vi.mock("child_process", async importOriginal => {
   const original = await importOriginal<typeof import("child_process")>();
   const { promisify } = await import("util");
-  const execFile = Object.assign(vi.fn(), { [promisify.custom]: execute });
+  const execFile = Object.assign(vi.fn(), { [promisify.custom]: async (file: string, args: string[], options: unknown) => {
+    const result = await execute(file, args, options);
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(args[args.indexOf("-o") + 1], result.stdout, "utf8");
+    return result;
+  } });
   return { ...original, execFile };
 });
 
@@ -13,6 +18,26 @@ import { executeSqlText, executeSqlTextWithConnection } from "@/lib/sql-server";
 
 describe("SQL credential transport", () => {
   afterEach(() => { execute.mockReset(); vi.unstubAllEnvs(); });
+  it("reads Unicode query output from the explicit UTF-8 output file", async () => {
+    execute.mockResolvedValue({ stdout: "café - 日本語", stderr: "" });
+    expect(await executeSqlTextWithConnection("SELECT N'café';", { server: "localhost", database: "master", trustedConnection: true, sslEnabled: false })).toBe("café - 日本語");
+    const args = execute.mock.calls[0][1];
+    expect(args[args.indexOf("-f") + 1]).toBe("65001"); expect(args).toContain("-o"); expect(args).toContain("-x");
+    const { access } = await import("node:fs/promises");
+    await expect(access(args[args.indexOf("-o") + 1])).rejects.toThrow();
+  });
+
+  it("retains SQL errors from the output file and cleans up failed queries", async () => {
+    execute.mockImplementation(async (_file: string, args: string[]) => {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(args[args.indexOf("-o") + 1], "SQL fixture failure: invalid column", "utf8");
+      throw new Error("sqlcmd exited 1");
+    });
+    await expect(executeSqlTextWithConnection("SELECT invalid;", { server: "localhost", database: "master", trustedConnection: true, sslEnabled: false })).rejects.toThrow("SQL fixture failure: invalid column");
+    const { access } = await import("node:fs/promises");
+    const args = execute.mock.calls[0][1];
+    await expect(access(args[args.indexOf("-o") + 1])).rejects.toThrow();
+  });
 
   it("uses SQLCMDPASSWORD only in the child environment with SSL disabled", async () => {
     vi.stubEnv("SQLCMDPASSWORD", "parent-secret");

@@ -22,7 +22,7 @@ const observation: SecurityVulnerabilityRecord = { assetId: "ci-1", vulnerabilit
   softwareName: null, softwareVersion: null, referenceUrl: null, description: "Recorded observation", detectedDate: snapshotDate,
   cveCreatedDate: null, remediationGuidance: " ", severity: "High", source: "Sample source", deviceName: "CI 1", deviceModel: null,
   osName: "Linux", osVersion: null, osPatchLevel: null };
-function fixture(endpoints: EndpointRecord[] = [], vulnerabilities: SecurityVulnerabilityRecord[] = []) {
+function fixture(endpoints: EndpointRecord[] = [], vulnerabilities: SecurityVulnerabilityRecord[] = []): Awaited<ReturnType<typeof loadDiscoveryOverview>> {
   return { model: buildDiscoveryOverview({ snapshotDate, coverage: buildScopedDiscoveryToolCoverage([], defaultDiscoveryToolsSettings()),
     endpoints, vulnerabilities, software: [], shadow: [], patches: [] }),
     scope: { system: ["sys-1"], network: [], securityDomain: "SECRET", dataDate: snapshotDate },

@@ -12,7 +12,7 @@ Installed Software Insights summarizes the existing scoped software Explorer row
 
 Retired Governance Overview permissions are discarded by the shared persona parser in both providers. Older stored configurations remain readable without writes; explicit saves omit only the retired page ID and never grant Trends as a replacement. Existing version-2 payloads, SQL migration 031 and JSON store version 1 remain compatible. See [retirement and upgrade](personas.md#retired-governance-overview).
 
-Business Reporting extends the persona catalogue to five entries. Both providers add the new all-enabled persona only in memory when reading valid original four-persona settings, and require all five on writes to protect against stale clients. SQL migration 031 and persona payload version 2 remain sufficient; existing JSON stores are retained and upgrade only on explicit save. See [persona upgrade and rollback](personas.md#business-reporting). Calculation-contract checksums are unchanged.
+Persona payload version 3 stores the ordered catalogue, stable IDs, names and permission arrays in both providers. Fresh setups seed `Database Schema/data/personas.json`; existing stores upgrade version-1/2 settings in memory and publish only on explicit save. SQL migration 031 and JSON store version 1 remain sufficient. Saves compare `updatedAt` inside a SQL transaction or JSON writer lock and reject conflicts without writing. The SQL adapter uses UTF-8 files and disables sqlcmd substitution to preserve literal names. See [persona contract, upgrade and rollback](personas.md). Calculation-contract checksums are unchanged.
 
 Life Cycle Management reads existing lifecycle status, OS support/N-minus and software support through `loadDatasetForDate` with `profile: "full"`; SQL summary loads omit software. Its shared projection adds no query, schema, persisted field, calculation definition or JSON upgrade. Calculation-contract checksums and existing persona page selections remain unchanged.
 
@@ -20,7 +20,7 @@ Removing demo-data notices from Discovery Insights and the patch/vulnerability e
 
 ## One app, two builds
 
-Fresh SQL databases return explicit JSON null when no persona settings revision exists, allowing the shared default configuration to load before the first save. JSON already supplies the same defaults when its settings file is absent. This query correction adds no stored data, migration or calculation-contract change.
+Fresh SQL and JSON setups seed the same persona configuration. Existing SQL tables with no revision return explicit JSON null and use shared bootstrap defaults in memory, matching legacy JSON stores with no settings file. Reads and builds never rewrite existing settings; an intentionally empty version-3 catalogue remains empty.
 
 Governance Overview is retired; old bookmarks redirect to Trends. Trends presents a scoped executive history of compliance, lifecycle and discovery. Insights reads existing Discovery Insights and Service Impact projections through the shared facades, with header scope/domains and one resolved snapshot. Its presentation aggregation adds no provider operation, SQL query, schema, persisted calculation, JSON format, migration or sample population. Existing discovery applicability, CVE observation, patch status and finding-classification rules remain authoritative; the SQL/JSON calculation contract is unchanged.
 
@@ -52,7 +52,7 @@ Set TSAAT_JSON_DATA_DIR to an absolute directory, or use NoSQL/data under the wo
 | references/cmdb-attributes.json | Canonical attribute keys, labels and display order for each asset type |
 | settings/measures-settings.json | Current severity and priority matrices, including updatedAt |
 | settings/discovery-tools-settings.json | Current tool applicability settings, including updatedAt |
-| settings/personas.json (optional) | Shared persona sections, pages and independent popup switches, payload schemaVersion 2 and updatedAt; legacy version 1 upgrades in memory, written only on explicit save |
+| settings/personas.json | Ordered persona IDs/names, sections, pages and popups, payload schemaVersion 3 and updatedAt; seeded for new stores, optional in legacy stores; version 1/2 upgrades in memory until explicit save |
 | settings/history/*.json | Saved setting revisions; current settings files are authoritative |
 | .write-lock | Temporary single-host writer lock, containing PID and start time |
 

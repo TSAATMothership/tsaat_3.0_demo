@@ -436,6 +436,7 @@ if ($manifest.snapshotSourceDirectory) {
 
 $requiredPackageData = @(
   (Join-Path $packageDataRoot 'reference-versions.json'),
+  (Join-Path $packageDataRoot 'personas.json'),
   (Join-Path $packageDataRoot 'kpi-definitions.json'),
   (Join-Path $packageDataRoot 'kpi-calculations.json'),
   (Join-Path $packageDataRoot 'kpi-tasking.json'),

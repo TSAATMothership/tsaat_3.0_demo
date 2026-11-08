@@ -1,6 +1,6 @@
 import "server-only";
 import { promises as fs } from "node:fs";
-import { defaultPersonaSettings, parsePersonaSettings, type PersonaSettings } from "@/lib/personas";
+import { defaultPersonaSettings, parsePersonaSettings, PersonaConflictError, type PersonaSettings } from "@/lib/personas";
 import { atomicWriteJson, loadStoreManifest, storePath, withStoreWriteLock } from "./files";
 
 const file = "settings/personas.json";
@@ -17,10 +17,11 @@ export async function loadPersonaSettings(): Promise<PersonaSettings> {
 }
 
 export async function savePersonaSettings(input: unknown): Promise<PersonaSettings> {
-  const settings = parsePersonaSettings(input, { requireAllPersonas: true });
+  const settings = parsePersonaSettings(input, { forWrite: true });
   await loadStoreManifest();
   return withStoreWriteLock(async () => {
     const previous = await loadPersonaSettings();
+    if (settings.updatedAt !== previous.updatedAt) throw new PersonaConflictError();
     settings.updatedAt = new Date(Math.max(Date.now(), Date.parse(previous.updatedAt) + 1)).toISOString();
     await atomicWriteJson("settings/history/personas-" + settings.updatedAt.replaceAll(":", "-") + ".json", settings);
     await atomicWriteJson(file, settings);

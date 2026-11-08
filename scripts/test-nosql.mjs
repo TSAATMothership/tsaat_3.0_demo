@@ -22,6 +22,7 @@ import { checkServiceImpactGraph } from "./service-impact-graph-smoke.mjs";
 import { checkGovernanceInsights, checkGovernanceInsightsPdf } from "./governance-insights-smoke.mjs";
 import { checkGovernanceTrends } from "./governance-trends-smoke.mjs";
 import { checkPersonas } from "./personas-smoke.mjs";
+import { checkPersonaCatalogue } from "./persona-catalogue-smoke.mjs";
 import { checkLifeCycleManagement } from "./life-cycle-management-smoke.mjs";
 import { checkInstalledSoftwareInsights } from "./installed-software-insights-smoke.mjs";
 import { checkDiscoveryComplianceExplorer } from "./discovery-compliance-smoke.mjs";
@@ -92,7 +93,7 @@ try {
   await page.setViewport({ width: 1600, height: 1000 });
   // Next.js can deliver redirects through the streamed shell; verify the browser destination.
   await page.goto(base + '/login?next=' + encodeURIComponent(oldDestination), { waitUntil: 'networkidle0' });
-  await page.waitForFunction(expected => window.location.href === expected, {}, base + oldDestination);
+  await page.waitForFunction(expected => window.location.href === expected, {}, base + `/governance/discovery-insights?network=net-1&securityDomain=SECRET&dataDate=${date}`);
   await page.goto(base + '/login?next=' + encodeURIComponent('//example.org'), { waitUntil: 'networkidle0' });
   await page.waitForFunction(expected => window.location.href === expected, {}, base + '/');
   assert.equal(await page.$('.workspace-signed-in, .workspace-logout, input[type="password"]'), null);
@@ -154,7 +155,7 @@ try {
   assert.equal(new URL(page.url()).searchParams.get('network'), 'net-1');
   assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
   assert.equal(await page.$eval('.workspace-nav-group .workspace-group-toggle', node => node.textContent.trim()), 'Governance');
-  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights']);
+  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights', 'Discovery Insights', 'End Point Insights', 'Security Vulnerability Insights']);
   for (const view of ['insights', 'trends']) {
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
     await page.focus(`#workspace-group-0 a[href^="/governance/${view}"]`);
@@ -184,7 +185,7 @@ try {
   }
   await navigate('/governance/insights', 'system=sys-1');
   assert.equal(new URL(page.url()).searchParams.get('system'), 'sys-1');
-  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights']);
+  assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights', 'Discovery Insights', 'End Point Insights', 'Security Vulnerability Insights']);
   await navigate('/governance/overview', '');
   assert.equal(new URL(page.url()).pathname, '/governance/trends');
   assert.equal(await page.$('.governance-trends h1'), null);
@@ -192,6 +193,11 @@ try {
   await checkEndpointInsights(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   await checkVulnerabilityInsights(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   await checkInventoryInsightsReports(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  // Report checks finish at phone width and own a temporary download session.
+  // Restore desktop geometry and controls before the inventory interaction checks.
+  await page.setViewport({ width: 1600, height: 1000 });
+  if (await page.$('[aria-label="Show sidebar"]')) await page.click('[aria-label="Show sidebar"]');
+  await downloadSession.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDirectory });
   await navigate('/discovery-coverage?discoveryView=endpoints');
   const endpointLayout = await page.$eval('.endpoint-results', node => ({
     width: node.getBoundingClientRect().width,
@@ -326,6 +332,7 @@ try {
   await navigate("/governance/overview", "network=net-1&securityDomain=SECRET");
   assert.equal(new URL(page.url()).pathname, '/governance/trends');
   assert.equal(new URL(page.url()).searchParams.get('securityDomain'), 'SECRET');
+  await checkPersonaCatalogue(page, { artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   const savedPersonas = await checkPersonas(page, { artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   await navigate("/settings?settingsTab=personas");
   await page.waitForSelector("#settings-tab-personas[aria-selected=true]");

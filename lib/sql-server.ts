@@ -377,11 +377,15 @@ async function executeSqlFileAgainstConnection(
 
   const runSqlcmd = async (targetConnection: ResolvedSqlConnection): Promise<string> => {
     const targetServer = resolveSqlcmdServerTarget(targetConnection.server, targetConnection.sslEnabled);
+    // sqlcmd uses the console code page for stdout even with -f. A UTF-8 output
+    // file avoids Windows console conversion and shares the query's cleanup boundary.
+    const outputPath = path.join(path.dirname(sqlPath), "query-output.txt");
+    await fs.rm(outputPath, { force: true });
     const childEnvironment = { ...process.env };
     // Keep SQL passwords out of process arguments and execFile error messages.
     if (targetConnection.auth.mode === "sql") childEnvironment.SQLCMDPASSWORD = targetConnection.auth.password;
     else delete childEnvironment.SQLCMDPASSWORD;
-    const { stdout, stderr } = await execFileAsync(
+    const { stderr } = await execFileAsync(
       sqlcmd,
       [
         "-S",
@@ -390,6 +394,9 @@ async function executeSqlFileAgainstConnection(
         targetConnection.database,
         ...buildSqlcmdAuthArgs(targetConnection.auth),
         ...buildSqlcmdSecurityArgs(targetConnection),
+        "-f",
+        "65001", // Input files and captured output use UTF-8, including configured display names.
+        "-x", // Application values are literals, never sqlcmd variable substitutions.
         "-b",
         "-w",
         "65535",
@@ -398,14 +405,22 @@ async function executeSqlFileAgainstConnection(
         "-Y",
         "0",
         "-i",
-        sqlPath
+        sqlPath,
+        "-o",
+        outputPath
       ],
       {
         maxBuffer: SQLCMD_MAX_BUFFER,
         windowsHide: true,
         env: childEnvironment
       }
-    );
+    ).catch(async error => {
+      const output = await fs.readFile(outputPath, "utf8").catch(() => "");
+      if (error && typeof error === "object") Object.assign(error, { stdout: output });
+      throw error;
+    });
+    if ((await fs.stat(outputPath)).size > SQLCMD_MAX_BUFFER) throw new Error("SQL output exceeds the configured size limit.");
+    const stdout = (await fs.readFile(outputPath, "utf8")).replace(/^\uFEFF/, "");
 
     if (stderr && stderr.trim()) {
       const normalized = stderr.trim();

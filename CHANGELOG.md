@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08 - Data-driven personas
+
+- Persona names, order and permissions now come from the active SQL or JSON configuration. Settings supports adding, renaming and removing personas with reversible drafts and shared saves.
+- Both fresh setups seed the same five defaults. Existing settings retain selections and upgrade on explicit save; removed personas stay removed and an unavailable active selection resets to All sections.
+- Stale saves are rejected with a reload action. SQL preserves Unicode names and literal sqlcmd-like text through explicit UTF-8 query files.
+
 ## 2026-11-08 - Installed Software Insights heading
 
 - Removed the duplicate Governance / Software intelligence title block above the infographic. The existing Software Insights hero remains the page's primary heading.

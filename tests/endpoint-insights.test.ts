@@ -23,7 +23,7 @@ const rows: EndpointRecord[] = ["2026-10-31", "2026-10-01", "2026-09-30", "2026-
   securityDomain: index % 2 ? "PROTECTED" : "UNKNOWN", ipAddress: index % 2 ? "10.0.0.1" : null,
   macAddress: index % 2 ? " " : "AA:BB:CC:DD:EE:FF", deviceModel: null, discoveredBy: index % 2 ? "Scanner" : " ", lastDiscoveredDate: date
 }));
-function fixture(records = rows) {
+function fixture(records = rows): Awaited<ReturnType<typeof loadDiscoveryOverview>> {
   return { model: buildDiscoveryOverview({ snapshotDate, coverage: buildScopedDiscoveryToolCoverage([], defaultDiscoveryToolsSettings()),
     endpoints: records, software: [], shadow: [], vulnerabilities: [], patches: [] }),
     scope: { network: ["net-1"], system: [], securityDomain: "PROTECTED,UNKNOWN", dataDate: snapshotDate },

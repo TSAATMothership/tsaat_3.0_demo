@@ -47,7 +47,7 @@ export async function initializeJsonStore({ target = process.env.TSAAT_JSON_DATA
     }
     await fs.copyFile(path.join(sourceRoot, "NoSQL", "cmdb-attributes.json"), path.join(staging, "references", "cmdb-attributes.json"));
     await fs.mkdir(path.join(staging, "settings"));
-    for (const name of ["measures-settings", "discovery-tools-settings"]) {
+    for (const name of ["measures-settings", "discovery-tools-settings", "personas"]) {
       await fs.copyFile(path.join(referenceRoot, name + ".json"), path.join(staging, "settings", name + ".json"));
     }
     await fs.writeFile(path.join(staging, "store.json"), JSON.stringify({ format: "tsaat-json-store", schemaVersion: 1, sampleDataProfile: current.sampleDataProfile ?? DEMO_DATA_PROFILE, snapshots }, null, 2) + "\n");

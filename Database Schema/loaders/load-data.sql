@@ -43,6 +43,22 @@ DECLARE @LoadError NVARCHAR(2048);
 
 PRINT 'Loading seed/reference data...';
 
+-- Initial persona catalogue: same reviewed JSON consumed by No-SQL initialization.
+-- The loader's fresh-database guard applies; existing settings are never replaced here.
+SET @FilePath = @PackageDataRoot + N'\personas.json';
+SET @Json = NULL;
+IF @DataLoadMode = N'ClientPayload'
+  EXEC sp_executesql @ReadPayloadSql, N'@key NVARCHAR(4000), @out NVARCHAR(MAX) OUTPUT', @key = @FilePath, @out = @Json OUTPUT;
+ELSE
+BEGIN
+  SET @ReadFileSql = N'SELECT @out = BulkColumn FROM OPENROWSET(BULK ''' + REPLACE(@FilePath, '''', '''''') + ''', SINGLE_CLOB) src;';
+  EXEC sp_executesql @ReadFileSql, N'@out NVARCHAR(MAX) OUTPUT', @out = @Json OUTPUT;
+END;
+IF @Json IS NULL OR ISJSON(@Json) <> 1 OR JSON_VALUE(@Json, '$.schemaVersion') <> N'3'
+  THROW 51000, 'Valid version-3 persona defaults are required.', 1;
+IF NOT EXISTS (SELECT 1 FROM [tsaat].[persona_settings_version])
+  INSERT INTO [tsaat].[persona_settings_version] ([settings_json]) VALUES (@Json);
+
 SET IDENTITY_INSERT [tsaat].[reference_version_set] ON;
 INSERT INTO [tsaat].[reference_version_set] (
   [version_set_id],

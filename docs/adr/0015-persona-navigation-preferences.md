@@ -1,5 +1,7 @@
 # ADR 0015: Persona navigation preferences
 
+The fixed catalogue and last-successful-save-wins decisions below are superseded by [ADR 0022](0022-data-driven-personas.md). The visibility-only access model and independent page/popup controls remain current.
+
 Catalogue extension: add Business Reporting with the same all-enabled defaults. Read the original four-persona catalogues by adding only this new entry in memory; reject missing original personas. Require all five entries on writes so stale clients cannot reset the new configuration. Retain payload version 2 and migration 031 because the representation is unchanged; explicit save alone publishes the expanded catalogue. Deployment/rollback guidance is in [Personas](../personas.md#business-reporting).
 
 Date: 2026-11-05. Status: accepted.

@@ -128,7 +128,8 @@ export async function checkGovernanceTrends(page, { date, historicalDate, direct
     assert(await page.$$eval('.governance-trends a[data-persona-disabled="true"]', nodes => nodes.every(node => !node.hasAttribute("href") && node.tabIndex === -1)));
   } finally {
     await page.evaluate(async ({ original, previousPersona }) => {
-      const response = await fetch("/api/settings/personas", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(original.settings ?? original) });
+      const latest = (await (await fetch("/api/settings/personas")).json()).settings;
+      const response = await fetch("/api/settings/personas", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(original.settings ?? original), updatedAt: latest.updatedAt }) });
       if (!response.ok) throw new Error("Could not restore persona settings");
       if (previousPersona === null) localStorage.removeItem("tsaat.active-persona"); else localStorage.setItem("tsaat.active-persona", previousPersona);
     }, { original, previousPersona });

@@ -20,6 +20,8 @@ npm ci --offline
 
 Application pages and APIs no longer require a user login. The header has no Signed in or Logout section, and Password Settings is retired. Existing local logindetails files are unused and remain excluded from Git.
 
+Menu → Settings → Personas manages the shared persona list, names, pages and popup preferences. Save writes to the active SQL or JSON source; the browser remembers only its selected persona. Existing configurations retain selections and upgrade on explicit save. See [Personas and upgrades](docs/personas.md).
+
 Choose a build:
 
 | Action | Standard SQL | No-SQL (JSON files) |

@@ -55,7 +55,7 @@ Apply only 027 to a database already through 026, using an explicit target, veri
 
 ## Existing database upgrade
 
-For Personas, apply additive migration 031 before deploying the new SQL application. It creates persona_settings_version without changing inventory, existing settings or calculations; Database Settings schema diagnostics check the new table and columns. Empty tables supply all-enabled defaults, and saves append complete shared configurations. See [Personas upgrade and recovery](personas.md).
+For Personas, apply additive migration 031 before deploying the new SQL application. It creates persona_settings_version without changing inventory, existing settings or calculations; Database Settings schema diagnostics check the new table and columns. Fresh loaders seed the shared `data/personas.json` catalogue; existing empty tables supply bootstrap defaults in memory. Payload version 3 adds stored names and dynamic IDs/order without DDL. Saves compare the current revision in a transaction before appending; stale saves return a conflict. Version-1/2 settings upgrade only on explicit save. See [Personas upgrade and recovery](personas.md).
 
 For Security Vulnerability Explorer, apply additive migration 028 before deploying the new SQL application. It adds nullable `cve_name`, `cve_created_date`, `software_name`, `software_version` and `reference_url` to `asset_vulnerability`, retaining its key and all original observations. No rule/configuration or sample data is changed. The separate sample-only population script is explicitly opt-in and never part of a production migration. See [CVE mapping and SQL/JSON rollout](security-vulnerability-explorer.md).
 

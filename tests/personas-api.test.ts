@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET, PUT } from "@/app/api/settings/personas/route";
 import { loadPersonaSettings, savePersonaSettings } from "@/lib/data-loader";
-import { defaultPersonaSettings } from "@/lib/personas";
+import { defaultPersonaSettings, PersonaConflictError } from "@/lib/personas";
 vi.mock("@/lib/data-loader", () => ({ loadPersonaSettings: vi.fn(), savePersonaSettings: vi.fn() }));
 beforeEach(() => vi.resetAllMocks());
 const request = (body: string) => new NextRequest("http://localhost/api/settings/personas", { method: "PUT", body });
@@ -27,7 +27,7 @@ it("returns saved settings and sanitizes provider errors", async () => {
 });
 it("rejects stale four-persona writes instead of resetting Business Reporting", async () => {
   const current = defaultPersonaSettings();
-  const stale = { ...current, personas: current.personas.filter(persona => persona.id !== "business-reporting") };
+  const stale = { ...current, schemaVersion: 2, personas: current.personas.filter(persona => persona.id !== "business-reporting") };
   const response = await PUT(request(JSON.stringify(stale)));
   expect(response.status).toBe(400);
   expect(await response.text()).toContain("Reload the application");
@@ -40,4 +40,18 @@ it("accepts an older page catalogue but strips only the retired permission befor
   const response = await PUT(request(JSON.stringify(legacy)));
   expect(response.status).toBe(200);
   expect(savePersonaSettings).toHaveBeenCalledExactlyOnceWith(normalized);
+});
+it("returns a retryable conflict rather than overwriting newer settings", async () => {
+  vi.mocked(savePersonaSettings).mockRejectedValue(new PersonaConflictError());
+  const response = await PUT(request(JSON.stringify(defaultPersonaSettings())));
+  expect(response.status).toBe(409); expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(await response.text()).toContain("Reload saved personas");
+});
+it("accepts a custom or intentionally empty catalogue", async () => {
+  for (const personas of [[{ id: "custom", label: "Source-defined", sections: [], pages: [], popups: [] }], []]) {
+    const settings = { ...defaultPersonaSettings(), personas };
+    vi.mocked(savePersonaSettings).mockResolvedValue(settings);
+    const response = await PUT(request(JSON.stringify(settings)));
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ settings });
+  }
 });

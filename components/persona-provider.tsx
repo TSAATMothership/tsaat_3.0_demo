@@ -44,6 +44,12 @@ export function PersonaProvider({ children }: { children: ReactNode }) {
     setSettings(value); setError(""); setLoading(false);
   }, []);
   useEffect(() => {
+    if (!settings || !activePersona || settings.personas.some(persona => persona.id === activePersona)) return;
+    setActivePersona(null);
+    setSelectionError("The selected persona is no longer available. All sections (no persona) is selected.");
+    try { window.localStorage.removeItem(storageKey); } catch { /* Selection still resets for this visit. */ }
+  }, [settings, activePersona]);
+  useEffect(() => {
     const readSelection = () => {
       try {
         const value = window.localStorage.getItem(storageKey);

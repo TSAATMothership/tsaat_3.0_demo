@@ -16,6 +16,7 @@
     "discoveryCoverageRules": "data/discovery-coverage-rules.json",
     "discoveryToolsSettings": "data/discovery-tools-settings.json",
     "measuresSettings": "data/measures-settings.json",
+    "personas": "data/personas.json",
     "referenceVersions": "data/reference-versions.json"
   },
   "snapshotSourceDirectory": "../data/snapshots",

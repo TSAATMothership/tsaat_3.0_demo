@@ -15,7 +15,7 @@ vi.mock("@/lib/discovery-overview-data", () => ({ loadDiscoveryOverview: vi.fn()
 vi.mock("@/components/route-ready-marker", () => ({ RouteReadyMarker: () => React.createElement("span", { "data-ready": true }) }));
 vi.mock("next/navigation", async original => ({ ...await original<typeof import("next/navigation")>(), redirect: (url: string) => { throw new Error("Redirect:" + url); } }));
 const fixture = () => ({ model: buildDiscoveryOverview({ snapshotDate: "2026-10-31", coverage: buildScopedDiscoveryToolCoverage([], defaultDiscoveryToolsSettings()), endpoints: [], software: [], shadow: [], vulnerabilities: [], patches: [] }),
-  scope: { network: ["net-1"], securityDomain: "NONE", dataDate: "2026-10-31" }, scopeLabels: { networks: ["Example network (net-1)"], systems: [], domains: [] } });
+  scope: { network: ["net-1"], system: [], securityDomain: "NONE", dataDate: "2026-10-31" }, scopeLabels: { networks: ["Example network (net-1)"], systems: [], domains: [] } });
 beforeEach(() => { vi.stubGlobal("React", React); vi.mocked(loadDiscoveryOverview).mockReset().mockResolvedValue(fixture()); });
 afterEach(() => vi.unstubAllGlobals());
 it("moves the existing page identity below Software Insights and resolves legacy bookmarks to the same permission", () => {
