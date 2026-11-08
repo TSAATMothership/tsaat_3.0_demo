@@ -3,6 +3,64 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Papa from 'papaparse';
 
+/** Layout and real keyboard scrolling must stay inside the available desktop workspace. */
+export async function checkMeasuresTrendsViewport(page, { date, artifacts }) {
+  const base = new URL(page.url()).origin;
+  const fit = async (coreVisible = true) => {
+    const state = await page.evaluate(() => {
+      const workspace = document.querySelector('.workspace-content'), article = document.querySelector('.measures-trends');
+      const picker = document.querySelector('.measure-trend-picker'), detail = document.querySelector('.measure-trend-detail');
+      const bounds = element => { const r = element.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, height: r.height }; };
+      return { width: innerWidth, height: innerHeight, workspace: bounds(workspace), article: bounds(article), picker: bounds(picker), detail: bounds(detail),
+        outsideScroll: workspace.scrollHeight - workspace.clientHeight, clippedArticle: article.scrollHeight - article.clientHeight,
+        detailScroll: detail.scrollHeight - detail.clientHeight, horizontal: document.documentElement.scrollWidth - innerWidth,
+        chartHeight: document.querySelector('.measure-trend-chart').getBoundingClientRect().height,
+        supportBottom: document.querySelector('.measure-trend-support').getBoundingClientRect().bottom };
+    });
+    const context = JSON.stringify(state);
+    assert(state.outsideScroll <= 2 && state.clippedArticle <= 2 && state.horizontal <= 2, 'Workspace fits without outer scrolling/clipping: ' + context);
+    assert(Math.abs(state.picker.top - state.detail.top) <= 2 && Math.abs(state.picker.bottom - state.detail.bottom) <= 2, 'Panels align: ' + context);
+    assert(state.article.bottom <= state.workspace.bottom && state.chartHeight >= 110, 'Usable chart within workspace: ' + context);
+    if (coreVisible) assert(state.detailScroll <= 2 && state.supportBottom <= state.detail.bottom, 'Default trend controls fit without detail scrolling: ' + context);
+    return state;
+  };
+  for (const [width, height] of [[1920,1080], [1600,900], [1366,768], [1280,720], [1024,768]]) {
+    await page.setViewport({ width, height });
+    await page.goto(`${base}/measures/trends?network=net-1&dataDate=${date}`, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
+    for (const tab of ['kpi', 'spi']) {
+      await page.click(`#measure-trends-tab-${tab}`);
+      await page.waitForFunction(value => document.querySelector('.measures-trends')?.dataset.measureTab === value, {}, tab);
+      await fit();
+    }
+    if (artifacts) await page.screenshot({ path: path.join(artifacts, `measures-trends-fit-${width}.png`) });
+  }
+  await page.setViewport({ width: 1280, height: 720 });
+  const identifiers = await page.$$eval('.measure-trend-option', nodes => nodes.map(node => node.getAttribute('aria-label')));
+  for (const label of identifiers) {
+    const selector = `.measure-trend-option[aria-label=${JSON.stringify(label)}]`;
+    await page.focus(selector); await page.keyboard.press('Enter');
+    await page.waitForFunction(value => document.querySelector('.measure-trend-option[aria-pressed=true]')?.getAttribute('aria-label') === value, {}, label);
+    await fit();
+  }
+  assert(await page.$eval('.measure-trend-options', node => node.scrollTop > 0), 'Keyboard reaches the last indicator using internal list scrolling');
+  await page.focus('.measure-trend-definition summary'); await page.keyboard.press('Enter');
+  assert(await page.$eval('.measure-trend-definition', node => node.open));
+  await page.focus('.measure-trend-detail'); await page.keyboard.press('End');
+  await page.waitForFunction(() => document.querySelector('.measure-trend-detail').scrollTop > 0);
+  await fit(false);
+  assert(await page.$eval('.workspace-content', node => node.scrollTop === 0), 'Expanded guidance does not scroll the workspace');
+  await page.focus('.measure-trend-definition summary'); await page.keyboard.press('Enter');
+  await page.focus('.measure-trend-evidence summary'); await page.keyboard.press('Enter');
+  await page.focus('.measure-trend-detail'); await page.keyboard.press('End');
+  await page.waitForFunction(() => document.querySelector('.measure-trend-detail').scrollTop > 0);
+  assert(await page.$('.measure-trend-evidence tbody tr'), 'Expanded evidence remains reachable');
+  await fit(false);
+  assert(await page.$eval('.workspace-content', node => node.scrollTop === 0), 'Expanded evidence does not scroll the workspace');
+  if (artifacts) await page.screenshot({ path: path.join(artifacts, 'measures-trends-expanded-evidence.png') });
+  console.log('Measures Trends viewport checks passed: 1920/1600/1366/1280/1024 widths, both tabs, all SPIs, visible core controls, internal list/detail keyboard scrolling.');
+}
+
 /** Shared acceptance checks against either compiled provider's disposable sample store. */
 export async function checkMeasuresTrends(page, { date, historicalDate, snapshotDates, directory, artifacts, provider = 'json' }) {
   const base = new URL(page.url()).origin;
@@ -19,6 +77,8 @@ export async function checkMeasuresTrends(page, { date, historicalDate, snapshot
     await page.click(`#measure-trends-tab-${tab}`);
     await page.waitForFunction(expected => document.querySelector('.measures-trends')?.dataset.measureTab === expected, {}, tab);
   };
+  if (artifacts) fs.mkdirSync(artifacts, { recursive: true });
+  await checkMeasuresTrendsViewport(page, { date, artifacts });
   await page.setViewport({ width: 1600, height: 1000 }); await visit();
   assert.equal(await page.$eval('.workspace-navigation [aria-current=page]', node => node.textContent.trim()), 'Measures Trends');
   assert.equal(await page.$eval('.measures-trends', node => node.dataset.measureHistory), '4weeks');
@@ -92,6 +152,21 @@ export async function checkMeasuresTrends(page, { date, historicalDate, snapshot
   if (artifacts) {
     await page.$eval('.measures-trends', node => node.scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(artifacts, `measures-trends-${provider}-phone.png`) });
     await page.$eval('.measure-trend-detail', node => node.scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(artifacts, `measures-trends-${provider}-phone-detail.png`) });
+  }
+  for (const width of [390, 320]) {
+    await page.setViewport({ width, height: 844 });
+    await page.focus('.measure-trend-definition summary'); await page.keyboard.press('Enter');
+    assert(await page.$eval('.measure-trend-definition', node => node.open), 'Phone guidance expands with the keyboard');
+    await page.focus('.measure-trend-evidence summary'); await page.keyboard.press('Enter');
+    assert(await page.$eval('.measure-trend-evidence', node => node.open), 'Phone evidence expands with the keyboard');
+    assert(await page.evaluate(() => {
+      const workspace = document.querySelector('.workspace-content');
+      return document.documentElement.scrollWidth <= innerWidth + 2 && workspace.scrollWidth <= workspace.clientWidth + 2;
+    }), `No horizontal workspace overflow with expanded evidence at ${width}px`);
+    await page.$eval('.measure-trend-evidence', node => node.scrollIntoView({ block: 'end' }));
+    if (artifacts) await page.screenshot({ path: path.join(artifacts, `measures-trends-phone-evidence-${width}.png`) });
+    await page.focus('.measure-trend-definition summary'); await page.keyboard.press('Enter');
+    await page.focus('.measure-trend-evidence summary'); await page.keyboard.press('Enter');
   }
   await page.goto(base + '/measures/trends', { waitUntil: 'networkidle0' }); assert.equal(await page.$('.measures-trends'), null);
   await page.setViewport({ width: 1600, height: 1000 });

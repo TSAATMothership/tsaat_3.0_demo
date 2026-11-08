@@ -2,7 +2,7 @@
 
 Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 
-Observed Measures has separate Trends, Summary, KPI and SPI destinations. [Measures Trends](19-Measures-Trends.md) appears first and provides five history periods with separate KPI/SPI tabs. The Summary/KPI/SPI destinations retain header scope/date and standard table controls; their former security-domain/environment/asset-type/severity page filter blocks remain removed.
+Observed Measures has separate Summary, Trends, KPI and SPI destinations. [Measures Trends](19-Measures-Trends.md) appears directly below Measures Summary and provides five history periods with separate KPI/SPI tabs. The Summary/KPI/SPI destinations retain header scope/date and standard table controls; their former security-domain/environment/asset-type/severity page filter blocks remain removed.
 
 Measures Summary shows all non-compliant SPI exceptions ordered worst compliance first, with a viewport of approximately five rows and vertical scrolling. KPI performance has equivalent scrolling. Both sections retain total green/red performance bars and visible percentages even when no exceptions are listed. Open findings severity colors are red/orange/yellow/blue/purple. Findings by Duration replaces the former Executive review queue and groups open findings by severity and days open.
 

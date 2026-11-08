@@ -57,17 +57,18 @@ function MeasureDetail({ series, model, tab }: { series: MeasureTrendSeries; mod
   const id = useId();
   const destination = new URL(insightsHref({ ...model.scope, dataDate: selectedDate || model.cutoff }, "/measures", { key: "measuresTab", value: `measures-${tab}` }), "http://localhost");
   if (tab === "spi") destination.searchParams.set("spi", series.id.replace("SPI-", ""));
-  return <section className="measure-trend-detail" aria-label={`${series.id} trend details`} data-measure-id={series.id}>
-    <header><span className="measure-trend-id">{series.id}</span><h2>{series.name}</h2><p>{series.description}</p></header>
+  return <section className="measure-trend-detail" aria-label={`${series.id} trend details`} data-measure-id={series.id} tabIndex={0}>
+    <header><span className="measure-trend-id">{series.id}</span><h2>{series.name}</h2></header>
     <div className="measure-trend-stats">
       <div><span>Latest compliance</span><strong>{percent(latest?.percent)}</strong><small>{latest ? date(latest.date) : "No observation"}</small></div>
       <div><span>Change over observations</span><Movement points={series.points} /><small>{first && latest && series.points.length > 1 ? `${date(first.date)} → ${date(latest.date)}` : "Two comparable observations needed"}</small></div>
       <div><span>Applicable {series.unit.toLowerCase()}</span><strong>{latest?.recorded ? number(latest.total) : "N/A"}</strong><small>{first && series.points.length > 1 ? `First observation: ${number(first.total)}` : "Latest observed population"}</small></div>
     </div>
     {series.points.length ? <>
-      <div className="measure-trend-chart-caption"><span>Compliance over time</span><span>Higher is better · 0–100%</span></div>
-      <Chart series={series} from={model.from} to={model.cutoff} selected={selectedDate} />
+      <figure className="measure-trend-plot"><figcaption className="measure-trend-chart-caption"><span>Compliance over time</span><span>Higher is better · 0–100%</span></figcaption>
+      <div className="measure-trend-canvas"><Chart series={series} from={model.from} to={model.cutoff} selected={selectedDate} /></div>
       <div className="measure-trend-axis-dates"><span>{date(model.from)}</span><span>{date(model.cutoff)}</span></div>
+      </figure>
       {!series.points.some(point => point.percent !== null) && <p className="measure-trend-notice">No applicable results in this scope. N/A is not zero compliance.</p>}
       <div className="measure-trend-inspector"><label htmlFor={`${id}-snapshot`}>Inspect snapshot<select id={`${id}-snapshot`} aria-label="Inspect measure snapshot" value={selectedDate} onChange={event => setSelectedDate(event.target.value)}>
         {series.points.map(point => <option key={point.date} value={point.date}>{date(point.date)}</option>)}</select></label>
@@ -79,11 +80,16 @@ function MeasureDetail({ series, model, tab }: { series: MeasureTrendSeries; mod
           <div key={item.label}><span><i className={`is-${item.tone}`} />{item.label}</span><strong>{current.recorded ? number(item.value) : "Not recorded"}</strong></div>)}
       </div>}
     </> : <div className="measure-trend-empty"><h3>No snapshots in this period</h3><p>Choose a longer range or a different header date to view recorded evidence.</p></div>}
-    <div className="measure-trend-definition"><span>Success measure</span><p>{series.successMeasure}</p></div>
+    <div className="measure-trend-support">
+    <details className="measure-trend-definition"><summary>Measure definition &amp; guidance</summary><p>{series.description}</p><span>Success measure</span><p>{series.successMeasure}</p>
+      <div className="measure-trends-method"><h3>How to read these trends</h3><p>Compliance uses each indicator’s configured calculation. KPIs assess ICT systems; SPIs assess applicable CI checks. Unknown SPI results remain in the denominator. An empty denominator is N/A.</p>
+        <p>Change is the percentage-point difference between the first and last observations in the selected period. One observation or a missing endpoint cannot establish a comparison. Population changes and current measure definitions can affect results; a change does not by itself prove remediation. Lines connect recorded observations only, with no forecast or filled history.</p></div>
+    </details>
     {series.points.length > 0 && <details className="measure-trend-evidence"><summary>Snapshot evidence · {series.points.length} observations</summary>
       <FindingsDataTable title={`${series.id} snapshot evidence`} rows={series.points} columns={columns} searchable={false} columnFilters={false} defaultPageSize={25}
         renderRow={point => <tr key={point.date}><td>{date(point.date)}</td><td>{percent(point.percent)}</td><td>{point.recorded ? number(point.compliant) : "—"}</td><td>{point.recorded ? number(point.nonCompliant) : "—"}</td><td>{point.recorded ? number(point.unknown) : "—"}</td><td>{point.recorded ? number(point.total) : "—"}</td></tr>} />
     </details>}
+    </div>
   </section>;
 }
 export function MeasuresTrends({ model }: { model: MeasuresTrendsModel }) {
@@ -104,17 +110,18 @@ export function MeasuresTrends({ model }: { model: MeasuresTrendsModel }) {
     startRouteLoading({ href, message: "Loading Measures Trends…" }); router.push(href, { scroll: false });
   };
   return <article className="workspace-page measures-trends" data-measure-history={model.history} data-measure-tab={tab} data-measure-from={model.from} data-measure-cutoff={model.cutoff}>
-    <header className="measure-trends-hero"><div><p className="software-kicker">Observed Measures / History</p><h1>Measures Trends</h1>
-      <p>Follow performance. See what changed. Inspect the evidence.</p></div><div className="measure-trends-through"><span>Evidence through</span><strong>{date(model.cutoff)}</strong><small>{model.dates.length} snapshots in this period</small></div></header>
-    <div className="measure-trends-period"><fieldset><legend>Trend period</legend><div>{MEASURE_HISTORY_OPTIONS.map(option => <label key={option.value}>
-      <input type="radio" name="measure-history" value={option.value} checked={model.history === option.value} onChange={() => rangeSelection(option.value)} /><span>{option.label}</span>
-    </label>)}</div></fieldset><p><strong>{date(model.from)} — {date(model.cutoff)}</strong><span>Scope and security domains follow the header.</span></p></div>
+    <header className="measure-trends-hero"><h1>Measures Trends</h1><div className="measure-trends-through"><span>Evidence through</span><strong>{date(model.cutoff)}</strong><small>{model.dates.length} snapshots in this period</small></div></header>
+    <div className="measure-trends-toolbar">
     <WorkspaceTabs id="measure-trends" label="Measure type" tabs={[{ id: "kpi", label: `KPIs (${model.kpi.length})` }, { id: "spi", label: `SPIs (${model.spi.length})` }]} active={tab} onChange={value => localSelection("measureTrendTab", value)} />
+    <div className="measure-trends-period"><fieldset><legend className="sr-only">Trend period</legend><div>{MEASURE_HISTORY_OPTIONS.map(option => <label key={option.value}>
+      <input type="radio" name="measure-history" value={option.value} checked={model.history === option.value} onChange={() => rangeSelection(option.value)} /><span>{option.label}</span>
+    </label>)}</div></fieldset></div>
+    </div>
     <section id={`measure-trends-panel-${tab}`} role="tabpanel" aria-labelledby={`measure-trends-tab-${tab}`} tabIndex={0}>
       <div className="measure-trends-coverage"><p>{model.dates.length ? <>Recorded observations: <strong>{date(model.dates[0])} — {date(model.dates.at(-1)!)}</strong>. {model.dates[0] > model.from ? "Earlier dates in this period have no snapshots. " : ""}{model.dates.at(-1)! < model.cutoff ? "No snapshot is recorded at the requested cutoff. " : ""}Charts show available evidence only.</> : "No recorded snapshots fall within the selected period."}</p>
         <button className="endpoint-export" type="button" disabled={!model.dates.length || !series.length} onClick={() => download(model, series, tab)}>Export {tab.toUpperCase()} trends</button></div>
       <div className="measure-trends-layout">
-        <aside className="measure-trend-picker" aria-label={`Choose a ${tab.toUpperCase()}`}><header><h2>{tab === "kpi" ? "Performance indicators" : "Security posture indicators"}</h2><p>Select a measure to explore its history.</p>
+        <aside className="measure-trend-picker" aria-label={`Choose a ${tab.toUpperCase()}`}><header><h2>{tab === "kpi" ? "Performance indicators" : "Security posture indicators"}</h2>
           <label className="sr-only" htmlFor="measure-trend-search">Find an indicator</label><input id="measure-trend-search" type="search" placeholder="Find an indicator…" value={search} maxLength={200} onChange={event => setSearch(event.target.value)} /></header>
           <div className="measure-trend-options">{visible.map(measure => <button key={measure.id} type="button" className="measure-trend-option" aria-pressed={selected?.id === measure.id} aria-label={`View ${measure.id}: ${measure.name}`} onClick={() => localSelection("measureId", measure.id)}>
             <span className="measure-trend-option-top"><b>{measure.id}</b><strong>{percent(measure.points.at(-1)?.percent)}</strong></span><span className="measure-trend-option-name">{measure.name}</span>
@@ -124,7 +131,5 @@ export function MeasuresTrends({ model }: { model: MeasuresTrendsModel }) {
         {selected ? <MeasureDetail key={`${tab}:${selected.id}:${model.history}`} series={selected} model={model} tab={tab} /> : <div className="measure-trend-empty">No {tab.toUpperCase()} definitions are available.</div>}
       </div>
     </section>
-    <details className="measure-trends-method"><summary>How to read these trends</summary><p>Compliance uses each indicator’s configured calculation. KPIs assess ICT systems; SPIs assess applicable CI checks. Unknown SPI results remain in the denominator. An empty denominator is N/A.</p>
-      <p>Change is the percentage-point difference between the first and last observations in the selected period. One observation or a missing endpoint cannot establish a comparison. Population changes and current measure definitions can affect results; a change does not by itself prove remediation. Lines connect recorded observations only, with no forecast or filled history.</p></details>
   </article>;
 }

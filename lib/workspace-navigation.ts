@@ -91,8 +91,8 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { id: "discovery-topology", label: "Topology Explorer", href: "/discovery-coverage?discoveryView=topology" }
   ] },
   { id: "observed-measures", label: "Observed Measures", items: [
-    { id: "measures-trends", label: "Measures Trends", href: "/measures/trends" },
     { id: "measures-summary", label: "Measures Summary", href: "/measures" },
+    { id: "measures-trends", label: "Measures Trends", href: "/measures/trends" },
     { id: "measures-kpi", label: "Key Performance Indicators (KPIs)", href: "/measures?measuresTab=measures-kpi" },
     { id: "measures-spi", label: "Security Posture Indicators (SPIs)", href: "/measures?measuresTab=measures-spi" }
   ] },

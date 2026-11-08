@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-08 - Measures Trends viewport layout
+
+- Redesigned Measures Trends around a compact toolbar and adjacent indicator/chart panels that fit the desktop workspace. Indicator lists and expanded details scroll inside their panels; definitions, guidance and snapshot evidence remain available on demand. Narrow screens retain a stacked layout.
+
+## 2026-11-08 - Observed Measures navigation order
+
+- Moved Measures Trends directly below Measures Summary in the left sidebar.
+
 ## 2026-11-07 - Business service and mission capability CMDB
 
 - Added CMDB support for the existing Business Service and Mission Capability model CI records, with identity, type, recorded criticality and scoped system/network associations.

@@ -24,8 +24,8 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | Life Cycle Management | `/discovery-coverage?discoveryView=life-cycle-management` | Both scope types |
 | Shadow IT Explorer | `/discovery-coverage?discoveryView=shadow-it` | Both scope types |
 | Topology Explorer | `/discovery-coverage?discoveryView=topology` | Both scope types |
-| Measures Trends | `/measures/trends` | Both scope types |
 | Measures Summary | `/measures` | Both scope types |
+| Measures Trends | `/measures/trends` | Both scope types |
 | Key Performance Indicators (KPIs) | `/measures?measuresTab=measures-kpi` | Both scope types |
 | Security Posture Indicators (SPIs) | `/measures?measuresTab=measures-spi` | Both scope types |
 | Findings Register | `/findings` | Both scope types |

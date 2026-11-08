@@ -12,9 +12,9 @@ const observation = (snapshotDate: string, total = 2, compliant = 1): MeasureObs
 const point = (date: string, percent: number | null): MeasureTrendPoint => ({ date, percent, compliant: 0, nonCompliant: 0, unknown: 0, total: percent === null ? 0 : 10, recorded: true });
 
 describe("Measures Trends", () => {
-  it("places its scoped destination immediately above Measures Summary", () => {
+  it("places its scoped destination immediately below Measures Summary", () => {
     const pages = WORKSPACE_GROUPS.find(group => group.id === "observed-measures")!.items;
-    expect(pages.slice(0, 2).map(page => page.label)).toEqual(["Measures Trends", "Measures Summary"]);
+    expect(pages.slice(0, 2).map(page => page.label)).toEqual(["Measures Summary", "Measures Trends"]);
     expect(activeWorkspaceItem("/measures/trends", new URLSearchParams("measureTrendTab=spi&measureHistory=week"))?.id).toBe("measures-trends");
     expect(isDataDateScopedPath("/measures/trends")).toBe(true);
   });
