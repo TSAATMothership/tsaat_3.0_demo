@@ -108,7 +108,10 @@ describe("Installed Software Insights", () => {
   it("renders the standalone Governance briefing and PDF with only shared scope and the resolved snapshot", async () => {
     const html = await renderGovernance({ network: ["net-1", "net-2"], system: "sys-1", securityDomain: "SECRET", dataDate: "2026-11-01", discoveryFilters: "stale", environment: "Production" });
     expect(readSoftware).toHaveBeenCalledExactlyOnceWith({ network: ["net-1", "net-2"], system: "sys-1", securityDomain: "SECRET", dataDate: "2026-11-01" });
-    expect(html).toContain('<h1>Installed Software Insights</h1>'); expect(html).toContain('Governance / Software intelligence');
+    expect(html).not.toContain('Governance / Software intelligence');
+    expect(html).not.toContain('<h1>Installed Software Insights</h1>');
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
+    expect(html).toContain('<h1 id="software-briefing-title">Software<br/><em>Insights.</em></h1>');
     expect(html).toContain('data-route-ready-key='); expect(html).toContain(`data-software-snapshot="${date}"`);
     expect(html).not.toContain('role="tablist"'); expect(html).not.toContain('software-dashboard-grid');
     expect(html.match(/id="software-briefing-(?:footprint|concentration|variation|evidence)"/g)).toHaveLength(4);

@@ -69,7 +69,9 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { id: "governance-trends", label: "Trends", href: "/governance/trends" },
     { id: "governance-insights", label: "Cyber Terrain Insights", href: "/governance/insights" },
     { id: "governance-software-insights", label: "Installed Software Insights", href: "/governance/installed-software-insights" },
-    { id: "discovery-overview", label: "Discovery Insights", href: "/governance/discovery-insights" }
+    { id: "discovery-overview", label: "Discovery Insights", href: "/governance/discovery-insights" },
+    { id: "governance-endpoint-insights", label: "End Point Insights", href: "/governance/end-point-insights" },
+    { id: "governance-vulnerability-insights", label: "Security Vulnerability Insights", href: "/governance/security-vulnerability-insights" }
   ] },
   { id: "cyber-security", label: "Cyber Security", items: [
     { id: "network-risk-profile", label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },

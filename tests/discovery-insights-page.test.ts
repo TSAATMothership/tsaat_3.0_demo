@@ -20,7 +20,8 @@ beforeEach(() => { vi.stubGlobal("React", React); vi.mocked(loadDiscoveryOvervie
 afterEach(() => vi.unstubAllGlobals());
 it("moves the existing page identity below Software Insights and resolves legacy bookmarks to the same permission", () => {
   const governance = WORKSPACE_GROUPS.find(g => g.id === "governance")!.items;
-  expect(governance.slice(-2).map(p => p.label)).toEqual(["Installed Software Insights", "Discovery Insights"]);
+  const softwareIndex = governance.findIndex(p => p.id === "governance-software-insights");
+  expect(governance.slice(softwareIndex, softwareIndex + 2).map(p => p.label)).toEqual(["Installed Software Insights", "Discovery Insights"]);
   expect(WORKSPACE_GROUPS.find(g => g.id === "discovery")!.items.some(p => p.id === "discovery-overview")).toBe(false);
   expect(activeWorkspaceItem("/governance/discovery-insights", new URLSearchParams())?.id).toBe("discovery-overview");
   expect(activeWorkspaceItem("/discovery-coverage", new URLSearchParams("discoveryView=overview"))?.id).toBe("discovery-overview");

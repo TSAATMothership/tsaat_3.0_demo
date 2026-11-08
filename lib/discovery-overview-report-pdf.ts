@@ -13,11 +13,11 @@ const share = (value: number, total: number) => total ? percent(Math.round(value
 type Bar = { label: string; count: number; color?: RGB };
 
 /** Vector charts and measured text keep the report independent of browser rendering and downloads. */
-class OverviewPdf {
+export class OverviewPdf {
   page!: PDFPage;
   y = 0;
   section = "";
-  constructor(readonly doc: PDFDocument, readonly regular: PDFFont, readonly bold: PDFFont, readonly date: string) {}
+  constructor(readonly doc: PDFDocument, readonly regular: PDFFont, readonly bold: PDFFont, readonly date: string, readonly title = "Discovery Insights Report") {}
   safe(value: string): string {
     return Array.from(value.normalize("NFKC").replace(/[\u2010-\u2015]/g,"-").replace(/[\r\n\t]/g," "))
       .map(char => { try { this.regular.encodeText(char); return char; } catch { return "?"; } }).join("");
@@ -42,7 +42,7 @@ class OverviewPdf {
   }
   pageFor(section: string, continued = false) {
     this.section = section;
-    const result = createReportPage({ pdfDoc: this.doc, pageTitle: "Discovery Insights Report", snapshotDate: this.date, fontRegular: this.regular, fontBold: this.bold });
+    const result = createReportPage({ pdfDoc: this.doc, pageTitle: this.title, snapshotDate: this.date, fontRegular: this.regular, fontBold: this.bold });
     this.page = result.page; this.y = result.y;
     for (const title of this.wrap(section + (continued ? " - continued" : ""), WIDTH, 17, this.bold)) {
       this.text(title,LEFT,this.y,17,true); this.y -= 22;
@@ -55,11 +55,11 @@ class OverviewPdf {
     this.y -= 7;
   }
   heading(value: string) { this.ensure(56); this.text(value,LEFT,this.y,11,true); this.y -= 21; }
-  cards(cards: Array<{ label: string; value: string; color?: RGB }>) {
-    const width = (WIDTH - 24) / 3, height = 88;
-    for (let offset = 0; offset < cards.length; offset += 3) {
+  cards(cards: Array<{ label: string; value: string; color?: RGB }>, columns = 3) {
+    const width = (WIDTH - (columns - 1) * 12) / columns, height = 88;
+    for (let offset = 0; offset < cards.length; offset += columns) {
       this.ensure(height + 12);
-      cards.slice(offset,offset+3).forEach((card,index) => {
+      cards.slice(offset,offset+columns).forEach((card,index) => {
         const x = LEFT + index * (width + 12);
         this.page.drawRectangle({ x,y:this.y-height,width,height,color:pale,borderColor:line,borderWidth:.6 });
         this.page.drawRectangle({ x,y:this.y-height,width:3,height,color:card.color ?? teal });

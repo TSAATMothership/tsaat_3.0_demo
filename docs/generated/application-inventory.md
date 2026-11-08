@@ -10,6 +10,8 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | Cyber Terrain Insights | `/governance/insights` | Both scope types |
 | Installed Software Insights | `/governance/installed-software-insights` | Both scope types |
 | Discovery Insights | `/governance/discovery-insights` | Both scope types |
+| End Point Insights | `/governance/end-point-insights` | Both scope types |
+| Security Vulnerability Insights | `/governance/security-vulnerability-insights` | Both scope types |
 | Network Risk Profile | `/network-risk-profile` | network |
 | ICT System Risk Profile | `/ict-system-risk-profile` | system |
 | Service Impact Analyser | `/cyber-cop?copView=impact` | Both scope types |
@@ -58,7 +60,9 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/discovery/installed-software-insights/report` | GET | [Source](../../app/api/discovery/installed-software-insights/report/route.ts) |
 | `/api/findings/asset-details` | GET | [Source](../../app/api/findings/asset-details/route.ts) |
 | `/api/findings/export` | GET, POST | [Source](../../app/api/findings/export/route.ts) |
+| `/api/governance/end-point-insights/report` | GET | [Source](../../app/api/governance/end-point-insights/report/route.ts) |
 | `/api/governance/insights/report` | GET | [Source](../../app/api/governance/insights/report/route.ts) |
+| `/api/governance/security-vulnerability-insights/report` | GET | [Source](../../app/api/governance/security-vulnerability-insights/report/route.ts) |
 | `/api/measures/settings` | GET, PUT | [Source](../../app/api/measures/settings/route.ts) |
 | `/api/networks/[networkId]/discovery-coverage-export` | GET | [Source](../../app/api/networks/%5BnetworkId%5D/discovery-coverage-export/route.ts) |
 | `/api/networks/[networkId]/impact-analyser/findings` | GET | [Source](../../app/api/networks/%5BnetworkId%5D/impact-analyser/findings/route.ts) |
@@ -89,9 +93,11 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/discovery-coverage` | Page | [Source](../../app/discovery-coverage/page.tsx) |
 | `/findings` | Page | [Source](../../app/findings/page.tsx) |
 | `/governance/discovery-insights` | Page | [Source](../../app/governance/discovery-insights/page.tsx) |
+| `/governance/end-point-insights` | Page | [Source](../../app/governance/end-point-insights/page.tsx) |
 | `/governance/insights` | Page | [Source](../../app/governance/insights/page.tsx) |
 | `/governance/installed-software-insights` | Page | [Source](../../app/governance/installed-software-insights/page.tsx) |
 | `/governance/overview` | Page | [Source](../../app/governance/overview/page.tsx) |
+| `/governance/security-vulnerability-insights` | Page | [Source](../../app/governance/security-vulnerability-insights/page.tsx) |
 | `/governance/trends` | Page | [Source](../../app/governance/trends/page.tsx) |
 | `/ict-system-risk-profile` | Page | [Source](../../app/ict-system-risk-profile/page.tsx) |
 | `/login` | Page | [Source](../../app/login/page.tsx) |

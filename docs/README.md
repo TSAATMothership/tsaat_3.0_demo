@@ -16,7 +16,10 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
 | Persona selection, sidebar visibility and settings upgrades | [Personas](personas.md) |
 | Discovery infographic and Explorer evidence | [Discovery Insights](../Requirements%20Documentation/21-Discovery-Insights.md) |
+| Endpoint identity gaps, freshness and coverage context | [End Point Insights](../Requirements%20Documentation/22-End-Point-Insights.md) |
+| Vulnerability observations, missing evidence and discovery coverage | [Security Vulnerability Insights](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md) |
 | Discovery Insights PDF sections and scope | [Discovery Insights report](discovery-overview-report.md) |
+| Endpoint and vulnerability briefing PDF exports | [Inventory Insights reports](inventory-insights-reports.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |

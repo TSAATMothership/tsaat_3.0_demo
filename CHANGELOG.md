@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-11-08 - Installed Software Insights heading
+
+- Removed the duplicate Governance / Software intelligence title block above the infographic. The existing Software Insights hero remains the page's primary heading.
+
+## 2026-11-08 - Endpoint and vulnerability Insights PDFs
+
+- Added Generate PDF to End Point Insights and Security Vulnerability Insights, with the shared generating state, duplicate prevention, retry and keyboard-focus behavior.
+- Reports retain the applied scope/domains and snapshot, cover all five chapters and include full field/distribution breakdowns, generation time and page numbers. Empty selections export explicit empty evidence.
+
+## 2026-11-08 - Security Vulnerability Insights
+
+- Added Security Vulnerability Insights below End Point Insights in Governance, with an infographic covering recorded CVEs, affected software and endpoints, missing evidence, source/date context and discovery tool coverage.
+- Charts and field-gap actions open matching Explorer records with scope, domains and snapshot retained. Observations, CVEs, affected endpoints and discovery coverage remain explicitly distinct. Saved personas can enable the new page without changing existing selections.
+
+## 2026-11-08 - End Point Insights
+
+- Added End Point Insights below Discovery Insights in Governance, with an illustrated five-chapter briefing covering the endpoint estate, missing attributes, discovery freshness and sources, tool coverage context and follow-up actions.
+- Chart and gap links open matching Explorer records with the applied scope, security domains and snapshot. Existing saved persona page selections remain unchanged; the new page can be enabled in Persona Settings.
+
 ## 2026-11-08 - Discovery Insights
 
 - Replaced Discovery Overview with a five-chapter Discovery Insights infographic under Governance, immediately below Installed Software Insights. Removed Overview from the Discovery sidebar.

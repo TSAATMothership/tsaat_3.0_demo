@@ -1,4 +1,7 @@
 import { checkDiscoveryInsights } from "./discovery-insights-smoke.mjs";
+import { checkEndpointInsights } from "./endpoint-insights-smoke.mjs";
+import { checkVulnerabilityInsights } from "./vulnerability-insights-smoke.mjs";
+import { checkInventoryInsightsReports } from "./inventory-insights-report-smoke.mjs";
 import { checkSoftwareInsightsPdf } from "./software-insights-pdf-smoke.mjs";
 ﻿import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -186,6 +189,9 @@ try {
   assert.equal(new URL(page.url()).pathname, '/governance/trends');
   assert.equal(await page.$('.governance-trends h1'), null);
   await checkDiscoveryInsights(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkEndpointInsights(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkVulnerabilityInsights(page, { date, historicalDate: storage.snapshots[0].date, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
+  await checkInventoryInsightsReports(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   await navigate('/discovery-coverage?discoveryView=endpoints');
   const endpointLayout = await page.$eval('.endpoint-results', node => ({
     width: node.getBoundingClientRect().width,

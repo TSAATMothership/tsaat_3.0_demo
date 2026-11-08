@@ -82,7 +82,6 @@ export function InstalledSoftwareDashboard({ model, scope }: { model: InstalledS
 
 export function InstalledSoftwareInsights({ model, scope }: { model: InstalledSoftwareInsightsModel; scope: WorkspaceSearchParams }) {
   return <article className="software-insights is-story" data-software-snapshot={model.snapshotDate} data-software-total={model.total}>
-    <header className="software-insights-hero is-briefing"><div><p className="software-kicker">Governance / Software intelligence</p><h1>Installed Software Insights</h1></div></header>
     {model.total ? <SoftwareInsightsBriefing model={model} scope={scope} /> : <SoftwareEmptyState />}
     <SoftwareMethodology unnamed={model.unnamed} />
   </article>;

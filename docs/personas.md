@@ -1,5 +1,9 @@
 # Personas
 
+Security Vulnerability Insights adds `governance-vulnerability-insights` below End Point Insights. Default personas include it; saved version-2 lists remain unchanged. Enable both Governance and the new page in Settings > Personas when needed. Existing schema, parser and persistence operations are unchanged.
+
+End Point Insights adds `governance-endpoint-insights` below Discovery Insights. Default personas include it; saved version-2 page lists retain their selections and can enable it in Settings > Personas. Both Governance and the page must be enabled. The new navigation entry does not change the settings schema or persistence behavior.
+
 Discovery Insights retains the stable `discovery-overview` page ID and moves to Governance below Installed Software Insights. Existing saved section/page selections are unchanged: both Governance and this page must be enabled. No read grants Governance or substitutes another page permission. The legacy Overview URL resolves to the same permission.
 
 Topology Explorer adds the Discovery page ID `discovery-topology`, immediately below Shadow IT Explorer. New default configurations include it; saved page selections are preserved. Enable it in Personas for a saved persona where needed. The inline graph requires no new popup permission, and CMDB retains the existing `cmdb-details` control. No settings storage/schema migration is required.
@@ -20,7 +24,7 @@ Validation on 2026-11-05: all 95 focused tests across nine files, lint/types, st
 
 ## Retired Governance Overview
 
-Governance contains Trends, Cyber Terrain Insights, Installed Software Insights and Discovery Insights. The retired `governance-overview` permission is accepted in older version-2 configurations and discarded by the shared parser on read or save. Other page, section and popup selections remain unchanged; an Overview-only selection becomes an empty page selection and does not grant Trends. Unknown IDs and duplicate IDs (including the retired ID) still fail validation. The compatibility URL resolves to Trends for link-permission checks, so it cannot bypass a disabled Trends destination. The separate Discovery Insights permission is retained under its stable discovery-overview ID.
+Governance contains Trends, Cyber Terrain Insights, Installed Software Insights, Discovery Insights, End Point Insights and Security Vulnerability Insights. The retired `governance-overview` permission is accepted in older version-2 configurations and discarded by the shared parser on read or save. Other page, section and popup selections remain unchanged; an Overview-only selection becomes an empty page selection and does not grant Trends. Unknown IDs and duplicate IDs (including the retired ID) still fail validation. The compatibility URL resolves to Trends for link-permission checks, so it cannot bypass a disabled Trends destination. The separate Discovery Insights permission is retained under its stable discovery-overview ID.
 
 Upgrade: deploy the updated application and refresh browser tabs. SQL migration 031, persona schema version 2 and JSON store version 1 remain sufficient. Both providers normalize old payloads in memory without a write on read; the next explicit save appends the SQL revision or atomically saves JSON/history without the retired permission. No bulk rewrite, SQL migration or calculation-contract refresh is required. Backups and recovery follow the existing settings procedures below.
 

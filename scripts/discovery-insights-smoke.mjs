@@ -17,7 +17,9 @@ export async function checkDiscoveryInsights(page, { date, historicalDate, artif
   assert.equal(new URL(page.url()).pathname, '/governance/discovery-insights');
   assert.equal(await page.$eval('.workspace-navigation [aria-current=page]', n => n.textContent.trim()), 'Discovery Insights');
   const groups = await page.$$eval('.workspace-nav-group', nodes => nodes.map(node => ({ label: node.querySelector('.workspace-group-toggle').textContent.trim(), pages: [...node.querySelectorAll('.workspace-nav-link')].map(a => a.textContent.trim()) })));
-  assert.deepEqual(groups.find(g => g.label === 'Governance').pages.slice(-2), ['Installed Software Insights', 'Discovery Insights']);
+  const governancePages = groups.find(g => g.label === 'Governance').pages;
+  const softwareIndex = governancePages.indexOf('Installed Software Insights');
+  assert.deepEqual(governancePages.slice(softwareIndex, softwareIndex + 2), ['Installed Software Insights', 'Discovery Insights']);
   assert(!groups.find(g => g.label === 'Discovery').pages.includes('Overview'));
   assert.equal(await page.$$('.discovery-insights .insight-chapters a').then(n => n.length), 5);
   await page.$eval('.insight-footer', node => node.scrollIntoView());

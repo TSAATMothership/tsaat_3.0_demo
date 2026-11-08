@@ -10,7 +10,7 @@ Four headline measures show recorded installations, distinct named products, dis
 
 ## Software Insights briefing
 
-The briefing shares the Cyber Terrain Insights visual system: dark navy surfaces, cyan/mint accents, a large illustrated masthead, scope strip, four headline metrics, anchored chapter navigation and evidence action cards. The local software terrain illustration is conceptual, not a measured topology.
+The briefing shares the Cyber Terrain Insights visual system: dark navy surfaces, cyan/mint accents, a large illustrated masthead, scope strip, four headline metrics, anchored chapter navigation and evidence action cards. It opens directly with the infographic masthead; the hero's Software Insights title is the primary heading, with no duplicate workspace title above it. The local software terrain illustration is conceptual, not a measured topology.
 
 Four numbered chapters connect the footprint (products, installations, endpoints), concentration (share of installations in the three largest named products), variation (multiple recorded versions) and evidence improvement (missing versions, dates, sources and paths, stale or future-dated discoveries). Large figures, a product-to-installation-to-endpoint flow, ranked product bars and a version-completeness ring have visible text equivalents. Six evidence action cards show their individual counts, including zero counts. The main CTA, chapter links and back-to-top link use in-page anchors. Narratives use the selected data; no version variation or missing evidence is invented when counts are zero. Evidence actions retain the resolved snapshot and shared scope. Persona restrictions apply to all destinations.
 

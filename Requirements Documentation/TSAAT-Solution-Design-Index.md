@@ -16,6 +16,8 @@ The feature contracts below describe both SQL and JSON-backed No-SQL builds of t
 - [Life Cycle Management](16-Life-Cycle-Management.md)
 - [Measures Summary, KPIs and SPIs](08-Measures.md)
 - [Discovery Insights briefing](21-Discovery-Insights.md)
+- [End Point Insights briefing](22-End-Point-Insights.md)
+- [Security Vulnerability Insights briefing](23-Security-Vulnerability-Insights.md)
 - [Measures Trends and period comparisons](19-Measures-Trends.md)
 - [Findings Register and evidence](09-Findings-and-Evidence.md)
 - [Briefs & Reports and export contracts](10-Report-Catalogue.md)

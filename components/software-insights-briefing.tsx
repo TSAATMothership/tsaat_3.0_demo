@@ -54,7 +54,7 @@ export function SoftwareInsightsBriefing({ model, scope }: { model: InstalledSof
       </div></header>
     <section className="insight-hero" aria-labelledby="software-briefing-title">
       <div className="insight-hero-copy"><div className="insight-brand"><Image src="/tsaat-logo.png" width={34} height={34} alt="TSAAT" /><span>Know the footprint. Strengthen the evidence.</span></div>
-        <h2 id="software-briefing-title">Software<br /><em>Insights.</em></h2>
+        <h1 id="software-briefing-title">Software<br /><em>Insights.</em></h1>
         <p className="insight-lead">Understand what is installed.<br />Decide where to look next.</p>
         <p className="insight-hero-description">A connected view of software footprint, product concentration and version variation. From inventory records to focused evidence improvement.</p>
         <a className="insight-primary-link" href="#software-briefing-evidence">Read the evidence priorities<Icon name="arrow" /></a></div>

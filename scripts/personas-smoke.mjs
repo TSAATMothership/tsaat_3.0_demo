@@ -70,11 +70,13 @@ export async function checkPersonas(page, { artifacts } = {}) {
   assert(await page.$(panel + " .persona-empty"));
   assert(await page.$eval(".workspace-persona", node => node.nextElementSibling.querySelector('button[aria-controls="security-domain-options"]') !== null), "Persona is immediately before Security Domain");
   await choose("analyst");
-  assert.equal(await page.$$eval(panel + " input[type=checkbox]", nodes => nodes.length), 43);
+  assert.equal(await page.$$eval(panel + " input[type=checkbox]", nodes => nodes.length), 45);
   assert(await page.$('input[aria-label="Analyst: Discovery / Installed Software Dashboard"]'), "Software dashboard remains configurable");
   assert(await page.$('input[aria-label="Analyst: Governance / Installed Software Insights"]'), "Governance software briefing is independently configurable");
   assert.equal(await page.$('input[aria-label="Analyst: Governance / Overview"]'), null);
   assert(await page.$('input[aria-label="Analyst: Governance / Discovery Insights"]'), "Discovery Insights remains configurable");
+  assert(await page.$('input[aria-label="Analyst: Governance / End Point Insights"]'), "End Point Insights is independently configurable");
+  assert(await page.$('input[aria-label="Analyst: Governance / Security Vulnerability Insights"]'), "Security Vulnerability Insights is independently configurable");
   // Space toggles a labelled checkbox; discard returns to the saved state.
   await togglePermission("Analyst", "Governance");
   assert.equal(await page.$eval(check("Analyst", "Governance"), node => node.checked), false);
@@ -131,7 +133,7 @@ export async function checkPersonas(page, { artifacts } = {}) {
         await press('[aria-label="Next permissions"]');
       }
     }
-    assert.equal(reached.size, 43, "Every section, page and popup remains reachable without scrolling");
+    assert.equal(reached.size, 45, "Every section, page and popup remains reachable without scrolling");
     await showPermissionView("discovery");
     assert(await page.$eval(panel, node => node.scrollWidth <= node.clientWidth + 1), "Persona settings fit the viewport width");
     assert(await page.$eval(dialog, node => { const bounds = node.getBoundingClientRect(); return bounds.left >= 0 && bounds.right <= innerWidth; }));

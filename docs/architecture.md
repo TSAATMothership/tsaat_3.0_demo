@@ -1,5 +1,11 @@
 # Architecture
 
+Endpoint/vulnerability Insight report APIs validate header scope/domains/date, reuse the page's overview plus snapshot-pinned facade projection, and render vector PDFs through the existing report layout helper. Download links contain only header scope and resolved date; errors are sanitized and responses are not cached. Both providers share this presentation path. See [report contracts](inventory-insights-reports.md).
+
+Security Vulnerability Insights composes the existing Discovery Insights measures with the vulnerability Explorer facade at the resolved snapshot. Its charts and missing-value cards use the same shared table facets as Security Vulnerability Explorer, without changing provider operations or rules. The new Governance ID preserves saved persona page lists. See [the feature contract](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md).
+
+End Point Insights reuses the Discovery Insights loader/model and the endpoint facade at its resolved snapshot. It presents existing Explorer facet counts without adding provider queries or calculations. Its new Governance navigation ID follows existing persona defaults and preserves saved page selections. See [the feature contract](../Requirements%20Documentation/22-End-Point-Insights.md).
+
 Discovery Insights moves the existing discovery overview model into a Governance briefing at `/governance/discovery-insights`; its old URL redirects before reading evidence. The stable `discovery-overview` persona ID is preserved in the Governance group. No stored settings, providers or calculations change.
 
 Model CI CMDB support keeps Business Service/Mission Capability identity in their existing snapshot association sources. `lib/cmdb-ci-types.ts` declares their CMDB classes; `lib/cmdb-model-ci.ts` resolves type/ID and scoped associations through common selectors. The existing CMDB API dispatches optional model types and uses the same attribute-loader facade and modal provider. SQL migration 032 and an explicit JSON reference upgrade extend configurable fields together. See [ADR 0021](adr/0021-model-ci-cmdb.md).

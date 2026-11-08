@@ -40,7 +40,9 @@ export async function checkInstalledSoftwareInsights(page, { date, historicalDat
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
     assert.equal(new URL(page.url()).pathname, '/governance/installed-software-insights');
     assert.equal(await page.$eval('.workspace-navigation [aria-current=page]', node => node.textContent.trim()), 'Installed Software Insights');
-    assert.equal(await page.$eval('.software-insights h1', node => node.textContent), 'Installed Software Insights');
+    assert.equal(await page.$$eval('.software-insights h1', nodes => nodes.length), 1);
+    assert.equal(await page.$eval('#software-briefing-title', node => node.tagName), 'H1');
+    assert.equal(await page.$('.software-insights.is-story > .software-insights-hero'), null);
     assert.equal(await page.$eval('.software-insights', node => Number(node.dataset.softwareTotal)), total);
     assert.equal(await page.$('.software-insights [role=tablist]'), null);
     for (const [key, value] of new URLSearchParams(scope.query)) assert.equal(new URL(page.url()).searchParams.get(key), value);
