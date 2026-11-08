@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08 - Discovery Insights
+
+- Replaced Discovery Overview with a five-chapter Discovery Insights infographic under Governance, immediately below Installed Software Insights. Removed Overview from the Discovery sidebar.
+- Retained the existing scoped discovery counts, Explorer evidence links and PDF export, with a new illustrated briefing and Discovery Insights report title. Old Overview bookmarks redirect to the new page.
+- Preserved the existing persona page ID and saved selections; Governance and the page must both be enabled for persona navigation.
+
 ## 2026-11-08 - Measures Trends viewport layout
 
 - Redesigned Measures Trends around a compact toolbar and adjacent indicator/chart panels that fit the desktop workspace. Indicator lists and expanded details scroll inside their panels; definitions, guidance and snapshot evidence remain available on demand. Narrow screens retain a stacked layout.

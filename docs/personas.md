@@ -1,5 +1,7 @@
 # Personas
 
+Discovery Insights retains the stable `discovery-overview` page ID and moves to Governance below Installed Software Insights. Existing saved section/page selections are unchanged: both Governance and this page must be enabled. No read grants Governance or substitutes another page permission. The legacy Overview URL resolves to the same permission.
+
 Topology Explorer adds the Discovery page ID `discovery-topology`, immediately below Shadow IT Explorer. New default configurations include it; saved page selections are preserved. Enable it in Personas for a saved persona where needed. The inline graph requires no new popup permission, and CMDB retains the existing `cmdb-details` control. No settings storage/schema migration is required.
 
 Measures Trends is an Observed Measures page with stable ID `measures-trends`. New default configurations include it. Existing saved page selections remain unchanged; enable the page explicitly in Personas where required. Its links to KPI/SPI evidence use the existing persona-aware navigation checks. No settings schema or storage migration is introduced.
@@ -18,7 +20,7 @@ Validation on 2026-11-05: all 95 focused tests across nine files, lint/types, st
 
 ## Retired Governance Overview
 
-Governance contains Trends, Cyber Terrain Insights and Installed Software Insights. The retired `governance-overview` permission is accepted in older version-2 configurations and discarded by the shared parser on read or save. Other page, section and popup selections remain unchanged; an Overview-only selection becomes an empty page selection and does not grant Trends. Unknown IDs and duplicate IDs (including the retired ID) still fail validation. The compatibility URL resolves to Trends for link-permission checks, so it cannot bypass a disabled Trends destination. Discovery Overview is unaffected.
+Governance contains Trends, Cyber Terrain Insights, Installed Software Insights and Discovery Insights. The retired `governance-overview` permission is accepted in older version-2 configurations and discarded by the shared parser on read or save. Other page, section and popup selections remain unchanged; an Overview-only selection becomes an empty page selection and does not grant Trends. Unknown IDs and duplicate IDs (including the retired ID) still fail validation. The compatibility URL resolves to Trends for link-permission checks, so it cannot bypass a disabled Trends destination. The separate Discovery Insights permission is retained under its stable discovery-overview ID.
 
 Upgrade: deploy the updated application and refresh browser tabs. SQL migration 031, persona schema version 2 and JSON store version 1 remain sufficient. Both providers normalize old payloads in memory without a write on read; the next explicit save appends the SQL revision or atomically saves JSON/history without the retired permission. No bulk rewrite, SQL migration or calculation-contract refresh is required. Backups and recovery follow the existing settings procedures below.
 

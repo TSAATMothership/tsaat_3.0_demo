@@ -4,7 +4,7 @@ Life Cycle Management follows Patch Management Explorer, highlighting servers wi
 
 Current contract: TSAAT UI 3 baseline, 2026-11-03. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 
-Current sidebar views are Overview, Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Patch Management Explorer, Life Cycle Management, Shadow IT Explorer and Topology Explorer. They share applied header scope and snapshot. Target State Analyser is not a navigation page; compatibility report/template APIs may remain.
+Current sidebar views are Discovery Tool Coverage, Discovery Compliance Explorer, End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Patch Management Explorer, Life Cycle Management, Shadow IT Explorer and Topology Explorer. They share applied header scope and snapshot. Target State Analyser is not a navigation page; compatibility report/template APIs may remain.
 
 Discovery Tool Coverage and Discovery Compliance Explorer have no page-level Environment or Asset Type controls or empty filter row. Their shared header scope/date controls and table search/facets remain available. Existing bookmarked query parameters and provider filtering remain compatible.
 
@@ -37,7 +37,7 @@ Sources: app/discovery-coverage/page.tsx, lib/discovery-*.ts, endpoint-explorer.
 Retired network-status/discovery-by-network presentation modules are removed. Current explorers, CMDB routes, target-state comparison data and template/report APIs remain supported. Fresh-install validation checks current evidence mappings rather than the retired CI assignment/owner purposes.
 
 
-All Discovery views additionally honor the global Security Domain scope. Endpoint, software, vulnerability and patch rows filter using the endpoint domain; model lists use their own domain. End Point Explorer table and workbook expose Security Domain. Overview counts and destination links retain the same applied domain and selected snapshot.
+All Discovery views additionally honor the global Security Domain scope. Endpoint, software, vulnerability and patch rows filter using the endpoint domain; model lists use their own domain. End Point Explorer table and workbook expose Security Domain. Discovery Insights counts and destination links retain the same applied domain and selected snapshot.
 
 
-Discovery Overview now provides Download overview PDF. The generated report includes every overview section, vector charts and tables, a per-tool coverage report-card chart, shared suggested actions and calculation notes. It preserves header scope/domains and the actual snapshot, including empty results. See [report design and contract](../docs/discovery-overview-report.md).
+Discovery Overview is replaced by Governance > Discovery Insights, immediately below Installed Software Insights. Its five-chapter infographic retains the existing discovery evidence, Explorer drill-throughs and Generate PDF export. The old Overview URL redirects with scope/date intact. See [Discovery Insights](21-Discovery-Insights.md) and the [report contract](../docs/discovery-overview-report.md).

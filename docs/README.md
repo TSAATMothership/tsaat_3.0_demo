@@ -15,7 +15,8 @@ This documentation describes the current source. SQL and TypeScript define exact
 | CI lookup, Business Impact and communication Dependencies | [Topology Explorer](../Requirements%20Documentation/20-Topology-Explorer.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
 | Persona selection, sidebar visibility and settings upgrades | [Personas](personas.md) |
-| Discovery Overview PDF sections and scope | [Discovery Overview report](discovery-overview-report.md) |
+| Discovery infographic and Explorer evidence | [Discovery Insights](../Requirements%20Documentation/21-Discovery-Insights.md) |
+| Discovery Insights PDF sections and scope | [Discovery Insights report](discovery-overview-report.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |

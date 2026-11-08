@@ -1,3 +1,4 @@
+import { checkDiscoveryInsights } from "./discovery-insights-smoke.mjs";
 import { checkSoftwareInsightsPdf } from "./software-insights-pdf-smoke.mjs";
 ﻿import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -184,77 +185,7 @@ try {
   await navigate('/governance/overview', '');
   assert.equal(new URL(page.url()).pathname, '/governance/trends');
   assert.equal(await page.$('.governance-trends h1'), null);
-  // Overview counts and destinations must agree for both scope kinds and resolved historical dates.
-  for (const overviewScope of [{ query: 'network=net-1', date }, { query: 'system=sys-1', date: storage.snapshots[0].date }]) {
-    const overviewUrl = base + '/discovery-coverage?discoveryView=overview&' + overviewScope.query + '&dataDate=' + overviewScope.date;
-    await page.goto(overviewUrl, { waitUntil: 'networkidle0' });
-    assert(await page.$('[aria-label="Open Security Vulnerability Explorer"]'));
-    assert(await page.$('[aria-label="Open Patch Management Explorer"]'));
-    assert.equal(await page.$eval('.discovery-overview-snapshot strong', node => node.textContent), overviewScope.date);
-    const reportSelector='button[data-overview-report]';
-    const reportHref=await page.$eval(reportSelector,node=>node.getAttribute('data-overview-report'));
-    const reportQuery=new URL(reportHref,base).searchParams;
-    assert.equal(reportQuery.get('dataDate'),overviewScope.date);
-    assert.equal(reportQuery.get(overviewScope.query.startsWith('network') ? 'network' : 'system'),overviewScope.query.split('=')[1]);
-    const reportResponsePromise=page.waitForResponse(response=>response.url()===base+reportHref);
-    await page.focus(reportSelector); await page.keyboard.press('Enter');
-    const reportResponse=await reportResponsePromise;
-    assert.equal(reportResponse.status(),200);
-    assert(reportResponse.headers()['content-type'].includes('application/pdf'));
-    // Chrome may evict the fetch response body after a Blob download; verify the actual saved file.
-    const downloadedReport=path.join(downloadDirectory,'discovery-overview-'+overviewScope.date+'.pdf');
-    const downloadDeadline=Date.now()+15000;
-    while(!fs.existsSync(downloadedReport)&&Date.now()<downloadDeadline) await new Promise(resolve=>setTimeout(resolve,100));
-    assert(fs.existsSync(downloadedReport),'The Overview PDF must download successfully');
-    const overviewPdf=fs.readFileSync(downloadedReport);
-    const overviewDocument=await PDFDocument.load(overviewPdf);
-    assert.equal(overviewDocument.getTitle(),'Discovery Overview Report');
-    assert(overviewDocument.getPageCount()>=9);
-    await page.waitForFunction(()=>!document.querySelector('button[data-overview-report]')?.disabled);
-    if(process.env.TSAAT_TEST_ARTIFACT_DIR){
-      fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR,{recursive:true});
-      fs.writeFileSync(path.join(process.env.TSAAT_TEST_ARTIFACT_DIR,overviewScope.query.startsWith('network') ? 'discovery-overview.pdf' : 'discovery-overview-historical-system.pdf'),overviewPdf);
-    }
-    const overviewLinks = await page.$$eval('.discovery-overview a[data-overview-count]', nodes => nodes.map(node => ({ href: node.getAttribute('href'), count: Number(node.getAttribute('data-overview-count')) })));
-    const overviewTargets = overviewLinks.filter(link => {
-      const params = new URL(link.href, base).searchParams;
-      const filters = JSON.parse(params.get('discoveryFilters') || '{}');
-      return (params.get('discoveryView') === 'security-vulnerabilities' && filters.columns?.severity?.length === 2) ||
-        (params.get('discoveryView') === 'patch-management' && (filters.ranges?.daysOverdue?.min === 1 || filters.columns?.status?.[0] === 'Unknown'));
-    }).filter((link, index, links) => links.findIndex(item => item.href === link.href) === index);
-    assert.equal(overviewTargets.length, 3);
-    if (overviewScope.query.startsWith('network')) {
-      if (process.env.TSAAT_TEST_ARTIFACT_DIR) {
-        fs.mkdirSync(process.env.TSAAT_TEST_ARTIFACT_DIR, { recursive: true });
-        await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'discovery-overview-desktop.png'), fullPage: true });
-      }
-      await page.setViewport({ width: 390, height: 844 }); await page.click('[aria-label="Hide sidebar"]');
-      await page.waitForFunction(() => document.querySelector('.workspace-sidebar')?.getBoundingClientRect().width < 50);
-      assert(await page.$eval('.workspace-content', node => node.scrollWidth <= node.clientWidth + 1));
-      await page.$eval('[data-discovery-security]', node => node.scrollIntoView({ block: 'start' }));
-      if (process.env.TSAAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'discovery-overview-narrow.png'), fullPage: true });
-      await page.setViewport({ width: 1600, height: 1000 }); await page.click('[aria-label="Show sidebar"]');
-    }
-    for (const link of overviewTargets) {
-      await page.goto(overviewUrl, { waitUntil: 'networkidle0' });
-      await page.focus(`.discovery-overview a[href="${link.href}"]`);
-      await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
-      const destination = new URL(page.url());
-      assert.equal(destination.searchParams.get('dataDate'), overviewScope.date);
-      const [kind, id] = overviewScope.query.split('='); assert.equal(destination.searchParams.get(kind), id);
-      const table = destination.searchParams.get('discoveryView') === 'patch-management' ? '.patch-results' : '.vulnerability-results';
-      assert.equal(await page.$eval(table + ' .endpoint-toolbar h2 span', node => Number(node.textContent.replaceAll(',', ''))), link.count);
-      assert(await page.$(table + ' .endpoint-active-filters'));
-      if (table === '.patch-results') {
-        const initial = await page.$eval(table + ' .endpoint-toolbar h2 span', node => node.textContent);
-        await page.click('#patch-explorer-tab-restarts'); await page.click('#patch-explorer-tab-posture');
-        assert.equal(await page.$eval(table + ' .endpoint-toolbar h2 span', node => node.textContent), initial);
-      }
-    }
-  }
-  await navigate('/discovery-coverage?discoveryView=overview', 'network=missing-network');
-  assert((await page.$eval('[data-discovery-security]', node => node.textContent)).includes('N/A patched & verified'));
-  assert((await page.$eval('[data-discovery-security]', node => node.textContent)).includes('No vulnerability observations'));
+  await checkDiscoveryInsights(page, { date, historicalDate: storage.snapshots[0].date, directory: downloadDirectory, artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   await navigate('/discovery-coverage?discoveryView=endpoints');
   const endpointLayout = await page.$eval('.endpoint-results', node => ({
     width: node.getBoundingClientRect().width,

@@ -2,7 +2,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PersonaProvider } from "@/components/persona-provider";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DiscoveryOverview } from "@/components/discovery-overview";
+import { DiscoveryInsights } from "@/components/discovery-insights";
 import { createAssetTypeRecord } from "@/lib/asset-taxonomy";
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-coverage";
@@ -122,7 +122,7 @@ describe("discovery overview findings", () => {
 
 describe("overview explorer drill-through", () => {
   it("renders vulnerability and patch links whose filtered rows exactly match every displayed count", () => {
-    const html = renderToStaticMarkup(React.createElement(PersonaProvider, { children: React.createElement(DiscoveryOverview, { model: buildDiscoveryOverview(input), scope }) }));
+    const html = renderToStaticMarkup(React.createElement(PersonaProvider, { children: React.createElement(DiscoveryInsights, { model: buildDiscoveryOverview(input), scope }) }));
     let checked = 0;
     for (const match of html.matchAll(/<a\b([^>]+)>/g)) {
       const href = match[1].match(/href="([^"]+)"/)?.[1].replaceAll("&amp;", "&");

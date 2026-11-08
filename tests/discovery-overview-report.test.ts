@@ -31,7 +31,7 @@ beforeEach(()=>{
   vi.mocked(data.loadDiscoveryToolsSettings).mockResolvedValue(settings);
   for(const loader of [data.loadEndpointExplorerData,data.loadInstalledSoftwareExplorerData,data.loadShadowItExplorerData,data.loadSecurityVulnerabilityExplorerData,data.loadPatchManagementExplorerData])vi.mocked(loader).mockResolvedValue({snapshotDate,rows:[]});
 });
-describe("Discovery Overview report",()=>{
+describe("Discovery Insights report",()=>{
   it("loads one resolved snapshot and forwards identical domain/scope to every projection",async()=>{
     const result=await loadDiscoveryOverview({network:["net-1","net-2"],securityDomain:"NONE",dataDate:"2026-03-06",assetType:"server",discoveryFilters:"local"});
     expect(data.loadDatasetForDate).toHaveBeenCalledExactlyOnceWith("2026-03-06",{profile:"summary"});
@@ -44,7 +44,7 @@ describe("Discovery Overview report",()=>{
   });
   it("renders every overview section and explicit empty denominators into a valid PDF",async()=>{
     const {doc,text}=await readPdf(await createDiscoveryOverviewPdf(fixture(),new Date("2026-11-04T01:00:00Z")));
-    expect(doc.getTitle()).toBe("Discovery Overview Report");expect(doc.getPageCount()).toBe(9);
+    expect(doc.getTitle()).toBe("Discovery Insights Report");expect(doc.getPageCount()).toBe(9);
     for(const heading of ["Summary and scope","Discovery tool coverage - report cards","Tool coverage detail and CI footprint","Security vulnerabilities","Server patch management","Endpoint discovery","Software inventory","Shadow IT","Suggested actions and calculation notes"])expect(text).toContain(heading);
     expect(text).toContain("None selected");expect(text).toContain("N/A");expect(text).toContain("Example network (net-1)");
     expect(text).toContain("does not establish");expect(text).not.toContain("NaN");

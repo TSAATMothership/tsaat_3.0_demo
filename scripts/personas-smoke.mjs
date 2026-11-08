@@ -74,7 +74,7 @@ export async function checkPersonas(page, { artifacts } = {}) {
   assert(await page.$('input[aria-label="Analyst: Discovery / Installed Software Dashboard"]'), "Software dashboard remains configurable");
   assert(await page.$('input[aria-label="Analyst: Governance / Installed Software Insights"]'), "Governance software briefing is independently configurable");
   assert.equal(await page.$('input[aria-label="Analyst: Governance / Overview"]'), null);
-  assert(await page.$('input[aria-label="Analyst: Discovery / Overview"]'), "Discovery Overview remains configurable");
+  assert(await page.$('input[aria-label="Analyst: Governance / Discovery Insights"]'), "Discovery Insights remains configurable");
   // Space toggles a labelled checkbox; discard returns to the saved state.
   await togglePermission("Analyst", "Governance");
   assert.equal(await page.$eval(check("Analyst", "Governance"), node => node.checked), false);
@@ -225,7 +225,9 @@ export async function checkPersonas(page, { artifacts } = {}) {
   await page.waitForFunction(() => document.querySelector("#settings-panel-personas")?.textContent.includes("Personas saved"));
   await close();
   assert.equal(await page.$('#workspace-navigation a[href*="discoveryView=endpoints"]'), null);
-  assert(await page.$('#workspace-navigation a[href*="discoveryView=overview"]'));
+  assert.equal(await page.$('#workspace-navigation a[href*="discoveryView=overview"]'), null);
+  assert.equal(await page.$('#workspace-navigation a[href^="/governance/discovery-insights"]'), null, "Moving the page does not grant Governance to a Discovery-only persona");
+  assert(await page.$('#workspace-navigation a[href*="discoveryView=installed-software"]'));
   const origin = new URL(url).origin;
   const scope = new URLSearchParams(originalScope);
   // These drill-through fixtures need populated sample rows; the original scoped URL is restored below.
@@ -236,13 +238,13 @@ export async function checkPersonas(page, { artifacts } = {}) {
     await page.waitForFunction(() => !document.querySelector("#workspace-navigation")?.textContent.includes("Loading personas"));
   };
   await visit("/discovery-coverage", { discoveryView: "overview" });
-  const disabledLink = '.discovery-overview a[data-persona-disabled="true"]';
+  const disabledLink = '.discovery-insights a[data-persona-disabled="true"]';
   await page.waitForSelector(disabledLink);
   assert(await page.$eval(disabledLink, node => node.getAttribute("aria-disabled") === "true" && !node.hasAttribute("href") && node.tabIndex === -1));
   const overviewUrl = page.url();
   await page.$eval(disabledLink, node => node.click());
   assert.equal(page.url(), overviewUrl);
-  assert(await page.$('.discovery-overview a[href*="discoveryView=installed-software"]'), "Other Discovery pages still work");
+  assert(await page.$('.discovery-insights a[href*="discoveryView=installed-software"]'), "Other Discovery pages still work");
   // Existing direct URLs still load; their new-tab drill-throughs follow the destination permission.
   await visit("/network-risk-profile");
   await press("#network-risk-tab-explorer");

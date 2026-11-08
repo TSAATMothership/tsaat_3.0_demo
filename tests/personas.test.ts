@@ -113,7 +113,7 @@ describe("persona navigation preferences", () => {
     const settings = defaultPersonaSettings();
     settings.personas[0].pages = ["discovery-overview"];
     settings.personas[0].popups = ["cmdb-details"];
-    expect(personaShowsSection(settings, "analyst", "discovery")).toBe(true);
+    expect(personaShowsSection(settings, "analyst", "governance")).toBe(true);
     expect(personaShowsSection(settings, "analyst", "findings")).toBe(false);
     expect(personaShowsPage(settings, "analyst", "discovery-tools")).toBe(false);
     expect(personaShowsPage(settings, "life-cycle-management", "discovery-tools")).toBe(true);

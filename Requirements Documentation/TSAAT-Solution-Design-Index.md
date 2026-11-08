@@ -15,6 +15,7 @@ The feature contracts below describe both SQL and JSON-backed No-SQL builds of t
 - [Installed Software Dashboard and Governance Insights](18-Installed-Software-Insights.md)
 - [Life Cycle Management](16-Life-Cycle-Management.md)
 - [Measures Summary, KPIs and SPIs](08-Measures.md)
+- [Discovery Insights briefing](21-Discovery-Insights.md)
 - [Measures Trends and period comparisons](19-Measures-Trends.md)
 - [Findings Register and evidence](09-Findings-and-Evidence.md)
 - [Briefs & Reports and export contracts](10-Report-Catalogue.md)

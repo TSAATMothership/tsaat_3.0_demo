@@ -9,12 +9,12 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | Trends | `/governance/trends` | Both scope types |
 | Cyber Terrain Insights | `/governance/insights` | Both scope types |
 | Installed Software Insights | `/governance/installed-software-insights` | Both scope types |
+| Discovery Insights | `/governance/discovery-insights` | Both scope types |
 | Network Risk Profile | `/network-risk-profile` | network |
 | ICT System Risk Profile | `/ict-system-risk-profile` | system |
 | Service Impact Analyser | `/cyber-cop?copView=impact` | Both scope types |
 | ICT System Impact Analyser | `/cyber-cop?copView=ict-system-impact-analyser` | system |
 | ICT System Dependencies | `/cyber-cop?copView=ict-system-dependencies` | system |
-| Overview | `/discovery-coverage?discoveryView=overview` | Both scope types |
 | Discovery Tool Coverage | `/discovery-coverage` | Both scope types |
 | Discovery Compliance Explorer | `/discovery-coverage?discoveryView=compliance` | Both scope types |
 | End Point Explorer | `/discovery-coverage?discoveryView=endpoints` | Both scope types |
@@ -88,6 +88,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/cyber-cop` | Page | [Source](../../app/cyber-cop/page.tsx) |
 | `/discovery-coverage` | Page | [Source](../../app/discovery-coverage/page.tsx) |
 | `/findings` | Page | [Source](../../app/findings/page.tsx) |
+| `/governance/discovery-insights` | Page | [Source](../../app/governance/discovery-insights/page.tsx) |
 | `/governance/insights` | Page | [Source](../../app/governance/insights/page.tsx) |
 | `/governance/installed-software-insights` | Page | [Source](../../app/governance/installed-software-insights/page.tsx) |
 | `/governance/overview` | Page | [Source](../../app/governance/overview/page.tsx) |

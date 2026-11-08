@@ -116,6 +116,7 @@ export function personaDestination(href: string): { pageId?: string; popup?: Per
     if (tab === "spi-settings") return {}; // Settings compatibility route always stays available.
     url.searchParams.set("measuresTab", tab);
   }
+  if (pathname === "/discovery-coverage" && url.searchParams.get("discoveryView") === "overview") pathname = "/governance/discovery-insights";
   if (pathname === "/discovery-coverage" && !PERSONA_PAGES.some(page => page.href.includes(`discoveryView=${url.searchParams.get("discoveryView")}`))) {
     url.searchParams.set("discoveryView", "tools"); // Same fallback as the page, including tools-2.
   }

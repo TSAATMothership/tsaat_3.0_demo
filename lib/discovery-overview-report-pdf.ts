@@ -42,7 +42,7 @@ class OverviewPdf {
   }
   pageFor(section: string, continued = false) {
     this.section = section;
-    const result = createReportPage({ pdfDoc: this.doc, pageTitle: "Discovery Overview Report", snapshotDate: this.date, fontRegular: this.regular, fontBold: this.bold });
+    const result = createReportPage({ pdfDoc: this.doc, pageTitle: "Discovery Insights Report", snapshotDate: this.date, fontRegular: this.regular, fontBold: this.bold });
     this.page = result.page; this.y = result.y;
     for (const title of this.wrap(section + (continued ? " - continued" : ""), WIDTH, 17, this.bold)) {
       this.text(title,LEFT,this.y,17,true); this.y -= 22;
@@ -153,7 +153,7 @@ class OverviewPdf {
 export async function createDiscoveryOverviewPdf(data: DiscoveryOverviewData, generatedAt = new Date()): Promise<Uint8Array> {
   if (!Number.isFinite(generatedAt.getTime())) throw Error("Invalid report generation date.");
   const doc=await PDFDocument.create(),regular=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
-  doc.setTitle("Discovery Overview Report"); doc.setAuthor("TSAAT"); doc.setCreationDate(generatedAt);
+  doc.setTitle("Discovery Insights Report"); doc.setAuthor("TSAAT"); doc.setCreationDate(generatedAt);
   const pdf=new OverviewPdf(doc,regular,bold,data.model.snapshotDate);
   const {coverage,endpoints,software,vulnerabilities,patches,shadow}=data.model;
   const ageColors=[teal,rgb(.1,.52,.7),amber,red,rgb(.47,.37,.64),grey];
@@ -182,7 +182,7 @@ export async function createDiscoveryOverviewPdf(data: DiscoveryOverviewData, ge
     ["Server patch management",count(patches.total),"Servers"],
     ["Shadow IT",count(shadow.total),"Unidentified IP nodes"]
   ],[230,70,WIDTH-300]);
-  pdf.paragraph("These totals describe different inventories and must not be added together. All sections use the same applied header scope and resolved snapshot as Discovery Overview.");
+  pdf.paragraph("These totals describe different inventories and must not be added together. All sections use the same applied header scope and resolved snapshot as Discovery Insights.");
 
   pdf.pageFor("Discovery tool coverage - report cards");
   pdf.cards([{label:"Required tool coverage",value:percent(coverage.percent)},{label:"Compliant CIs",value:count(coverage.compliant),color:teal},{label:"CIs with gaps",value:count(coverage.gaps),color:red}]);

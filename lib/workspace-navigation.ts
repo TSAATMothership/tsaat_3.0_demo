@@ -68,7 +68,8 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { id: "governance", label: "Governance", items: [
     { id: "governance-trends", label: "Trends", href: "/governance/trends" },
     { id: "governance-insights", label: "Cyber Terrain Insights", href: "/governance/insights" },
-    { id: "governance-software-insights", label: "Installed Software Insights", href: "/governance/installed-software-insights" }
+    { id: "governance-software-insights", label: "Installed Software Insights", href: "/governance/installed-software-insights" },
+    { id: "discovery-overview", label: "Discovery Insights", href: "/governance/discovery-insights" }
   ] },
   { id: "cyber-security", label: "Cyber Security", items: [
     { id: "network-risk-profile", label: "Network Risk Profile", href: "/network-risk-profile", scope: "network" },
@@ -78,7 +79,6 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
     { id: "ict-system-dependencies", label: "ICT System Dependencies", href: "/cyber-cop?copView=ict-system-dependencies", scope: "system" }
   ] },
   { id: "discovery", label: "Discovery", items: [
-    { id: "discovery-overview", label: "Overview", href: "/discovery-coverage?discoveryView=overview" },
     { id: "discovery-tools", label: "Discovery Tool Coverage", href: "/discovery-coverage" },
     { id: "discovery-compliance", label: "Discovery Compliance Explorer", href: "/discovery-coverage?discoveryView=compliance" },
     { id: "discovery-endpoints", label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
@@ -122,6 +122,7 @@ export function workspaceHref(href: string, current: URLSearchParams): string {
 
 export function activeWorkspaceItem(pathname: string, params: URLSearchParams): WorkspaceItem | undefined {
   pathname = workspaceViewPathname(pathname);
+  if (pathname === "/discovery-coverage" && params.get("discoveryView") === "overview") pathname = "/governance/discovery-insights";
   const items = [...WORKSPACE_GROUPS.flatMap((group) => group.items), ...WORKSPACE_LINKS];
   return items.find((item) => {
     const target = new URL(item.href, "http://localhost");

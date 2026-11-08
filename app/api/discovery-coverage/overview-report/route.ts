@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
   try {
     const data=await loadDiscoveryOverview(scope), bytes=await createDiscoveryOverviewPdf(data);
     return new Response(Uint8Array.from(bytes).buffer,{headers:{
-      "Content-Type":"application/pdf", "Content-Disposition":'attachment; filename="discovery-overview-'+data.model.snapshotDate+'.pdf"',
+      "Content-Type":"application/pdf", "Content-Disposition":'attachment; filename="discovery-insights-'+data.model.snapshotDate+'.pdf"',
       "Cache-Control":"no-store"
     }});
   } catch {
-    return NextResponse.json({error:"Unable to generate the Discovery Overview report. Please retry."},{status:503});
+    return NextResponse.json({error:"Unable to generate the Discovery Insights report. Please retry."},{status:503});
   }
 }

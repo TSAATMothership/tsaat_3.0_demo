@@ -1,8 +1,8 @@
 import { securityDomainFilter } from "@/lib/security-domain.mjs";
-import { DiscoveryOverview } from "@/components/discovery-overview";
+import { redirect } from "next/navigation";
+import { insightsHref } from "@/lib/governance-insights";
 import { LifeCycleManagement } from "@/components/life-cycle-management";
 import { loadLifeCycleManagement } from "@/lib/life-cycle-management-data";
-import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
 import { initialDiscoveryFilters } from "@/lib/discovery-explorer-links";
 import { emptyEndpointFilters, parseEndpointFilters } from "@/lib/endpoint-explorer";
 import { emptySoftwareFilters, parseSoftwareFilters } from "@/lib/installed-software-explorer";
@@ -40,8 +40,9 @@ const pendingDiscoveryViews: Record<string, string> = {
 };
 
 export default async function DiscoveryCoveragePage({ searchParams }: { searchParams: WorkspaceSearchParams }) {
-  if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
   const requestedView = Array.isArray(searchParams.discoveryView) ? searchParams.discoveryView[0] : searchParams.discoveryView;
+  if (requestedView === "overview") redirect(insightsHref(searchParams, "/governance/discovery-insights"));
+  if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
   if (requestedView === "topology") {
     const ready = <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
     try {
@@ -104,10 +105,6 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
       <SecurityVulnerabilityExplorer key={JSON.stringify([data.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain, initialFilters])}
         initialFilters={initialFilters} rows={data.rows} snapshotDate={data.snapshotDate}
         scope={{ network: scopeIds(searchParams.network), system: scopeIds(searchParams.system), securityDomain: securityDomainFilter(searchParams.securityDomain), dataDate: data.snapshotDate }} /></>;
-  }
-  if (requestedView === "overview") {
-    const { model, scope: snapshotScope } = await loadDiscoveryOverview(searchParams);
-    return <><RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} /><DiscoveryOverview model={model} scope={snapshotScope} /></>;
   }
   if (requestedView === "shadow-it") {
     const data = await loadShadowItExplorerData(searchParams);

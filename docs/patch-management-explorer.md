@@ -2,7 +2,7 @@
 
 Discovery places this page immediately after Security Vulnerability Explorer at `/discovery-coverage?discoveryView=patch-management`. It is a read-only server maintenance register, with applied network or ICT-system scope and the resolved historical snapshot. Device names open the shared CMDB panel.
 
-Discovery Overview reuses these canonical rows for status, verified percentage, overdue actions and unknown-evidence summaries. Its links initialize validated `discoveryFilters` on Patch posture (status facets or overdue numeric ranges), preserving network/system scope and the actual snapshot. The initial filters remain in that tab when changing views and apply to its Excel export. Malformed or oversized payloads open the unfiltered default view.
+Discovery Insights reuses these canonical rows for status, verified percentage, overdue actions and unknown-evidence summaries. Its links initialize validated `discoveryFilters` on Patch posture (status facets or overdue numeric ranges), preserving network/system scope and the actual snapshot. The initial filters remain in that tab when changing views and apply to its Excel export. Malformed or oversized payloads open the unfiltered default view.
 
 ## Views and interpretation
 

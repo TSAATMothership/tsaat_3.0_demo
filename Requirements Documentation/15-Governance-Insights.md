@@ -18,7 +18,7 @@ Five anchored chapters cover:
 
 `loadGovernanceInsights` composes `loadDiscoveryOverview` and `getCoreAppData` through the shared data-loader facade. Discovery resolves the date first; Service Impact is pinned to it. A snapshot mismatch fails the briefing. Only header network/system, security-domain and date filters are forwarded; unrelated explorer filters cannot silently narrow the page. Evidence links retain the resolved date and scope.
 
-`buildGovernanceInsights` uses the existing Service Impact model and Discovery Overview projection. It deduplicates findings by ID and retains configured severity labels. Critical/high finding counts use canonical severity keys; CVE source severity remains a separate measure. Service rows may share findings and are explicitly non-additive. Unattributed open findings are disclosed separately, without inferring system/service links.
+`buildGovernanceInsights` uses the existing Service Impact model and Discovery Insights projection. It deduplicates findings by ID and retains configured severity labels. Critical/high finding counts use canonical severity keys; CVE source severity remains a separate measure. Service rows may share findings and are explicitly non-additive. Unattributed open findings are disclosed separately, without inferring system/service links.
 
 Discovery percentages use required tool checks, not all endpoints. Patched percentage uses all scoped servers, including Unknown. Absent denominators display N/A. Discovery age is snapshot-relative. Existing CVE/patch definitions, SPI/KPI rules and calculations are unchanged. No new SQL query, provider operation, schema, migration, JSON format, persisted metric, package or external service is introduced. The calculation-contract guard remains unchanged.
 
