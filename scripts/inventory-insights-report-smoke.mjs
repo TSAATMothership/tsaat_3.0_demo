@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PDFDocument } from 'pdf-lib';
 import { securityDomainSelection } from '../lib/security-domain.mjs';
+import { checkInsightsPdfDownload } from './insights-pdf-smoke.mjs';
 
 export async function checkInventoryInsightsReports(page, { date, historicalDate, directory, artifacts }) {
   const base = new URL(page.url()).origin, button = 'button[data-insights-report]';
@@ -24,47 +24,12 @@ export async function checkInventoryInsightsReports(page, { date, historicalDate
         assert.equal(target.searchParams.has('discoveryFilters'), false);
         const metrics = await page.$$eval('.insight-headline-metrics .insight-metric', nodes => nodes.map(node => ({ label: node.querySelector('span').textContent, value: node.querySelector('strong').textContent })));
         assert.equal(Number(metrics[0].value.replaceAll(',', '')) > 0, name !== 'empty');
-        const file = path.join(directory, `${slug}-${snapshot}.pdf`); if (fs.existsSync(file)) fs.unlinkSync(file);
-        let intercept, release, attempts = 0;
-        if (name === 'current') {
-          let fail = true, hold = true;
-          const pending = new Promise(resolve => { release = resolve; });
-          intercept = async request => {
-            if (request.url() !== target.href) { await request.continue(); return; }
-            attempts++;
-            if (fail) { await request.respond({ status: 503, contentType: 'application/json', body: '{}' }); return; }
-            if (hold) await pending;
-            await request.continue();
-          };
-          await page.setRequestInterception(true); page.on('request', intercept);
-          await page.focus(button); await page.keyboard.press('Enter');
-          await page.waitForSelector('.insight-report-download [role=alert]');
-          assert(!await page.$eval(button, node => node.disabled));
-          fail = false; attempts = 0;
-          const responsePromise = page.waitForResponse(response => response.url() === target.href);
-          await page.$eval(button, node => { node.focus(); node.click(); node.click(); });
-          await page.waitForFunction(() => document.querySelector('button[data-insights-report]').disabled);
-          assert.match(await page.$eval('.insight-report-download [role=status]', node => node.textContent), /Generating/);
-          // Let the single held request reach interception, then release it after checking the busy UI.
-          const deadline = Date.now() + 5000;
-          while (attempts < 1 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-          assert.equal(attempts, 1, 'Duplicate activation starts one request'); hold = false; release();
-          assert.equal((await responsePromise).status(), 200);
-        } else {
-          const responsePromise = page.waitForResponse(response => response.url() === target.href);
-          await page.focus(button); await page.keyboard.press('Enter'); assert.equal((await responsePromise).status(), 200);
-        }
-        const deadline = Date.now() + 15000;
-        while (!fs.existsSync(file) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
-        assert(fs.existsSync(file), 'Generated PDF downloaded');
-        const bytes = fs.readFileSync(file), pdf = await PDFDocument.load(bytes);
-        assert.equal(pdf.getTitle(), title + ' Report'); assert(pdf.getPageCount() >= 6);
-        await page.waitForFunction(() => !document.querySelector('button[data-insights-report]').disabled && !document.querySelector('.insight-report-download [role=alert]'));
-        assert(await page.$eval(button, node => node === document.activeElement), 'Export returns keyboard focus');
-        if (intercept) { page.off('request', intercept); await page.setRequestInterception(false); }
+        const result = await checkInsightsPdfDownload(page, { date: snapshot, directory, route: target.pathname,
+          filenamePrefix: slug, title: title + ' Report', minPages: 6, snapshotAttribute: null, snapshotSubject: false, exerciseRetry: name === 'current' });
+        const bytes = fs.readFileSync(result.file);
         if (artifacts) fs.writeFileSync(path.join(artifacts, `${slug}-${name}.pdf`), bytes);
-        evidence.push({ slug, title, name, snapshot, metrics, pages: pdf.getPageCount() });
-        console.log(`${title}: ${name} PDF downloaded (${pdf.getPageCount()} pages)`);
+        evidence.push({ slug, title, name, snapshot, metrics, pages: result.pages });
+        console.log(`${title}: ${name} browser PDF downloaded (${result.pages} pages)`);
       }
       for (const [width, height] of [[1280,720], [390,844], [320,844]]) {
         await page.setViewport({ width, height });

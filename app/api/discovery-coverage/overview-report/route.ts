@@ -3,7 +3,8 @@ import { normalizeDataDate } from "@/lib/data-date";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
-import { createDiscoveryOverviewPdf } from "@/lib/discovery-overview-report-pdf";
+import { documentResponse } from "@/lib/documents/server-response";
+import type { InsightsDocumentJob } from "@/lib/documents/insights";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
@@ -23,11 +24,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({error:"Select a valid network or ICT system scope, security domains and snapshot date."},{status:400});
   }
   try {
-    const data=await loadDiscoveryOverview(scope), bytes=await createDiscoveryOverviewPdf(data);
-    return new Response(Uint8Array.from(bytes).buffer,{headers:{
-      "Content-Type":"application/pdf", "Content-Disposition":'attachment; filename="discovery-insights-'+data.model.snapshotDate+'.pdf"',
-      "Cache-Control":"no-store"
-    }});
+    const data=await loadDiscoveryOverview(scope);
+    return documentResponse(request, {version:1,kind:"insights-discovery",title:"Discovery Insights",
+      filename:`discovery-insights-${data.model.snapshotDate}.pdf`,generatedAt:new Date().toISOString(),
+      data:{model:data.model,scopeLabels:data.scopeLabels}
+    } satisfies InsightsDocumentJob);
   } catch {
     return NextResponse.json({error:"Unable to generate the Discovery Insights report. Please retry."},{status:503});
   }

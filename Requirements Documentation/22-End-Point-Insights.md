@@ -16,6 +16,8 @@ Generate PDF sits beside the snapshot and exports a scoped A4 briefing with thes
 
 The PDF matches the page's TSAAT logo, endpoint illustration, icons, navy/mint theme and charts, including the coverage ring. Its first page gives half of the content area to an executive summary and half to recommendations. Evidence-grounded narrative paragraphs accompany every section, chart group and table; full scope and detailed evidence follow without changing the underlying measures.
 
+Generation runs in the browser worker. The existing report URL supplies an uncached, versioned JSON job containing the full scoped endpoint projection and summary model; HTML bookmarks open the browser generation page. The **Generating Document** animation tracks preparation and rendered sections with cancellation and focus return. The server supplies data only and never constructs PDF bytes.
+
 ## Data and preferences
 
 The route reuses `loadDiscoveryOverview` and the cached `loadEndpointExplorerData` facade at the overview's resolved snapshot. The component presents unchanged `endpointFacetCounts` and overview measures. No provider query, cohort, rule, score, persisted data, schema, settings format or calculation-contract checksum changes. Both compilation paths use these shared facades. No database migration or JSON upgrade is needed.

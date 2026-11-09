@@ -10,7 +10,7 @@ export function buildFindingsWorkbook(
   assetDetailsByAssetId: Record<string, AssetDeviceDetails>,
   configuration: FindingDisplayConfiguration,
   exportedAt = new Date()
-): Buffer {
+): Uint8Array {
   // A CI can have several findings. Its identifier links both sheets without duplicating inventory rows.
   const assets = [...new Map(findings.map((finding) => [finding.scope.assetId, finding])).values()]
     .map((finding) => buildAssetDetailsRow(finding, assetDetailsByAssetId, configuration));

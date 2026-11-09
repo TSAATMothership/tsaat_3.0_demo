@@ -12,10 +12,14 @@ it.each<{ params: WorkspaceSearchParams; expected: string }>([
   expect(() => OverviewPage({ searchParams: params })).toThrow(`Redirect: ${expected}`);
   expect(redirect).toHaveBeenCalledExactlyOnceWith(expected);
 });
-it("shows only Trends and Cyber Terrain Insights under Governance for either scope", () => {
+it("keeps retired Overview out of the ordered Governance briefings for either scope", () => {
   const group = WORKSPACE_GROUPS[0];
   expect(group.id).toBe("governance");
-  expect(group.items.map(item => item.label)).toEqual(["Trends", "Cyber Terrain Insights"]);
+  expect(group.items.map(item => item.label)).toEqual([
+    "Trends", "Cyber Terrain Insights", "Installed Software Insights", "Discovery Insights",
+    "End Point Insights", "Security Vulnerability Insights"
+  ]);
+  expect(group.items.map(item => item.id)).not.toContain("governance-overview");
   for (const query of ["", "network=net-1", "system=sys-1"]) {
     const params = new URLSearchParams(query);
     expect(group.items.filter(item => isWorkspaceItemVisible(item, params))).toEqual(group.items);

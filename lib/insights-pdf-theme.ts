@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 
 export type InsightsReportKind = "cyber" | "software" | "discovery" | "endpoint" | "vulnerability";
@@ -19,17 +17,29 @@ export interface InsightsPdfAssets {
   heroes: Partial<Record<InsightsReportKind, PDFImage>>;
   regular: PDFFont;
   bold: PDFFont;
+  onProgress?: (message: string) => void;
 }
 
-/** Only bundled assets are read: PDF generation never starts a browser or fetches remote images. */
-export async function loadInsightsPdfAssets(doc: PDFDocument, kind?: InsightsReportKind): Promise<InsightsPdfAssets> {
-  const root = path.join(process.cwd(), "public");
-  const logo = await doc.embedPng(Uint8Array.from(await readFile(path.join(root, "tsaat-logo.png"))));
+export interface InsightsPdfRenderOptions {
+  assetBaseUrl?: string;
+  loadAsset?: (path: string) => Promise<Uint8Array>;
+  onProgress?: (message: string) => void;
+}
+
+/** Assets are bundled with the app; workers receive the app origin from the browser runtime. */
+export async function loadInsightsPdfAssets(doc: PDFDocument, kind?: InsightsReportKind, options: InsightsPdfRenderOptions = {}): Promise<InsightsPdfAssets> {
+  const load = options.loadAsset ?? (async (assetPath: string) => {
+    const url = options.assetBaseUrl ? new URL(assetPath, options.assetBaseUrl).href : assetPath;
+    const response = await fetch(url, { credentials: "same-origin", cache: "force-cache" });
+    if (!response.ok) throw new Error("Unable to load bundled report artwork.");
+    return new Uint8Array(await response.arrayBuffer());
+  });
+  const logo = await doc.embedPng(await load("/tsaat-logo.png"));
   const kinds = kind ? [kind] : Object.keys(artwork) as InsightsReportKind[];
-  const images = await Promise.all(kinds.map(async key => doc.embedPng(Uint8Array.from(await readFile(path.join(root, "insights-report-art", `${artwork[key]}.png`))))));
+  const images = await Promise.all(kinds.map(async key => doc.embedPng(await load(`/insights-report-art/${artwork[key]}.png`))));
   const heroes: InsightsPdfAssets["heroes"] = {};
   kinds.forEach((key, index) => { heroes[key] = images[index]; });
-  return { logo, heroes, regular: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold) };
+  return { logo, heroes, regular: await doc.embedFont(StandardFonts.Helvetica), bold: await doc.embedFont(StandardFonts.HelveticaBold), onProgress: options.onProgress };
 }
 
 function safe(value: string, font: PDFFont) {
@@ -87,6 +97,7 @@ export function drawInsightsRingArc(page: PDFPage, options: { x: number; y: numb
 
 interface FrameOptions { kind: InsightsReportKind; title: string; snapshotDate: string; section?: string; continued?: boolean }
 export function drawInsightsPageFrame(page: PDFPage, assets: InsightsPdfAssets, options: FrameOptions): number {
+  assets.onProgress?.(options.section ? `Rendering ${options.section}` : "Rendering summary and recommendations");
   const t = INSIGHTS_PDF_THEME;
   page.drawRectangle({ x: 0, y: 688, width: 595.28, height: 153.89, color: t.navy });
   page.drawRectangle({ x: 0, y: 685, width: 595.28, height: 3, color: t.mint });

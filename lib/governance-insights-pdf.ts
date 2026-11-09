@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
-import type { GovernanceInsightsData } from "@/lib/governance-insights-data";
-import { drawInsightsHero, drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets } from "@/lib/insights-pdf-theme";
+import type { CyberInsightsDocumentData as GovernanceInsightsData } from "@/lib/documents/insights";
+import { drawInsightsHero, drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets, type InsightsPdfRenderOptions } from "@/lib/insights-pdf-theme";
 
 const LEFT = 36, WIDTH = 523.28, BOTTOM = 57;
 const { ink, muted, line, teal, rose, amber, pale } = INSIGHTS_PDF_THEME;
@@ -158,13 +158,13 @@ class InsightsPdf {
 }
 
 /** Uses existing projections, local page artwork and vector charts; no runtime browser or network assets. */
-export async function createGovernanceInsightsPdf(data: GovernanceInsightsData, generatedAt = new Date()): Promise<Uint8Array> {
+export async function createGovernanceInsightsPdf(data: GovernanceInsightsData, generatedAt = new Date(), options: InsightsPdfRenderOptions = {}): Promise<Uint8Array> {
   if (!Number.isFinite(generatedAt.getTime())) throw new Error("Invalid PDF generation timestamp");
   const doc = await PDFDocument.create(), regular = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
   doc.setTitle("Cyber Terrain Posture - Insights"); doc.setAuthor("TSAAT"); doc.setProducer("TSAAT executive reporting");
   doc.setCreationDate(generatedAt); doc.setModificationDate(generatedAt);
   doc.setSubject(`Snapshot ${data.model.snapshotDate}; snapshot timestamp ${insightsSnapshotTimestamp(data.snapshotGeneratedAt)}`);
-  const assets = await loadInsightsPdfAssets(doc, "cyber");
+  const assets = await loadInsightsPdfAssets(doc, "cyber", options);
   const pdf = new InsightsPdf(doc, regular, bold, data, assets);
   const { coverage, endpoints, software, vulnerabilities, patches, shadow } = data.model, { insights, impact } = data;
   const summary = insights.hasEvidence ? [
@@ -241,8 +241,8 @@ export async function createGovernanceInsightsPdf(data: GovernanceInsightsData, 
   });
   pdf.paragraph("Ranked by critical, then high findings. Shared findings can appear under several services; service rows are not additive.", 9);
   pdf.heading("Mission awareness");
-  pdf.paragraph(`${number(insights.exposedCapabilities)} of the ${number(impact.mission.length)} represented mission capabilities have recorded links to priority findings. This places technical evidence in operational context without assuming that an affected component will interrupt a mission.`, 9);
-  pdf.metrics([{ label: "Capabilities linked to priority findings", value: number(insights.exposedCapabilities) }, { label: "Capabilities represented", value: number(impact.mission.length), detail: `${number(impact.business.length)} business services represented` }]);
+  pdf.paragraph(`${number(insights.exposedCapabilities)} of the ${number(impact.missionCount)} represented mission capabilities have recorded links to priority findings. This places technical evidence in operational context without assuming that an affected component will interrupt a mission.`, 9);
+  pdf.metrics([{ label: "Capabilities linked to priority findings", value: number(insights.exposedCapabilities) }, { label: "Capabilities represented", value: number(impact.missionCount), detail: `${number(impact.businessCount)} business services represented` }]);
   pdf.paragraph("These are recorded relationships, not an outage prediction. Use the Service Impact Topology and findings evidence to confirm operational consequences.", 9);
 
   pdf.pageFor("Completion needs evidence, not intention.", "04");

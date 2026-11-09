@@ -4,7 +4,8 @@ import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
 import { loadEndpointExplorerData, loadSecurityVulnerabilityExplorerData } from "@/lib/data-loader";
-import { createEndpointInsightsPdf, createVulnerabilityInsightsPdf } from "@/lib/inventory-insights-pdf";
+import { documentResponse } from "@/lib/documents/server-response";
+import type { InsightsDocumentJob } from "@/lib/documents/insights";
 import { INVENTORY_INSIGHT_REPORTS, type InventoryInsightReport } from "@/lib/inventory-insights-report-links";
 
 export async function inventoryInsightsReport(request: NextRequest, kind: InventoryInsightReport) {
@@ -26,13 +27,11 @@ export async function inventoryInsightsReport(request: NextRequest, kind: Invent
   const report = INVENTORY_INSIGHT_REPORTS[kind];
   try {
     const data = await loadDiscoveryOverview(scope);
-    const bytes = kind === "endpoints"
-      ? await createEndpointInsightsPdf({ ...data, rows: (await loadEndpointExplorerData(data.scope)).rows })
-      : await createVulnerabilityInsightsPdf({ ...data, rows: (await loadSecurityVulnerabilityExplorerData(data.scope)).rows });
-    return new Response(Uint8Array.from(bytes).buffer, { headers: {
-      "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${report.slug}-${data.model.snapshotDate}.pdf"`,
-      "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
-    } });
+    const common = { version: 1 as const, title: report.title, filename: `${report.slug}-${data.model.snapshotDate}.pdf`, generatedAt: new Date().toISOString() };
+    const job: InsightsDocumentJob = kind === "endpoints"
+      ? { ...common, kind: "insights-endpoint", data: { model: data.model, scopeLabels: data.scopeLabels, rows: (await loadEndpointExplorerData(data.scope)).rows } }
+      : { ...common, kind: "insights-vulnerability", data: { model: data.model, scopeLabels: data.scopeLabels, rows: (await loadSecurityVulnerabilityExplorerData(data.scope)).rows } };
+    return documentResponse(request, job);
   } catch {
     return NextResponse.json({ error: `Unable to generate the ${report.title} report. Please retry.` }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }

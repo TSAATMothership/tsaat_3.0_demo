@@ -91,6 +91,7 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 | `/api/workspace-options` | GET | [Source](../../app/api/workspace-options/route.ts) |
 | `/cyber-cop` | Page | [Source](../../app/cyber-cop/page.tsx) |
 | `/discovery-coverage` | Page | [Source](../../app/discovery-coverage/page.tsx) |
+| `/documents/generate` | Page | [Source](../../app/documents/generate/page.tsx) |
 | `/findings` | Page | [Source](../../app/findings/page.tsx) |
 | `/governance/discovery-insights` | Page | [Source](../../app/governance/discovery-insights/page.tsx) |
 | `/governance/end-point-insights` | Page | [Source](../../app/governance/end-point-insights/page.tsx) |

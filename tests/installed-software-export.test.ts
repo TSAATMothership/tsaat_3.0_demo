@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/discovery-coverage/installed-software/export/route";
 import { emptySoftwareFilters, SOFTWARE_COLUMNS, type InstalledSoftwareRecord } from "@/lib/installed-software-explorer";
 import { buildInstalledSoftwareWorkbook } from "@/lib/installed-software-workbook";
-import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { readXlsxTextEntries as readXlsxEntries, renderWorkbookResponse } from "./workbook-test-utils";
 
 const load = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/data-loader", () => ({ loadInstalledSoftwareExplorerData: load }));
@@ -16,7 +16,7 @@ const rows: InstalledSoftwareRecord[] = Array.from({ length: 80 }, (_, index) =>
 const request = (body: unknown) => new NextRequest("http://localhost/api/discovery-coverage/installed-software/export", {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
 });
-const sheet = (buffer: Buffer) => readXlsxEntries(buffer).get("xl/worksheets/sheet1.xml")!.toString("utf8");
+const sheet = (buffer: Uint8Array) => readXlsxEntries(buffer).get("xl/worksheets/sheet1.xml")!;
 beforeEach(() => { load.mockReset(); load.mockResolvedValue({ snapshotDate: "2026-10-31", rows }); });
 
 describe("installed software Excel export", () => {
@@ -41,10 +41,10 @@ describe("installed software Excel export", () => {
   it("exports all matching installations beyond one UI page", async () => {
     const response = await POST(request({ scope, filters: { ...emptySoftwareFilters(), columns: { softwareName: ["Agent"] } } }));
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
+    expect(response.headers.get("Content-Type")).toContain("application/json");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(load).toHaveBeenCalledWith(scope);
-    const xml = sheet(Buffer.from(await response.arrayBuffer()));
+    const xml = sheet(await renderWorkbookResponse(response));
     expect(xml.match(/<row /g)).toHaveLength(76);
     expect(xml.match(/<c r="K\d+" s="2"/g)).toHaveLength(75);
     expect(xml).not.toContain("Database");
@@ -55,7 +55,7 @@ describe("installed software Excel export", () => {
   });
   it("supports empty filtered results", async () => {
     const response = await POST(request({ scope, filters: { ...emptySoftwareFilters(), search: "no such product" } }));
-    expect(sheet(Buffer.from(await response.arrayBuffer()))).toContain('dimension ref="A1:K1"');
+    expect(sheet(await renderWorkbookResponse(response))).toContain('dimension ref="A1:K1"');
   });
   it("does not leak connection details on database failure", async () => {
     load.mockRejectedValue(new Error("Private connection details"));

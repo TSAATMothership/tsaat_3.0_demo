@@ -4,6 +4,7 @@ import { PersonaPopup } from "@/components/persona-popup";
 
 import { PersonaPopupButton } from "@/components/persona-popup-button";
 import { usePersonaAccess } from "@/components/persona-provider";
+import { generateLocalDocument } from "@/lib/documents/client";
 
 import { browserWorkspaceSearch } from "@/lib/browser-location";
 
@@ -17,9 +18,7 @@ import { CmdbDeviceName, useCmdbDrillThrough } from "@/components/cmdb-drill-thr
 import { ServerComplianceView } from "@/components/server-compliance-view";
 import { ASSET_TYPES, assetTypeLabel, formatAssetTypeLabel, type CanonicalAssetType } from "@/lib/asset-taxonomy";
 import {
-  ICT_SYSTEM_DEPENDENCIES_EXCEL_MIME_TYPE,
-  buildIctSystemDependenciesExportFileName,
-  buildIctSystemDependenciesWorkbookXml
+  buildIctSystemDependenciesExportFileName
 } from "@/lib/ict-system-dependencies-export";
 import { type SpiDefinition } from "@/lib/spi-definitions";
 import { AssetType, FindingSeverity, HighRiskCveDetail, SecurityDomain } from "@/lib/types";
@@ -910,21 +909,14 @@ export function IctSystemImpactAnalyser2Chart({
     }
   }, [selectedAssetTileText]);
 
-  const exportDependencyRowsToExcel = useCallback(() => {
+  const exportDependencyRowsToExcel = useCallback(async () => {
     if (!filteredDependencyRows.length) {
       return;
     }
-    const workbookXml = buildIctSystemDependenciesWorkbookXml(filteredDependencyRows);
-    const blob = new Blob([workbookXml], { type: ICT_SYSTEM_DEPENDENCIES_EXCEL_MIME_TYPE });
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = buildIctSystemDependenciesExportFileName(dataDate);
-    anchor.hidden = true;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+    try {
+      await generateLocalDocument({ version: 1, kind: "xls-dependencies", title: "ICT System Dependencies",
+        filename: buildIctSystemDependenciesExportFileName(dataDate), generatedAt: new Date().toISOString(), data: { rows: filteredDependencyRows } });
+    } catch { /* The shared document dialog handles failure, retry and cancellation. */ }
   }, [dataDate, filteredDependencyRows]);
 
   useEffect(() => {

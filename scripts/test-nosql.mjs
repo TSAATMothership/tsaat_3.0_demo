@@ -9,8 +9,7 @@ import path from "node:path";
 import os from "node:os";
 import { fork } from "node:child_process";
 import puppeteer from "puppeteer-core";
-import { PDFDocument } from "pdf-lib";
-import workbookTools from "../lib/network-target-state-template-workbook.ts";
+import workbookTools from "../lib/xlsx-zip.ts";
 const { readXlsxEntries } = workbookTools;
 import coverageTools from "./nosql-coverage.ts";
 const { enrichJsonStore } = coverageTools;
@@ -58,8 +57,6 @@ try {
   await populateVulnerabilityMetadata({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-vulnerability-population") });
   await populatePatchManagement({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-patch-population") });
   await enrichJsonStore({ target: env.TSAAT_JSON_DATA_DIR, apply: true, demo: true, backupDirectory: path.join(directory, "before-coverage-enrichment") });
-  fs.mkdirSync(path.join(directory, "data/templates"), { recursive: true });
-  fs.copyFileSync(path.join(repositoryRoot, "data/templates/network-target-state-template.xlsx"), path.join(directory, "data/templates/network-target-state-template.xlsx"));
   let base = await startServer();
   assert.equal((await fetch(base + "/api/workspace-options")).status, 200, "Data APIs open without credentials.");
   assert.equal((await fetch(base + "/api/workspace-options", { headers: { Cookie: "tsaat_session=obsolete-token" } })).status, 200, "Old cookies do not gate API access.");
@@ -73,6 +70,17 @@ try {
     return { response, bytes };
   }
   async function getJson(url, init) { return JSON.parse((await request(url, init)).bytes.toString()); }
+  async function getDocument(url, init = {}, expectedKind) {
+    const { response, bytes } = await request(url, { ...init, headers: { ...init.headers, Accept: "application/json" } });
+    assert.match(response.headers.get("content-type"), /application\/json/, url + ": document APIs return data, not files");
+    assert.equal(response.headers.get("content-disposition"), null, url + ": no server-generated attachment");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const job = JSON.parse(bytes.toString());
+    assert.equal(job.version, 1); assert.equal(typeof job.kind, "string");
+    if (expectedKind) assert.equal(job.kind, expectedKind);
+    assert(job.filename && job.title && Number.isFinite(Date.parse(job.generatedAt)) && job.data);
+    return job;
+  }
   assert.equal((await fetch(base+'/api/discovery-coverage/overview-report')).status,400);
   const storage = await getJson("/api/settings/storage");
   assert.equal(storage.provider, "json");
@@ -113,7 +121,7 @@ try {
   const reports = new Set();
   for (const route of routes) {
     await navigate(route, route.includes("ict-system") ? "system=sys-1" : "network=net-1");
-    (await page.$$eval("a", nodes => nodes.map(node => node.getAttribute("href")).filter(href => href?.startsWith("/api/")))).forEach(href => reports.add(href));
+    (await page.$$eval("a[href],[data-document-source]", nodes => nodes.map(node => node.getAttribute("data-document-source") ?? node.getAttribute("href")).filter(href => href?.startsWith("/api/")))).forEach(href => reports.add(href));
   }
   await navigate('/cyber-cop?copView=impact');
   await checkServiceImpactGraph(page, { date });
@@ -256,7 +264,8 @@ try {
   await page.click('.patch-results .endpoint-export');
   const patchWorkbook = await patchDownload;
   assert.equal(patchWorkbook.status(), 200);
-  assert(patchWorkbook.headers()['content-type']?.includes('spreadsheetml.sheet'), 'Patch export must return an Excel workbook.');
+  assert(patchWorkbook.headers()['content-type']?.includes('application/json'), 'Patch export API returns workbook data for browser generation.');
+  assert.equal(patchWorkbook.headers()['content-disposition'], undefined);
   // Validate the completed browser download; DevTools can expose an empty body after a blob download.
   const patchFile = path.join(patchDownloadDirectory, `patch-management-explorer-${date}.xlsx`);
   const patchDownloadDeadline = Date.now() + 30000;
@@ -264,7 +273,7 @@ try {
   assert(fs.existsSync(patchFile), 'Patch workbook download did not complete.');
   const patchBytes = fs.readFileSync(patchFile);
   if (process.env.TSAAT_TEST_ARTIFACT_DIR) fs.writeFileSync(path.join(process.env.TSAAT_TEST_ARTIFACT_DIR, 'patch-export.xlsx'), patchBytes);
-  const patchSheet = readXlsxEntries(patchBytes).get('xl/worksheets/sheet1.xml').toString();
+  const patchSheet = new TextDecoder().decode(readXlsxEntries(patchBytes).get('xl/worksheets/sheet1.xml'));
   assert.equal((patchSheet.match(/<row /g) ?? []).length, 2);
   assert(patchSheet.includes(patchAsset) && patchSheet.includes('Last Restarted (UTC)') && patchSheet.includes('Change Reference'));
   await page.focus('#patch-explorer-tab-posture'); await page.keyboard.press('ArrowRight');
@@ -301,10 +310,11 @@ try {
   assert(await page.$('.vulnerability-results [data-cmdb-asset-id]'));
   await page.type(vulnerabilitySearch, "CVE-2024-34750");
   await page.waitForFunction(() => [...document.querySelectorAll('.vulnerability-results tbody tr')].every(row => row.textContent.includes('CVE-2024-34750')));
-  const filteredWorkbook = await request("/api/discovery-coverage/security-vulnerabilities/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: { network: ["net-1"], system: [], dataDate: date }, filters: { search: "CVE-2024-34750", columns: {} } }) });
-  const vulnerabilitySheet = readXlsxEntries(filteredWorkbook.bytes).get("xl/worksheets/sheet1.xml").toString();
-  assert(vulnerabilitySheet.includes("Tomcat") && vulnerabilitySheet.includes("CVE-2024-34750") && vulnerabilitySheet.includes("Date CVE Code Created"));
-  assert(!vulnerabilitySheet.includes("CVE-2024-38475"));
+  const filteredWorkbook = await getDocument("/api/discovery-coverage/security-vulnerabilities/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: { network: ["net-1"], system: [], dataDate: date }, filters: { search: "CVE-2024-34750", columns: {} } }) }, "xlsx-vulnerabilities");
+  assert.equal(filteredWorkbook.data.snapshotDate, date);
+  assert(filteredWorkbook.data.rows.length > 0 && filteredWorkbook.data.rows.every(row => row.cve === "CVE-2024-34750"));
+  assert(filteredWorkbook.data.rows.some(row => row.softwareName?.includes("Tomcat")));
+  assert(filteredWorkbook.data.rows.every(row => Object.hasOwn(row, "cveCreatedDate")), 'CVE creation evidence remains part of the browser workbook model.');
   await page.focus('.vulnerability-results [data-cmdb-asset-id]');
   const focusedAsset = await page.$eval('.vulnerability-results [data-cmdb-asset-id]', node => node.getAttribute('data-cmdb-asset-id'));
   await page.keyboard.press("Enter");
@@ -467,24 +477,27 @@ try {
       assert.equal(await page.$("[data-impact-analyser-diagram-overlay]"), null);
     }
   }
-  let pdfCount = 0;
+  let pdfModelCount = 0;
   for (const report of reports) {
-    const { response, bytes } = await request(report);
-    assert.match(response.headers.get("content-type"), /pdf/);
-    assert((await PDFDocument.load(bytes)).getPageCount() > 0); pdfCount++;
+    const job = await getDocument(report);
+    assert(/^(pdf|insights)-/.test(job.kind) && job.filename.endsWith(".pdf")); pdfModelCount++;
   }
   const scope = { network: ["net-1"], system: [], dataDate: date };
   const post = value => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
-  let workbookCount = 0;
-  for (const kind of ["endpoints", "installed-software", "security-vulnerabilities", "shadow-it", "compliance"]) {
-    const result = await request("/api/discovery-coverage/" + kind + "/export", post({ scope, filters: { search: "", columns: {}, recency: [] } }));
-    assert(readXlsxEntries(result.bytes).has("xl/workbook.xml")); workbookCount++;
+  let workbookModelCount = 0;
+  for (const [route, kind] of [["endpoints", "xlsx-endpoints"], ["installed-software", "xlsx-software"], ["security-vulnerabilities", "xlsx-vulnerabilities"], ["patch-management", "xlsx-patches"], ["shadow-it", "xlsx-shadow-it"], ["compliance", "xlsx-compliance"]]) {
+    const job = await getDocument("/api/discovery-coverage/" + route + "/export", post({ scope, ...(route === "patch-management" ? { view: "posture" } : {}), filters: { search: "", columns: {}, recency: [] } }), kind);
+    assert.equal(job.data.snapshotDate, date); assert(Array.isArray(job.data.rows));
+    assert(job.filename.endsWith(".xlsx")); workbookModelCount++;
   }
-  const template = await request("/api/discovery-coverage/target-state-template?network=net-1&dataDate=" + date);
-  assert(readXlsxEntries(template.bytes).has("xl/workbook.xml")); workbookCount++;
+  const template = await getDocument("/api/discovery-coverage/target-state-template?network=net-1&dataDate=" + date, {}, "xlsx-target-state");
+  assert.equal(template.data.network.id, "net-1"); assert.equal(template.data.snapshotDate, date); workbookModelCount++;
   const findingData = await getJson("/api/findings/export?format=json&network=net-1&status=open&asOf=" + date);
-  const findingWorkbook = await request("/api/findings/export", post({ scope, asOf: date, status: "open", findingIds: findingData.findings.filter(f => f.status === "open").map(f => f.id) }));
-  assert.match(readXlsxEntries(findingWorkbook.bytes).get("xl/workbook.xml").toString(), /Affected CIs/); workbookCount++;
+  const findingIds = findingData.findings.filter(f => f.status === "open").map(f => f.id);
+  const findingWorkbook = await getDocument("/api/findings/export", post({ scope, asOf: date, status: "open", findingIds }), "xlsx-findings");
+  assert.equal(findingWorkbook.data.asOf, date);
+  assert.deepEqual(findingWorkbook.data.findings.map(finding => finding.id), findingIds, 'Browser workbook data preserves selected finding order.');
+  assert(findingWorkbook.data.assetDetailsByAssetId && findingWorkbook.data.configuration); workbookModelCount++;
   const settings = (await getJson("/api/measures/settings")).settings;
   settings.priorityMatrix["1"] = settings.priorityMatrix["1"] === 1 ? 7 : 1;
   settings.severityMatrix["1:server"] = "Critical Exposure";
@@ -508,7 +521,7 @@ try {
   assert.deepEqual(errors, []);
   assert.deepEqual(sqlRequests, [], "No-SQL UI must not request SQL administration");
   assert.deepEqual(authRequests, [], "Workspace must not poll sessions or request authentication");
-  console.log("No-SQL production smoke passed: direct access without credentials, " + routes.length + " views, " + drillThroughTabs + " explorer drill-through tabs, both heatmaps/analysers, Settings, CMDB, " + pdfCount + " PDFs, " + workbookCount + " workbooks, disk settings and restart persistence; no SQL configuration or executable.");
+  console.log("No-SQL production smoke passed: direct access without credentials, " + routes.length + " views, " + drillThroughTabs + " explorer drill-through tabs, both heatmaps/analysers, Settings, CMDB, " + pdfModelCount + " PDF data models, " + workbookModelCount + " workbook data models, browser document downloads, disk settings and restart persistence; no SQL configuration or executable.");
 } catch (error) {
   console.error(serverOutput.slice(-3000)); throw error;
 } finally {

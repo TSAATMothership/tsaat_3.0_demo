@@ -1,10 +1,10 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import type { ExplorerTableFilters } from "@/lib/explorer-table";
 import { loadPatchManagementExplorerData } from "@/lib/data-loader";
 import { filterPatchRows, parsePatchFilters, PATCH_VIEWS, type PatchView } from "@/lib/patch-management-explorer";
-import { buildPatchManagementWorkbook } from "@/lib/patch-management-workbook";
-import { INVENTORY_XLSX_TYPE } from "@/lib/inventory-explorer-workbook";
 import { normalizeDataDate } from "@/lib/data-date";
 import { scopeIds } from "@/lib/workspace-navigation";
 
@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
   } catch { return NextResponse.json({ error: "Invalid patch export scope, view or filters." }, { status: 400 }); }
   try {
     const data = await loadPatchManagementExplorerData(scope);
-    const workbook = buildPatchManagementWorkbook(filterPatchRows(data.rows, filters, view));
-    return new Response(Uint8Array.from(workbook).buffer, { headers: { "Content-Type": INVENTORY_XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="patch-management-explorer-${data.snapshotDate}.xlsx"`, "Cache-Control": "no-store" } });
+    return documentResponse(request, { version: 1, kind: "xlsx-patches", title: "Patch Management Explorer",
+      filename: `patch-management-explorer-${data.snapshotDate}.xlsx`, generatedAt: new Date().toISOString(),
+      data: { rows: filterPatchRows(data.rows, filters, view), snapshotDate: data.snapshotDate } } satisfies WorkbookDocumentJob);
   } catch { return NextResponse.json({ error: "Unable to export server patch records." }, { status: 503 }); }
 }

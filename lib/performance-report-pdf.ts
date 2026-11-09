@@ -6,7 +6,7 @@ import {
   drawReportParagraph,
   drawReportTable
 } from "@/lib/report-template-pdf";
-import { PerformanceKpiMatrixRow, PerformanceReportModel } from "@/lib/performance-report-model";
+import type { PerformanceKpiMatrixRow, PerformanceReportModel } from "@/lib/performance-report-model";
 
 function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;

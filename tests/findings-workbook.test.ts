@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { buildFindingsWorkbook } from "@/lib/findings-workbook";
 import { buildAssetDetailsRow } from "@/lib/findings-assets";
-import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { readXlsxTextEntries as readXlsxEntries } from "./workbook-test-utils";
 import { assetDetails, configuration, exportContext, finding } from "./fixtures/findings-export";
 
 const exportedAt = new Date("2026-11-01T06:07:08Z");
 const workbook = (rows = [finding()]) => readXlsxEntries(buildFindingsWorkbook(rows, exportContext.asOf, assetDetails, configuration, exportedAt));
-const xml = (zip: Map<string, Buffer>, sheet: number) => zip.get(`xl/worksheets/sheet${sheet}.xml`)!.toString("utf8");
+const xml = (zip: Map<string, string>, sheet: number) => zip.get(`xl/worksheets/sheet${sheet}.xml`)!;
 
 describe("findings workbook", () => {
   it("exports every finding and unique affected CI to separate linked sheets", () => {
     const zip = workbook(Array.from({ length: 76 }, (_, index) => finding(`finding-${index}`, index < 75 ? "0001" : "missing-ci")));
-    expect(zip.get("xl/workbook.xml")!.toString()).toContain('name="Findings" sheetId="1" r:id="rId1"');
-    expect(zip.get("xl/workbook.xml")!.toString()).toContain('name="Affected CIs" sheetId="2" r:id="rId2"');
-    expect(zip.get("xl/_rels/workbook.xml.rels")!.toString()).toContain('Target="worksheets/sheet2.xml"');
-    expect(zip.get("[Content_Types].xml")!.toString()).toContain('PartName="/xl/worksheets/sheet2.xml"');
+    expect(zip.get("xl/workbook.xml")!).toContain('name="Findings" sheetId="1" r:id="rId1"');
+    expect(zip.get("xl/workbook.xml")!).toContain('name="Affected CIs" sheetId="2" r:id="rId2"');
+    expect(zip.get("xl/_rels/workbook.xml.rels")!).toContain('Target="worksheets/sheet2.xml"');
+    expect(zip.get("[Content_Types].xml")!).toContain('PartName="/xl/worksheets/sheet2.xml"');
     const findings = xml(zip, 1), cis = xml(zip, 2);
     expect(findings.match(/<row /g)).toHaveLength(77);
     expect(cis.match(/<row /g)).toHaveLength(3);

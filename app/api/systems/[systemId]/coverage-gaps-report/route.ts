@@ -1,8 +1,8 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { LegacyNarrativePdfData } from "@/lib/documents/legacy-pdf-data";
 import { matchesSecurityDomain, securityDomainFilter } from "@/lib/security-domain.mjs";
-import { drawDeviceReportTable } from "@/lib/device-report-pdf";
 import { deviceCoverageRows, DEVICE_COVERAGE_COLUMNS } from "@/lib/device-report";
 import { NextRequest, NextResponse } from "next/server";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { buildAnalytics } from "@/lib/analytics";
 import { discoveryCoverageByAssetId, discoveryCoverageForAssetId } from "@/lib/discovery-coverage";
 import {
@@ -14,10 +14,8 @@ import {
 } from "@/lib/data-loader";
 import { evaluationMatchesSpiFeature, SPI_FEATURE_OS_NON_COMPLIANT } from "@/lib/spi-features";
 import { Asset, ComplianceStatus, EnvironmentType } from "@/lib/types";
-
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
 type KpiFilterKey =
   | "nonCompliantServers"
   | "nonCompliantOs"
@@ -26,7 +24,6 @@ type KpiFilterKey =
   | "highRiskP12Findings"
   | "outOfWarrantyAssets"
   | "nonCompliantDiscoveryCoverage";
-
 const KPI_FILTER_LABELS: Record<KpiFilterKey, string> = {
   nonCompliantServers: "Total Non-compliant Servers",
   nonCompliantOs: "Total Non-compliant OS",
@@ -36,14 +33,12 @@ const KPI_FILTER_LABELS: Record<KpiFilterKey, string> = {
   outOfWarrantyAssets: "Total Physical Assets Out of Warranty",
   nonCompliantDiscoveryCoverage: "Assets non-compliant with discovery coverage"
 };
-
 function isKpiFilterKey(value: string | null): value is KpiFilterKey {
   if (!value) {
     return false;
   }
   return value in KPI_FILTER_LABELS;
 }
-
 function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStatus {
   if (!statuses.length) {
     return "Unknown";
@@ -56,7 +51,6 @@ function overallStatusFromStatuses(statuses: ComplianceStatus[]): ComplianceStat
   }
   return "Compliant";
 }
-
 function nonCompliantEnvironmentTypesForScope(
   environments: Array<{ type: EnvironmentType }>,
   evaluations: Array<{
@@ -80,7 +74,6 @@ function nonCompliantEnvironmentTypesForScope(
   }
   return nonCompliant;
 }
-
 function discoveryCoverageForAsset(asset: Asset, coverageByAsset: ReturnType<typeof discoveryCoverageByAssetId>) {
   const coverage = discoveryCoverageForAssetId(asset.id, coverageByAsset);
   return {
@@ -88,109 +81,10 @@ function discoveryCoverageForAsset(asset: Asset, coverageByAsset: ReturnType<typ
     coverageCompliance: coverage.coverageCompliance
   };
 }
-
 function reportFileName(systemId: string, snapshotDate: string): string {
   const safeId = systemId.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
   const safeDate = snapshotDate.replace(/[^0-9-]/g, "");
   return `tsaat-coverage-gaps-report-${safeId}-${safeDate}.pdf`;
-}
-
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word;
-    const width = font.widthOfTextAtSize(test, size);
-    if (width <= maxWidth) {
-      line = test;
-    } else {
-      if (line) {
-        lines.push(line);
-      }
-      line = word;
-    }
-  }
-
-  if (line) {
-    lines.push(line);
-  }
-
-  return lines.length ? lines : [""];
-}
-
-function classifyLine(line: string): {
-  text: string;
-  font: "bold" | "regular";
-  size: number;
-  color: { r: number; g: number; b: number };
-  indent: number;
-  spacingAfter: number;
-} {
-  if (line.startsWith("# ")) {
-    return {
-      text: line.slice(2).trim(),
-      font: "bold",
-      size: 16,
-      color: { r: 0.07, g: 0.2, b: 0.31 },
-      indent: 0,
-      spacingAfter: 8
-    };
-  }
-  if (line.startsWith("## ")) {
-    return {
-      text: line.slice(3).trim(),
-      font: "bold",
-      size: 12,
-      color: { r: 0.08, g: 0.22, b: 0.34 },
-      indent: 0,
-      spacingAfter: 4
-    };
-  }
-  if (line.startsWith("  - ")) {
-    return {
-      text: `- ${line.slice(4).trim()}`,
-      font: "regular",
-      size: 9,
-      color: { r: 0.14, g: 0.17, b: 0.22 },
-      indent: 16,
-      spacingAfter: 2
-    };
-  }
-  if (line.startsWith("- ")) {
-    return {
-      text: line,
-      font: "regular",
-      size: 10,
-      color: { r: 0.14, g: 0.17, b: 0.22 },
-      indent: 0,
-      spacingAfter: 2
-    };
-  }
-  return {
-    text: line,
-    font: "regular",
-    size: 10,
-    color: { r: 0.18, g: 0.2, b: 0.25 },
-    indent: 0,
-    spacingAfter: 2
-  };
-}
-
-function createPage(pdfDoc: PDFDocument, pageTitle: string, titleFont: PDFFont): { page: PDFPage; yStart: number } {
-  const page = pdfDoc.addPage([595.28, 841.89]);
-  const { width, height } = page.getSize();
-  page.drawRectangle({ x: 0, y: height - 56, width, height: 56, color: rgb(0.04, 0.16, 0.27) });
-  page.drawRectangle({ x: 0, y: height - 60, width, height: 4, color: rgb(0.36, 0.75, 0.88) });
-  page.drawText(pageTitle, {
-    x: 32,
-    y: height - 38,
-    size: 12,
-    font: titleFont,
-    color: rgb(0.92, 0.97, 1)
-  });
-  return { page, yStart: height - 76 };
 }
 
 export async function GET(
@@ -361,71 +255,12 @@ export async function GET(
   lines.push("## Notes");
   lines.push("- This report reflects current ICT System drill-through filters and focuses on server discovery tool gaps.");
 
-  const pdfDoc = await PDFDocument.create();
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const pageTitle = `${system.name} Coverage Gaps Report`;
-  let pageState = createPage(pdfDoc, pageTitle, fontBold);
-  let page = pageState.page;
-  let y = pageState.yStart;
-
-  const leftMargin = 32;
-  const rightMargin = 32;
-  const bottomMargin = 32;
-
-  const startNewPage = () => {
-    pageState = createPage(pdfDoc, pageTitle, fontBold);
-    page = pageState.page;
-    y = pageState.yStart;
-  };
-
-  for (const line of lines) {
-    if (!line.trim()) {
-      y -= 6;
-      if (y < bottomMargin) {
-        startNewPage();
-      }
-      continue;
-    }
-
-    const style = classifyLine(line);
-    const font = style.font === "bold" ? fontBold : fontRegular;
-    const lineHeight = style.size + 3;
-    const pageWidth = page.getSize().width;
-    const maxWidth = pageWidth - leftMargin - rightMargin - style.indent;
-    const wrappedLines = wrapText(style.text, font, style.size, maxWidth);
-    const blockHeight = wrappedLines.length * lineHeight + style.spacingAfter;
-
-    if (y - blockHeight < bottomMargin) {
-      startNewPage();
-    }
-
-    for (const wrappedLine of wrappedLines) {
-      page.drawText(wrappedLine, {
-        x: leftMargin + style.indent,
-        y,
-        size: style.size,
-        font,
-        color: rgb(style.color.r, style.color.g, style.color.b)
-      });
-      y -= lineHeight;
-    }
-
-    y -= style.spacingAfter;
-  }
-
-  if (serverCoverageGaps.length) drawDeviceReportTable({ pdfDoc, fontRegular, fontBold, pageTitle, snapshotDate: dataset.snapshotDate,
-    sectionTitle: "Required Discovery Tool Deployment by Server", columns: DEVICE_COVERAGE_COLUMNS, rows: deviceCoverageRows(serverCoverageGaps, dataset) });
-
-  const pdfBytes = await pdfDoc.save();
-  const pdfArrayBuffer = Uint8Array.from(pdfBytes).buffer;
+    const pageTitle = `${system.name} Coverage Gaps Report`;
+  const tables: LegacyNarrativePdfData["tables"] = [];
+  if (serverCoverageGaps.length)
+    tables.push({
+        sectionTitle: "Required Discovery Tool Deployment by Server", columns: DEVICE_COVERAGE_COLUMNS, rows: deviceCoverageRows(serverCoverageGaps, dataset) });
   const filename = reportFileName(system.id, dataset.snapshotDate);
-
-  return new Response(pdfArrayBuffer, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename=${filename}`
-    }
-  });
+  const data: LegacyNarrativePdfData = { snapshotDate: dataset.snapshotDate, pageTitle, lines, tables };
+  return documentResponse(request, { version: 1, kind: "pdf-system-coverage-gaps", filename, title: pageTitle, generatedAt, data });
 }

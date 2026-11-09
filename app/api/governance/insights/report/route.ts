@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { loadGovernanceInsights } from "@/lib/governance-insights-data";
-import { createGovernanceInsightsPdf } from "@/lib/governance-insights-pdf";
+import { documentResponse } from "@/lib/documents/server-response";
+import type { InsightsDocumentJob } from "@/lib/documents/insights";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,11 +25,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Select a valid network or ICT system, security domains and snapshot date." }, { status: 400 });
   }
   try {
-    const data = await loadGovernanceInsights(scope), bytes = await createGovernanceInsightsPdf(data);
-    return new Response(Uint8Array.from(bytes).buffer, { headers: {
-      "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="cyber-terrain-insights-${data.model.snapshotDate}.pdf"`,
-      "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
-    } });
+    const data = await loadGovernanceInsights(scope);
+    return documentResponse(request, { version: 1, kind: "insights-cyber", title: "Cyber Terrain Insights",
+      filename: `cyber-terrain-insights-${data.model.snapshotDate}.pdf`, generatedAt: new Date().toISOString(),
+      data: { model: data.model, insights: data.insights, scopeLabels: data.scopeLabels, snapshotGeneratedAt: data.snapshotGeneratedAt,
+        impact: { unattributedFindings: data.impact.unattributedFindings, missionCount: data.impact.mission.length, businessCount: data.impact.business.length } }
+    } satisfies InsightsDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to generate the Insights PDF. Please try again." }, { status: 503 });
   }

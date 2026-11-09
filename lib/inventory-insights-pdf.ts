@@ -1,10 +1,10 @@
 import { PDFDocument, type RGB } from "pdf-lib";
 import { OverviewPdf, coverageRing } from "@/lib/discovery-overview-report-pdf";
-import type { DiscoveryOverviewData } from "@/lib/discovery-overview-data";
+import type { DiscoveryInsightsDocumentData as DiscoveryOverviewData } from "@/lib/documents/insights";
 import { ENDPOINT_COLUMNS, NOT_RECORDED, endpointFacetCounts, type EndpointRecord } from "@/lib/endpoint-explorer";
 import { VULNERABILITY_COLUMNS, vulnerabilityTableColumns, type SecurityVulnerabilityRecord } from "@/lib/security-vulnerability-explorer";
 import { emptyExplorerTableFilters, prepareExplorerRows, queryExplorerRows } from "@/lib/explorer-table";
-import { drawInsightsOpeningPage, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsReportKind } from "@/lib/insights-pdf-theme";
+import { drawInsightsOpeningPage, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsReportKind, type InsightsPdfRenderOptions } from "@/lib/insights-pdf-theme";
 
 const WIDTH = 531.28;
 const { teal, amber } = INSIGHTS_PDF_THEME, red = INSIGHTS_PDF_THEME.rose;
@@ -14,9 +14,9 @@ type Appendix = { title: string; values: Count[]; unit: string };
 type EndpointData = DiscoveryOverviewData & { rows: EndpointRecord[] };
 type VulnerabilityData = DiscoveryOverviewData & { rows: SecurityVulnerabilityRecord[] };
 
-async function begin(data: DiscoveryOverviewData, title: string, generatedAt: Date, kind: InsightsReportKind, summary: string[], recommendations: string[]) {
+async function begin(data: DiscoveryOverviewData, title: string, generatedAt: Date, kind: InsightsReportKind, summary: string[], recommendations: string[], options: InsightsPdfRenderOptions) {
   if (!Number.isFinite(generatedAt.getTime())) throw Error("Invalid report generation date.");
-  const doc = await PDFDocument.create(), assets = await loadInsightsPdfAssets(doc, kind);
+  const doc = await PDFDocument.create(), assets = await loadInsightsPdfAssets(doc, kind, options);
   doc.setTitle(title); doc.setAuthor("TSAAT"); doc.setCreationDate(generatedAt);
   drawInsightsOpeningPage(doc, assets, { kind, title, snapshotDate: data.model.snapshotDate, generatedAt,
     scopeLines: [...data.scopeLabels.networks.map(label => "Managed network: " + label), ...data.scopeLabels.systems.map(label => "ICT system: " + label),
@@ -65,7 +65,7 @@ function commonNotes(pdf: OverviewPdf) {
 }
 const byCount = (values: Count[]) => [...values].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 
-export async function createEndpointInsightsPdf(data: EndpointData, generatedAt = new Date()): Promise<Uint8Array> {
+export async function createEndpointInsightsPdf(data: EndpointData, generatedAt = new Date(), options: InsightsPdfRenderOptions = {}): Promise<Uint8Array> {
   const { endpoints, shadow, coverage, snapshotDate } = data.model, rows = data.rows;
   const pdf = await begin(data, "End Point Insights Report", generatedAt, "endpoint", rows.length ? [
     `The selected snapshot contains ${count(endpoints.total)} endpoint records. The recorded estate includes the CI types shown in End Point Explorer; it is not an estimate of every device that exists in the environment.`,
@@ -78,7 +78,7 @@ export async function createEndpointInsightsPdf(data: EndpointData, generatedAt 
     rows.length ? "Restore the identity details that support reliable investigation. Review missing IP addresses, MAC addresses and models, confirming that each field applies to the CI type before filling it." : "Confirm the selected network or ICT system, Security Domains and snapshot, then verify that the intended endpoint inventory has been collected.",
     `Review the ${count(endpoints.stale)} older records, ${count(endpoints.undated)} unusable dates and ${count(endpoints.afterSnapshot)} dates after the snapshot with the relevant collection owners. Verify source evidence before classifying a device as current or absent.`,
     `Investigate the ${count(coverage.missingChecks)} missing required tool-to-CI checks and reconcile unidentified IP observations with known assets. Re-run the briefing after corrections; zero recorded gaps alone does not prove completeness.`
-  ]), appendices: Appendix[] = [];
+  ], options), appendices: Appendix[] = [];
   const facets = (key: typeof ENDPOINT_COLUMNS[number]["key"]) => endpointFacetCounts(rows, key);
   pdf.paragraph("Endpoint inventory, missing details, discovery evidence and the surrounding collection picture.");
   pdf.cards([{ label: "Endpoint records", value: count(endpoints.total) }, { label: "Discoveries over 30 days old", value: count(endpoints.stale), color: amber },
@@ -120,7 +120,7 @@ export async function createEndpointInsightsPdf(data: EndpointData, generatedAt 
   commonNotes(pdf); appendTables(pdf, appendices); pdf.footer(); return pdf.doc.save();
 }
 
-export async function createVulnerabilityInsightsPdf(data: VulnerabilityData, generatedAt = new Date()): Promise<Uint8Array> {
+export async function createVulnerabilityInsightsPdf(data: VulnerabilityData, generatedAt = new Date(), options: InsightsPdfRenderOptions = {}): Promise<Uint8Array> {
   const { vulnerabilities, endpoints, coverage, snapshotDate } = data.model, rows = data.rows;
   const pdf = await begin(data, "Security Vulnerability Insights Report", generatedAt, "vulnerability", rows.length ? [
     `The selected snapshot contains ${count(vulnerabilities.total)} vulnerability observations across ${count(vulnerabilities.affectedEndpoints)} affected endpoints, referring to ${count(vulnerabilities.distinctCves)} distinct CVEs. These are different counting units and must not be added together.`,
@@ -135,7 +135,7 @@ export async function createVulnerabilityInsightsPdf(data: VulnerabilityData, ge
       ? `Review the ${count(vulnerabilities.missingRemediation)} observations without remediation text and confirm applicable vendor or operational actions. Treat populated text as supporting context, not proof of completed remediation.`
       : "No recorded observations lack remediation text in this scope. Verify that any supplied guidance applies to the affected versions and environment; populated text is supporting context, not proof of completed remediation.",
     `Investigate the ${count(coverage.missingChecks)} missing required discovery checks, alongside endpoint dates and source gaps. Confirm vulnerability scanning separately and regenerate this briefing after evidence corrections.`
-  ]), appendices: Appendix[] = [];
+  ], options), appendices: Appendix[] = [];
   const { facets } = queryExplorerRows(prepareExplorerRows(rows, vulnerabilityTableColumns), vulnerabilityTableColumns, emptyExplorerTableFilters());
   pdf.paragraph("Recorded vulnerability observations, missing context, provenance and discovery coverage.");
   pdf.cards([{ label: "Recorded observations", value: count(vulnerabilities.total) }, { label: "Distinct CVEs", value: count(vulnerabilities.distinctCves) },

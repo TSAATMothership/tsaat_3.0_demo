@@ -7,6 +7,10 @@ import { createSoftwareInsightsPdf } from "@/lib/software-insights-pdf";
 import { loadSoftwareInsightsReport, type SoftwareInsightsReportData } from "@/lib/software-insights-report-data";
 import type { InstalledSoftwareRecord } from "@/lib/installed-software-explorer";
 import { GET } from "@/app/api/discovery/installed-software-insights/report/route";
+import { renderInsightsDocument, type InsightsDocumentJob } from "@/lib/documents/insights";
+import { useBundledInsightsAssets, insightsRenderContext } from "./insights-assets-fixture";
+
+useBundledInsightsAssets();
 
 const readers = vi.hoisted(() => ({ loadDatasetForDate: vi.fn(), loadInstalledSoftwareExplorerData: vi.fn() }));
 vi.mock("@/lib/data-loader", () => readers);
@@ -114,13 +118,15 @@ describe("Software Insights report data and endpoint", () => {
     expect((await GET(new NextRequest("http://localhost/api/discovery/installed-software-insights/report?" + query))).status).toBe(400);
     expect(readers.loadInstalledSoftwareExplorerData).not.toHaveBeenCalled();
   });
-  it("returns a non-cached PDF for resolved scope/date, dropping table filters", async () => {
+  it("returns a non-cached browser document job for resolved scope/date, dropping table filters", async () => {
     const response = await GET(new NextRequest("http://localhost/api/discovery/installed-software-insights/report?system=sys-1&securityDomain=NONE&dataDate=2026-11-01&environment=Production&softwareFilters=local"));
     expect(readers.loadInstalledSoftwareExplorerData).toHaveBeenCalledExactlyOnceWith({ network: [], system: ["sys-1"], securityDomain: "NONE", dataDate: "2026-11-01" });
-    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toContain(`software-insights-${date}.pdf`);
+    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("content-disposition")).toBeNull();
     expect(response.headers.get("cache-control")).toBe("no-store"); expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    expect((await readPdf(new Uint8Array(await response.arrayBuffer()))).text).toContain("Security domains: None selected");
+    const job: InsightsDocumentJob = await response.json();
+    expect(job).toMatchObject({version:1,kind:"insights-software",filename:`software-insights-${date}.pdf`});
+    expect((await readPdf(await renderInsightsDocument(job, insightsRenderContext))).text).toContain("Security domains: None selected");
   });
   it("reports provider failure without private details or a misleading empty report", async () => {
     readers.loadInstalledSoftwareExplorerData.mockRejectedValueOnce(new Error("Private SQL credential details"));

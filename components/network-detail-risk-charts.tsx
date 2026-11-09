@@ -2,6 +2,7 @@
 
 import { PersonaPopupButton } from "@/components/persona-popup-button";
 import { usePersonaAccess } from "@/components/persona-provider";
+import { generateLocalDocument } from "@/lib/documents/client";
 
 import { FindingsDataTable } from "@/components/findings-data-table";
 
@@ -124,15 +125,6 @@ function formatCapturedTimestamp(timestamp: string): string {
   })} UTC`;
 }
 
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
 function safeSlug(value: string): string {
   return (
     value
@@ -238,40 +230,6 @@ function buildAffectedDeviceRowsForFinding(
 
 function spiNameFromFindings(spiId: number, findings: NetworkDetailRiskFindingRow[]): string {
   return findings.find((finding) => finding.spiId === spiId)?.title ?? "Unmapped SPI";
-}
-
-function buildWorkbookXml({
-  findingsSheetHeaders,
-  findingsSheetRows,
-  affectedSheetHeaders,
-  affectedSheetRows
-}: {
-  findingsSheetHeaders: string[];
-  findingsSheetRows: Array<Array<string | number>>;
-  affectedSheetHeaders: string[];
-  affectedSheetRows: Array<Array<string | number>>;
-}) {
-  const toRowXml = (row: Array<string | number>) =>
-    `<Row>${row
-      .map((value) => `<Cell><Data ss:Type="String">${escapeXml(String(value))}</Data></Cell>`)
-      .join("")}</Row>`;
-
-  const findingsRowsXml = [findingsSheetHeaders, ...findingsSheetRows].map((row) => toRowXml(row)).join("");
-  const affectedRowsXml = [affectedSheetHeaders, ...affectedSheetRows].map((row) => toRowXml(row)).join("");
-
-  return `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Worksheet ss:Name="Findings">
-  <Table>${findingsRowsXml}</Table>
- </Worksheet>
- <Worksheet ss:Name="Affected CIs">
-  <Table>${affectedRowsXml}</Table>
- </Worksheet>
-</Workbook>`;
 }
 
 export function RiskFindingsDrillThrough({
@@ -824,7 +782,7 @@ export function RiskFindingsDrillThrough({
     );
   }
 
-  function downloadFindingsCsvPackage(matchingRows: typeof filteredFindings) {
+  async function downloadFindingsCsvPackage(matchingRows: typeof filteredFindings) {
     const matchingIds = new Set(matchingRows.map((finding) => finding.id));
     const matchingExtracts = new Set(findingsForExport.filter((row) => matchingIds.has(row.finding.id)).map((row) => row.extract));
     if (!matchingRows.length) {
@@ -897,17 +855,11 @@ export function RiskFindingsDrillThrough({
       row.ci.totalHighRiskCveVulnerabilities
     ]);
 
-    const workbookXml = buildWorkbookXml({
-      findingsSheetHeaders: findingsHeaders,
-      findingsSheetRows: findingsRows,
-      affectedSheetHeaders: affectedHeaders,
-      affectedSheetRows: affectedRows
-    });
-    downloadBlob(
-      workbookXml,
-      `risk-findings-${safeSlug(selection.exportSlug ?? selection.label)}.xls`,
-      "application/vnd.ms-excel;charset=utf-8;"
-    );
+    try {
+      await generateLocalDocument({ version: 1, kind: "xls-risk-findings", title: "Risk findings and affected CIs",
+        filename: `risk-findings-${safeSlug(selection.exportSlug ?? selection.label)}.xls`, generatedAt: new Date().toISOString(),
+        data: { findingsSheetHeaders: findingsHeaders, findingsSheetRows: findingsRows, affectedSheetHeaders: affectedHeaders, affectedSheetRows: affectedRows } });
+    } catch { /* Shared generation dialog provides retry and cancellation. */ }
   }
 
   function downloadHighRiskCvesCsv(matchingRows: typeof filteredAssetHighRiskCves) {
@@ -1956,7 +1908,7 @@ export function NetworkDetailRiskCharts({
     );
   };
 
-  const downloadFindingsCsvPackage = (matchingRows: typeof filteredFindings) => {
+  const downloadFindingsCsvPackage = async (matchingRows: typeof filteredFindings) => {
     const matchingIds = new Set(matchingRows.map((finding) => finding.id));
     const matchingExtracts = new Set(findingsForExport.filter((row) => matchingIds.has(row.finding.id)).map((row) => row.extract));
     if (!matchingRows.length) {
@@ -2029,17 +1981,11 @@ export function NetworkDetailRiskCharts({
       row.ci.totalHighRiskCveVulnerabilities
     ]);
 
-    const workbookXml = buildWorkbookXml({
-      findingsSheetHeaders: findingsHeaders,
-      findingsSheetRows: findingsRows,
-      affectedSheetHeaders: affectedHeaders,
-      affectedSheetRows: affectedRows
-    });
-    downloadBlob(
-      workbookXml,
-      `risk-findings-${selectedSeverity ? safeSlug(selectedSeverity) : "selection"}.xls`,
-      "application/vnd.ms-excel;charset=utf-8;"
-    );
+    try {
+      await generateLocalDocument({ version: 1, kind: "xls-risk-findings", title: "Risk findings and affected CIs",
+        filename: `risk-findings-${selectedSeverity ? safeSlug(selectedSeverity) : "selection"}.xls`, generatedAt: new Date().toISOString(),
+        data: { findingsSheetHeaders: findingsHeaders, findingsSheetRows: findingsRows, affectedSheetHeaders: affectedHeaders, affectedSheetRows: affectedRows } });
+    } catch { /* Shared generation dialog provides retry and cancellation. */ }
   };
 
   const selectedAssetHighRiskCves = useMemo(() => {

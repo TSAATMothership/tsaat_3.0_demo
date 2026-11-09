@@ -13,6 +13,9 @@ import { loadDiscoveryOverview, type DiscoveryOverviewData } from "@/lib/discove
 import * as data from "@/lib/data-loader";
 import { GET } from "@/app/api/discovery-coverage/overview-report/route";
 import type { Dataset } from "@/lib/types";
+import { renderInsightsDocument, type InsightsDocumentJob } from "@/lib/documents/insights";
+import { useBundledInsightsAssets, insightsRenderContext } from "./insights-assets-fixture";
+useBundledInsightsAssets();
 vi.mock("@/lib/data-loader",()=>({loadDatasetForDate:vi.fn(),loadDiscoveryToolsSettings:vi.fn(),loadEndpointExplorerData:vi.fn(),loadInstalledSoftwareExplorerData:vi.fn(),loadShadowItExplorerData:vi.fn(),loadSecurityVulnerabilityExplorerData:vi.fn(),loadPatchManagementExplorerData:vi.fn()}));
 const snapshotDate="2026-03-05",settings=defaultDiscoveryToolsSettings();
 const sample:Dataset=JSON.parse(readFileSync("data/current.json","utf8"));
@@ -101,11 +104,13 @@ describe("Discovery Insights report",()=>{
     expect((await GET(new NextRequest("http://localhost/api/discovery-coverage/overview-report?"+query))).status).toBe(400);
     expect(data.loadDatasetForDate).not.toHaveBeenCalled();
   });
-  it("returns a downloadable PDF for a historical, explicitly empty domain selection",async()=>{
+  it("returns a browser-rendered document job for a historical, explicitly empty domain selection",async()=>{
     const response=await GET(new NextRequest("http://localhost/api/discovery-coverage/overview-report?system=sys-1&securityDomain=NONE&dataDate=2026-03-06"));
-    expect(response.status).toBe(200);expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toContain(snapshotDate);expect(response.headers.get("cache-control")).toBe("no-store");
-    const {text}=await readPdf(new Uint8Array(await response.arrayBuffer()));expect(text).toContain("None selected");expect(text).toContain("Snapshot "+snapshotDate);
+    expect(response.status).toBe(200);expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("content-disposition")).toBeNull();expect(response.headers.get("cache-control")).toBe("no-store");
+    const job:InsightsDocumentJob=await response.json();
+    expect(job).toMatchObject({version:1,kind:"insights-discovery",filename:`discovery-insights-${snapshotDate}.pdf`});
+    const {text}=await readPdf(await renderInsightsDocument(job,insightsRenderContext));expect(text).toContain("None selected");expect(text).toContain("Snapshot "+snapshotDate);
   });
   it("returns a recoverable error without exposing provider details",async()=>{
     vi.mocked(data.loadDatasetForDate).mockRejectedValueOnce(Error("Private database credentials"));

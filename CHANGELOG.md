@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-09 - Browser PDF and Excel generation
+
+- Moved all PDF and Excel generation into browser workers across Governance Insights, reports, measures, Explorers, findings tables and risk/dependency panels. The server supplies scoped document data through the existing SQL/No-SQL facades.
+- Added a shared Generating Document animation with progress stages, cancellation, retry, duplicate prevention and keyboard focus return.
+- Preserved report styling, full evidence tables, workbook sheets/types, applied filters, snapshots and filenames. Existing GET report bookmarks open a browser generation page; CSV exports retain their existing behavior.
+- Made capped summary/remediation PDF evidence selection deterministic by priority and finding ID so SQL and No-SQL reports include the same records.
+
 ## 2026-11-09 - Governance Insights PDF presentation
 
 - Restyled the Cyber Terrain, Installed Software, Discovery, End Point and Security Vulnerability PDFs with their page artwork, TSAAT logo, matching icons, charts and navy/mint theme.

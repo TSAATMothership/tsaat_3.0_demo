@@ -908,6 +908,7 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     const component = readRepoFile("components/ict-system-impact-analyser-2.tsx");
     const worker = readRepoFile("components/ict-system-impact-analyser-2-worker.ts");
     const dependencyExport = readRepoFile("lib/ict-system-dependencies-export.ts");
+    const documentRenderer = readRepoFile("lib/documents/local-workbooks.ts");
     const dependencyRoute = readRepoFile("app/api/cyber-cop/impact-analyser-2/dependencies/route.ts");
     const ictPanelStart = dashboard.indexOf("function IctSystemImpactAnalyserRunPanel");
     const panelEnd = dashboard.indexOf("function ImpactChartTabs");
@@ -934,7 +935,11 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain("data-impact-analyser-filter-row={diagramMode}");
     expect(component).toContain('label="Dependent ICT Systems"');
     expect(component).toContain('aria-label="Export ICT System Dependencies to Excel"');
-    expect(component).toContain("buildIctSystemDependenciesWorkbookXml(filteredDependencyRows)");
+    expect(component).toContain("generateLocalDocument");
+    expect(component).toContain('kind: "xls-dependencies"');
+    expect(component).toContain("data: { rows: filteredDependencyRows }");
+    expect(component).not.toContain("buildIctSystemDependenciesWorkbookXml(");
+    expect(documentRenderer).toContain("buildIctSystemDependenciesWorkbookXml(job.data.rows)");
     expect(component).toContain('axis.key === "relatedSystem" && value === "Not Modelled"');
     expect(component).toContain('? "#ef4444"');
     expect(component).toContain('data-not-modelled-node-legend="true"');
@@ -1314,10 +1319,10 @@ describe("Cyber COP ICT System Impact Analyser source wiring", () => {
     expect(component).toContain('hit.action === "asset-details"');
     expect(component).toContain("openAssetDetails(hit.node)");
     expect(cmdbDrawer).toContain("CMDB Drill Through");
-    expect(cmdbDrawer).toContain("Asset details for");
+    expect(cmdbDrawer).toContain('{selection.ciType ? "CI" : "Asset"} details for');
     expect(cmdbDrawer).toContain("details?.attributes ?? []");
     expect(cmdbDrawer).toContain('href={row.href}');
-    expect(cmdbDrawer).toContain('title="Asset Details" rows={tableRows} columns={detailColumns}');
+    expect(cmdbDrawer).toContain('title={selection.ciType ? "CI Details" : "Asset Details"} rows={tableRows} columns={detailColumns}');
     expect(cmdbDrawer).toContain('label: "Field"');
     expect(cmdbDrawer).toContain("<dialog");
     expect(cmdbDrawer).toContain("measure-scope-panel measure-scope-panel-systems cmdb-scope-panel");

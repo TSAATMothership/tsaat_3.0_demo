@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { inflateSync } from "node:zlib";
 import { PDFArray, PDFDocument, PDFName, PDFPage, PDFRawStream } from "pdf-lib";
 import { NextRequest } from "next/server";
-import { createGovernanceInsightsPdf, insightsSnapshotTimestamp } from "@/lib/governance-insights-pdf";
+import { createGovernanceInsightsPdf as createCyberPdf, insightsSnapshotTimestamp } from "@/lib/governance-insights-pdf";
+import { renderInsightsDocument, type InsightsDocumentJob } from "@/lib/documents/insights";
+import { useBundledInsightsAssets, insightsRenderContext } from "./insights-assets-fixture";
 import { buildDiscoveryOverview } from "@/lib/discovery-overview";
 import { buildGovernanceInsights } from "@/lib/governance-insights";
 import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-coverage";
@@ -13,6 +15,11 @@ import type { ServiceImpactModel } from "@/lib/service-impact";
 import { GET } from "@/app/api/governance/insights/report/route";
 
 vi.mock("@/lib/governance-insights-data", () => ({ loadGovernanceInsights: vi.fn() }));
+useBundledInsightsAssets();
+const createGovernanceInsightsPdf = (data: GovernanceInsightsData, generatedAt: Date) => createCyberPdf({
+  model: data.model, insights: data.insights, scopeLabels: data.scopeLabels, snapshotGeneratedAt: data.snapshotGeneratedAt,
+  impact: { unattributedFindings: data.impact.unattributedFindings, missionCount: data.impact.mission.length, businessCount: data.impact.business.length }
+}, generatedAt);
 const date = "2026-04-23", snapshotTimestamp = "2026-04-23T10:08:50.675Z", generated = new Date("2026-11-04T11:12:13.000Z");
 function fixture(): GovernanceInsightsData {
   const model = buildDiscoveryOverview({ snapshotDate: date, coverage: buildScopedDiscoveryToolCoverage([], defaultDiscoveryToolsSettings()), endpoints: [], software: [], vulnerabilities: [], patches: [], shadow: [] });
@@ -124,10 +131,14 @@ describe("Insights PDF route", () => {
   it("pins header filters only and returns the resolved snapshot filename without caching", async () => {
     const response = await GET(new NextRequest("http://localhost/api/governance/insights/report?system=sys-1&securityDomain=NONE&dataDate=2026-04-24&severity=Major&discoveryFilters=local"));
     expect(loadGovernanceInsights).toHaveBeenCalledExactlyOnceWith({ network: [], system: ["sys-1"], securityDomain: "NONE", dataDate: "2026-04-24" });
-    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toContain(`cyber-terrain-insights-${date}.pdf`);
+    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toContain("application/json");
+    expect(response.headers.get("content-disposition")).toBeNull();
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect((await readPdf(new Uint8Array(await response.arrayBuffer()))).text).toContain(snapshotTimestamp.replace("T", " ").replace("Z", " UTC"));
+    const job: InsightsDocumentJob = await response.json();
+    expect(job).toMatchObject({version:1,kind:"insights-cyber",filename:`cyber-terrain-insights-${date}.pdf`});
+    if (job.kind !== "insights-cyber") throw new Error("Unexpected report kind");
+    expect(job.data.impact).toEqual({unattributedFindings:0,missionCount:0,businessCount:0});
+    expect((await readPdf(await renderInsightsDocument(job, insightsRenderContext))).text).toContain(snapshotTimestamp.replace("T", " ").replace("Z", " UTC"));
   });
   it("returns a retryable error without provider details", async () => {
     vi.mocked(loadGovernanceInsights).mockRejectedValueOnce(new Error("Private SQL credential details"));

@@ -1,9 +1,9 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { createReportPage } from "@/lib/report-template-pdf";
 import { DISCOVERY_OVERVIEW_NOTES, discoveryOverviewActions } from "@/lib/discovery-overview";
-import type { DiscoveryOverviewData } from "@/lib/discovery-overview-data";
+import type { DiscoveryInsightsDocumentData as DiscoveryOverviewData } from "@/lib/documents/insights";
 import { formatAssetTypeLabel } from "@/lib/asset-taxonomy";
-import { drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets, type InsightsReportKind } from "@/lib/insights-pdf-theme";
+import { drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets, type InsightsReportKind, type InsightsPdfRenderOptions } from "@/lib/insights-pdf-theme";
 
 const LEFT = 32, WIDTH = 531.28, BOTTOM = 48;
 const { ink, muted, pale, line, teal, amber } = INSIGHTS_PDF_THEME;
@@ -178,11 +178,11 @@ export function coverageRing(pdf: OverviewPdf, coverage: DiscoveryOverviewData["
   pdf.y-=145;
 }
 
-export async function createDiscoveryOverviewPdf(data: DiscoveryOverviewData, generatedAt = new Date()): Promise<Uint8Array> {
+export async function createDiscoveryOverviewPdf(data: DiscoveryOverviewData, generatedAt = new Date(), options: InsightsPdfRenderOptions = {}): Promise<Uint8Array> {
   if (!Number.isFinite(generatedAt.getTime())) throw Error("Invalid report generation date.");
   const doc=await PDFDocument.create(),regular=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
   doc.setTitle("Discovery Insights Report"); doc.setAuthor("TSAAT"); doc.setCreationDate(generatedAt);
-  const assets=await loadInsightsPdfAssets(doc,"discovery");
+  const assets=await loadInsightsPdfAssets(doc,"discovery",options);
   const pdf=new OverviewPdf(doc,regular,bold,data.model.snapshotDate,"Discovery Insights Report",assets,"discovery");
   const {coverage,endpoints,software,vulnerabilities,patches,shadow}=data.model;
   const actions=discoveryOverviewActions(data.model);

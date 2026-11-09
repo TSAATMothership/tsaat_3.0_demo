@@ -1,6 +1,6 @@
 # Endpoint and vulnerability Insights reports
 
-Both Governance briefings include **Generate PDF** in the masthead, beside the snapshot. The shared Insights download control shows generating status, disables repeated activation, retains keyboard focus, downloads the file and offers a retry after failure. Export remains available for a scoped empty selection; no scope leaves the page and export absent.
+Both Governance briefings include **Generate PDF** in the masthead, beside the snapshot. The shared browser document control shows a **Generating Document** progress animation, disables repeated activation, supports cancellation, restores keyboard focus, downloads the file and offers a retry after failure. Export remains available for a scoped empty selection; no scope leaves the page and export absent.
 
 | Page | API | Filename |
 | --- | --- | --- |
@@ -19,9 +19,9 @@ Security Vulnerability Insights includes the observation/CVE/endpoint/severity h
 
 ## Scope and data
 
-Links carry only the applied header scope/domains and resolved snapshot, not local Explorer filters. APIs validate scope identifiers, security domains and a single real calendar date, then load the same overview and cached endpoint/vulnerability projections as the pages through `lib/data-loader.ts`. The resolved date pins all reads and the filename. Responses are `application/pdf` attachments with `no-store`; invalid input returns 400 and load/render failures return a sanitized, retryable 503.
+Links carry only the applied header scope/domains and resolved snapshot, not local Explorer filters. APIs validate scope identifiers, security domains and a single real calendar date, then load the same overview and cached endpoint/vulnerability projections as the pages through `lib/data-loader.ts`. The resolved date pins all reads and the filename. Responses are versioned JSON document jobs with `no-store`, including the full scoped rows needed for all facets and appendices. Invalid input returns 400 and load failures return a sanitized, retryable 503. Existing HTML report bookmarks redirect to browser generation. Only the browser worker produces the PDF bytes and local download; data or rendering failure cannot deliver a file labelled complete.
 
-Existing endpoint/table facet helpers and overview measures provide every figure. No new SQL/JSON query, data, schema, rule, persistent setting or calculation-contract checksum is introduced. Both provider compilations share the report path. Existing application access and persona behavior remain unchanged. Reports use the installed local `pdf-lib` dependency and require no browser service, network fonts or new packages. Shared branding lives in `lib/insights-pdf-theme.ts`; the bundled PNG hero derivatives and source hashes are in `public/insights-report-art`. They preserve the original page SVG artwork and are generated only during manual artwork maintenance, never during a PDF request.
+Existing endpoint/table facet helpers and overview measures provide every figure. No new SQL/JSON query, data, schema, rule, persistent setting or calculation-contract checksum is introduced. Both provider compilations supply the same report-data contract to the shared browser renderer. Existing application access and persona behavior remain unchanged. Reports use the installed local `pdf-lib` dependency and require no headless-browser service, remote fonts or new packages. Shared branding lives in `lib/insights-pdf-theme.ts`; the bundled PNG hero derivatives and source hashes are in `public/insights-report-art`. The browser reads only the logo and selected illustration from app-hosted static assets. They preserve the original page SVG artwork and are generated only during manual artwork maintenance, never during a PDF request.
 
 ## Validation
 

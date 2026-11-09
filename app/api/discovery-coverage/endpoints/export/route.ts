@@ -1,8 +1,9 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { loadEndpointExplorerData } from "@/lib/data-loader";
 import { filterEndpointRows, parseEndpointFilters, type EndpointFilters } from "@/lib/endpoint-explorer";
-import { buildEndpointWorkbook, ENDPOINT_XLSX_TYPE } from "@/lib/endpoint-explorer-workbook";
 import { normalizeDataDate } from "@/lib/data-date";
 import { scopeIds } from "@/lib/workspace-navigation";
 
@@ -25,12 +26,9 @@ export async function POST(request: NextRequest) {
   try {
     const data = await loadEndpointExplorerData(scope);
     const matching = filterEndpointRows(data.rows, filters, data.snapshotDate);
-    const workbook = buildEndpointWorkbook(matching);
-    return new Response(Uint8Array.from(workbook).buffer, { headers: {
-      "Content-Type": ENDPOINT_XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="end-point-explorer-${data.snapshotDate}.xlsx"`,
-      "Cache-Control": "no-store"
-    } });
+    return documentResponse(request, { version: 1, kind: "xlsx-endpoints", title: "End Point Explorer",
+      filename: `end-point-explorer-${data.snapshotDate}.xlsx`, generatedAt: new Date().toISOString(),
+      data: { rows: matching, snapshotDate: data.snapshotDate } } satisfies WorkbookDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to export endpoint records." }, { status: 503 });
   }

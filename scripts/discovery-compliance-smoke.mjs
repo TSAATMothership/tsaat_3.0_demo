@@ -40,7 +40,8 @@ export async function checkDiscoveryComplianceExplorer(page, { date, historicalD
         try {
           const pending = page.waitForResponse(response => response.url().endsWith('/api/discovery-coverage/compliance/export') && response.request().method() === 'POST');
           await page.click('.endpoint-export'); const response = await pending;
-          assert.equal(response.status(), 200); assert.match(response.headers()['content-type'], /spreadsheetml/);
+          assert.equal(response.status(), 200); assert.match(response.headers()['content-type'], /application\/json/);
+          assert.equal(response.headers()['content-disposition'], undefined, 'Workbook bytes are generated in the browser.');
           const payload = JSON.parse(response.request().postData());
           assert.deepEqual(payload.filters.columns[column], [bar.value]); assert.equal(payload.scope.dataDate, selection.snapshot);
           for (const [key, value] of new URLSearchParams(selection.scope)) assert.equal(payload.scope[key], value);

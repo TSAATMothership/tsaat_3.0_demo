@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { readXlsxTextEntries as readXlsxEntries } from "./workbook-test-utils";
 import {
   buildNetworkTargetStateTemplateHref,
   networkTargetStateTemplateContentDisposition,
@@ -6,8 +8,7 @@ import {
 import {
   buildNetworkTargetStateTemplateWorkbook,
   networkTargetStateTemplateAssetRows,
-  networkDetailsTemplateValues,
-  readXlsxEntries
+  networkDetailsTemplateValues
 } from "@/lib/network-target-state-template-workbook";
 import type { ManagedNetwork } from "@/lib/types";
 import { describe, expect, it } from "vitest";
@@ -55,11 +56,11 @@ describe("network target-state template workbook", () => {
           "storage-device": ["nas-alpha-&-01"],
           workstation: [""]
         }
-      })
+      }), Uint8Array.from(readFileSync("data/templates/network-target-state-template.xlsx"))
     );
     const entries = readXlsxEntries(workbook);
-    const networkDetailsSheet = entries.get("xl/worksheets/sheet1.xml")?.toString("utf8") ?? "";
-    const assetsSheet = entries.get("xl/worksheets/sheet2.xml")?.toString("utf8") ?? "";
+    const networkDetailsSheet = entries.get("xl/worksheets/sheet1.xml") ?? "";
+    const assetsSheet = entries.get("xl/worksheets/sheet2.xml") ?? "";
 
     expect(networkDetailsSheet).toContain('dimension ref="A1:B6"');
     expect(networkDetailsSheet).toContain('<c r="B1" t="inlineStr"><is><t>Alpha Network</t></is></c>');

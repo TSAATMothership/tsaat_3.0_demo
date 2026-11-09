@@ -44,7 +44,11 @@ export async function checkSoftwareInsightsPdf(page, { date, historicalDate, dir
         for (const match of stream.toString('latin1').matchAll(/<([0-9A-F]+)> Tj/g)) labels.push(Buffer.from(match[1], 'hex').toString('latin1'));
       }
       const text = labels.join('\n');
-      assert(text.includes(`Recorded installations\n${total.toLocaleString('en-AU')}\n`), "Downloaded total matches visible scoped inventory");
+      // The footprint infographic prints each value above its lower-case unit label.
+      // Match that specific metric rather than any occurrence of the same count in narrative text.
+      const installationLabels = labels.map((label, index) => label === 'recorded installations' ? index : -1).filter(index => index >= 0);
+      assert.equal(installationLabels.length, 1, 'PDF has one recorded-installations footprint metric');
+      assert.equal(labels[installationLabels[0] - 1], total.toLocaleString('en-AU'), 'Downloaded total matches visible scoped inventory');
       assert(text.includes('Security domains: ' + query.get('securityDomain')));
       assert(text.includes(`Snapshot ${selection.date}`));
       if (artifacts) fs.copyFileSync(result.file, path.join(artifacts, selection.name + '.pdf'));

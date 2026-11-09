@@ -1,12 +1,12 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeDataDate } from "@/lib/data-date";
 import { loadDatasetForDate } from "@/lib/data-loader";
 import { isUnassignedNetworkId } from "@/lib/discovery-filter-scope";
 import {
-  NETWORK_TARGET_STATE_TEMPLATE_CONTENT_TYPE,
-  networkTargetStateTemplateContentDisposition
+  networkTargetStateTemplateFilename
 } from "@/lib/network-target-state-template-links";
-import { buildNetworkTargetStateTemplateWorkbook } from "@/lib/network-target-state-template-workbook";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,13 +31,7 @@ export async function GET(request: NextRequest) {
     return errorResponse("Network row not found for supplied id.", 404);
   }
 
-  const workbook = await buildNetworkTargetStateTemplateWorkbook(network);
-  const workbookArrayBuffer = Uint8Array.from(workbook).buffer;
-
-  return new Response(workbookArrayBuffer, {
-    headers: {
-      "Content-Type": NETWORK_TARGET_STATE_TEMPLATE_CONTENT_TYPE,
-      "Content-Disposition": networkTargetStateTemplateContentDisposition(network.name)
-    }
-  });
+  return documentResponse(request, { version: 1, kind: "xlsx-target-state", title: "Network target-state template",
+    filename: networkTargetStateTemplateFilename(network.name), generatedAt: new Date().toISOString(),
+    data: { network, snapshotDate: dataset.snapshotDate } } satisfies WorkbookDocumentJob);
 }

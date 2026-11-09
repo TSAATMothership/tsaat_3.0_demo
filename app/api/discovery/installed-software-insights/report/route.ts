@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { loadSoftwareInsightsReport } from "@/lib/software-insights-report-data";
-import { createSoftwareInsightsPdf } from "@/lib/software-insights-pdf";
+import { documentResponse } from "@/lib/documents/server-response";
+import type { InsightsDocumentJob } from "@/lib/documents/insights";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,11 +25,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Select a valid network or ICT system, security domains and snapshot date." }, { status: 400 });
   }
   try {
-    const data = await loadSoftwareInsightsReport(scope), bytes = await createSoftwareInsightsPdf(data);
-    return new Response(Uint8Array.from(bytes).buffer, { headers: {
-      "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="software-insights-${data.model.snapshotDate}.pdf"`,
-      "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
-    } });
+    const data = await loadSoftwareInsightsReport(scope);
+    return documentResponse(request, { version: 1, kind: "insights-software", title: "Installed Software Insights",
+      filename: `software-insights-${data.model.snapshotDate}.pdf`, generatedAt: new Date().toISOString(), data
+    } satisfies InsightsDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to generate the Software Insights PDF. Please try again." }, { status: 503 });
   }

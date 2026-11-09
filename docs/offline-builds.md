@@ -10,6 +10,12 @@ The explicit `setup:database` workflow uses the already pinned tsx/Next packages
 
 Routine CI uses changed-area validation; workflow_dispatch, validation:full and dependency/build changes select the full offline gate. A clean CI runner still installs local dependencies when selected tests require them. Existing production build guards remain enforced whenever a build is run.
 
+## Browser document assets
+
+PDF and Excel rendering uses repository-local worker code and the existing pinned dependencies. Workers fetch only same-installation assets: `/tsaat-logo.png`, the five PNG illustrations under `/insights-report-art/`, and `/document-assets/network-target-state-template.xlsx`. Deploy these public assets with both artifacts. The workbook template is the reviewed three-sheet source template copied into public assets; its reference sheets remain intact while the selected network populates the editable sheet. No report renderer needs Node filesystem access, an installed office suite, a headless browser service, remote fonts/images or package downloads.
+
+The migration introduces no dependency version or vendor-archive change. Browser ZIP/XML code uses byte arrays rather than Node buffers/zlib, and report generation runs in a worker to keep the progress/cancel interface responsive. Local HTTP asset reads during app use are distinct from compilation: both guarded builds must remain free of network access. The broad client-bundle/worker change selects archive verification, fresh empty-cache offline installation, both builds and compiled browser/provider checks; completed results belong in validation evidence rather than being inferred from unchanged dependencies. See [document runtime contract](client-document-generation.md).
+
 ## Disconnected use
 
 The legacy `/Dependencies/` exclusion is anchored at the repository root. It must not hide application API folders named `dependencies`, including the existing impact-analyser dependency route, from complete checkouts. Governance Insights uses repository-local TSAAT branding, topography and an original cyber-terrain SVG with inline icons; it adds no package, remote font, asset download or storage requirement.
@@ -87,4 +93,4 @@ The explicit `enrich:nosql` command uses the already pinned local tsx package an
 Risk-profile explorer new-tab links use the existing Next/React packages and local routes; no dependency or build asset changes are required. These navigation changes use focused validation unless the assessed scope also affects data/build behavior.
 
 
-Discovery Overview PDF uses the pinned pdf-lib package, standard local fonts and vector drawing. It adds no packages, build assets, browser download or runtime network fetch. Archive integrity and offline compilation remain supported; repeat the full install/build proof when dependency/build impact or release validation requires it.
+Discovery Insights PDF uses the pinned pdf-lib package, standard embedded fonts, vector drawing and its bundled illustration in the browser worker. Artwork is served from this installation; generation requires no external network service. Archive integrity and offline compilation remain supported; repeat the full install/build proof when dependency/build impact or release validation requires it.

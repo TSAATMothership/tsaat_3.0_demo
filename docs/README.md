@@ -20,6 +20,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Vulnerability observations, missing evidence and discovery coverage | [Security Vulnerability Insights](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md) |
 | Discovery Insights PDF sections and scope | [Discovery Insights report](discovery-overview-report.md) |
 | Endpoint and vulnerability briefing PDF exports | [Inventory Insights reports](inventory-insights-reports.md) |
+| All PDF/Excel locations, browser workers and progress behavior | [Client document generation](client-document-generation.md) |
 | System structure and data flow | [Architecture](architecture.md) |
 | Proposed on-premises Tableau extension and transformation plan | [Tableau extension solution design](tableau-extension-solution-design.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |

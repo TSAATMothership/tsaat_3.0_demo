@@ -1,3 +1,5 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import Papa from "papaparse";
 import { NextRequest, NextResponse } from "next/server";
@@ -14,8 +16,6 @@ import { parseFilters } from "@/lib/selectors";
 
 import type { FindingsExportContext } from "@/lib/findings-export";
 import { loadFindingsRegisterData } from "@/lib/findings-register-data";
-import { buildFindingsWorkbook } from "@/lib/findings-workbook";
-import { INVENTORY_XLSX_TYPE } from "@/lib/inventory-explorer-workbook";
 import { scopeIds } from "@/lib/workspace-navigation";
 
 export const dynamic = "force-dynamic";
@@ -203,13 +203,10 @@ export async function POST(request: NextRequest) {
       || findingIds.some((id) => !byId.has(id))) {
       return NextResponse.json({ error: "Findings have changed. Refresh the register and try again." }, { status: 409 });
     }
-    const workbook = buildFindingsWorkbook(findingIds.map((id) => byId.get(id)!), context.asOf,
-      data.assetDetailsByAssetId, data.findingDisplayConfiguration);
-    return new Response(Uint8Array.from(workbook).buffer, { headers: {
-      "Content-Type": INVENTORY_XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="dct-findings-${context.asOf}.xlsx"`,
-      "Cache-Control": "no-store"
-    } });
+    return documentResponse(request, { version: 1, kind: "xlsx-findings", title: "Findings and affected CIs",
+      filename: `dct-findings-${context.asOf}.xlsx`, generatedAt: new Date().toISOString(),
+      data: { findings: findingIds.map(id => byId.get(id)!), asOf: context.asOf,
+        assetDetailsByAssetId: data.assetDetailsByAssetId, configuration: data.findingDisplayConfiguration } } satisfies WorkbookDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to export findings and affected CIs." }, { status: 503 });
   }

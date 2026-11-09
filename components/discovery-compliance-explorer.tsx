@@ -1,5 +1,7 @@
 "use client";
 
+import { generateDocumentFromUrl } from "@/lib/documents/client";
+
 import { useMemo, useState } from "react";
 import { FilterHeader, SummaryChart } from "@/components/inventory-explorer-controls";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
@@ -43,17 +45,14 @@ export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope, initial
     if (exporting) return;
     setExporting(true); setExportError("");
     try {
-      const response = await fetch("/api/discovery-coverage/compliance/export", {
+      await generateDocumentFromUrl("/api/discovery-coverage/compliance/export", {
         method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
         body: JSON.stringify({ scope: { ...scope, dataDate: snapshotDate }, filters })
       });
-      if (!response.ok) throw new Error("The Excel export could not be created. Please try again.");
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a");
-      link.href = url; link.download = `discovery-compliance-explorer-${snapshotDate}.xlsx`;
-      document.body.append(link); link.click(); link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (reason) { setExportError(reason instanceof Error ? reason.message : "Unable to export records."); }
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      setExportError(reason instanceof Error ? reason.message : "Unable to export records.");
+    }
     finally { setExporting(false); }
   };
 
@@ -81,7 +80,7 @@ export function DiscoveryComplianceExplorer({ rows, snapshotDate, scope, initial
           onChange={(event) => { setFilters((current) => ({ ...current, search: event.target.value })); setPage(1); }} />
         <button type="button" className="endpoint-export" onClick={exportRows} disabled={exporting || !filtered.length}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5" /></svg>
-          {exporting ? "Exporting..." : "Export Excel"}
+          {exporting ? "Generating Document..." : "Export Excel"}
         </button>
       </div>
     </div>

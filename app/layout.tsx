@@ -7,6 +7,7 @@ import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
 import { MenuNavigation } from "@/components/menu-navigation";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { PersonaProvider } from "@/components/persona-provider";
+import { DocumentGenerationDialog } from "@/components/document-generation-dialog";
 import { APP_NAME } from "@/lib/constants";
 
 const bodyFontClass = "font-['Segoe_UI','Trebuchet_MS','Arial',sans-serif]";
@@ -54,6 +55,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <FilterLoadingOverlay />
         </Suspense>
+        <DocumentGenerationDialog />
 
       </body>
     </html>

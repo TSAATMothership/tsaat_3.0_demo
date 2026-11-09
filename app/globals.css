@@ -1720,3 +1720,35 @@ a {
 .discovery-overview-report .endpoint-export { white-space: normal; text-align: left; }
 
 .service-impact-duration h3 { font-size: .88rem; color: #e1f1fa; font-weight: 600; margin: .4rem 0; }
+
+/* Shared browser PDF/Excel lifecycle: real stages, accessible cancellation and reduced motion. */
+.document-generation-dialog { width: min(560px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); padding: 0; border: 1px solid #568f9f; border-radius: 1.1rem; color: #e3f3f7; background: #102938; box-shadow: 0 24px 90px #0009; }
+.document-generation-dialog::backdrop { background: #03101bba; }
+.document-generation-content { padding: clamp(1.2rem, 4vw, 2rem); text-align: center; }
+.document-generation-icon { position: relative; width: 4rem; height: 4rem; margin: 0 auto 1rem; color: #85e9d5; }
+.document-generation-icon svg { width: 100%; height: 100%; padding: .5rem; }
+.document-generation-orbit { position: absolute; inset: 0; border: 2px solid #315665; border-top-color: #85e9d5; border-radius: 50%; animation: document-orbit 1.3s linear infinite; }
+.document-generation-icon.is-error { color: #ffc0c7; }
+.document-generation-eyebrow { margin-bottom: .35rem; text-transform: uppercase; font-size: .68rem; letter-spacing: .15em; color: #93bfca; }
+.document-generation-content h2 { font-size: 1.5rem; font-weight: 650; color: #f1fbff; }
+.document-generation-title { margin-top: .4rem; font-size: .9rem; color: #b7d4dd; overflow-wrap: anywhere; }
+.document-generation-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; padding: 1.5rem 0 1rem; }
+.document-generation-stages li { display: flex; flex-direction: column; align-items: center; gap: .45rem; font-size: .7rem; line-height: 1.35; color: #88a8b5; }
+.document-generation-stages li > span { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; border: 1px solid #406475; border-radius: 50%; font-size: .8rem; }
+.document-generation-stages .is-current { color: #fff; }
+.document-generation-stages .is-current > span { border-color: #85e9d5; background: #1a5358; }
+.document-generation-stages .is-complete { color: #85e9d5; }
+.document-generation-detail { min-height: 2.5rem; margin: .75rem 0; font-size: .86rem; color: #d1e7ed; overflow-wrap: anywhere; }
+.document-generation-track { height: .4rem; overflow: hidden; border-radius: .3rem; background: #244756; }
+.document-generation-track span { display: block; height: 100%; background: #85e9d5; border-radius: inherit; }
+.document-generation-track .is-indeterminate { width: 35%; animation: document-progress 1.6s ease-in-out infinite; }
+.document-generation-actions { display: flex; justify-content: center; gap: .75rem; margin-top: 1.3rem; }
+.document-generation-actions button { border: 1px solid #527c8c; border-radius: .5rem; padding: .55rem 1.15rem; font-size: .85rem; }
+.document-generation-actions button:hover { background: #214859; }
+.document-generation-actions button:focus-visible { outline: 2px solid #85e9d5; outline-offset: 3px; }
+.measures-report-links button, .measures-summary-status button { text-align: left; color: #82d9e9; font-size: inherit; }
+.measures-report-links button:hover, .measures-summary-status button:hover { text-decoration: underline; }
+button[data-document-source]:disabled { opacity: .55; cursor: wait; }
+@keyframes document-orbit { to { transform: rotate(360deg); } }
+@keyframes document-progress { 0% { transform: translateX(-110%); } 100% { transform: translateX(390%); } }
+@media (prefers-reduced-motion: reduce) { .document-generation-orbit, .document-generation-track .is-indeterminate { animation: none; } .document-generation-track .is-indeterminate { width: 100%; opacity: .5; } }

@@ -1,6 +1,7 @@
 "use client";
 
 import { PersonaPopup } from "@/components/persona-popup";
+import { DocumentDownloadButton } from "@/components/document-download-button";
 
 import Link from "@/components/persona-link";
 import Papa from "papaparse";
@@ -101,7 +102,7 @@ export function RiskProfile({ model, filters, initialNetworkId, initialSystemId 
     <header className="endpoint-hero discovery-overview-hero"><div><p className="endpoint-eyebrow">Cyber Security / {isSystem ? "ICT Systems" : "Networks"}</p><h1>{title}</h1>
       <div className="discovery-overview-context"><span><strong>{number(model.entityCount)}</strong> {entities}</span><span><strong>{number(model.ciCount)}</strong> CIs</span><span><strong>{number(isSystem ? model.networkCount : model.systemCount)}</strong> {isSystem ? "networks hosting these CIs" : "ICT systems using these CIs"}</span></div></div>
       <div className="network-risk-header-actions"><div className="discovery-overview-snapshot"><span>Snapshot</span><strong>{model.snapshotDate}</strong></div>
-        <a className="report-generate" href={href(isSystem ? "/api/systems/remediation-report" : "/api/networks/remediation-report")} target="_blank" rel="noreferrer">Remediation report <span aria-hidden="true">↗</span></a></div>
+        <DocumentDownloadButton className="report-generate" href={href(isSystem ? "/api/systems/remediation-report" : "/api/networks/remediation-report")}>Remediation report <span aria-hidden="true">↗</span></DocumentDownloadButton></div>
     </header>
     <div className="network-risk-tabs" role="tablist" aria-label={`${entityLabel} risk views`}>
       {tabs.map(tab => <button key={tab.id} ref={element => { tabButtons.current[tab.id] = element; }} type="button" role="tab"

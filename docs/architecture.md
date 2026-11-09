@@ -1,6 +1,6 @@
 # Architecture
 
-Endpoint/vulnerability Insight report APIs validate header scope/domains/date, reuse the page's overview plus snapshot-pinned facade projection, and render vector PDFs through the existing report layout helper. Download links contain only header scope and resolved date; errors are sanitized and responses are not cached. Both providers share this presentation path. See [report contracts](inventory-insights-reports.md).
+Endpoint/vulnerability Insight report APIs validate header scope/domains/date and reuse the page's overview plus snapshot-pinned facade projection. They return JSON document models; the browser worker renders vector PDFs through the existing report layout helper. Download requests contain only header scope and resolved date; errors are sanitized and responses are not cached. Both providers share this presentation path. See [report contracts](inventory-insights-reports.md).
 
 Security Vulnerability Insights composes the existing Discovery Insights measures with the vulnerability Explorer facade at the resolved snapshot. Its charts and missing-value cards use the same shared table facets as Security Vulnerability Explorer, without changing provider operations or rules. The new Governance ID preserves saved persona page lists. See [the feature contract](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md).
 
@@ -40,10 +40,21 @@ flowchart LR
   SQLCMD --> DB[(SQL snapshots and configuration)]
   Loader --> JSON[JSON loader and evaluators]
   JSON --> Files[(JSON snapshots, references and settings)]
-  Routes --> Reports[PDF and workbook builders]
-  Reports --> Browser
+  Routes --> Data[Scoped JSON document models]
+  Data --> Browser
+  Browser --> Worker[Browser document worker]
+  Assets[Bundled artwork and workbook template] --> Worker
+  Worker --> Download[Local PDF and Excel downloads]
   Local[DPAPI configuration] --> Routes
 ```
+
+## Document generation boundary
+
+All PDF and Excel construction runs in the browser through `lib/documents/document.worker.ts`. The application server retains report-model preparation, configured measure/history evaluation, canonical row selection and existing scope/date validation. It returns versioned JSON envelopes rather than document bytes. `lib/documents/server-response.ts` preserves read-only GET URLs: HTML navigation redirects to `/documents/generate` with the original source query, while JSON requests receive a no-store envelope. The summary API keeps its existing default JSON response; `format=pdf` selects its document model. Existing CSV contracts remain unchanged.
+
+The shared client controller streams bounded document data, starts one worker job, relays real progress and downloads a local Blob. Cancellation aborts the read and terminates the worker; errors never download partial documents. PDF renderers use pinned pdf-lib and local artwork. Workbook helpers use browser byte arrays and local ZIP/XML assembly; the target-state template is a static bundled asset. Server routes import renderer types only, and the worker must not reach providers, Node filesystem/SQL modules or server-only loaders. Dependency-boundary regression tests enforce both directions.
+
+The existing SQL/JSON application server remains necessary for data and settings. This change adds no provider, identity boundary or browser storage copy; persona preferences remain presentation controls under the existing application access model. See [ADR 0024](adr/0024-browser-document-generation.md) and the [audit and runtime contract](client-document-generation.md).
 
 ## Ownership
 
@@ -83,7 +94,7 @@ Unreachable legacy presentation modules are removed rather than maintained besid
 
 Governance Overview is retired; its route redirects to Trends with query selections preserved. The unused placeholder component is removed. Trends loads full-profile history through the existing month-window facade and filters it to the requested week or calendar month ending on the header date, projects existing SPI results/lifecycle rules/discovery mappings into serializable metrics, and renders an executive infographic with scoped persona-aware evidence links and CSV export. See [Governance Trends](../Requirements%20Documentation/17-Governance-Trends.md). Insights uses a server-rendered briefing and the normal route-ready marker. `loadGovernanceInsights` composes the existing Discovery Insights loader and full-profile core data/Service Impact model, pins both to one resolved snapshot, and forwards only header scope/domain/date. A pure presentation projection deduplicates findings, ranks existing service rows and selects nonzero editorial action prompts. No new provider implementation, persisted score or schema is introduced. Both builds use the same component, local SVG/branding and scoped evidence links; failures produce a retry state rather than zero metrics.
 
-The Insights masthead downloads `GET /api/governance/insights/report` through a small client button with busy/error/retry states. The Node route validates header context and calls the same Insights loader; `governance-insights-pdf.ts` renders a paginated A4 infographic using existing pdf-lib, embedded standard fonts and vector artwork without a host browser or remote resources. The loader exposes the existing core dataset `generatedAt` as `snapshotGeneratedAt`. The PDF distinguishes that recorded snapshot timestamp from its export generation time, includes scope/date context and returns a no-store PDF attachment. No underlying provider query or storage format changes.
+The Insights masthead loads `GET /api/governance/insights/report` through the shared document controller. The Node route validates header context and calls the same Insights loader, returning only the report projection. In the browser worker, `governance-insights-pdf.ts` renders a paginated A4 infographic using existing pdf-lib, embedded standard fonts and bundled artwork. The loader exposes the existing core dataset `generatedAt` as `snapshotGeneratedAt`. The PDF distinguishes that recorded snapshot timestamp from its export generation time and retains scope/date context. JSON report data is no-store; PDF bytes are downloaded locally. No underlying provider query or storage format changes.
 
 Discovery Insights composes the existing coverage, endpoint, software, Shadow IT, vulnerability and patch facade operations at the same resolved snapshot. Its pure aggregation counts canonical explorer rows; patch status and overdue calculations remain in the shared patch projector. Scope/date drill-through links use discoveryExplorerHref and validated destination filters, with patch posture accepting the same initial-filter contract as the other explorers. No new provider query implementation, store, schema, external service or cached summary table is introduced.
 

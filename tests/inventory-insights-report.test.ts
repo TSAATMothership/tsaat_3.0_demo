@@ -13,6 +13,9 @@ import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-co
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { ENDPOINT_COLUMNS, type EndpointRecord } from "@/lib/endpoint-explorer";
 import { VULNERABILITY_COLUMNS, type SecurityVulnerabilityRecord } from "@/lib/security-vulnerability-explorer";
+import { renderInsightsDocument, type InsightsDocumentJob } from "@/lib/documents/insights";
+import { useBundledInsightsAssets, insightsRenderContext } from "./insights-assets-fixture";
+useBundledInsightsAssets();
 vi.mock("@/lib/discovery-overview-data", () => ({ loadDiscoveryOverview: vi.fn() }));
 vi.mock("@/lib/data-loader", () => ({ loadEndpointExplorerData: vi.fn(), loadSecurityVulnerabilityExplorerData: vi.fn() }));
 const snapshotDate = "2026-10-31";
@@ -93,13 +96,17 @@ it.each(handlers)("validates %s report input before data access", async (_, hand
   }
   expect(loadDiscoveryOverview).not.toHaveBeenCalled();
 });
-it.each(handlers)("exports %s via the page's pinned projections with safe download headers", async (kind, handler) => {
+it.each(handlers)("exports %s via the page's pinned projections as a browser document job", async (kind, handler) => {
   const response = await handler(new NextRequest("http://localhost/api/report?system=sys-1&securityDomain=SECRET&dataDate=2026-11-01&discoveryFilters=ignored"));
-  expect(response.status).toBe(200); expect(response.headers.get("Content-Type")).toBe("application/pdf");
-  expect(response.headers.get("Cache-Control")).toBe("no-store"); expect(response.headers.get("Content-Disposition")).toContain(snapshotDate + ".pdf");
+  expect(response.status).toBe(200); expect(response.headers.get("Content-Type")).toContain("application/json");
+  expect(response.headers.get("Cache-Control")).toBe("no-store"); expect(response.headers.get("Content-Disposition")).toBeNull();
   expect(loadDiscoveryOverview).toHaveBeenCalledWith({ system: ["sys-1"], network: [], securityDomain: "SECRET", dataDate: "2026-11-01" });
   const loader = kind === "endpoints" ? loadEndpointExplorerData : loadSecurityVulnerabilityExplorerData;
-  expect(loader).toHaveBeenCalledWith(fixture().scope); expect((await readPdf(new Uint8Array(await response.arrayBuffer()))).doc.getPageCount()).toBeGreaterThanOrEqual(6);
+  expect(loader).toHaveBeenCalledWith(fixture().scope);
+  const job:InsightsDocumentJob=await response.json();
+  expect(job.kind).toBe(kind === "endpoints" ? "insights-endpoint" : "insights-vulnerability");
+  expect(job.filename).toContain(snapshotDate+".pdf");
+  expect((await readPdf(await renderInsightsDocument(job,insightsRenderContext))).doc.getPageCount()).toBeGreaterThanOrEqual(6);
 });
 it.each(handlers)("returns a sanitized retryable error if the %s report projection fails", async (kind, handler) => {
   const loader = kind === "endpoints" ? loadEndpointExplorerData : loadSecurityVulnerabilityExplorerData;

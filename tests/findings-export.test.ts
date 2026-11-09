@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/findings/export/route";
-import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { readXlsxTextEntries as readXlsxEntries, renderWorkbookResponse } from "./workbook-test-utils";
 import { assetDetails, configuration, exportContext, finding } from "./fixtures/findings-export";
 
 const load = vi.hoisted(() => vi.fn());
@@ -19,16 +19,16 @@ describe("findings export route", () => {
     const findingIds = rows.slice(0, 75).reverse().map((row) => row.id);
     const response = await POST(request({ ...exportContext, findingIds }));
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
-    expect(response.headers.get("Content-Disposition")).toBe('attachment; filename="dct-findings-2026-10-30.xlsx"');
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(response.headers.get("Content-Disposition")).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(load).toHaveBeenCalledWith({ ...exportContext.scope, asOf: exportContext.asOf, findingsTab: "open" });
-    const zip = readXlsxEntries(Buffer.from(await response.arrayBuffer()));
-    const findings = zip.get("xl/worksheets/sheet1.xml")!.toString();
+    const zip = readXlsxEntries(await renderWorkbookResponse(response));
+    const findings = zip.get("xl/worksheets/sheet1.xml")!;
     expect(findings.match(/<row /g)).toHaveLength(76);
     expect(findings.indexOf('>finding-74</t>')).toBeLessThan(findings.indexOf('>finding-0</t>'));
     expect(findings).not.toContain('>finding-75</t>');
-    const cis = zip.get("xl/worksheets/sheet2.xml")!.toString();
+    const cis = zip.get("xl/worksheets/sheet2.xml")!;
     expect(cis.match(/<row /g)).toHaveLength(2);
     expect(cis).not.toContain("other-ci");
   });

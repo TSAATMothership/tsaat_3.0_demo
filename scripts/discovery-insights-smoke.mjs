@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PDFDocument } from 'pdf-lib';
 import { securityDomainSelection } from '../lib/security-domain.mjs';
+import { checkInsightsPdfDownload } from './insights-pdf-smoke.mjs';
 
 /** Shared presentation/route checks against an isolated store in either compiled provider. */
 export async function checkDiscoveryInsights(page, { date, historicalDate, artifacts, directory }) {
@@ -75,37 +75,16 @@ export async function checkDiscoveryInsights(page, { date, historicalDate, artif
       }
     }
     await visit(query);
-    const button = 'button[data-insights-report]', href = await page.$eval(button, n => n.dataset.insightsReport);
-    const client = await page.browser().target().createCDPSession();
-    await client.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: directory });
-    const file = path.join(directory, `discovery-insights-${snapshot}.pdf`);
-    if (fs.existsSync(file)) fs.unlinkSync(file);
-    const responsePromise = page.waitForResponse(r => r.url() === base + href);
-    await page.focus(button); await page.keyboard.press('Enter');
-    assert.equal((await responsePromise).status(), 200);
-    const deadline = Date.now() + 15000;
-    while (!fs.existsSync(file) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
-    assert(fs.existsSync(file));
-    const bytes = fs.readFileSync(file), pdf = await PDFDocument.load(bytes);
-    assert.equal(pdf.getTitle(), 'Discovery Insights Report'); assert(pdf.getPageCount() >= 9);
-    if (artifacts) fs.writeFileSync(path.join(artifacts, `discovery-insights-${snapshot}.pdf`), bytes);
-    await page.waitForFunction(() => !document.querySelector('button[data-insights-report]').disabled);
-    assert(await page.$eval(button, node => node === document.activeElement), 'PDF retains keyboard focus');
-    await client.detach();
+    const result = await checkInsightsPdfDownload(page, { date: snapshot, directory, route: '/api/discovery-coverage/overview-report',
+      filenamePrefix: 'discovery-insights', title: 'Discovery Insights Report', minPages: 9, snapshotAttribute: null, snapshotSubject: false, exerciseRetry: false });
+    if (artifacts) fs.copyFileSync(result.file, path.join(artifacts, `discovery-insights-${snapshot}.pdf`));
   }
   await visit(`network=net-1&securityDomain=NONE&dataDate=${date}`);
   assert(await page.$('.discovery-insights-empty')); assert.match(await page.$eval('.insight-ring', n => n.textContent), /N\/A/);
   assert.equal(await page.$$('.insight-decision').then(nodes => nodes.length), 0);
-  const emptyPdf = await page.evaluate(async () => {const r = await fetch(document.querySelector('button[data-insights-report]').dataset.insightsReport); return [...new Uint8Array(await r.arrayBuffer())];});
-  if (artifacts) fs.writeFileSync(path.join(artifacts, 'discovery-insights-empty.pdf'), Buffer.from(emptyPdf));
-  let fail = true;
-  const intercept = request => request.url().includes('/api/discovery-coverage/overview-report') && fail ? request.respond({status:503, contentType:'application/json', body:'{}'}) : request.continue();
-  await page.setRequestInterception(true); page.on('request', intercept);
-  await page.click('button[data-insights-report]'); await page.waitForSelector('.insight-report-download [role=alert]');
-  assert(!await page.$eval('button[data-insights-report]', n => n.disabled));
-  fail = false; await page.click('button[data-insights-report]');
-  await page.waitForFunction(() => !document.querySelector('button[data-insights-report]').disabled && !document.querySelector('.insight-report-download [role=alert]'));
-  await page.setRequestInterception(false); page.off('request', intercept);
+  const empty = await checkInsightsPdfDownload(page, { date, directory, route: '/api/discovery-coverage/overview-report',
+    filenamePrefix: 'discovery-insights', title: 'Discovery Insights Report', minPages: 1, snapshotAttribute: null, snapshotSubject: false });
+  if (artifacts) fs.copyFileSync(empty.file, path.join(artifacts, 'discovery-insights-empty.pdf'));
   await page.goto(base + '/governance/discovery-insights', {waitUntil:'networkidle0'}); assert.equal(await page.$('.discovery-insights'), null);
   await visit(`network=missing-network&dataDate=${date}`, true);
   assert(await page.$('.discovery-insights-empty')); assert.match(await page.$eval('[data-discovery-security]', n => n.textContent), /N\/A\s*patched & verified/);

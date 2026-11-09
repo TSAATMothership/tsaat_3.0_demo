@@ -1,4 +1,4 @@
-import { writeXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { writeXlsxEntries } from "@/lib/xlsx-zip";
 
 export const INVENTORY_XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const xml = (value: string) => value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, "")
@@ -20,11 +20,11 @@ function columnName(index: number): string {
   for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) name = String.fromCharCode(65 + (value - 1) % 26) + name;
   return name;
 }
-export function buildInventoryWorkbook<Row extends object>(rows: readonly Row[], columns: readonly InventoryWorkbookColumn<Row>[], sheetName: string, exportedAt = new Date()): Buffer {
+export function buildInventoryWorkbook<Row extends object>(rows: readonly Row[], columns: readonly InventoryWorkbookColumn<Row>[], sheetName: string, exportedAt = new Date()): Uint8Array {
   return buildInventoryWorkbookSheets([{ name: sheetName, columns, rows: rows.map((row) => columns.map(({ key }) => row[key])) }], exportedAt);
 }
 
-export function buildInventoryWorkbookSheets(sheets: readonly InventoryWorkbookSheet[], exportedAt = new Date()): Buffer {
+export function buildInventoryWorkbookSheets(sheets: readonly InventoryWorkbookSheet[], exportedAt = new Date()): Uint8Array {
   if (!Number.isFinite(exportedAt.getTime())) throw new Error("Invalid export timestamp.");
   if (!sheets.length) throw new Error("At least one Excel worksheet is required.");
   const names = new Set<string>();
@@ -34,8 +34,8 @@ export function buildInventoryWorkbookSheets(sheets: readonly InventoryWorkbookS
     if (sheet.rows.length > 1048575) throw new Error("Too many records for one Excel worksheet.");
     if (!sheet.columns.length || sheet.columns.length > 16383) throw new Error("Invalid worksheet column count.");
   }
-  const files = new Map<string, Buffer>();
-  const add = (name: string, value: string) => files.set(name, Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${value}`, "utf8"));
+  const files = new Map<string, Uint8Array>();
+  const add = (name: string, value: string) => files.set(name, new TextEncoder().encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${value}`));
   add("[Content_Types].xml", `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}</Types>`);
   add("_rels/.rels", `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
   add("xl/workbook.xml", `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((sheet, index) => `<sheet name="${xml(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join("")}</sheets></workbook>`);
@@ -62,5 +62,5 @@ export function buildInventoryWorkbookSheets(sheets: readonly InventoryWorkbookS
     const lastColumn = columnName(columns.length);
     add(`xl/worksheets/sheet${sheetIndex + 1}.xml`, `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastColumn}${lastRow}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="22"/><cols>${[...columns.map((column) => column.width ?? 24), 28].map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join("")}</cols><sheetData>${sheetRows.join("")}</sheetData><autoFilter ref="A1:${lastColumn}${lastRow}"/></worksheet>`);
   });
-  return writeXlsxEntries(files);
+  return writeXlsxEntries(files, exportedAt);
 }

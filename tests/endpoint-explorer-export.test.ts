@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/discovery-coverage/endpoints/export/route";
 import { emptyEndpointFilters } from "@/lib/endpoint-explorer";
-import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { readXlsxTextEntries as readXlsxEntries, renderWorkbookResponse } from "./workbook-test-utils";
 
 const load = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/data-loader", () => ({ loadEndpointExplorerData: load }));
@@ -23,10 +23,10 @@ describe("endpoint export route", () => {
   it("exports all matching records under the applied scope with no pagination limit", async () => {
     const response = await POST(request({ scope, filters: { ...emptyEndpointFilters(), columns: { ciType: ["Server"] } } }));
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
+    expect(response.headers.get("Content-Type")).toContain("application/json");
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(load).toHaveBeenCalledWith(scope);
-    const sheet = readXlsxEntries(Buffer.from(await response.arrayBuffer())).get("xl/worksheets/sheet1.xml")!.toString("utf8");
+    const sheet = readXlsxEntries(await renderWorkbookResponse(response)).get("xl/worksheets/sheet1.xml")!;
     expect(sheet.match(/<row /g)).toHaveLength(76);
     expect(sheet).not.toContain("Workstation");
     expect(sheet.match(/<c r="J\d+" s="2"/g)).toHaveLength(75);

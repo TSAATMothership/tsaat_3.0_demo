@@ -1,5 +1,7 @@
 "use client";
 
+import { generateDocumentFromUrl } from "@/lib/documents/client";
+
 import { useMemo, useState } from "react";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
 import { FilterHeader, SummaryChart } from "@/components/inventory-explorer-controls";
@@ -50,15 +52,12 @@ export function InstalledSoftwareExplorer({ rows, snapshotDate, scope, initialFi
     if (exporting) return;
     setExporting(true); setExportError("");
     try {
-      const response = await fetch("/api/discovery-coverage/installed-software/export", { method: "POST", headers: { "Content-Type": "application/json" },
+      await generateDocumentFromUrl("/api/discovery-coverage/installed-software/export", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scope, filters }), cache: "no-store" });
-      if (!response.ok) throw new Error("The Excel export could not be created. Please try again.");
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a");
-      link.href = url; link.download = `installed-software-explorer-${snapshotDate}.xlsx`;
-      document.body.append(link); link.click(); link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (reason) { setExportError(reason instanceof Error ? reason.message : "Unable to export records."); }
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      setExportError(reason instanceof Error ? reason.message : "Unable to export records.");
+    }
     finally { setExporting(false); }
   };
   return <div className="endpoint-explorer software-explorer">
@@ -86,7 +85,7 @@ export function InstalledSoftwareExplorer({ rows, snapshotDate, scope, initialFi
           onChange={(event) => { setFilters((current) => ({ ...current, search: event.target.value })); setPage(1); }} />
           <button type="button" className="endpoint-export" onClick={exportRows} disabled={exporting || !filtered.length}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5" /></svg>
-            {exporting ? "Exporting..." : "Export Excel"}</button>
+            {exporting ? "Generating Document..." : "Export Excel"}</button>
         </div>
       </div>
       {isFiltered && <div className="endpoint-active-filters" aria-label="Active software filters">

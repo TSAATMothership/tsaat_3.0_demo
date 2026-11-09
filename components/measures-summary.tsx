@@ -1,4 +1,5 @@
 import Link from "@/components/persona-link";
+import { DocumentDownloadButton } from "@/components/document-download-button";
 import { FindingsDurationPanel, severityBarColors } from "@/components/findings-duration-panel";
 import { IndicatorReviewScroll } from "@/components/indicator-review-scroll";
 import { OpenSettingsButton } from "@/components/open-settings-button";
@@ -59,7 +60,7 @@ export function MeasuresSummary({ model, filters, snapshotDate, allSpiReportHref
           <ComplianceBar label="Overall SPI" percent={model.spiAssessment.percent} compliant={model.spiAssessment.compliant}
             nonCompliant={model.spiAssessment.nonCompliant} unknown={model.spiAssessment.unknown} total={model.spiAssessment.assessed} />
         </div>
-        <div className="measures-summary-status"><Link prefetch={false} href={href("measures-spi", resultFilter("Fully compliant"))}>{model.spis.fullyCompliant} fully compliant</Link><Link prefetch={false} href={href("measures-spi", resultFilter("No assessments"))}>{model.spis.unassessed} unassessed</Link><a href={allSpiReportHref} target="_blank" rel="noreferrer">All-SPI report <Arrow /></a></div>
+        <div className="measures-summary-status"><Link prefetch={false} href={href("measures-spi", resultFilter("Fully compliant"))}>{model.spis.fullyCompliant} fully compliant</Link><Link prefetch={false} href={href("measures-spi", resultFilter("No assessments"))}>{model.spis.unassessed} unassessed</Link><DocumentDownloadButton href={allSpiReportHref}>All-SPI report <Arrow /></DocumentDownloadButton></div>
         <IndicatorReviewScroll labelledBy="summary-spi-title"><IndicatorReview rows={model.spis.review} href={(id) => href("measures-spi", idFilter(id))} /></IndicatorReviewScroll>
       </section>
     </div>

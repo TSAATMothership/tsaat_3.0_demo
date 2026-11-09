@@ -1,10 +1,10 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import type { ExplorerTableFilters } from "@/lib/explorer-table";
 import { NextRequest, NextResponse } from "next/server";
 import { loadSecurityVulnerabilityExplorerData } from "@/lib/data-loader";
 import { filterVulnerabilityRows, parseVulnerabilityFilters } from "@/lib/security-vulnerability-explorer";
-import { buildSecurityVulnerabilityWorkbook } from "@/lib/security-vulnerability-workbook";
-import { INVENTORY_XLSX_TYPE } from "@/lib/inventory-explorer-workbook";
 import { normalizeDataDate } from "@/lib/data-date";
 import { scopeIds } from "@/lib/workspace-navigation";
 
@@ -26,12 +26,9 @@ export async function POST(request: NextRequest) {
   }
   try {
     const data = await loadSecurityVulnerabilityExplorerData(scope);
-    const workbook = buildSecurityVulnerabilityWorkbook(filterVulnerabilityRows(data.rows, filters));
-    return new Response(Uint8Array.from(workbook).buffer, { headers: {
-      "Content-Type": INVENTORY_XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="security-vulnerability-explorer-${data.snapshotDate}.xlsx"`,
-      "Cache-Control": "no-store"
-    } });
+    return documentResponse(request, { version: 1, kind: "xlsx-vulnerabilities", title: "Security Vulnerability Explorer",
+      filename: `security-vulnerability-explorer-${data.snapshotDate}.xlsx`, generatedAt: new Date().toISOString(),
+      data: { rows: filterVulnerabilityRows(data.rows, filters), snapshotDate: data.snapshotDate } } satisfies WorkbookDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to export security vulnerability records." }, { status: 503 });
   }

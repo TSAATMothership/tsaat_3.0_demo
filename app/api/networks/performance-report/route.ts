@@ -9,7 +9,7 @@ import {
   loadSpiDefinitions
 } from "@/lib/data-loader";
 import { extractDataDateParam } from "@/lib/data-date";
-import { createPerformanceReportPdf } from "@/lib/performance-report-pdf";
+import { documentResponse } from "@/lib/documents/server-response";
 import {
   buildNetworkPerformanceReportModel,
   buildPerformanceKpiRowsByMatrixRowId
@@ -60,12 +60,6 @@ export async function GET(request: NextRequest) {
     severityDefinitions,
     asOfDate: selectedDataDate ?? dataset.snapshotDate
   });
-  const pdfArrayBuffer = await createPerformanceReportPdf(model);
-
-  return new Response(pdfArrayBuffer, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename=${reportFileName(dataset.snapshotDate)}`
-    }
-  });
+  return documentResponse(request, { version: 1, kind: "pdf-network-performance", title: "Network Performance Report",
+    filename: reportFileName(dataset.snapshotDate), generatedAt: new Date().toISOString(), data: model });
 }

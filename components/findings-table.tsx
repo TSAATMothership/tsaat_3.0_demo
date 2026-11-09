@@ -1,5 +1,7 @@
 "use client";
 
+import { generateDocumentFromUrl } from "@/lib/documents/client";
+
 import { PersonaPopupButton } from "@/components/persona-popup-button";
 import { usePersonaAccess } from "@/components/persona-provider";
 
@@ -135,21 +137,12 @@ export function FindingsTable({
     setExporting(true);
     setExportError("");
     try {
-      const response = await fetch("/api/findings/export", {
+      await generateDocumentFromUrl("/api/findings/export", {
         method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
         body: JSON.stringify({ ...exportContext, findingIds: matchingRows.map((finding) => finding.id) })
       });
-      if (!response.ok) {
-        throw new Error(response.status === 409
-          ? "Findings have changed. Refresh the register and try again."
-          : "The Excel export could not be created. Please try again.");
-      }
-      const url = URL.createObjectURL(await response.blob());
-      const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = `dct-findings-${selectedAsOf}.xlsx`;
-      document.body.append(anchor); anchor.click(); anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setExportError(error instanceof Error ? error.message : "Unable to export findings.");
     } finally {
       setExporting(false);
@@ -233,7 +226,7 @@ columns={[{ key: "measure", label: "SPI", value: (finding) => `SPI ${finding.spi
   range: { value: (finding) => findingDurationDays(finding, selectedAsOf), unit: "days", min: 0, step: 1, sortable: true } },
 { key: "status", label: "Status", value: (finding) => finding.status === "open" ? "Open" : "Closed" },
 { key: "evidence", label: "Evidence", value: (finding) => buildConfiguredEvidencePreview(finding, findingDisplayConfiguration) }]}
-actions={(matching) => <button type="button" className="endpoint-export" disabled={exporting || !matching.length} onClick={() => downloadFindingsWorkbook(matching)} title="Export findings and affected CIs to separate Excel sheets">{exporting ? "Exporting..." : "Export Excel"}</button>}
+actions={(matching) => <button type="button" className="endpoint-export" disabled={exporting || !matching.length} onClick={() => downloadFindingsWorkbook(matching)} title="Export findings and affected CIs to separate Excel sheets">{exporting ? "Generating Document..." : "Export Excel"}</button>}
 emptyMessage="No findings are available for the selected scope, status, and date."
 renderRow={(finding) => {
                 const asOfStatus = finding.status;

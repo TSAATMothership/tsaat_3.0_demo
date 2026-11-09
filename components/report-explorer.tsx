@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { FilterHeader } from "@/components/inventory-explorer-controls";
 import { emptyExplorerTableFilters, prepareExplorerRows, queryExplorerRows } from "@/lib/explorer-table";
 import { REPORT_CATEGORIES, REPORT_COLUMNS, type CatalogueReport } from "@/lib/report-catalogue";
+import { DocumentDownloadButton } from "@/components/document-download-button";
 
 const number = (value: number) => value.toLocaleString("en-AU");
 
@@ -74,8 +75,8 @@ export function ReportExplorer({ rows, snapshotDate, initialSearch = "" }: {
           <td className="report-name"><strong>{row.name}</strong><span className="report-format">PDF document</span></td>
           <td><span className={`report-category-badge tone-${REPORT_CATEGORIES.find(category => category.label === row.category)?.tone}`}>{row.category}</span></td>
           <td className="report-description">{row.description}</td><td className="report-audience">{row.audience}</td>
-          <td><a className="report-generate" href={row.href} target="_blank" rel="noreferrer" aria-label={`Generate ${row.name} PDF report`}>
-            Generate report <span aria-hidden="true">↗</span></a></td>
+          <td><DocumentDownloadButton className="report-generate" href={row.href} ariaLabel={`Generate ${row.name} PDF report`}>
+            Generate report <span aria-hidden="true">↗</span></DocumentDownloadButton></td>
         </tr>)}{!ordered.length && <tr><td colSpan={5}><div className="endpoint-empty"><strong>No reports found</strong>
           <p>Clear or adjust the catalogue filters to find a report.</p><button type="button" onClick={clearFilters}>Clear all filters</button>
         </div></td></tr>}</tbody>
@@ -86,7 +87,7 @@ export function ReportExplorer({ rows, snapshotDate, initialSearch = "" }: {
           <button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>{currentPage} / {pages}</span>
           <button type="button" disabled={currentPage === pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
       </footer>
-      <p className="endpoint-export-note">PDFs open in a new tab using the selected scope and snapshot. Catalogue filters help you find a report; they do not change its findings.</p>
+      <p className="endpoint-export-note">PDFs are generated in your browser and downloaded using the selected scope and snapshot. Catalogue filters help you find a report; they do not change its findings.</p>
     </section>
   </div>;
 }

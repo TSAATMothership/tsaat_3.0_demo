@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/discovery-coverage/compliance/export/route";
 import { emptyDiscoveryComplianceFilters } from "@/lib/discovery-compliance-explorer";
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
-import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { readXlsxTextEntries as readXlsxEntries, renderWorkbookResponse } from "./workbook-test-utils";
 const load = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/app-data", () => ({ getCoreAppData: load }));
 const scope = { network: "net-1", system: "sys-1", dataDate: "2026-10-31", environment: "Production", securityDomain: "PROTECTED", assetType: "server", mission: "mission-1", service: "service-1" };
@@ -21,9 +21,9 @@ describe("discovery compliance export", () => {
   it("exports every matching CI beyond the visible page using the same mappings, page filters and column filters", async () => {
     const response = await POST(request({ scope: { ...scope, criticality: "Critical", discoveryView: "compliance" }, filters: { search: "", columns: { missingTools: ["UCMDB"] } } }));
     expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("spreadsheetml.sheet");
+    expect(response.headers.get("Content-Type")).toContain("application/json");
     expect(load).toHaveBeenCalledWith({ ...scope, network: ["net-1"], system: ["sys-1"] }, { profile: "summary" });
-    const sheet = readXlsxEntries(Buffer.from(await response.arrayBuffer())).get("xl/worksheets/sheet1.xml")!.toString("utf8");
+    const sheet = readXlsxEntries(await renderWorkbookResponse(response)).get("xl/worksheets/sheet1.xml")!;
     expect(sheet.match(/<row /g)).toHaveLength(76);
     expect(sheet).toContain('autoFilter ref="A1:K76"');
     expect(sheet).toContain("Export Timestamp (UTC)");
@@ -42,7 +42,7 @@ describe("discovery compliance export", () => {
   it("applies discovery date and source column selections to every exported row", async () => {
     const response = await POST(request({ scope, filters: { search: "", columns: { lastDiscoveredDate: ["2026-10-29"], discoveredBy: ["Tanium"] } } }));
     expect(response.status).toBe(200);
-    const sheet = readXlsxEntries(Buffer.from(await response.arrayBuffer())).get("xl/worksheets/sheet1.xml")!.toString("utf8");
+    const sheet = readXlsxEntries(await renderWorkbookResponse(response)).get("xl/worksheets/sheet1.xml")!;
     expect(sheet.match(/<row /g)).toHaveLength(21);
     expect(sheet).toContain('autoFilter ref="A1:K21"');
     expect(sheet).not.toContain('>CI 20</t>');

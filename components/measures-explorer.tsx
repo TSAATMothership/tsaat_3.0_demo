@@ -1,4 +1,5 @@
 "use client";
+import { DocumentDownloadButton } from "@/components/document-download-button";
 
 import { PersonaPopup } from "@/components/persona-popup";
 
@@ -64,7 +65,7 @@ export function MeasuresExplorer({ rows, mode, initialFilters }: {
             <td><div className="measure-result-badges">{measureResults(row).map((result) => <span key={result} className={`measure-result ${result === "Non-compliant" ? "is-gap" : result === "Unknown" ? "is-unknown" : result === "Fully compliant" ? "is-good" : "is-empty"}`}>{result}</span>)}</div></td>
             <td className="measures-score"><strong>{measureValues(row, "score")[0]}</strong>{row.total > 0 && <progress max={100} value={row.scorePercent} aria-label={`${row.id} compliance`} />}</td>
             <td className="measures-numeric">{number(row.total)}</td><td className="measures-numeric measure-good">{number(row.compliant)}</td><td className="measures-numeric measure-gap">{number(row.nonCompliant)}</td><td className="measures-numeric measure-unknown">{number(row.unknown)}</td>
-            <td><div className="measures-report-links">{row.reportHref && <><a href={row.reportHref} target="_blank" rel="noreferrer" aria-label={`Generate ${row.id} report`}>Generage report ↗</a><a href={nonCompliantTaskingReportHref(row.reportHref)} target="_blank" rel="noreferrer" aria-label={`Generate ${row.id} non-compliance only report`}>Non-Compliance Only ↗</a></>}{row.trendHref && <a href={row.trendHref} target="_blank" rel="noreferrer" aria-label={`Generate ${row.id} trend report`}>Trend report ↗</a>}{!row.reportHref && !row.trendHref && <span className="endpoint-missing">Unavailable</span>}</div></td>
+            <td><div className="measures-report-links">{row.reportHref && <><DocumentDownloadButton href={row.reportHref} ariaLabel={`Generate ${row.id} report`}>Generate report ↗</DocumentDownloadButton><DocumentDownloadButton href={nonCompliantTaskingReportHref(row.reportHref)} ariaLabel={`Generate ${row.id} non-compliance only report`}>Non-Compliance Only ↗</DocumentDownloadButton></>}{row.trendHref && <DocumentDownloadButton href={row.trendHref} ariaLabel={`Generate ${row.id} trend report`}>Trend report ↗</DocumentDownloadButton>}{!row.reportHref && !row.trendHref && <span className="endpoint-missing">Unavailable</span>}</div></td>
           </tr>
           {expanded.includes(row.id) && <tr className="measures-detail-row" id={`measure-detail-${row.id}`}><td colSpan={columns.length}>
             <div className="measures-definition">

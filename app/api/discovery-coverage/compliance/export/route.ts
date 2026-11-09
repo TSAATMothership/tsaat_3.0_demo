@@ -1,9 +1,10 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { NextRequest, NextResponse } from "next/server";
 import { getCoreAppData } from "@/lib/app-data";
-import { buildDiscoveryComplianceRows, DISCOVERY_COMPLIANCE_COLUMNS, discoveryComplianceValue, filterDiscoveryComplianceRows, parseDiscoveryComplianceFilters, type DiscoveryComplianceFilters } from "@/lib/discovery-compliance-explorer";
+import { buildDiscoveryComplianceRows, filterDiscoveryComplianceRows, parseDiscoveryComplianceFilters, type DiscoveryComplianceFilters } from "@/lib/discovery-compliance-explorer";
 import { filterDiscoveryAssets, sanitizeDiscoverySearchParams } from "@/lib/discovery-filter-scope";
 import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-coverage";
-import { buildInventoryWorkbook, INVENTORY_XLSX_TYPE } from "@/lib/inventory-explorer-workbook";
 import { normalizeDataDate } from "@/lib/data-date";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 
@@ -39,14 +40,9 @@ export async function POST(request: NextRequest) {
     const assets = filterDiscoveryAssets(dataset.assets.filter((asset) => assetIds.has(asset.id)));
     const coverage = buildScopedDiscoveryToolCoverage(assets, discoveryToolsSettings, dataset.discoveryCoverageEvaluations);
     const rows = filterDiscoveryComplianceRows(buildDiscoveryComplianceRows(assets, coverage.assetCoverageById, dataset), filters);
-    const exportRows = rows.map((row) => Object.fromEntries(DISCOVERY_COMPLIANCE_COLUMNS.map(({ key }) => [key, key === "lastDiscoveredDate" ? row.lastDiscoveredDate?.trim() || "Not recorded" : discoveryComplianceValue(row, key)])));
-    const widths = [32, 22, 21, 28, 28, 35, 35, 22, 22, 50];
-    const workbook = buildInventoryWorkbook(exportRows, DISCOVERY_COMPLIANCE_COLUMNS.map((column, index) => ({ ...column, width: widths[index], date: column.key === "lastDiscoveredDate" })), "Discovery Compliance");
-    return new Response(Uint8Array.from(workbook).buffer, { headers: {
-      "Content-Type": INVENTORY_XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="discovery-compliance-explorer-${dataset.snapshotDate}.xlsx"`,
-      "Cache-Control": "no-store"
-    } });
+    return documentResponse(request, { version: 1, kind: "xlsx-compliance", title: "Discovery Compliance Explorer",
+      filename: `discovery-compliance-explorer-${dataset.snapshotDate}.xlsx`, generatedAt: new Date().toISOString(),
+      data: { rows, snapshotDate: dataset.snapshotDate } } satisfies WorkbookDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to export discovery compliance records." }, { status: 503 });
   }

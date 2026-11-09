@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 import { insightsSnapshotTimestamp } from "@/lib/governance-insights-pdf";
-import { drawInsightsIcon, drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets } from "@/lib/insights-pdf-theme";
+import { drawInsightsIcon, drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets, type InsightsPdfRenderOptions } from "@/lib/insights-pdf-theme";
 import type { SoftwareInsightsReportData } from "@/lib/software-insights-report-data";
 
 const LEFT = 36, WIDTH = 523.28, BOTTOM = 58;
@@ -143,13 +143,13 @@ class SoftwarePdf {
   }
 }
 
-export async function createSoftwareInsightsPdf(data: SoftwareInsightsReportData, generatedAt = new Date()): Promise<Uint8Array> {
+export async function createSoftwareInsightsPdf(data: SoftwareInsightsReportData, generatedAt = new Date(), options: InsightsPdfRenderOptions = {}): Promise<Uint8Array> {
   if (!Number.isFinite(generatedAt.getTime())) throw new Error("Invalid PDF generation timestamp");
   const doc = await PDFDocument.create(), regular = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
   doc.setTitle("Software Insights"); doc.setAuthor("TSAAT"); doc.setProducer("TSAAT executive reporting");
   doc.setCreationDate(generatedAt); doc.setModificationDate(generatedAt);
   doc.setSubject(`Snapshot ${data.model.snapshotDate}; snapshot timestamp ${insightsSnapshotTimestamp(data.snapshotGeneratedAt)}`);
-  const assets = await loadInsightsPdfAssets(doc, "software"), pdf = new SoftwarePdf(doc, regular, bold, data, assets), model = data.model;
+  const assets = await loadInsightsPdfAssets(doc, "software", options), pdf = new SoftwarePdf(doc, regular, bold, data, assets), model = data.model;
   const scopeLines = [
     ...(data.scopeLabels.networks.length ? ["Managed networks: " + data.scopeLabels.networks.join("; ")] : []),
     ...(data.scopeLabels.systems.length ? ["ICT systems: " + data.scopeLabels.systems.join("; ")] : []),

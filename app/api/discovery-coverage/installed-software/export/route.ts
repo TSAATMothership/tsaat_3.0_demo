@@ -1,9 +1,9 @@
+import { documentResponse } from "@/lib/documents/server-response";
+import type { WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { NextRequest, NextResponse } from "next/server";
 import { loadInstalledSoftwareExplorerData } from "@/lib/data-loader";
 import { filterSoftwareRows, parseSoftwareFilters, type SoftwareFilters } from "@/lib/installed-software-explorer";
-import { buildInstalledSoftwareWorkbook } from "@/lib/installed-software-workbook";
-import { INVENTORY_XLSX_TYPE } from "@/lib/inventory-explorer-workbook";
 import { normalizeDataDate } from "@/lib/data-date";
 import { scopeIds } from "@/lib/workspace-navigation";
 
@@ -25,12 +25,9 @@ export async function POST(request: NextRequest) {
   }
   try {
     const data = await loadInstalledSoftwareExplorerData(scope);
-    const workbook = buildInstalledSoftwareWorkbook(filterSoftwareRows(data.rows, filters, data.snapshotDate));
-    return new Response(Uint8Array.from(workbook).buffer, { headers: {
-      "Content-Type": INVENTORY_XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="installed-software-explorer-${data.snapshotDate}.xlsx"`,
-      "Cache-Control": "no-store"
-    } });
+    return documentResponse(request, { version: 1, kind: "xlsx-software", title: "Installed Software Explorer",
+      filename: `installed-software-explorer-${data.snapshotDate}.xlsx`, generatedAt: new Date().toISOString(),
+      data: { rows: filterSoftwareRows(data.rows, filters, data.snapshotDate), snapshotDate: data.snapshotDate } } satisfies WorkbookDocumentJob);
   } catch {
     return NextResponse.json({ error: "Unable to export installed software records." }, { status: 503 });
   }

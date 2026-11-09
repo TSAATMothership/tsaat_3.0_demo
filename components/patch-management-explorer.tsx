@@ -1,5 +1,7 @@
 "use client";
 
+import { generateDocumentFromUrl } from "@/lib/documents/client";
+
 import { useCallback, useState } from "react";
 import { FindingsDataTable } from "@/components/findings-data-table";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
@@ -42,13 +44,12 @@ export function PatchManagementExplorer({ rows, snapshotDate, scope, initialFilt
     if (exporting) return;
     setExporting(true); setExportError("");
     try {
-      const response = await fetch("/api/discovery-coverage/patch-management/export", { method: "POST", headers: { "Content-Type": "application/json" },
+      await generateDocumentFromUrl("/api/discovery-coverage/patch-management/export", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scope, view, filters: filters[view] }), cache: "no-store" });
-      if (!response.ok) throw new Error("The patch workbook could not be created. Please retry.");
-      const url = URL.createObjectURL(await response.blob()), link = document.createElement("a");
-      link.href = url; link.download = `patch-management-explorer-${snapshotDate}.xlsx`;
-      document.body.append(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) { setExportError(error instanceof Error ? error.message : "Unable to export patch records."); }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setExportError(error instanceof Error ? error.message : "Unable to export patch records.");
+    }
     finally { setExporting(false); }
   };
   return <div className="endpoint-explorer patch-management-explorer">
@@ -69,7 +70,7 @@ export function PatchManagementExplorer({ rows, snapshotDate, scope, initialFilt
         emptyMessage="No servers are recorded for this scope and snapshot."
         actions={matching => <button type="button" className="endpoint-export" onClick={exportRows} disabled={exporting || !matching.length}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5" /></svg>
-          {exporting ? "Exporting..." : "Export Excel"}</button>}
+          {exporting ? "Generating Document..." : "Export Excel"}</button>}
         renderRow={row => <tr key={row.assetId}>{columns.map(({ key }) => <td key={key} className={key === "serverName" ? "endpoint-name" : ""}>
           {key === "serverName" ? <><CmdbDeviceName assetId={row.assetId} name={row.serverName} /><small>{row.assetId}</small></>
             : key === "status" ? <span className="patch-status" data-status={row.status}>{row.status}</span>

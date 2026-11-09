@@ -18,6 +18,14 @@ Life Cycle Management reads existing lifecycle status, OS support/N-minus and so
 
 Removing demo-data notices from Discovery Insights and the patch/vulnerability explorers changes presentation only. Existing source/provenance fields, SQL and JSON records, calculations and exports are retained; no schema, calculation-contract, migration or population change is required.
 
+## Document data projections
+
+PDF and Excel generation is browser-only in both builds. Existing report/export APIs continue to load evidence through `lib/data-loader.ts` and the relevant shared projections, then return versioned JSON document models. They retain canonical row selection/order, table filters, domain/network/system scope, resolved snapshot, configured measures, historical windows and stale-selection checks. Only data required by the report crosses this boundary; full unscoped datasets and configuration secrets are not exported. Browser renderers cannot import either provider.
+
+This is an API transport and presentation change, with no new provider operation, stored structure, schema, snapshot, seed, persistence rule or calculation. SQL migrations, JSON upgrades and `NoSQL/calculation-contract.json` checksum changes are not required. Existing stores and operational databases must remain untouched. Both builds still require their Node data server; moving document bytes into the browser does not implement Tableau or move database writes into the client.
+
+Provider validation compares the same explicitly selected snapshot/scopes, report models and resulting document contents using an isolated JSON store and disposable SQL database. Generation timestamps may differ; evidence, column order/types, calculations and selected history must agree. A successful JSON run alone is not SQL parity. See [document audit and validation scope](client-document-generation.md) and [ADR 0024](adr/0024-browser-document-generation.md).
+
 ## One app, two builds
 
 Fresh SQL and JSON setups seed the same persona configuration. Existing SQL tables with no revision return explicit JSON null and use shared bootstrap defaults in memory, matching legacy JSON stores with no settings file. Reads and builds never rewrite existing settings; an intentionally empty version-3 catalogue remains empty.

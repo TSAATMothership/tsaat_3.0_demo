@@ -5,14 +5,14 @@ import { POST } from "@/app/api/discovery-coverage/patch-management/export/route
 import { buildPatchManagementRows } from "@/lib/patch-management-explorer";
 import { enrichPatchManagement } from "../scripts/enrich-patch-management.mjs";
 import { buildPatchManagementWorkbook } from "@/lib/patch-management-workbook";
-import { readXlsxEntries } from "@/lib/network-target-state-template-workbook";
+import { readXlsxTextEntries as readXlsxEntries, renderWorkbookResponse } from "./workbook-test-utils";
 import type { Dataset } from "@/lib/types";
 const load = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/data-loader", () => ({ loadPatchManagementExplorerData: load }));
 const dataset: Dataset = enrichPatchManagement(JSON.parse(readFileSync("data/current.json", "utf8")));
 const scope = { network: ["net-1"], system: [], dataDate: dataset.snapshotDate };
 const rows = buildPatchManagementRows(dataset, { network: dataset.managedNetworks.map(network => network.id) });
-const sheet = (bytes: Buffer) => readXlsxEntries(bytes).get("xl/worksheets/sheet1.xml")!.toString();
+const sheet = (bytes: Uint8Array) => readXlsxEntries(bytes).get("xl/worksheets/sheet1.xml")!;
 const request = (value: unknown) => new NextRequest("http://localhost/api/discovery-coverage/patch-management/export", { method: "POST", body: JSON.stringify(value) });
 beforeEach(() => { load.mockReset(); load.mockResolvedValue({ snapshotDate: dataset.snapshotDate, rows }); });
 describe("patch management export", () => {
@@ -27,9 +27,9 @@ describe("patch management export", () => {
     expect(result.status).toBe(200); expect(load).toHaveBeenCalledWith(scope);
     const expected = rows.filter(row => row.status === "Not patched" && Number(row.missingUpdates) >= 1).length;
     expect(expected).toBeGreaterThan(25);
-    expect(sheet(Buffer.from(await result.arrayBuffer())).match(/<row /g)).toHaveLength(expected + 1);
+    expect(sheet(await renderWorkbookResponse(result)).match(/<row /g)).toHaveLength(expected + 1);
     const hiddenSearch = await POST(request({ scope, view: "posture", filters: { search: "Sample Server Operations", columns: {} } }));
-    expect(sheet(Buffer.from(await hiddenSearch.arrayBuffer())).match(/<row /g)).toHaveLength(1);
+    expect(sheet(await renderWorkbookResponse(hiddenSearch)).match(/<row /g)).toHaveLength(1);
   });
   it("rejects malformed or unscoped requests and hides backend errors", async () => {
     for (const body of [{ scope: { ...scope, network: [] }, view: "posture" }, { scope: { ...scope, system: ["sys-1"] }, view: "posture" }, { scope, view: "invalid" }])

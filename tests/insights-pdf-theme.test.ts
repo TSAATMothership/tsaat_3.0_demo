@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument, PDFPage } from "pdf-lib";
 import { drawInsightsHero, drawInsightsOpeningPage, drawInsightsPageFrame, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsReportKind } from "@/lib/insights-pdf-theme";
+import { useBundledInsightsAssets } from "./insights-assets-fixture";
+
+useBundledInsightsAssets();
 
 const artwork: Record<InsightsReportKind, string> = {
   cyber: "cyber-terrain", software: "software-terrain", discovery: "discovery-terrain",
@@ -69,6 +72,21 @@ describe("Governance Insights PDF visual contract",()=>{
     const page=doc.addPage([595.28,841.89]);
     expect(()=>drawInsightsHero(page,assets,"discovery",{x:36,y:600,width:140,height:102})).not.toThrow();
     expect(()=>drawInsightsHero(page,assets,"software",{x:36,y:600,width:140,height:102})).toThrow();
+  });
+
+  it("loads bundled browser assets from the supplied app origin and reports section progress",async()=>{
+    const doc=await PDFDocument.create(),progress=vi.fn();
+    const assets=await loadInsightsPdfAssets(doc,"endpoint",{assetBaseUrl:"https://tsaat.test/",onProgress:progress});
+    expect(vi.mocked(fetch).mock.calls.map(([url])=>url)).toEqual([
+      "https://tsaat.test/tsaat-logo.png","https://tsaat.test/insights-report-art/endpoint-evidence.png"
+    ]);
+    drawInsightsPageFrame(doc.addPage([595.28,841.89]),assets,{kind:"endpoint",title:"End Point Insights",snapshotDate:opening.snapshotDate,section:"Discovery evidence"});
+    expect(progress).toHaveBeenCalledWith("Rendering Discovery evidence");
+  });
+
+  it("fails a missing browser asset instead of falling back to filesystem or incomplete branding",async()=>{
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null,{status:404}));
+    await expect(loadInsightsPdfAssets(await PDFDocument.create(),"cyber",{assetBaseUrl:"https://tsaat.test/"})).rejects.toThrow("bundled report artwork");
   });
 
   it("places the summary and recommendations in equal, separate half-page panels",async()=>{
