@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { inflateSync } from "node:zlib";
-import { PDFDocument, PDFPage, PDFRawStream } from "pdf-lib";
+import { PDFArray, PDFDocument, PDFName, PDFPage, PDFRawStream } from "pdf-lib";
 import { NextRequest } from "next/server";
 import { createGovernanceInsightsPdf, insightsSnapshotTimestamp } from "@/lib/governance-insights-pdf";
 import { buildDiscoveryOverview } from "@/lib/discovery-overview";
@@ -22,18 +22,23 @@ function fixture(): GovernanceInsightsData {
     scopeLabels: { networks: ["Example Network (net-1)"], systems: [], domains: ["SECRET"] } };
 }
 async function readPdf(bytes: Uint8Array) {
-  const doc = await PDFDocument.load(bytes), texts: string[] = [];
-  for (const [, item] of doc.context.enumerateIndirectObjects()) if (item instanceof PDFRawStream) {
-    let stream: Buffer; try { stream = inflateSync(item.contents); } catch { continue; }
-    for (const match of stream.toString("latin1").matchAll(/<([0-9A-F]+)> Tj/g)) texts.push(Buffer.from(match[1], "hex").toString("latin1"));
-  }
-  return { doc, text: texts.join("\n") };
+  const doc = await PDFDocument.load(bytes);
+  const pageTexts = doc.getPages().map(page => {
+    const contents = page.node.Contents(), texts: string[] = [];
+    const streams = contents instanceof PDFArray ? contents.asArray().map(ref => doc.context.lookup(ref)) : [contents];
+    for (const item of streams) if (item instanceof PDFRawStream) {
+      let stream: Buffer; try { stream = inflateSync(item.contents); } catch { continue; }
+      for (const match of stream.toString("latin1").matchAll(/<([0-9A-F]+)> Tj/g)) texts.push(Buffer.from(match[1], "hex").toString("latin1"));
+    }
+    return texts.join("\n");
+  });
+  return { doc, text: pageTexts.join("\n"), pageTexts };
 }
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(loadGovernanceInsights).mockResolvedValue(fixture()); });
 
 describe("Insights infographic PDF", () => {
   it("includes all chapters, scoped context, distinct timestamps and explicit empty denominators", async () => {
-    const { doc, text } = await readPdf(await createGovernanceInsightsPdf(fixture(), generated));
+    const { doc, text, pageTexts } = await readPdf(await createGovernanceInsightsPdf(fixture(), generated));
     expect(doc.getTitle()).toBe("Cyber Terrain Posture - Insights"); expect(doc.getCreationDate()).toEqual(generated);
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(7);
     for (const label of ["Executive briefing", "You can only protect what you can see.", "Discovery tool coverage", "Separate the urgent from the underlying.", "Technical exposure has a service context.", "Completion needs evidence, not intention.", "Turn evidence into accountable action."])
@@ -42,12 +47,51 @@ describe("Insights infographic PDF", () => {
     expect(text).toContain("Snapshot timestamp: 2026-04-23 10:08:50.675 UTC");
     expect(text).toContain("PDF generated: 2026-11-04 11:12:13.000 UTC");
     expect(text).toContain("N/A"); expect(text).toContain("No evidence is available");
+    expect(pageTexts[0]).toContain("Executive summary"); expect(pageTexts[0]).toContain("Recommendations");
+    expect(pageTexts[0].replace(/\s+/g, " ")).toContain("No posture conclusion can be drawn");
+    expect(pageTexts[0].replace(/\s+/g, " ")).toContain("Zero records do not establish compliance");
+    expect(pageTexts[1]).toContain("Executive briefing");
+    const images = doc.context.enumerateIndirectObjects().filter(([, item]) => item instanceof PDFRawStream && item.dict.get(PDFName.of("Subtype"))?.toString() === "/Image");
+    expect(images.length).toBeGreaterThanOrEqual(2);
     expect(text.match(/Snapshot timestamp:/g)?.length).toBe(doc.getPageCount() + 1);
     for (const page of doc.getPages()) expect(page.getSize()).toEqual({ width: 595.28, height: 841.89 });
+  });
+  it("grounds the opening and chapter narratives in the same scoped evidence without combining populations", async () => {
+    const data = fixture();
+    Object.assign(data.model.coverage, { total: 12, applicableChecks: 30, coveredChecks: 21, gaps: 5, percent: 70 });
+    Object.assign(data.model.endpoints, { total: 12, stale: 2, undated: 3 });
+    Object.assign(data.model.patches, { total: 6, patched: 2, unknown: 1, overdue: 3, verifiedPercent: 33.3 });
+    Object.assign(data.model.software, { total: 18, endpoints: 9, products: 7, missingVersion: 4 });
+    Object.assign(data.model.vulnerabilities, { total: 9, distinctCves: 4, criticalHigh: 2, affectedEndpoints: 3, missingRemediation: 1 });
+    data.insights = buildGovernanceInsights(data.model, data.impact);
+    const { pageTexts, text } = await readPdf(await createGovernanceInsightsPdf(data, generated));
+    const opening = pageTexts[0].replace(/\s+/g, " "), narrative = text.replace(/\s+/g, " ");
+    expect(opening).toContain("12 endpoints, 0 system-linked critical/high findings and 9 CVE observations");
+    expect(opening).toContain("Required discovery-check coverage is 70%");
+    expect(opening).toContain("3 servers are past their recorded patch due date");
+    expect(opening).toContain("5 CIs do not meet their configured discovery coverage requirements");
+    expect(narrative).toContain("21 covered checks out of 30 required checks");
+    expect(narrative).toContain("2 endpoint discoveries are over 30 days old and 3 have no discovery date");
+    expect(narrative).toContain("18 installations across 9 endpoints and 7 recorded product names");
+    expect(narrative).toContain("4 installations have no version recorded");
+    expect(narrative).toContain("service rows are not additive");
+    expect(narrative).toContain("not confirmed exploitation");
+    expect(narrative).toContain("editorial order");
   });
   it("uses source timestamps with an explicit timezone and never invents a midnight capture", () => {
     expect(insightsSnapshotTimestamp("2026-04-23T20:08:50.675+10:00")).toBe("2026-04-23 10:08:50.675 UTC");
     for (const value of [undefined, "", "bad", date, "2026-04-23T10:08:50"]) expect(insightsSnapshotTimestamp(value)).toBe("Not recorded");
+  });
+  it("keeps a normal seven-tool chart and its interpretation on the same report page", async () => {
+    const data = fixture();
+    data.model.coverage.unmapped = 27;
+    data.model.coverage.tools = Array.from({ length: 7 }, (_, index) => ({ id: `tool-${index}`, label: `Discovery tool ${index}`,
+      applicable: 150, covered: 149, missing: 1, applicableByCiType: createAssetTypeRecord(() => 150), coveragePercent: 99.3, chartBackground: "" }));
+    const { pageTexts } = await readPdf(await createGovernanceInsightsPdf(data, generated));
+    const toolPage = pageTexts.find(text => text.includes("Discovery tool 0"));
+    expect(toolPage).toContain("Discovery tool 6");
+    expect(toolPage).toContain("27 CIs have no applicable tool mapping");
+    expect(toolPage).toContain("1 has a coverage gap");
   });
   it("flows large tool lists and long names without dropping text or drawing outside page bounds", async () => {
     const data = fixture(), source = structuredClone(data);

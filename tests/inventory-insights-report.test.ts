@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { inflateSync } from "node:zlib";
-import { PDFDocument, PDFRawStream } from "pdf-lib";
+import { PDFArray, PDFDocument, PDFName, PDFRawStream } from "pdf-lib";
 import { NextRequest } from "next/server";
 import { createEndpointInsightsPdf, createVulnerabilityInsightsPdf } from "@/lib/inventory-insights-pdf";
 import { inventoryInsightsReportHref, type InventoryInsightReport } from "@/lib/inventory-insights-report-links";
@@ -30,11 +30,20 @@ function fixture(endpoints: EndpointRecord[] = [], vulnerabilities: SecurityVuln
 }
 async function readPdf(bytes: Uint8Array) {
   const doc = await PDFDocument.load(bytes), texts: string[] = [];
+  const readStream = (stream: PDFRawStream) => {
+    let content: Buffer; try { content = inflateSync(stream.contents); } catch { return ""; }
+    return Array.from(content.toString("latin1").matchAll(/<([0-9A-F]+)> Tj/g), match => Buffer.from(match[1], "hex").toString("latin1")).join(" ");
+  };
+  let imageCount = 0;
   for (const [, object] of doc.context.enumerateIndirectObjects()) if (object instanceof PDFRawStream) {
-    let content: Buffer; try { content = inflateSync(object.contents); } catch { continue; }
-    for (const match of content.toString("latin1").matchAll(/<([0-9A-F]+)> Tj/g)) texts.push(Buffer.from(match[1], "hex").toString("latin1"));
+    texts.push(readStream(object));
+    if (object.dict.get(PDFName.of("Subtype"))?.toString() === "/Image") imageCount++;
   }
-  return { doc, text: texts.join(" ").replace(/\s+/g, " ") };
+  const contents = doc.getPage(0).node.Contents();
+  const firstPageText = (contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : []).map(ref => {
+    const item = doc.context.lookup(ref); return item instanceof PDFRawStream ? readStream(item) : "";
+  }).join(" ").replace(/\s+/g, " ");
+  return { doc, text: texts.join(" ").replace(/\s+/g, " "), firstPageText, imageCount };
 }
 beforeEach(() => {
   vi.clearAllMocks(); vi.mocked(loadDiscoveryOverview).mockResolvedValue(fixture());
@@ -48,23 +57,34 @@ it.each(["endpoints", "vulnerabilities"] as const)("pins only header scope and t
 });
 it("renders all endpoint fields, chapters, snapshot/scope, age exceptions and empty denominators", async () => {
   const rows = [endpoint, { ...endpoint, assetId: "ci-2", lastDiscoveredDate: "2026-11-01" }];
-  const { doc, text } = await readPdf(await createEndpointInsightsPdf({ ...fixture(rows), rows }, new Date("2026-11-08T01:00:00Z")));
+  const { doc, text, firstPageText, imageCount } = await readPdf(await createEndpointInsightsPdf({ ...fixture(rows), rows }, new Date("2026-11-08T01:00:00Z")));
   expect(doc.getTitle()).toBe("End Point Insights Report"); expect(doc.getPageCount()).toBeGreaterThanOrEqual(6);
+  expect(firstPageText).toContain("Executive summary"); expect(firstPageText).toContain("Recommendations");
+  expect(firstPageText).toContain("2 endpoint records"); expect(firstPageText).toContain("1 unusable dates and 1 dates after the snapshot");
+  expect(firstPageText.indexOf("Executive summary")).toBeLessThan(firstPageText.indexOf("Recommendations"));
+  expect(imageCount).toBeGreaterThanOrEqual(2);
+  for (const narrative of ["The composition shows which CI types", "Network groupings show where", "bars describe recorded observations", "Source labels describe the collection provenance", "Use the following actions as an investigation sequence"]) expect(text).toContain(narrative);
   for (const column of ENDPOINT_COLUMNS) expect(text).toContain(column.label);
   for (const term of ["01 /", "02 /", "03 /", "04 /", "05 /", snapshotDate, "Example system", "SECRET", "2026-11-08", "N/A", "after the snapshot", "UNKNOWN", "Unidentified IP nodes"]) expect(text).toContain(term);
 });
 it("renders every vulnerability field and every distribution group, including collapsed and long-label evidence", async () => {
   const rows = Array.from({ length: 9 }, (_, index) => ({ ...observation, vulnerabilityId: `v${index}`, cve: `CVE-2026-${1000 + index}`,
     softwareName: index ? `Product ${index}` : "Long " + "identifier".repeat(1000) + " LAST-LABEL", detectedDate: `2026-10-${String(index + 1).padStart(2, "0")}` }));
-  const { doc, text } = await readPdf(await createVulnerabilityInsightsPdf({ ...fixture([], rows), rows }));
+  const { doc, text, firstPageText, imageCount } = await readPdf(await createVulnerabilityInsightsPdf({ ...fixture([], rows), rows }));
   expect(doc.getTitle()).toBe("Security Vulnerability Insights Report"); expect(doc.getPageCount()).toBeGreaterThan(6);
+  expect(firstPageText).toContain("Executive summary"); expect(firstPageText).toContain("Recommendations");
+  expect(firstPageText).toContain("9 vulnerability observations"); expect(firstPageText).toContain("9 observations lack remediation text");
+  expect(firstPageText).toContain("Validate the 9 critical or high observations"); expect(imageCount).toBeGreaterThanOrEqual(2);
+  for (const narrative of ["These groups show which recorded software", "Operating system labels provide endpoint context", "Source labels show the provenance", "Recorded detection dates describe when", "Prioritise source validation"]) expect(text).toContain(narrative);
   for (const column of VULNERABILITY_COLUMNS) expect(text).toContain(column.label);
   for (const row of rows) { expect(text).toContain(row.cve); expect(text).toContain(row.detectedDate); }
   for (const term of ["LAST-LABEL", "continued", "Appendix: Affected software", "not a last-scan date", "Critical / high", "Sample source", "not distinct endpoints"]) expect(text).toContain(term);
 });
 it.each(["endpoints", "vulnerabilities"] as const)("exports an explicit empty %s briefing", async kind => {
   const bytes = kind === "endpoints" ? await createEndpointInsightsPdf({ ...fixture(), rows: [] }) : await createVulnerabilityInsightsPdf({ ...fixture(), rows: [] });
-  const { text } = await readPdf(bytes); expect(text).toContain("in this scope"); expect(text).toContain("N/A"); expect(text).not.toMatch(/NaN|Infinity/);
+  const { text, firstPageText } = await readPdf(bytes); expect(text).toContain("in this scope"); expect(text).toContain("N/A"); expect(text).not.toMatch(/NaN|Infinity/);
+  expect(firstPageText).toContain("Recommendations"); expect(firstPageText).toContain("Confirm the selected");
+  expect(firstPageText).toContain(kind === "endpoints" ? "No endpoint records are available" : "No vulnerability observations are available");
 });
 const handlers: Array<[InventoryInsightReport, typeof endpointReport]> = [["endpoints", endpointReport], ["vulnerabilities", vulnerabilityReport]];
 it.each(handlers)("validates %s report input before data access", async (_, handler) => {

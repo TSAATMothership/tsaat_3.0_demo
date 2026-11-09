@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-09 - Governance Insights PDF presentation
+
+- Restyled the Cyber Terrain, Installed Software, Discovery, End Point and Security Vulnerability PDFs with their page artwork, TSAAT logo, matching icons, charts and navy/mint theme.
+- Added an opening page split equally between executive summary and recommendations, plus evidence-grounded narrative paragraphs throughout each report.
+- Preserved applied scope, snapshot dates, existing measures, explicit empty evidence and complete detailed breakdowns.
+
 ## 2026-11-09 - Tableau Dashboard Extension solution design
 
 - Updated the proposed design for on-premises Tableau Server: VDS reads as the viewer, browser-generated PDF/Excel files, and externally maintained persona/AD-group configuration.

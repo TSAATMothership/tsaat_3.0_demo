@@ -14,6 +14,8 @@ Every count-bearing evidence link opens matching Explorer filters with applied n
 
 Generate PDF sits beside the snapshot and exports a scoped A4 briefing with these five chapters, complete field checks/distribution appendices, generation timestamp and page numbering. Shared progress, duplicate prevention, retry and keyboard-focus behavior match the other Insights pages. Scoped empty selections still export explicit empty evidence. See [report content, APIs and validation](../docs/inventory-insights-reports.md).
 
+The PDF matches the page's TSAAT logo, endpoint illustration, icons, navy/mint theme and charts, including the coverage ring. Its first page gives half of the content area to an executive summary and half to recommendations. Evidence-grounded narrative paragraphs accompany every section, chart group and table; full scope and detailed evidence follow without changing the underlying measures.
+
 ## Data and preferences
 
 The route reuses `loadDiscoveryOverview` and the cached `loadEndpointExplorerData` facade at the overview's resolved snapshot. The component presents unchanged `endpointFacetCounts` and overview measures. No provider query, cohort, rule, score, persisted data, schema, settings format or calculation-contract checksum changes. Both compilation paths use these shared facades. No database migration or JSON upgrade is needed.

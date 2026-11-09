@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { inflateSync } from "node:zlib";
-import { PDFDocument, PDFPage, PDFRawStream } from "pdf-lib";
+import { PDFArray, PDFDocument, PDFName, PDFPage, PDFRawStream } from "pdf-lib";
 import { NextRequest } from "next/server";
 import { buildInstalledSoftwareInsights } from "@/lib/installed-software-insights";
 import { createSoftwareInsightsPdf } from "@/lib/software-insights-pdf";
@@ -23,11 +23,20 @@ function fixture(): SoftwareInsightsReportData {
 }
 async function readPdf(bytes: Uint8Array) {
   const doc = await PDFDocument.load(bytes), texts: string[] = [];
+  const readStream = (item: PDFRawStream) => {
+    let stream: Buffer; try { stream = inflateSync(item.contents); } catch { return ""; }
+    return Array.from(stream.toString("latin1").matchAll(/<([0-9A-F]+)> Tj/g), match => Buffer.from(match[1], "hex").toString("latin1")).join("\n");
+  };
+  let imageCount = 0;
   for (const [, item] of doc.context.enumerateIndirectObjects()) if (item instanceof PDFRawStream) {
-    let stream: Buffer; try { stream = inflateSync(item.contents); } catch { continue; }
-    for (const match of stream.toString("latin1").matchAll(/<([0-9A-F]+)> Tj/g)) texts.push(Buffer.from(match[1], "hex").toString("latin1"));
+    texts.push(readStream(item));
+    if (item.dict.get(PDFName.of("Subtype"))?.toString() === "/Image") imageCount++;
   }
-  return { doc, text: texts.join("\n") };
+  const firstPageContents = doc.getPage(0).node.Contents();
+  const firstPageStreams = firstPageContents instanceof PDFArray
+    ? firstPageContents.asArray().map(ref => doc.context.lookup(ref)) : [firstPageContents];
+  const firstPageText = firstPageStreams.map(item => item instanceof PDFRawStream ? readStream(item) : "").join("\n");
+  return { doc, text: texts.join("\n"), firstPageText, imageCount };
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -39,14 +48,21 @@ beforeEach(() => {
 describe("Software Insights PDF", () => {
   it("renders the briefing's counts, four chapters, scope and distinct timestamps on A4", async () => {
     const data = fixture(), original = structuredClone(data);
-    const { doc, text } = await readPdf(await createSoftwareInsightsPdf(data, generated));
+    const { doc, text, firstPageText, imageCount } = await readPdf(await createSoftwareInsightsPdf(data, generated));
     expect(doc.getTitle()).toBe("Software Insights"); expect(doc.getCreationDate()).toEqual(generated);
-    expect(doc.getPageCount()).toBe(3);
+    expect(doc.getPageCount()).toBe(5);
+    expect(imageCount).toBeGreaterThanOrEqual(2);
+    expect(firstPageText).toContain("Executive summary"); expect(firstPageText).toContain("Recommendations");
+    expect(firstPageText).toContain("4 recorded installations");
+    expect(firstPageText).toContain("Begin with the widely installed products");
+    expect(firstPageText.indexOf("Executive summary")).toBeLessThan(firstPageText.indexOf("Recommendations"));
     for (const label of ["01 / Understand the footprint", "02 / See where installations concentrate", "03 / Make version variation visible", "04 / Strengthen the evidence before acting",
       "Identify the version", "Refresh older observations", "Restore discovery dates", "Check future-dated evidence", "Record the source", "Locate the installation",
-      "4", "75%", "2 versions / 2 installations / 1 endpoints", "1 installations have no product name", "Example Network (net-1)", "Security domains: SECRET",
-      "Snapshot timestamp: 2026-10-31 09:10:11.000 UTC", "PDF generated: 2026-11-07 10:11:12.000 UTC", "Evidence priorities overlap"])
-      expect(text).toContain(label);
+      "4", "75%", "2 versions / 2 installations / 1 endpoint", "1 installation has no product name", "Example Network (net-1)", "Security domains: SECRET",
+      "Snapshot timestamp: 2026-10-31 09:10:11.000 UTC", "PDF generated: 2026-11-07 10:11:12.000 UTC", "Evidence priorities overlap",
+      "The footprint follows the evidence", "Leading products", "Follow the recorded differences", "How to read these insights",
+      "Complete version evidence", "Confirm the inventory", "Establish when each", "Review collection timestamps", "Confirm which collection tool", "Add location evidence"])
+      expect(text.replace(/\s+/g, " ")).toContain(label);
     expect(text.match(/Snapshot timestamp:/g)?.length).toBe(doc.getPageCount() + 1);
     for (const page of doc.getPages()) expect(page.getSize()).toEqual({ width: 595.28, height: 841.89 });
     expect(data).toEqual(original);
@@ -57,6 +73,9 @@ describe("Software Insights PDF", () => {
     for (const label of ["No software evidence", "N/A", "No named products with multiple", "Snapshot timestamp: Not recorded", "Security domains: None selected"])
       expect(text).toContain(label);
     expect(text).not.toContain("100%");
+    expect(text).not.toContain("Every recorded installation has a version.");
+    expect(text).toContain("No installation denominator is available.");
+    expect(text).toContain("Confirm the selected scope and snapshot");
   });
   it("paginates long scope and product labels without truncation or text outside margins", async () => {
     const data = fixture(); data.scopeLabels.networks = ["long scope ".repeat(300) + "scope-end"];
@@ -65,7 +84,7 @@ describe("Software Insights PDF", () => {
     const spy = vi.spyOn(PDFPage.prototype, "drawText");
     try {
       const { doc, text } = await readPdf(await createSoftwareInsightsPdf(data, generated));
-      expect(doc.getPageCount()).toBeGreaterThan(3);
+      expect(doc.getPageCount()).toBeGreaterThan(5);
       for (const label of ["scope-end", "product-end", "variant-end", "continued"]) expect(text).toContain(label);
       for (const [label, options] of spy.mock.calls) {
         expect(options?.y, label).toBeGreaterThanOrEqual(20); expect(options?.y, label).toBeLessThanOrEqual(818);
