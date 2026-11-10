@@ -7,7 +7,7 @@ $cachePath = Join-Path $env:RUNNER_TEMP ('tsaat-empty-npm-cache-' + [guid]::NewG
 New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block -Profile Any | Out-Null
 try {
     # No restored npm cache and no previously installed node_modules are needed.
-    & npm ci --offline --ignore-scripts --no-audit --cache $cachePath
+    & npm run install:offline -- --cache $cachePath
     if ($LASTEXITCODE -ne 0) { throw 'Offline npm ci failed.' }
     & npm run check
     if ($LASTEXITCODE -ne 0) { throw 'Source/documentation checks failed.' }

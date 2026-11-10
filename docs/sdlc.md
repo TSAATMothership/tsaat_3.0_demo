@@ -60,7 +60,7 @@ docs:generate writes deterministic inventories and a source fingerprint snapshot
 On a clean, disposable checkout with the supported host tools, use a new empty npm cache, then run:
 
 ~~~powershell
-npm ci --offline --ignore-scripts --cache .local/release-proof-unique
+npm run install:offline -- --cache .local/release-proof-unique
 node --test tests/change-impact.test.mjs
 npm run check
 npm run build:all

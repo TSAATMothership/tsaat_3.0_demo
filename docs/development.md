@@ -16,7 +16,8 @@ UI-only changes normally need lint/types, focused tests and relevant visual/keyb
 
 | Command | Purpose |
 | --- | --- |
-| npm ci --offline | Locked installation from repository archives, even with an empty npm cache |
+| npm run install:offline | Stop checkout app servers and perform guarded npm ci from repository archives, even with an empty cache |
+| npm ci --offline | Underlying locked install; stop app servers manually before using this bare command |
 | npm run offline:check | Verify local lockfile closure, archive integrity and provenance |
 | npm run offline:refresh | Explicit connected maintenance only: vendor reviewed locked packages |
 | npm run dev:sql / dev:nosql | Development server using the selected provider |
@@ -49,7 +50,7 @@ For UI work, check representative snapshot data, desktop/narrow layouts, keyboar
 
 ## Troubleshooting
 
-If dev, start or build reports that Next.js is missing or incomplete (or an older launcher reports `Cannot find module 'next/dist/bin/next'`), stop this checkout's app processes, run `npm ci --offline` from the repository root, then retry the original command. This repairs `node_modules` from the committed archives without changing credentials or JSON data. The launcher checks for Next.js before JSON initialization or build setup and prints this recovery command when it is absent.
+If dev, start or build reports that Next.js is missing or incomplete (or an older launcher reports `Cannot find module 'next/dist/bin/next'`), run `npm run install:offline` from the repository root, then retry the original command. This stops the checkout's recognized app servers and repairs `node_modules` from committed archives without changing credentials or JSON data. It also resolves SWC `EPERM unlink` failures caused by a running Next.js server. The launcher checks for Next.js before JSON initialization or build setup and prints this recovery command when it is absent. Bare npm ci cannot stop servers before its dependency removal; see [installer limits and interrupted-install recovery](offline-builds.md#failure-and-recovery).
 
 Create missing DPAPI files under the runtime identity. Configure sqlcmd if absent. Hard-refresh stale Next hot-update references after a restart; stop the corresponding server before clearing its .next-sql or .next-nosql output. Never clear NoSQL/data as a build fix. Fix build errors rather than bypassing them. Deployment troubleshooting is in [operations](operations.md).
 
@@ -57,7 +58,7 @@ Create missing DPAPI files under the runtime identity. Configure sqlcmd if absen
 
 Security Vulnerability Explorer uses `populate:vulnerabilities` to preview existing-store CVE additions and `populate:vulnerabilities -- --apply --demo` to publish with backup. SQL migration 028 is required before running the SQL app. Actual SQL parity requires an explicitly selected disposable `TSAAT_VulnerabilityParity_*` database and trusted TLS; the commands and source catalogue are in [the feature contract](security-vulnerability-explorer.md).
 
-SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all and performs npm ci --offline before checks/builds. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
+SQL remains the default for npm run dev/build/start. compileApp.cmd accepts sql, nosql or all and uses install:offline to stop checkout servers and run npm ci --offline before checks/builds. No-SQL initialization/build/start retains existing JSON data. Use TSAAT_JSON_DATA_DIR for isolated test stores and a stable absolute runtime path. See [provider contracts](data-providers.md) for schema evolution, equivalent calculations and settings writes.
 
 The No-SQL smoke needs installed Chrome or Edge; TSAAT_TEST_BROWSER overrides its executable. It starts the compiled app with isolated data without application credentials and an unavailable SQL executable, exercises both scope types, reports and saved settings, then restarts to verify persistence. It does not touch local DB_config, logindetails or NoSQL/data. Unit tests also use temporary stores. Set TSAAT_TEST_SQL_EXPORT to an authorized local export file to run the same compiled smoke against imported/enriched SQL records in isolation; it never writes the active store. Population tests cover field coverage, history preservation, stable identities, idempotence, backup/publication, failure safety and source conversion.
 

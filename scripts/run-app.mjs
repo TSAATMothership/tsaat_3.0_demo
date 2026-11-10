@@ -8,13 +8,18 @@ import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 const require = createRequire(import.meta.url);
 const [command, mode, ...args] = process.argv.slice(2);
 if (!["build", "dev", "start"].includes(command) || !["sql", "nosql"].includes(mode)) throw new Error("Usage: node scripts/run-app.mjs <build|dev|start> <sql|nosql> [Next options]");
+if (fs.existsSync(path.join(repositoryRoot, '.local/offline-install.lock'))) {
+  console.error('An offline installation is in progress or was interrupted. Wait for it to finish before starting or building the app. See docs/offline-builds.md for interrupted-install recovery.');
+  process.exit(1);
+}
 let nextCli;
 try {
   nextCli = require.resolve("next/dist/bin/next");
 } catch (error) {
   if (error.code !== "MODULE_NOT_FOUND") throw error;
   console.error("Next.js is missing or incomplete in node_modules.");
-  console.error(`From the repository root (${repositoryRoot}), run: npm ci --offline`);
+  console.error(`From the repository root (${repositoryRoot}), run: npm run install:offline`);
+  console.error('This stops checkout app servers before running npm ci --offline.');
   console.error(`Then retry npm run ${command}:${mode} with your original options. Installation uses the committed vendor/npm archives; no network is needed.`);
   process.exit(1);
 }

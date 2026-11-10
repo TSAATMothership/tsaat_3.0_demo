@@ -11,9 +11,7 @@ exit /b 2
 :validate
 if /i "%TSAAT_BUILD_PATH%"=="sql" set "TSAAT_BUILD_PATH=sql"
 if /i "%TSAAT_BUILD_PATH%"=="nosql" set "TSAAT_BUILD_PATH=nosql"
-node scripts/offline-dependencies.mjs --check
-if errorlevel 1 exit /b %errorlevel%
-call npm ci --offline --ignore-scripts --no-audit
+call npm run install:offline
 if errorlevel 1 exit /b %errorlevel%
 call npm run check
 if errorlevel 1 exit /b %errorlevel%

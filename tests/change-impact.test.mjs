@@ -32,7 +32,7 @@ test('SQL, JSON, calculation and persistence changes expand provider validation'
   }
 });
 test('dependency/build changes, deletions, unknown files and manual overrides select broad validation', () => {
-  for (const file of ['package-lock.json', 'vendor/npm/package.tgz', 'next.config.mjs', 'unclassified.config']) assert.equal(assess(file).full, true, file);
+  for (const file of ['package-lock.json', 'vendor/npm/package.tgz', 'next.config.mjs', 'scripts/offline-install.mjs', 'scripts/offline-stop-servers.ps1', 'unclassified.config']) assert.equal(assess(file).full, true, file);
   assert.equal(assessChanges([{ file: 'lib/old.ts', status: 'D' }]).full, true);
   assert.equal(assessChanges([], { full: true }).full, true);
   assert.equal(assessChanges([], { data: true }).build, true);

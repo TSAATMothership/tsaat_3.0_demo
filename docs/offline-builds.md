@@ -29,14 +29,18 @@ The Security Vulnerability Explorer catalogue contains reviewed CVE/vendor facts
 From the repository root, after transferring the complete checkout and provisioning the host tools:
 
 ~~~powershell
-npm ci --offline
+npm run install:offline
 npm run docs:generate
 npm run check
 npm run build:all
 npm run test:nosql
 ~~~
 
-compileApp.cmd sql, nosql or all performs archive verification, npm ci --offline, checks and the selected compilation. It reinstalls node_modules; stop local app processes before using it. Ordinary npm run build/build:sql/build:nosql/build:all expect npm ci first. Run the selected artifact using start:sql or start:nosql and configure storage as described in the main README. Builds keep existing NoSQL/data and never seed an operational SQL database.
+compileApp.cmd sql, nosql or all runs the same `install:offline` command, checks and the selected compilation. Installation verifies archives, stops this checkout's active app servers, then reinstalls node_modules using `npm ci --offline`. Ordinary npm run build/build:sql/build:nosql/build:all expect installation first. Run the selected artifact using start:sql or start:nosql and configure storage as described in the main README. Builds keep existing NoSQL/data and never seed an operational SQL database.
+
+The installer uses only Node built-ins and Windows PowerShell, so it works with missing or partially installed node_modules. It identifies Node entry points by the exact absolute Next.js CLI/server paths for this checkout, including commands launched through dev/start aliases, both providers and custom ports. Windows parses command-line arguments; substring, port-only and global node.exe matching are not used. Identified server descendants are stopped too, with PID/creation-time/command-line checks before termination. Other checkouts and unrelated Node processes remain running. An active build or a process-inspection/termination failure aborts before dependency removal. Servers remain stopped after installation; restart the desired dev/start command when ready. A process started through an unrecognizable custom/relative launcher must be stopped manually if it retains a file lock.
+
+Bare `npm ci --offline` remains the underlying locked installation contract, but cannot automatically stop servers through package hooks: npm removes node_modules before running preinstall, and dependency lifecycle scripts are deliberately disabled. Use `npm run install:offline` or `compileApp.cmd` for automatic shutdown. No global npm binary, PATH or PowerShell profile is modified. See [ADR 0025](adr/0025-offline-install-preflight.md).
 
 JSON sample enrichment, SQL-export conversion and population use local source files and Node built-ins. No export or database connection is attempted during either build; pre-existing JSON stores remain intact.
 
@@ -47,7 +51,7 @@ The repository .npmrc sets offline=true, ignore-scripts=true, audit=false, updat
 To demonstrate independence from a previous cache, choose a new cache directory:
 
 ~~~powershell
-npm ci --offline --ignore-scripts --cache .local/offline-proof-unique
+npm run install:offline -- --cache .local/offline-proof-unique
 npm run check
 npm run build:all
 npm run test:nosql
@@ -58,7 +62,7 @@ Use a never-before-used cache path for each proof. CI performs this using a GUID
 ## Enforcement
 
 - npm run offline:check verifies every archive's SHA-512 against the lockfile and provenance manifest, rejects remote/missing/unused entries and unexpected vendor files, and runs as part of npm run check and each production build.
-- Build wrappers disable telemetry and preload scripts/offline-network.cjs into Node and inherited children/workers. HTTP(S), fetch, TCP (including loopback), TLS, DNS and UDP attempts throw. Local named-pipe IPC remains available. An attempt log makes caught/suppressed requests fail the overall build too. The guard is build-only; runtime provider networking is unchanged.
+- The installer and build wrappers disable telemetry and preload scripts/offline-network.cjs into npm/Next and inherited Node children/workers. HTTP(S), fetch, TCP (including loopback), TLS, DNS and UDP attempts throw. Local named-pipe IPC remains available. An attempt log makes caught/suppressed requests fail installation/compilation too. Runtime provider networking is unchanged. Installation forces offline mode, disabled lifecycle scripts/audit, and inclusion of development/optional compiler packages even if the host has production-only npm settings. Its only optional argument is `--cache`; callers cannot disable these protections through forwarded flags.
 - Full validation CI installs with an empty cache and uses a temporary Windows outbound firewall rule for the Node executable during npm ci, source checks and both compilations. It removes that exact rule in finally, then runs the No-SQL browser smoke without application credentials. Host checkout and Node provisioning occur before this gate. The Node preload is a regression guard, not an OS sandbox for arbitrary native executables; reviewers must reject download subprocesses too.
 - Review documentation impacts for manifest, lockfile, tooling and CI changes. Require fresh offline evidence for dependency/build changes and releases; routine PRs record their assessed checks. Never store the archives as Git LFS pointers or replace them with external download links.
 
@@ -80,7 +84,9 @@ Review package/license notices, transitive changes, native binaries and lifecycl
 
 ## Failure and recovery
 
-Missing Next.js CLI or partial `node_modules`: stop this checkout's app processes, run `npm ci --offline` from the repository root, then retry the original dev/start/build command. All six provider commands check the Next.js CLI before storage initialization or build setup and print the offline installation command on failure. Installation remains an explicit step using the committed archives; the launcher never downloads or installs dependencies automatically.
+Missing Next.js CLI, partial `node_modules`, or Windows `EPERM unlink` on the SWC native compiler: run `npm run install:offline` from the repository root, then retry the original dev/start/build command. It stops the recognized checkout servers before npm removes dependencies. All six provider commands check the Next.js CLI before storage initialization or build setup and print this recovery command on failure. Installation remains explicit; the launcher never downloads or installs dependencies automatically. If an editor/custom launcher or another account still holds a file, close that specific process and retry; do not delete the lockfile/vendor archives or disable antivirus protections.
+
+Concurrent or interrupted installation: `.local/offline-install.lock` prevents a second managed installer and rejects app dev/start/build commands while installation is active. If an installer was forcibly terminated, inspect the PID/start time recorded in that file and confirm it has exited before deleting only that lock file and rerunning `npm run install:offline`. The installer otherwise removes its lock in finally, including on failure. A network failure retains its `.local/offline-install-attempts-*.log` for investigation. Existing stores, credentials and package-lock.json are never recovery deletion targets.
 
 Missing/corrupt archive: restore the reviewed archive from the compatible repository commit or run the explicit connected maintenance process before transferring a new complete checkout. Do not fall back to the registry in a build.
 

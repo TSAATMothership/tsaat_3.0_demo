@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-10 - Offline installation and active server recovery
+
+- Added `npm run install:offline` to verify bundled dependencies, stop this checkout's recognized Next.js servers and workers, and run locked npm ci with network access blocked and lifecycle scripts disabled. Other checkouts remain running; active builds block installation.
+- Routed compileApp.cmd and CI installation through the same preflight. Added install concurrency protection, actionable interrupted-install recovery and automatic inclusion of development/optional native compiler packages.
+- Clarified that bare `npm ci --offline` still requires servers to be stopped manually because npm removes dependencies before project install hooks run. No dependencies, schemas, settings or application data changed.
+
 ## 2026-11-09 - Browser PDF and Excel generation
 
 - Moved all PDF and Excel generation into browser workers across Governance Insights, reports, measures, Explorers, findings tables and risk/dependency panels. The server supplies scoped document data through the existing SQL/No-SQL facades.

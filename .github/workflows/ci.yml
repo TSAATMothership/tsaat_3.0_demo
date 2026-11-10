@@ -41,7 +41,7 @@ jobs:
         run: ./scripts/ci-offline.ps1
       - name: Install local dependencies for affected checks
         if: steps.impact.outputs.full != 'true' && steps.impact.outputs.install == 'true'
-        run: npm ci --offline --ignore-scripts --no-audit
+        run: npm run install:offline
       - name: Run checks selected by impact
         if: steps.impact.outputs.full != 'true'
         run: node scripts/change-impact.mjs --run

@@ -15,8 +15,10 @@ Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app w
 Both builds compile offline on Windows with preinstalled Node.js 24, npm and PowerShell. All application packages, including native compiler packages, are checked in under vendor/npm. No registry, prewarmed npm cache or sibling folder is needed. Install from the local lockfile archives and open the workspace directly:
 
 ~~~powershell
-npm ci --offline
+npm run install:offline
 ~~~
+
+This command verifies the bundled archives, stops this checkout's active Next.js servers, then runs `npm ci --offline` with lifecycle scripts disabled and Node network access blocked. It works before `node_modules` exists. Other checkouts and unrelated Node processes are left running. Bare `npm ci --offline` still works when servers are already stopped; npm removes dependencies before project hooks can stop a server, so use `install:offline` for automatic shutdown.
 
 Application pages and APIs no longer require a user login. The header has no Signed in or Logout section, and Password Settings is retired. Existing local logindetails files are unused and remain excluded from Git.
 
@@ -32,7 +34,7 @@ Choose a build:
 | Run compiled app | npm run start:sql | npm run start:nosql |
 | Build output | .next-sql | .next-nosql |
 
-Open http://localhost:3000 and select a network or ICT system to populate the workspace. Production deployment uses HTTPS. The ordinary dev/build/start commands remain SQL defaults. compileApp.cmd accepts sql, nosql or all (default sql) and performs a locked offline install before validation/compilation. Builds reject network access. See the mandatory [offline compilation contract](docs/offline-builds.md).
+Open http://localhost:3000 and select a network or ICT system to populate the workspace. Production deployment uses HTTPS. The ordinary dev/build/start commands remain SQL defaults. compileApp.cmd accepts sql, nosql or all (default sql) and uses the same server shutdown and locked offline installer before validation/compilation. Builds reject network access. See the mandatory [offline compilation contract](docs/offline-builds.md).
 
 SQL needs a running SQL Server with SQL authentication enabled and sqlcmd on PATH (or SQLCMD_PATH). Run `npm run setup:database`: it asks whether the endpoint is `localhost\SQLEXPRESS` (default Yes); answer No to enter another endpoint. It uses the local instance's configured TCP port when available and prepares **TSAATDB**. Enter a new database username and password, then choose the administrator connection (your Windows account by default, or a separate SQL administrator username/password). **If TSAATDB already exists, setup asks you to type its name, then deletes and replaces it. All existing data/settings are lost; active sessions are disconnected and no backup is created.** Setup applies schema and migrations, loads reference data and eight sample snapshots, creates or reconnects the app login/user, validates access, and saves DPAPI-encrypted DB_config. **SSL is disabled** for setup and the saved app connection. Administrator credentials are not saved. Then run `npm run dev:sql`. Other databases are left intact. See [setup and recovery](docs/database.md#one-command-database-setup).
 

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "install:offline": "node scripts/offline-install.mjs",
     "dev": "node scripts/run-app.mjs dev sql",
     "build": "node scripts/run-app.mjs build sql",
     "start": "node scripts/run-app.mjs start sql",
