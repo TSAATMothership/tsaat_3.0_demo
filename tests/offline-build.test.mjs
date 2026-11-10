@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { checkOfflineDependencies } from '../scripts/offline-dependencies.mjs';
+import { checkOfflineDependencies, restoreLegacyResolutions } from '../scripts/offline-dependencies.mjs';
 import { parseInstallArguments } from '../scripts/offline-install.mjs';
 
 function fixture(prefix = 'tsaat-offline-test-') {
@@ -56,6 +56,38 @@ test('offline archive closure rejects missing, corrupt, additional and unused ar
     fs.unlinkSync(path.join(f.directory, 'unexpected.tgz'));
     delete f.lock.packages['node_modules/example']; delete f.lock.dependencies.example; f.writeLock();
     assert.throws(() => checkOfflineDependencies(f.root), /Unused offline package/);
+  } finally { cleanup(f.root); }
+});
+
+test('offline checks reject deprecated packages in both lockfile representations', () => {
+  const f = fixture();
+  try {
+    for (const entry of [f.lock.packages['node_modules/example'], f.lock.dependencies.example]) {
+      entry.deprecated = 'Unsupported release'; f.writeLock();
+      assert.throws(() => checkOfflineDependencies(f.root), /Deprecated locked package/);
+      delete entry.deprecated; f.writeLock();
+    }
+    assert.equal(checkOfflineDependencies(f.root), 1);
+  } finally { cleanup(f.root); }
+});
+
+test('connected lock maintenance restores omitted legacy URLs only from matching package identities', () => {
+  const f = fixture();
+  try {
+    delete f.lock.dependencies.example.resolved;
+    f.writeLock();
+    assert.throws(() => checkOfflineDependencies(f.root), /Nonlocal locked package/);
+    f.lock.dependencies.example.version = '2.0.0';
+    assert.throws(() => restoreLegacyResolutions(f.lock), /matching version\/integrity/);
+    f.lock.dependencies.example.version = '1.0.0';
+    f.lock.dependencies.example.integrity = 'sha512-other';
+    assert.throws(() => restoreLegacyResolutions(f.lock), /matching version\/integrity/);
+    f.lock.dependencies.example.integrity = f.record.integrity;
+    restoreLegacyResolutions(f.lock);
+    assert.equal(f.lock.dependencies.example.resolved, f.lock.packages['node_modules/example'].resolved);
+    assert.equal(f.lock.dependencies.example.integrity, f.record.integrity);
+    f.writeLock();
+    assert.equal(checkOfflineDependencies(f.root), 1);
   } finally { cleanup(f.root); }
 });
 test('network preload blocks HTTP, fetch, TCP, TLS, DNS and UDP, recording caught attempts', () => {
@@ -126,6 +158,7 @@ test('both build wrappers fail even when a compiler catches its network error; r
     const scripts = path.join(f.root, 'scripts');
     fs.mkdirSync(scripts);
     for (const name of ['run-app.mjs', 'offline-dependencies.mjs', 'offline-network.cjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(scripts, name));
+    fs.writeFileSync(path.join(scripts, 'lint.mjs'), 'if (!process.env.TSAAT_OFFLINE_ATTEMPTS) process.exit(3);');
     fs.writeFileSync(path.join(scripts, 'setup-json-store.mjs'), `import { fileURLToPath } from 'node:url'; export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url)); export async function initializeJsonStore() { return { directory: 'fixture-store', created: false }; }`);
     const bin = path.join(f.root, 'node_modules/next/dist/bin');
     fs.mkdirSync(bin, { recursive: true });
@@ -152,6 +185,62 @@ test('network guard permits local named-pipe IPC', () => {
   const script = `const net = require('node:net'); const os = require('node:os'); const path = require('node:path'); const pipe = process.platform === 'win32' ? '\\\\\\\\.\\\\pipe\\\\tsaat-offline-' + process.pid : path.join(os.tmpdir(), 'tsaat-offline-' + process.pid + '.sock'); const server = net.createServer(socket => socket.end()); server.listen(pipe, () => { const client = net.connect(pipe); client.on('close', () => server.close()); });`;
   const child = spawnSync(process.execPath, ['--require', guard, '-e', script], { encoding: 'utf8', timeout: 10000, windowsHide: true });
   assert.equal(child.status, 0, child.stderr);
+});
+
+test('both builds require successful offline lint before compilation or JSON initialization', () => {
+  const f = fixture();
+  try {
+    const scripts = path.join(f.root, 'scripts');
+    fs.mkdirSync(scripts);
+    for (const name of ['run-app.mjs', 'lint.mjs', 'offline-dependencies.mjs', 'offline-network.cjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(scripts, name));
+    fs.writeFileSync(path.join(scripts, 'setup-json-store.mjs'), `import fs from 'node:fs'; import { fileURLToPath } from 'node:url'; export const repositoryRoot = fileURLToPath(new URL('../', import.meta.url)); export async function initializeJsonStore() { fs.writeFileSync(new URL('../store-initialized', import.meta.url), 'yes'); return {directory: 'fixture', created: false}; }`);
+    const compiler = path.join(f.root, 'node_modules/next/dist/bin/next.js');
+    const linter = path.join(f.root, 'node_modules/eslint/bin/eslint.js');
+    fs.mkdirSync(path.dirname(compiler), { recursive: true });
+    fs.mkdirSync(path.dirname(linter), { recursive: true });
+    fs.writeFileSync(compiler, `const fs = require('node:fs'); if (!fs.existsSync('lint-passed')) process.exit(5); fs.writeFileSync('compiled', 'yes');`);
+    const run = mode => spawnSync(process.execPath, [path.join(scripts, 'run-app.mjs'), 'build', mode], {
+      cwd: f.root, encoding: 'utf8', timeout: 10000, windowsHide: true,
+      env: { ...process.env, TEMP: f.root, TMP: f.root, TMPDIR: f.root }
+    });
+    for (const mode of ['sql', 'nosql']) {
+      for (const source of [null, 'process.exit(2);', `try { fetch('https://example.invalid'); } catch {}`]) {
+        if (source === null) { if (fs.existsSync(linter)) fs.unlinkSync(linter); }
+        else fs.writeFileSync(linter, source);
+        const failed = run(mode);
+        assert.notEqual(failed.status, 0, failed.stdout + failed.stderr);
+        assert.equal(fs.existsSync(path.join(f.root, 'compiled')), false);
+        assert.equal(fs.existsSync(path.join(f.root, 'store-initialized')), false);
+        assert.equal(fs.readdirSync(f.root).some(name => name.startsWith('tsaat-offline-build-')), false);
+      }
+      fs.writeFileSync(linter, `const assert = require('node:assert/strict'); assert.deepEqual(process.argv.slice(2), ['app', 'components', 'lib']); if (!process.env.TSAAT_OFFLINE_ATTEMPTS) process.exit(4); require('node:fs').writeFileSync('lint-passed', 'yes');`);
+      const passed = run(mode);
+      assert.equal(passed.status, 0, passed.stdout + passed.stderr);
+      assert.equal(fs.existsSync(path.join(f.root, 'compiled')), true);
+      assert.equal(fs.existsSync(path.join(f.root, 'store-initialized')), mode === 'nosql');
+      for (const name of ['lint-passed', 'compiled', 'store-initialized']) if (fs.existsSync(path.join(f.root, name))) fs.unlinkSync(path.join(f.root, name));
+    }
+  } finally { cleanup(f.root); }
+});
+
+test('maintained ESLint preserves React, Hooks, accessibility, Next and TypeScript module checks', async () => {
+  const { ESLint } = await import('eslint');
+  const lint = new ESLint();
+  const [invalid] = await lint.lintText(`import { useEffect, useState } from 'react';
+    export function Example({ ready }: { ready: boolean }) {
+      if (ready) useState(0);
+      useEffect(() => { console.log(ready); }, []);
+      const items = [<span>Missing key</span>];
+      return <><img src='/sample.png' />{items}</>;
+    }`, { filePath: 'components/lint-policy-fixture.tsx' });
+  const rules = new Set(invalid.messages.map(message => message.ruleId));
+  for (const rule of ['react-hooks/rules-of-hooks', 'react-hooks/exhaustive-deps', 'react/jsx-key', 'jsx-a11y/alt-text', '@next/next/no-img-element']) assert.ok(rules.has(rule), rule + ': ' + JSON.stringify(invalid.messages));
+  const [anonymous] = await lint.lintText('export default {};', { filePath: 'lib/lint-policy-fixture.ts' });
+  assert.ok(anonymous.messages.some(message => message.ruleId === 'import/no-anonymous-default-export'));
+  for (const filePath of ['lib/lint-policy-fixture.d.mts', 'lib/lint-policy-fixture.d.cts']) {
+    const [valid] = await lint.lintText('export declare const value: string;', { filePath });
+    assert.equal(valid.messages.length, 0, JSON.stringify(valid.messages));
+  }
 });
 
 test('offline installer accepts cache selection but rejects policy overrides before any work', () => {

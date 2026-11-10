@@ -100,7 +100,7 @@
     },
     {
       "name": "Tooling and lifecycle",
-      "pattern": "^scripts/|^package|^tsconfig|^vitest|^next.config|^\\.github/|\\.cmd$",
+      "pattern": "^scripts/|^package|^tsconfig|^vitest|^next.config|^eslint.config|^\\.github/|\\.cmd$",
       "documents": [
         "docs/development.md",
         "docs/sdlc.md",
@@ -121,7 +121,7 @@
     },
     {
       "name": "Mandatory offline compilation",
-      "pattern": "^vendor/|offline|^package|^\\.npmrc$|run-app|compileApp|^\\.github/workflows/",
+      "pattern": "^vendor/|offline|^package|^\\.npmrc$|^eslint.config|^scripts/lint\\.mjs$|run-app|compileApp|^\\.github/workflows/",
       "documents": [
         "docs/offline-builds.md",
         "docs/sdlc.md",

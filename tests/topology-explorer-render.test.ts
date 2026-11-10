@@ -51,6 +51,26 @@ it("keeps stale selection and empty scope explicit", () => {
   const html = renderToStaticMarkup(React.createElement(TopologyExplorer, { model: { ...model, nodes: [] } }));
   expect(html).toContain("No CIs in this scope"); expect(html).toContain("previously selected CI is unavailable"); expect(html).not.toContain("data-topology-node");
 });
+
+it("renders native external-peer links retaining snapshot, mode, domains and destination scope", () => {
+  query.value += '&topologyMode=dependencies&securityDomain=SECRET&securityDomain=UNKNOWN&topology_name=old-filter';
+  const peer = { ...model.nodes[0], id: 'asset:b', sourceId: 'b', name: 'Server B', scope: { network: 'n2' } };
+  const html = renderToStaticMarkup(React.createElement(TopologyExplorer, { model: { ...model, dependencyContext: {
+    nodes: [...model.nodes, peer], edges: [{ id: 'flow', source: 'asset:a', target: 'asset:b', kind: 'communication', label: 'communicates with', observations: [] }]
+  } } }));
+  const links = [...html.matchAll(/<a href="([^"]+)" class="topology-text-button">Server B/g)];
+  expect(links.length).toBeGreaterThan(0);
+  for (const [, href] of links) {
+    const url = new URL(href.replaceAll('&amp;', '&'), 'https://fixture.invalid');
+    expect(url.pathname).toBe('/discovery-coverage');
+    expect(url.searchParams.get('network')).toBe('n2');
+    expect(url.searchParams.get('topologyCi')).toBe('asset:b');
+    expect(url.searchParams.get('topologyMode')).toBe('dependencies');
+    expect(url.searchParams.get('dataDate')).toBe(model.snapshotDate);
+    expect(url.searchParams.getAll('securityDomain')).toEqual(['SECRET', 'UNKNOWN']);
+    expect(url.searchParams.has('topology_name')).toBe(false);
+  }
+});
 it("counts distinct displayed neighbours in shared node badges while retaining directed evidence", () => {
   query.value += '&topologyMode=dependencies';
   const peer = { ...model.nodes[0], id: 'asset:b', sourceId: 'b', name: 'Server B' };

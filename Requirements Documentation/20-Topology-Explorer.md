@@ -29,6 +29,8 @@ Lookup remains header-scoped in both modes. Dependencies preloads only direct pe
 
 Selecting a graph node inspects it without changing the starting CI or camera. **Explore from this CI** starts a new trace in the selected mode for a CI already in lookup scope. CMDB uses the existing mapped, persona-controlled popup. The expandable path evidence uses FindingsDataTable for every included CI, followed by exact labelled relationships.
 
+Out-of-scope Explore actions in the inspector and evidence tables are native document links. Enter follows the destination scope, retaining mode, security domains and resolved snapshot while dropping old lookup filters and resetting graph/popup state. In-scope actions remain buttons that update the current trace without a document reload.
+
 Every CMDB popup includes **Explore Topology**. Once CI details load, it opens this page with that exact CI selected, retaining the originating network/system and security-domain scope and pinning the resolved CMDB snapshot. Without a header scope it uses an endpoint's recorded network or a model CI's related systems. Unrelated explorer filters and old topology lookup/selection parameters are dropped. The action is disabled while details are loading/unavailable or Topology Explorer is disabled for the active persona. Document navigation clears stacked popups and initializes the new root even when launched from Topology Explorer itself.
 
 ## Interaction and state

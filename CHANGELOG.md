@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-10 - Maintained lint dependencies
+
+- Replaced ESLint 8 with ESLint 10.14.0 and the compatible Next lint configuration 16.4.6, removing the deprecated inflight, humanwhocodes config/schema, rimraf 3 and glob 7/10 dependency branches. Updated the lockfile, bundled archives and integrity/provenance manifest together.
+- Kept application linting mandatory before both offline builds through a supported CLI preflight. Retained the existing React 18 lint policy and declaration-file coverage; runtime Next/React versions are unchanged.
+- Offline archive checks now reject packages marked deprecated in the lockfile. Topology actions that change header scope use keyboard-accessible native links while retaining the existing full-document reset, snapshot, domains and graph mode.
+
 ## 2026-11-10 - Offline installation and active server recovery
 
 - Added `npm run install:offline` to verify bundled dependencies, stop this checkout's recognized Next.js servers and workers, and run locked npm ci with network access blocked and lifecycle scripts disabled. Other checkouts remain running; active builds block installation.

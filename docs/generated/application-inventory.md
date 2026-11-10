@@ -136,8 +136,8 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | @types/three | ^0.181.0 | Development |
 | @vitest/coverage-v8 | ^4.0.18 | Development |
 | autoprefixer | ^10.4.24 | Development |
-| eslint | 8.57.0 | Development |
-| eslint-config-next | ^14.2.35 | Development |
+| eslint | 10.14.0 | Development |
+| eslint-config-next | 16.4.6 | Development |
 | postcss | ^8.5.6 | Development |
 | tailwindcss | 3.4.17 | Development |
 | tsx | ^4.21.0 | Development |

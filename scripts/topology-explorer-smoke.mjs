@@ -210,10 +210,15 @@ export async function checkTopologyExplorer(page, { date, historicalDate, artifa
   await checkTopologyFullscreen(page, { artifacts });
   await new Promise(resolve => setTimeout(resolve, 750)); // Finish the mode's 650ms graph layout tween before visual capture.
   if (artifacts) { await page.$eval('.topology-main', node => node.scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(artifacts, 'topology-' + provider + '-dependencies.png') }); }
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 120000 }), page.click('.topology-inspector-actions .endpoint-export')]);
+  const scopeLink = '.topology-inspector-actions a.endpoint-export';
+  assert(await page.$(scopeLink), 'External peer scope is a native document link');
+  await page.focus(scopeLink);
+  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 120000 }), page.keyboard.press('Enter')]);
   await page.waitForSelector('.topology-canvas');
   assert.equal(new URL(page.url()).searchParams.get('network'), peer.networkId); assert.equal(new URL(page.url()).searchParams.get('topologyCi'), 'asset:' + peer.id);
   assert.equal(new URL(page.url()).searchParams.get('topologyMode'), 'dependencies');
+  assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
+  assert.equal(new URL(page.url()).searchParams.has('topology_name'), false);
   // The external peer's CMDB action must also open the correct network, retaining mode/date.
   await visit(rootQuery + '&topologyMode=dependencies'); await page.$eval(selector, node => node.focus()); await page.keyboard.press('Enter');
   await page.click('[data-cmdb-asset-id="' + peer.id + '"]');

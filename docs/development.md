@@ -24,7 +24,7 @@ UI-only changes normally need lint/types, focused tests and relevant visual/keyb
 | npm run docs:generate | Regenerate affected inventories; refresh the informational source snapshot |
 | npm run docs:check | Verify links/inventories; suggest PR documentation review areas |
 | npm run repo:check | Reject tracked secrets, generated folders, oversized files and unreachable runtime modules |
-| npm run lint | ESLint/Next checks |
+| npm run lint | Supported ESLint CLI with the Next Core Web Vitals rules and existing React 18 policy |
 | npm run typecheck | Strict checking of app, scripts and tests, including unused locals/parameters |
 | npm test | Full default suite; SQL integration remains opt-in |
 | npm run check | Explicit comprehensive source/documentation gate; not the routine default |
@@ -39,6 +39,8 @@ UI-only changes normally need lint/types, focused tests and relevant visual/keyb
 | npm run seed / seed:validate | Regenerate/validate sample JSON; generation intentionally changes fixture data |
 
 ## Validation strategy
+
+`eslint.config.mjs` replaces the legacy ESLint configuration. `scripts/lint.mjs` checks app, components and lib, including TypeScript declarations. Both build providers run this same mandatory CLI check under the network guard before storage initialization or compilation; Next 14's incompatible embedded lint adapter is disabled only because this preflight replaces it. Missing ESLint, lint errors or even caught network attempts fail the build. TypeScript checking remains enabled. See [ADR 0026](adr/0026-maintained-eslint-build-gate.md).
 
 Use `npm test -- tests/name.test.ts` for focused checks. The CI planner uses Vitest related tests for changed imports plus explicitly changed tests. Add tests that use dynamic imports or read source files when relevant; import-based selection cannot find all of them. The full suite limits workers to four and permits 30 seconds per test/hook because native PowerShell/DPAPI processes are slower under load. Retired-login tests check safe redirects and endpoints without creating credentials. Retired-page tests assert redirects; risk-profile tests cover replacement behavior. Fix fixture types instead of suppressing compiler errors.
 
@@ -73,4 +75,4 @@ The production No-SQL smoke follows all eight row drill-throughs on each risk-pr
 
 Security-domain changes add no dependencies. Run tests/security-domain*.test.ts plus provider/navigation tests and the production smoke gate. Live SQL migration verification requires explicitly configured TSAAT_DOMAIN_PARITY_SERVER and an empty TSAAT_DomainParity_* database; absence skips it. See [scope and migration](security-domains.md).
 
-The shared pure domain module is native ESM for use by offline setup/migration scripts. Its .d.mts declaration uses the already installed TypeScript ESLint parser override, keeping declaration files linted.
+The shared pure domain module is native ESM for use by offline setup/migration scripts. Its .d.mts declaration uses the TypeScript parser in the flat ESLint configuration, keeping declaration files linted.

@@ -24,6 +24,9 @@ function lockEntries(lock) {
     for (const entry of Object.values(entriesByName ?? {})) { entries.push(entry); legacy(entry.dependencies); }
   }
   legacy(lock.dependencies);
+  for (const entry of entries) {
+    if (entry.deprecated) throw new Error(`Deprecated locked package: ${entry.resolved ?? entry.version}: ${entry.deprecated}`);
+  }
   return entries;
 }
 export function checkOfflineDependencies(root = repositoryRoot) {
@@ -53,6 +56,26 @@ export function checkOfflineDependencies(root = repositoryRoot) {
   return records.size;
 }
 
+// npm 11 may omit resolved URLs from the v2 legacy table for local archives
+// during package-lock-only updates. Repair only exact package/version/hash
+// matches in the current packages table, never by guessing a registry URL.
+export function restoreLegacyResolutions(lock) {
+  function visit(entries, parent = '') {
+    for (const [name, entry] of Object.entries(entries ?? {})) {
+      const location = parent ? `${parent}/node_modules/${name}` : `node_modules/${name}`;
+      if (!entry.resolved) {
+        const current = lock.packages?.[location];
+        if (!current?.resolved || current.version !== entry.version || !entry.integrity || current.integrity !== entry.integrity) {
+          throw new Error(`Cannot restore legacy package source without matching version/integrity: ${location}`);
+        }
+        entry.resolved = current.resolved;
+      }
+      visit(entry.dependencies, location);
+    }
+  }
+  visit(lock.dependencies);
+}
+
 // The only network-enabled dependency maintenance command. Never called by a build.
 async function refresh(root) {
   const directory = path.join(root, 'vendor/npm');
@@ -61,6 +84,7 @@ async function refresh(root) {
   const previous = fs.existsSync(manifestPath) ? readJson(manifestPath).packages : [];
   const sources = new Map(previous.map(record => [archivePrefix + record.file, record.source]));
   const lock = readJson(path.join(root, 'package-lock.json'));
+  restoreLegacyResolutions(lock);
   const entries = lockEntries(lock);
   const records = new Map();
   for (const entry of entries) {

@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const documentation = file => /(?:^|\/)[^/]+\.(?:md|txt|dotx)$/i.test(file) || /^docs\//.test(file);
-const dependencies = /^(?:package(?:-lock)?\.json|vendor\/|\.npmrc$|\.node-version$|next\.config\.mjs$|tsconfig\.json$|vitest\.config\.ts$|tailwind\.config\.ts$|postcss\.config\.js$|\.eslintrc\.json$|compileApp\.cmd$|scripts\/(?:run-app\.mjs|offline-[^/]+|ci-offline\.ps1)$)/;
+const dependencies = /^(?:package(?:-lock)?\.json|vendor\/|\.npmrc$|\.node-version$|next\.config\.mjs$|tsconfig\.json$|vitest\.config\.ts$|tailwind\.config\.ts$|postcss\.config\.js$|\.eslintrc\.json$|eslint\.config\.mjs$|compileApp\.cmd$|scripts\/(?:lint\.mjs|run-app\.mjs|offline-[^/]+|ci-offline\.ps1)$)/;
 const data = /^(?:Database Schema\/|NoSQL\/|data\/|lib\/(?:json-store\/|sql-|data-loader\.|cmdb-attribute-loader\.|cmdb-attributes\.|cmdb-model-ci\.|cmdb-ci-types\.|types\.|app-data|analytics|selectors\.|rollup\.|spi-|kpi-|measures(?:\.|-settings\.|-summary\.|-trends(?:-data)?\.)|topology-explorer(?:-data)?\.|asset-taxonomy\.|security-domain\.|network-scope\.|discovery-(?:coverage|filter-scope|tools-settings)\.|scoped-discovery-tool-coverage\.|.*-settings\.|patch-management-explorer\.|security-vulnerability-explorer\.)|scripts\/(?:setup-json|populate-|enrich-|migrate-|sql-export-|sample-evidence|prepare-sample-evidence|append-sample-evidence|check-evidence-parity|check-sample-evidence|generate-seed|validate-seed|nosql-coverage|check-data-providers|bootstrap-demo|stage-db-|ensure-db-|emit-db-)|(?:CreateDB|buildDatabase)\.cmd$)/;
 const runtime = /^(?:app\/|components\/|lib\/|public\/|middleware\.ts$)/;
 const sourceTest = /^tests\/.*\.(?:ts|tsx)$/;
@@ -54,7 +54,7 @@ export function validationCommands(plan) {
   if (plan.docs) commands.push(['scripts/docs-maintenance.mjs', '--check']);
   if (plan.tooling) commands.push(['--test', 'tests/change-impact.test.mjs', 'tests/documentation-maintenance.test.mjs', 'tests/runtime-reachability.test.mjs', 'tests/offline-build.test.mjs']);
   if (plan.source || plan.data) {
-    commands.push(['node_modules/next/dist/bin/next', 'lint'], ['node_modules/typescript/bin/tsc', '--noEmit', '--incremental', 'false']);
+    commands.push(['scripts/lint.mjs'], ['node_modules/typescript/bin/tsc', '--noEmit', '--incremental', 'false']);
   }
   if (plan.data) {
     commands.push(['scripts/check-data-providers.mjs'], ['node_modules/vitest/vitest.mjs', 'run']);

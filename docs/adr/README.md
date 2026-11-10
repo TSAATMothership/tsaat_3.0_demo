@@ -37,3 +37,4 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0023: Proposed Tableau Dashboard Extension deployment](0023-tableau-dashboard-extension-design.md)
 - [0024: Browser-only PDF and Excel generation](0024-browser-document-generation.md)
 - [0025: Explicit offline installation preflight](0025-offline-install-preflight.md)
+- [0026: Maintained ESLint build gate](0026-maintained-eslint-build-gate.md)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type PointerEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { CmdbDeviceName } from "@/components/cmdb-drill-through";
@@ -47,6 +47,12 @@ function saveLookup(legacy: TopologyLookup, filters: TopologyColumnFilters, ci: 
   window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
 }
 
+function ExploreControl({ href, onClick, className, children }: { href?: string; onClick: () => void; className: string; children: ReactNode }) {
+  // A scope change intentionally reloads the document to reset graph/popups.
+  return href ? <a href={href} className={className}>{children}</a>
+    : <button type="button" className={className} onClick={onClick}>{children}</button>;
+}
+
 export function TopologyExplorer({ model }: { model: TopologyExplorerModel }) {
   const params = useSearchParams();
   const modeId = useId();
@@ -71,17 +77,17 @@ export function TopologyExplorer({ model }: { model: TopologyExplorerModel }) {
   const communicationRows = useMemo(() => trace.edges.flatMap(edge => (edge.observations ?? []).map(observation => ({ ...observation,
     source: edge.source, target: edge.target, sourceName: names.get(edge.source) ?? edge.source, targetName: names.get(edge.target) ?? edge.target }))), [trace, names]);
   const pageCount = Math.max(1, Math.ceil(matches.length / 50)), currentPage = Math.min(page, pageCount);
+  const hrefFor = (id: string) => {
+    if (lookupIds.has(id)) return;
+    const node = allNodes.find(node => node.id === id);
+    if (!node?.scope) return;
+    const query = new URLSearchParams({ discoveryView: "topology", topologyCi: id, topologyMode: mode, dataDate: model.snapshotDate });
+    for (const [key, value] of Object.entries(node.scope)) if (value) query.set(key, value);
+    for (const value of params.getAll("securityDomain")) query.append("securityDomain", value);
+    return `/discovery-coverage?${query}`;
+  };
   const choose = (id: string) => {
-    if (!lookupIds.has(id)) {
-      const node = allNodes.find(node => node.id === id);
-      if (!node?.scope) return;
-      const query = new URLSearchParams({ discoveryView: "topology", topologyCi: id, topologyMode: mode, dataDate: model.snapshotDate });
-      for (const [key, value] of Object.entries(node.scope)) if (value) query.set(key, value);
-      const current = new URLSearchParams(window.location.search);
-      for (const value of current.getAll("securityDomain")) query.append("securityDomain", value);
-      window.location.assign(`/discovery-coverage?${query}`);
-      return;
-    }
+    if (!lookupIds.has(id)) return;
     setSelectedId(id); saveLookup(legacy, filters, id, mode);
   };
   const changeMode = (next: TopologyMode) => { setMode(next); saveLookup(legacy, filters, selectedId, next); };
@@ -126,7 +132,7 @@ export function TopologyExplorer({ model }: { model: TopologyExplorerModel }) {
         {matches.length > 50 && <footer><button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button><span>{currentPage} / {pageCount}</span><button type="button" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button></footer>}
       </aside>
       <section className="topology-main topology-impact-graph panel" aria-label="Topology graph">
-        {root ? <TopologyGraph key={root.id} graph={trace} root={root} onExplore={choose} lookupIds={lookupIds} snapshotDate={model.snapshotDate} modeId={modeId} onModeChange={changeMode} />
+        {root ? <TopologyGraph key={root.id} graph={trace} root={root} onExplore={choose} hrefFor={hrefFor} lookupIds={lookupIds} snapshotDate={model.snapshotDate} modeId={modeId} onModeChange={changeMode} />
          : <><header className="impact-graph-header"><div><h2>Impact Topology</h2></div><div className="impact-graph-view-actions topology-graph-actions">
            <WorkspaceTabs id={modeId} label="Topology mode" tabs={TOPOLOGY_MODES} active={mode} onChange={changeMode} />
          </div></header><div className="topology-welcome" id={`${modeId}-panel-${mode}`} role="tabpanel" aria-labelledby={`${modeId}-tab-${mode}`}><div aria-hidden="true" className="topology-welcome-symbol">◎</div><p className="endpoint-eyebrow">Start with a CI</p><h2>See how the pieces connect</h2>
@@ -137,14 +143,14 @@ export function TopologyExplorer({ model }: { model: TopologyExplorerModel }) {
     {root && mode === "dependencies" && <details className="topology-communications topology-evidence panel"><summary>Communication evidence ({number(communicationRows.length)} observations)</summary>
       <FindingsDataTable key={root.id} title="Communication observations" rows={communicationRows} columns={communicationColumns} defaultPageSize={25}
         renderRow={(row, index) => <tr key={`${row.source}:${row.target}:${row.id}:${index}`}>
-          <td><button type="button" className="topology-text-button" onClick={() => choose(row.source)}>{row.sourceName}{!lookupIds.has(row.source) && " · Outside lookup scope"}</button></td>
-          <td><button type="button" className="topology-text-button" onClick={() => choose(row.target)}>{row.targetName}{!lookupIds.has(row.target) && " · Outside lookup scope"}</button></td>
+          <td><ExploreControl href={hrefFor(row.source)} className="topology-text-button" onClick={() => choose(row.source)}>{row.sourceName}{!lookupIds.has(row.source) && " · Outside lookup scope"}</ExploreControl></td>
+          <td><ExploreControl href={hrefFor(row.target)} className="topology-text-button" onClick={() => choose(row.target)}>{row.targetName}{!lookupIds.has(row.target) && " · Outside lookup scope"}</ExploreControl></td>
           <td>{row.protocol || "Not recorded"}</td><td>{row.sourcePort ?? "Not recorded"}</td><td>{row.targetPort ?? "Not recorded"}</td>
           <td>{row.observationMethod || "Not recorded"}</td><td>{row.observedAt || "Not recorded"}</td></tr>} />
     </details>}
     {root && <details className="topology-evidence panel"><summary>Explore all path CIs and relationships</summary>
       <FindingsDataTable key={root.id} title="Path CIs" rows={trace.nodes} columns={nodeColumns} defaultPageSize={25}
-        renderRow={node => <tr key={node.id}><td><button type="button" className="topology-text-button" onClick={() => choose(node.id)}>{node.name}{!lookupIds.has(node.id) && " · Outside lookup scope"}</button></td><td>{node.type}</td><td>{node.sourceId}</td><td>{node.domain || "Not applicable"}</td></tr>} />
+        renderRow={node => <tr key={node.id}><td><ExploreControl href={hrefFor(node.id)} className="topology-text-button" onClick={() => choose(node.id)}>{node.name}{!lookupIds.has(node.id) && " · Outside lookup scope"}</ExploreControl></td><td>{node.type}</td><td>{node.sourceId}</td><td>{node.domain || "Not applicable"}</td></tr>} />
       <ul className="topology-relationship-list">{trace.edges.map(edge => <li key={edge.id}><strong>{trace.nodes.find(node => node.id === edge.source)?.name}</strong><span>{edge.label} →</span><strong>{trace.nodes.find(node => node.id === edge.target)?.name}</strong></li>)}</ul>
       {!trace.edges.length && <p>No recorded relationships are available for this CI within the applied scope.</p>}
     </details>}
@@ -152,7 +158,7 @@ export function TopologyExplorer({ model }: { model: TopologyExplorerModel }) {
   </article>;
 }
 
-type TopologyGraphProps = { graph: ReturnType<typeof traceTopology>; root: TopologyExplorerNode; onExplore: (id: string) => void; lookupIds: Set<string> };
+type TopologyGraphProps = { graph: ReturnType<typeof traceTopology>; root: TopologyExplorerNode; onExplore: (id: string) => void; hrefFor: (id: string) => string | undefined; lookupIds: Set<string> };
 type TopologyGraphView = { layout: ImpactLayout; selected: string; search: string; camera: { x: number; y: number; zoom: number }; moved: Map<string, ImpactNodePosition> };
 const initialTopologyView = (rootId: string): TopologyGraphView => ({ layout: "hierarchical", selected: rootId, search: "", camera: { x: 0, y: 0, zoom: 1 }, moved: new Map() });
 
@@ -208,7 +214,7 @@ function TopologyGraph({ snapshotDate, modeId, onModeChange, ...props }: Topolog
     }}>{content}</dialog>, document.body) : content;
 }
 
-function TopologyDiagram({ graph, root, onExplore, lookupIds, view, setView }: TopologyGraphProps & { view: TopologyGraphView; setView: Dispatch<SetStateAction<TopologyGraphView>> }) {
+function TopologyDiagram({ graph, root, onExplore, hrefFor, lookupIds, view, setView }: TopologyGraphProps & { view: TopologyGraphView; setView: Dispatch<SetStateAction<TopologyGraphView>> }) {
   const id = useId(), svg = useRef<SVGSVGElement>(null);
   const { layout, selected, search, camera, moved } = view;
   const setLayout = (layout: ImpactLayout) => setView(current => ({ ...current, layout }));
@@ -336,7 +342,7 @@ function TopologyDiagram({ graph, root, onExplore, lookupIds, view, setView }: T
       <div className="topology-inspector-actions">{(node.kind === "asset" || node.kind === "business" || node.kind === "mission") && <span>CMDB: <CmdbDeviceName assetId={node.sourceId} name={node.name}
         ciType={node.kind === "business" ? "business-service" : node.kind === "mission" ? "mission-capability" : undefined}
         topologyNetworkId={!lookupIds.has(node.id) ? node.scope?.network : undefined}
-        topologySystemIds={!lookupIds.has(node.id) ? node.scope?.system : undefined} /></span>}{node.id !== root.id && <button type="button" className="endpoint-export" onClick={() => onExplore(node.id)}>{lookupIds.has(node.id) ? "Explore from this CI" : "Explore in this CI’s scope"}</button>}</div>
+        topologySystemIds={!lookupIds.has(node.id) ? node.scope?.system : undefined} /></span>}{node.id !== root.id && <ExploreControl href={hrefFor(node.id)} className="endpoint-export" onClick={() => onExplore(node.id)}>{lookupIds.has(node.id) ? "Explore from this CI" : "Explore in this CI’s scope"}</ExploreControl>}</div>
       {!!(node.software.length || node.cves.length) && <details><summary>Software and CVE evidence ({node.software.length} software versions, {node.cves.length} CVE codes)</summary><p>{node.software.join(" · ") || "No installed software recorded"}</p><p>{node.cves.join(" · ") || "No CVE observations recorded"}</p></details>}
       <h4>Connected nodes <span>{number(connected.size)}</span></h4>
       {!connections.length && <p>No recorded connections in this graph.</p>}

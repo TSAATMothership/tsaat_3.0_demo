@@ -1,5 +1,6 @@
 ﻿import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -25,25 +26,7 @@ try {
 }
 const env = { ...process.env, TSAAT_DATA_PROVIDER: mode === "nosql" ? "json" : "sql", NEXT_TELEMETRY_DISABLED: "1" };
 let attemptDirectory;
-if (command === "build") {
-  console.log(`Offline dependencies verified: ${checkOfflineDependencies()} archives.`);
-  attemptDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-offline-build-"));
-  env.TSAAT_OFFLINE_ATTEMPTS = path.join(attemptDirectory, "attempts.log");
-  const preload = path.join(repositoryRoot, "scripts/offline-network.cjs").replaceAll("\\", "/");
-  env.NODE_OPTIONS = `${env.NODE_OPTIONS ?? ""} --require "${preload}"`.trim();
-  env.npm_config_offline = "true";
-  env.npm_config_audit = "false";
-  console.log("Compiling with network access blocked in Node build processes.");
-}
-if (mode === "nosql") {
-  const result = await initializeJsonStore();
-  console.log("No-SQL JSON data: " + result.directory + (result.created ? " (initialized from repository JSON)" : " (existing data retained)"));
-}
-const child = spawn(process.execPath, [nextCli, command, ...args], {
-  cwd: repositoryRoot, stdio: "inherit", env, windowsHide: true
-});
-child.on("error", error => { console.error(error.message); process.exitCode = 1; });
-child.on("close", code => {
+function finish(code) {
   process.exitCode = code ?? 1;
   if (attemptDirectory) {
     if (fs.existsSync(env.TSAAT_OFFLINE_ATTEMPTS)) {
@@ -53,5 +36,33 @@ child.on("close", code => {
     }
     fs.rmdirSync(attemptDirectory);
   }
+}
+if (command === "build") {
+  console.log(`Offline dependencies verified: ${checkOfflineDependencies()} archives.`);
+  attemptDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-offline-build-"));
+  env.TSAAT_OFFLINE_ATTEMPTS = path.join(attemptDirectory, "attempts.log");
+  const preload = path.join(repositoryRoot, "scripts/offline-network.cjs").replaceAll("\\", "/");
+  env.NODE_OPTIONS = `${env.NODE_OPTIONS ?? ""} --require "${preload}"`.trim();
+  env.npm_config_offline = "true";
+  env.npm_config_audit = "false";
+  console.log("Compiling with network access blocked in Node build processes.");
+  console.log("Running the required ESLint CLI check before compilation.");
+  const lint = spawnSync(process.execPath, [path.join(repositoryRoot, 'scripts/lint.mjs')], {
+    cwd: repositoryRoot, stdio: 'inherit', env, windowsHide: true
+  });
+  if (lint.error) console.error(lint.error.message);
+  if (lint.status !== 0 || fs.existsSync(env.TSAAT_OFFLINE_ATTEMPTS)) {
+    finish(lint.status ?? 1);
+    process.exit(process.exitCode);
+  }
+}
+if (mode === "nosql") {
+  const result = await initializeJsonStore();
+  console.log("No-SQL JSON data: " + result.directory + (result.created ? " (initialized from repository JSON)" : " (existing data retained)"));
+}
+const child = spawn(process.execPath, [nextCli, command, ...args], {
+  cwd: repositoryRoot, stdio: "inherit", env, windowsHide: true
 });
+child.on("error", error => { console.error(error.message); process.exitCode = 1; });
+child.on("close", finish);
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));

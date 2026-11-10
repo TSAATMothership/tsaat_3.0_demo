@@ -12,7 +12,7 @@ test('presentation edits do not schedule documentation, storage, builds or the e
   assert.equal(plan.source, true);
   for (const key of ['docs', 'data', 'build', 'full']) assert.equal(plan[key], false, key);
   const commands = validationCommands(plan);
-  assert.ok(commands.some(args => args.includes('lint')));
+  assert.ok(commands.some(args => args.includes('scripts/lint.mjs')));
   assert.ok(commands.some(args => args.includes('related')));
   assert.ok(!commands.some(args => args.includes('scripts/docs-maintenance.mjs') || args.includes('scripts/check-data-providers.mjs')));
   assert.ok(!commands.some(args => args[0].includes('vitest') && args[1] === 'run'));
@@ -32,7 +32,7 @@ test('SQL, JSON, calculation and persistence changes expand provider validation'
   }
 });
 test('dependency/build changes, deletions, unknown files and manual overrides select broad validation', () => {
-  for (const file of ['package-lock.json', 'vendor/npm/package.tgz', 'next.config.mjs', 'scripts/offline-install.mjs', 'scripts/offline-stop-servers.ps1', 'unclassified.config']) assert.equal(assess(file).full, true, file);
+  for (const file of ['package-lock.json', 'vendor/npm/package.tgz', 'next.config.mjs', 'eslint.config.mjs', 'scripts/lint.mjs', 'scripts/offline-install.mjs', 'scripts/offline-stop-servers.ps1', 'unclassified.config']) assert.equal(assess(file).full, true, file);
   assert.equal(assessChanges([{ file: 'lib/old.ts', status: 'D' }]).full, true);
   assert.equal(assessChanges([], { full: true }).full, true);
   assert.equal(assessChanges([], { data: true }).build, true);

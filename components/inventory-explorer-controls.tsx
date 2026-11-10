@@ -58,7 +58,6 @@ export function FilterHeader({ column, selected, options, open, onOpen, onChange
       document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape);
     };
   // Keep the search and focus stable as a selection updates the available facets.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const allOptions = [...options];
   for (const value of selected) if (!allOptions.some((option) => option.value === value)) allOptions.push({ value, count: 0 });
