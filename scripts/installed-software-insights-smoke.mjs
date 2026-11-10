@@ -34,6 +34,10 @@ export async function checkInstalledSoftwareInsights(page, { date, historicalDat
     const navigation = await page.$$eval('.workspace-navigation a', nodes => nodes.map(node => ({ label: node.textContent.trim(), href: node.href })));
     const index = navigation.findIndex(item => item.label === 'Installed Software Insights');
     assert(index > 0); assert.equal(navigation[index - 1].label, 'Cyber Terrain Insights');
+    const governanceToggle = '.workspace-group-toggle[aria-controls="workspace-group-0"]';
+    assert.equal(await page.$eval(governanceToggle, node => node.getAttribute('aria-expanded')), 'false');
+    await page.focus(governanceToggle); await page.keyboard.press('Enter');
+    await page.waitForSelector('#workspace-group-0', { visible: true });
     await page.focus('.workspace-navigation a[href^="/governance/installed-software-insights"]');
     await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
     await page.waitForSelector('.software-insights-briefing');

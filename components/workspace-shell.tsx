@@ -13,7 +13,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const showSection = (id: string) => !settings || personaShowsSection(settings, activePersona, id);
   const noSections = settings && activePersona && !PERSONA_PAGES.some(page => page.sidebar !== false && personaShowsPage(settings, activePersona, page.id));
   const [collapsed, setCollapsed] = useState(false);
-  const [expanded, setExpanded] = useState<string[]>(() => WORKSPACE_GROUPS.map((group) => group.label));
+  const [expanded, setExpanded] = useState<string[]>([]);
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const params = new URLSearchParams(useSearchParams()?.toString());

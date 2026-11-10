@@ -166,6 +166,11 @@ try {
   assert.deepEqual(await page.$$eval('#workspace-group-0 a', nodes => nodes.map(node => node.textContent.trim())), ['Trends', 'Cyber Terrain Insights', 'Installed Software Insights', 'Discovery Insights', 'End Point Insights', 'Security Vulnerability Insights']);
   for (const view of ['insights', 'trends']) {
     await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
+    const governanceToggle = '.workspace-group-toggle[aria-controls="workspace-group-0"]';
+    if (await page.$eval(governanceToggle, node => node.getAttribute('aria-expanded') === 'false')) {
+      await page.focus(governanceToggle); await page.keyboard.press('Enter');
+      await page.waitForSelector('#workspace-group-0', { visible: true });
+    }
     await page.focus(`#workspace-group-0 a[href^="/governance/${view}"]`);
     await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.keyboard.press('Enter')]);
     await page.waitForFunction(selected => window.location.pathname === '/governance/' + selected &&

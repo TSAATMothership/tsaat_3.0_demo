@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-10 - Collapsed sidebar defaults
+
+- All left-sidebar sections now start collapsed, including on direct bookmarks and reloads. Users can expand sections with the mouse or keyboard; opened sections remain open during client-side navigation.
+
 ## 2026-11-10 - Maintained lint dependencies
 
 - Replaced ESLint 8 with ESLint 10.14.0 and the compatible Next lint configuration 16.4.6, removing the deprecated inflight, humanwhocodes config/schema, rimraf 3 and glob 7/10 dependency branches. Updated the lockfile, bundled archives and integrity/provenance manifest together.

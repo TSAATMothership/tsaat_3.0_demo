@@ -1,5 +1,7 @@
 # UI design contract
 
+The left sidebar starts with every grouped section collapsed. Its section buttons retain native keyboard activation, visible focus and aria-expanded; hidden links leave the tab order. Opening a section persists during client-side navigation, while a full reload restores the collapsed defaults. The sidebar show/hide control and standalone Briefs & Reports link retain their existing behavior.
+
 End Point Insights and Security Vulnerability Insights place Generate PDF beside the snapshot, using the shared busy/duplicate prevention/retry/focus download control. Masthead actions wrap on narrow screens. Their reports follow the five chapters and retain complete field checks and distribution appendices. See [report design](inventory-insights-reports.md).
 
 Security Vulnerability Insights follows End Point Insights in Governance using the shared illustrated Insight theme. Five anchored chapters distinguish observation/CVE/endpoint counts, missing fields, sources and technology context, required tool coverage and follow-up. Six primary gap cards and a disclosure expose all 15 Explorer field checks. Distribution charts show six leading values and expand to every remaining group; all count-bearing links preserve the resolved snapshot and scope. Native disclosures, visible chart values, persona-aware links and responsive grids retain keyboard and narrow-layout support. See [Security Vulnerability Insights](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md).
