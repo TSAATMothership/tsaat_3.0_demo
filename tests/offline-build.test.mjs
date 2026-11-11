@@ -266,6 +266,149 @@ function installerFixture() {
 }
 
 const windowsOnly = { skip: process.platform !== 'win32' };
+function portableFixture() {
+  const f = fixture('tsaat-offline-test- [portable] ');
+  fs.mkdirSync(path.join(f.root, 'scripts'));
+  for (const name of ['offline-runtime.ps1', 'offline-npm.ps1', 'offline-package.ps1']) fs.copyFileSync(path.resolve('scripts', name), path.join(f.root, 'scripts', name));
+  for (const name of ['tsaat-npm.cmd', 'install-offline.cmd', 'compileApp.cmd']) fs.copyFileSync(path.resolve(name), path.join(f.root, name));
+  const directory = 'node-fixture-win-x64';
+  const source = path.join(f.root, 'fixture-source', directory);
+  fs.mkdirSync(path.join(source, 'node_modules/npm/bin'), { recursive: true });
+  fs.copyFileSync(process.execPath, path.join(source, 'node.exe'));
+  fs.writeFileSync(path.join(source, 'LICENSE'), 'fixture notices');
+  fs.writeFileSync(path.join(source, 'node_modules/npm/package.json'), JSON.stringify({ version: '11.8.0' }));
+  fs.writeFileSync(path.join(source, 'node_modules/npm/bin/npm-cli.js'), `require('node:fs').writeFileSync('invocation.json', JSON.stringify({ args: process.argv.slice(2), node: process.execPath, path: process.env.PATH, cwd: process.cwd() })); require('node:fs').appendFileSync('invocations.jsonl', JSON.stringify(process.argv.slice(2)) + '\\n'); process.exit(process.env.TSAAT_FIXTURE_EXIT ? Number(process.env.TSAAT_FIXTURE_EXIT) : 0);`);
+  const powershell = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
+  const archive = path.join(f.root, 'runtime/node-fixture-win-x64.zip');
+  fs.mkdirSync(path.dirname(archive));
+  const zipped = spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-Command', `Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::CreateFromDirectory($env:TSAAT_FIXTURE_SOURCE, $env:TSAAT_FIXTURE_ARCHIVE, [IO.Compression.CompressionLevel]::Fastest, $false)`], { env: { ...process.env, TSAAT_FIXTURE_SOURCE: path.dirname(source), TSAAT_FIXTURE_ARCHIVE: archive }, encoding: 'utf8', windowsHide: true });
+  assert.equal(zipped.status, 0, zipped.stdout + zipped.stderr);
+  const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  fs.writeFileSync(path.join(f.root, 'scripts/offline-runtime.json'), JSON.stringify({ version: '24.13.1', npmVersion: '11.8.0', directory, archive: path.basename(archive), sha256: sha(archive), nodeSha256: sha(process.execPath) }));
+  const cleanEnv = { ...process.env, PATH: [path.join(process.env.SystemRoot, 'System32'), path.dirname(powershell)].join(';') };
+  const run = (args = [], env = {}) => spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(f.root, 'scripts/offline-npm.ps1'), ...args], { cwd: os.tmpdir(), env: { ...cleanEnv, ...env }, encoding: 'utf8', timeout: 60000, windowsHide: true });
+  return { ...f, powershell, archive, directory, run, cleanEnv };
+}
+
+test('portable bootstrap works without host Node/npm, preserves arguments and fails closed on corrupt/partial runtimes', windowsOnly, () => {
+  const f = portableFixture();
+  try {
+    const parentPath = process.env.PATH;
+    const args = ['run', 'install:offline', '--', '--cache', 'cache with [spaces]'];
+    const result = f.run(args);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const invocation = JSON.parse(fs.readFileSync(path.join(f.root, 'invocation.json')));
+    assert.deepEqual(invocation.args, args);
+    assert.equal(invocation.cwd, f.root);
+    const runtime = path.join(f.root, '.local/runtime', f.directory);
+    assert.equal(invocation.node, path.join(runtime, 'node.exe'));
+    assert.equal(invocation.path.split(';')[0], runtime);
+    assert.equal(process.env.PATH, parentPath);
+    assert.equal(fs.existsSync(path.join(runtime, 'LICENSE')), true);
+    assert.equal(fs.existsSync(path.join(f.root, '.local/runtime/extract.lock')), false);
+    assert.equal(f.run(['--version'], { TSAAT_FIXTURE_EXIT: '17' }).status, 17);
+    const command = spawnSync(process.env.ComSpec, ['/d', '/s', '/c', `""${path.join(f.root, 'install-offline.cmd')}" --cache "cache with spaces""`], { cwd: os.tmpdir(), env: f.cleanEnv, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true });
+    assert.equal(command.status, 0, command.stdout + command.stderr);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(f.root, 'invocation.json'))).args, ['run', 'install:offline', '--', '--cache', 'cache with spaces']);
+    const compile = spawnSync(process.env.ComSpec, ['/d', '/s', '/c', `""${path.join(f.root, 'compileApp.cmd')}" all"`], { cwd: os.tmpdir(), env: f.cleanEnv, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true });
+    assert.equal(compile.status, 0, compile.stdout + compile.stderr);
+    const invocations = fs.readFileSync(path.join(f.root, 'invocations.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.deepEqual(invocations.slice(-4), [['run', 'install:offline', '--'], ['run', 'docs:check'], ['run', 'storage:check'], ['run', 'build:all']]);
+    const archive = fs.readFileSync(f.archive);
+    fs.appendFileSync(f.archive, 'corrupt');
+    const corrupt = f.run();
+    assert.equal(corrupt.status, 1);
+    assert.match(corrupt.stderr, /checksum mismatch/);
+    fs.writeFileSync(f.archive, archive);
+    fs.unlinkSync(path.join(runtime, 'node_modules/npm/bin/npm-cli.js'));
+    const partial = f.run();
+    assert.equal(partial.status, 1);
+    assert.match(partial.stderr, /Incomplete portable Node runtime/);
+    fs.unlinkSync(f.archive);
+    const missing = f.run();
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /complete TSAAT offline ZIP/);
+  } finally { cleanup(f.root); }
+});
+
+test('npm entry point hands an incompatible host runtime to portable Node before installation and propagates failures', windowsOnly, () => {
+  const f = portableFixture();
+  try {
+    for (const name of ['offline-install.mjs', 'offline-dependencies.mjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(f.root, 'scripts', name));
+    // Simulate the old host version in this parent only; the portable child runs its real version.
+    const parent = path.join(f.root, 'old-host.mjs');
+    // Windows file paths containing spaces must remain native paths, not URL-encoded paths.
+    fs.writeFileSync(parent, `import { fileURLToPath } from 'node:url'; Object.defineProperty(process.versions, 'node', { value: '22.22.0' }); process.argv[1] = fileURLToPath(new URL('./scripts/offline-install.mjs', import.meta.url)); await import('./scripts/offline-install.mjs');`);
+    const run = (args = [], extra = {}) => spawnSync(process.execPath, [parent, ...args], {
+      cwd: os.tmpdir(), env: { ...f.cleanEnv, ...extra }, encoding: 'utf8', timeout: 60000, windowsHide: true
+    });
+    const invalid = run(['--offline=false']);
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /cannot be overridden/);
+    assert.equal(fs.existsSync(path.join(f.root, '.local')), false);
+    const result = run(['--cache', 'cache with [spaces]']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /22\.22\.0.*switching/);
+    const invocation = JSON.parse(fs.readFileSync(path.join(f.root, 'invocation.json')));
+    assert.deepEqual(invocation.args, ['run', 'install:offline', '--', '--cache', 'cache with [spaces]']);
+    assert.equal(invocation.node, path.join(f.root, '.local/runtime', f.directory, 'node.exe'));
+    assert.equal(fs.existsSync(path.join(f.root, '.local/offline-install.lock')), false);
+    assert.equal(run([], { TSAAT_FIXTURE_EXIT: '17' }).status, 17);
+    fs.appendFileSync(f.archive, 'corrupt');
+    const corrupt = run();
+    assert.equal(corrupt.status, 1);
+    assert.match(corrupt.stderr, /checksum mismatch/);
+  } finally { cleanup(f.root); }
+});
+
+test('portable bootstrap blocks concurrent extraction and linked output; packager excludes machine data and refuses overwrite', windowsOnly, () => {
+  const f = portableFixture();
+  try {
+    const local = path.join(f.root, '.local');
+    fs.mkdirSync(path.join(local, 'runtime'), { recursive: true });
+    const lock = path.join(local, 'runtime/extract.lock');
+    fs.writeFileSync(lock, 'active');
+    const blocked = f.run();
+    assert.equal(blocked.status, 1);
+    assert.match(blocked.stderr, /extraction is active or was interrupted/);
+    fs.unlinkSync(lock);
+    fs.rmdirSync(path.join(local, 'runtime'));
+    const outside = path.join(f.root, 'outside');
+    fs.mkdirSync(outside);
+    fs.symlinkSync(outside, path.join(local, 'runtime'), 'junction');
+    const linked = f.run();
+    assert.equal(linked.status, 1);
+    assert.match(linked.stderr, /Refusing linked runtime/);
+    fs.unlinkSync(path.join(local, 'runtime'));
+    // Small source fixture: production checks are exercised separately against the real checkout.
+    for (const name of ['repository-check.mjs', 'offline-dependencies.mjs']) fs.writeFileSync(path.join(f.root, 'scripts', name), 'process.exit(0);');
+    fs.writeFileSync(path.join(f.root, '.gitignore'), '.local/\nruntime/\noutput/\nnode_modules/\nNoSQL/data/\nDB_config\n.env\nfixture-source/\noutside/\n');
+    fs.writeFileSync(path.join(f.root, '.npmrc'), 'offline=true\n');
+    for (const file of ['DB_config', '.env', 'node_modules/private', 'NoSQL/data/private']) {
+      fs.mkdirSync(path.dirname(path.join(f.root, file)), { recursive: true });
+      fs.writeFileSync(path.join(f.root, file), 'must not ship');
+    }
+    const git = args => { const result = spawnSync('git', args, { cwd: f.root, encoding: 'utf8', windowsHide: true }); assert.equal(result.status, 0, result.stderr); };
+    git(['init', '--quiet']); git(['add', '.']);
+    git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'fixture']);
+    fs.writeFileSync(path.join(f.root, 'README.md'), 'working tree addition');
+    const pack = args => spawnSync(f.powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(f.root, 'scripts/offline-package.ps1'), ...args], { cwd: f.root, encoding: 'utf8', windowsHide: true, timeout: 120000 });
+    assert.match(pack([]).stderr, /uncommitted changes/);
+    const result = pack(['-IncludeWorkingTree']);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const output = path.join(f.root, 'output/TSAAT-offline-win-x64.zip');
+    const listing = spawnSync(f.powershell, ['-NoProfile', '-NonInteractive', '-Command', `Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [IO.Compression.ZipFile]::OpenRead($env:TSAAT_FIXTURE_ARCHIVE); try { $zip.Entries.FullName } finally { $zip.Dispose() }`], { env: { ...process.env, TSAAT_FIXTURE_ARCHIVE: output }, encoding: 'utf8', windowsHide: true });
+    assert.equal(listing.status, 0, listing.stderr);
+    assert.match(listing.stdout, /TSAAT\/\.npmrc/);
+    assert.match(listing.stdout, /TSAAT\/runtime\/node-fixture-win-x64.zip/);
+    assert.match(listing.stdout, /TSAAT\/OFFLINE-PACKAGE.json/);
+    assert.match(listing.stdout, /TSAAT\/README.md/);
+    assert.doesNotMatch(listing.stdout, /TSAAT\/(?:\.git\/|\.local\/|node_modules\/|NoSQL\/data\/|DB_config|\.env|fixture-source\/|output\/)/);
+    assert.equal(fs.existsSync(output + '.sha256'), true);
+    assert.match(pack(['-IncludeWorkingTree']).stderr, /Output already exists/);
+  } finally { cleanup(f.root); }
+});
+
 test('installer invokes locked npm ci without installed packages and releases its install lock', windowsOnly, () => {
   const f = installerFixture();
   try {

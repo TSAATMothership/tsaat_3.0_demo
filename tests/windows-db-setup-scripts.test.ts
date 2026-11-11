@@ -59,8 +59,10 @@ describe("Windows database setup scripts", () => {
     expect(loader).toContain("[switch]$TrustServerCertificate = $true");
     expect(bootstrap).toContain("'-i' $temporarySql");
     expect(bootstrap).not.toContain("'-Q' (\"EXEC sys.sp_set_session_context");
-    expect(compile).toContain("npm run check");
-    expect(compile).toContain("npm run build");
+    expect(compile).toContain('call "%~dp0install-offline.cmd"');
+    expect(compile).toContain('call "%~dp0tsaat-npm.cmd" run check');
+    expect(compile).toContain('call "%~dp0tsaat-npm.cmd" run build:all');
+    expect(compile).toContain('call "%~dp0tsaat-npm.cmd" run build:%TSAAT_BUILD_PATH%');
     expect(compile).not.toContain("CreateDB");
   });
 

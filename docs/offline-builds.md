@@ -4,7 +4,7 @@
 
 A complete checkout must install and compile both SQL and JSON-backed No-SQL versions without network access, an existing node_modules directory, a populated npm cache, a sibling checkout or an external artifact store. All application code, build assets, development tools and native compiler packages required by the locked graph are committed as regular files. Preserve this capability for every change. Repeat the full proof for dependency/build changes and release candidates; unrelated UI, documentation or tooling changes use the [SDLC impact assessment](sdlc.md).
 
-The host supplies Windows, Node 24.13.1/npm and PowerShell. These platform tools are prerequisites, not downloaded by the build. CI validates Windows x64; archives for all optional platforms in the lockfile are retained, but this does not claim other operating systems support SQL Windows DPAPI configuration. Chrome/Edge is a preinstalled prerequisite for the browser smoke. SQL runtime needs sqlcmd, its configured SQL Server and the selected TLS policy; compilation does not. No-SQL uses local JSON and direct workspace access. External business links still require their destination services when clicked.
+The host supplies Windows x64 and PowerShell. A generated offline distribution also contains the original Node 24.13.1 Windows x64 ZIP with npm 11.8.0 and its license notices. The launcher verifies its pinned SHA-256 and unpacks it locally; installation/builds never download platform tools. A source-only checkout and CI can still use preinstalled Node 24/npm. CI validates Windows x64; archives for all optional platforms in the lockfile are retained, but this does not claim other operating systems support SQL Windows DPAPI configuration. Chrome/Edge is a preinstalled prerequisite for the browser smoke. SQL runtime needs sqlcmd, its configured SQL Server and the selected TLS policy; compilation does not. No-SQL uses local JSON and direct workspace access. External business links still require their destination services when clicked.
 
 The explicit `setup:database` workflow uses the already pinned tsx/Next packages and local schema/reference/sample files. It contacts only the selected SQL Server and downloads nothing. It uses a separate administrator connection to create the database and a dedicated application login, with SSL disabled. Its CLI-only TypeScript path mapping resolves Next's server-only marker for server execution; application compilation is unchanged. Builds never invoke database setup.
 
@@ -18,6 +18,8 @@ The migration introduces no dependency version or vendor-archive change. Browser
 
 ## Disconnected use
 
+If npm is already available under an incompatible host Node (such as Node 22), `npm run install:offline` automatically hands off to the same verified Node 24 launcher before acquiring the install lock or touching dependencies. Cache arguments and the child exit status are preserved. Corrupt or missing runtime failures still stop installation without a download. With no Node/npm installed at all, start with .\install-offline.cmd.
+
 The legacy `/Dependencies/` exclusion is anchored at the repository root. It must not hide application API folders named `dependencies`, including the existing impact-analyser dependency route, from complete checkouts. Governance Insights uses repository-local TSAAT branding, topography and an original cyber-terrain SVG with inline icons; it adds no package, remote font, asset download or storage requirement.
 
 The Discovery Overview vulnerability/patch summaries reuse existing provider operations, projections and local navigation. They add no packages, build assets, external services or data population. The lockfile/vendor set and existing-store retention contract remain unchanged; the SDLC assessment selects validation; fresh empty-cache installation and both builds are not required solely for presentation edits.
@@ -26,17 +28,15 @@ Patch Management Explorer uses existing packages and local sample-patch-profiles
 
 The Security Vulnerability Explorer catalogue contains reviewed CVE/vendor facts and exact software-version matches as local JSON. Source research is an explicit maintenance activity; installation, compilation, population and page loads do not fetch CVEs. No dependency/archive changes are needed. See [CVE provenance and population](security-vulnerability-explorer.md).
 
-From the repository root, after transferring the complete checkout and provisioning the host tools:
+From the extracted offline package, or a complete checkout with Node 24/npm:
 
 ~~~powershell
-npm run install:offline
-npm run docs:generate
-npm run check
-npm run build:all
-npm run test:nosql
+.\install-offline.cmd
+.\tsaat-npm.cmd run build:all
+.\tsaat-npm.cmd run start:nosql
 ~~~
 
-compileApp.cmd sql, nosql or all runs the same `install:offline` command, checks and the selected compilation. Installation verifies archives, stops this checkout's active app servers, then reinstalls node_modules using `npm ci --offline`. Ordinary npm run build/build:sql/build:nosql/build:all expect installation first. Run the selected artifact using start:sql or start:nosql and configure storage as described in the main README. Builds keep existing NoSQL/data and never seed an operational SQL database.
+compileApp.cmd sql, nosql or all uses the runtime launcher, the same `install:offline` command and the selected compilation. In a Git checkout it runs the full source check; an extracted distribution runs documentation/storage checks, with archive, lint and TypeScript validation enforced by the builds. Git hygiene and Git-dependent test fixtures belong to pre-package validation; Git is not required on the destination. Installation verifies archives, stops this checkout's active app servers, then reinstalls node_modules using `npm ci --offline`. Ordinary build commands expect installation first. Use tsaat-npm.cmd in place of npm for every setup/dev/build/start command when using portable Node. Builds keep existing NoSQL/data and never seed an operational SQL database.
 
 The installer uses only Node built-ins and Windows PowerShell, so it works with missing or partially installed node_modules. It identifies Node entry points by the exact absolute Next.js CLI/server paths for this checkout, including commands launched through dev/start aliases, both providers and custom ports. Windows parses command-line arguments; substring, port-only and global node.exe matching are not used. Identified server descendants are stopped too, with PID/creation-time/command-line checks before termination. Other checkouts and unrelated Node processes remain running. An active build or a process-inspection/termination failure aborts before dependency removal. Servers remain stopped after installation; restart the desired dev/start command when ready. A process started through an unrecognizable custom/relative launcher must be stopped manually if it retains a file lock.
 
@@ -58,6 +58,24 @@ npm run test:nosql
 ~~~
 
 Use a never-before-used cache path for each proof. CI performs this using a GUID-named cache on a clean runner. Do not call a warm-cache install evidence of a fresh offline install.
+
+## Package Node.js for a disconnected machine
+
+During explicit connected maintenance, acquire the original [Node.js 24.13.1 Windows x64 ZIP](https://nodejs.org/dist/v24.13.1/node-v24.13.1-win-x64.zip). scripts/offline-runtime.json pins the archive and executable SHA-256 values from the [official release checksums](https://nodejs.org/en/blog/release/v24.13.1). Preserve the complete archive and notices. This keeps the existing project runtime version; it is not an automatic Node upgrade.
+
+After release validation, run from a source checkout with Git available:
+
+~~~powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/offline-package.ps1 -NodeArchive "C:\Transfer\node-v24.13.1-win-x64.zip"
+~~~
+
+The packager uses only local inputs. It verifies and stages Node under ignored runtime/, prepares it under .local/runtime, checks repository hygiene and npm archives, then creates output/TSAAT-offline-win-x64.zip and a SHA-256 sidecar. It includes Git source files, dotfiles, vendor/npm and the Node ZIP. It excludes Git history, credentials, installed node_modules, mutable stores, builds and logs. The archive records the source commit and whether working-tree changes were included. Clean committed source is the default; -IncludeWorkingTree permits a development package containing nonignored working-tree files. Review those files first. Existing output is never overwritten; use -Name with another ZIP filename. Package creation does not replace release validation.
+
+Transfer the ZIP and checksum together. Verify the checksum, extract the ZIP, open its TSAAT folder and run .\install-offline.cmd. The destination needs Windows x64 and PowerShell, with no Git or preinstalled Node/npm. Use .\tsaat-npm.cmd for later commands, or .\compileApp.cmd all for installation and compilation. No system installation, persistent PATH/profile edit or administrator access is required. SQL/browser prerequisites and deployment access controls are unchanged.
+
+Keep runtime/ and output/ outside Git. Retain the reviewed Node archive with release artifacts and the matching source commit. Future runtime changes require manifest/provenance review, an empty-cache install, both builds and compiled smoke evidence. Corrupt bundles fail without downloads or host fallback; an absent bundle can use preinstalled Node 24/npm in a source checkout.
+
+Interrupted extraction leaves .local/runtime/extract.lock. Confirm every launcher has stopped before removing only that lock and retrying. For an incomplete extracted runtime, stop this package's Node processes, rename .local/runtime and rerun from the verified archive. Never delete application data or credentials for runtime recovery. See [ADR 0027](adr/0027-portable-offline-node.md).
 
 ## Enforcement
 

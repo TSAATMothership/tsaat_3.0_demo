@@ -18,7 +18,20 @@ export function parseInstallArguments(args) {
 
 export function installOffline({ cache } = {}) {
   if (process.platform !== 'win32') throw new Error('The supported offline installer requires Windows and PowerShell.');
-  if (Number(process.versions.node.split('.')[0]) !== 24) throw new Error('Install the host prerequisite Node.js 24/npm before running the offline installer.');
+  if (Number(process.versions.node.split('.')[0]) !== 24) {
+    const launcher = path.join(repositoryRoot, 'scripts/offline-npm.ps1');
+    if (!fs.existsSync(launcher)) throw new Error('Offline runtime launcher is missing. Restore the complete offline package or provision Node.js 24/npm.');
+    console.log(`Node.js ${process.versions.node} is active; switching to the offline Node.js 24 launcher.`);
+    // The PowerShell launcher verifies/selects Node 24 before invoking npm again.
+    // Handoff occurs before this process takes an install lock or touches dependencies.
+    const handedOff = spawnSync('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', launcher,
+      'run', 'install:offline', ...(cache ? ['--', '--cache', cache] : [])
+    ], { cwd: repositoryRoot, stdio: 'inherit', windowsHide: true });
+    if (handedOff.error) throw handedOff.error;
+    if (handedOff.status === null) throw new Error('Offline runtime launcher was interrupted.');
+    return handedOff.status;
+  }
   const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
   if (!path.isAbsolute(npmCli) || !fs.existsSync(npmCli)) throw new Error('npm CLI not found. Run npm run install:offline with the preinstalled Node.js 24/npm host tools.');
   const modules = path.join(repositoryRoot, 'node_modules');
@@ -70,6 +83,6 @@ export function installOffline({ cache } = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { installOffline(parseInstallArguments(process.argv.slice(2))); }
+  try { process.exitCode = installOffline(parseInstallArguments(process.argv.slice(2))) ?? 0; }
   catch (error) { console.error(error.message); process.exitCode = 1; }
 }

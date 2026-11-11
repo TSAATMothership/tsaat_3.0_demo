@@ -6,7 +6,7 @@ const files = [...new Set(execFileSync('git', ['ls-files', '-z', '--cached', '--
 const errors = [];
 for (const file of runtimeReachability().unused) errors.push(`Unreachable runtime module: ${file}. Connect it to an entry point or remove it.`);
 for (const file of files) {
-  if (/^(?:node_modules|Dependencies|TSAATDemo[^/]*|\.next(?:-sql|-nosql)?|\.local|output|tmp|coverage)\//i.test(file) || /^(?:DB_config|logindetails)(?:$|\.)/i.test(file) || /^\.env(?:$|\.)/.test(file) && file !== '.env.example' || /\.(?:log|tsbuildinfo)$/i.test(file)) errors.push(`Excluded artifact is tracked: ${file}`);
+  if (/^(?:node_modules|Dependencies|runtime|TSAATDemo[^/]*|\.next(?:-sql|-nosql)?|\.local|output|tmp|coverage)\//i.test(file) || /^(?:DB_config|logindetails)(?:$|\.)/i.test(file) || /^\.env(?:$|\.)/.test(file) && file !== '.env.example' || /\.(?:log|tsbuildinfo)$/i.test(file)) errors.push(`Excluded artifact is tracked: ${file}`);
   if (/^NoSQL\/data\//.test(file)) errors.push(`Runtime JSON data must not be tracked: ${file}`);
   if (fs.existsSync(file) && fs.statSync(file).size > 100 * 1024 * 1024) errors.push(`File exceeds 100 MiB: ${file}`);
 }

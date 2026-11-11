@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-11 - Portable Node for offline installation
+
+- `npm run install:offline` now automatically switches from an incompatible host Node (including Node 22) to the verified offline Node 24 launcher, preserving cache arguments and failure exit codes.
+
+- Added install-offline.cmd to bootstrap bundled Node.js 24.13.1/npm 11.8.0 without preinstalled Node/npm, administrator rights or persistent PATH changes. Use tsaat-npm.cmd for later commands; compileApp.cmd selects the same runtime.
+- Added a local-input packager for an offline Windows x64 source ZIP with Node, locked npm archives, source provenance and a SHA-256 sidecar. Runtime binaries and distributions stay outside Git; credentials, mutable stores and installed dependencies stay out of the package.
+- Preserved guarded npm ci, server shutdown, both builds and source-only host Node 24 support. Incorrect host Node versions now point to the portable launcher.
+- Restored the missing application layout, stylesheet, CMDB details route and CI workflow from the matching recorded source baseline, allowing a complete application distribution.
+
 ## 2026-11-10 - Collapsed sidebar defaults
 
 - All left-sidebar sections now start collapsed, including on direct bookmarks and reloads. Users can expand sections with the mouse or keyboard; opened sections remain open during client-side navigation.

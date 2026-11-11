@@ -12,13 +12,13 @@ Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app w
 
 ## Local setup
 
-Both builds compile offline on Windows with preinstalled Node.js 24, npm and PowerShell. All application packages, including native compiler packages, are checked in under vendor/npm. No registry, prewarmed npm cache or sibling folder is needed. Install from the local lockfile archives and open the workspace directly:
+Both builds compile offline on Windows x64 with PowerShell. The generated offline distribution includes portable Node.js 24.13.1 and npm 11.8.0; no Node/npm installation or administrator access is needed. A source-only Git checkout still requires Node.js 24/npm, or the reviewed runtime archive described in [offline packaging](docs/offline-builds.md#package-nodejs-for-a-disconnected-machine). All application packages, including native compiler packages, are checked in under vendor/npm. No registry, prewarmed npm cache or sibling folder is needed:
 
 ~~~powershell
-npm run install:offline
+.\install-offline.cmd
 ~~~
 
-This command verifies the bundled archives, stops this checkout's active Next.js servers, then runs `npm ci --offline` with lifecycle scripts disabled and Node network access blocked. It works before `node_modules` exists. Other checkouts and unrelated Node processes are left running. Bare `npm ci --offline` still works when servers are already stopped; npm removes dependencies before project hooks can stop a server, so use `install:offline` for automatic shutdown.
+This command verifies and unpacks the bundled runtime, verifies the dependency archives, stops this checkout's active Next.js servers, then runs `npm ci --offline` with lifecycle scripts disabled and Node network access blocked. It works before `node_modules` exists. Use `.\tsaat-npm.cmd` in place of `npm` for all later commands when using portable Node, for example `.\tsaat-npm.cmd run dev:nosql`. The launcher changes PATH only for its process and children. Other checkouts and unrelated Node processes are left running. `npm run install:offline` also works with an older host Node: it automatically hands installation to the bundled Node 24 launcher. Bare `npm ci --offline` requires servers to be stopped first.
 
 Application pages and APIs no longer require a user login. The header has no Signed in or Logout section, and Password Settings is retired. Existing local logindetails files are unused and remain excluded from Git.
 

@@ -5,6 +5,7 @@ coverage/
 output/
 tmp/
 .local/
+/runtime/
 /Dependencies/
 TSAATDemo*/
 DB_config*
