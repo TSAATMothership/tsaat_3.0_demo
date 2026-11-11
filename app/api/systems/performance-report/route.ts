@@ -1,0 +1,66 @@
+import { NextRequest } from "next/server";
+import { buildAnalytics } from "@/lib/analytics";
+import {
+  loadDatasetForDate,
+  loadDiscoveryToolsSettings,
+  loadKpiDefinitions,
+  loadMeasuresSettings,
+  loadSeverityDefinitions,
+  loadSpiDefinitions
+} from "@/lib/data-loader";
+import { extractDataDateParam } from "@/lib/data-date";
+import { documentResponse } from "@/lib/documents/server-response";
+import {
+  buildPerformanceKpiRowsByMatrixRowId,
+  buildSystemPerformanceReportModel
+} from "@/lib/performance-report-model";
+import { filterNetworks, filterSystems, parseFilters } from "@/lib/selectors";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+function reportFileName(snapshotDate: string): string {
+  const safeDate = snapshotDate.replace(/[^0-9-]/g, "");
+  return `tsaat-ict-systems-performance-report-${safeDate}.pdf`;
+}
+
+export async function GET(request: NextRequest) {
+  const queryObject = Object.fromEntries(request.nextUrl.searchParams.entries());
+  const systemsOnlyQueryObject = queryObject;
+  const selectedDataDate = extractDataDateParam(systemsOnlyQueryObject);
+  const [dataset, discoveryToolsSettings, kpiDefinitions, spiDefinitions, severityDefinitions] = await Promise.all([
+    loadDatasetForDate(selectedDataDate, { profile: "risk-summary" }),
+    loadDiscoveryToolsSettings(),
+    loadKpiDefinitions(),
+    loadSpiDefinitions(),
+    loadSeverityDefinitions()
+  ]);
+  const measuresSettings = await loadMeasuresSettings(spiDefinitions, severityDefinitions);
+  const filters = parseFilters(systemsOnlyQueryObject);
+  const analytics = buildAnalytics(dataset, dataset.ictSystems, filters, spiDefinitions, measuresSettings, discoveryToolsSettings);
+  const networks = filterNetworks(dataset.managedNetworks, filters, dataset.ictSystems);
+  const systems = filterSystems(dataset.ictSystems, filters);
+  const kpiRowsByMatrixRowId = await buildPerformanceKpiRowsByMatrixRowId({
+    scopeType: "system",
+    filters,
+    dataset,
+    analytics,
+    networks,
+    systems,
+    kpiDefinitions
+  });
+  const model = buildSystemPerformanceReportModel({
+    dataset,
+    analytics,
+    filters,
+    networks,
+    systems,
+    kpiDefinitions,
+    kpiRowsByMatrixRowId,
+    spiDefinitions,
+    severityDefinitions,
+    asOfDate: selectedDataDate ?? dataset.snapshotDate
+  });
+  return documentResponse(request, { version: 1, kind: "pdf-system-performance", title: "ICT Systems Performance Report",
+    filename: reportFileName(dataset.snapshotDate), generatedAt: new Date().toISOString(), data: model });
+}

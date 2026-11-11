@@ -1,0 +1,23 @@
+# Measures Trends
+
+## Experience
+
+Observed Measures places **Measures Trends** immediately below Measures Summary at `/measures/trends`. Separate KPI and SPI tabs show all configured indicators, with a searchable indicator list, current compliance, miniature trends and percentage-point movement. Selecting an indicator opens a larger chart, latest/baseline population context, a snapshot inspector, compliant/non-compliant/unknown counts, its configured success measure and an expandable evidence table. Each tab can export its observations to CSV. Evidence links follow the selected snapshot and respect persona navigation preferences.
+
+The desktop page fills the available workspace, with a compact title/snapshot row and a shared toolbar for KPI/SPI tabs and period controls. The searchable indicator list and selected trend occupy adjacent, bounded panels. The chart, latest results, change, population and snapshot inspector remain visible in the default laptop/desktop view. Long indicator lists and expanded detail content scroll inside their own panels. Measure description, success measure and interpretation guidance are grouped in an expandable section alongside snapshot evidence. Narrow screens and very short windows stack panels with normal workspace scrolling so content remains reachable.
+
+The five periods are **1 week, 4 weeks, 3 months, 6 months and 12 months**. Four weeks is the default and means exactly 28 days; one week means seven days. Month ranges use calendar arithmetic clamped to valid month ends. Both boundary dates are inclusive and the header date is the requested cutoff. Period, tab and selected indicator are bookmarkable. Search affects the indicator list only.
+
+Charts position points by actual date on a fixed 0–100% scale across the full requested interval. Native snapshot selection and the standard FindingsDataTable provide keyboard-accessible exact evidence. Single observations have no movement comparison; empty denominators are N/A. Missing results break a line, and longer ranges expose available history without invented snapshots or forecasts. The page explicitly states actual recorded dates and missing coverage at either period boundary. It remains usable on narrow screens and provides no-scope, empty-history, empty-population, no-definition, search-empty, loading and sanitized retry states.
+
+## Data and calculations
+
+The server uses shared `lib/data-loader.ts` operations: bounded summary history, current configured definitions/settings and provider KPI evaluations. It reuses `getCachedAnalytics`, `buildSpiRows`, `resolveKpiScope` and `buildKpiRows`, so scores and denominators agree with Observed Measures. KPIs assess the selected systems (network scopes resolve through infrastructure); SPIs assess applicable CI checks. Unknown SPI checks remain in the denominator. Local table/environment/asset/severity filters do not leak into the header scope.
+
+Each snapshot applies header network/system/security-domain selection independently. The requested date window is reapplied after provider loading to exclude stale or future fallback snapshots; the greatest snapshot ID wins duplicate dates. No point-count cap is imposed. KPI queries run in batches of four. Only serializable aggregate observations reach the browser. Movement compares the first and last observations within the selected range and is unavailable if either endpoint lacks a score. Population changes and current configured rules can influence history; this is not an immutable audit of past settings or proof of remediation.
+
+SQL and JSON readers, persisted data, schemas, calculation definitions and current access model remain unchanged. Both providers feed the same model; no SQL migration, JSON upgrade, new dependency or checksum refresh is needed. Existing persona page selections are preserved; new default configurations include this page.
+
+## Validation selection
+
+UI/navigation, scoped historical aggregation and documentation are affected. Select lint/types; focused range/model/loader/page, measure/scope/persona and provider regressions; storage checks; both guarded builds; compiled No-SQL smoke; and disposable-SQL parity of the new historical models. Browser checks cover every range/tab, interval/baseline changes, indicator search/selection, reload, keyboard controls, historical/empty scopes, available-history notices, CSV and narrow layouts. Refresh generated route/navigation inventories and run docs:check. No persistence/rule/schema migration tests or seed changes are needed. Dependencies/build configuration and PDF formats are unchanged, so fresh installation, new PDF-specific tests and full release certification are not selected.

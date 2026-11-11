@@ -1,0 +1,191 @@
+TSAAT Database Schema Description
+================================
+
+Overview
+--------
+The TSAAT schema (`tsaat`) stores snapshot-based cyber posture data for:
+- managed networks and hierarchy
+- ICT systems and hierarchy
+- assets, environments, vulnerabilities, and findings
+- discovery/measures/reference settings
+- CI-to-CI dependency graph data used by topology views
+
+Connection/bootstrap notes
+--------------------------
+- Runtime DB connection settings are stored in local repository root `DB_config` as an encrypted JSON envelope.
+- The encrypted payload stores:
+  - `server`
+  - `database`
+  - `authMode` (`trusted` or `sql`)
+  - `userId`
+  - `password`
+  - `sslEnabled`
+  - `sslType` (`strict` or `trust-server-certificate`)
+- `DB_config` is app-managed via Settings or created/recreated by npm run setup:database under the runtime Windows identity. It is ignored by Git and should not be edited manually. Compilation does not change database configuration.
+- Application login credentials are stored outside SQL Server in local repository root `logindetails` as an encrypted DPAPI CurrentUser envelope.
+- The encrypted `logindetails` payload stores username, salted PBKDF2-HMAC-SHA256 hash metadata, and session-version metadata.
+
+Canonical loader data sources
+-----------------------------
+- `Database Schema/data/spi-definitions.json`
+- `Database Schema/data/spi-rule-definitions.json`
+- `Database Schema/data/spi-report-detail-definitions.json`
+- `Database Schema/data/spi-finding-classification-rules.json`
+- `Database Schema/data/spi-sql-calculations.json`
+- `Database Schema/data/finding-definitions.json`
+- `Database Schema/data/severity-definitions.json`
+- `Database Schema/data/kpi-definitions.json`
+- `Database Schema/data/kpi-calculations.json`
+- `Database Schema/data/kpi-report-detail-definitions.json`
+- `Database Schema/data/kpi-tasking.json`
+- `Database Schema/data/discovery-coverage-rules.json`
+- `Database Schema/data/discovery-tools-settings.json`
+- `Database Schema/data/measures-settings.json`
+- `Database Schema/data/reference-versions.json`
+- Snapshot input files under `data/snapshots/*.json`
+
+Snapshot model
+--------------
+- Core domain tables are keyed by `snapshot_id`.
+- This preserves historical state per snapshot and supports timeline analysis.
+
+Key domain groups
+-----------------
+1) Governance/reference:
+- `reference_version_set`
+- `reference_os_current_major`
+- `reference_software_supported_version`
+- `finding_severity_definition`
+- `finding_priority_definition`
+- `finding_source_policy`
+- `finding_generation_policy`
+- `finding_workflow_status_definition`
+- `finding_bucket_definition`
+- `finding_evidence_field_definition`
+- `finding_register_column_definition`
+- `spi_rule_definition`
+- `spi_rule_parameter_definition`
+- `spi_rule_outcome_template`
+- `spi_report_detail_definition`
+- `spi_calculation_source`
+- `spi_calculation_definition`
+- `spi_calculation_evidence_expression`
+- `spi_feature_binding`
+- `spi_finding_classification_rule`
+- `spi_definition`
+- `spi_applicable_asset_type`
+- `spi_rule_parameter`
+- `spi_tasking_team`
+- `spi_tasking_action_template`
+- `spi_tasking_condition_template`
+- `kpi_definition`
+- `kpi_calculation_source`
+- `kpi_calculation_definition`
+- `kpi_report_detail_definition`
+- `kpi_report_detail_binding`
+- `kpi_tasking_team`
+- `kpi_tasking_action_template`
+- `kpi_tasking_condition_template`
+- `discovery_coverage_source`
+- `discovery_tool_detection_definition`
+- `discovery_tool_detection_rule`
+- `discovery_tool_detection_rule_value`
+- `discovery_tools_settings_version`, `discovery_tool`, `discovery_tool_asset_scope`
+- `measures_settings_version`, `measures_severity_matrix`, `measures_priority_matrix`
+
+2) Snapshot root:
+- `dataset_snapshot`
+
+3) Network/system topology:
+- `managed_network`, `managed_network_hierarchy`
+- `ict_system`, `ict_system_hierarchy`
+- `network_declared_system`, `network_declared_asset`, `network_target_state_asset`
+- `system_mission_capability`, `system_business_service`
+- `system_environment`, `system_environment_asset`
+  - platform flags on both network and system entities:
+    - `adf_platform` (BIT)
+    - `enterprise_platform` (BIT)
+  - modelling flags:
+    - `managed_network.modelling_status` (BIT)
+    - `ict_system.modelling_status` (BIT)
+  - network accreditation references:
+    - `managed_network.diis_id` (NVARCHAR(100))
+    - `managed_network.ato_number` (NVARCHAR(100))
+  - ICT system accreditation/application references:
+    - `ict_system.diis_id` (NVARCHAR(100))
+    - `ict_system.ato_number` (NVARCHAR(100))
+    - `ict_system.apm_number` (NVARCHAR(100))
+
+4) Asset posture:
+- `asset`
+  - includes optional `cmdb_record_url` for read-only asset drill-through links.
+- `asset_operating_system`
+- `asset_network_os`
+- `asset_patch_state`
+- `asset_installed_software`
+- `asset_vulnerability`
+
+5) Findings:
+- `finding`
+  - `severity` references `finding_severity_definition` so the severity taxonomy and settings options are seeded through database data.
+  - `priority_rank` references `finding_priority_definition` so priority settings/options are seeded through database data.
+- `finding_source_policy` and `finding_generation_policy`
+  - control persisted-first effective finding selection and deterministic generated fallback policy.
+- `finding_workflow_status_definition`
+  - stores workflow labels, order, tone keys, and terminal status semantics.
+- `finding_bucket_definition`
+  - stores severity, priority, and workflow grouping semantics used by finding analytics and UI summaries.
+- `finding_evidence_field_definition`
+  - stores supported evidence display mappings and fallback labels.
+- `finding_register_column_definition`
+  - stores supported register/export column labels, order, and value keys.
+
+6) CI dependency graph:
+- `ci_dependency`
+  - Directed edge from `source_asset_id` to `target_asset_id`
+  - `dependency_type` in:
+    - `Logical Dependency`
+    - `Flow Dependency`
+  - Optional flow metadata:
+    - `flow_protocol`
+    - `source_port`
+    - `target_port`
+    - `observation_method`
+    - `observed_at`
+
+Data integrity highlights
+-------------------------
+- Enum-like values are enforced via `CHECK` constraints or reference tables where the application needs data-driven runtime options.
+- Snapshot-aware foreign keys preserve cross-table referential integrity.
+- SPI definitions are database-driven. `spi_definition` stores display order, default severity, enabled/report flags, catalogue `rule_key`, and report detail key; related SPI tables store applicability, typed rule parameters, tasking contacts, tasking action templates, tasking condition templates, feature bindings, and report configuration.
+- SPI rule catalogues are database-driven. `spi_rule_definition` stores supported rule keys, `spi_rule_parameter_definition` stores parameter schemas/defaults, `spi_rule_outcome_template` stores reason/evidence templates, `spi_report_detail_definition` stores report detail keys, and `spi_finding_classification_rule` controls generated finding severity/priority using approved condition keys.
+- SPI calculations are SQL-driven. `spi_calculation_source`, `spi_calculation_definition`, and `spi_calculation_evidence_expression` store constrained read-only SQL expressions evaluated by `usp_evaluate_spi_snapshot` against `vw_spi_asset_evaluation_context`; the procedure accepts an optional JSON asset scope so KPI and page loaders do not need to evaluate the entire snapshot for scoped requests. Arbitrary batches, JavaScript, and unrestricted formula execution are not supported.
+- KPI definitions and calculations are SQL-driven. `kpi_definition` stores catalogue metadata and visibility; `kpi_calculation_source` and `kpi_calculation_definition` store constrained SQL-backed calculation metadata evaluated by `usp_evaluate_kpi_snapshot`; `usp_evaluate_kpi_snapshot_bulk` evaluates multiple page/report scopes in one SQL call for performance report matrices. `kpi_report_detail_definition`, `kpi_report_detail_binding`, `kpi_tasking_team`, `kpi_tasking_action_template`, and `kpi_tasking_condition_template` store report and tasking metadata.
+- Discovery coverage is SQL-driven. `discovery_coverage_source`, `discovery_tool_detection_definition`, `discovery_tool_detection_rule`, and `discovery_tool_detection_rule_value` store approved detection rules evaluated by `usp_evaluate_discovery_coverage_snapshot`; discovery tool scope remains editable through `discovery_tool` and `discovery_tool_asset_scope`.
+- Finding features are database-driven. `vw_persisted_finding_normalized`, `usp_generate_spi_findings_snapshot`, `usp_get_effective_findings_snapshot`, `usp_get_finding_history_snapshot`, and `usp_get_finding_spi_history_snapshot` move persisted/generated effective finding selection, deterministic generated fallback, as-of status reconstruction, and history aggregation into SQL Server while the app remains the renderer/export serializer.
+- `ci_dependency` enforces:
+  - valid snapshot + asset references
+  - no self-referential edge (`source_asset_id <> target_asset_id`)
+  - valid dependency type
+  - optional port bounds (1..65535)
+
+Indexes (selected)
+------------------
+- Asset lookup:
+  - `IX_asset_network`
+  - `IX_asset_system`
+  - `IX_asset_type`
+- Finding lookup:
+  - `IX_finding_scope`
+  - `IX_finding_spi`
+  - `IX_finding_status`
+  - `IX_finding_timeline`
+- CI dependency lookup:
+  - `IX_ci_dependency_source`
+  - `IX_ci_dependency_target`
+  - `IX_ci_dependency_type`
+
+Current cleanup (027): 66 tables; only the ATO and DIIS KPI calculations and generic KPI report detail remain. kpi_calculation_parameter, fn_kpi_stable_hash and managed_network.apm_number are removed. ict_system.apm_number remains the APP-ID source. Snapshot, finding, hierarchy, settings/version and audit structures are retained.
+
+
+Migration 030: managed_network gains security_domain NVARCHAR(20) NOT NULL; all three entity tables enforce PROTECTED/SECRET/UNKNOWN with binary case checks and default UNKNOWN. Network classification is preserved separately.

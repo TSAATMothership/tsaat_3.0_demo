@@ -1,0 +1,3136 @@
+import "server-only";
+export { loadPersonaSettings, savePersonaSettings } from "@/lib/sql-persona-settings";
+import { normalizeSecurityDomain, normalizeNetworkSecurityDomain, securityDomainSelection } from "@/lib/security-domain.mjs";
+
+import { createHash } from "node:crypto";
+import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
+import { normalizeDataDate, subtractCalendarMonthsDateKey, todayDateKey } from "@/lib/data-date";
+import {
+  defaultDiscoveryToolsSettings,
+  DiscoveryToolsSettings,
+  normalizeDiscoveryToolsScopeUpdate,
+  normalizeDiscoveryToolsSettings
+} from "@/lib/discovery-tools-settings";
+import {
+  FindingBucketDefinition,
+  FindingDisplayConfiguration,
+  FindingEvidenceFieldDefinition,
+  FindingGenerationPolicy,
+  FindingRegisterColumnDefinition,
+  FindingSourcePolicy,
+  FindingWorkflowStatusDefinition,
+  findingDisplayConfigurationCacheSignature,
+  normalizeFindingDisplayConfiguration
+} from "@/lib/findings-config";
+import { KpiDefinition, kpiDefinitionsCacheSignature, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
+import {
+  defaultMeasuresSettings,
+  FindingPriorityDefinition,
+  MeasuresSettings,
+  normalizeMeasuresSettings,
+  normalizePriorityDefinitions
+} from "@/lib/measures-settings";
+import {
+  normalizeSeverityDefinitions,
+  normalizeSpiDefinitions,
+  renderSpiOutcomeReason,
+  SeverityDefinition,
+  severityDefinitionsCacheSignature,
+  SpiCalculationDefinition,
+  SpiCalculationEvidenceExpression,
+  SpiCalculationSource,
+  SpiDefinition,
+  SpiFeatureBinding,
+  SpiFindingClassificationRule,
+  SpiReportDetailDefinition,
+  SpiRuleDefinition,
+  SpiRuleOutcomeTemplate,
+  SpiRuleParameterDefinition,
+  spiDefinitionsCacheSignature,
+  SpiRuleParameterValue
+} from "@/lib/spi-definitions";
+import { clearAnalyticsCache } from "@/lib/analytics-cache";
+import { clearAppDataCaches } from "@/lib/app-data-cache";
+import { timeAsync } from "@/lib/perf";
+import { ServerMemoryCache } from "@/lib/server-cache";
+import { filterRealNetworks } from "@/lib/network-scope";
+import type { EndpointRecord } from "@/lib/endpoint-explorer";
+import type { InstalledSoftwareRecord } from "@/lib/installed-software-explorer";
+import { buildPatchManagementRows, type PatchManagementData } from "@/lib/patch-management-explorer";
+import type { ServerPatchRecord } from "@/lib/types";
+import type { SecurityVulnerabilityRecord } from "@/lib/security-vulnerability-explorer";
+import type { ShadowItRecord } from "@/lib/shadow-it-explorer";
+import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
+import {
+  Asset,
+  AssetType,
+  ComplianceStatus,
+  Dataset,
+  DiscoveryCoverageValue,
+  EnvironmentType,
+  Finding,
+  ICTSystem,
+  ManagedNetwork,
+  ReferenceVersions,
+  SpiId,
+  StoredDiscoveryCoverageEvaluation,
+  StoredKpiEvaluation,
+  StoredScopedKpiEvaluation,
+  StoredSpiEvaluation
+} from "@/lib/types";
+import { executeSqlJson, executeSqlText, toSqlUnicodeLiteral } from "@/lib/sql-server";
+
+type SnapshotRow = {
+  snapshotId: number;
+  snapshotDate: string;
+  generatedAt: string;
+};
+
+export type DatasetLoadProfile = "summary" | "risk-summary" | "full";
+
+type DatasetLoadOptions = {
+  profile?: DatasetLoadProfile;
+};
+
+export interface WorkspaceFilterOptions {
+  networks: Array<{ id: string; label: string; securityDomain: string }>;
+  systems: Array<{ id: string; label: string; securityDomain: string }>;
+}
+
+export interface EndpointExplorerData { snapshotDate: string; rows: EndpointRecord[] }
+export interface InstalledSoftwareExplorerData { snapshotDate: string; rows: InstalledSoftwareRecord[] }
+export interface SecurityVulnerabilityExplorerData { snapshotDate: string; rows: SecurityVulnerabilityRecord[] }
+export interface ShadowItExplorerData { snapshotDate: string; rows: ShadowItRecord[] }
+
+type SettingsVersionRow = {
+  settingsVersionId: number;
+  updatedAt: string;
+};
+
+type ManagedNetworkRow = {
+  securityDomain: string | null;
+  id: string;
+  name: string;
+  criticality: "Critical" | "Non-Critical";
+  adfPlatform: boolean;
+  enterprisePlatform: boolean;
+  modellingStatus?: boolean | number | null;
+  classification: string | null;
+  description: string | null;
+  owner: string | null;
+  supportEmail: string | null;
+  serviceCatalogueUrl: string | null;
+  diisId: string | null;
+  atoNumber: string | null;
+  diisUrl: string | null;
+  grcUrl: string | null;
+  discoveryStatus: "Discovery Enabled" | "Discovery Non Enabled";
+};
+
+type ManagedNetworkHierarchyRow = {
+  parentNetworkId: string;
+  childNetworkId: string;
+};
+
+type NetworkDeclaredSystemRow = {
+  networkId: string;
+  systemId: string;
+};
+
+type NetworkDeclaredAssetRow = {
+  networkId: string;
+  assetId: string;
+};
+
+type NetworkTargetStateAssetRow = {
+  networkId: string;
+  assetType: AssetType;
+  assetName: string;
+};
+
+type SystemRow = {
+  id: string;
+  networkId: string;
+  name: string;
+  adfPlatform: boolean;
+  enterprisePlatform: boolean;
+  description: string | null;
+  diisId: string | null;
+  owner: string | null;
+  supportEmail: string | null;
+  serviceCatalogueUrl: string | null;
+  atoNumber: string | null;
+  apmNumber: string | null;
+  diisUrl: string | null;
+  grcUrl: string | null;
+  modellingStatus: boolean;
+  diisDefined: boolean;
+  criticality: "Critical" | "Non-Critical";
+  securityDomain: string | null;
+};
+
+type SystemHierarchyRow = {
+  parentSystemId: string;
+  childSystemId: string;
+};
+
+type MissionCapabilityRow = {
+  systemId: string;
+  id: string;
+  name: string;
+  criticality: "Critical" | "Non-Critical";
+};
+
+type BusinessServiceRow = {
+  systemId: string;
+  id: string;
+  name: string;
+  criticality: "Critical" | "Non-Critical";
+};
+
+type SystemEnvironmentRow = {
+  systemId: string;
+  id: string;
+  name: string;
+  type: EnvironmentType;
+};
+
+type SystemEnvironmentAssetRow = {
+  systemId: string;
+  environmentId: string;
+  assetId: string;
+};
+
+type AssetRow = {
+  id: string;
+  name: string;
+  hostname: string;
+  ipAddress: string | null;
+  macAddress: string | null;
+  deviceModel: string | null;
+  lastDiscoveredDate: string | null;
+  discoveredBy: string | null;
+  discoveryApproach: "IP Scan" | "ARP Table" | null;
+  arpOwnerAssetId: string | null;
+  cmdbRecordUrl: string | null;
+  type: AssetType;
+  networkId: string;
+  securityDomain: string | null;
+  systemId: string | null;
+  environmentType: EnvironmentType | null;
+  eolStatus: "Supported" | "EOL" | "Unknown";
+  warrantyStatus: "InWarranty" | "OutOfWarranty" | "Unknown";
+};
+
+type AssetOperatingSystemRow = {
+  patchLevel?: string | null;
+  assetId: string;
+  family: string;
+  vendor: string;
+  majorVersion: number | null;
+  version: string;
+  supportStatus: "Supported" | "OutOfSupport" | "Unknown";
+  currentSupportedMajor: number | null;
+  nMinus: number | null;
+};
+
+type AssetPatchStateRow = {
+  assetId: string;
+  isLatest: boolean | null;
+  lastPatchedDate: string | null;
+};
+
+type AssetInstalledSoftwareRow = {
+  assetId: string;
+  ordinal: number;
+  name: string;
+  version: string;
+  filePath?: string | null;
+  lastDiscoveredDate?: string | null;
+  discoveredBy?: string | null;
+  supportStatus: "Supported" | "OutOfSupport" | "Unknown";
+};
+
+type AssetVulnerabilityRow = {
+  assetId: string;
+  id: string;
+  cve: string;
+  cveName?: string | null;
+  cveCreatedDate?: string | null;
+  softwareName?: string | null;
+  softwareVersion?: string | null;
+  referenceUrl?: string | null;
+  description: string;
+  remediationGuidance: string;
+  criticality: "Low" | "Medium" | "High" | "Critical";
+  severity: "Low" | "Medium" | "High" | "Critical";
+  exploitability: "No Known Exploit" | "Proof of Concept" | "Exploitable" | "Known Exploited";
+  detectedDate: string;
+  capturedAt: string;
+  source: string;
+};
+
+type CiDependencyRow = {
+  id: string;
+  sourceAssetId: string;
+  targetAssetId: string;
+  dependencyType: "Logical Dependency" | "Flow Dependency";
+  protocol: string | null;
+  sourcePort: number | null;
+  targetPort: number | null;
+  observationMethod: string | null;
+  observedAt: string | null;
+};
+
+type FindingRow = {
+  id: string;
+  spiId: number;
+  priorityRank: number;
+  severity: string;
+  rawPriorityRank?: number | null;
+  rawSeverity?: string | null;
+  sourceKind?: "persisted" | "generated" | string | null;
+  complianceStatus: "Compliant" | "Non-compliant" | "Unknown";
+  networkId: string;
+  systemId: string | null;
+  environmentType: EnvironmentType | null;
+  assetId: string;
+  title: string;
+  evidence: Record<string, string | number | boolean | null> | null;
+  recommendedAction: string;
+  status: "open" | "closed";
+  timestamp: string;
+  closedTimestamp: string | null;
+};
+
+type SnapshotPayload = {
+  managedNetworks: ManagedNetworkRow[];
+  managedNetworkHierarchy: ManagedNetworkHierarchyRow[];
+  networkDeclaredSystems: NetworkDeclaredSystemRow[];
+  networkDeclaredAssets: NetworkDeclaredAssetRow[];
+  networkTargetStateAssets: NetworkTargetStateAssetRow[];
+  ictSystems: SystemRow[];
+  ictSystemHierarchy: SystemHierarchyRow[];
+  systemMissionCapabilities: MissionCapabilityRow[];
+  systemBusinessServices: BusinessServiceRow[];
+  systemEnvironments: SystemEnvironmentRow[];
+  systemEnvironmentAssets: SystemEnvironmentAssetRow[];
+  assets: AssetRow[];
+  assetOperatingSystems: AssetOperatingSystemRow[];
+  assetNetworkOperatingSystems: AssetOperatingSystemRow[];
+  assetPatchStates: AssetPatchStateRow[];
+  serverPatchObservations: Array<ServerPatchRecord & { assetId: string }>;
+  assetInstalledSoftware: AssetInstalledSoftwareRow[];
+  assetVulnerabilities: AssetVulnerabilityRow[];
+  ciDependencies: CiDependencyRow[];
+  findings: FindingRow[];
+};
+
+type MeasuresMatrixRow = {
+  spiId: number;
+  assetType: AssetType;
+  severity: string;
+};
+
+type MeasuresPriorityMatrixRow = {
+  spiId: number;
+  priorityRank: number;
+};
+
+type KpiDefinitionRow = {
+  id: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  successMeasure: string;
+  calculationKey: string;
+  reportAvailable: boolean | number;
+  enabled?: boolean | number;
+  calculationDefinition?: KpiCalculationDefinitionRow | null;
+  reportDetailDefinition?: KpiReportDetailDefinitionRow | null;
+  taskingTeams?: KpiTaskingTeamRow[];
+  taskingActions?: KpiTaskingActionTemplateRow[];
+  taskingConditions?: KpiTaskingConditionTemplateRow[];
+};
+
+type KpiCalculationDefinitionRow = {
+  calculationKey: string;
+  sourceKey: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean | number;
+};
+
+type KpiReportDetailDefinitionRow = {
+  reportDetailKey: string;
+  handlerKey: string;
+  displayOrder: number;
+  name: string;
+  description: string;
+  enabled: boolean | number;
+};
+
+type KpiTaskingTeamRow = {
+  displayOrder: number;
+  team: string;
+  supportQueue: string;
+  contactEmail: string;
+};
+
+type KpiTaskingActionTemplateRow = {
+  displayOrder: number;
+  conditionKey: string;
+  actionText: string;
+};
+
+type KpiTaskingConditionTemplateRow = {
+  conditionKey: string;
+  templateText: string;
+};
+
+type StoredKpiEvaluationRow = StoredKpiEvaluation;
+type StoredScopedKpiEvaluationRow = StoredScopedKpiEvaluation;
+
+type SpiDefinitionRow = {
+  spiId: number;
+  displayOrder: number;
+  name: string;
+  description: string;
+  successMeasure: string;
+  priorityOrder: number;
+  defaultSeverity: string;
+  recommendedAction: string;
+  enabled: boolean | number;
+  ruleKey: string;
+  reportAvailable: boolean | number;
+  trendReportAvailable: boolean | number;
+  reportDetailKey: string;
+};
+
+type SpiApplicableAssetTypeRow = {
+  spiId: number;
+  assetType: AssetType;
+};
+
+type SpiRuleParameterRow = {
+  spiId: number;
+  parameterKey: string;
+  parameterType: "string" | "number" | "boolean";
+  parameterValue: string;
+};
+
+type SpiRuleDefinitionRow = SpiRuleDefinition;
+
+type SpiCalculationSourceRow = SpiCalculationSource;
+
+type SpiCalculationDefinitionRow = Omit<SpiCalculationDefinition, "source" | "evidenceExpressions">;
+
+type SpiCalculationEvidenceExpressionRow = SpiCalculationEvidenceExpression;
+
+type SpiRuleParameterDefinitionRow = Omit<SpiRuleParameterDefinition, "allowedValues"> & {
+  allowedValuesJson: string | null;
+};
+
+type SpiRuleOutcomeTemplateRow = SpiRuleOutcomeTemplate;
+
+type SpiReportDetailDefinitionRow = SpiReportDetailDefinition;
+
+type SpiFindingClassificationRuleRow = SpiFindingClassificationRule;
+
+type SpiFeatureBindingRow = SpiFeatureBinding;
+
+type StoredSpiEvaluationRow = {
+  assetId: string;
+  spiId: number;
+  outcomeKey: string;
+  status: ComplianceStatus;
+  evidence: Record<string, string | number | boolean | null> | null;
+};
+
+type DiscoveryCoverageToolValueRow = {
+  toolId: string;
+  value: DiscoveryCoverageValue;
+};
+
+type DiscoveryCoverageArrayValueRow = {
+  value: string;
+};
+
+type StoredDiscoveryCoverageEvaluationRow = {
+  assetId: string;
+  toolValues: DiscoveryCoverageToolValueRow[] | null;
+  missingToolIds: DiscoveryCoverageArrayValueRow[] | null;
+  missingToolNames: DiscoveryCoverageArrayValueRow[] | null;
+  coverageCompliance: boolean | number;
+};
+
+type SpiTaskingTeamRow = {
+  spiId: number;
+  displayOrder: number;
+  team: string;
+  supportQueue: string;
+  contactEmail: string;
+};
+
+type SpiTaskingActionTemplateRow = {
+  spiId: number;
+  displayOrder: number;
+  conditionKey: string;
+  actionText: string;
+};
+
+type SpiTaskingConditionTemplateRow = {
+  spiId: number;
+  conditionKey: string;
+  templateText: string;
+};
+
+type SeverityDefinitionRow = {
+  severityKey: string;
+  label: string;
+  displayOrder: number;
+  selectableInSettings: boolean | number;
+  toneKey: string;
+};
+
+type FindingPriorityDefinitionRow = {
+  priorityRank: number;
+  label: string;
+  displayOrder: number;
+  selectableInSettings: boolean | number;
+  description: string;
+};
+
+type FindingSourcePolicyRow = FindingSourcePolicy & {
+  usePersistedFindings: boolean | number;
+  generateWhenEmpty: boolean | number;
+  enabled: boolean | number;
+};
+
+type FindingGenerationPolicyRow = FindingGenerationPolicy;
+
+type FindingWorkflowStatusDefinitionRow = FindingWorkflowStatusDefinition & {
+  terminalStatus: boolean | number;
+};
+
+type FindingBucketDefinitionRow = FindingBucketDefinition & {
+  enabled: boolean | number;
+};
+
+type FindingEvidenceFieldDefinitionRow = Omit<FindingEvidenceFieldDefinition, "candidateKeys" | "enabled"> & {
+  candidateKeysJson: string | null;
+  enabled: boolean | number;
+};
+
+type FindingRegisterColumnDefinitionRow = FindingRegisterColumnDefinition & {
+  enabled: boolean | number;
+};
+
+type DiscoveryToolRow = {
+  id: string;
+  name: string;
+  description: string;
+  el2Owner: string;
+  el2OperationsManager: string;
+};
+
+type DiscoveryToolScopeRow = {
+  toolId: string;
+  assetType: AssetType;
+  scopeSetting: "required" | "na";
+};
+
+const DATA_SCHEMA = "tsaat";
+const ASSET_TYPES: AssetType[] = [...CANONICAL_ASSET_TYPES];
+const SNAPSHOT_ROWS_CACHE_TTL_MS = 60 * 1000;
+const DATASET_CACHE_TTL_MS = 30 * 60 * 1000;
+const REFERENCE_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SETTINGS_VERSION_CACHE_TTL_MS = 60 * 1000;
+const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const KPI_EVALUATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const SEVERITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRIORITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+const FINDING_DISPLAY_CONFIGURATION_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
+  namespace: "data:snapshot-rows",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const datasetBySnapshotIdCache = new ServerMemoryCache<Dataset>({
+  namespace: "data:dataset",
+  ttlMs: DATASET_CACHE_TTL_MS,
+  maxEntries: 36,
+  sliding: true
+});
+
+const workspaceFilterOptionsCache = new ServerMemoryCache<WorkspaceFilterOptions>({
+  namespace: "data:workspace-options",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 36
+});
+
+const endpointExplorerCache = new ServerMemoryCache<EndpointExplorerData>({
+  namespace: "data:endpoint-explorer",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 36
+});
+
+const installedSoftwareExplorerCache = new ServerMemoryCache<InstalledSoftwareExplorerData>({
+  namespace: "data:installed-software-explorer",
+  ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
+  maxEntries: 36
+});
+
+const shadowItExplorerCache = new ServerMemoryCache<ShadowItExplorerData>({
+  namespace: "data:shadow-it-explorer", ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS, maxEntries: 36
+});
+const securityVulnerabilityExplorerCache = new ServerMemoryCache<SecurityVulnerabilityExplorerData>({
+  namespace: "data:security-vulnerability-explorer", ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS, maxEntries: 36
+});
+
+const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
+  namespace: "data:reference-versions",
+  ttlMs: REFERENCE_VERSIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const kpiDefinitionsCache = new ServerMemoryCache<KpiDefinition[]>({
+  namespace: "data:kpi-definitions",
+  ttlMs: KPI_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const kpiEvaluationsCache = new ServerMemoryCache<StoredKpiEvaluation[]>({
+  namespace: "data:kpi-evaluations",
+  ttlMs: KPI_EVALUATIONS_CACHE_TTL_MS,
+  maxEntries: 500
+});
+
+const scopedKpiEvaluationsCache = new ServerMemoryCache<Map<string, StoredKpiEvaluation[]>>({
+  namespace: "data:kpi-evaluations:bulk",
+  ttlMs: KPI_EVALUATIONS_CACHE_TTL_MS,
+  maxEntries: 100
+});
+
+const spiDefinitionsCache = new ServerMemoryCache<SpiDefinition[]>({
+  namespace: "data:spi-definitions",
+  ttlMs: SPI_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const severityDefinitionsCache = new ServerMemoryCache<SeverityDefinition[]>({
+  namespace: "data:severity-definitions",
+  ttlMs: SEVERITY_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const priorityDefinitionsCache = new ServerMemoryCache<FindingPriorityDefinition[]>({
+  namespace: "data:priority-definitions",
+  ttlMs: PRIORITY_DEFINITIONS_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const findingDisplayConfigurationCache = new ServerMemoryCache<FindingDisplayConfiguration>({
+  namespace: "data:finding-display-configuration",
+  ttlMs: FINDING_DISPLAY_CONFIGURATION_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const measuresSettingsVersionCache = new ServerMemoryCache<SettingsVersionRow | null>({
+  namespace: "settings:measures-version",
+  ttlMs: SETTINGS_VERSION_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const measuresSettingsByVersionCache = new ServerMemoryCache<MeasuresSettings>({
+  namespace: "settings:measures",
+  ttlMs: SETTINGS_BY_VERSION_CACHE_TTL_MS,
+  maxEntries: 24
+});
+
+const discoveryToolsSettingsVersionCache = new ServerMemoryCache<SettingsVersionRow | null>({
+  namespace: "settings:discovery-tools-version",
+  ttlMs: SETTINGS_VERSION_CACHE_TTL_MS,
+  maxEntries: 1
+});
+
+const discoveryToolsSettingsByVersionCache = new ServerMemoryCache<DiscoveryToolsSettings>({
+  namespace: "settings:discovery-tools",
+  ttlMs: SETTINGS_BY_VERSION_CACHE_TTL_MS,
+  maxEntries: 24
+});
+
+function targetDateKey(requestedDate: string | undefined): string {
+  return normalizeDataDate(requestedDate) ?? todayDateKey();
+}
+
+function normalizeDatasetLoadProfile(profile: DatasetLoadProfile | undefined): DatasetLoadProfile {
+  return profile === "summary" || profile === "risk-summary" || profile === "full" ? profile : "full";
+}
+
+function hashCacheValue(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function cacheSignatureFromParts(parts: Array<string | number | boolean | null | undefined>): string {
+  return hashCacheValue(parts.map((part) => String(part ?? "")).join("|"));
+}
+
+function coerceIsoTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  return value;
+}
+
+function normalizeSqlEvidence(value: unknown): Record<string, string | number | boolean | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const evidence: Record<string, string | number | boolean | null> = {};
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (!/^[A-Za-z0-9_]+$/.test(key)) {
+      continue;
+    }
+    if (
+      rawValue === null ||
+      typeof rawValue === "string" ||
+      typeof rawValue === "number" ||
+      typeof rawValue === "boolean"
+    ) {
+      evidence[key] = rawValue;
+    }
+  }
+  return evidence;
+}
+
+function normalizeStoredSpiEvaluations(
+  rows: StoredSpiEvaluationRow[],
+  spiDefinitions: SpiDefinition[]
+): StoredSpiEvaluation[] {
+  const definitionsById = new Map(spiDefinitions.map((definition) => [definition.spiId, definition]));
+  const evaluations: StoredSpiEvaluation[] = [];
+
+  for (const row of rows) {
+    const definition = definitionsById.get(row.spiId);
+    if (!definition || !["Compliant", "Non-compliant", "Unknown"].includes(row.status)) {
+      continue;
+    }
+
+    const evaluation = {
+      assetId: row.assetId,
+      spiId: row.spiId,
+      outcomeKey: row.outcomeKey,
+      status: row.status,
+      evidence: normalizeSqlEvidence(row.evidence),
+      reasons: []
+    } satisfies StoredSpiEvaluation;
+
+    evaluations.push({
+      ...evaluation,
+      reasons: [renderSpiOutcomeReason(definition, evaluation)]
+    });
+  }
+
+  return evaluations;
+}
+
+function normalizeDiscoveryCoverageValue(value: unknown): DiscoveryCoverageValue {
+  if (value === 1 || value === "1" || value === true) {
+    return 1;
+  }
+  if (value === 0 || value === "0" || value === false) {
+    return 0;
+  }
+  return null;
+}
+
+function normalizeStringArrayRows(rows: DiscoveryCoverageArrayValueRow[] | null | undefined): string[] {
+  return (rows ?? [])
+    .map((row) => (typeof row.value === "string" ? row.value.trim() : ""))
+    .filter((value) => value.length > 0);
+}
+
+function normalizeStoredDiscoveryCoverageEvaluations(
+  rows: StoredDiscoveryCoverageEvaluationRow[]
+): StoredDiscoveryCoverageEvaluation[] {
+  return rows
+    .filter((row) => typeof row.assetId === "string" && row.assetId.trim().length > 0)
+    .map((row) => {
+      const toolValues: Record<string, DiscoveryCoverageValue> = {};
+      for (const toolValue of row.toolValues ?? []) {
+        if (typeof toolValue.toolId === "string" && toolValue.toolId.trim()) {
+          toolValues[toolValue.toolId] = normalizeDiscoveryCoverageValue(toolValue.value);
+        }
+      }
+
+      return {
+        assetId: row.assetId,
+        toolValues,
+        missingToolIds: normalizeStringArrayRows(row.missingToolIds),
+        missingToolNames: normalizeStringArrayRows(row.missingToolNames),
+        coverageCompliance: Boolean(row.coverageCompliance)
+      };
+    });
+}
+
+function normalizeStoredKpiEvaluations(rows: StoredKpiEvaluationRow[], kpiDefinitions: KpiDefinition[]): StoredKpiEvaluation[] {
+  const definitionIds = new Set(kpiDefinitions.map((definition) => definition.id));
+  return rows
+    .filter((row) => definitionIds.has(row.kpiId))
+    .map((row) => ({
+      kpiId: row.kpiId,
+      displayOrder: row.displayOrder,
+      calculationKey: row.calculationKey,
+      score: row.score,
+      scorePercent: Number(row.scorePercent) || 0,
+      compliantCount: Number(row.compliantCount) || 0,
+      applicableCount: Number(row.applicableCount) || 0,
+      nonCompliantCount: Number(row.nonCompliantCount) || 0,
+      unknownCount: Number(row.unknownCount) || 0,
+      highPriorityCount: Number(row.highPriorityCount) || 0
+    }))
+    .sort((left, right) => left.displayOrder - right.displayOrder || left.kpiId.localeCompare(right.kpiId));
+}
+
+function normalizeFindingRows(rows: FindingRow[]): Finding[] {
+  return rows
+    .filter(
+      (row) =>
+        Number.isInteger(row.spiId) &&
+        row.spiId > 0 &&
+        (row.complianceStatus === "Compliant" ||
+          row.complianceStatus === "Non-compliant" ||
+          row.complianceStatus === "Unknown") &&
+        (row.status === "open" || row.status === "closed")
+    )
+    .map((row) => ({
+      id: row.id,
+      spiId: row.spiId as SpiId,
+      priorityRank: row.priorityRank,
+      severity: row.severity,
+      ...(typeof row.rawPriorityRank === "number" ? { rawPriorityRank: row.rawPriorityRank } : {}),
+      ...(row.rawSeverity ? { rawSeverity: row.rawSeverity } : {}),
+      ...(row.sourceKind === "persisted" || row.sourceKind === "generated" ? { sourceKind: row.sourceKind } : {}),
+      status: row.status,
+      complianceStatus: row.complianceStatus,
+      timestamp: coerceIsoTimestamp(row.timestamp),
+      ...(row.closedTimestamp ? { closedTimestamp: coerceIsoTimestamp(row.closedTimestamp) } : {}),
+      scope: {
+        networkId: row.networkId,
+        systemId: row.systemId ?? null,
+        environmentType: row.environmentType ?? null,
+        assetId: row.assetId
+      },
+      title: row.title,
+      evidence: normalizeSqlEvidence(row.evidence),
+      recommendedAction: row.recommendedAction
+    }));
+}
+
+function coerceDateKey(value: string): string {
+  const normalized = normalizeDataDate(value);
+  if (normalized) {
+    return normalized;
+  }
+  return value.slice(0, 10);
+}
+
+function toArrayMap<T>(rows: T[], keySelector: (row: T) => string): Map<string, T[]> {
+  const mapped = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = keySelector(row);
+    const existing = mapped.get(key);
+    if (existing) {
+      existing.push(row);
+    } else {
+      mapped.set(key, [row]);
+    }
+  }
+  return mapped;
+}
+
+function toFirstValueMap<T, TValue>(rows: T[], keySelector: (row: T) => string, valueSelector: (row: T) => TValue) {
+  const mapped = new Map<string, TValue>();
+  for (const row of rows) {
+    const key = keySelector(row);
+    if (!mapped.has(key)) {
+      mapped.set(key, valueSelector(row));
+    }
+  }
+  return mapped;
+}
+
+function sortedValues(values: Iterable<string>): string[] {
+  return Array.from(values).sort((left, right) => left.localeCompare(right));
+}
+
+function ensureValidSnapshotId(snapshotId: number): number {
+  if (!Number.isInteger(snapshotId) || snapshotId < 1) {
+    throw new Error(`Invalid snapshot identifier '${snapshotId}'.`);
+  }
+  return snapshotId;
+}
+
+async function loadSnapshotRows(): Promise<SnapshotRow[]> {
+  return snapshotRowsCache.getOrSet("all", () =>
+    executeSqlJson<SnapshotRow[]>(`
+SELECT
+  ds.[snapshot_id] AS [snapshotId],
+  CONVERT(CHAR(10), ds.[snapshot_date], 23) AS [snapshotDate],
+  CONVERT(NVARCHAR(40), ds.[generated_at], 127) AS [generatedAt]
+FROM [${DATA_SCHEMA}].[dataset_snapshot] ds
+ORDER BY ds.[snapshot_date] ASC, ds.[snapshot_id] ASC
+FOR JSON PATH;
+`)
+  );
+}
+
+function selectSnapshotRowForDate(rows: SnapshotRow[], requestedDate: string | undefined): SnapshotRow {
+  if (!rows.length) {
+    throw new Error("No datasets are available in SQL Server.");
+  }
+
+  const target = targetDateKey(requestedDate);
+  const matching = rows.filter((row) => row.snapshotDate <= target);
+  return matching[matching.length - 1] ?? rows[0];
+}
+
+function latestSnapshot(rows: SnapshotRow[]): SnapshotRow {
+  if (!rows.length) {
+    throw new Error("No datasets are available in SQL Server.");
+  }
+  return rows[rows.length - 1];
+}
+
+async function loadSnapshotPayload(
+  snapshotId: number,
+  profile: DatasetLoadProfile = "full"
+): Promise<SnapshotPayload> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const normalizedProfile = normalizeDatasetLoadProfile(profile);
+  const includeRiskPayload = normalizedProfile === "risk-summary" || normalizedProfile === "full";
+  const includeFullPayload = normalizedProfile === "full";
+
+  const raw = await timeAsync(`loadSnapshotPayload:${safeSnapshotId}:${normalizedProfile}`, () => executeSqlJson<Partial<SnapshotPayload>>(`
+DECLARE @snapshotId BIGINT = ${safeSnapshotId};
+DECLARE @includeRiskPayload BIT = ${includeRiskPayload ? 1 : 0};
+DECLARE @includeFullPayload BIT = ${includeFullPayload ? 1 : 0};
+SELECT
+  JSON_QUERY((
+    SELECT
+      n.[network_id] AS [id],
+      n.[name] AS [name],
+      n.[criticality] AS [criticality],
+      n.[adf_platform] AS [adfPlatform],
+      n.[enterprise_platform] AS [enterprisePlatform],
+      n.[modelling_status] AS [modellingStatus],
+      n.[classification] AS [classification],
+      n.[security_domain] AS [securityDomain],
+      n.[description] AS [description],
+      n.[owner] AS [owner],
+      n.[support_email] AS [supportEmail],
+      n.[service_catalogue_url] AS [serviceCatalogueUrl],
+      n.[diis_id] AS [diisId],
+      n.[ato_number] AS [atoNumber],
+      n.[diis_url] AS [diisUrl],
+      n.[grc_url] AS [grcUrl],
+      n.[discovery_status] AS [discoveryStatus]
+    FROM [${DATA_SCHEMA}].[managed_network] n
+    WHERE n.[snapshot_id] = @snapshotId
+    ORDER BY n.[network_id]
+    FOR JSON PATH
+  )) AS [managedNetworks],
+  JSON_QUERY((
+    SELECT
+      h.[parent_network_id] AS [parentNetworkId],
+      h.[child_network_id] AS [childNetworkId]
+    FROM [${DATA_SCHEMA}].[managed_network_hierarchy] h
+    WHERE h.[snapshot_id] = @snapshotId
+    ORDER BY h.[parent_network_id], h.[child_network_id]
+    FOR JSON PATH
+  )) AS [managedNetworkHierarchy],
+  JSON_QUERY((
+    SELECT
+      nds.[network_id] AS [networkId],
+      nds.[system_id] AS [systemId]
+    FROM [${DATA_SCHEMA}].[network_declared_system] nds
+    WHERE nds.[snapshot_id] = @snapshotId
+    ORDER BY nds.[network_id], nds.[system_id]
+    FOR JSON PATH
+  )) AS [networkDeclaredSystems],
+  JSON_QUERY((
+    SELECT
+      nda.[network_id] AS [networkId],
+      nda.[asset_id] AS [assetId]
+    FROM [${DATA_SCHEMA}].[network_declared_asset] nda
+    WHERE nda.[snapshot_id] = @snapshotId
+    ORDER BY nda.[network_id], nda.[asset_id]
+    FOR JSON PATH
+  )) AS [networkDeclaredAssets],
+  JSON_QUERY((
+    SELECT
+      ntsa.[network_id] AS [networkId],
+      ntsa.[asset_type] AS [assetType],
+      ntsa.[asset_name] AS [assetName]
+    FROM [${DATA_SCHEMA}].[network_target_state_asset] ntsa
+    WHERE ntsa.[snapshot_id] = @snapshotId
+    ORDER BY ntsa.[network_id], ntsa.[asset_type], ntsa.[asset_name]
+    FOR JSON PATH
+  )) AS [networkTargetStateAssets],
+  JSON_QUERY((
+    SELECT
+      s.[system_id] AS [id],
+      s.[network_id] AS [networkId],
+      s.[name] AS [name],
+      s.[adf_platform] AS [adfPlatform],
+      s.[enterprise_platform] AS [enterprisePlatform],
+      s.[description] AS [description],
+      s.[diis_id] AS [diisId],
+      s.[owner] AS [owner],
+      s.[support_email] AS [supportEmail],
+      s.[service_catalogue_url] AS [serviceCatalogueUrl],
+      s.[ato_number] AS [atoNumber],
+      s.[apm_number] AS [apmNumber],
+      s.[diis_url] AS [diisUrl],
+      s.[grc_url] AS [grcUrl],
+      s.[modelling_status] AS [modellingStatus],
+      s.[diis_defined] AS [diisDefined],
+      s.[criticality] AS [criticality],
+      s.[security_domain] AS [securityDomain]
+    FROM [${DATA_SCHEMA}].[ict_system] s
+    WHERE s.[snapshot_id] = @snapshotId
+    ORDER BY s.[system_id]
+    FOR JSON PATH
+  )) AS [ictSystems],
+  JSON_QUERY((
+    SELECT
+      h.[parent_system_id] AS [parentSystemId],
+      h.[child_system_id] AS [childSystemId]
+    FROM [${DATA_SCHEMA}].[ict_system_hierarchy] h
+    WHERE h.[snapshot_id] = @snapshotId
+    ORDER BY h.[parent_system_id], h.[child_system_id]
+    FOR JSON PATH
+  )) AS [ictSystemHierarchy],
+  JSON_QUERY((
+    SELECT
+      mc.[system_id] AS [systemId],
+      mc.[mission_capability_id] AS [id],
+      mc.[name] AS [name],
+      mc.[criticality] AS [criticality]
+    FROM [${DATA_SCHEMA}].[system_mission_capability] mc
+    WHERE mc.[snapshot_id] = @snapshotId
+    ORDER BY mc.[system_id], mc.[mission_capability_id]
+    FOR JSON PATH
+  )) AS [systemMissionCapabilities],
+  JSON_QUERY((
+    SELECT
+      bs.[system_id] AS [systemId],
+      bs.[business_service_id] AS [id],
+      bs.[name] AS [name],
+      bs.[criticality] AS [criticality]
+    FROM [${DATA_SCHEMA}].[system_business_service] bs
+    WHERE bs.[snapshot_id] = @snapshotId
+    ORDER BY bs.[system_id], bs.[business_service_id]
+    FOR JSON PATH
+  )) AS [systemBusinessServices],
+  JSON_QUERY((
+    SELECT
+      se.[system_id] AS [systemId],
+      se.[environment_id] AS [id],
+      se.[name] AS [name],
+      se.[environment_type] AS [type]
+    FROM [${DATA_SCHEMA}].[system_environment] se
+    WHERE se.[snapshot_id] = @snapshotId
+    ORDER BY se.[system_id], se.[environment_id]
+    FOR JSON PATH
+  )) AS [systemEnvironments],
+  JSON_QUERY((
+    SELECT
+      sea.[system_id] AS [systemId],
+      sea.[environment_id] AS [environmentId],
+      sea.[asset_id] AS [assetId]
+    FROM [${DATA_SCHEMA}].[system_environment_asset] sea
+    WHERE sea.[snapshot_id] = @snapshotId
+    ORDER BY sea.[system_id], sea.[environment_id], sea.[asset_id]
+    FOR JSON PATH
+  )) AS [systemEnvironmentAssets],
+  JSON_QUERY((
+    SELECT
+      a.[asset_id] AS [id],
+      a.[name] AS [name],
+      a.[hostname] AS [hostname],
+      a.[ip_address] AS [ipAddress],
+      a.[mac_address] AS [macAddress], a.[device_model] AS [deviceModel],
+      CASE WHEN a.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), a.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+      a.[discovered_by] AS [discoveredBy], a.[discovery_approach] AS [discoveryApproach], a.[arp_owner_asset_id] AS [arpOwnerAssetId],
+      a.[cmdb_record_url] AS [cmdbRecordUrl],
+      a.[asset_type] AS [type],
+      a.[network_id] AS [networkId],
+      a.[security_domain] AS [securityDomain],
+      a.[system_id] AS [systemId],
+      a.[environment_type] AS [environmentType],
+      a.[lifecycle_eol_status] AS [eolStatus],
+      a.[lifecycle_warranty_status] AS [warrantyStatus]
+    FROM [${DATA_SCHEMA}].[asset] a
+    WHERE a.[snapshot_id] = @snapshotId
+    ORDER BY a.[asset_id]
+    FOR JSON PATH
+  )) AS [assets],
+  JSON_QUERY((
+    SELECT
+      aos.[asset_id] AS [assetId],
+      aos.[family] AS [family],
+      aos.[vendor] AS [vendor],
+      aos.[major_version] AS [majorVersion],
+      aos.[version] AS [version],
+      aos.[patch_level] AS [patchLevel],
+      aos.[support_status] AS [supportStatus],
+      aos.[current_supported_major] AS [currentSupportedMajor],
+      aos.[n_minus] AS [nMinus]
+    FROM [${DATA_SCHEMA}].[asset_operating_system] aos
+    WHERE aos.[snapshot_id] = @snapshotId
+    ORDER BY aos.[asset_id]
+    FOR JSON PATH
+  )) AS [assetOperatingSystems],
+  JSON_QUERY((
+    SELECT
+      nos.[asset_id] AS [assetId],
+      nos.[family] AS [family],
+      nos.[vendor] AS [vendor],
+      nos.[major_version] AS [majorVersion],
+      nos.[version] AS [version],
+      nos.[patch_level] AS [patchLevel],
+      nos.[support_status] AS [supportStatus],
+      nos.[current_supported_major] AS [currentSupportedMajor],
+      nos.[n_minus] AS [nMinus]
+    FROM [${DATA_SCHEMA}].[asset_network_os] nos
+    WHERE nos.[snapshot_id] = @snapshotId
+    ORDER BY nos.[asset_id]
+    FOR JSON PATH
+  )) AS [assetNetworkOperatingSystems],
+  JSON_QUERY((
+    SELECT
+      ps.[asset_id] AS [assetId],
+      ps.[is_latest] AS [isLatest],
+      CONVERT(CHAR(10), ps.[last_patched_date], 23) AS [lastPatchedDate]
+    FROM [${DATA_SCHEMA}].[asset_patch_state] ps
+    WHERE ps.[snapshot_id] = @snapshotId
+    ORDER BY ps.[asset_id]
+    FOR JSON PATH
+  )) AS [assetPatchStates],
+  JSON_QUERY((
+    SELECT pm.[asset_id] AS [assetId],
+      CASE WHEN pm.[assessment_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[assessment_date], 126) + N'Z' END AS [assessmentDate],
+            CONVERT(CHAR(10), pm.[assessment_valid_until], 23) AS [assessmentValidUntil],
+            CASE WHEN pm.[last_patched_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[last_patched_date], 126) + N'Z' END AS [lastPatchedDate],
+            CASE WHEN pm.[last_restarted_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[last_restarted_date], 126) + N'Z' END AS [lastRestartedDate],
+            CASE WHEN pm.[verified_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[verified_date], 126) + N'Z' END AS [verifiedDate],
+            pm.[installed_patch_level] AS [installedPatchLevel],
+            pm.[target_patch_level] AS [targetPatchLevel],
+            pm.[missing_updates] AS [missingUpdates],
+            pm.[missing_critical_updates] AS [missingCriticalUpdates],
+            pm.[restart_required] AS [restartRequired],
+            pm.[deployment_status] AS [deploymentStatus],
+            CONVERT(CHAR(10), pm.[due_date], 23) AS [dueDate],
+            CONVERT(CHAR(10), pm.[planned_date], 23) AS [plannedDate],
+            pm.[owner] AS [owner],
+            pm.[maintenance_window] AS [maintenanceWindow],
+            pm.[change_reference] AS [changeReference],
+            pm.[exception_reason] AS [exceptionReason],
+            CONVERT(CHAR(10), pm.[exception_expires_date], 23) AS [exceptionExpiresDate],
+            pm.[source] AS [source]
+    FROM [${DATA_SCHEMA}].[server_patch_observation] pm
+    WHERE pm.[snapshot_id] = @snapshotId
+    ORDER BY pm.[asset_id]
+    FOR JSON PATH
+  )) AS [serverPatchObservations],
+  JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
+    SELECT
+      sw.[asset_id] AS [assetId],
+      sw.[software_ordinal] AS [ordinal],
+      sw.[name] AS [name],
+      sw.[version] AS [version],
+      sw.[file_path] AS [filePath],
+      CASE WHEN sw.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), sw.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+      sw.[discovered_by] AS [discoveredBy],
+      sw.[support_status] AS [supportStatus]
+    FROM [${DATA_SCHEMA}].[asset_installed_software] sw
+    WHERE sw.[snapshot_id] = @snapshotId
+    ORDER BY sw.[asset_id], sw.[software_ordinal]
+    FOR JSON PATH
+  ) ELSE N'[]' END) AS [assetInstalledSoftware],
+  JSON_QUERY(CASE WHEN @includeRiskPayload = 1 THEN (
+    SELECT
+      v.[asset_id] AS [assetId],
+      v.[vulnerability_id] AS [id],
+      v.[cve] AS [cve],
+      v.[cve_name] AS [cveName],
+      CONVERT(CHAR(10), v.[cve_created_date], 23) AS [cveCreatedDate],
+      v.[software_name] AS [softwareName], v.[software_version] AS [softwareVersion], v.[reference_url] AS [referenceUrl],
+      v.[description] AS [description],
+      v.[remediation_guidance] AS [remediationGuidance],
+      v.[criticality] AS [criticality],
+      v.[severity] AS [severity],
+      v.[exploitability] AS [exploitability],
+      CONVERT(CHAR(10), v.[detected_date], 23) AS [detectedDate],
+      CONVERT(NVARCHAR(40), v.[captured_at], 127) AS [capturedAt],
+      v.[source] AS [source]
+    FROM [${DATA_SCHEMA}].[asset_vulnerability] v
+    WHERE v.[snapshot_id] = @snapshotId
+    ORDER BY v.[asset_id], v.[vulnerability_id]
+    FOR JSON PATH
+  ) ELSE N'[]' END) AS [assetVulnerabilities],
+  JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
+    SELECT
+      d.[dependency_id] AS [id],
+      d.[source_asset_id] AS [sourceAssetId],
+      d.[target_asset_id] AS [targetAssetId],
+      d.[dependency_type] AS [dependencyType],
+      d.[flow_protocol] AS [protocol],
+      d.[source_port] AS [sourcePort],
+      d.[target_port] AS [targetPort],
+      d.[observation_method] AS [observationMethod],
+      CONVERT(NVARCHAR(40), d.[observed_at], 127) AS [observedAt]
+    FROM [${DATA_SCHEMA}].[ci_dependency] d
+    WHERE d.[snapshot_id] = @snapshotId
+    ORDER BY d.[dependency_id]
+    FOR JSON PATH
+  ) ELSE N'[]' END) AS [ciDependencies],
+  JSON_QUERY((
+    SELECT
+      f.[finding_id] AS [id],
+      f.[spi_id] AS [spiId],
+      f.[priority_rank] AS [priorityRank],
+      f.[severity] AS [severity],
+      f.[compliance_status] AS [complianceStatus],
+      f.[network_id] AS [networkId],
+      f.[system_id] AS [systemId],
+      f.[environment_type] AS [environmentType],
+      f.[asset_id] AS [assetId],
+      f.[title] AS [title],
+      JSON_QUERY(f.[evidence]) AS [evidence],
+      f.[recommended_action] AS [recommendedAction],
+      f.[workflow_status] AS [status],
+      CONVERT(NVARCHAR(40), f.[observed_at], 127) AS [timestamp],
+      CONVERT(NVARCHAR(40), f.[closed_at], 127) AS [closedTimestamp]
+    FROM [${DATA_SCHEMA}].[finding] f
+    WHERE f.[snapshot_id] = @snapshotId
+    ORDER BY f.[priority_rank], f.[finding_id]
+    FOR JSON PATH
+  )) AS [findings]
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`));
+
+  return {
+    managedNetworks: Array.isArray(raw.managedNetworks) ? raw.managedNetworks : [],
+    managedNetworkHierarchy: Array.isArray(raw.managedNetworkHierarchy) ? raw.managedNetworkHierarchy : [],
+    networkDeclaredSystems: Array.isArray(raw.networkDeclaredSystems) ? raw.networkDeclaredSystems : [],
+    networkDeclaredAssets: Array.isArray(raw.networkDeclaredAssets) ? raw.networkDeclaredAssets : [],
+    networkTargetStateAssets: Array.isArray(raw.networkTargetStateAssets) ? raw.networkTargetStateAssets : [],
+    ictSystems: Array.isArray(raw.ictSystems) ? raw.ictSystems : [],
+    ictSystemHierarchy: Array.isArray(raw.ictSystemHierarchy) ? raw.ictSystemHierarchy : [],
+    systemMissionCapabilities: Array.isArray(raw.systemMissionCapabilities) ? raw.systemMissionCapabilities : [],
+    systemBusinessServices: Array.isArray(raw.systemBusinessServices) ? raw.systemBusinessServices : [],
+    systemEnvironments: Array.isArray(raw.systemEnvironments) ? raw.systemEnvironments : [],
+    systemEnvironmentAssets: Array.isArray(raw.systemEnvironmentAssets) ? raw.systemEnvironmentAssets : [],
+    assets: Array.isArray(raw.assets) ? raw.assets : [],
+    assetOperatingSystems: Array.isArray(raw.assetOperatingSystems) ? raw.assetOperatingSystems : [],
+    assetNetworkOperatingSystems: Array.isArray(raw.assetNetworkOperatingSystems) ? raw.assetNetworkOperatingSystems : [],
+    assetPatchStates: Array.isArray(raw.assetPatchStates) ? raw.assetPatchStates : [],
+    serverPatchObservations: Array.isArray(raw.serverPatchObservations) ? raw.serverPatchObservations : [],
+    assetInstalledSoftware: Array.isArray(raw.assetInstalledSoftware) ? raw.assetInstalledSoftware : [],
+    assetVulnerabilities: Array.isArray(raw.assetVulnerabilities) ? raw.assetVulnerabilities : [],
+    ciDependencies: Array.isArray(raw.ciDependencies) ? raw.ciDependencies : [],
+    findings: Array.isArray(raw.findings) ? raw.findings : []
+  };
+}
+
+async function loadSnapshotSpiEvaluations(
+  snapshotId: number,
+  spiDefinitions: SpiDefinition[],
+  assetIds?: Iterable<string>
+): Promise<StoredSpiEvaluation[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const assetIdsSql = assetIds ? toSqlJsonArrayLiteral(assetIds) : "NULL";
+  const rows = await timeAsync(`loadSnapshotSpiEvaluations:${safeSnapshotId}`, () => executeSqlJson<StoredSpiEvaluationRow[]>(`
+DECLARE @SpiEvaluations TABLE (
+  [snapshot_id] BIGINT NOT NULL,
+  [asset_id] NVARCHAR(255) NOT NULL,
+  [spi_id] INT NOT NULL,
+  [display_order] INT NOT NULL,
+  [compliance_status] NVARCHAR(20) NOT NULL,
+  [outcome_key] NVARCHAR(100) NOT NULL,
+  [evidence_json] NVARCHAR(MAX) NOT NULL
+);
+
+INSERT INTO @SpiEvaluations (
+  [snapshot_id],
+  [asset_id],
+  [spi_id],
+  [display_order],
+  [compliance_status],
+  [outcome_key],
+  [evidence_json]
+)
+EXEC [${DATA_SCHEMA}].[usp_evaluate_spi_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @asset_ids_json = ${assetIdsSql};
+
+SELECT
+  evaluation.[asset_id] AS [assetId],
+  evaluation.[spi_id] AS [spiId],
+  evaluation.[outcome_key] AS [outcomeKey],
+  evaluation.[compliance_status] AS [status],
+  JSON_QUERY(evaluation.[evidence_json]) AS [evidence]
+FROM @SpiEvaluations AS evaluation
+ORDER BY evaluation.[asset_id], evaluation.[display_order], evaluation.[spi_id]
+FOR JSON PATH;
+`));
+
+  return normalizeStoredSpiEvaluations(rows, spiDefinitions);
+}
+
+async function loadSnapshotDiscoveryCoverageEvaluations(
+  snapshotId: number
+): Promise<StoredDiscoveryCoverageEvaluation[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const rows = await timeAsync(`loadSnapshotDiscoveryCoverage:${safeSnapshotId}`, () => executeSqlJson<StoredDiscoveryCoverageEvaluationRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_evaluate_discovery_coverage_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @asset_ids_json = NULL,
+  @emit_json = 1;
+`));
+
+  return normalizeStoredDiscoveryCoverageEvaluations(rows);
+}
+
+export async function loadSnapshotEffectiveFindings(
+  snapshotId: number,
+  asOfDate?: string | null
+): Promise<Finding[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const normalizedAsOfDate = asOfDate ? normalizeDataDate(asOfDate) : null;
+  const asOfSql = normalizedAsOfDate ? toSqlUnicodeLiteral(normalizedAsOfDate) : "NULL";
+  const rows = await timeAsync(`loadSnapshotEffectiveFindings:${safeSnapshotId}`, () => executeSqlJson<FindingRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_get_effective_findings_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @as_of_date = ${asOfSql},
+  @emit_json = 1;
+`));
+
+  return normalizeFindingRows(rows);
+}
+
+function buildDatasetFromSnapshotRow(
+  snapshot: SnapshotRow,
+  payload: SnapshotPayload,
+  spiEvaluations: StoredSpiEvaluation[],
+  discoveryCoverageEvaluations: StoredDiscoveryCoverageEvaluation[],
+  effectiveFindings: Finding[],
+  cacheSignature: string
+): Dataset {
+  const networkChildrenRows = toArrayMap(payload.managedNetworkHierarchy, (row) => row.parentNetworkId);
+  const networkParentByChild = toFirstValueMap(
+    payload.managedNetworkHierarchy,
+    (row) => row.childNetworkId,
+    (row) => row.parentNetworkId
+  );
+
+  const networkSystemIds = new Map<string, Set<string>>();
+  for (const row of payload.networkDeclaredSystems) {
+    const existing = networkSystemIds.get(row.networkId);
+    if (existing) {
+      existing.add(row.systemId);
+    } else {
+      networkSystemIds.set(row.networkId, new Set([row.systemId]));
+    }
+  }
+
+  const networkAssetIds = new Map<string, Set<string>>();
+  for (const row of payload.networkDeclaredAssets) {
+    const existing = networkAssetIds.get(row.networkId);
+    if (existing) {
+      existing.add(row.assetId);
+    } else {
+      networkAssetIds.set(row.networkId, new Set([row.assetId]));
+    }
+  }
+
+  const networkTargetStateAssets = new Map<string, Record<AssetType, string[]>>();
+  for (const row of payload.networkTargetStateAssets) {
+    const networkRecord =
+      networkTargetStateAssets.get(row.networkId) ?? createAssetTypeRecord(() => []);
+    networkRecord[row.assetType].push(row.assetName);
+    networkTargetStateAssets.set(row.networkId, networkRecord);
+  }
+
+  const managedNetworks = payload.managedNetworks.map((network) => {
+    const childRows = networkChildrenRows.get(network.id) ?? [];
+    const childNetworkIds = sortedValues(childRows.map((row) => row.childNetworkId));
+    const systemIds = sortedValues(networkSystemIds.get(network.id) ?? []);
+    const assetIds = sortedValues(networkAssetIds.get(network.id) ?? []);
+    const targetStateAssets = networkTargetStateAssets.get(network.id) ?? createAssetTypeRecord<string[]>(() => []);
+
+    return {
+      id: network.id,
+      name: network.name,
+      criticality: network.criticality,
+      adfPlatform: Boolean(network.adfPlatform),
+      enterprisePlatform: Boolean(network.enterprisePlatform),
+      modellingStatus:
+        network.modellingStatus == null
+          ? network.discoveryStatus !== "Discovery Non Enabled"
+          : Boolean(network.modellingStatus),
+      ...(networkParentByChild.get(network.id) ? { parentNetworkId: networkParentByChild.get(network.id) } : {}),
+      ...(childNetworkIds.length ? { childNetworkIds } : {}),
+      securityDomain: normalizeNetworkSecurityDomain(network.securityDomain, network.classification),
+      ...(network.classification ? { classification: network.classification } : {}),
+      ...(network.description ? { description: network.description } : {}),
+      ...(network.owner ? { owner: network.owner } : {}),
+      ...(network.supportEmail ? { supportEmail: network.supportEmail } : {}),
+      ...(network.serviceCatalogueUrl ? { serviceCatalogueUrl: network.serviceCatalogueUrl } : {}),
+      ...(network.diisId ? { diisId: network.diisId } : {}),
+      ...(network.atoNumber ? { atoNumber: network.atoNumber } : {}),
+      ...(network.diisUrl ? { diisUrl: network.diisUrl } : {}),
+      ...(network.grcUrl ? { grcUrl: network.grcUrl } : {}),
+      discoveryStatus: network.discoveryStatus,
+      ictSystemIds: systemIds,
+      assetIds,
+      ...(targetStateAssets ? { targetStateAssets } : {})
+    };
+  });
+
+  const systemChildrenRows = toArrayMap(payload.ictSystemHierarchy, (row) => row.parentSystemId);
+  const systemParentByChild = toFirstValueMap(
+    payload.ictSystemHierarchy,
+    (row) => row.childSystemId,
+    (row) => row.parentSystemId
+  );
+  const missionRowsBySystem = toArrayMap(payload.systemMissionCapabilities, (row) => row.systemId);
+  const businessRowsBySystem = toArrayMap(payload.systemBusinessServices, (row) => row.systemId);
+  const environmentRowsBySystem = toArrayMap(payload.systemEnvironments, (row) => row.systemId);
+
+  const envAssetIdsByKey = new Map<string, Set<string>>();
+  for (const row of payload.systemEnvironmentAssets) {
+    const mapKey = `${row.systemId}::${row.environmentId}`;
+    const existing = envAssetIdsByKey.get(mapKey);
+    if (existing) {
+      existing.add(row.assetId);
+    } else {
+      envAssetIdsByKey.set(mapKey, new Set([row.assetId]));
+    }
+  }
+
+  const ictSystems = payload.ictSystems.map((system) => {
+    const childRows = systemChildrenRows.get(system.id) ?? [];
+    const childSystemIds = sortedValues(childRows.map((row) => row.childSystemId));
+    const missionCapabilities = (missionRowsBySystem.get(system.id) ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      criticality: item.criticality
+    }));
+    const businessServices = (businessRowsBySystem.get(system.id) ?? []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      criticality: item.criticality
+    }));
+    const environments = (environmentRowsBySystem.get(system.id) ?? []).map((environment) => {
+      const envKey = `${environment.systemId}::${environment.id}`;
+      return {
+        id: environment.id,
+        name: environment.name,
+        type: environment.type,
+        assetIds: sortedValues(envAssetIdsByKey.get(envKey) ?? [])
+      };
+    });
+
+    return {
+      id: system.id,
+      name: system.name,
+      adfPlatform: Boolean(system.adfPlatform),
+      enterprisePlatform: Boolean(system.enterprisePlatform),
+      ...(systemParentByChild.get(system.id) ? { parentSystemId: systemParentByChild.get(system.id) } : {}),
+      ...(childSystemIds.length ? { childSystemIds } : {}),
+      ...(system.description ? { description: system.description } : {}),
+      ...(system.diisId ? { diisId: system.diisId } : {}),
+      ...(system.owner ? { owner: system.owner } : {}),
+      ...(system.supportEmail ? { supportEmail: system.supportEmail } : {}),
+      ...(system.serviceCatalogueUrl ? { serviceCatalogueUrl: system.serviceCatalogueUrl } : {}),
+      ...(system.atoNumber ? { atoNumber: system.atoNumber } : {}),
+      ...(system.apmNumber ? { apmNumber: system.apmNumber } : {}),
+      ...(system.diisUrl ? { diisUrl: system.diisUrl } : {}),
+      ...(system.grcUrl ? { grcUrl: system.grcUrl } : {}),
+      modellingStatus: Boolean(system.modellingStatus),
+      diisDefined: Boolean(system.diisDefined),
+      networkId: system.networkId,
+      criticality: system.criticality,
+      securityDomain: normalizeSecurityDomain(system.securityDomain),
+      missionCapabilities,
+      businessServices,
+      environments
+    };
+  });
+
+  const operatingSystemsByAssetId = toFirstValueMap(
+    payload.assetOperatingSystems,
+    (row) => row.assetId,
+    (row) => ({
+      family: row.family,
+      patchLevel: row.patchLevel ?? null,
+      vendor: row.vendor,
+      majorVersion: row.majorVersion,
+      version: row.version,
+      supportStatus: row.supportStatus,
+      currentSupportedMajor: row.currentSupportedMajor,
+      nMinus: row.nMinus
+    })
+  );
+
+  const networkOperatingSystemsByAssetId = toFirstValueMap(
+    payload.assetNetworkOperatingSystems,
+    (row) => row.assetId,
+    (row) => ({
+      family: row.family,
+      patchLevel: row.patchLevel ?? null,
+      vendor: row.vendor,
+      majorVersion: row.majorVersion,
+      version: row.version,
+      supportStatus: row.supportStatus,
+      currentSupportedMajor: row.currentSupportedMajor,
+      nMinus: row.nMinus
+    })
+  );
+
+  const patchStateByAssetId = toFirstValueMap(
+    payload.assetPatchStates,
+    (row) => row.assetId,
+    (row) => ({
+      isLatest: row.isLatest,
+      lastPatchedDate: row.lastPatchedDate ?? null
+    })
+  );
+
+  const installedSoftwareRowsByAssetId = toArrayMap(payload.assetInstalledSoftware, (row) => row.assetId);
+  const serverPatchesByAssetId = toFirstValueMap(payload.serverPatchObservations, row => row.assetId, ({ assetId: _assetId, ...record }) => record);
+  const vulnerabilitiesByAssetId = toArrayMap(payload.assetVulnerabilities, (row) => row.assetId);
+
+  const assets = payload.assets.map((assetRow) => {
+    const vulnerabilities = (vulnerabilitiesByAssetId.get(assetRow.id) ?? []).map((row) => ({
+      id: row.id,
+      assetId: row.assetId,
+      cve: row.cve,
+      cveName: row.cveName ?? null,
+      cveCreatedDate: row.cveCreatedDate ?? null,
+      softwareName: row.softwareName ?? null, softwareVersion: row.softwareVersion ?? null, referenceUrl: row.referenceUrl ?? null,
+      description: row.description,
+      remediationGuidance: row.remediationGuidance,
+      criticality: row.criticality,
+      severity: row.severity,
+      exploitability: row.exploitability,
+      detectedDate: row.detectedDate,
+      capturedAt: coerceIsoTimestamp(row.capturedAt),
+      source: row.source
+    }));
+
+    const installedSoftware = (installedSoftwareRowsByAssetId.get(assetRow.id) ?? [])
+      .sort((left, right) => left.ordinal - right.ordinal)
+      .map((row) => ({
+        name: row.name,
+        version: row.version,
+        filePath: row.filePath ?? null,
+        lastDiscoveredDate: row.lastDiscoveredDate ?? null,
+        discoveredBy: row.discoveredBy ?? null,
+        supportStatus: row.supportStatus
+      }));
+
+    const common = {
+      id: assetRow.id,
+      name: assetRow.name,
+      hostname: assetRow.hostname,
+      macAddress: assetRow.macAddress ?? null,
+      deviceModel: assetRow.deviceModel ?? null,
+      lastDiscoveredDate: assetRow.lastDiscoveredDate ?? null,
+      discoveredBy: assetRow.discoveredBy ?? null,
+      cmdbRecordUrl: assetRow.cmdbRecordUrl ?? null,
+      networkId: assetRow.networkId,
+      securityDomain: normalizeSecurityDomain(assetRow.securityDomain),
+      lifecycle: {
+        eolStatus: assetRow.eolStatus,
+        warrantyStatus: assetRow.warrantyStatus
+      },
+      vulnerabilities,
+      ...(assetRow.systemId && assetRow.environmentType
+        ? {
+            systemContext: {
+              systemId: assetRow.systemId,
+              environmentType: assetRow.environmentType
+            }
+          }
+        : {})
+    };
+
+    const withIpAddress = common as Asset & { ipAddress?: string | null };
+    withIpAddress.ipAddress = assetRow.ipAddress;
+
+    if (assetRow.type === "ip-node") {
+      return { ...withIpAddress, type: "ip-node", discoveryApproach: assetRow.discoveryApproach, arpOwnerAssetId: assetRow.arpOwnerAssetId } as Asset;
+    }
+    if (assetRow.type === "network-device") {
+      const networkOs = networkOperatingSystemsByAssetId.get(assetRow.id) ?? null;
+      const patchState = patchStateByAssetId.get(assetRow.id) ?? null;
+      return {
+        ...withIpAddress,
+        type: "network-device",
+        networkOs,
+        patchState
+      } as Asset;
+    }
+
+    if (assetRow.type === "server" || assetRow.type === "workstation") {
+      return {
+        ...withIpAddress,
+        type: assetRow.type,
+        operatingSystem: operatingSystemsByAssetId.get(assetRow.id) ?? null,
+        ...(assetRow.type === "server" ? { patchManagement: serverPatchesByAssetId.get(assetRow.id) ?? null } : {}),
+        installedSoftware
+      } as Asset;
+    }
+
+    return {
+      ...withIpAddress,
+      type: assetRow.type
+    } as Asset;
+  });
+
+  const findings = effectiveFindings.length ? effectiveFindings : normalizeFindingRows(payload.findings);
+
+  const ciDependencies = payload.ciDependencies.map((row) => ({
+    id: row.id,
+    sourceAssetId: row.sourceAssetId,
+    targetAssetId: row.targetAssetId,
+    dependencyType: row.dependencyType,
+    ...(row.protocol ? { protocol: row.protocol } : {}),
+    ...(typeof row.sourcePort === "number" ? { sourcePort: row.sourcePort } : {}),
+    ...(typeof row.targetPort === "number" ? { targetPort: row.targetPort } : {}),
+    ...(row.observationMethod ? { observationMethod: row.observationMethod } : {}),
+    ...(row.observedAt ? { observedAt: coerceIsoTimestamp(row.observedAt) } : {})
+  }));
+
+  return {
+    snapshotId: snapshot.snapshotId,
+    generatedAt: coerceIsoTimestamp(snapshot.generatedAt),
+    snapshotDate: coerceDateKey(snapshot.snapshotDate),
+    cacheSignature,
+    managedNetworks,
+    ictSystems,
+    assets,
+    spiEvaluations,
+    discoveryCoverageEvaluations,
+    ciDependencies,
+    findings
+  };
+}
+
+async function loadDatasetBySnapshotId(
+  snapshotId: number,
+  snapshots?: SnapshotRow[],
+  options: DatasetLoadOptions = {}
+): Promise<Dataset> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const profile = normalizeDatasetLoadProfile(options.profile);
+  const snapshotRows = snapshots ?? (await loadSnapshotRows());
+  const snapshot = snapshotRows.find((row) => row.snapshotId === safeSnapshotId);
+  if (!snapshot) {
+    throw new Error(`Unable to find snapshot ${safeSnapshotId}.`);
+  }
+
+  const [spiDefinitions, measuresVersion, discoveryToolsVersion, findingDisplayConfiguration] = await Promise.all([
+    loadSpiDefinitions(),
+    loadLatestMeasuresSettingsVersion(),
+    loadLatestDiscoveryToolsSettingsVersion(),
+    loadFindingDisplayConfiguration()
+  ]);
+  const spiSignature = spiDefinitionsCacheSignature(spiDefinitions);
+  const measuresVersionSignature = measuresVersion
+    ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}`
+    : "measures:default";
+  const discoveryVersionSignature = discoveryToolsVersion
+    ? `discovery:${discoveryToolsVersion.settingsVersionId}:${discoveryToolsVersion.updatedAt}`
+    : "discovery:default";
+  const findingConfigurationSignature = findingDisplayConfigurationCacheSignature(findingDisplayConfiguration);
+
+  const cacheSignature = [
+    `snapshot:${safeSnapshotId}`,
+    `profile:${profile}`,
+    `generated:${snapshot.generatedAt}`,
+    spiSignature,
+    measuresVersionSignature,
+    discoveryVersionSignature,
+    findingConfigurationSignature
+  ].join("|");
+
+  return datasetBySnapshotIdCache.getOrSet(
+    cacheSignature,
+    async () => timeAsync(`loadDataset:${safeSnapshotId}:${profile}`, async () => {
+      const [payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings] = await Promise.all([
+        loadSnapshotPayload(safeSnapshotId, profile),
+        loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions),
+        loadSnapshotDiscoveryCoverageEvaluations(safeSnapshotId),
+        loadSnapshotEffectiveFindings(safeSnapshotId)
+      ]);
+      const payloadSignature = cacheSignatureFromParts([
+        cacheSignature,
+        payload.managedNetworks.length,
+        payload.ictSystems.length,
+        payload.assets.length,
+        payload.assetVulnerabilities.length,
+        payload.assetInstalledSoftware.length,
+        payload.ciDependencies.length,
+        spiEvaluations.length,
+        discoveryCoverageEvaluations.length,
+        effectiveFindings.length
+      ]);
+      return buildDatasetFromSnapshotRow(
+        snapshot,
+        payload,
+        spiEvaluations,
+        discoveryCoverageEvaluations,
+        effectiveFindings,
+        payloadSignature
+      );
+    })
+  );
+}
+
+export async function loadPatchManagementExplorerData(params: WorkspaceSearchParams): Promise<PatchManagementData> {
+  const date = Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate;
+  if (!scopeIds(params.network).length && !scopeIds(params.system).length) return { snapshotDate: normalizeDataDate(date) ?? todayDateKey(), rows: [] };
+  const dataset = await loadDatasetForDate(date, { profile: "full" });
+  return { snapshotDate: dataset.snapshotDate, rows: buildPatchManagementRows(dataset, params) };
+}
+
+export async function loadCurrentDataset(options: DatasetLoadOptions = {}): Promise<Dataset> {
+  const snapshots = await loadSnapshotRows();
+  const latest = latestSnapshot(snapshots);
+  return loadDatasetBySnapshotId(latest.snapshotId, snapshots, options);
+}
+
+export async function loadSnapshots(options: DatasetLoadOptions = {}): Promise<Dataset[]> {
+  const snapshots = await loadSnapshotRows();
+  return Promise.all(snapshots.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
+}
+
+export async function loadLatestSnapshots(limit = 12, options: DatasetLoadOptions = {}): Promise<Dataset[]> {
+  const snapshots = await loadSnapshotRows();
+  const latest = snapshots.slice(-Math.max(0, limit));
+  return Promise.all(latest.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
+}
+
+export async function loadDatasetTimeline(options: DatasetLoadOptions = {}): Promise<Dataset[]> {
+  return loadSnapshots(options);
+}
+
+export async function loadDatasetForDate(
+  requestedDate?: string,
+  options: DatasetLoadOptions = {}
+): Promise<Dataset> {
+  const snapshots = await loadSnapshotRows();
+  const selected = selectSnapshotRowForDate(snapshots, requestedDate);
+  return loadDatasetBySnapshotId(selected.snapshotId, snapshots, options);
+}
+
+/** Header choices need snapshot names only, never assets, findings or evaluations. */
+export async function loadWorkspaceFilterOptionsForDate(requestedDate?: string): Promise<WorkspaceFilterOptions> {
+  const snapshots = await loadSnapshotRows();
+  const snapshot = selectSnapshotRowForDate(snapshots, requestedDate);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return workspaceFilterOptionsCache.getOrSet(`${snapshotId}:${snapshot.generatedAt}`, async () => {
+    const options = await executeSqlJson<WorkspaceFilterOptions>(`
+DECLARE @workspaceSnapshotId BIGINT = ${snapshotId};
+SELECT
+  JSON_QUERY((
+    SELECT n.[network_id] AS [id], n.[name] AS [label], n.[security_domain] AS [securityDomain]
+    FROM [${DATA_SCHEMA}].[managed_network] n
+    WHERE n.[snapshot_id] = @workspaceSnapshotId
+    ORDER BY n.[network_id]
+    FOR JSON PATH
+  )) AS [networks],
+  JSON_QUERY((
+    SELECT s.[system_id] AS [id], s.[name] AS [label], s.[security_domain] AS [securityDomain]
+    FROM [${DATA_SCHEMA}].[ict_system] s
+    WHERE s.[snapshot_id] = @workspaceSnapshotId
+    ORDER BY s.[system_id]
+    FOR JSON PATH
+  )) AS [systems]
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`);
+    const byLabel = (left: { label: string }, right: { label: string }) => left.label.localeCompare(right.label);
+    return {
+      networks: filterRealNetworks(options.networks ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel),
+      systems: (options.systems ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel)
+    };
+  });
+}
+
+/** Read only the CMDB fields displayed by the explorer, scoped in SQL. */
+export async function loadEndpointExplorerData(searchParams: WorkspaceSearchParams): Promise<EndpointExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network);
+  const systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  const key = JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]);
+  return endpointExplorerCache.getOrSet(key, async () => {
+    const rows = await executeSqlJson<EndpointRecord[]>(`
+DECLARE @endpointSnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
+SELECT COALESCE((SELECT
+  a.[asset_id] AS [assetId],
+  COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [name],
+  a.[asset_type] AS [ciType], a.[security_domain] AS [securityDomain], a.[ip_address] AS [ipAddress],
+  a.[mac_address] AS [macAddress], a.[device_model] AS [deviceModel],
+  CASE WHEN a.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), a.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+  a.[discovered_by] AS [discoveredBy],
+  COALESCE(n.[name], a.[network_id]) AS [managedNetwork]
+FROM [${DATA_SCHEMA}].[asset] a
+LEFT JOIN [${DATA_SCHEMA}].[managed_network] n ON n.[snapshot_id] = a.[snapshot_id] AND n.[network_id] = a.[network_id]
+WHERE a.[snapshot_id] = @endpointSnapshotId
+  AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
+  AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+  AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
+ORDER BY a.[name], a.[asset_id]
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows: rows.map((row) => ({ ...row, ciType: formatAssetTypeLabel(row.ciType) })) };
+  });
+}
+
+/** One scoped inventory query; no analytics, vulnerability or history payloads. */
+export async function loadInstalledSoftwareExplorerData(searchParams: WorkspaceSearchParams): Promise<InstalledSoftwareExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network);
+  const systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return installedSoftwareExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]), async () => {
+    const rows = await executeSqlJson<InstalledSoftwareRecord[]>(`
+DECLARE @softwareSnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
+SELECT COALESCE((SELECT sw.[asset_id] AS [assetId], sw.[software_ordinal] AS [softwareOrdinal],
+  sw.[name] AS [softwareName], sw.[version] AS [softwareVersion], sw.[file_path] AS [filePath],
+  CASE WHEN sw.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), sw.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+  sw.[discovered_by] AS [discoveredBy],
+  COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [deviceName],
+  a.[device_model] AS [deviceModel],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[family] ELSE nos.[family] END AS [osName],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[version] ELSE nos.[version] END AS [osVersion],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[patch_level] ELSE nos.[patch_level] END AS [osPatchLevel]
+FROM [${DATA_SCHEMA}].[asset_installed_software] sw
+JOIN [${DATA_SCHEMA}].[asset] a ON a.[snapshot_id] = sw.[snapshot_id] AND a.[asset_id] = sw.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_operating_system] os ON os.[snapshot_id] = a.[snapshot_id] AND os.[asset_id] = a.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_network_os] nos ON nos.[snapshot_id] = a.[snapshot_id] AND nos.[asset_id] = a.[asset_id]
+WHERE sw.[snapshot_id] = @softwareSnapshotId
+  AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
+  AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+  AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
+ORDER BY sw.[name], sw.[version], a.[name], sw.[asset_id], sw.[software_ordinal]
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows };
+  });
+}
+
+/** Vulnerability observations join endpoint/OS data within the selected snapshot. */
+export async function loadSecurityVulnerabilityExplorerData(searchParams: WorkspaceSearchParams): Promise<SecurityVulnerabilityExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network), systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return securityVulnerabilityExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]), async () => {
+    const rows = await executeSqlJson<SecurityVulnerabilityRecord[]>(`
+DECLARE @vulnerabilitySnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
+SELECT COALESCE((SELECT v.[asset_id] AS [assetId], v.[vulnerability_id] AS [vulnerabilityId], v.[cve] AS [cve],
+  v.[cve_name] AS [cveName], v.[description] AS [description],
+  CONVERT(CHAR(10), v.[detected_date], 23) AS [detectedDate],
+  CONVERT(CHAR(10), v.[cve_created_date], 23) AS [cveCreatedDate],
+  v.[software_name] AS [softwareName], v.[software_version] AS [softwareVersion], v.[reference_url] AS [referenceUrl],
+  v.[remediation_guidance] AS [remediationGuidance], v.[severity] AS [severity], v.[source] AS [source],
+  COALESCE(NULLIF(a.[name], N''), NULLIF(a.[hostname], N''), a.[asset_id]) AS [deviceName], a.[device_model] AS [deviceModel],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[family] ELSE nos.[family] END AS [osName],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[version] ELSE nos.[version] END AS [osVersion],
+  CASE WHEN os.[asset_id] IS NOT NULL THEN os.[patch_level] ELSE nos.[patch_level] END AS [osPatchLevel]
+FROM [${DATA_SCHEMA}].[asset_vulnerability] v
+JOIN [${DATA_SCHEMA}].[asset] a ON a.[snapshot_id] = v.[snapshot_id] AND a.[asset_id] = v.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_operating_system] os ON os.[snapshot_id] = a.[snapshot_id] AND os.[asset_id] = a.[asset_id]
+LEFT JOIN [${DATA_SCHEMA}].[asset_network_os] nos ON nos.[snapshot_id] = a.[snapshot_id] AND nos.[asset_id] = a.[asset_id]
+WHERE v.[snapshot_id] = @vulnerabilitySnapshotId AND v.[detected_date] <= ${toSqlUnicodeLiteral(snapshot.snapshotDate)}
+  AND a.[asset_type] <> N'ip-node'
+  AND a.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(a.[network_id])) <> N''
+  AND (@networks IS NULL OR a.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR a.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+  AND a.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
+ORDER BY v.[cve], a.[name], v.[asset_id], v.[vulnerability_id]
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows };
+  });
+}
+
+/** IP Node observations; owner details always come from the same snapshot. */
+export async function loadShadowItExplorerData(searchParams: WorkspaceSearchParams): Promise<ShadowItExplorerData> {
+  const date = Array.isArray(searchParams.dataDate) ? searchParams.dataDate[0] : searchParams.dataDate;
+  const networks = scopeIds(searchParams.network);
+  const systems = scopeIds(searchParams.system);
+  const domains = securityDomainSelection(searchParams.securityDomain);
+  if (!networks.length && !systems.length) return { snapshotDate: targetDateKey(date), rows: [] };
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
+  return shadowItExplorerCache.getOrSet(JSON.stringify([snapshotId, snapshot.generatedAt, networks, systems, domains]), async () => {
+    const rows = await executeSqlJson<ShadowItRecord[]>(`
+DECLARE @shadowSnapshotId BIGINT = ${snapshotId};
+DECLARE @networks NVARCHAR(MAX) = ${networks.length ? toSqlUnicodeLiteral(JSON.stringify(networks)) : "NULL"};
+DECLARE @systems NVARCHAR(MAX) = ${systems.length ? toSqlUnicodeLiteral(JSON.stringify(systems)) : "NULL"};
+DECLARE @domains NVARCHAR(MAX) = ${toSqlUnicodeLiteral(JSON.stringify(domains))};
+SELECT COALESCE((SELECT node.[asset_id] AS [assetId], owner.[asset_id] AS [ownerAssetId],
+  node.[ip_address] AS [ipAddress], node.[discovery_approach] AS [discoveryApproach],
+  CASE WHEN node.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), node.[last_discovered_date], 126) + N'Z' END AS [lastDiscoveredDate],
+  node.[discovered_by] AS [discoveredBy], owner.[name] AS [endpointName], owner.[asset_type] AS [endpointCiType],
+  owner.[ip_address] AS [endpointIpAddress], owner.[mac_address] AS [endpointMacAddress], owner.[device_model] AS [endpointDeviceModel],
+  CASE WHEN owner.[last_discovered_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), owner.[last_discovered_date], 126) + N'Z' END AS [endpointLastDiscoveredDate],
+  owner.[discovered_by] AS [endpointDiscoveredBy], network.[name] AS [endpointManagedNetwork]
+FROM [${DATA_SCHEMA}].[asset] node
+LEFT JOIN [${DATA_SCHEMA}].[asset] owner ON node.[discovery_approach] = N'ARP Table'
+  AND owner.[snapshot_id] = node.[snapshot_id] AND owner.[asset_id] = node.[arp_owner_asset_id] AND owner.[network_id] = node.[network_id]
+LEFT JOIN [${DATA_SCHEMA}].[managed_network] network ON network.[snapshot_id] = owner.[snapshot_id] AND network.[network_id] = owner.[network_id]
+WHERE node.[snapshot_id] = @shadowSnapshotId AND node.[asset_type] = N'ip-node'
+  AND node.[security_domain] IN (SELECT [value] FROM OPENJSON(@domains))
+  AND node.[network_id] <> N'net-unassigned' AND LTRIM(RTRIM(node.[network_id])) <> N''
+  AND (@networks IS NULL OR node.[network_id] IN (SELECT [value] FROM OPENJSON(@networks)))
+  AND (@systems IS NULL OR node.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)) OR owner.[system_id] IN (SELECT [value] FROM OPENJSON(@systems)))
+ORDER BY node.[ip_address], node.[asset_id]
+FOR JSON PATH, INCLUDE_NULL_VALUES), N'[]');
+`);
+    return { snapshotDate: snapshot.snapshotDate, rows: rows.map((row) => ({ ...row,
+      endpointCiType: row.endpointCiType ? formatAssetTypeLabel(row.endpointCiType) : null })) };
+  });
+}
+
+export async function loadLatestSnapshotsForDate(
+  requestedDate: string | undefined,
+  limit = 12,
+  options: DatasetLoadOptions = {}
+): Promise<Dataset[]> {
+  const snapshots = await loadSnapshotRows();
+  const target = targetDateKey(requestedDate);
+  const selected = snapshots.filter((snapshot) => snapshot.snapshotDate <= target).slice(-Math.max(0, limit));
+  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
+}
+
+export async function loadSnapshotsForDateWindow(
+  requestedDate: string | undefined,
+  monthsBack = 12,
+  options: DatasetLoadOptions = {}
+): Promise<Dataset[]> {
+  const snapshots = await loadSnapshotRows();
+  const endSnapshot = selectSnapshotRowForDate(snapshots, requestedDate);
+  const startDate = subtractCalendarMonthsDateKey(endSnapshot.snapshotDate, monthsBack);
+  const selected = snapshots.filter(
+    (snapshot) => snapshot.snapshotDate >= startDate && snapshot.snapshotDate <= endSnapshot.snapshotDate
+  );
+  return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
+}
+
+export async function loadReferenceVersions(): Promise<ReferenceVersions> {
+  return referenceVersionsCache.getOrSet("latest", async () => {
+    const row = await executeSqlJson<{ versionSetId: number } | null>(`
+SELECT TOP (1)
+  version_ref.[version_set_id] AS [versionSetId]
+FROM (
+  SELECT ds.[reference_version_set_id] AS [version_set_id], ds.[snapshot_date] AS [snapshot_date], CAST(0 AS INT) AS [ord]
+  FROM [${DATA_SCHEMA}].[dataset_snapshot] ds
+  WHERE ds.[reference_version_set_id] IS NOT NULL
+  UNION ALL
+  SELECT rv.[version_set_id], CAST(NULL AS DATE), CAST(1 AS INT)
+  FROM [${DATA_SCHEMA}].[reference_version_set] rv
+) version_ref
+ORDER BY
+  version_ref.[ord] ASC,
+  version_ref.[snapshot_date] DESC,
+  version_ref.[version_set_id] DESC
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`);
+
+    if (!row) {
+      return {
+        osCurrentMajor: {},
+        softwareSupportMatrix: {}
+      };
+    }
+
+    const versionSetId = row.versionSetId;
+    const [osRows, softwareRows] = await Promise.all([
+      executeSqlJson<Array<{ osKey: string; currentSupportedMajor: number }>>(
+        `
+SELECT
+  osm.[os_key] AS [osKey],
+  osm.[current_supported_major] AS [currentSupportedMajor]
+FROM [${DATA_SCHEMA}].[reference_os_current_major] osm
+WHERE osm.[version_set_id] = ${versionSetId}
+ORDER BY osm.[os_key]
+FOR JSON PATH;
+`
+      ),
+      executeSqlJson<Array<{ softwareName: string; versionOrdinal: number; version: string }>>(
+        `
+SELECT
+  ssv.[software_name] AS [softwareName],
+  ssv.[version_ordinal] AS [versionOrdinal],
+  ssv.[version] AS [version]
+FROM [${DATA_SCHEMA}].[reference_software_supported_version] ssv
+WHERE ssv.[version_set_id] = ${versionSetId}
+ORDER BY ssv.[software_name], ssv.[version_ordinal]
+FOR JSON PATH;
+`
+      )
+    ]);
+
+    const osCurrentMajor: Record<string, number> = {};
+    for (const rowItem of osRows) {
+      osCurrentMajor[rowItem.osKey] = rowItem.currentSupportedMajor;
+    }
+
+    const softwareSupportMatrix: Record<string, string[]> = {};
+    for (const rowItem of softwareRows) {
+      const existing = softwareSupportMatrix[rowItem.softwareName];
+      if (existing) {
+        existing.push(rowItem.version);
+      } else {
+        softwareSupportMatrix[rowItem.softwareName] = [rowItem.version];
+      }
+    }
+
+    return {
+      osCurrentMajor,
+      softwareSupportMatrix
+    };
+  });
+}
+
+function ruleParameterValue(row: SpiRuleParameterRow): SpiRuleParameterValue {
+  if (row.parameterType === "number") {
+    const numericValue = Number(row.parameterValue);
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  }
+  if (row.parameterType === "boolean") {
+    return ["1", "true", "yes"].includes(row.parameterValue.trim().toLowerCase());
+  }
+  return row.parameterValue;
+}
+
+function groupBySpiId<T extends { spiId: number }>(rows: T[]): Map<number, T[]> {
+  const grouped = new Map<number, T[]>();
+  for (const row of rows) {
+    const existing = grouped.get(row.spiId);
+    if (existing) {
+      existing.push(row);
+    } else {
+      grouped.set(row.spiId, [row]);
+    }
+  }
+  return grouped;
+}
+
+function groupByRuleKey<T extends { ruleKey: string }>(rows: T[]): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const existing = grouped.get(row.ruleKey);
+    if (existing) {
+      existing.push(row);
+    } else {
+      grouped.set(row.ruleKey, [row]);
+    }
+  }
+  return grouped;
+}
+
+export async function loadSeverityDefinitions(): Promise<SeverityDefinition[]> {
+  return severityDefinitionsCache.getOrSet("latest", async () => {
+    const rows = await executeSqlJson<SeverityDefinitionRow[]>(`
+SELECT
+  fsd.[severity_key] AS [severityKey],
+  fsd.[label] AS [label],
+  fsd.[display_order] AS [displayOrder],
+  fsd.[selectable_in_settings] AS [selectableInSettings],
+  fsd.[tone_key] AS [toneKey]
+FROM [${DATA_SCHEMA}].[finding_severity_definition] fsd
+ORDER BY fsd.[display_order], fsd.[severity_key]
+FOR JSON PATH;
+`);
+
+    return normalizeSeverityDefinitions(rows);
+  });
+}
+
+export async function loadFindingPriorityDefinitions(): Promise<FindingPriorityDefinition[]> {
+  return priorityDefinitionsCache.getOrSet("latest", async () => {
+    const rows = await executeSqlJson<FindingPriorityDefinitionRow[]>(`
+SELECT
+  fpd.[priority_rank] AS [priorityRank],
+  fpd.[label] AS [label],
+  fpd.[display_order] AS [displayOrder],
+  fpd.[selectable_in_settings] AS [selectableInSettings],
+  fpd.[description] AS [description]
+FROM [${DATA_SCHEMA}].[finding_priority_definition] fpd
+ORDER BY fpd.[display_order], fpd.[priority_rank]
+FOR JSON PATH;
+`);
+
+    return normalizePriorityDefinitions(rows);
+  });
+}
+
+export async function loadFindingDisplayConfiguration(): Promise<FindingDisplayConfiguration> {
+  return findingDisplayConfigurationCache.getOrSet("latest", async () => {
+    const [
+      sourcePolicies,
+      generationPolicies,
+      workflowStatuses,
+      buckets,
+      evidenceFields,
+      registerColumns
+    ] = await Promise.all([
+      executeSqlJson<FindingSourcePolicyRow[]>(`
+SELECT
+  fsp.[policy_key] AS [policyKey],
+  fsp.[display_order] AS [displayOrder],
+  fsp.[name] AS [name],
+  fsp.[description] AS [description],
+  fsp.[use_persisted_findings] AS [usePersistedFindings],
+  fsp.[generate_when_empty] AS [generateWhenEmpty],
+  fsp.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[finding_source_policy] fsp
+ORDER BY fsp.[display_order], fsp.[policy_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingGenerationPolicyRow[]>(`
+SELECT
+  fgp.[policy_key] AS [policyKey],
+  CONVERT(CHAR(10), fgp.[history_start_date], 23) AS [historyStartDate],
+  fgp.[history_window_years] AS [historyWindowYears],
+  fgp.[baseline_backlog_count] AS [baselineBacklogCount],
+  fgp.[min_open_count] AS [minOpenCount],
+  fgp.[max_open_count] AS [maxOpenCount],
+  fgp.[add_probability_percent] AS [addProbabilityPercent],
+  fgp.[add_rate_min_percent] AS [addRateMinPercent],
+  fgp.[add_rate_max_percent] AS [addRateMaxPercent],
+  fgp.[close_rate_min_percent] AS [closeRateMinPercent],
+  fgp.[close_rate_max_percent] AS [closeRateMaxPercent],
+  fgp.[close_backfill_min_count] AS [closeBackfillMinCount],
+  fgp.[close_backfill_max_count] AS [closeBackfillMaxCount],
+  fgp.[timezone_offset_minutes] AS [timezoneOffsetMinutes]
+FROM [${DATA_SCHEMA}].[finding_generation_policy] fgp
+ORDER BY fgp.[policy_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingWorkflowStatusDefinitionRow[]>(`
+SELECT
+  fwsd.[status_key] AS [statusKey],
+  fwsd.[label] AS [label],
+  fwsd.[display_order] AS [displayOrder],
+  fwsd.[tone_key] AS [toneKey],
+  fwsd.[terminal_status] AS [terminalStatus]
+FROM [${DATA_SCHEMA}].[finding_workflow_status_definition] fwsd
+ORDER BY fwsd.[display_order], fwsd.[status_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingBucketDefinitionRow[]>(`
+SELECT
+  fbd.[bucket_key] AS [bucketKey],
+  fbd.[bucket_type] AS [bucketType],
+  fbd.[label] AS [label],
+  fbd.[display_order] AS [displayOrder],
+  fbd.[tone_key] AS [toneKey],
+  fbd.[condition_key] AS [conditionKey],
+  fbd.[severity_key] AS [severityKey],
+  fbd.[priority_min] AS [priorityMin],
+  fbd.[priority_max] AS [priorityMax],
+  fbd.[workflow_status] AS [workflowStatus],
+  fbd.[enabled] AS [enabled],
+  fbd.[description] AS [description]
+FROM [${DATA_SCHEMA}].[finding_bucket_definition] fbd
+ORDER BY fbd.[display_order], fbd.[bucket_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingEvidenceFieldDefinitionRow[]>(`
+SELECT
+  fefd.[field_key] AS [fieldKey],
+  fefd.[display_order] AS [displayOrder],
+  fefd.[label] AS [label],
+  fefd.[purpose_key] AS [purposeKey],
+  JSON_QUERY(fefd.[candidate_keys_json]) AS [candidateKeysJson],
+  fefd.[fallback_value] AS [fallbackValue],
+  fefd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[finding_evidence_field_definition] fefd
+ORDER BY fefd.[display_order], fefd.[field_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<FindingRegisterColumnDefinitionRow[]>(`
+SELECT
+  frcd.[column_key] AS [columnKey],
+  frcd.[label] AS [label],
+  frcd.[display_order] AS [displayOrder],
+  frcd.[value_key] AS [valueKey],
+  frcd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[finding_register_column_definition] frcd
+ORDER BY frcd.[display_order], frcd.[column_key]
+FOR JSON PATH;
+`)
+    ]);
+
+    return normalizeFindingDisplayConfiguration({
+      sourcePolicies,
+      generationPolicies,
+      workflowStatuses,
+      buckets,
+      evidenceFields,
+      registerColumns
+    });
+  });
+}
+
+export async function loadSpiDefinitions(): Promise<SpiDefinition[]> {
+  return spiDefinitionsCache.getOrSet("latest", async () => {
+    const [
+      definitionRows,
+      applicabilityRows,
+      parameterRows,
+      teamRows,
+      actionRows,
+      conditionRows,
+      ruleDefinitionRows,
+      calculationSourceRows,
+      calculationDefinitionRows,
+      calculationEvidenceRows,
+      parameterDefinitionRows,
+      outcomeTemplateRows,
+      reportDetailRows,
+      classificationRuleRows,
+      featureBindingRows
+    ] = await Promise.all([
+      executeSqlJson<SpiDefinitionRow[]>(`
+SELECT
+  sd.[spi_id] AS [spiId],
+  sd.[display_order] AS [displayOrder],
+  sd.[name] AS [name],
+  sd.[description] AS [description],
+  sd.[success_measure] AS [successMeasure],
+  sd.[priority_order] AS [priorityOrder],
+  sd.[default_severity] AS [defaultSeverity],
+  sd.[recommended_action] AS [recommendedAction],
+  sd.[enabled] AS [enabled],
+  sd.[rule_key] AS [ruleKey],
+  sd.[report_available] AS [reportAvailable],
+  sd.[trend_report_available] AS [trendReportAvailable],
+  sd.[report_detail_key] AS [reportDetailKey]
+FROM [${DATA_SCHEMA}].[spi_definition] sd
+ORDER BY sd.[display_order], sd.[spi_id]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiApplicableAssetTypeRow[]>(`
+SELECT
+  saat.[spi_id] AS [spiId],
+  saat.[asset_type] AS [assetType]
+FROM [${DATA_SCHEMA}].[spi_applicable_asset_type] saat
+ORDER BY saat.[spi_id], saat.[asset_type]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleParameterRow[]>(`
+SELECT
+  srp.[spi_id] AS [spiId],
+  srp.[parameter_key] AS [parameterKey],
+  srp.[parameter_type] AS [parameterType],
+  srp.[parameter_value] AS [parameterValue]
+FROM [${DATA_SCHEMA}].[spi_rule_parameter] srp
+ORDER BY srp.[spi_id], srp.[parameter_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiTaskingTeamRow[]>(`
+SELECT
+  stt.[spi_id] AS [spiId],
+  stt.[display_order] AS [displayOrder],
+  stt.[team] AS [team],
+  stt.[support_queue] AS [supportQueue],
+  stt.[contact_email] AS [contactEmail]
+FROM [${DATA_SCHEMA}].[spi_tasking_team] stt
+ORDER BY stt.[spi_id], stt.[display_order], stt.[team]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiTaskingActionTemplateRow[]>(`
+SELECT
+  stat.[spi_id] AS [spiId],
+  stat.[display_order] AS [displayOrder],
+  stat.[condition_key] AS [conditionKey],
+  stat.[action_text] AS [actionText]
+FROM [${DATA_SCHEMA}].[spi_tasking_action_template] stat
+ORDER BY stat.[spi_id], stat.[display_order]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiTaskingConditionTemplateRow[]>(`
+SELECT
+  stct.[spi_id] AS [spiId],
+  stct.[condition_key] AS [conditionKey],
+  stct.[template_text] AS [templateText]
+FROM [${DATA_SCHEMA}].[spi_tasking_condition_template] stct
+ORDER BY stct.[spi_id], stct.[condition_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleDefinitionRow[]>(`
+SELECT
+  srd.[rule_key] AS [ruleKey],
+  srd.[handler_key] AS [handlerKey],
+  srd.[display_order] AS [displayOrder],
+  srd.[name] AS [name],
+  srd.[description] AS [description],
+  srd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_rule_definition] srd
+ORDER BY srd.[display_order], srd.[rule_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiCalculationSourceRow[]>(`
+SELECT
+  scs.[source_key] AS [sourceKey],
+  scs.[source_object_name] AS [sourceObjectName],
+  scs.[display_order] AS [displayOrder],
+  scs.[name] AS [name],
+  scs.[description] AS [description],
+  scs.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_calculation_source] scs
+ORDER BY scs.[display_order], scs.[source_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiCalculationDefinitionRow[]>(`
+SELECT
+  scd.[rule_key] AS [ruleKey],
+  scd.[source_key] AS [sourceKey],
+  scd.[display_order] AS [displayOrder],
+  scd.[status_expression_sql] AS [statusExpressionSql],
+  scd.[outcome_expression_sql] AS [outcomeExpressionSql],
+  scd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_calculation_definition] scd
+ORDER BY scd.[display_order], scd.[rule_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiCalculationEvidenceExpressionRow[]>(`
+SELECT
+  scee.[rule_key] AS [ruleKey],
+  scee.[evidence_key] AS [evidenceKey],
+  scee.[display_order] AS [displayOrder],
+  scee.[value_type] AS [valueType],
+  scee.[value_expression_sql] AS [valueExpressionSql],
+  scee.[omit_when_null] AS [omitWhenNull]
+FROM [${DATA_SCHEMA}].[spi_calculation_evidence_expression] scee
+ORDER BY scee.[rule_key], scee.[display_order], scee.[evidence_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleParameterDefinitionRow[]>(`
+SELECT
+  srpd.[rule_key] AS [ruleKey],
+  srpd.[parameter_key] AS [parameterKey],
+  srpd.[parameter_type] AS [parameterType],
+  srpd.[required] AS [required],
+  srpd.[default_value] AS [defaultValue],
+  srpd.[allowed_values_json] AS [allowedValuesJson],
+  srpd.[display_order] AS [displayOrder],
+  srpd.[description] AS [description]
+FROM [${DATA_SCHEMA}].[spi_rule_parameter_definition] srpd
+ORDER BY srpd.[rule_key], srpd.[display_order], srpd.[parameter_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiRuleOutcomeTemplateRow[]>(`
+SELECT
+  srot.[rule_key] AS [ruleKey],
+  srot.[outcome_key] AS [outcomeKey],
+  srot.[compliance_status] AS [complianceStatus],
+  srot.[reason_template] AS [reasonTemplate],
+  srot.[evidence_template] AS [evidenceTemplate]
+FROM [${DATA_SCHEMA}].[spi_rule_outcome_template] srot
+ORDER BY srot.[rule_key], srot.[outcome_key], srot.[compliance_status]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiReportDetailDefinitionRow[]>(`
+SELECT
+  srdd.[report_detail_key] AS [reportDetailKey],
+  srdd.[handler_key] AS [handlerKey],
+  srdd.[display_order] AS [displayOrder],
+  srdd.[name] AS [name],
+  srdd.[description] AS [description],
+  srdd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[spi_report_detail_definition] srdd
+ORDER BY srdd.[display_order], srdd.[report_detail_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiFindingClassificationRuleRow[]>(`
+SELECT
+  sfcr.[classification_rule_id] AS [classificationRuleId],
+  sfcr.[display_order] AS [displayOrder],
+  sfcr.[enabled] AS [enabled],
+  sfcr.[spi_id] AS [spiId],
+  sfcr.[compliance_status] AS [complianceStatus],
+  sfcr.[condition_key] AS [conditionKey],
+  sfcr.[severity_key] AS [severityKey],
+  sfcr.[priority_rank] AS [priorityRank],
+  sfcr.[description] AS [description]
+FROM [${DATA_SCHEMA}].[spi_finding_classification_rule] sfcr
+ORDER BY sfcr.[display_order], sfcr.[classification_rule_id]
+FOR JSON PATH;
+`),
+      executeSqlJson<SpiFeatureBindingRow[]>(`
+SELECT
+  sfb.[feature_key] AS [featureKey],
+  sfb.[spi_id] AS [spiId],
+  sfb.[display_order] AS [displayOrder],
+  sfb.[compliance_status] AS [complianceStatus],
+  sfb.[outcome_key] AS [outcomeKey],
+  sfb.[enabled] AS [enabled],
+  sfb.[description] AS [description]
+FROM [${DATA_SCHEMA}].[spi_feature_binding] sfb
+ORDER BY sfb.[spi_id], sfb.[display_order], sfb.[feature_key]
+FOR JSON PATH;
+`)
+    ]);
+
+    const applicabilityBySpi = groupBySpiId(applicabilityRows);
+    const parametersBySpi = groupBySpiId(parameterRows);
+    const teamsBySpi = groupBySpiId(teamRows);
+    const actionsBySpi = groupBySpiId(actionRows);
+    const conditionsBySpi = groupBySpiId(conditionRows);
+    const featureBindingsBySpi = groupBySpiId(featureBindingRows);
+    const ruleDefinitionByKey = new Map(ruleDefinitionRows.map((row) => [row.ruleKey, row]));
+    const calculationSourceByKey = new Map(calculationSourceRows.map((row) => [row.sourceKey, row]));
+    const calculationEvidenceByRule = groupByRuleKey(calculationEvidenceRows);
+    const calculationDefinitionByRule = new Map(
+      calculationDefinitionRows.map((row) => [
+        row.ruleKey,
+        {
+          ...row,
+          source: calculationSourceByKey.get(row.sourceKey),
+          evidenceExpressions: calculationEvidenceByRule.get(row.ruleKey) ?? []
+        }
+      ])
+    );
+    const parameterDefinitionsByRule = groupByRuleKey(parameterDefinitionRows);
+    const outcomeTemplatesByRule = groupByRuleKey(outcomeTemplateRows);
+    const reportDetailByKey = new Map(reportDetailRows.map((row) => [row.reportDetailKey, row]));
+
+    return normalizeSpiDefinitions(
+      definitionRows.map((row) => ({
+        ...row,
+        ruleDefinition: ruleDefinitionByKey.get(row.ruleKey),
+        calculationDefinition: calculationDefinitionByRule.get(row.ruleKey),
+        parameterDefinitions: parameterDefinitionsByRule.get(row.ruleKey) ?? [],
+        outcomeTemplates: outcomeTemplatesByRule.get(row.ruleKey) ?? [],
+        classificationRules: classificationRuleRows,
+        featureBindings: featureBindingsBySpi.get(row.spiId) ?? [],
+        reportDetailDefinition: reportDetailByKey.get(row.reportDetailKey),
+        applicableAssetTypes: (applicabilityBySpi.get(row.spiId) ?? []).map((item) => item.assetType),
+        ruleParameters: Object.fromEntries(
+          (parametersBySpi.get(row.spiId) ?? []).map((item) => [item.parameterKey, ruleParameterValue(item)])
+        ),
+        taskingTeams: teamsBySpi.get(row.spiId) ?? [],
+        taskingActions: actionsBySpi.get(row.spiId) ?? [],
+        taskingConditions: conditionsBySpi.get(row.spiId) ?? []
+      }))
+    );
+  });
+}
+
+export async function loadKpiDefinitions(): Promise<KpiDefinition[]> {
+  return kpiDefinitionsCache.getOrSet("latest", async () => {
+    const [
+      rows,
+      calculationRows,
+      reportDetailRows,
+      reportBindingRows,
+      teamRows,
+      actionRows,
+      conditionRows
+    ] = await Promise.all([
+      executeSqlJson<KpiDefinitionRow[]>(`
+SELECT
+  kpi.[kpi_id] AS [id],
+  kpi.[display_order] AS [displayOrder],
+  kpi.[name] AS [name],
+  kpi.[description] AS [description],
+  kpi.[success_measure] AS [successMeasure],
+  kpi.[calculation_key] AS [calculationKey],
+  kpi.[report_available] AS [reportAvailable],
+  kpi.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[kpi_definition] kpi
+ORDER BY kpi.[display_order], kpi.[kpi_id]
+FOR JSON PATH;
+`),
+      executeSqlJson<KpiCalculationDefinitionRow[]>(`
+SELECT
+  kcd.[calculation_key] AS [calculationKey],
+  kcd.[source_key] AS [sourceKey],
+  kcd.[display_order] AS [displayOrder],
+  kcd.[name] AS [name],
+  kcd.[description] AS [description],
+  kcd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[kpi_calculation_definition] kcd
+ORDER BY kcd.[display_order], kcd.[calculation_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<KpiReportDetailDefinitionRow[]>(`
+SELECT
+  krdd.[report_detail_key] AS [reportDetailKey],
+  krdd.[handler_key] AS [handlerKey],
+  krdd.[display_order] AS [displayOrder],
+  krdd.[name] AS [name],
+  krdd.[description] AS [description],
+  krdd.[enabled] AS [enabled]
+FROM [${DATA_SCHEMA}].[kpi_report_detail_definition] krdd
+ORDER BY krdd.[display_order], krdd.[report_detail_key]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<{ kpiId: string; reportDetailKey: string }>>(`
+SELECT
+  krdb.[kpi_id] AS [kpiId],
+  krdb.[report_detail_key] AS [reportDetailKey]
+FROM [${DATA_SCHEMA}].[kpi_report_detail_binding] krdb
+ORDER BY krdb.[kpi_id]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<KpiTaskingTeamRow & { kpiId: string }>>(`
+SELECT
+  ktt.[kpi_id] AS [kpiId],
+  ktt.[display_order] AS [displayOrder],
+  ktt.[team] AS [team],
+  ktt.[support_queue] AS [supportQueue],
+  ktt.[contact_email] AS [contactEmail]
+FROM [${DATA_SCHEMA}].[kpi_tasking_team] ktt
+ORDER BY ktt.[kpi_id], ktt.[display_order]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<KpiTaskingActionTemplateRow & { kpiId: string }>>(`
+SELECT
+  ktat.[kpi_id] AS [kpiId],
+  ktat.[display_order] AS [displayOrder],
+  ktat.[condition_key] AS [conditionKey],
+  ktat.[action_text] AS [actionText]
+FROM [${DATA_SCHEMA}].[kpi_tasking_action_template] ktat
+ORDER BY ktat.[kpi_id], ktat.[display_order]
+FOR JSON PATH;
+`),
+      executeSqlJson<Array<KpiTaskingConditionTemplateRow & { kpiId: string }>>(`
+SELECT
+  ktct.[kpi_id] AS [kpiId],
+  ktct.[condition_key] AS [conditionKey],
+  ktct.[template_text] AS [templateText]
+FROM [${DATA_SCHEMA}].[kpi_tasking_condition_template] ktct
+ORDER BY ktct.[kpi_id], ktct.[condition_key]
+FOR JSON PATH;
+`)
+    ]);
+
+    const calculationByKey = new Map(
+      calculationRows.map((row) => [row.calculationKey, { ...row, enabled: Boolean(row.enabled) }])
+    );
+    const reportDetailByKey = new Map(
+      reportDetailRows.map((row) => [row.reportDetailKey, { ...row, enabled: Boolean(row.enabled) }])
+    );
+    const reportDetailKeyByKpi = new Map(reportBindingRows.map((row) => [row.kpiId, row.reportDetailKey]));
+    const teamsByKpi = toArrayMap(teamRows, (row) => row.kpiId);
+    const actionsByKpi = toArrayMap(actionRows, (row) => row.kpiId);
+    const conditionsByKpi = toArrayMap(conditionRows, (row) => row.kpiId);
+
+    return normalizeKpiDefinitions(
+      rows.map((row) => ({
+        ...row,
+        calculationDefinition: calculationByKey.get(row.calculationKey),
+        reportDetailDefinition: reportDetailByKey.get(reportDetailKeyByKpi.get(row.id) ?? "generic-kpi-summary"),
+        taskingTeams: teamsByKpi.get(row.id) ?? [],
+        taskingActions: actionsByKpi.get(row.id) ?? [],
+        taskingConditions: conditionsByKpi.get(row.id) ?? []
+      }))
+    );
+  });
+}
+
+function toSqlJsonArrayLiteral(values: Iterable<string>): string {
+  return toSqlUnicodeLiteral(JSON.stringify(toSortedStringArray(values)));
+}
+
+function toSortedStringArray(values: Iterable<string>): string[] {
+  return Array.from(new Set(Array.from(values).filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))).sort((left, right) =>
+    left.localeCompare(right)
+  );
+}
+
+function findingsForKpiSql(findings: Finding[]): Array<{ assetId: string; severity: string; priorityRank: number }> {
+  return findings.map((finding) => ({
+    assetId: finding.scope.assetId,
+    severity: finding.severity,
+    priorityRank: finding.priorityRank
+  }));
+}
+
+function findingsForKpiCacheSignature(findings: Finding[]): string {
+  return hashCacheValue(
+    JSON.stringify(
+      findingsForKpiSql(findings).sort((left, right) =>
+        left.assetId.localeCompare(right.assetId) ||
+        left.priorityRank - right.priorityRank ||
+        left.severity.localeCompare(right.severity)
+      )
+    )
+  );
+}
+
+async function kpiEvaluationSettingsSignature(kpiDefinitions: KpiDefinition[]): Promise<string> {
+  const [measuresVersion, discoveryVersion] = await Promise.all([
+    loadLatestMeasuresSettingsVersion(),
+    loadLatestDiscoveryToolsSettingsVersion()
+  ]);
+  return [
+    kpiDefinitionsCacheSignature(kpiDefinitions),
+    measuresVersion ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}` : "measures:default",
+    discoveryVersion ? `discovery:${discoveryVersion.settingsVersionId}:${discoveryVersion.updatedAt}` : "discovery:default"
+  ].join("|");
+}
+
+export async function loadSnapshotKpiEvaluationsForScope({
+  snapshotId,
+  assetIds,
+  systemIds,
+  networkIds,
+  findings,
+  kpiDefinitions
+}: {
+  snapshotId: number;
+  assetIds: Iterable<string>;
+  systemIds: Iterable<string>;
+  networkIds: Iterable<string>;
+  findings: Finding[];
+  kpiDefinitions?: KpiDefinition[];
+}): Promise<StoredKpiEvaluation[]> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
+  const sortedAssetIds = toSortedStringArray(assetIds);
+  const sortedSystemIds = toSortedStringArray(systemIds);
+  const sortedNetworkIds = toSortedStringArray(networkIds);
+  const findingsPayload = findingsForKpiSql(findings);
+  const settingsSignature = await kpiEvaluationSettingsSignature(definitions);
+  const cacheKey = cacheSignatureFromParts([
+    safeSnapshotId,
+    settingsSignature,
+    hashCacheValue(JSON.stringify(sortedAssetIds)),
+    hashCacheValue(JSON.stringify(sortedSystemIds)),
+    hashCacheValue(JSON.stringify(sortedNetworkIds)),
+    findingsForKpiCacheSignature(findings)
+  ]);
+
+  return kpiEvaluationsCache.getOrSet(cacheKey, async () => {
+    const assetIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedAssetIds));
+    const systemIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedSystemIds));
+    const networkIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedNetworkIds));
+    const findingsSql = toSqlUnicodeLiteral(JSON.stringify(findingsPayload));
+    const rows = await timeAsync(`loadSnapshotKpiEvaluations:${safeSnapshotId}`, () => executeSqlJson<StoredKpiEvaluationRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot]
+  @snapshot_id = ${safeSnapshotId},
+  @asset_ids_json = ${assetIdsSql},
+  @system_ids_json = ${systemIdsSql},
+  @network_ids_json = ${networkIdsSql},
+  @effective_findings_json = ${findingsSql},
+  @emit_json = 1;
+`));
+
+    return normalizeStoredKpiEvaluations(rows, definitions);
+  });
+}
+
+export type KpiEvaluationScopeInput = {
+  scopeKey: string;
+  assetIds: Iterable<string>;
+  systemIds: Iterable<string>;
+  networkIds: Iterable<string>;
+  findings: Finding[];
+};
+
+export async function loadSnapshotKpiEvaluationsForScopes({
+  snapshotId,
+  scopes,
+  kpiDefinitions
+}: {
+  snapshotId: number;
+  scopes: KpiEvaluationScopeInput[];
+  kpiDefinitions?: KpiDefinition[];
+}): Promise<Map<string, StoredKpiEvaluation[]>> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
+  const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
+  const normalizedScopes = scopes
+    .map((scope) => ({
+      scopeKey: scope.scopeKey.trim(),
+      assetIds: toSortedStringArray(scope.assetIds),
+      systemIds: toSortedStringArray(scope.systemIds),
+      networkIds: toSortedStringArray(scope.networkIds),
+      findings: findingsForKpiSql(scope.findings)
+    }))
+    .filter((scope) => scope.scopeKey);
+
+  if (!normalizedScopes.length) {
+    return new Map();
+  }
+
+  const settingsSignature = await kpiEvaluationSettingsSignature(definitions);
+  const cacheKey = cacheSignatureFromParts([
+    safeSnapshotId,
+    settingsSignature,
+    hashCacheValue(JSON.stringify(normalizedScopes))
+  ]);
+
+  return scopedKpiEvaluationsCache.getOrSet(cacheKey, async () => {
+    const rows = await timeAsync(`loadSnapshotKpiEvaluationsBulk:${safeSnapshotId}:${normalizedScopes.length}`, () =>
+      executeSqlJson<StoredScopedKpiEvaluationRow[]>(`
+EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot_bulk]
+  @snapshot_id = ${safeSnapshotId},
+  @scope_rows_json = ${toSqlUnicodeLiteral(JSON.stringify(normalizedScopes))},
+  @emit_json = 1;
+`)
+    );
+
+    const rowsByScope = new Map<string, StoredKpiEvaluationRow[]>();
+    for (const row of rows) {
+      if (!row.scopeKey) {
+        continue;
+      }
+      rowsByScope.set(row.scopeKey, [...(rowsByScope.get(row.scopeKey) ?? []), row]);
+    }
+
+    const result = new Map<string, StoredKpiEvaluation[]>();
+    for (const scope of normalizedScopes) {
+      result.set(scope.scopeKey, normalizeStoredKpiEvaluations(rowsByScope.get(scope.scopeKey) ?? [], definitions));
+    }
+    return result;
+  });
+}
+
+export async function loadSnapshotKpiEvaluationsForAnalyticsScope({
+  dataset,
+  analytics,
+  systems,
+  networks,
+  kpiDefinitions
+}: {
+  dataset: Dataset;
+  analytics: { evaluations: Array<{ assetId: string }>; findings: Finding[] };
+  systems: ICTSystem[];
+  networks: ManagedNetwork[];
+  kpiDefinitions?: KpiDefinition[];
+}): Promise<StoredKpiEvaluation[]> {
+  if (!dataset.snapshotId) {
+    throw new Error("SQL-backed KPI evaluation requires a dataset snapshot id.");
+  }
+
+  return loadSnapshotKpiEvaluationsForScope({
+    snapshotId: dataset.snapshotId,
+    assetIds: analytics.evaluations.map((evaluation) => evaluation.assetId),
+    systemIds: systems.map((system) => system.id),
+    networkIds: networks.map((network) => network.id),
+    findings: analytics.findings,
+    kpiDefinitions
+  });
+}
+
+function clearSettingsDependentCaches(): void {
+  kpiEvaluationsCache.clear();
+  scopedKpiEvaluationsCache.clear();
+  clearAnalyticsCache();
+  clearAppDataCaches();
+}
+
+function clearMeasuresSettingsCaches(): void {
+  measuresSettingsVersionCache.clear();
+  measuresSettingsByVersionCache.clear();
+  datasetBySnapshotIdCache.clear();
+  clearSettingsDependentCaches();
+}
+
+function clearDiscoveryToolsSettingsCaches(): void {
+  discoveryToolsSettingsVersionCache.clear();
+  discoveryToolsSettingsByVersionCache.clear();
+  datasetBySnapshotIdCache.clear();
+  clearSettingsDependentCaches();
+}
+
+async function loadLatestMeasuresSettingsVersion(): Promise<SettingsVersionRow | null> {
+  return measuresSettingsVersionCache.getOrSet("latest", () =>
+    executeSqlJson<SettingsVersionRow | null>(`
+SELECT TOP (1)
+  msv.[settings_version_id] AS [settingsVersionId],
+  CONVERT(NVARCHAR(40), msv.[updated_at], 127) AS [updatedAt]
+FROM [${DATA_SCHEMA}].[measures_settings_version] msv
+ORDER BY msv.[updated_at] DESC, msv.[settings_version_id] DESC
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`)
+  );
+}
+
+export async function loadMeasuresSettings(
+  providedSpiDefinitions?: SpiDefinition[],
+  providedSeverityDefinitions?: SeverityDefinition[],
+  providedPriorityDefinitions?: FindingPriorityDefinition[]
+): Promise<MeasuresSettings> {
+  const [version, spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
+    loadLatestMeasuresSettingsVersion(),
+    providedSpiDefinitions ? Promise.resolve(providedSpiDefinitions) : loadSpiDefinitions(),
+    providedSeverityDefinitions ? Promise.resolve(providedSeverityDefinitions) : loadSeverityDefinitions(),
+    providedPriorityDefinitions ? Promise.resolve(providedPriorityDefinitions) : loadFindingPriorityDefinitions()
+  ]);
+
+  if (!version) {
+    return defaultMeasuresSettings(spiDefinitions, severityDefinitions, priorityDefinitions);
+  }
+
+  return measuresSettingsByVersionCache.getOrSet(
+    [
+      `version:${version.settingsVersionId}:${version.updatedAt}`,
+      spiDefinitionsCacheSignature(spiDefinitions),
+      severityDefinitionsCacheSignature(severityDefinitions),
+      JSON.stringify(priorityDefinitions.map((definition) => [
+        definition.priorityRank,
+        definition.label,
+        definition.displayOrder,
+        definition.selectableInSettings
+      ]))
+    ].join("::"),
+    async () => {
+      const [severityRows, priorityRows] = await Promise.all([
+        executeSqlJson<MeasuresMatrixRow[]>(`
+SELECT
+  msm.[spi_id] AS [spiId],
+  msm.[asset_type] AS [assetType],
+  msm.[severity] AS [severity]
+FROM [${DATA_SCHEMA}].[measures_severity_matrix] msm
+WHERE msm.[settings_version_id] = ${version.settingsVersionId}
+ORDER BY msm.[spi_id], msm.[asset_type]
+FOR JSON PATH;
+`),
+        executeSqlJson<MeasuresPriorityMatrixRow[]>(`
+SELECT
+  mpm.[spi_id] AS [spiId],
+  mpm.[priority_rank] AS [priorityRank]
+FROM [${DATA_SCHEMA}].[measures_priority_matrix] mpm
+WHERE mpm.[settings_version_id] = ${version.settingsVersionId}
+ORDER BY mpm.[spi_id]
+FOR JSON PATH;
+`)
+      ]);
+
+      const severityMatrix: Record<string, MeasuresMatrixRow["severity"]> = {};
+      for (const row of severityRows) {
+        severityMatrix[`${row.spiId}:${row.assetType}`] = row.severity;
+      }
+
+      const priorityMatrix: Record<string, number> = {};
+      for (const row of priorityRows) {
+        priorityMatrix[String(row.spiId)] = row.priorityRank;
+      }
+
+      return normalizeMeasuresSettings({
+        updatedAt: coerceIsoTimestamp(version.updatedAt),
+        severityMatrix,
+        priorityMatrix
+      }, spiDefinitions, severityDefinitions, priorityDefinitions);
+    }
+  );
+}
+
+export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSettings> {
+  const [spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
+    loadSpiDefinitions(),
+    loadSeverityDefinitions(),
+    loadFindingPriorityDefinitions()
+  ]);
+  const normalized = normalizeMeasuresSettings(input, spiDefinitions, severityDefinitions, priorityDefinitions);
+  const persisted: MeasuresSettings = {
+    ...normalized,
+    updatedAt: new Date().toISOString()
+  };
+
+  const severityValueTuples: string[] = [];
+  for (const definition of spiDefinitions) {
+    for (const assetType of ASSET_TYPES) {
+      const key = `${definition.spiId}:${assetType}`;
+      const severity = persisted.severityMatrix[key];
+      if (severity) {
+        severityValueTuples.push(`(@newVersionId, ${definition.spiId}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(severity)})`);
+      }
+    }
+  }
+
+  const priorityValueTuples: string[] = [];
+  for (const definition of spiDefinitions) {
+    const priorityRank = persisted.priorityMatrix[String(definition.spiId)];
+    if (priorityRank) {
+      priorityValueTuples.push(`(@newVersionId, ${definition.spiId}, ${priorityRank})`);
+    }
+  }
+
+  if (!severityValueTuples.length) {
+    throw new Error("No measures severity mappings were produced after normalization.");
+  }
+  if (!priorityValueTuples.length) {
+    throw new Error("No measures priority mappings were produced after normalization.");
+  }
+
+  await executeSqlText(`
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @newVersionId BIGINT;
+INSERT INTO [${DATA_SCHEMA}].[measures_settings_version] ([updated_at])
+VALUES (${toSqlUnicodeLiteral(persisted.updatedAt)});
+SET @newVersionId = SCOPE_IDENTITY();
+
+INSERT INTO [${DATA_SCHEMA}].[measures_severity_matrix] (
+  [settings_version_id],
+  [spi_id],
+  [asset_type],
+  [severity]
+)
+VALUES
+${severityValueTuples.join(",\n")};
+
+INSERT INTO [${DATA_SCHEMA}].[measures_priority_matrix] (
+  [settings_version_id],
+  [spi_id],
+  [priority_rank]
+)
+VALUES
+${priorityValueTuples.join(",\n")};
+
+COMMIT TRANSACTION;
+`);
+
+  clearMeasuresSettingsCaches();
+  return persisted;
+}
+
+async function loadLatestDiscoveryToolsSettingsVersion(): Promise<SettingsVersionRow | null> {
+  return discoveryToolsSettingsVersionCache.getOrSet("latest", () =>
+    executeSqlJson<SettingsVersionRow | null>(`
+SELECT TOP (1)
+  dsv.[settings_version_id] AS [settingsVersionId],
+  CONVERT(NVARCHAR(40), dsv.[updated_at], 127) AS [updatedAt]
+FROM [${DATA_SCHEMA}].[discovery_tools_settings_version] dsv
+ORDER BY dsv.[updated_at] DESC, dsv.[settings_version_id] DESC
+FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+`)
+  );
+}
+
+export async function loadDiscoveryToolsSettings(): Promise<DiscoveryToolsSettings> {
+  const version = await loadLatestDiscoveryToolsSettingsVersion();
+
+  if (!version) {
+    return defaultDiscoveryToolsSettings();
+  }
+
+  return discoveryToolsSettingsByVersionCache.getOrSet(
+    `version:${version.settingsVersionId}:${version.updatedAt}`,
+    async () => {
+      const [toolRows, scopeRows] = await Promise.all([
+        executeSqlJson<DiscoveryToolRow[]>(`
+SELECT
+  dt.[tool_id] AS [id],
+  dt.[name] AS [name],
+  dt.[description] AS [description],
+  dt.[el2_owner] AS [el2Owner],
+  dt.[el2_operations_manager] AS [el2OperationsManager]
+FROM [${DATA_SCHEMA}].[discovery_tool] dt
+WHERE dt.[settings_version_id] = ${version.settingsVersionId}
+ORDER BY dt.[tool_id]
+FOR JSON PATH;
+`),
+        executeSqlJson<DiscoveryToolScopeRow[]>(`
+SELECT
+  dts.[tool_id] AS [toolId],
+  dts.[asset_type] AS [assetType],
+  dts.[scope_setting] AS [scopeSetting]
+FROM [${DATA_SCHEMA}].[discovery_tool_asset_scope] dts
+WHERE dts.[settings_version_id] = ${version.settingsVersionId}
+ORDER BY dts.[tool_id], dts.[asset_type]
+FOR JSON PATH;
+`)
+      ]);
+
+      const scopeByTool = toArrayMap(scopeRows, (row) => row.toolId);
+      const tools = toolRows.map((tool) => {
+        const toolScopes = scopeByTool.get(tool.id) ?? [];
+        const assetTypeScope: Record<AssetType, "required" | "na"> = createAssetTypeRecord((type) => type === "ip-node" ? "na" : "required");
+
+        for (const scope of toolScopes) {
+          assetTypeScope[scope.assetType] = scope.scopeSetting;
+        }
+
+        return {
+          id: tool.id,
+          name: tool.name,
+          description: tool.description,
+          el2Owner: tool.el2Owner,
+          el2OperationsManager: tool.el2OperationsManager,
+          assetTypeScope
+        };
+      });
+
+      return normalizeDiscoveryToolsSettings({
+        updatedAt: coerceIsoTimestamp(version.updatedAt),
+        tools
+      });
+    }
+  );
+}
+
+export async function saveDiscoveryToolsSettings(input: unknown): Promise<DiscoveryToolsSettings> {
+  const existing = await loadDiscoveryToolsSettings();
+  const normalized = normalizeDiscoveryToolsScopeUpdate(input, existing);
+  const persisted: DiscoveryToolsSettings = {
+    ...normalized,
+    updatedAt: new Date().toISOString()
+  };
+
+  const toolValues = persisted.tools.map(
+    (tool) =>
+      `(@newVersionId, ${toSqlUnicodeLiteral(tool.id)}, ${toSqlUnicodeLiteral(tool.name)}, ${toSqlUnicodeLiteral(tool.description)}, ${toSqlUnicodeLiteral(tool.el2Owner)}, ${toSqlUnicodeLiteral(tool.el2OperationsManager)})`
+  );
+
+  const scopeValues: string[] = [];
+  for (const tool of persisted.tools) {
+    for (const assetType of ASSET_TYPES) {
+      const scopeSetting = tool.assetTypeScope[assetType];
+      scopeValues.push(
+        `(@newVersionId, ${toSqlUnicodeLiteral(tool.id)}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(scopeSetting)})`
+      );
+    }
+  }
+
+  await executeSqlText(`
+SET NOCOUNT ON;
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @newVersionId BIGINT;
+INSERT INTO [${DATA_SCHEMA}].[discovery_tools_settings_version] ([updated_at])
+VALUES (${toSqlUnicodeLiteral(persisted.updatedAt)});
+SET @newVersionId = SCOPE_IDENTITY();
+
+${
+  toolValues.length
+    ? `INSERT INTO [${DATA_SCHEMA}].[discovery_tool] (
+  [settings_version_id],
+  [tool_id],
+  [name],
+  [description],
+  [el2_owner],
+  [el2_operations_manager]
+)
+VALUES
+${toolValues.join(",\n")};`
+    : ""
+}
+
+${
+  scopeValues.length
+    ? `INSERT INTO [${DATA_SCHEMA}].[discovery_tool_asset_scope] (
+  [settings_version_id],
+  [tool_id],
+  [asset_type],
+  [scope_setting]
+)
+VALUES
+${scopeValues.join(",\n")};`
+    : ""
+}
+
+COMMIT TRANSACTION;
+`);
+
+  clearDiscoveryToolsSettingsCaches();
+  return persisted;
+}
+
+export function clearDataLoaderCaches(): void {
+  snapshotRowsCache.clear();
+  datasetBySnapshotIdCache.clear();
+  workspaceFilterOptionsCache.clear();
+  endpointExplorerCache.clear();
+  installedSoftwareExplorerCache.clear();
+  securityVulnerabilityExplorerCache.clear();
+  shadowItExplorerCache.clear();
+  referenceVersionsCache.clear();
+  kpiDefinitionsCache.clear();
+  kpiEvaluationsCache.clear();
+  scopedKpiEvaluationsCache.clear();
+  spiDefinitionsCache.clear();
+  severityDefinitionsCache.clear();
+  priorityDefinitionsCache.clear();
+  findingDisplayConfigurationCache.clear();
+  measuresSettingsVersionCache.clear();
+  measuresSettingsByVersionCache.clear();
+  discoveryToolsSettingsVersionCache.clear();
+  discoveryToolsSettingsByVersionCache.clear();
+  clearSettingsDependentCaches();
+}
+
+export function __resetDataLoaderCachesForTest(): void {
+  clearDataLoaderCaches();
+  snapshotRowsCache.resetStats();
+  datasetBySnapshotIdCache.resetStats();
+  workspaceFilterOptionsCache.resetStats();
+  endpointExplorerCache.resetStats();
+  installedSoftwareExplorerCache.resetStats();
+  securityVulnerabilityExplorerCache.resetStats();
+  shadowItExplorerCache.resetStats();
+  referenceVersionsCache.resetStats();
+  kpiDefinitionsCache.resetStats();
+  kpiEvaluationsCache.resetStats();
+  scopedKpiEvaluationsCache.resetStats();
+  spiDefinitionsCache.resetStats();
+  severityDefinitionsCache.resetStats();
+  priorityDefinitionsCache.resetStats();
+  findingDisplayConfigurationCache.resetStats();
+  measuresSettingsVersionCache.resetStats();
+  measuresSettingsByVersionCache.resetStats();
+  discoveryToolsSettingsVersionCache.resetStats();
+  discoveryToolsSettingsByVersionCache.resetStats();
+}

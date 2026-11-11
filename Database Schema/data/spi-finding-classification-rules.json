@@ -1,0 +1,148 @@
+{
+  "updatedAt": "2026-03-22T00:00:00.000Z",
+  "classificationRules": [
+    {
+      "classificationRuleId": "unknown-data-gap",
+      "displayOrder": 1,
+      "enabled": true,
+      "spiId": null,
+      "complianceStatus": "Unknown",
+      "conditionKey": "when_unknown",
+      "severityKey": "Data Gap",
+      "priorityRank": 90,
+      "description": "Unknown SPI outcomes generate Data Gap findings."
+    },
+    {
+      "classificationRuleId": "spi4-high-risk",
+      "displayOrder": 10,
+      "enabled": true,
+      "spiId": 4,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "High Risk",
+      "priorityRank": 1,
+      "description": "SPI-4 non-compliance is High Risk priority 1."
+    },
+    {
+      "classificationRuleId": "spi5-high-risk",
+      "displayOrder": 11,
+      "enabled": true,
+      "spiId": 5,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "High Risk",
+      "priorityRank": 1,
+      "description": "SPI-5 non-compliance is High Risk priority 1."
+    },
+    {
+      "classificationRuleId": "spi6-high-risk",
+      "displayOrder": 12,
+      "enabled": true,
+      "spiId": 6,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "High Risk",
+      "priorityRank": 1,
+      "description": "SPI-6 non-compliance is High Risk priority 1."
+    },
+    {
+      "classificationRuleId": "spi3-critical-exposure-production",
+      "displayOrder": 20,
+      "enabled": true,
+      "spiId": 3,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_production_critical_asset",
+      "severityKey": "Critical Exposure",
+      "priorityRank": 2,
+      "description": "SPI-3 production-critical non-compliance is Critical Exposure priority 2."
+    },
+    {
+      "classificationRuleId": "spi7-critical-exposure-production",
+      "displayOrder": 21,
+      "enabled": true,
+      "spiId": 7,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_production_critical_asset",
+      "severityKey": "Critical Exposure",
+      "priorityRank": 2,
+      "description": "SPI-7 production-critical non-compliance is Critical Exposure priority 2."
+    },
+    {
+      "classificationRuleId": "spi3-major-non-production",
+      "displayOrder": 22,
+      "enabled": true,
+      "spiId": 3,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_not_production_critical_asset",
+      "severityKey": "Major",
+      "priorityRank": 2,
+      "description": "SPI-3 non-production-critical non-compliance is Major priority 2."
+    },
+    {
+      "classificationRuleId": "spi7-major-non-production",
+      "displayOrder": 23,
+      "enabled": true,
+      "spiId": 7,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_not_production_critical_asset",
+      "severityKey": "Major",
+      "priorityRank": 2,
+      "description": "SPI-7 non-production-critical non-compliance is Major priority 2."
+    },
+    {
+      "classificationRuleId": "spi1-major",
+      "displayOrder": 30,
+      "enabled": true,
+      "spiId": 1,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "Major",
+      "priorityRank": 3,
+      "description": "SPI-1 non-compliance is Major priority 3."
+    },
+    {
+      "classificationRuleId": "spi8-major",
+      "displayOrder": 31,
+      "enabled": true,
+      "spiId": 8,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "Major",
+      "priorityRank": 3,
+      "description": "SPI-8 non-compliance is Major priority 3."
+    },
+    {
+      "classificationRuleId": "spi2-moderate",
+      "displayOrder": 40,
+      "enabled": true,
+      "spiId": 2,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "Moderate",
+      "priorityRank": 4,
+      "description": "SPI-2 non-compliance is Moderate priority 4."
+    },
+    {
+      "classificationRuleId": "spi9-moderate",
+      "displayOrder": 60,
+      "enabled": true,
+      "spiId": 9,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "Moderate",
+      "priorityRank": 6,
+      "description": "SPI-9 non-compliance is Moderate priority 6."
+    },
+    {
+      "classificationRuleId": "spi10-moderate",
+      "displayOrder": 70,
+      "enabled": true,
+      "spiId": 10,
+      "complianceStatus": "Non-compliant",
+      "conditionKey": "when_non_compliant",
+      "severityKey": "Moderate",
+      "priorityRank": 7,
+      "description": "SPI-10 non-compliance is Moderate priority 7."
+    }
+  ]
+}

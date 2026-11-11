@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "areas": [
+    {
+      "name": "Workspace and navigation",
+      "pattern": "workspace|governance|route-loading|app/page\\.tsx|app/layout\\.tsx",
+      "documents": [
+        "Requirements Documentation/01-Home-Redirect.md",
+        "Requirements Documentation/15-Governance-Insights.md",
+        "docs/ui-design.md"
+      ]
+    },
+    {
+      "name": "Impact analysers",
+      "pattern": "cyber-cop|impact-analyser|service-impact|server-compliance|ci-flow",
+      "documents": [
+        "Requirements Documentation/02-Cyber-COP.md",
+        "docs/architecture.md"
+      ]
+    },
+    {
+      "name": "Risk profiles and entity details",
+      "pattern": "risk-profile|risk-entity|network-details|ict-system-details|compliance-heatmap|app/networks|app/systems",
+      "documents": [
+        "Requirements Documentation/03-Networks.md",
+        "Requirements Documentation/04-Network-Detail.md",
+        "Requirements Documentation/05-ICT-Systems.md",
+        "Requirements Documentation/06-ICT-System-Detail.md",
+        "docs/ui-design.md"
+      ]
+    },
+    {
+      "name": "Discovery and CMDB",
+      "pattern": "discovery|endpoint|installed-software|shadow-it|cmdb",
+      "documents": [
+        "Requirements Documentation/07-Discovery.md",
+        "docs/cmdb-asset-type-attributes.md"
+      ]
+    },
+    {
+      "name": "Topology Explorer",
+      "pattern": "topology-explorer",
+      "documents": [
+        "Requirements Documentation/20-Topology-Explorer.md",
+        "docs/data-providers.md",
+        "docs/ui-design.md"
+      ]
+    },
+    {
+      "name": "Measures",
+      "pattern": "measures|kpi|spi",
+      "documents": [
+        "Requirements Documentation/08-Measures.md",
+        "Requirements Documentation/11-Settings.md",
+        "Requirements Documentation/12-Asset-Taxonomy-and-SPI-Applicability.md"
+      ]
+    },
+    {
+      "name": "Findings",
+      "pattern": "findings|finding-",
+      "documents": [
+        "Requirements Documentation/09-Findings-and-Evidence.md",
+        "docs/ui-design.md"
+      ]
+    },
+    {
+      "name": "Reports",
+      "pattern": "report|workbook|export",
+      "documents": [
+        "Requirements Documentation/10-Report-Catalogue.md",
+        "Requirements Documentation/08-Measures.md"
+      ]
+    },
+    {
+      "name": "Settings and authentication",
+      "pattern": "settings|auth|login|password|middleware|db-config|dpapi",
+      "documents": [
+        "Requirements Documentation/11-Settings.md",
+        "Requirements Documentation/13-Authentication-and-Login.md",
+        "SECURITY.md"
+      ]
+    },
+    {
+      "name": "Database",
+      "pattern": "^Database Schema/|lib/data-loader|lib/sql-server|lib/types|cmdb-attribute-loader",
+      "documents": [
+        "docs/database.md",
+        "Database Schema/ERD.md",
+        "Database Schema/database-schema-description.txt",
+        "Database Schema/data-mapping-description.txt",
+        "Database Schema/migrations/README.txt"
+      ]
+    },
+    {
+      "name": "Shared UI",
+      "pattern": "app/globals\\.css|workspace-tabs|findings-data-table|inventory-explorer-controls|tailwind",
+      "documents": [
+        "docs/ui-design.md"
+      ]
+    },
+    {
+      "name": "Tooling and lifecycle",
+      "pattern": "^scripts/|^package|^tsconfig|^vitest|^next.config|^eslint.config|^\\.github/|\\.cmd$",
+      "documents": [
+        "docs/development.md",
+        "docs/sdlc.md",
+        "docs/operations.md",
+        "docs/database.md"
+      ]
+    },
+    {
+      "name": "SQL and JSON data providers",
+      "pattern": "^NoSQL/|json-store|data-provider|sql-data-loader|cmdb-attribute-loader|run-app|nosql|next.config|compileApp",
+      "documents": [
+        "docs/data-providers.md",
+        "NoSQL/README.md",
+        "docs/architecture.md",
+        "docs/database.md",
+        "docs/sdlc.md"
+      ]
+    },
+    {
+      "name": "Mandatory offline compilation",
+      "pattern": "^vendor/|offline|^package|^\\.npmrc$|^eslint.config|^scripts/lint\\.mjs$|run-app|compileApp|^\\.github/workflows/",
+      "documents": [
+        "docs/offline-builds.md",
+        "docs/sdlc.md",
+        "Requirements Documentation/14-Offline-Compilation.md"
+      ]
+    },
+    {
+      "name": "Security domain scope",
+      "pattern": "security-domain|migrate-security-domains",
+      "documents": [
+        "docs/security-domains.md",
+        "docs/data-providers.md",
+        "Requirements Documentation/01-Home-Redirect.md"
+      ]
+    }
+  ],
+  "fallbackDocuments": [
+    "docs/architecture.md",
+    "docs/development.md"
+  ]
+}

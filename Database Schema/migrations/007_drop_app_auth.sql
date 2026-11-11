@@ -1,0 +1,9 @@
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID(N'tsaat.app_user', N'U') IS NOT NULL
+BEGIN
+  DROP TABLE [tsaat].[app_user];
+END;
+GO
