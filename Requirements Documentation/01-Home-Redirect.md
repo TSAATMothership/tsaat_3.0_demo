@@ -1,6 +1,6 @@
 # Workspace, navigation and scope
 
-Persona selection and configuration are available only in Menu → Settings → Personas. The sidebar has no persona dropdown. Saved preferences filter both sections and individual pages before existing scope visibility rules; drill-through links to unavailable destinations are disabled, including new-tab links and compatibility aliases. Independently configured popup switches control their buttons/chart actions. The source-defined persona list and All sections option preserve the current route, applied scope, security domains and snapshot date. Names and list changes save to the active SQL or JSON source; a removed active persona resets to All sections. Empty visibility directs users to Settings; direct URLs and APIs retain their current access. See [Personas](../docs/personas.md).
+Persona selection is available only in Menu → Settings → Personas; its saved catalogue and permissions are read-only. The browser-local selection preserves route, scope, security domains and snapshot date. Saved preferences filter sidebar sections/pages and internal links and independently control popup actions. The header shows the selected saved name. Menu and Settings remain available for choosing All sections; direct URLs and APIs retain the current access model. See [Personas](../docs/personas.md).
 
 Current contract: TSAAT UI 3 baseline, 2026-11-03. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
 

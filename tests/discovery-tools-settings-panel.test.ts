@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { ASSET_TYPES } from "@/lib/asset-taxonomy";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ASSET_TYPES, ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import {
-  buildDiscoveryToolsSavePayload,
+  DiscoveryToolsSettingsPanel,
   filterDiscoveryToolsByName,
   formatDiscoveryToolsTimestamp,
   scopeStatusPresentation
 } from "@/components/discovery-tools-settings-panel";
+afterEach(() => vi.unstubAllGlobals());
 
 describe("discovery tools settings panel helpers", () => {
   it("formats saved timestamps deterministically for hydration", () => {
@@ -36,16 +39,23 @@ describe("discovery tools settings panel helpers", () => {
     expect(filtered[0]?.id).toBe(firstToolId);
   });
 
-  it("builds full-matrix payload with all tools and asset types", () => {
+  it("renders every saved mapping as read-only text", () => {
+    vi.stubGlobal("React", React);
     const settings = defaultDiscoveryToolsSettings();
-    const payload = buildDiscoveryToolsSavePayload(settings.tools);
-
-    expect(payload.tools).toHaveLength(settings.tools.length);
-    for (const tool of payload.tools) {
-      expect(typeof tool.id).toBe("string");
+    const html = renderToStaticMarkup(React.createElement(DiscoveryToolsSettingsPanel, { initialSettings: settings }));
+    expect(html).toContain("Read-only");
+    expect(html).not.toContain("<select");
+    expect(html).not.toContain("Save");
+    for (const tool of settings.tools) {
+      expect(html).toContain(tool.name);
       for (const assetType of ASSET_TYPES) {
-        expect(tool.assetTypeScope[assetType]).toMatch(/^(required|na)$/);
+        expect(html).toContain(ASSET_TYPE_LABELS[assetType] + " coverage for " + tool.name + ": " + scopeStatusPresentation(tool.assetTypeScope[assetType]).label);
       }
     }
+  });
+  it("explains an empty saved tool catalogue", () => {
+    vi.stubGlobal("React", React);
+    const html = renderToStaticMarkup(React.createElement(DiscoveryToolsSettingsPanel, { initialSettings: { ...defaultDiscoveryToolsSettings(), tools: [] } }));
+    expect(html).toContain("No discovery tools are configured.");
   });
 });

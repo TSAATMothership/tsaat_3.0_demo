@@ -12,7 +12,6 @@ interface PersonaContextValue {
   error: string;
   loading: boolean;
   reload: () => void;
-  acceptSettings: (value: PersonaSettings) => void;
 }
 const PersonaContext = createContext<PersonaContextValue | null>(null);
 
@@ -39,10 +38,6 @@ export function PersonaProvider({ children }: { children: ReactNode }) {
       .catch(() => { if (!controller.signal.aborted) setError("Persona settings are unavailable. Retry to load the saved visibility."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
   }, []);
-  const acceptSettings = useCallback((value: PersonaSettings) => {
-    request.current?.abort();
-    setSettings(value); setError(""); setLoading(false);
-  }, []);
   useEffect(() => {
     if (!settings || !activePersona || settings.personas.some(persona => persona.id === activePersona)) return;
     setActivePersona(null);
@@ -58,7 +53,7 @@ export function PersonaProvider({ children }: { children: ReactNode }) {
     };
     readSelection(); reload();
     const onStorage = (event: StorageEvent) => { if (event.key === storageKey || event.key === null) readSelection(); };
-    // Pick up other sessions' saved configurations without discarding an open Settings draft.
+    // Refresh saved configuration when returning to the workspace.
     const onFocus = () => { if (!document.querySelector("dialog[open]")) reload(); };
     window.addEventListener("storage", onStorage);
     window.addEventListener("focus", onFocus);
@@ -71,7 +66,7 @@ export function PersonaProvider({ children }: { children: ReactNode }) {
       setSelectionError("");
     } catch { setSelectionError("Your browser cannot remember persona selections. Changes apply for this visit."); }
   };
-  return <PersonaContext.Provider value={{ activePersona, selectPersona, selectionError, settings, error, loading, reload, acceptSettings }}>
+  return <PersonaContext.Provider value={{ activePersona, selectPersona, selectionError, settings, error, loading, reload }}>
     {children}
   </PersonaContext.Provider>;
 }

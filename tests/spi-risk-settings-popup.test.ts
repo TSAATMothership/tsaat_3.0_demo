@@ -1,7 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
 import { GET, PUT } from "@/app/api/measures/settings/route";
 import SettingsPage from "@/app/settings/page";
 import { SettingsTabs } from "@/components/settings-tabs";
@@ -36,13 +35,13 @@ describe("SPI risk settings popup", () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "Unable to load SPI risk matrix settings." });
   });
-  it("preserves the existing save payload for both severity and priority matrices", async () => {
-    const payload = { severityMatrix: testMeasuresSettings.severityMatrix, priorityMatrix: testMeasuresSettings.priorityMatrix };
-    vi.mocked(saveMeasuresSettings).mockResolvedValue(testMeasuresSettings);
-    const response = await PUT(new NextRequest("http://localhost/api/measures/settings", { method: "PUT", body: JSON.stringify(payload) }));
-    expect(response.status).toBe(200);
-    expect(saveMeasuresSettings).toHaveBeenCalledWith(payload);
-    expect(await response.json()).toEqual({ settings: testMeasuresSettings });
+  it("rejects matrix writes without calling a provider", async () => {
+    const response = await PUT();
+    expect(response.status).toBe(405);
+    expect(response.headers.get("Allow")).toBe("GET");
+    expect(await response.json()).toEqual({ error: "These settings are read-only." });
+    expect(saveMeasuresSettings).not.toHaveBeenCalled();
+    expect(loadMeasuresSettings).not.toHaveBeenCalled();
   });
   it.each(["spi-risk-matrix", "spi-priority-matrix"])("opens a direct Settings link on %s without a workspace scope", async (tab) => {
     const result = await SettingsPage({ searchParams: { settingsTab: tab } });
@@ -58,6 +57,8 @@ describe("SPI risk settings popup", () => {
     expect(html).toContain('id="settings-tab-spi-priority-matrix"');
     expect(html).toContain('aria-controls="settings-panel-spi-priority-matrix" aria-selected="true"');
     expect(html).toContain("SPI Priority Matrix");
+    expect(html).not.toContain("database-settings");
+    expect((html.match(/role="tab"/g) ?? [])).toHaveLength(4);
     expect(html.indexOf('id="settings-tab-spi-priority-matrix"')).toBeGreaterThan(html.indexOf('id="settings-tab-spi-risk-matrix"'));
     expect(WORKSPACE_GROUPS.find((group) => group.label === "Observed Measures")?.items.map((item) => item.label)).not.toContain("SPI Risk Matrix");
   });

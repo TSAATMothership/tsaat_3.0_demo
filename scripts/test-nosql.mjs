@@ -20,6 +20,7 @@ import { initializeJsonStore, repositoryRoot } from "./setup-json-store.mjs";
 import { checkServiceImpactGraph } from "./service-impact-graph-smoke.mjs";
 import { checkGovernanceInsights, checkGovernanceInsightsPdf } from "./governance-insights-smoke.mjs";
 import { checkGovernanceTrends } from "./governance-trends-smoke.mjs";
+import { checkReadOnlySettings } from "./settings-read-only-smoke.mjs";
 import { checkPersonas } from "./personas-smoke.mjs";
 import { checkPersonaCatalogue } from "./persona-catalogue-smoke.mjs";
 import { checkLifeCycleManagement } from "./life-cycle-management-smoke.mjs";
@@ -87,7 +88,7 @@ try {
   assert.equal(storage.directory, env.TSAAT_JSON_DATA_DIR);
   const date = storage.snapshots.at(-1).date;
   const oldDestination = `/discovery-coverage?discoveryView=overview&network=net-1&securityDomain=SECRET&dataDate=${date}`;
-  assert.equal((await fetch(base + "/api/settings/database")).status, 409);
+  assert.equal((await fetch(base + "/api/settings/database")).status, 410);
   const executablePath = process.env.TSAAT_TEST_BROWSER || ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"].find(file => fs.existsSync(file));
   assert(executablePath, "Set TSAAT_TEST_BROWSER to Chrome or Edge.");
   browser = await puppeteer.launch({ executablePath, headless: true });
@@ -349,20 +350,7 @@ try {
   assert.equal(new URL(page.url()).searchParams.get('securityDomain'), 'SECRET');
   await checkPersonaCatalogue(page, { artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   const savedPersonas = await checkPersonas(page, { artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
-  await navigate("/settings?settingsTab=personas");
-  await page.waitForSelector("#settings-tab-personas[aria-selected=true]");
-  await page.keyboard.press("Escape");
-  await page.waitForSelector("dialog.settings-popup[open]", { hidden: true });
-  await navigate("/settings");
-  await page.waitForSelector('dialog[open] #settings-tab-database-settings');
-  assert.equal(await page.$eval('#settings-tab-database-settings', node => node.textContent.trim()), "JSON Data Files");
-  await page.waitForFunction(directory => document.querySelector('dialog[open]')?.textContent.includes(directory), {}, env.TSAAT_JSON_DATA_DIR);
-  assert.equal(await page.$("#settings-tab-password-settings"), null);
-  for (const tab of [ "discovery-tools-settings", "spi-risk-matrix", "spi-priority-matrix"]) {
-    await page.click('#settings-tab-' + tab);
-    await page.waitForFunction(id => document.getElementById('settings-tab-' + id)?.getAttribute('aria-selected') === 'true', {}, tab);
-  }
-  await page.keyboard.press("Escape");
+  await checkReadOnlySettings(page, { artifacts: process.env.TSAAT_TEST_ARTIFACT_DIR });
   let drillThroughTabs = 0;
   for (const kind of ["network", "ict-system"]) {
     await navigate("/" + kind + "-risk-profile", kind === "network" ? "network=net-1,net-2" : "system=sys-1,sys-2");
@@ -504,23 +492,21 @@ try {
   assert.deepEqual(findingWorkbook.data.findings.map(finding => finding.id), findingIds, 'Browser workbook data preserves selected finding order.');
   assert(findingWorkbook.data.assetDetailsByAssetId && findingWorkbook.data.configuration); workbookModelCount++;
   const settings = (await getJson("/api/measures/settings")).settings;
-  settings.priorityMatrix["1"] = settings.priorityMatrix["1"] === 1 ? 7 : 1;
-  settings.severityMatrix["1:server"] = "Critical Exposure";
-  await getJson("/api/measures/settings", { ...post(settings), method: "PUT" });
   const discoverySettings = (await getJson("/api/discovery-tools/settings")).settings;
-  discoverySettings.tools[0].assetTypeScope.server = discoverySettings.tools[0].assetTypeScope.server === "na" ? "required" : "na";
-  const savedDiscovery = (await getJson("/api/discovery-tools/settings", { ...post(discoverySettings), method: "PUT" })).settings;
-  const beforeRestart = await getJson("/api/findings/export?format=json&network=net-1&status=open&asOf=" + date);
-  const updatedFindings = beforeRestart.findings.filter(f => f.spiId === 1 && f.complianceStatus === "Non-compliant");
-  assert(updatedFindings.length > 0, "Persistence check must include findings affected by the matrix change");
-  assert(updatedFindings.every(f => f.priorityRank === settings.priorityMatrix["1"]));
+  for (const endpoint of ["/api/settings/personas", "/api/measures/settings", "/api/discovery-tools/settings"]) {
+    for (const body of ["not-json", JSON.stringify({ ...settings, personas: [], tools: [] })]) {
+      const response = await fetch(base + endpoint, { method: "PUT", body });
+      assert.equal(response.status, 405); assert.equal(response.headers.get("Allow"), "GET");
+    }
+  }
+  assert.deepEqual((await getJson("/api/measures/settings")).settings, settings);
+  assert.deepEqual((await getJson("/api/discovery-tools/settings")).settings, discoverySettings);
   await browser.close(); browser = undefined;
   await stopServer(); base = await startServer();
   assert.deepEqual((await getJson("/api/settings/personas")).settings, savedPersonas);
   const afterRestart = (await getJson("/api/measures/settings")).settings;
-  assert.equal(afterRestart.priorityMatrix["1"], settings.priorityMatrix["1"]);
-  assert.equal(afterRestart.severityMatrix["1:server"], "Critical Exposure");
-  assert.deepEqual((await getJson("/api/discovery-tools/settings")).settings.tools, savedDiscovery.tools);
+  assert.deepEqual(afterRestart, settings);
+  assert.deepEqual((await getJson("/api/discovery-tools/settings")).settings, discoverySettings);
   assert(!fs.existsSync(path.join(directory, "logindetails")), "Runtime must not create application credentials");
   assert(!fs.existsSync(path.join(directory, "DB_config")), "No-SQL runtime created SQL configuration");
   assert.deepEqual(errors, []);

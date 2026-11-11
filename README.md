@@ -22,7 +22,7 @@ This command verifies and unpacks the bundled runtime, verifies the dependency a
 
 Application pages and APIs no longer require a user login. The header has no Signed in or Logout section, and Password Settings is retired. Existing local logindetails files are unused and remain excluded from Git.
 
-Menu → Settings → Personas manages the shared persona list, names, pages and popup preferences. Save writes to the active SQL or JSON source; the browser remembers only its selected persona. Existing configurations retain selections and upgrade on explicit save. See [Personas and upgrades](docs/personas.md).
+Menu → Settings shows read-only Personas, Discovery Tools Settings and SPI risk/priority matrices. Persona selection remains browser-local; saved names and permissions cannot be edited. Database Settings is removed; SQL setup remains a command-line operation. See [Settings](Requirements%20Documentation/11-Settings.md) and [Personas](docs/personas.md).
 
 Choose a build:
 

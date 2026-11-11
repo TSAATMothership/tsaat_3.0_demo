@@ -50,7 +50,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         <nav id="workspace-navigation" className="workspace-navigation" aria-label="Views" hidden={collapsed}>
           {loading && !settings && <p role="status" className="px-3 py-2 text-xs text-slate-400">Loading personas...</p>}
           {error && <p role="status" className="px-3 py-2 text-xs text-amber-200">{settings ? "Using previously loaded persona settings." : "Showing all sections; personas are unavailable."} Open Menu → Settings → Personas to retry.</p>}
-          {noSections && <p role="status" className="px-3 py-4 text-sm text-slate-300">No sections are enabled for this persona. Open Menu → Settings → Personas to choose a persona or change its visible sections.</p>}
+          {noSections && <p role="status" className="px-3 py-4 text-sm text-slate-300">No sections are enabled for this persona. Open Menu → Settings → Personas to choose another persona or All sections.</p>}
           {WORKSPACE_GROUPS.map((group, index) => {
             if (!showSection(group.id)) return null;
             const visibleItems = group.items.filter(item => (!settings || personaShowsPage(settings, activePersona, item.id)) && isWorkspaceItemVisible(item, params, active?.href));

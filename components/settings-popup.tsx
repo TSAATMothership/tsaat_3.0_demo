@@ -1,11 +1,7 @@
 "use client";
 
-import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
-import { JsonStorageSettingsPanel } from "@/components/json-storage-settings-panel";
-
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
-import { DatabaseSettingsPanel } from "@/components/database-settings-panel";
 import { SettingsTabs, type SettingsTabId } from "@/components/settings-tabs";
 import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
@@ -14,24 +10,19 @@ import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 
 type SpiMatrixSettings = Omit<ComponentProps<typeof MeasuresSettingsMatrix>, "activeMatrix">;
 
-type DatabaseSettings = ComponentProps<typeof DatabaseSettingsPanel>["initialSettings"];
-
-export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
+export function SettingsPopup({ onClose, initialTab = "personas" }: {
   onClose: () => void;
   initialTab?: SettingsTabId;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [settings, setSettings] = useState<DatabaseSettings | null>(null);
   const [discoverySettings, setDiscoverySettings] = useState<DiscoveryToolsSettings | null>(null);
   const [spiMatrixSettings, setSpiMatrixSettings] = useState<SpiMatrixSettings | null>(null);
   const [spiMatrixError, setSpiMatrixError] = useState("");
   const [spiMatrixRetry, setSpiMatrixRetry] = useState(0);
   const [discoveryError, setDiscoveryError] = useState("");
   const [discoveryRetry, setDiscoveryRetry] = useState(0);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
 
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
@@ -46,20 +37,6 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
       document.body.style.overflow = previousOverflow;
     };
   }, [mounted]);
-
-  useEffect(() => {
-    if (IS_JSON_BUILD) return;
-    const controller = new AbortController();
-    setError("");
-    fetch("/api/settings/database", { signal: controller.signal, cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load database settings.");
-        const payload = await response.json() as { settings: DatabaseSettings };
-        if (!controller.signal.aborted) setSettings(payload.settings);
-      })
-      .catch((reason: Error) => { if (!controller.signal.aborted) setError(reason.message); });
-    return () => controller.abort();
-  }, [retry]);
 
   useEffect(() => {
     if (activeTab !== "discovery-tools-settings" || discoverySettings) return;
@@ -106,11 +83,6 @@ export function SettingsPopup({ onClose, initialTab = "database-settings" }: {
         <div className="settings-popup-body min-h-0 flex-1 overflow-auto p-5">
           <div role="tabpanel" id="settings-panel-personas" aria-labelledby="settings-tab-personas" hidden={activeTab !== "personas"}>
             <PersonasSettingsPanel />
-          </div>
-          <div role="tabpanel" id="settings-panel-database-settings" aria-labelledby="settings-tab-database-settings" hidden={activeTab !== "database-settings"}>
-            {IS_JSON_BUILD ? <JsonStorageSettingsPanel /> : settings ? <DatabaseSettingsPanel initialSettings={settings} /> : error ? (
-              <div className="panel p-5"><p role="alert">{error}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setRetry((value) => value + 1)}>Retry</button></div>
-            ) : <p role="status" className="flex items-center gap-3 p-5"><span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" />Loading settings...</p>}
           </div>
           <div role="tabpanel" id="settings-panel-discovery-tools-settings" aria-labelledby="settings-tab-discovery-tools-settings" hidden={activeTab !== "discovery-tools-settings"} className="h-full min-h-[420px]">
             {discoverySettings ? <DiscoveryToolsSettingsPanel initialSettings={discoverySettings} /> : discoveryError ? (

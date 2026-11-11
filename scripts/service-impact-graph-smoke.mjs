@@ -28,6 +28,8 @@ export async function checkServiceImpactGraph(page, { date, artifacts } = {}) {
   assert.equal(await page.$$eval('[role="tab"]', nodes => nodes.some(node => node.textContent === "Explore the Impact")), false);
   await press(".workspace-header-menu summary"); await press('.workspace-header-menu nav button');
   await page.waitForSelector("dialog.settings-popup[open]");
+  // Personas uses an expanded layout; compare against the shared matrix dialog dimensions.
+  await press("#settings-tab-spi-risk-matrix");
   const settingsBounds = await bounds("dialog.settings-popup[open]");
   await press('[aria-label="Close settings"]');
   await page.waitForSelector('dialog.settings-popup[open]', { hidden: true });
@@ -346,6 +348,11 @@ async function checkGraphFiltersAndLayouts(page, { artifacts }) {
     node.querySelector('.impact-graph-count').textContent === Number(node.dataset.impactFindings).toLocaleString('en-AU'))), 'Badges show exact selected-severity counts, including counts above 99');
   await assertExactBadges();
   await chooseCritical();
+  // Wait for the paired range/number inputs to settle after changing severity.
+  await page.waitForFunction(() => {
+    const inputs = [...document.querySelectorAll(".impact-graph-range input")];
+    return inputs.length === 4 && inputs[0].value === inputs[1].value && inputs[2].value === inputs[3].value;
+  });
   const criticalTotals = await page.$eval('.impact-graph-summary', node => node.textContent);
   const criticalRange = await page.$$eval('.impact-graph-range input', nodes => nodes.map(node => node.value));
   const criticalInitiallyExpanded = await page.$eval('[data-impact-expand-all]', node => node.getAttribute('aria-pressed') === 'true');

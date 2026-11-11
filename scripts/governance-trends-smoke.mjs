@@ -113,26 +113,29 @@ export async function checkGovernanceTrends(page, { date, historicalDate, direct
   assert.match(await page.$eval(".executive-empty", node => node.textContent), /No snapshots in this history period/);
   await page.goto(initial, { waitUntil: "networkidle0" });
   await page.waitForSelector(".governance-trends");
-  // Check new evidence destinations under an actual configured persona, restoring all shared settings.
+  // Read-only GET fixture checks restricted evidence links without writing shared settings.
   const original = await page.evaluate(async () => (await fetch("/api/settings/personas")).json());
   const previousPersona = await page.evaluate(() => localStorage.getItem("tsaat.active-persona"));
+  const restricted = structuredClone(original);
+  const settings = restricted.settings ?? restricted;
+  settings.personas.find(persona => persona.id === "analyst").pages = ["governance-trends"];
+  await page.setRequestInterception(true);
+  const intercept = request => {
+    if (new URL(request.url()).pathname === "/api/settings/personas" && request.method() === "GET")
+      return void request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ settings }) });
+    void request.continue();
+  };
+  page.on("request", intercept);
   try {
-    const restricted = structuredClone(original);
-    const settings = restricted.settings ?? restricted;
-    settings.personas.find(persona => persona.id === "analyst").pages = ["governance-trends"];
-    const status = await page.evaluate(async body => (await fetch("/api/settings/personas", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).status, settings);
-    assert.equal(status, 200);
     await page.evaluate(() => localStorage.setItem("tsaat.active-persona", "analyst"));
     await page.reload({ waitUntil: "networkidle0" });
     await page.waitForFunction(() => document.querySelectorAll('.governance-trends a[data-persona-disabled="true"]').length === 6);
     assert(await page.$$eval('.governance-trends a[data-persona-disabled="true"]', nodes => nodes.every(node => !node.hasAttribute("href") && node.tabIndex === -1)));
   } finally {
-    await page.evaluate(async ({ original, previousPersona }) => {
-      const latest = (await (await fetch("/api/settings/personas")).json()).settings;
-      const response = await fetch("/api/settings/personas", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(original.settings ?? original), updatedAt: latest.updatedAt }) });
-      if (!response.ok) throw new Error("Could not restore persona settings");
+    page.off("request", intercept); await page.setRequestInterception(false);
+    await page.evaluate(previousPersona => {
       if (previousPersona === null) localStorage.removeItem("tsaat.active-persona"); else localStorage.setItem("tsaat.active-persona", previousPersona);
-    }, { original, previousPersona });
+    }, previousPersona);
     await page.goto(initial, { waitUntil: "networkidle0" });
     await page.waitForSelector(".governance-trends");
   }

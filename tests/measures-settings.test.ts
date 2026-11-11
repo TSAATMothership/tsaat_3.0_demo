@@ -96,13 +96,4 @@ describe("measures settings normalization", () => {
     expect(validator).toContain("finding_severity_definition_count");
   });
 
-  it("preserves both matrices on save and the priority catalog rules", () => {
-    const source = readRepoFile("components/measures-settings-matrix.tsx");
-
-    expect(source).toContain("selectablePriorityDefinitions(priorityDefinitions)");
-    expect(source).toContain("option.label");
-    expect(source).toContain("severityMatrix: draftMatrix");
-    expect(source).toContain("priorityMatrix: draftPriorityMatrix");
-    expect(source).toContain("Unknown/Data Gap findings remain P90");
-  });
 });

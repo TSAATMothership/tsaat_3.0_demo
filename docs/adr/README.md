@@ -39,3 +39,5 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0025: Explicit offline installation preflight](0025-offline-install-preflight.md)
 - [0026: Maintained ESLint build gate](0026-maintained-eslint-build-gate.md)
 - [0027: Portable Node in offline distributions](0027-portable-offline-node.md)
+
+- [0028: Read-only application settings](0028-read-only-settings.md)

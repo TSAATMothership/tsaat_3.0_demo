@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ASSET_TYPES, ASSET_TYPE_LABELS } from "@/lib/asset-taxonomy";
 import type {
   DiscoveryToolAssetSetting,
@@ -11,26 +10,6 @@ import type {
 import { AssetType } from "@/lib/types";
 
 const PANEL_ASSET_TYPES: AssetType[] = [...ASSET_TYPES];
-
-function scopesEqual(
-  a: Record<AssetType, DiscoveryToolAssetSetting>,
-  b: Record<AssetType, DiscoveryToolAssetSetting>
-): boolean {
-  return PANEL_ASSET_TYPES.every((assetType) => a[assetType] === b[assetType]);
-}
-
-function cloneScope(
-  scope: Record<AssetType, DiscoveryToolAssetSetting>
-): Record<AssetType, DiscoveryToolAssetSetting> {
-  return { ...scope };
-}
-
-function cloneTool(tool: DiscoveryToolSetting): DiscoveryToolSetting {
-  return {
-    ...tool,
-    assetTypeScope: cloneScope(tool.assetTypeScope)
-  };
-}
 
 function twoDigit(value: number): string {
   return String(value).padStart(2, "0");
@@ -46,15 +25,6 @@ export function formatDiscoveryToolsTimestamp(value: string): string {
     `${twoDigit(parsed.getUTCDate())}/${twoDigit(parsed.getUTCMonth() + 1)}/${parsed.getUTCFullYear()}`,
     `${twoDigit(parsed.getUTCHours())}:${twoDigit(parsed.getUTCMinutes())}:${twoDigit(parsed.getUTCSeconds())}`
   ].join(", ");
-}
-
-export function buildDiscoveryToolsSavePayload(tools: DiscoveryToolSetting[]) {
-  return {
-    tools: tools.map((tool) => ({
-      id: tool.id,
-      assetTypeScope: cloneScope(tool.assetTypeScope)
-    }))
-  };
 }
 
 export function filterDiscoveryToolsByName(tools: DiscoveryToolSetting[], selectedToolId: string): DiscoveryToolSetting[] {
@@ -98,6 +68,7 @@ function ToolNameFilterDropdown({
   onChange: (value: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -126,8 +97,11 @@ function ToolNameFilterDropdown({
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
         setIsOpen(false);
         setSearchTerm("");
+        triggerRef.current?.focus();
       }
     };
 
@@ -149,6 +123,7 @@ function ToolNameFilterDropdown({
     onChange(nextValue);
     setSearchTerm("");
     setIsOpen(false);
+    triggerRef.current?.focus();
   };
 
   return (
@@ -157,6 +132,7 @@ function ToolNameFilterDropdown({
         <span className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Tool Name Filter</span>
       </label>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         className="mt-1 flex w-full items-center justify-between rounded-md border border-sky-400/20 bg-slate-950/80 px-3 py-2 text-sm text-slate-100"
@@ -210,116 +186,37 @@ function ToolNameFilterDropdown({
 }
 
 export function DiscoveryToolsSettingsPanel({ initialSettings }: { initialSettings: DiscoveryToolsSettings }) {
-  const router = useRouter();
-  const [settings, setSettings] = useState(initialSettings);
-  const [draftTools, setDraftTools] = useState(() => initialSettings.tools.map(cloneTool));
   const [toolNameFilter, setToolNameFilter] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
-  const filteredTools = useMemo(() => filterDiscoveryToolsByName(draftTools, toolNameFilter), [draftTools, toolNameFilter]);
-  const toolNameFilterOptions = useMemo(() => settings.tools
-    .map((tool) => ({ id: tool.id, label: tool.name }))
-    .sort((left, right) => left.label.localeCompare(right.label)), [settings.tools]);
-  const hasChanges = draftTools.some((tool, index) => !scopesEqual(tool.assetTypeScope, settings.tools[index].assetTypeScope));
-
-  const updateScope = (toolId: string, assetType: AssetType, value: DiscoveryToolAssetSetting) => {
-    setDraftTools((current) => current.map((tool) => tool.id === toolId
-      ? { ...tool, assetTypeScope: { ...tool.assetTypeScope, [assetType]: value } }
-      : tool));
-    setSaveError(null);
-    setSaveSuccess(null);
-  };
-
-  const cancelChanges = () => {
-    setDraftTools(settings.tools.map(cloneTool));
-    setSaveError(null);
-    setSaveSuccess(null);
-  };
-
-  const saveChanges = async () => {
-    if (isSaving || !hasChanges) return;
-    setIsSaving(true);
-    setSaveError(null);
-    setSaveSuccess(null);
-    try {
-      const response = await fetch("/api/discovery-tools/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildDiscoveryToolsSavePayload(draftTools))
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(payload?.error || "Unable to save discovery tools settings. Please try again.");
-      }
-      const { settings: saved } = await response.json() as { settings: DiscoveryToolsSettings };
-      setSettings(saved);
-      setDraftTools(saved.tools.map(cloneTool));
-      setSaveSuccess("Discovery tool mappings saved.");
-      router.refresh();
-    } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Unable to save discovery tools settings.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <section className="panel flex h-full min-h-0 flex-col overflow-hidden p-4" aria-labelledby="discovery-settings-title" aria-busy={isSaving}>
-      <div className="shrink-0">
-        <h2 id="discovery-settings-title" className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-100">Discovery Tools Settings</h2>
-        <p className="mt-2 text-sm text-slate-300">
-          Choose Yes for each CI type a tool should cover. Choose No to exclude that CI type from the tool&apos;s coverage calculation.
-        </p>
-        <p className="mt-1 text-xs text-slate-400">
-          Coverage is covered CIs divided by mapped CIs in the filtered data. Tools with no mapped CIs are hidden from the coverage table and radar chart.
-        </p>
-        <p className="mt-2 text-xs text-slate-400">Last saved: {formatDiscoveryToolsTimestamp(settings.updatedAt)} UTC</p>
-      </div>
-      {saveError && <p role="alert" className="mt-3 rounded-md border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-100">{saveError}</p>}
-      {saveSuccess && <p role="status" className="mt-3 rounded-md border border-emerald-400/35 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">{saveSuccess}</p>}
-      <div className="my-3 shrink-0">
-        <ToolNameFilterDropdown value={toolNameFilter} options={toolNameFilterOptions} onChange={setToolNameFilter} />
-        <p className="mt-1 text-xs text-slate-400">Showing {filteredTools.length} of {draftTools.length} tools. Save applies all changes, including filtered tools.</p>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/20">
-        <table className="w-full min-w-[1080px] text-sm">
-          <caption className="sr-only">Discovery tools mapped to CI types</caption>
-          <thead className="sticky top-0 z-10 bg-slate-900 text-xs uppercase tracking-wider text-slate-300">
-            <tr>
-              <th scope="col" className="sticky left-0 z-20 min-w-[190px] bg-slate-900 px-3 py-3 text-left">Tool / CI Type</th>
-              {PANEL_ASSET_TYPES.map((assetType) => <th scope="col" key={assetType} className="min-w-[120px] px-3 py-3 text-center">{ASSET_TYPE_LABELS[assetType]}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTools.map((tool) => <tr key={tool.id} className="border-t border-sky-400/15">
-              <th scope="row" className="sticky left-0 bg-slate-950 px-3 py-3 text-left font-semibold text-slate-100" title={tool.description}>{tool.name}</th>
-              {PANEL_ASSET_TYPES.map((assetType) => <td key={assetType} className="px-3 py-3 text-center">
-                <select
-                  aria-label={`${ASSET_TYPE_LABELS[assetType]} coverage for ${tool.name}`}
-                  value={tool.assetTypeScope[assetType]}
-                  onChange={(event) => updateScope(tool.id, assetType, event.target.value as DiscoveryToolAssetSetting)}
-                  disabled={isSaving}
-                  className={`w-full rounded-md border px-3 py-2 text-sm disabled:opacity-60 ${scopeStatusPresentation(tool.assetTypeScope[assetType]).className}`}
-                >
-                  <option value="required" className="bg-slate-950 text-slate-100">Yes</option>
-                  <option value="na" className="bg-slate-950 text-slate-100">No</option>
-                </select>
-              </td>)}
-            </tr>)}
-            {!filteredTools.length && <tr><td colSpan={PANEL_ASSET_TYPES.length + 1} className="p-6 text-center text-slate-400">No tools match the current filter.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-t border-sky-400/15 pt-3">
-        <p className="text-xs text-slate-400" role="status">{hasChanges ? "Unsaved changes" : "All changes saved"}</p>
-        <div className="flex gap-2">
-          <button type="button" onClick={cancelChanges} disabled={isSaving || !hasChanges}
-            className="rounded-md border border-slate-500/40 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/70 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={saveChanges} disabled={isSaving || !hasChanges}
-            className="rounded-md border border-sky-300/40 bg-sky-500/15 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? "Saving..." : "Save"}</button>
-        </div>
-      </div>
-    </section>
-  );
+  const filteredTools = useMemo(() => filterDiscoveryToolsByName(initialSettings.tools, toolNameFilter), [initialSettings.tools, toolNameFilter]);
+  const toolNameFilterOptions = useMemo(() => initialSettings.tools.map(tool => ({ id: tool.id, label: tool.name })).sort((left, right) => left.label.localeCompare(right.label)), [initialSettings.tools]);
+  return <section className="panel flex h-full min-h-0 flex-col overflow-hidden p-4" aria-labelledby="discovery-settings-title">
+    <div className="shrink-0">
+      <h2 id="discovery-settings-title" className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-100">Discovery Tools Settings</h2>
+      <p className="mt-2 text-sm text-slate-300">Read-only saved coverage mappings. Yes means the tool is expected to cover that CI type; No excludes it from the tool&apos;s coverage calculation.</p>
+      <p className="mt-1 text-xs text-slate-400">Coverage is covered CIs divided by mapped CIs in the filtered data. Tools with no mapped CIs are hidden from the coverage table and radar chart.</p>
+      <p className="mt-2 text-xs text-slate-400">Last saved: {formatDiscoveryToolsTimestamp(initialSettings.updatedAt)} UTC</p>
+    </div>
+    <div className="my-3 shrink-0">
+      <ToolNameFilterDropdown value={toolNameFilter} options={toolNameFilterOptions} onChange={setToolNameFilter} />
+      <p className="mt-1 text-xs text-slate-400">Showing {filteredTools.length} of {initialSettings.tools.length} tools.</p>
+    </div>
+    <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-sky-400/20" role="region" aria-label="Discovery tool coverage mappings" tabIndex={0}>
+      <table className="w-full min-w-[1080px] text-sm">
+        <caption className="sr-only">Discovery tools mapped to CI types</caption>
+        <thead className="sticky top-0 z-10 bg-slate-900 text-xs uppercase tracking-wider text-slate-300"><tr>
+          <th scope="col" className="sticky left-0 z-20 min-w-[190px] bg-slate-900 px-3 py-3 text-left">Tool / CI Type</th>
+          {PANEL_ASSET_TYPES.map(assetType => <th scope="col" key={assetType} className="min-w-[120px] px-3 py-3 text-center">{ASSET_TYPE_LABELS[assetType]}</th>)}
+        </tr></thead>
+        <tbody>{filteredTools.map(tool => <tr key={tool.id} className="border-t border-sky-400/15">
+          <th scope="row" className="sticky left-0 bg-slate-950 px-3 py-3 text-left font-semibold text-slate-100" title={tool.description}>{tool.name}</th>
+          {PANEL_ASSET_TYPES.map(assetType => {
+            const status = scopeStatusPresentation(tool.assetTypeScope[assetType]);
+            return <td key={assetType} className="px-3 py-3 text-center"><span aria-label={ASSET_TYPE_LABELS[assetType] + " coverage for " + tool.name + ": " + status.label} className={"inline-block rounded-md border px-3 py-2 " + status.className}>{status.label}</span></td>;
+          })}
+        </tr>)}
+        {!filteredTools.length && <tr><td colSpan={PANEL_ASSET_TYPES.length + 1} className="p-6 text-center text-slate-400">{initialSettings.tools.length ? "No tools match the current filter." : "No discovery tools are configured."}</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  </section>;
 }

@@ -21,7 +21,7 @@ function resolveActiveTab(value: string | undefined): SettingsTabId {
     return "discovery-tools-settings";
   }
 
-  return "database-settings";
+  return "personas";
 }
 
 export default async function SettingsPage({

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-11 - Read-only Settings
+
+- Removed Database Settings and the No-SQL JSON Data Files tab; legacy database operations now return Gone. Command-line database setup remains available.
+- Personas, Discovery Tools Settings, SPI Risk Matrix and SPI Priority Matrix display saved configuration read-only, and their APIs reject writes. Persona selection, tool filters, saved mappings, keyboard navigation and responsive views remain available. Existing configuration is preserved.
+
+
 ## 2026-11-11 - Portable Node for offline installation
 
 - `npm run install:offline` now automatically switches from an incompatible host Node (including Node 22) to the verified offline Node 24 launcher, preserving cache arguments and failure exit codes.

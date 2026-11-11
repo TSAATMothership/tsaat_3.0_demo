@@ -60,7 +60,9 @@ describe("settings popup integration", () => {
     expect(popup).toContain("controller.abort()");
     expect(popup).not.toContain("PasswordSettingsPanel");
     expect(tabs).not.toContain("password-settings");
-    expect(popup).toContain("<DatabaseSettingsPanel initialSettings={settings}");
+    expect(popup).not.toContain("DatabaseSettingsPanel");
+    expect(popup).not.toContain("/api/settings/database");
+    expect(tabs).not.toContain("database-settings");
     expect(tabs).not.toContain("router.replace");
     expect(read("app/settings/page.tsx")).toContain("<SettingsRoutePopup");
     expect(read("app/settings/page.tsx")).not.toContain("<DatabaseSettingsPanel");

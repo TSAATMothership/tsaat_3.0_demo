@@ -1,31 +1,8 @@
-import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
-import { NextRequest, NextResponse } from "next/server";
-import {
-  normalizeDatabaseSettingsPayloadForProcessing,
-  testDatabaseConnection
-} from "@/lib/database-settings";
+import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
-  if (IS_JSON_BUILD) return NextResponse.json({ error: "SQL configuration is unavailable in the No-SQL build." }, { status: 409 });
-  try {
-    const payload = await normalizeDatabaseSettingsPayloadForProcessing(await request.json());
-    const result = await testDatabaseConnection(payload);
-    const status = result.success ? 200 : 400;
-    return NextResponse.json({ result }, { status });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to test database connection.";
-    return NextResponse.json(
-      {
-        result: {
-          success: false,
-          summary: "Database connection failed.",
-          diagnostics: message
-        }
-      },
-      { status: 400 }
-    );
-  }
+export async function POST() {
+  return NextResponse.json({ error: "Database Settings is no longer available in the application." }, { status: 410, headers: { "Cache-Control": "no-store" } });
 }

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { loadDiscoveryToolsSettings, saveDiscoveryToolsSettings } from "@/lib/data-loader";
+import { NextResponse } from "next/server";
+import { loadDiscoveryToolsSettings } from "@/lib/data-loader";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,13 +9,6 @@ export async function GET() {
   return NextResponse.json({ settings });
 }
 
-export async function PUT(request: NextRequest) {
-  try {
-    const payload = await request.json();
-    const settings = await saveDiscoveryToolsSettings(payload);
-    return NextResponse.json({ settings });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to save discovery tools settings.";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+export async function PUT() {
+  return NextResponse.json({ error: "These settings are read-only." }, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } });
 }

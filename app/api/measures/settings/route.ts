@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { loadMeasuresSettings, saveMeasuresSettings, loadSpiDefinitions, loadSeverityDefinitions, loadFindingPriorityDefinitions } from "@/lib/data-loader";
+import { NextResponse } from "next/server";
+import { loadMeasuresSettings, loadSpiDefinitions, loadSeverityDefinitions, loadFindingPriorityDefinitions } from "@/lib/data-loader";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,13 +16,6 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: NextRequest) {
-  try {
-    const payload = await request.json();
-    const settings = await saveMeasuresSettings(payload);
-    return NextResponse.json({ settings });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to save measures settings.";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
+export async function PUT() {
+  return NextResponse.json({ error: "These settings are read-only." }, { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } });
 }

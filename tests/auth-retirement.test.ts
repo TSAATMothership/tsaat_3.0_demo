@@ -52,9 +52,9 @@ describe("Retired login compatibility", () => {
     expect(response.headers.get("set-cookie")).toContain("Path=/");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
-  it("falls back to storage settings for old password-settings links", async () => {
-    const page = await SettingsPage({ searchParams: { settingsTab: "password-settings", network: "net-1", dataDate: "2026-11-04" } });
+  it.each(["password-settings", "database-settings", "invalid", undefined])("falls back to Personas for retired or missing tab %s", async settingsTab => {
+    const page = await SettingsPage({ searchParams: { settingsTab, network: "net-1", dataDate: "2026-11-04" } });
     const popup = (page.props.children as ReactElement[]).find(child => child.type === SettingsRoutePopup)!;
-    expect(popup.props.initialTab).toBe("database-settings");
+    expect(popup.props.initialTab).toBe("personas");
   });
 });

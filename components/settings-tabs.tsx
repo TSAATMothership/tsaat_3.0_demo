@@ -1,11 +1,8 @@
 ﻿"use client";
 
-import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
-
-export type SettingsTabId = "database-settings" | "personas" | "discovery-tools-settings" | "spi-risk-matrix" | "spi-priority-matrix";
+export type SettingsTabId = "personas" | "discovery-tools-settings" | "spi-risk-matrix" | "spi-priority-matrix";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
-  { id: "database-settings", label: IS_JSON_BUILD ? "JSON Data Files" : "Database Settings" },
   { id: "personas", label: "Personas" },
   { id: "discovery-tools-settings", label: "Discovery Tools Settings" },
   { id: "spi-risk-matrix", label: "SPI Risk Matrix" },
