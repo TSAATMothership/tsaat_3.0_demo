@@ -2,7 +2,7 @@
 
 `populate-explorer-demo-data.sql` fills missing/blank fields for the End Point Explorer and Installed Software Explorer in already-loaded demo snapshots. Run it explicitly against a demonstration database after migrations 020 and 021. It is intentionally outside the automatic migration/import path so real CMDB imports do not receive synthetic values.
 
-The script preserves populated attributes, CI/software counts, IDs, relationships, snapshot dates and existing OS/support metadata. It adds an OS row only for a software-hosting endpoint with neither endpoint nor network OS data; support metadata on new mock OS rows is `Unknown`. Filling these formerly absent OS records can affect calculations that inspect OS presence.
+The script preserves populated attributes, CI/software counts, IDs, relationships, snapshot dates and existing OS metadata. It adds an OS row only for a software-hosting endpoint with neither endpoint nor network OS data. Filling absent OS records changes Explorer completeness counts and is only appropriate for labelled demonstration data.
 
 Demo values include private IP addresses, locally administered MAC addresses, CI-type-specific device models, several discovery sources, discovery ages across all four age bands, Windows/Linux installation paths and clearly marked mock patch baselines. Installation ordinals remain intact. Addresses and models are stable for the same CI across the existing snapshots. Existing values are never regenerated on rerun. Only changed snapshots receive a new `generated_at` data version so application caches refresh; historical snapshot dates remain unchanged.
 

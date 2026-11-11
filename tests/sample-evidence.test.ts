@@ -19,7 +19,6 @@ describe('common SQL and JSON weekly evidence', () => {
     expect(auditSampleEvidence(current).errors).toEqual([]);
     expect(completeSampleEvidence(current)).toEqual(current);
     expect(current.assets.filter(asset => asset.type === 'ip-node').every(asset => !asset.macAddress && !asset.deviceModel)).toBe(true);
-    expect(current.assets.some(asset => asset.type === 'server' && asset.patchManagement?.deploymentStatus === 'Unknown' && !asset.patchManagement.lastPatchedDate)).toBe(true);
     const broken = structuredClone(current);
     delete broken.assets.find(asset => asset.type === 'server')!.deviceModel;
     expect(auditSampleEvidence(broken).errors).toContain('missingEndpointFields.deviceModel: 1');
@@ -42,7 +41,7 @@ describe('common SQL and JSON weekly evidence', () => {
       const original = JSON.stringify(old);
       await fs.writeFile(path.join(target, 'snapshots/old.json'), original);
       await fs.writeFile(path.join(target, 'settings/custom.json'), '{"keep":true}');
-      await fs.writeFile(path.join(target, 'store.json'), JSON.stringify({ format: 'tsaat-json-store', schemaVersion: 1, snapshots: [{ id: 1, date: old.snapshotDate, file: 'snapshots/old.json' }] }));
+      await fs.writeFile(path.join(target, 'store.json'), JSON.stringify({ format: 'tsaat-json-store', schemaVersion: 2, snapshots: [{ id: 1, date: old.snapshotDate, file: 'snapshots/old.json' }] }));
       const catalogue = (await Promise.all((await fs.readdir('data/snapshots')).filter(name => /^week-\d+\.json$/.test(name)).sort().map(async (name, index) => ({ id: index + 2, date: JSON.parse(await fs.readFile(path.join('data/snapshots', name), 'utf8')).snapshotDate }))));
       expect((await appendSampleEvidence({ target, catalogue })).changedSnapshots).toBe(8);
       await expect(appendSampleEvidence({ target, catalogue: catalogue.map(entry => ({ ...entry, id: -1 })) })).rejects.toThrow('Invalid source snapshot identity');

@@ -60,21 +60,4 @@ describe("DB-driven SPI and findings runtime cleanup", () => {
       }
     }
   });
-
-  it("keeps SPI evaluations and effective findings on SQL-backed loader paths", () => {
-    const dataLoader = readRepoFile("lib/sql-data-loader.ts");
-    const analytics = readRepoFile("lib/analytics.ts");
-
-    expect(dataLoader).toContain("usp_evaluate_spi_snapshot");
-    expect(dataLoader).toContain("usp_get_effective_findings_snapshot");
-    expect(analytics).toContain("dataset.findings ?? []");
-    expect(analytics).not.toContain("buildFindings");
-  });
-
-  it("uses database-produced workflow status in the current asset compliance panel", () => {
-    const source = readRepoFile("lib/server-compliance.ts");
-
-    expect(source).toContain("finding.status === \"open\"");
-    expect(source).not.toContain("workflowStatusAtAsOf");
-  });
 });

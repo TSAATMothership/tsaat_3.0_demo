@@ -2,19 +2,9 @@
   "description": "Locally rendered derivatives of the same original SVGs used by Governance Insights. No remote resources. Regenerate when source artwork changes.",
   "assets": [
     {
-      "source": "public/cyber-terrain.svg",
-      "sourceSha256": "b0a6a603e88cd15441800c6ea3b5f273fe58a0b238b4d35ae6b9ce7012685088",
-      "output": "public/insights-report-art/cyber-terrain.png"
-    },
-    {
       "source": "public/software-terrain.svg",
       "sourceSha256": "d4e05efdf83f4380e39748cc5863e2385230b94f0c37678312ec250885a15625",
       "output": "public/insights-report-art/software-terrain.png"
-    },
-    {
-      "source": "public/discovery-terrain.svg",
-      "sourceSha256": "fd6837a3eca40e09e03c6d0c28c231885581020dc1e927cb136600d2b07748e1",
-      "output": "public/insights-report-art/discovery-terrain.png"
     },
     {
       "source": "public/endpoint-evidence.svg",

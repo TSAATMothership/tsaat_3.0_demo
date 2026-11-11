@@ -3,9 +3,13 @@ param(
   [Parameter(Mandatory = $true)][object]$Settings,
   [Parameter(Mandatory = $true)][object]$Administrator,
   [switch]$CheckOnly,
+  [switch]$AllowExistingLoginForReplacement,
   [AllowNull()][byte[]]$VerifiedLoginSid
 )
 $ErrorActionPreference = 'Stop'
+if ($AllowExistingLoginForReplacement -and -not $CheckOnly) {
+  throw 'Existing-login reuse must be verified during replacement preflight.'
+}
 
 function Open-SetupConnection {
   param([object]$ConnectionSettings, [string]$Database)
@@ -44,15 +48,24 @@ try {
   # enumerates it into object[], which SqlClient cannot bind as varbinary.
   if ($VerifiedLoginSid) { $command.Parameters['@verifiedSid'].Value = $VerifiedLoginSid }
   else { $command.Parameters['@verifiedSid'].Value = [DBNull]::Value }
-  # A rerun may reuse only a login marked by this setup in the selected database.
-  # A replacement can reattach the exact login verified before the old database
-  # was removed. Never reset passwords, adopt unrelated logins, or remap users.
+  $null = $command.Parameters.Add('@allowExistingLogin', [System.Data.SqlDbType]::Bit)
+  $command.Parameters['@allowExistingLogin'].Value = $AllowExistingLoginForReplacement.IsPresent
+  # Replacement preflight may authenticate an existing SQL login even after a
+  # failed bootstrap lost its user/marker. Only its verified SID can be attached
+  # after replacement. Never reset passwords or remap conflicting users.
   $ownershipSql = @'
 DECLARE @owned bit = 0;
+IF @verifiedSid IS NOT NULL AND (SUSER_SID(@login) IS NULL OR SUSER_SID(@login) <> @verifiedSid)
+  THROW 51005, 'The verified application login changed or was removed. No login was created or reattached. Rerun setup to verify the current login.', 1;
 IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = @login)
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = @login AND type = 'S')
+    THROW 51001, 'The existing application login must use SQL authentication. Choose a SQL login.', 1;
+  IF EXISTS (SELECT 1 FROM sys.server_role_members WHERE member_principal_id = SUSER_ID(@login))
+    THROW 51002, 'The application login has a server role. Choose a dedicated login without server roles.', 1;
   IF DB_ID(@database) IS NOT NULL
   BEGIN
+    IF @allowExistingLogin = 1 SET @owned = 1;
     DECLARE @lookup nvarchar(max) = N'USE ' + QUOTENAME(@database) + N';
       SELECT @owned = 1 FROM sys.database_principals p
       JOIN sys.extended_properties e ON e.class = 4 AND e.major_id = p.principal_id
@@ -62,26 +75,34 @@ BEGIN
   END;
   IF @owned = 0 AND @verifiedSid IS NOT NULL AND SUSER_SID(@login) = @verifiedSid SET @owned = 1;
   IF @owned = 0 THROW 51001, 'Login already exists and was not created by this setup for the selected database. Choose another database username.', 1;
-  IF EXISTS (SELECT 1 FROM sys.server_role_members WHERE member_principal_id = SUSER_ID(@login))
-    THROW 51002, 'The application login has a server role. Choose a dedicated login without server roles.', 1;
 END;
 '@
-  $command.CommandText = $ownershipSql + "`r`nSELECT @owned;"
-  try { $owned = [bool]$command.ExecuteScalar() }
+  $command.CommandText = $ownershipSql + "`r`nSELECT CASE WHEN @owned = 1 THEN SUSER_SID(@login) ELSE NULL END;"
+  try { $existingSid = $command.ExecuteScalar() }
   catch {
     $failure = $_.Exception.GetBaseException()
-    if ($failure.Number -in @(51001, 51002)) { throw $failure.Message }
+    if ($failure.Number -in @(51001, 51002, 51005)) { throw $failure.Message }
     throw 'Cannot verify database login ownership. No login was changed.'
   }
+  $owned = $existingSid -is [byte[]]
   if ($owned) {
     $appConnection = Open-SetupConnection -ConnectionSettings $Settings -Database 'master'
-    $appConnection.Dispose()
+    try {
+      $identityCommand = $appConnection.CreateCommand()
+      $identityCommand.CommandText = 'SELECT SUSER_SID();'
+      $authenticatedSid = $identityCommand.ExecuteScalar()
+      if ($authenticatedSid -isnot [byte[]] -or [BitConverter]::ToString($authenticatedSid) -cne [BitConverter]::ToString($existingSid)) {
+        throw 'The application login changed during authentication. No database or login was changed. Retry setup.'
+      }
+    } finally { $appConnection.Dispose() }
   }
   if ($CheckOnly) {
     $sid = $null
     if ($owned) {
-      $command.CommandText = 'SELECT SUSER_SID(@login);'
-      $sid = $command.ExecuteScalar()
+      $sid = $existingSid
+      if ($AllowExistingLoginForReplacement) {
+        Write-Host "Existing SQL login '$($Settings.userId)' verified for database replacement. Its password and server permissions will be preserved."
+      }
     }
     return [pscustomobject]@{ LoginSid = $sid }
   }
@@ -128,7 +149,7 @@ END CATCH;
   try { $null = $command.ExecuteNonQuery() }
   catch {
     $failure = $_.Exception.GetBaseException()
-    if ($failure.Number -in @(51001, 51002, 51003)) { throw $failure.Message }
+    if ($failure.Number -in @(51001, 51002, 51003, 51005)) { throw $failure.Message }
     throw 'Database user creation failed. Check the server password policy, administrator permissions, and whether the selected database already has a conflicting user. Login/user changes were rolled back; database data was retained.'
   }
   Write-Host 'Database login and application access are ready. No server administrator role was granted.'

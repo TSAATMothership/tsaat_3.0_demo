@@ -26,14 +26,17 @@ Add-Content -LiteralPath $env:TSAAT_TEST_TRACE -Value 'bootstrap'
 if ($env:TSAAT_TEST_SCENARIO -eq 'bootstrap-failure') { throw 'Simulated loader failure' }
 `);
     await fs.writeFile(path.join(directory, "scripts/configure-database-user.ps1"), `
-param($Settings, $Administrator, [switch]$CheckOnly, [byte[]]$VerifiedLoginSid)
+param($Settings, $Administrator, [switch]$CheckOnly, [switch]$AllowExistingLoginForReplacement, [byte[]]$VerifiedLoginSid)
 if ($Settings.authMode -ne 'sql' -or $Settings.password -ne 'test-secret' -or $Settings.sslEnabled) { throw 'Wrong application settings' }
 if ($Administrator.userId -ne 'setup-admin' -or $Administrator.password -ne 'admin-secret' -or $Administrator.sslEnabled) { throw 'Wrong administrator settings' }
 if ($CheckOnly) {
+  $existing = $env:TSAAT_TEST_SCENARIO.StartsWith('existing') -or $env:TSAAT_TEST_SCENARIO -eq 'validation-failure'
+  if ($AllowExistingLoginForReplacement.IsPresent -ne $existing) { throw 'Existing login reuse must be limited to replacement preflight' }
   Add-Content -LiteralPath $env:TSAAT_TEST_TRACE -Value 'login-preflight'
-  if ($env:TSAAT_TEST_SCENARIO -eq 'login-collision') { throw 'Login already exists' }
+  if ($env:TSAAT_TEST_SCENARIO -in @('login-collision', 'existing-login-failure')) { throw 'Login preflight failed' }
   return [pscustomobject]@{ LoginSid = [byte[]]@(1,2,3) }
 } else {
+  if ($AllowExistingLoginForReplacement) { throw 'Reattachment must use only the verified SID' }
   if (($VerifiedLoginSid -join ',') -ne '1,2,3') { throw 'Verified login identity was not preserved' }
   Add-Content -LiteralPath $env:TSAAT_TEST_TRACE -Value 'login-create'
   if ($env:TSAAT_TEST_SCENARIO -eq 'login-failure') { throw 'Login creation failed' }
@@ -128,12 +131,13 @@ $administrator=[pscustomobject]@{authMode='sql';userId='setup-admin';password='a
     expect((await trace()).trim().split(/\r?\n/)).toEqual([...sequence, ...sequence]);
   });
 
-  it.each(["connection-failure", "login-collision", "existing-drop-failure", "bootstrap-failure", "validation-failure", "login-failure", "app-validation-failure"])("does not publish config after %s", async scenario => {
+  it.each(["connection-failure", "login-collision", "existing-login-failure", "existing-drop-failure", "bootstrap-failure", "validation-failure", "login-failure", "app-validation-failure"])("does not publish config after %s", async scenario => {
     const result = run(scenario);
     expect(result.status).not.toBe(0);
     expect(result.stdout).not.toContain("Database ready.");
     expect(result.stdout + result.stderr).not.toContain("test-secret");
     await expect(fs.access(path.join(directory, "DB_config"))).rejects.toThrow();
+    if (scenario === "existing-login-failure") expect((await trace()).trim()).toBe("login-preflight");
     if (scenario === "connection-failure") {
       expect(await trace()).toBe("");
       const output = result.stdout + result.stderr;

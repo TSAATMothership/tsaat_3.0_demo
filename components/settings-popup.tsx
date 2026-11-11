@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentProps } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SettingsTabs, type SettingsTabId } from "@/components/settings-tabs";
-import { MeasuresSettingsMatrix } from "@/components/measures-settings-matrix";
 import { DiscoveryToolsSettingsPanel } from "@/components/discovery-tools-settings-panel";
 import { PersonasSettingsPanel } from "@/components/personas-settings-panel";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 
-type SpiMatrixSettings = Omit<ComponentProps<typeof MeasuresSettingsMatrix>, "activeMatrix">;
 
 export function SettingsPopup({ onClose, initialTab = "personas" }: {
   onClose: () => void;
@@ -18,9 +16,6 @@ export function SettingsPopup({ onClose, initialTab = "personas" }: {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [discoverySettings, setDiscoverySettings] = useState<DiscoveryToolsSettings | null>(null);
-  const [spiMatrixSettings, setSpiMatrixSettings] = useState<SpiMatrixSettings | null>(null);
-  const [spiMatrixError, setSpiMatrixError] = useState("");
-  const [spiMatrixRetry, setSpiMatrixRetry] = useState(0);
   const [discoveryError, setDiscoveryError] = useState("");
   const [discoveryRetry, setDiscoveryRetry] = useState(0);
 
@@ -52,21 +47,6 @@ export function SettingsPopup({ onClose, initialTab = "personas" }: {
     return () => controller.abort();
   }, [activeTab, discoverySettings, discoveryRetry]);
 
-  useEffect(() => {
-    if ((activeTab !== "spi-risk-matrix" && activeTab !== "spi-priority-matrix") || spiMatrixSettings) return;
-    const controller = new AbortController();
-    setSpiMatrixError("");
-    fetch("/api/measures/settings", { signal: controller.signal, cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load SPI matrix settings.");
-        const payload = await response.json() as Omit<SpiMatrixSettings, "initialSettings"> & { settings: SpiMatrixSettings["initialSettings"] };
-        if (!controller.signal.aborted) setSpiMatrixSettings({ initialSettings: payload.settings,
-          spiDefinitions: payload.spiDefinitions, severityDefinitions: payload.severityDefinitions, priorityDefinitions: payload.priorityDefinitions });
-      })
-      .catch((reason: Error) => { if (!controller.signal.aborted) setSpiMatrixError(reason.message); });
-    return () => controller.abort();
-  }, [activeTab, spiMatrixSettings, spiMatrixRetry]);
-
   if (!mounted) return null;
   return createPortal(
     <dialog ref={dialogRef} className={`settings-popup${activeTab === "personas" ? " is-personas" : ""}`} aria-labelledby="settings-popup-title"
@@ -89,16 +69,6 @@ export function SettingsPopup({ onClose, initialTab = "personas" }: {
               <div className="panel p-5"><p role="alert">{discoveryError}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setDiscoveryRetry((value) => value + 1)}>Retry</button></div>
             ) : <p role="status" className="p-5">Loading discovery tools settings...</p>}
           </div>
-          {spiMatrixSettings ? <MeasuresSettingsMatrix {...spiMatrixSettings}
-            activeMatrix={activeTab === "spi-risk-matrix" ? "severity" : activeTab === "spi-priority-matrix" ? "priority" : null} /> : [
-            { id: "spi-risk-matrix", label: "SPI Risk Matrix" },
-            { id: "spi-priority-matrix", label: "SPI Priority Matrix" }
-          ].map((tab) => <div key={tab.id} role="tabpanel" id={`settings-panel-${tab.id}`} aria-labelledby={`settings-tab-${tab.id}`}
-            hidden={activeTab !== tab.id} className="h-full min-h-[360px]">
-            {spiMatrixError ? (
-              <div className="panel p-5"><p role="alert">{spiMatrixError}</p><button type="button" className="mt-3 rounded border border-sky-300/35 px-3 py-2" onClick={() => setSpiMatrixRetry((value) => value + 1)}>Retry</button></div>
-            ) : <p role="status" className="p-5">Loading {tab.label} settings...</p>}
-          </div>)}
         </div>
       </div>
     </dialog>, document.body

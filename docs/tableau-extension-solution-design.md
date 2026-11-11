@@ -1,5 +1,7 @@
 # TSAAT Dashboard Extension
 
+2026-11-11 update: [inventory storage v2 and the approved retirement](feature-retirement.md) supersede references below to retired analytics, Findings, Briefs & Reports and SPI settings. Current navigation has Governance and Discovery only; Settings has read-only Personas and Discovery Tools. The old feature descriptions are historical context, not active capabilities.
+
 ## Solution design and transformation plan
 
 Version 0.2 | 9 November 2026 | Target: on-premises Tableau Server
@@ -402,7 +404,7 @@ Reviewed on 9 November 2026. Vendor capabilities remain dependent on the install
 - **R2:** [Data providers](data-providers.md), [data facade](../lib/data-loader.ts) and [CMDB facade](../lib/cmdb-attribute-loader.ts): shared boundaries and server-only dependencies.
 - **R3:** [Calculation contract](../NoSQL/calculation-contract.json) and [sample evidence](sample-evidence.md): rule parity and shared snapshot fixtures.
 - **R4:** [Personas](personas.md): version-3 definitions, current save behaviour and presentation-only permissions.
-- **R5:** [Inventory Insights reports](inventory-insights-reports.md), [PDF renderer](../lib/governance-insights-pdf.ts), [workbook builder](../lib/inventory-explorer-workbook.ts) and [template workbook](../lib/network-target-state-template-workbook.ts).
+- **R5:** [Inventory Insights reports](inventory-insights-reports.md), PDF renderer (retired; historical design), [workbook builder](../lib/inventory-explorer-workbook.ts) and template workbook (retired; historical design).
 - **R6:** [SDLC](sdlc.md): impact-based checks and coordinated provider evolution.
 - **R7:** [Offline builds](offline-builds.md): installation, dependency provenance and guarded compilation.
 

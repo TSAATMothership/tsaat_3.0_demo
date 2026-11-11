@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 
-export type InsightsReportKind = "cyber" | "software" | "discovery" | "endpoint" | "vulnerability";
+export type InsightsReportKind = "software" | "endpoint" | "vulnerability";
 const hex = (value: number) => rgb((value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255);
 /** Print surfaces retain the Insights page palette while keeping body text legible on paper. */
 export const INSIGHTS_PDF_THEME = {
@@ -9,7 +9,7 @@ export const INSIGHTS_PDF_THEME = {
   amber: hex(0x94600a), white: rgb(1, 1, 1),
 };
 const artwork: Record<InsightsReportKind, string> = {
-  cyber: "cyber-terrain", software: "software-terrain", discovery: "discovery-terrain",
+  software: "software-terrain",
   endpoint: "endpoint-evidence", vulnerability: "vulnerability-evidence",
 };
 export interface InsightsPdfAssets {
@@ -67,9 +67,7 @@ function text(page: PDFPage, font: PDFFont, value: string, x: number, y: number,
 /** Equivalent line symbols to the web briefings, drawn as vectors at print resolution. */
 export function drawInsightsIcon(page: PDFPage, kind: InsightsReportKind, x: number, y: number, size: number, color = INSIGHTS_PDF_THEME.mint) {
   const paths: Record<InsightsReportKind, string> = {
-    cyber: "M12 2 L21 6 L21 12 C21 18 12 22 12 22 C12 22 3 18 3 12 L3 6 Z M8 12 L11 15 L16 9",
     software: "M12 2 L22 7 L22 17 L12 22 L2 17 L2 7 Z M2 7 L12 12 L22 7 M12 12 L12 22 M7 4.5 L17 9.5",
-    discovery: "M12 2 A10 10 0 1 0 22 12 M12 7 A5 5 0 1 0 17 12 M12 12 L21 3 M12 2 L12 4 M2 12 L4 12 M12 20 L12 22",
     endpoint: "M3 3 L21 3 L21 16 L3 16 Z M12 16 L12 21 M7 21 L17 21 M6 7 L18 7",
     vulnerability: "M12 2 L21 6 L21 12 C21 18 12 22 12 22 C12 22 3 18 3 12 L3 6 Z M12 7 L12 13 M12 16 L12 17",
   };

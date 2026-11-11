@@ -2,31 +2,21 @@
   "version": 1,
   "areas": [
     {
+      "name": "Retired feature compatibility and inventory upgrade",
+      "pattern": "retired-|inventory-schema|migrate-inventory|033_retire|cyber-cop|risk-profile|measures|findings|impact-analyser",
+      "documents": [
+        "docs/feature-retirement.md",
+        "docs/adr/0029-retire-analytics-features.md",
+        "docs/data-providers.md"
+      ]
+    },
+    {
       "name": "Workspace and navigation",
       "pattern": "workspace|governance|route-loading|app/page\\.tsx|app/layout\\.tsx",
       "documents": [
         "Requirements Documentation/01-Home-Redirect.md",
-        "Requirements Documentation/15-Governance-Insights.md",
-        "docs/ui-design.md"
-      ]
-    },
-    {
-      "name": "Impact analysers",
-      "pattern": "cyber-cop|impact-analyser|service-impact|server-compliance|ci-flow",
-      "documents": [
-        "Requirements Documentation/02-Cyber-COP.md",
-        "docs/architecture.md"
-      ]
-    },
-    {
-      "name": "Risk profiles and entity details",
-      "pattern": "risk-profile|risk-entity|network-details|ict-system-details|compliance-heatmap|app/networks|app/systems",
-      "documents": [
-        "Requirements Documentation/03-Networks.md",
-        "Requirements Documentation/04-Network-Detail.md",
-        "Requirements Documentation/05-ICT-Systems.md",
-        "Requirements Documentation/06-ICT-System-Detail.md",
-        "docs/ui-design.md"
+        "docs/ui-design.md",
+        "docs/feature-retirement.md"
       ]
     },
     {
@@ -47,28 +37,11 @@
       ]
     },
     {
-      "name": "Measures",
-      "pattern": "measures|kpi|spi",
-      "documents": [
-        "Requirements Documentation/08-Measures.md",
-        "Requirements Documentation/11-Settings.md",
-        "Requirements Documentation/12-Asset-Taxonomy-and-SPI-Applicability.md"
-      ]
-    },
-    {
-      "name": "Findings",
-      "pattern": "findings|finding-",
-      "documents": [
-        "Requirements Documentation/09-Findings-and-Evidence.md",
-        "docs/ui-design.md"
-      ]
-    },
-    {
       "name": "Reports",
       "pattern": "report|workbook|export",
       "documents": [
-        "Requirements Documentation/10-Report-Catalogue.md",
-        "Requirements Documentation/08-Measures.md"
+        "docs/client-document-generation.md",
+        "docs/inventory-insights-reports.md"
       ]
     },
     {
@@ -110,7 +83,7 @@
     },
     {
       "name": "SQL and JSON data providers",
-      "pattern": "^NoSQL/|json-store|data-provider|sql-data-loader|cmdb-attribute-loader|run-app|nosql|next.config|compileApp",
+      "pattern": "^NoSQL/|json-store|data-provider|sql-data-loader|cmdb-attribute-loader|run-app|nosql|next.config|compileApp|inventory-schema|inventory-context|migrate-inventory|retired-capabilities",
       "documents": [
         "docs/data-providers.md",
         "NoSQL/README.md",

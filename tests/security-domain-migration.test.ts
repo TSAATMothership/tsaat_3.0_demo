@@ -10,7 +10,7 @@ it("previews and atomically migrates legacy JSON with backups, provenance and se
     const target=path.join(root,"store"), original=JSON.parse(await fs.readFile("data/current.json","utf8"));
     for(const n of original.managedNetworks) delete n.securityDomain;
     for(const a of [...original.assets,...original.ictSystems]) a.securityDomain=a.securityDomain==="UNKNOWN"?"Unclassified":a.securityDomain.toLowerCase();
-    const manifest={format:"tsaat-json-store",schemaVersion:1,sampleDataProfile:"retained-profile",snapshots:[{id:8,date:original.snapshotDate,file:"snapshots/original.json"}]};
+    const manifest={format:"tsaat-json-store",schemaVersion:2,sampleDataProfile:"retained-profile",snapshots:[{id:8,date:original.snapshotDate,file:"snapshots/original.json"}]};
     await fs.mkdir(path.join(target,"snapshots"),{recursive:true}); await fs.mkdir(path.join(target,"settings"));
     await fs.writeFile(path.join(target,"snapshots/original.json"),JSON.stringify(original));
     await fs.writeFile(path.join(target,"store.json"),JSON.stringify(manifest));

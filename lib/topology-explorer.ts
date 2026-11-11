@@ -3,7 +3,7 @@ import { parseFilters, filterNetworks, filterSystems } from "@/lib/selectors";
 import { matchesSecurityDomain } from "@/lib/security-domain.mjs";
 import { isRealNetworkId } from "@/lib/network-scope";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
-import { layoutServiceImpactGraph, type ImpactGraph, type ImpactLayout, type ImpactNodePosition } from "@/lib/service-impact-graph";
+import { layoutTopologyGraph, type ImpactGraph, type ImpactLayout, type ImpactNodePosition } from "@/lib/topology-layout";
 import type { Dataset } from "@/lib/types";
 
 export type TopologyKind = "business" | "mission" | "network" | "system" | "asset";
@@ -212,7 +212,6 @@ export function layoutTopology(graph: Pick<TopologyExplorerModel, "nodes" | "edg
   }
   // Reuse Impact Topology's layouts; network and system nodes share its model tier.
   const impact: ImpactGraph = { edges: graph.edges, nodes: graph.nodes.map(node => ({ ...node,
-    kind: node.kind === "network" ? "system" : node.kind, description: node.type, systemIds: [], findingRows: [],
-    findings: 0, affectedCis: 0, critical: 0, high: 0, severities: {} })) };
-  return layoutServiceImpactGraph(impact, { kind, direction: "top-down", circularMode: "radial" });
+    kind: node.kind === "network" ? "system" : node.kind })) };
+  return layoutTopologyGraph(impact, { kind, direction: "top-down", circularMode: "radial" });
 }

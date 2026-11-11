@@ -1,4 +1,3 @@
-import type { DiscoveryComplianceFilters } from "@/lib/discovery-compliance-explorer";
 import type { EndpointFilters } from "@/lib/endpoint-explorer";
 import type { SoftwareFilters } from "@/lib/installed-software-explorer";
 import type { ShadowFilters } from "@/lib/shadow-it-explorer";
@@ -7,12 +6,9 @@ import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation
 import { securityDomainFilter } from "@/lib/security-domain.mjs";
 
 type ExplorerFilters = {
-  tools: never;
-  compliance: DiscoveryComplianceFilters;
   endpoints: EndpointFilters;
   "installed-software": SoftwareFilters;
   "security-vulnerabilities": ExplorerTableFilters;
-  "patch-management": ExplorerTableFilters;
   "shadow-it": ShadowFilters;
 };
 

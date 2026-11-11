@@ -9,8 +9,6 @@ export type EnvironmentType = "Production" | "Development" | "UAT" | "Test";
 
 export type SupportStatus = "Supported" | "OutOfSupport" | "Unknown";
 
-export type ComplianceStatus = "Compliant" | "Non-compliant" | "Unknown";
-
 export type VulnerabilitySeverity = "Low" | "Medium" | "High" | "Critical";
 export type VulnerabilityExploitability =
   | "No Known Exploit"
@@ -60,7 +58,6 @@ export interface ManagedNetwork {
   discoveryStatus: NetworkDiscoveryStatus;
   ictSystemIds: string[];
   assetIds: string[];
-  targetStateAssets?: Partial<Record<AssetType, string[]>>;
 }
 
 export interface SystemEnvironment {
@@ -100,11 +97,8 @@ export interface OperatingSystem {
   family: string;
   vendor: string;
   patchLevel?: string | null;
-  majorVersion: number | null;
   version: string;
   supportStatus: SupportStatus;
-  currentSupportedMajor: number | null;
-  nMinus: number | null;
 }
 
 export interface InstalledSoftware {
@@ -119,29 +113,6 @@ export interface InstalledSoftware {
 export interface PatchState {
   isLatest: boolean | null;
   lastPatchedDate: string | null;
-}
-
-/** Snapshot evidence from a patch-management tool; absent values are unknown. */
-export interface ServerPatchRecord {
-  assessmentDate?: string | null;
-  assessmentValidUntil?: string | null;
-  lastPatchedDate?: string | null;
-  lastRestartedDate?: string | null;
-  verifiedDate?: string | null;
-  installedPatchLevel?: string | null;
-  targetPatchLevel?: string | null;
-  missingUpdates?: number | null;
-  missingCriticalUpdates?: number | null;
-  restartRequired?: boolean | null;
-  deploymentStatus?: "Succeeded" | "Failed" | "In progress" | "Scheduled" | "Unknown" | null;
-  dueDate?: string | null;
-  plannedDate?: string | null;
-  owner?: string | null;
-  maintenanceWindow?: string | null;
-  changeReference?: string | null;
-  exceptionReason?: string | null;
-  exceptionExpiresDate?: string | null;
-  source?: string | null;
 }
 
 export interface Vulnerability {
@@ -204,7 +175,6 @@ interface BaseAsset {
 
 export interface ServerAsset extends BaseAsset {
   type: "server";
-  patchManagement?: ServerPatchRecord | null;
   operatingSystem: OperatingSystem | null;
   installedSoftware: InstalledSoftware[];
 }
@@ -248,11 +218,6 @@ export type Asset =
   | OtherAsset
   | IpNodeAsset;
 
-export interface ReferenceVersions {
-  osCurrentMajor: Record<string, number>;
-  softwareSupportMatrix: Record<string, string[]>;
-}
-
 export type CiDependencyType = "Logical Dependency" | "Flow Dependency";
 
 export interface CiDependency {
@@ -275,24 +240,8 @@ export interface Dataset {
   managedNetworks: ManagedNetwork[];
   ictSystems: ICTSystem[];
   assets: Asset[];
-  spiEvaluations: StoredSpiEvaluation[];
   discoveryCoverageEvaluations?: StoredDiscoveryCoverageEvaluation[];
   ciDependencies?: CiDependency[];
-  findings?: Finding[];
-}
-
-export type SpiId = number;
-
-export interface SpiEvaluation {
-  spiId: SpiId;
-  outcomeKey?: string;
-  status: ComplianceStatus;
-  evidence: Record<string, string | number | boolean | null>;
-  reasons: string[];
-}
-
-export interface StoredSpiEvaluation extends SpiEvaluation {
-  assetId: string;
 }
 
 export type DiscoveryCoverageValue = 1 | 0 | null;
@@ -305,77 +254,6 @@ export interface StoredDiscoveryCoverageEvaluation {
   coverageCompliance: boolean;
 }
 
-export interface StoredKpiEvaluation {
-  kpiId: string;
-  displayOrder: number;
-  calculationKey: string;
-  score: string;
-  scorePercent: number;
-  compliantCount: number;
-  applicableCount: number;
-  nonCompliantCount: number;
-  unknownCount: number;
-  highPriorityCount: number;
-}
-
-export interface StoredScopedKpiEvaluation extends StoredKpiEvaluation {
-  scopeKey: string;
-}
-
-export interface AssetSpiEvaluation {
-  assetId: string;
-  assetType: AssetType;
-  networkId: string;
-  systemId: string | null;
-  environmentType: EnvironmentType | null;
-  securityDomain: SecurityDomain;
-  systemCriticality: SystemCriticality | null;
-  discoveryCoverageCompliant: boolean;
-  evaluations: SpiEvaluation[];
-}
-
-export interface RollupCounts {
-  compliant: number;
-  nonCompliant: number;
-  unknown: number;
-  impactedAssets: number;
-}
-
-export interface RollupResult {
-  scopeType: "network" | "system" | "environment";
-  scopeId: string;
-  spiId: SpiId;
-  status: ComplianceStatus;
-  counts: RollupCounts;
-}
-
-export type FindingSeverity = string;
-
-export type FindingWorkflowStatus = "open" | "closed";
-
-export interface Finding {
-  id: string;
-  spiId: SpiId;
-  priorityRank: number;
-  severity: FindingSeverity;
-  rawPriorityRank?: number;
-  rawSeverity?: FindingSeverity;
-  sourceKind?: "persisted" | "generated";
-  status: FindingWorkflowStatus;
-  complianceStatus: ComplianceStatus;
-  timestamp: string;
-  closedTimestamp?: string | null;
-  scope: {
-    networkId: string;
-    systemId: string | null;
-    environmentType: EnvironmentType | null;
-    assetId: string;
-  };
-  title: string;
-  evidence: Record<string, string | number | boolean | null>;
-  recommendedAction: string;
-}
-
 export interface Filters {
   managedNetwork?: string;
   ictSystem?: string;
@@ -384,29 +262,6 @@ export interface Filters {
   securityDomain?: string;
   environment?: EnvironmentType;
   assetType?: AssetType;
-  severity?: FindingSeverity;
   missionCapability?: string;
   businessService?: string;
-}
-
-export interface TrendPoint {
-  weekLabel: string;
-  snapshotDate: string;
-  compliancePercent: number;
-  nonCompliantCount: number;
-  unknownCount: number;
-  highRiskCount: number;
-  criticalExposureCount: number;
-  immediateActionCount: number;
-}
-
-export interface AnalyticsResult {
-  evaluations: AssetSpiEvaluation[];
-  findings: Finding[];
-  networkRollups: RollupResult[];
-  systemRollups: RollupResult[];
-  environmentRollups: RollupResult[];
-  overallCompliancePercent: number;
-  statusTotals: RollupCounts;
-  productionCriticalExposureAssetIds: string[];
 }

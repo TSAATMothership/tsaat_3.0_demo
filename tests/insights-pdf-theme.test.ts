@@ -8,12 +8,12 @@ import { useBundledInsightsAssets } from "./insights-assets-fixture";
 useBundledInsightsAssets();
 
 const artwork: Record<InsightsReportKind, string> = {
-  cyber: "cyber-terrain", software: "software-terrain", discovery: "discovery-terrain",
+  software: "software-terrain",
   endpoint: "endpoint-evidence", vulnerability: "vulnerability-evidence"
 };
 const kinds=Object.keys(artwork) as InsightsReportKind[];
 const opening={
-  kind:"discovery" as const,title:"Discovery Insights Report",snapshotDate:"2026-03-05",
+  kind:"endpoint" as const,title:"End Point Insights Report",snapshotDate:"2026-03-05",
   generatedAt:new Date("2026-11-09T01:00:00Z"),scopeLines:["Managed network: Example network"],
   summary:["The selected snapshot contains recorded discovery evidence."],
   recommendations:["Validate missing discovery evidence with its owner."]
@@ -22,12 +22,12 @@ const opening={
 afterEach(()=>vi.restoreAllMocks());
 
 describe("Governance Insights PDF visual contract",()=>{
-  it("keeps all five print derivatives aligned with their current local page artwork",()=>{
+  it("keeps all three print derivatives aligned with their current local page artwork",()=>{
     const manifest=JSON.parse(readFileSync("public/insights-report-art/manifest.json","utf8")) as {
       assets:Array<{source:string;sourceSha256:string;output:string}>;
     };
     expect(manifest.assets.map(asset=>asset.source).sort()).toEqual(Object.values(artwork).map(name=>"public/"+name+".svg").sort());
-    expect(new Set(manifest.assets.map(asset=>asset.output)).size).toBe(5);
+    expect(new Set(manifest.assets.map(asset=>asset.output)).size).toBe(3);
     for(const asset of manifest.assets){
       const source=readFileSync(asset.source),png=readFileSync(asset.output);
       expect(createHash("sha256").update(Uint8Array.from(source)).digest("hex"),asset.source+" needs its print derivative regenerated").toBe(asset.sourceSha256);
@@ -66,11 +66,11 @@ describe("Governance Insights PDF visual contract",()=>{
 
   it("loads only the logo and requested hero for a single-report export",async()=>{
     const doc=await PDFDocument.create(),embed=vi.spyOn(doc,"embedPng");
-    const assets=await loadInsightsPdfAssets(doc,"discovery");
+    const assets=await loadInsightsPdfAssets(doc,"endpoint");
     expect(embed).toHaveBeenCalledTimes(2);
-    expect(Object.keys(assets.heroes)).toEqual(["discovery"]);
+    expect(Object.keys(assets.heroes)).toEqual(["endpoint"]);
     const page=doc.addPage([595.28,841.89]);
-    expect(()=>drawInsightsHero(page,assets,"discovery",{x:36,y:600,width:140,height:102})).not.toThrow();
+    expect(()=>drawInsightsHero(page,assets,"endpoint",{x:36,y:600,width:140,height:102})).not.toThrow();
     expect(()=>drawInsightsHero(page,assets,"software",{x:36,y:600,width:140,height:102})).toThrow();
   });
 
@@ -86,7 +86,7 @@ describe("Governance Insights PDF visual contract",()=>{
 
   it("fails a missing browser asset instead of falling back to filesystem or incomplete branding",async()=>{
     vi.mocked(fetch).mockResolvedValueOnce(new Response(null,{status:404}));
-    await expect(loadInsightsPdfAssets(await PDFDocument.create(),"cyber",{assetBaseUrl:"https://tsaat.test/"})).rejects.toThrow("bundled report artwork");
+    await expect(loadInsightsPdfAssets(await PDFDocument.create(),"endpoint",{assetBaseUrl:"https://tsaat.test/"})).rejects.toThrow("bundled report artwork");
   });
 
   it("places the summary and recommendations in equal, separate half-page panels",async()=>{
@@ -117,7 +117,7 @@ describe("Governance Insights PDF visual contract",()=>{
     expect(()=>drawInsightsOpeningPage(doc,assets,{...opening,[field]:["Long evidence narrative requiring more than half a page. ".repeat(150)]})).toThrow(/exceeds its half-page narrative space/);
   });
 
-  it("keeps a long scope out of the opening narrative panels and supports all five line icons",async()=>{
+  it("keeps a long scope out of the opening narrative panels and supports all three line icons",async()=>{
     const doc=await PDFDocument.create(),assets=await loadInsightsPdfAssets(doc);
     const texts=vi.spyOn(PDFPage.prototype,"drawText"),icons=vi.spyOn(PDFPage.prototype,"drawSvgPath");
     drawInsightsOpeningPage(doc,assets,{...opening,scopeLines:["Network name ".repeat(70)]});
@@ -129,8 +129,8 @@ describe("Governance Insights PDF visual contract",()=>{
       expect(y).toBeGreaterThan(600);expect(y).toBeLessThan(657);
       iconPaths.push(icons.mock.calls.at(-1)![0]);
     }
-    expect(new Set(iconPaths).size).toBe(5);
+    expect(new Set(iconPaths).size).toBe(3);
     const bytes=await doc.save();
-    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(6);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(4);
   });
 });

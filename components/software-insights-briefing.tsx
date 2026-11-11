@@ -9,7 +9,7 @@ import { emptySoftwareFilters, type SoftwareColumn, type SoftwareFilters } from 
 import type { InstalledSoftwareInsightsModel } from "@/lib/installed-software-insights";
 import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { securityDomainSelection } from "@/lib/security-domain.mjs";
-import { insightsHref } from "@/lib/governance-insights";
+import { insightsHref } from "@/lib/insights-navigation";
 import { InsightsReportButton } from "@/components/insights-report-button";
 
 const number = (value: number) => value.toLocaleString("en-AU");
@@ -32,7 +32,7 @@ function Chapter({ index, label, title, children, icon }: { index: string; label
     <p className="insight-kicker"><Icon name={icon} />{label}</p><h2>{title}</h2><p>{children}</p></div></header>;
 }
 
-/** Same visual system as Cyber Terrain Insights; the existing software model remains authoritative. */
+/** Shared visual system for the retained Insights; the existing software model remains authoritative. */
 export function SoftwareInsightsBriefing({ model, scope }: { model: InstalledSoftwareInsightsModel; scope: WorkspaceSearchParams }) {
   const href = (filters?: SoftwareFilters) => discoveryExplorerHref("installed-software", scope, model.snapshotDate, filters);
   const columnHref = (column: SoftwareColumn, value: string) => href({ ...emptySoftwareFilters(), columns: { [column]: [value] } });

@@ -4,6 +4,8 @@ Status: Accepted, 2026-11-06. Supersedes ADR 0016's setup authentication/TLS def
 
 Existing-database validation-only behavior is superseded by [ADR 0018](0018-replace-database-during-setup.md), which adds explicitly acknowledged database replacement.
 
+For replacement of an existing database, [ADR 0030](0030-reuse-login-for-database-replacement.md) permits reuse of the selected existing SQL login after password/SID verification even without the setup marker.
+
 Presentation update, 2026-11-07: Database Settings removes TLS controls and its separate SSL test button. Saved policies remain intact and required encryption checks run within Test Connection; configuration-only tools and compatibility APIs retain TLS support.
 
 ## Decision

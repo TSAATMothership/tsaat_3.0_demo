@@ -21,9 +21,6 @@ describe("route loading readiness", () => {
       "components/menu-navigation.tsx",
       "components/workspace-filters.tsx",
       "components/workspace-shell.tsx",
-      "components/filter-bar.tsx",
-      "components/findings-status-tabs.tsx",
-      "components/findings-timeline-filter.tsx",
     ];
 
     for (const componentPath of routeLoadingComponents) {
@@ -59,11 +56,11 @@ describe("route loading readiness", () => {
 
     for (const [pagePath, markerPath] of pages) {
       const source = readRepoFile(pagePath);
-      expect(source, pagePath).toContain("RouteReadyMarker");
+      expect(source, pagePath).toMatch(/RouteReadyMarker|RetiredFeature/);
       expect(source, pagePath).toContain(markerPath);
     }
 
-    expect(readRepoFile("app/networks/[networkId]/page.tsx")).toContain("redirect(networkDetailsHref(");
-    expect(readRepoFile("app/systems/[systemId]/page.tsx")).toContain("redirect(ictSystemDetailsHref(");
+    expect(readRepoFile("app/networks/[networkId]/page.tsx")).toContain("RetiredFeature");
+    expect(readRepoFile("app/systems/[systemId]/page.tsx")).toContain("RetiredFeature");
   });
 });

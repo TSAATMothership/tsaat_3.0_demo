@@ -12,7 +12,7 @@ import { ImpactGraphNodeVisual, impactGraphNodeRadius } from "@/components/impac
 import { emptyTopologyLookup, layoutTopology, lookupTopology, traceTopology, parseTopologyMode, TOPOLOGY_KINDS, TOPOLOGY_MODES,
   type TopologyExplorerModel, type TopologyExplorerNode, type TopologyLookup, type TopologyMode, type TopologyCommunication } from "@/lib/topology-explorer";
 import type { ExplorerColumn } from "@/lib/explorer-table";
-import type { ImpactLayout, ImpactNodePosition } from "@/lib/service-impact-graph";
+import type { ImpactLayout, ImpactNodePosition } from "@/lib/topology-layout";
 import { TOPOLOGY_FILTER_COLUMNS, filterTopologyNodes, parseTopologyColumnFilters, serializeTopologyColumnFilters, topologyFacetCounts, topologyNameLabel,
   type TopologyColumnFilters, type TopologyFilterColumn } from "@/lib/topology-lookup-filters";
 

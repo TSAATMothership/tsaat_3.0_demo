@@ -1,32 +1,15 @@
-import { activeWorkspaceItem, scopeIds, WORKSPACE_GROUPS, WORKSPACE_LINKS } from "@/lib/workspace-navigation";
-import { resolveMeasuresTab } from "@/lib/measures-tab-routing";
+import { activeWorkspaceItem, WORKSPACE_GROUPS } from "@/lib/workspace-navigation";
+import { RETIRED_PERSONA_PAGES, RETIRED_PERSONA_SECTIONS, RETIRED_PERSONA_POPUPS } from "@/lib/retired-capabilities.mjs";
 import initialSettings from "@/Database Schema/data/personas.json";
 
 // Bootstrap and legacy upgrade only. Runtime consumers use the stored catalogue.
 export const DEFAULT_PERSONAS = initialSettings.personas.map(({ id, label }) => ({ id, label }));
 export type PersonaId = string;
 export const MAX_PERSONAS = 50;
-export const PERSONA_SECTIONS = [
-  ...WORKSPACE_GROUPS.map(group => ({ id: group.id, label: group.label, pages: group.items })),
-  { id: "briefs-reports", label: WORKSPACE_LINKS[0].label, pages: WORKSPACE_LINKS }
-];
+export const PERSONA_SECTIONS = WORKSPACE_GROUPS.map(group => ({ id: group.id, label: group.label, pages: group.items }));
 export const PERSONA_PAGES = PERSONA_SECTIONS.flatMap(section => section.pages.map(page => ({ ...page, section: section.id })));
 // Accept known retired permissions in older settings, then discard them without granting a replacement.
-const RETIRED_PERSONA_PAGES = ["governance-overview"];
-export const PERSONA_POPUPS = [
-  { id: "cmdb-details", label: "CMDB details" },
-  { id: "network-details", label: "Network details" },
-  { id: "ict-system-details", label: "ICT system details" },
-  { id: "measure-scope", label: "KPI / SPI scope details" },
-  { id: "risk-trend", label: "Expanded risk trend chart" },
-  { id: "impact-graph", label: "Service Impact Topology" },
-  { id: "impact-details", label: "Service impact findings & CIs" },
-  { id: "finding-details", label: "Finding drill-through lists" },
-  { id: "affected-cis", label: "Affected CI details" },
-  { id: "cve-details", label: "High-risk CVE details" },
-  { id: "asset-compliance", label: "Asset compliance view" },
-  { id: "discovery-tool-details", label: "Discovery tool asset details" }
-] as const;
+export const PERSONA_POPUPS = [{ id: "cmdb-details", label: "CMDB details" }] as const;
 export type PersonaPopupId = typeof PERSONA_POPUPS[number]["id"];
 export interface PersonaSettings {
   schemaVersion: 3;
@@ -66,12 +49,12 @@ export function parsePersonaSettings(input: unknown, { forWrite = false }: { for
     if (legacy && !original) return fail();
     const label = legacy ? original!.label : typeof entry.label === "string" ? entry.label.trim() : "";
     if (!label || label.length > 80 || /[\u0000-\u001f\u007f]/.test(label) || personas.some(persona => persona.label.toLowerCase() === label.toLowerCase())) return fail();
-    const sections = selection(entry.sections, PERSONA_SECTIONS.map(section => section.id));
+    const sections = selection(entry.sections, [...PERSONA_SECTIONS.map(section => section.id), ...RETIRED_PERSONA_SECTIONS]).filter(id => !RETIRED_PERSONA_SECTIONS.includes(id));
     // Version 1 had only section gates. Upgrade in memory, without rewriting storage on read.
     const pages = candidate.schemaVersion === 1 ? PERSONA_PAGES.filter(page => sections.includes(page.section)).map(page => page.id)
       : selection(entry.pages, [...PERSONA_PAGES.map(page => page.id), ...RETIRED_PERSONA_PAGES]).filter(id => !RETIRED_PERSONA_PAGES.includes(id));
     const popups = candidate.schemaVersion === 1 ? PERSONA_POPUPS.map(popup => popup.id)
-      : selection(entry.popups, PERSONA_POPUPS.map(popup => popup.id));
+      : selection(entry.popups, [...PERSONA_POPUPS.map(popup => popup.id), ...RETIRED_PERSONA_POPUPS]).filter((id): id is PersonaPopupId => PERSONA_POPUPS.some(popup => popup.id === id));
     personas.push({ id: entry.id, label, sections, pages, popups });
   }
   // Only Business Reporting may be absent from older saved configurations. Never refill existing selections.
@@ -102,30 +85,7 @@ export function personaAllowsPopup(settings: PersonaSettings, persona: PersonaId
 export function personaDestination(href: string): { pageId?: string; popup?: PersonaPopupId } {
   if (!href.startsWith("/") || href.startsWith("//")) return {};
   const url = new URL(href, "http://localhost");
-  let pathname = url.pathname.replace(/\/$/, "") || "/";
-  if (pathname.startsWith("/networks/")) { url.searchParams.set("networkDetails", pathname.slice(10)); pathname = "/network-risk-profile"; }
-  if (pathname.startsWith("/systems/")) { url.searchParams.set("systemDetails", pathname.slice(9)); pathname = "/ict-system-risk-profile"; }
-  if (pathname === "/networks" || pathname === "/systems") {
-    pathname = scopeIds(url.searchParams.getAll("network")).length ? "/network-risk-profile"
-      : scopeIds(url.searchParams.getAll("system")).length ? "/ict-system-risk-profile"
-      : pathname === "/networks" ? "/network-risk-profile" : "/ict-system-risk-profile";
-  }
-  if (pathname === "/cyber-cop" && url.searchParams.get("copView") === "network-impact-analyser") {
-    pathname = scopeIds(url.searchParams.getAll("system")).length && !scopeIds(url.searchParams.getAll("network")).length ? "/ict-system-risk-profile" : "/network-risk-profile";
-  }
-  if (pathname === "/measures") {
-    const tab = resolveMeasuresTab(url.searchParams.get("measuresTab") ?? undefined);
-    if (tab === "spi-settings") return {}; // Settings compatibility route always stays available.
-    url.searchParams.set("measuresTab", tab);
-  }
-  if (pathname === "/discovery-coverage" && url.searchParams.get("discoveryView") === "overview") pathname = "/governance/discovery-insights";
-  if (pathname === "/discovery-coverage" && !PERSONA_PAGES.some(page => page.href.includes(`discoveryView=${url.searchParams.get("discoveryView")}`))) {
-    url.searchParams.set("discoveryView", "tools"); // Same fallback as the page, including tools-2.
-  }
-  const pageId = activeWorkspaceItem(pathname, url.searchParams)?.id;
-  const popup = pageId === "network-risk-profile" && url.searchParams.has("networkDetails") ? "network-details"
-    : pageId === "ict-system-risk-profile" && url.searchParams.has("systemDetails") ? "ict-system-details" : undefined;
-  return { pageId, popup };
+  return { pageId: activeWorkspaceItem(url.pathname.replace(/\/$/, "") || "/", url.searchParams)?.id };
 }
 
 export function personaAllowsHref(settings: PersonaSettings, persona: PersonaId | null, href: string): boolean {

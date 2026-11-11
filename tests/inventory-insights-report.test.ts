@@ -6,9 +6,9 @@ import { createEndpointInsightsPdf, createVulnerabilityInsightsPdf } from "@/lib
 import { inventoryInsightsReportHref, type InventoryInsightReport } from "@/lib/inventory-insights-report-links";
 import { GET as endpointReport } from "@/app/api/governance/end-point-insights/report/route";
 import { GET as vulnerabilityReport } from "@/app/api/governance/security-vulnerability-insights/report/route";
-import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
+import { loadInventoryContext } from "@/lib/inventory-context-data";
 import { loadEndpointExplorerData, loadSecurityVulnerabilityExplorerData } from "@/lib/data-loader";
-import { buildDiscoveryOverview } from "@/lib/discovery-overview";
+import { buildInventoryContext } from "@/lib/inventory-context";
 import { buildScopedDiscoveryToolCoverage } from "@/lib/scoped-discovery-tool-coverage";
 import { defaultDiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 import { ENDPOINT_COLUMNS, type EndpointRecord } from "@/lib/endpoint-explorer";
@@ -16,7 +16,7 @@ import { VULNERABILITY_COLUMNS, type SecurityVulnerabilityRecord } from "@/lib/s
 import { renderInsightsDocument, type InsightsDocumentJob } from "@/lib/documents/insights";
 import { useBundledInsightsAssets, insightsRenderContext } from "./insights-assets-fixture";
 useBundledInsightsAssets();
-vi.mock("@/lib/discovery-overview-data", () => ({ loadDiscoveryOverview: vi.fn() }));
+vi.mock("@/lib/inventory-context-data", () => ({ loadInventoryContext: vi.fn() }));
 vi.mock("@/lib/data-loader", () => ({ loadEndpointExplorerData: vi.fn(), loadSecurityVulnerabilityExplorerData: vi.fn() }));
 const snapshotDate = "2026-10-31";
 const endpoint: EndpointRecord = { assetId: "ci-1", name: "CI 1", ciType: "Server", securityDomain: "UNKNOWN", ipAddress: null,
@@ -25,9 +25,9 @@ const observation: SecurityVulnerabilityRecord = { assetId: "ci-1", vulnerabilit
   softwareName: null, softwareVersion: null, referenceUrl: null, description: "Recorded observation", detectedDate: snapshotDate,
   cveCreatedDate: null, remediationGuidance: " ", severity: "High", source: "Sample source", deviceName: "CI 1", deviceModel: null,
   osName: "Linux", osVersion: null, osPatchLevel: null };
-function fixture(endpoints: EndpointRecord[] = [], vulnerabilities: SecurityVulnerabilityRecord[] = []): Awaited<ReturnType<typeof loadDiscoveryOverview>> {
-  return { model: buildDiscoveryOverview({ snapshotDate, coverage: buildScopedDiscoveryToolCoverage([], defaultDiscoveryToolsSettings()),
-    endpoints, vulnerabilities, software: [], shadow: [], patches: [] }),
+function fixture(endpoints: EndpointRecord[] = [], vulnerabilities: SecurityVulnerabilityRecord[] = []): Awaited<ReturnType<typeof loadInventoryContext>> {
+  return { model: buildInventoryContext({ snapshotDate, coverage: buildScopedDiscoveryToolCoverage([], defaultDiscoveryToolsSettings()),
+    endpoints, vulnerabilities, shadow: [], }),
     scope: { system: ["sys-1"], network: [], securityDomain: "SECRET", dataDate: snapshotDate },
     scopeLabels: { systems: ["Example system (sys-1)"], networks: [], domains: ["SECRET"] } };
 }
@@ -49,7 +49,7 @@ async function readPdf(bytes: Uint8Array) {
   return { doc, text: texts.join(" ").replace(/\s+/g, " "), firstPageText, imageCount };
 }
 beforeEach(() => {
-  vi.clearAllMocks(); vi.mocked(loadDiscoveryOverview).mockResolvedValue(fixture());
+  vi.clearAllMocks(); vi.mocked(loadInventoryContext).mockResolvedValue(fixture());
   vi.mocked(loadEndpointExplorerData).mockResolvedValue({ snapshotDate, rows: [] });
   vi.mocked(loadSecurityVulnerabilityExplorerData).mockResolvedValue({ snapshotDate, rows: [] });
 });
@@ -94,13 +94,13 @@ it.each(handlers)("validates %s report input before data access", async (_, hand
   for (const query of ["", "system=sys-1&dataDate=bad", "system=sys-1&dataDate=2026-02-30", "system=sys-1&dataDate=2026-10-31&dataDate=2026-10-24", "system=sys-1&securityDomain=invalid", "network=" + "x".repeat(256)]) {
     const response = await handler(new NextRequest("http://localhost/api/report?" + query)); expect(response.status).toBe(400);
   }
-  expect(loadDiscoveryOverview).not.toHaveBeenCalled();
+  expect(loadInventoryContext).not.toHaveBeenCalled();
 });
 it.each(handlers)("exports %s via the page's pinned projections as a browser document job", async (kind, handler) => {
   const response = await handler(new NextRequest("http://localhost/api/report?system=sys-1&securityDomain=SECRET&dataDate=2026-11-01&discoveryFilters=ignored"));
   expect(response.status).toBe(200); expect(response.headers.get("Content-Type")).toContain("application/json");
   expect(response.headers.get("Cache-Control")).toBe("no-store"); expect(response.headers.get("Content-Disposition")).toBeNull();
-  expect(loadDiscoveryOverview).toHaveBeenCalledWith({ system: ["sys-1"], network: [], securityDomain: "SECRET", dataDate: "2026-11-01" });
+  expect(loadInventoryContext).toHaveBeenCalledWith({ system: ["sys-1"], network: [], securityDomain: "SECRET", dataDate: "2026-11-01" });
   const loader = kind === "endpoints" ? loadEndpointExplorerData : loadSecurityVulnerabilityExplorerData;
   expect(loader).toHaveBeenCalledWith(fixture().scope);
   const job:InsightsDocumentJob=await response.json();

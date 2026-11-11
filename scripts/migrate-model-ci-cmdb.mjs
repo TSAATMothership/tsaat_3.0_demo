@@ -11,7 +11,7 @@ export async function migrateModelCiCmdb({ target = process.env.TSAAT_JSON_DATA_
   backupDirectory = path.join(repositoryRoot, '.local/nosql-backups') } = {}) {
   target = path.resolve(target);
   const manifest = JSON.parse(await fs.readFile(path.join(target, 'store.json'), 'utf8'));
-  if (manifest.format !== 'tsaat-json-store' || manifest.schemaVersion !== 1 || !manifest.snapshots?.length) throw new Error('Select an existing valid JSON store.');
+  if (manifest.format !== 'tsaat-json-store' || ![1, 2].includes(manifest.schemaVersion) || !manifest.snapshots?.length) throw new Error('Select an existing valid JSON store.');
   const file = path.join(target, 'references/cmdb-attributes.json'), lockFile = path.join(target, '.write-lock');
   let lock, temporary;
   try {

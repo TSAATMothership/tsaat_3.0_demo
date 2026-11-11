@@ -6,7 +6,7 @@ For a generated offline distribution, run .\install-offline.cmd to prepare its b
 
 Use Windows, Node 24.13.1, npm and the committed package-lock.json. `npm ci --offline` installs only committed vendor/npm archives, using the checked-in legacy-peer-deps setting, with lifecycle scripts, audit and update notices disabled. No populated npm cache or network is required. The checkout does not require a sibling TSAAT folder or vendored host runtime. The [offline compilation contract](offline-builds.md) remains a product requirement; repeat fresh-install/both-build evidence for dependency/build changes and releases, not unrelated routine edits. node_modules, .next-sql and .next-nosql are local outputs. NoSQL/data is mutable local data and is also ignored.
 
-Both builds open directly without application credentials. For SQL, `npm run setup:database` prompts for connection details, initializes a missing database with schema and bundled data, validates it, and saves encrypted DB_config for the runtime Windows identity. Existing databases are validated without rebuilding. New settings use encrypted TCP with Trust Server Certificate; Strict remains selectable. See [database setup](database.md#one-command-database-setup). The separate db:bootstrap still requires a new disposable database.
+Both builds open directly without application credentials. SQL setup creates a dedicated login with SSL disabled and can replace an existing database only after exact-target acknowledgement. It is not an upgrade tool. Advanced configuration preserves saved TLS/Strict policies. See [database setup](database.md#one-command-database-setup). The lower-level db:bootstrap requires a new database.
 
 ## Select checks before running them
 
@@ -34,11 +34,11 @@ UI-only changes normally need lint/types, focused tests and relevant visual/keyb
 | npm run build:sql / build:nosql | Compile a single provider |
 | npm run test:nosql | Direct-access production browser/API smoke and restart persistence |
 | npm run populate:nosql | Preview current-store enrichment; --source selects a SQL export and --apply --demo publishes with backup |
-| npm run populate:patches | Preview missing sample server patch records; --apply --demo publishes with backup |
 | npm run setup:nosql | Initialize missing JSON storage without replacing existing data |
 | npm run storage:check | Require review when SQL calculation contracts change |
 | npm run start:sql / start:nosql | Serve the corresponding compiled artifact; deployment uses HTTPS |
-| npm run seed / seed:validate | Regenerate/validate sample JSON; generation intentionally changes fixture data |
+| npm run seed:validate / evidence:check | Validate the shared eight-week retained-inventory bundle |
+| npm run migrate:inventory | Preview the explicitly selected existing JSON store upgrade; apply requires a new external backup |
 
 ## Validation strategy
 
@@ -48,7 +48,7 @@ Use `npm test -- tests/name.test.ts` for focused checks. The CI planner uses Vit
 
 Set TSAAT_SQL_INTEGRATION=1 only against an explicitly selected disposable compatible database. Review each SQL suite: temporary migration/mapping fixtures roll back, while the entity-panel coverage test expects populated demo snapshots. Record database/schema and results separately. Default CI does not provision or mutate SQL Server.
 
-KPI integration targets the current cleanup migration 027. Run it after provisioning/upgrading the disposable database; never reapply 023 to a cleaned installation. CMDB integration validates mappings for all supported asset types and exercises API values for every type actually present in the snapshot. Demo data need not contain every supported type.
+Inventory parity compares all eight selected dates and identical network/system/domain scopes against an explicitly disposable TSAAT_EvidenceParity_* database. CMDB integration covers asset and model-CI mappings in rollback transactions. See [retirement validation](feature-retirement.md).
 
 For UI work, check representative snapshot data, desktop/narrow layouts, keyboard use, loading/error/retry/empty states and retained scope. For reports, inspect PDF pages, endpoint columns, filenames, totals and date scope. Unit tests do not replace these checks.
 
@@ -68,9 +68,9 @@ The No-SQL smoke needs installed Chrome or Edge; TSAAT_TEST_BROWSER overrides it
 
 All new feature code uses the shared data facades. Type checking requires the JSON operation set to match SQL. Add behavior tests for both providers when data or rule semantics change; review the SQL calculation hash guard only after implementation and regression validation. The No-SQL provider does not execute arbitrary SQL text.
 
-To preview missing known-endpoint measure findings, run `npm run enrich:nosql`. Stop the app and apply with `npm run enrich:nosql -- --apply --demo`; this is sample maintenance with a complete backup, not a runtime fallback. It keeps Shadow IT unidentified. The No-SQL production smoke now includes this enrichment in its isolated test store before checking pages, exports and settings persistence.
+Retired analytics maintenance commands are removed. Existing stores require the explicit [paired inventory v2 upgrade](feature-retirement.md); compilation preserves installed data.
 
-Optional read-only SQL parity: provision a separate `TSAAT_CoverageParity_*` disposable database with trusted TLS, set `TSAAT_COVERAGE_PARITY_DATABASE` to that exact name, then run `npm exec -- vitest run tests/nosql-coverage-sql.test.ts`. The test selects that database explicitly, compares configured SQL and shared JSON SPI results, and checks sample finding coverage without SQL writes. It never installs a schema or relaxes TLS and is skipped unless explicitly selected.
+Real SQL parity: provision a separate TSAAT_EvidenceParity_* database, set TSAAT_EVIDENCE_PARITY_DATABASE and an isolated TSAAT_JSON_DATA_DIR, then run tests/inventory-provider-parity.test.ts. Select the same dates/scopes; skipped SQL tests are not evidence. Use scripts/test-sql-evidence.mjs for the compiled SQL browser checks against that selected disposable database.
 
 The production No-SQL smoke follows all eight row drill-throughs on each risk-profile explorer in real new tabs. It checks keyboard activation, selected-item/date presets, severity/duration filters, detail-panel loading, and unchanged source-table search/order/scope. This shared navigation has no provider-specific SQL behavior.
 

@@ -5,7 +5,7 @@ import { PDFDocument } from "pdf-lib";
 
 /** Verifies server JSON evidence, browser PDF output and the shared progress dialog. */
 export async function checkInsightsPdfDownload(page, { date, directory, snapshotTimestamp,
-  route = '/api/governance/insights/report', filenamePrefix = 'cyber-terrain-insights', title = 'Cyber Terrain Posture - Insights',
+  route = '/api/governance/end-point-insights/report', filenamePrefix = 'end-point-insights', title = 'End Point Insights Report',
   root = '.governance-insights', snapshotAttribute = 'insightsSnapshot', minPages = 7, exerciseRetry = true, snapshotSubject = true } = {}) {
   assert(directory && date, 'PDF download checks need an explicit temporary directory and snapshot');
   fs.mkdirSync(directory, { recursive: true });
@@ -47,7 +47,12 @@ export async function checkInsightsPdfDownload(page, { date, directory, snapshot
     assert.equal(response.headers()['content-disposition'], undefined);
     const job = await response.json();
     assert.equal(job.version, 1); assert.match(job.kind, /^insights-/); assert.equal(job.filename, path.basename(expectedFile));
-    await page.waitForFunction(() => !document.querySelector('[data-insights-report]').disabled && !document.querySelector('.document-generation-dialog[open]'), { timeout: 60000 });
+    try {
+      await page.waitForFunction(() => !document.querySelector('[data-insights-report]').disabled && !document.querySelector('.document-generation-dialog[open]'), { timeout: 60000 });
+    } catch (error) {
+      const state = await page.evaluate(() => document.querySelector('.document-generation-dialog')?.textContent ?? 'No document dialog');
+      throw new Error(`PDF generation did not finish: ${state}`, { cause: error });
+    }
     const deadline = Date.now() + 60000;
     while (!fs.existsSync(expectedFile) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
     assert(fs.existsSync(expectedFile), 'The generated PDF downloads with a snapshot-specific filename');

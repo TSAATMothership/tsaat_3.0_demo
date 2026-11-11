@@ -2,7 +2,6 @@ import "server-only";
 import type { Asset, StoredDiscoveryCoverageEvaluation } from "@/lib/types";
 import type { DiscoveryToolsSettings } from "@/lib/discovery-tools-settings";
 
-export { evaluateSpi } from "@/lib/spi-evaluation";
 
 export interface DetectionRule { toolId: string; conditionKey: string; values?: string[]; enabled: boolean }
 export function evaluateDiscovery(asset: Asset, settings: DiscoveryToolsSettings, rules: DetectionRule[]): StoredDiscoveryCoverageEvaluation {

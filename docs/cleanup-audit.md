@@ -1,4 +1,18 @@
-# Runtime and database cleanup - 2026-11-02
+# Runtime and database cleanup
+
+## Inventory retirement - 2026-11-11
+
+The [approved retirement](feature-retirement.md) removes feature-exclusive analytics runtime modules, compatibility-route queries, calculations, reference data, sample payloads, report assets/templates, scripts, styles and packages together. The exact removed SQL object/field inventory is [retired-storage-v2.json](../Database%20Schema/retired-storage-v2.json); the shared JSON projection is `lib/inventory-schema.mjs`. Published migrations 001–032 are unchanged. Fresh setup uses the reduced schema and only the manifest-selected additions; existing installations use SQL 033 and the backed-up JSON v2 migration.
+
+Retained dependencies were traced from all app/API/script entry points. Topology keeps CI communication observations, network/system/environment/service/capability membership and shared graph rendering/layout. Insights keep scoped discovery coverage context. CMDB/Explorers keep applicable lifecycle, endpoint patch level and network-device patch-state evidence. Configurable discovery mappings, persona revision metadata, unknown/inapplicable values and eight weekly snapshots remain. No orphan runtime modules are allowed by repo:check.
+
+Unused CSV/chart/3D packages and corresponding archives were removed; 572 reviewed archives remain aligned with the lockfile. Old analytics artwork and the target-state workbook template were removed. The shared FindingsDataTable name and graph CSS classes remain where used by retained features; they do not expose retired products.
+
+Actual fresh/upgrade parity, complete backup restore, data-preservation, migration rejection/rollback, compiled browser/report and offline validation are recorded in [validation](validation.md). Operational stores remain unchanged until their explicitly selected deployment upgrades.
+
+## Earlier cleanup - 2026-11-02 (historical)
+
+The following record describes the earlier release. Its retained analytics features were subsequently retired above.
 
 Baseline: UI 3 commit `673452d`. The original TSAAT repository is outside this cleanup.
 

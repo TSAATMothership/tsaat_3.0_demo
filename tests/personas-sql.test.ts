@@ -6,7 +6,7 @@ vi.mock("@/lib/sql-server", () => ({ executeSqlJson: vi.fn(), toSqlUnicodeLitera
 beforeEach(() => vi.resetAllMocks());
 describe("SQL data-driven personas", () => {
   it("reads the latest stored names, order, IDs and permissions without inserting defaults", async () => {
-    const settings = { ...defaultPersonaSettings(), personas: [{ id: "custom-auditor", label: "Auditor's view", sections: ["findings"], pages: ["findings-register"], popups: [] }] };
+    const settings = { ...defaultPersonaSettings(), personas: [{ id: "custom-auditor", label: "Auditor's view", sections: ["discovery"], pages: ["discovery-endpoints"], popups: [] }] };
     vi.mocked(executeSqlJson).mockResolvedValue({ settings: JSON.stringify(settings) });
     expect(await loadPersonaSettings()).toEqual(settings);
     expect(vi.mocked(executeSqlJson).mock.calls[0][0]).toContain("ORDER BY [settings_version_id] DESC");

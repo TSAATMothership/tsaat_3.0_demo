@@ -68,10 +68,9 @@ function applicationInventory(root) {
   }
   text += '\n## Locked package baseline\n\nInstalled versions are resolved by package-lock.json; this table lists declared requirements.\n\n| Package | Requirement | Use |\n| --- | --- | --- |\n';
   for (const [kind, packages] of [['Runtime', pkg.dependencies], ['Development', pkg.devDependencies]]) for (const [name, version] of Object.entries(packages).sort()) text += `| ${name} | ${version} | ${kind} |\n`;
-  const definitions = JSON.parse(read(path.join(root, 'Database Schema/data/kpi-definitions.json')));
-  const kpis = Array.isArray(definitions) ? definitions : definitions.kpis ?? definitions.definitions ?? [];
-  text += '\n## KPI seed catalogue\n\nDeployed SQL configuration is authoritative; these are repository seed defaults.\n\n| ID | Name | Calculation |\n| --- | --- | --- |\n';
-  for (const row of kpis) text += `| ${row.id ?? row.kpiId} | ${cell(row.name)} | ${row.calculationKey} |\n`;
+  const manifest = JSON.parse(read(path.join(root, 'Database Schema/data/database-build-manifest.json')));
+  text += '\n## Shared inventory evidence\n\nStorage schema version: ' + manifest.storageSchemaVersion + '. SQL and JSON consume the same ' + manifest.snapshotFiles.length + ' weekly snapshots.\n\n';
+  text += 'Fresh reference files:\n\n' + Object.values(manifest.packageDataFiles).map(file => `- \`${file}\``).join('\n') + '\n';
   return text;
 }
 

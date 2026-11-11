@@ -72,7 +72,7 @@ describe("Installed Software Insights", () => {
     expect(items[index].label).toBe("Installed Software Dashboard");
     const governance = WORKSPACE_GROUPS.find(group => group.id === "governance")!.items;
     const briefing = governance.findIndex(item => item.id === "governance-software-insights");
-    expect(governance[briefing - 1].id).toBe("governance-insights");
+    expect(briefing).toBe(0);
     expect(governance[briefing].label).toBe("Installed Software Insights");
     expect(activeWorkspaceItem(governance[briefing].href, new URLSearchParams())?.id).toBe("governance-software-insights");
     expect(personaAllowsHref(settings, "analyst", governance[briefing].href)).toBe(true);

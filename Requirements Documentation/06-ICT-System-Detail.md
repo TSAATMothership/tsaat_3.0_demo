@@ -1,11 +1,7 @@
-# ICT System Details panel
+# ICT System Detail — retired
 
-Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
+Retired on 2026-11-11 at the user's request. This feature is no longer part of the current application. Its compatibility URLs return a retirement page or HTTP 410 without invoking the retired provider or report operations.
 
-Selecting an ICT System Explorer name opens a new browser tab at the existing ICT System Risk Profile route with system, systemDetails and dataDate presets. The shared right-hand entity panel opens automatically in that tab while the originating explorer stays unchanged. It shows description, Operational Contacts, ATO details, DIIS details, APP-ID, Linked Networks and Asset Footprint Summary. APP-ID is backed by ict_system.apm_number and labeled APP-ID Number. The removed Cyber GRC Record and DIIS Record rows are absent.
+Feature-exclusive code, SQL objects, JSON payloads and references have been removed. Historical SQL migration files remain immutable; fresh setup does not replay them. Existing stores require the paired, backed-up upgrade described in [Feature retirement and data alignment](../docs/feature-retirement.md).
 
-Linked network names open a new TSAAT browser tab with that network selected and the same date. The linked table omits Security Domain. The panel uses canonical declared/assigned/environment relationships to deduplicate linked networks and assets; a network link alone must not broaden unrelated system data.
-
-Stored description, owner, support_email, service_catalogue_url, ato_number, diis_id and apm_number provide details. Missing values remain explicit. Legacy /systems/[systemId] redirects to the current profile/details request. Demo backfill 026 preserves existing identifiers, compliance flags and relationships.
-
-Sources: lib/ict-system-details.ts, lib/risk-entity-details.ts, components/ict-system-details-panel.tsx, shared risk-entity-details-panel and legacy route. Tests: ict-system-details-redirect, ict-system-risk-profile and risk-entity-panel-details-sql.
+Retained features and acceptance contracts are listed in the [solution design index](TSAAT-Solution-Design-Index.md).

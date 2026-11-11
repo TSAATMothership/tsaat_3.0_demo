@@ -4,7 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 export interface StoreManifest {
-  format: "tsaat-json-store"; schemaVersion: 1;
+  format: "tsaat-json-store"; schemaVersion: 2;
   snapshots: Array<{ id: number; date: string; file: string }>;
 }
 export function jsonStoreDirectory() { return path.resolve(process.env.TSAAT_JSON_DATA_DIR || path.join(process.cwd(), "NoSQL", "data")); }
@@ -26,7 +26,7 @@ export async function fileVersion(relative: string) {
 }
 export async function loadStoreManifest(): Promise<StoreManifest> {
   const manifest = await readJson<StoreManifest>("store.json");
-  if (manifest.format !== "tsaat-json-store" || manifest.schemaVersion !== 1 || !manifest.snapshots?.length) throw new Error("Unsupported or empty JSON store manifest.");
+  if (manifest.format !== "tsaat-json-store" || manifest.schemaVersion !== 2 || !manifest.snapshots?.length) throw new Error("Unsupported or empty JSON store manifest. Existing v1 stores require npm run migrate:inventory -- --target <store> before use.");
   const ids = new Set<number>(), dates = new Set<string>();
   for (const item of manifest.snapshots) {
     if (!Number.isInteger(item.id) || item.id <= 0 || ids.has(item.id) || !/^\d{4}-\d{2}-\d{2}$/.test(item.date) || dates.has(item.date)) throw new Error("Invalid JSON snapshot catalogue.");

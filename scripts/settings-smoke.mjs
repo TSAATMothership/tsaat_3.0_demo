@@ -6,11 +6,9 @@ import { fork } from "node:child_process";
 import puppeteer from "puppeteer-core";
 import personaTools from "../lib/personas.ts";
 import discoveryTools from "../lib/discovery-tools-settings.ts";
-import fixtures from "../tests/spi-definition-fixtures.ts";
 import { checkPersonas } from "./personas-smoke.mjs";
 import { checkReadOnlySettings } from "./settings-read-only-smoke.mjs";
 
-// Compiled SQL UI with read-only API fixtures. No operational database or DB_config.
 const root = process.cwd();
 assert(fs.existsSync(path.join(root, ".next-sql/BUILD_ID")), "Run build:sql first.");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "tsaat-settings-view-"));
@@ -29,7 +27,6 @@ try {
   });
   const savedConfigurations = [
     ["/api/settings/personas", personaTools.defaultPersonaSettings()],
-    ["/api/measures/settings", fixtures.testMeasuresSettings],
     ["/api/discovery-tools/settings", discoveryTools.defaultDiscoveryToolsSettings()]
   ];
   for (const [endpoint, settings] of savedConfigurations) {
@@ -49,7 +46,6 @@ try {
   const payloads = {
     "/api/settings/personas": { settings: personaTools.defaultPersonaSettings() },
     "/api/workspace-options": { networks: [], systems: [] },
-    "/api/measures/settings": { settings: fixtures.testMeasuresSettings, spiDefinitions: fixtures.testSpiDefinitions, severityDefinitions: fixtures.testSeverityDefinitions, priorityDefinitions: fixtures.testPriorityDefinitions },
     "/api/discovery-tools/settings": { settings: discoveryTools.defaultDiscoveryToolsSettings() }
   };
   const failOnce = new Set();
@@ -68,7 +64,7 @@ try {
   await page.waitForFunction(() => location.pathname !== "/settings");
   await checkPersonas(page, { artifacts });
   await checkReadOnlySettings(page, { artifacts });
-  for (const [tab, endpoint] of [["discovery-tools-settings", "/api/discovery-tools/settings"], ["spi-risk-matrix", "/api/measures/settings"]]) {
+  for (const [tab, endpoint] of [["discovery-tools-settings", "/api/discovery-tools/settings"]]) {
     failOnce.add(endpoint);
     await page.goto(base + "/settings?settingsTab=" + tab, { waitUntil: "networkidle0" });
     await page.waitForSelector("#settings-panel-" + tab + " [role=alert]");
@@ -76,8 +72,7 @@ try {
     await page.waitForSelector("#settings-panel-" + tab + " table");
   }
   payloads["/api/discovery-tools/settings"].settings = { ...payloads["/api/discovery-tools/settings"].settings, tools: [] };
-  payloads["/api/measures/settings"].spiDefinitions = [];
-  for (const [tab, message] of [["discovery-tools-settings", "No discovery tools are configured."], ["spi-risk-matrix", "No SPI definitions are available."]]) {
+  for (const [tab, message] of [["discovery-tools-settings", "No discovery tools are configured."]]) {
     await page.goto(base + "/settings?settingsTab=" + tab, { waitUntil: "networkidle0" });
     await page.waitForFunction(({ tab, message }) => document.querySelector("#settings-panel-" + tab)?.textContent.includes(message), {}, { tab, message });
   }
@@ -85,7 +80,6 @@ try {
   await page.setRequestInterception(false);
   assert.deepEqual(errors, []); assert.deepEqual(unexpected, []);
   assert(!fs.existsSync(path.join(directory, "DB_config")));
-  console.log("Compiled SQL Settings smoke passed with API fixtures; real write/retirement routes reject requests without SQL.");
 } finally {
   await browser?.close();
   if (server && server.exitCode === null) await new Promise(resolve => {

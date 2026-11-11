@@ -48,6 +48,5 @@ function Invoke-SamplePopulation {
   } finally { Remove-Item -LiteralPath $temporarySql -Force -ErrorAction SilentlyContinue }
 }
 Invoke-SamplePopulation -FileName 'populate-sample-cve-metadata.sql' -SessionKey 'TSAAT_SAMPLE_CVE_METADATA'
-Invoke-SamplePopulation -FileName 'populate-sample-server-patches.sql' -SessionKey 'TSAAT_SAMPLE_PATCH_MANAGEMENT'
 Write-Host "Database '$DatabaseName' schema and bundled sample data are ready."
 } finally { $env:SQLCMDPASSWORD = $previousPassword }

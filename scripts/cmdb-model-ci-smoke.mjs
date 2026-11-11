@@ -53,22 +53,8 @@ export async function checkModelCiCmdb(page, { date, historicalDate, artifacts }
       assert.equal(await page.$(panel), null);
     }
     await visit(`/cyber-cop?copView=impact&system=${system.id}&dataDate=${date}`);
-    await press('[data-explore-service-impact]'); const service = 'dialog.service-impact-graph-popup[open]'; await page.waitForSelector(service);
-    // Retain zero-finding model nodes as well, using the existing All severities / Min 0 controls.
-    await press('[data-impact-toggle-controls]');
-    await page.$eval('.impact-graph-severity-filter', node => { node.open = true; });
-    await press('.impact-graph-severity-actions button:first-child');
-    await page.$eval('.impact-graph-severity-filter', node => { node.open = false; });
-    for (const model of models) {
-      const node = `[data-impact-node="${model.kind}:${model.id}"]`;
-      await page.waitForSelector(node); await press(node);
-      const trigger = `.service-impact-graph-popup [data-cmdb-ci-type="${model.type}"]`;
-      await verify(model, date, trigger, service);
-      await press('[data-impact-fullscreen]');
-      await verify(model, date, trigger, service);
-      await page.keyboard.press('Escape');
-    }
-    await page.keyboard.press('Escape'); await page.waitForSelector(service, { hidden: true });
+    assert.equal(await page.$('[data-explore-service-impact]'), null, 'Retired Service Impact cannot launch CMDB');
+    assert((await page.$eval('main', node => node.textContent)).includes('retired'));
   }
   await page.setViewport({ width: 1600, height: 1000 });
   const model = models[0];

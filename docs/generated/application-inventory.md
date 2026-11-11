@@ -6,32 +6,14 @@ Generated from routes, navigation, package metadata and SQL reference JSON. Do n
 
 | Item | Route | Scope restriction |
 | --- | --- | --- |
-| Trends | `/governance/trends` | Both scope types |
-| Cyber Terrain Insights | `/governance/insights` | Both scope types |
 | Installed Software Insights | `/governance/installed-software-insights` | Both scope types |
-| Discovery Insights | `/governance/discovery-insights` | Both scope types |
 | End Point Insights | `/governance/end-point-insights` | Both scope types |
 | Security Vulnerability Insights | `/governance/security-vulnerability-insights` | Both scope types |
-| Network Risk Profile | `/network-risk-profile` | network |
-| ICT System Risk Profile | `/ict-system-risk-profile` | system |
-| Service Impact Analyser | `/cyber-cop?copView=impact` | Both scope types |
-| ICT System Impact Analyser | `/cyber-cop?copView=ict-system-impact-analyser` | system |
-| ICT System Dependencies | `/cyber-cop?copView=ict-system-dependencies` | system |
-| Discovery Tool Coverage | `/discovery-coverage` | Both scope types |
-| Discovery Compliance Explorer | `/discovery-coverage?discoveryView=compliance` | Both scope types |
 | End Point Explorer | `/discovery-coverage?discoveryView=endpoints` | Both scope types |
 | Installed Software Explorer | `/discovery-coverage?discoveryView=installed-software` | Both scope types |
 | Security Vulnerability Explorer | `/discovery-coverage?discoveryView=security-vulnerabilities` | Both scope types |
-| Patch Management Explorer | `/discovery-coverage?discoveryView=patch-management` | Both scope types |
-| Life Cycle Management | `/discovery-coverage?discoveryView=life-cycle-management` | Both scope types |
 | Shadow IT Explorer | `/discovery-coverage?discoveryView=shadow-it` | Both scope types |
 | Topology Explorer | `/discovery-coverage?discoveryView=topology` | Both scope types |
-| Measures Summary | `/measures` | Both scope types |
-| Measures Trends | `/measures/trends` | Both scope types |
-| Key Performance Indicators (KPIs) | `/measures?measuresTab=measures-kpi` | Both scope types |
-| Security Posture Indicators (SPIs) | `/measures?measuresTab=measures-spi` | Both scope types |
-| Findings Register | `/findings` | Both scope types |
-| Briefs & Reports | `/report` | Both scope types |
 
 ## Pages and APIs
 
@@ -121,19 +103,13 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | --- | --- | --- |
 | clsx | ^2.1.1 | Runtime |
 | next | ^14.2.35 | Runtime |
-| papaparse | ^5.5.3 | Runtime |
 | pdf-lib | ^1.17.1 | Runtime |
 | puppeteer-core | ^24.37.5 | Runtime |
 | react | 18.2.0 | Runtime |
 | react-dom | 18.2.0 | Runtime |
-| react-is | ^18.2.0 | Runtime |
-| recharts | ^3.7.0 | Runtime |
-| three | ^0.181.2 | Runtime |
 | @types/node | 20.11.30 | Development |
-| @types/papaparse | ^5.5.2 | Development |
 | @types/react | 18.2.79 | Development |
 | @types/react-dom | 18.2.25 | Development |
-| @types/three | ^0.181.0 | Development |
 | @vitest/coverage-v8 | ^4.0.18 | Development |
 | autoprefixer | ^10.4.24 | Development |
 | eslint | 10.14.0 | Development |
@@ -144,11 +120,12 @@ Installed versions are resolved by package-lock.json; this table lists declared 
 | typescript | ^5.9.3 | Development |
 | vitest | ^4.0.18 | Development |
 
-## KPI seed catalogue
+## Shared inventory evidence
 
-Deployed SQL configuration is authoritative; these are repository seed defaults.
+Storage schema version: 2. SQL and JSON consume the same 8 weekly snapshots.
 
-| ID | Name | Calculation |
-| --- | --- | --- |
-| KPI-1 | ICT Systems have an active ATO | active-ato-coverage |
-| KPI-2 | ICT Systems are registered within DIIS | diis-registration-coverage |
+Fresh reference files:
+
+- `data/discovery-coverage-rules.json`
+- `data/discovery-tools-settings.json`
+- `data/personas.json`

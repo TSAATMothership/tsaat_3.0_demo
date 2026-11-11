@@ -50,7 +50,7 @@ try {
   throw "Cannot connect to SQL Server at '$server' using the administrator connection with SSL disabled. Check the administrator credentials and SQL Server authentication mode. Rerun npm run setup:database and answer n to the localhost\SQLEXPRESS endpoint question to enter an explicit endpoint (tcp:server,port). No database was provisioned and DB_config was not saved."
 } finally { $connection.Dispose() }
 
-$loginPreflight = & (Join-Path $RepoRoot 'scripts/configure-database-user.ps1') -Settings $Settings -Administrator $Administrator -CheckOnly
+$loginPreflight = & (Join-Path $RepoRoot 'scripts/configure-database-user.ps1') -Settings $Settings -Administrator $Administrator -CheckOnly -AllowExistingLoginForReplacement:$exists
 
 if ($exists) {
   Write-Host "Database '$($Settings.database)' already exists on '$server'. Replacement permanently deletes all its data and saved settings, disconnects active sessions, and loads the bundled sample data. No backup is created."

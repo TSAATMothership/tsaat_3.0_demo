@@ -50,7 +50,7 @@ test('documentation checks accept implementation-only drift but still reject cha
     write('app/overview/page.tsx', 'export default function Page() { return null; }');
     write('Database Schema/database-schema.sql', '');
     fs.mkdirSync(path.join(root, 'Database Schema/migrations'), { recursive: true });
-    write('Database Schema/data/kpi-definitions.json', '[]');
+    write('Database Schema/data/database-build-manifest.json', JSON.stringify({ storageSchemaVersion: 2, snapshotFiles: [], packageDataFiles: {} }));
     write('Database Schema/ERD.md', '# ERD');
     write('docs/database.md', '# Database');
     write('docs/maintenance.json', JSON.stringify({ areas: [], fallbackDocuments: [] }));

@@ -1,17 +1,7 @@
-# Findings Register and evidence
+# Findings and Evidence — retired
 
-Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
+Retired on 2026-11-11 at the user's request. This feature is no longer part of the current application. Its compatibility URLs return a retirement page or HTTP 410 without invoking the retired provider or report operations.
 
-Findings Register is the sole Findings sidebar page; Findings Summary and the former Overview tab are removed. Page-wide filters and the JSON export option are absent. Standard table search/header facets remain the shared interaction model rather than the removed standalone filter blocks.
+Feature-exclusive code, SQL objects, JSON payloads and references have been removed. Historical SQL migration files remain immutable; fresh setup does not replay them. Existing stores require the paired, backed-up upgrade described in [Feature retirement and data alignment](../docs/feature-retirement.md).
 
-The SPI column combines measure ID and description. Priority sits immediately before Severity and is not embedded in measure text. The recommendation-action column is removed; remediation remains available in appropriate detail/report contexts. Duration counts calendar days open since the finding timestamp at the selected snapshot. Closed findings have no open duration; invalid dates remain unknown and future timestamps clamp to zero. Duration header controls provide a numeric range and ascending/descending numeric sorting.
-
-Affected CI drill-through shows Device Name, Device IP, Device Model, Last Discovered Date, Discovered By and Asset Type. The workbook export includes an affected-CI sheet based on the same scoped drill-through. Device actions open CMDB. Removed CI change/incident assignment groups and owner are not invented attributes; entity operational contacts remain separate.
-
-Finding evidence, workflow and timestamp are distinct from current evaluation status. Priority and severity follow configured database mappings. Preserve the selected scope/date, canonical device metadata, deduplication and status filtering across register, drill-through and export. Generated files use existing safe text/CSV handling.
-
-Export Excel captures the full filtered finding-ID order and requests canonical JSON document data from the existing POST export route. The route retains snapshot/as-of/status/scope checks and rejects stale or out-of-scope IDs instead of exporting a partial selection. The browser worker creates the Findings and Affected CIs worksheets, preserving unique CI rows, safe literal text, numeric priorities/durations, date cells and UTC timestamps. The shared Generating Document animation supports progress, cancellation and focus return; the server no longer generates workbook bytes. The compatibility GET JSON/CSV exports retain their separate behavior.
-
-Sources: app/findings/page.tsx, lib/findings-register-data.ts, findings-duration.ts, findings-assets.ts, findings-export.ts, findings-workbook.ts, findings-config.ts and API handlers. Tests: findings-duration, findings-filter-dropdowns, findings-workbook, findings-asset-details-route and related export/configuration tests; generated inventory lists actual route files.
-
-Runtime cleanup removes obsolete history widgets that were unreachable from the current register. Current duration, evidence, affected-CI, CSV/workbook and report contracts remain. Historical snapshots and finding records are retained. Explicit SQL-to-JSON population preserves persisted finding IDs, source evidence, workflow, timestamps and affected-CI references across all imported dates. Endpoint enrichment improves affected-CI details without replacing finding history. Explicit sample coverage enrichment appends a persisted open finding for each missing Non-compliant or Unknown applicable SPI result on known endpoints, using the same evaluator and configured classification/matrices as runtime. Fully compliant endpoints receive no new findings. Original IDs/evidence/workflow/timestamps remain unchanged; new sample evidence is labelled, historical dates are retained, and repeated enrichment is idempotent.
+Retained features and acceptance contracts are listed in the [solution design index](TSAAT-Solution-Design-Index.md).

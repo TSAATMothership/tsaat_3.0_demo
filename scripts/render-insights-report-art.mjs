@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 // Manual maintenance tool only. Builds and PDF requests consume the committed PNGs.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const target = path.join(root, "public", "insights-report-art");
-const artwork = ["cyber-terrain", "software-terrain", "discovery-terrain", "endpoint-evidence", "vulnerability-evidence"];
+const artwork = ["software-terrain", "endpoint-evidence", "vulnerability-evidence"];
 const description = "Locally rendered derivatives of the same original SVGs used by Governance Insights. No remote resources. Regenerate when source artwork changes.";
 
 function options(args) {

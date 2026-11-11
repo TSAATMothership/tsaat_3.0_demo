@@ -2,7 +2,7 @@ import { InstalledSoftwareInsights } from "@/components/installed-software-insig
 import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { loadInstalledSoftwareExplorerData } from "@/lib/data-loader";
 import { buildInstalledSoftwareInsights } from "@/lib/installed-software-insights";
-import { insightsHref } from "@/lib/governance-insights";
+import { insightsHref } from "@/lib/insights-navigation";
 import { hasWorkspaceScope, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 
 export default async function InstalledSoftwareInsightsPage({ searchParams }: { searchParams: WorkspaceSearchParams }) {

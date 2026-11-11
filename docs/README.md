@@ -4,21 +4,15 @@ This documentation describes the current source. SQL and TypeScript define exact
 
 | Need | Document |
 | --- | --- |
+| Retirement scope, paired upgrade and recovery | [Feature retirement](feature-retirement.md) |
 | Product behavior and acceptance contracts | [Solution design index](../Requirements%20Documentation/TSAAT-Solution-Design-Index.md) |
-| Executive Cyber Terrain Posture briefing | [Governance Insights](../Requirements%20Documentation/15-Governance-Insights.md) |
-| Executive compliance, lifecycle and discovery trends | [Governance Trends](../Requirements%20Documentation/17-Governance-Trends.md) |
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
-| Server patch evidence, status rules and sample population | [Patch Management Explorer](patch-management-explorer.md) |
-| Lifecycle evidence and server priorities | [Life Cycle Management](../Requirements%20Documentation/16-Life-Cycle-Management.md) |
 | Software dashboard and Governance briefing | [Installed Software Insights](../Requirements%20Documentation/18-Installed-Software-Insights.md) |
-| KPI and SPI history across five periods | [Measures Trends](../Requirements%20Documentation/19-Measures-Trends.md) |
 | CI lookup, Business Impact and communication Dependencies | [Topology Explorer](../Requirements%20Documentation/20-Topology-Explorer.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
 | Persona selection, sidebar visibility and settings upgrades | [Personas](personas.md) |
-| Discovery infographic and Explorer evidence | [Discovery Insights](../Requirements%20Documentation/21-Discovery-Insights.md) |
 | Endpoint identity gaps, freshness and coverage context | [End Point Insights](../Requirements%20Documentation/22-End-Point-Insights.md) |
 | Vulnerability observations, missing evidence and discovery coverage | [Security Vulnerability Insights](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md) |
-| Discovery Insights PDF sections and scope | [Discovery Insights report](discovery-overview-report.md) |
 | Endpoint and vulnerability briefing PDF exports | [Inventory Insights reports](inventory-insights-reports.md) |
 | All PDF/Excel locations, browser workers and progress behavior | [Client document generation](client-document-generation.md) |
 | System structure and data flow | [Architecture](architecture.md) |

@@ -1,5 +1,7 @@
 # Endpoint and vulnerability Insights reports
 
+Current scope: the shared inventory context supplies discovery coverage and snapshot-pinned inventory. Discovery Insights itself is retired; links into retired compliance/tool views are removed. See [retirement scope and upgrades](feature-retirement.md).
+
 Both Governance briefings include **Generate PDF** in the masthead, beside the snapshot. The shared browser document control shows a **Generating Document** progress animation, disables repeated activation, supports cancellation, restores keyboard focus, downloads the file and offers a retry after failure. Export remains available for a scoped empty selection; no scope leaves the page and export absent.
 
 | Page | API | Filename |
@@ -25,6 +27,6 @@ Existing endpoint/table facet helpers and overview measures provide every figure
 
 ## Validation
 
-Focused tests cover page actions, filter preservation, malformed dates/scopes, resolved-date loading, empty reports, complete field/group coverage, repeated observations, first-page narratives and long-label pagination. Shared theme checks protect local artwork provenance and equal opening-panel layout. Existing Discovery Insights PDF tests protect the reused layout helper's default behavior. Browser checks exercise actual downloads, progress, duplicate prevention, retry/focus, current/historical/domain/empty selection and narrow mastheads. Render PDFs and review charts/tables, headers/footers and continuation pages before acceptance. The comprehensive No-SQL smoke includes both exports.
+Focused tests cover page actions, filter preservation, malformed dates/scopes, resolved-date loading, empty reports, complete field/group coverage, repeated observations, first-page narratives and long-label pagination. Shared theme checks protect local artwork provenance and equal opening-panel layout. Shared inventory-report layout tests protect pagination and complete appendix behavior. Browser checks exercise actual downloads, progress, duplicate prevention, retry/focus, current/historical/domain/empty selection and narrow mastheads. Render PDFs and review charts/tables, headers/footers and continuation pages before acceptance. The comprehensive No-SQL smoke includes both exports.
 
-For the report restyling and narratives, select lint/types, focused report/model tests, actual browser downloads, rendered-page review and docs:check. Data queries, calculations, scope/authentication, persistence, schemas, dependencies and build configuration are unaffected; SQL parity, migrations, storage checks, fresh installation and both guarded builds are not selected for this presentation-only change. No route/API/navigation inventory changed, so docs:generate is unnecessary.
+For inventory retirement, provider/shared helper changes require both guarded builds, real SQL/JSON parity, storage/evidence checks and compiled browser/PDF checks. See [selected checks and evidence](feature-retirement.md). Earlier presentation-only changes did not require a schema migration.

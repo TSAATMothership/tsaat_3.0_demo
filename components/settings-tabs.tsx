@@ -1,12 +1,10 @@
-﻿"use client";
+"use client";
 
-export type SettingsTabId = "personas" | "discovery-tools-settings" | "spi-risk-matrix" | "spi-priority-matrix";
+export type SettingsTabId = "personas" | "discovery-tools-settings";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string }> = [
   { id: "personas", label: "Personas" },
   { id: "discovery-tools-settings", label: "Discovery Tools Settings" },
-  { id: "spi-risk-matrix", label: "SPI Risk Matrix" },
-  { id: "spi-priority-matrix", label: "SPI Priority Matrix" }
 ];
 
 export function SettingsTabs({ activeTab, onSelect }: {

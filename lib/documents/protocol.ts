@@ -44,14 +44,9 @@ export function isDocumentSourcePath(value: string): boolean {
   let url: URL; try { url = new URL(value, "https://tsaat.invalid"); } catch { return false; }
   if (url.origin !== "https://tsaat.invalid" || !value.startsWith("/") || value.startsWith("//")) return false;
   return [
-    /^\/api\/governance\/(insights|end-point-insights|security-vulnerability-insights)\/report$/,
+    /^\/api\/governance\/(end-point-insights|security-vulnerability-insights)\/report$/,
     /^\/api\/discovery\/installed-software-insights\/report$/,
-    /^\/api\/discovery-coverage\/(overview-report|remediation-report|network-report|target-state-template)$/,
-    /^\/api\/(networks|systems)\/(remediation-report|performance-report)$/,
-    /^\/api\/systems\/(out-of-support-os-report|modelling-status-report)$/,
-    /^\/api\/(networks|systems)\/[^/]+\/remediation-report$/,
-    /^\/api\/systems\/[^/]+\/coverage-gaps-report$/,
-    /^\/api\/(tasking-report|report\/summary)$/
+    /^\/api\/discovery-coverage\/(endpoints|installed-software|security-vulnerabilities|shadow-it)\/export$/
   ].some(pattern => pattern.test(url.pathname));
 }
 

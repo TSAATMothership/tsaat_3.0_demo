@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { normalizeDataDate } from "@/lib/data-date";
 import { parseSecurityDomainScope } from "@/lib/security-domain.mjs";
 import { hasWorkspaceScope, scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
-import { loadDiscoveryOverview } from "@/lib/discovery-overview-data";
+import { loadInventoryContext } from "@/lib/inventory-context-data";
 import { loadEndpointExplorerData, loadSecurityVulnerabilityExplorerData } from "@/lib/data-loader";
 import { documentResponse } from "@/lib/documents/server-response";
 import type { InsightsDocumentJob } from "@/lib/documents/insights";
@@ -26,7 +26,7 @@ export async function inventoryInsightsReport(request: NextRequest, kind: Invent
   }
   const report = INVENTORY_INSIGHT_REPORTS[kind];
   try {
-    const data = await loadDiscoveryOverview(scope);
+    const data = await loadInventoryContext(scope);
     const common = { version: 1 as const, title: report.title, filename: `${report.slug}-${data.model.snapshotDate}.pdf`, generatedAt: new Date().toISOString() };
     const job: InsightsDocumentJob = kind === "endpoints"
       ? { ...common, kind: "insights-endpoint", data: { model: data.model, scopeLabels: data.scopeLabels, rows: (await loadEndpointExplorerData(data.scope)).rows } }

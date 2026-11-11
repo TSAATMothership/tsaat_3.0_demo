@@ -1,6 +1,6 @@
 import { PDFDocument, type RGB } from "pdf-lib";
-import { OverviewPdf, coverageRing } from "@/lib/discovery-overview-report-pdf";
-import type { DiscoveryInsightsDocumentData as DiscoveryOverviewData } from "@/lib/documents/insights";
+import { InventoryReportPdf, coverageRing } from "@/lib/inventory-report-layout";
+import type { InventoryInsightsDocumentData as InventoryContextData } from "@/lib/documents/insights";
 import { ENDPOINT_COLUMNS, NOT_RECORDED, endpointFacetCounts, type EndpointRecord } from "@/lib/endpoint-explorer";
 import { VULNERABILITY_COLUMNS, vulnerabilityTableColumns, type SecurityVulnerabilityRecord } from "@/lib/security-vulnerability-explorer";
 import { emptyExplorerTableFilters, prepareExplorerRows, queryExplorerRows } from "@/lib/explorer-table";
@@ -11,17 +11,17 @@ const { teal, amber } = INSIGHTS_PDF_THEME, red = INSIGHTS_PDF_THEME.rose;
 const count = (value: number) => value.toLocaleString("en-AU");
 type Count = { value: string; count: number; color?: RGB };
 type Appendix = { title: string; values: Count[]; unit: string };
-type EndpointData = DiscoveryOverviewData & { rows: EndpointRecord[] };
-type VulnerabilityData = DiscoveryOverviewData & { rows: SecurityVulnerabilityRecord[] };
+type EndpointData = InventoryContextData & { rows: EndpointRecord[] };
+type VulnerabilityData = InventoryContextData & { rows: SecurityVulnerabilityRecord[] };
 
-async function begin(data: DiscoveryOverviewData, title: string, generatedAt: Date, kind: InsightsReportKind, summary: string[], recommendations: string[], options: InsightsPdfRenderOptions) {
+async function begin(data: InventoryContextData, title: string, generatedAt: Date, kind: InsightsReportKind, summary: string[], recommendations: string[], options: InsightsPdfRenderOptions) {
   if (!Number.isFinite(generatedAt.getTime())) throw Error("Invalid report generation date.");
   const doc = await PDFDocument.create(), assets = await loadInsightsPdfAssets(doc, kind, options);
   doc.setTitle(title); doc.setAuthor("TSAAT"); doc.setCreationDate(generatedAt);
   drawInsightsOpeningPage(doc, assets, { kind, title, snapshotDate: data.model.snapshotDate, generatedAt,
     scopeLines: [...data.scopeLabels.networks.map(label => "Managed network: " + label), ...data.scopeLabels.systems.map(label => "ICT system: " + label),
       "Security domains: " + (data.scopeLabels.domains.join(", ") || "None selected")], summary, recommendations });
-  const pdf = new OverviewPdf(doc, assets.regular, assets.bold, data.model.snapshotDate, title, assets, kind);
+  const pdf = new InventoryReportPdf(doc, assets.regular, assets.bold, data.model.snapshotDate, title, assets, kind);
   pdf.pageFor("Summary and scope");
   if (data.scopeLabels.networks.length) pdf.paragraph("Managed networks: " + data.scopeLabels.networks.join("; "));
   if (data.scopeLabels.systems.length) pdf.paragraph("ICT systems: " + data.scopeLabels.systems.join("; "));
@@ -31,7 +31,7 @@ async function begin(data: DiscoveryOverviewData, title: string, generatedAt: Da
 }
 
 /** Keep charts readable while retaining every value, including long labels, in measured table rows. */
-function distribution(pdf: OverviewPdf, title: string, values: Count[], total: number, unit: string, appendices: Appendix[], narrative: string) {
+function distribution(pdf: InventoryReportPdf, title: string, values: Count[], total: number, unit: string, appendices: Appendix[], narrative: string) {
   const needsAppendix = values.length > 6 || values.some(row => pdf.wrap(row.value, 148, 9).length > 3);
   const chartHeight = values.slice(0, 6).reduce((height, row) => height + Math.max(29, Math.min(3, pdf.wrap(row.value, 148, 9).length) * 12 + 8), 0);
   // Keep each summary chart with its title and appendix note; full tables can paginate.
@@ -43,22 +43,22 @@ function distribution(pdf: OverviewPdf, title: string, values: Count[], total: n
     appendices.push({ title, values, unit });
   }
 }
-function appendTables(pdf: OverviewPdf, appendices: Appendix[]) {
+function appendTables(pdf: InventoryReportPdf, appendices: Appendix[]) {
   for (const entry of appendices) {
     pdf.pageFor("Appendix: " + entry.title);
     pdf.paragraph("Complete breakdown. Counting unit: " + entry.unit + ". Labels are retained in full, with continuation pages where needed.");
     pdf.table(["Recorded value", "Count"], entry.values.map(row => [row.value, count(row.count)]), [WIDTH - 80, 80]);
   }
 }
-function coverageSection(pdf: OverviewPdf, { coverage }: DiscoveryOverviewData["model"]) {
-  pdf.paragraph("Required tool checks use the scoped Discovery Compliance CI inventory and saved CI-type mappings. They do not estimate undiscovered devices or prove vulnerability scanning is complete.");
+function coverageSection(pdf: InventoryReportPdf, { coverage }: InventoryContextData["model"]) {
+  pdf.paragraph("Required tool checks use the scoped CI inventory and saved CI-type mappings. They do not estimate undiscovered devices or prove vulnerability scanning is complete.");
   pdf.paragraph(`${count(coverage.coveredChecks)} of ${count(coverage.applicableChecks)} required checks covered across ${count(coverage.total)} CIs, with ${count(coverage.missingChecks)} missing tool-to-CI checks. ${count(coverage.unmapped)} CIs have no required tool mapping: they count as compliant and are excluded from the percentage. No applicable checks means N/A.`);
   coverageRing(pdf, coverage);
   pdf.toolCards(coverage.tools);
   pdf.heading("Required tools - complete detail", "Each row counts required tool-to-CI checks, with covered and missing checks shown separately. Use this breakdown to identify the collection tools to investigate; a compliant discovery check does not validate every attribute collected by that tool.");
   pdf.table(["Discovery tool", "Covered", "Missing", "Required"], coverage.tools.map(tool => [tool.label, count(tool.covered), count(tool.missing), count(tool.applicable)]), [WIDTH - 240, 80, 80, 80]);
 }
-function commonNotes(pdf: OverviewPdf) {
+function commonNotes(pdf: InventoryReportPdf) {
   pdf.heading("Scope and interpretation");
   pdf.paragraph("All values use the applied header network or ICT-system scope and security domains detailed at the front of this briefing. The resolved snapshot is shown on every page. Local Explorer filters are not applied. Counts use the same provider facades and existing measures as the page.");
   pdf.paragraph("Missing checks may overlap. Do not add field gaps into a single issue total. A recorded value does not validate its correctness or applicability; identity labels can fall back to identifiers. Empty inventories and zero gaps do not establish complete discovery or absence of exposure.");

@@ -16,7 +16,7 @@ export async function checkEndpointInsights(page, { date, historicalDate, artifa
   await page.setViewport({ width: 1600, height: 1000 }); await visit();
   assert.equal(await page.$eval('.workspace-navigation [aria-current=page]', node => node.textContent.trim()), 'End Point Insights');
   const governance = await page.$$eval('.workspace-nav-group', nodes => nodes.find(node => node.querySelector('.workspace-group-toggle').textContent.trim() === 'Governance').textContent);
-  assert(governance.indexOf('End Point Insights') > governance.indexOf('Discovery Insights'));
+  assert(governance.indexOf('End Point Insights') > governance.indexOf('Installed Software Insights'));
   assert.equal(await page.$$('.endpoint-insights .endpoint-insight-field').then(nodes => nodes.length), 9);
   await page.$eval('.insight-footer', node => node.scrollIntoView());
   await page.waitForFunction(() => [...document.querySelectorAll('.endpoint-insights img')].every(img => img.complete && img.naturalWidth > 0));

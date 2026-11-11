@@ -1,9 +1,7 @@
-# ICT System Risk Profile
+# ICT Systems — retired
 
-Current contract: TSAAT UI 3 baseline, 2026-11-02. Maintain with related source changes; see [SDLC](../docs/sdlc.md).
+Retired on 2026-11-11 at the user's request. This feature is no longer part of the current application. Its compatibility URLs return a retirement page or HTTP 410 without invoking the retired provider or report operations.
 
-ICT System Risk Profile parallels the network profile for systems selected in the header. Tabs are ICT System Risk Profile, ICT System Explorer and Compliance Heatmap. The explorer is unpaginated and scrollable, with standard table search/filters and APP-ID immediately after DIIS. Every explorer row drill-through opens a new browser tab. Selecting a system name opens its details panel in the new tab with that system and the same resolved snapshot selected. CI counts, SPI/discovery coverage and finding counts retain their destination-specific presets, including severity and duration. The original explorer keeps its scope, review focus, search and sort.
+Feature-exclusive code, SQL objects, JSON payloads and references have been removed. Historical SQL migration files remain immutable; fresh setup does not replay them. Existing stores require the paired, backed-up upgrade described in [Feature retirement and data alignment](../docs/feature-retirement.md).
 
-Risk summaries, finding drill-through and the expandable critical/high trend use the same scoped model. The device/SPI heatmap follows the network contract: 40px initial cells, scale control, dynamic text search, compliant/non-compliant/unknown filtering, grouped device order and highest SPI severity at the right. The old system-to-SPI aggregate heatmap is removed.
-
-Header scope controls network/system-specific sidebar visibility. /systems redirects to the current risk profile with preserved scope/date. Sources: app/ict-system-risk-profile/page.tsx, lib/ict-system-risk-profile.ts, shared risk-profile model/component and compliance heatmap. Tests: ict-system-risk-profile, ict-system-risk-profile-page, compliance-heatmap, workspace-scope and posture-page-redirects.
+Retained features and acceptance contracts are listed in the [solution design index](TSAAT-Solution-Design-Index.md).

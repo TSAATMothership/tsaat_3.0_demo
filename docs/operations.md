@@ -14,13 +14,13 @@ Provision DB_config for SQL only under the service identity; do not copy another
 
 Restrict configuration/database access. Apply separately reviewed migrations to the explicit database before switching traffic when required. Compilation does not seed a database.
 
-For cleanup migration 027, stop app traffic to the selected database, retain a verified pre-upgrade backup, apply 027 using sqlcmd -b, then deploy UI 3 and verify scoped measures, explorers and exports. Do not point an older TSAAT build at this cleaned schema: older loaders select the removed network apm_number column. An isolated restored copy lets the older installation continue using its original database. Recovery restores both the database backup and previous compatible app.
+For the current release, apply the [inventory v2 paired upgrade](feature-retirement.md) to explicitly selected, backed-up stores before switching traffic. Migration 033 removes retired analytics structures. Never use setup:database, base DDL or seed loaders as an upgrade. Keep the compatible old application and backup together for rollback.
 
 ## Smoke checks
 
-Verify direct page/API access without cookies, safe legacy-login redirects, the header without account controls, empty workspace, header Update, both scope types and dates. Check risk profiles, explorers/details, heatmaps, Service Impact selection/graph popup and the ICT impact and dependency diagrams. Confirm CMDB and Settings-sized compliance/impact dialogs, evidence/remediation and keyboard/focus behavior. The Service Impact browser regression checks Settings dimensions, table/selection scope, graph search/expansion/drag/zoom, nested findings, empty scope and narrow layouts; it also runs in the compiled No-SQL smoke. Check Measures Summary, the two KPIs, configured SPIs, findings, discovery and representative PDF/workbook exports. Confirm saved severity/priority settings affect subsequent evaluation.
+Verify direct access without cookies, legacy-login redirects, both scope types, security domains, selected dates and empty results. Check all three Governance Insights, the five Discovery Explorers, the software Dashboard compatibility view and retained PDF/Excel downloads. Exercise CMDB keyboard opening/Escape/focus return and Topology layout/filter/selection/full-screen behavior. Settings has only read-only Personas and Discovery Tools; removed API routes return 410 and old pages explain retirement.
 
-The graph regression also checks severity selection/empty selection, inclusive finding-count ranges, filtered finding details, every layout family/direction, intermediate animation frames, rapid layout switching, reduced motion and generated/custom coordinate stability across filters. These are focused UI checks over the shared model; repeat provider/build/offline gates when their behavior changes or for a release, as defined by the SDLC.
+The compiled provider smoke uses matching history/scopes. Run test:nosql, then scripts/test-sql-evidence.mjs with TSAAT_EVIDENCE_PARITY_DATABASE explicitly selecting a disposable TSAAT_EvidenceParity_* database. A missing SQL run is not parity evidence. Test current and historical inventory, domain filtering, settings persistence after restart, downloads and browser errors. Record real provider integration results with the release.
 
 ## Observability and recovery
 

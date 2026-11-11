@@ -18,7 +18,7 @@ describe.runIf(process.env.TSAAT_SQL_INTEGRATION === "1")("Model CI disposable S
   let directory: string;
   const previousJson = process.env.TSAAT_JSON_DATA_DIR;
   beforeAll(async () => {
-    expect(process.env.TSAAT_APP_DATABASE).toMatch(/^TSAAT_EvidenceParity_ModelCi_[A-Za-z0-9_]+$/);
+    expect(process.env.TSAAT_APP_DATABASE).toMatch(/^TSAAT_EvidenceParity_[A-Za-z0-9_]+$/);
     directory = await mkdtemp(path.join(os.tmpdir(), "tsaat-model-ci-parity-"));
     const target = path.join(directory, "store"); await initializeJsonStore({ target }); process.env.TSAAT_JSON_DATA_DIR = target;
   });

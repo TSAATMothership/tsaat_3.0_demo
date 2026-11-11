@@ -1,0 +1,131 @@
+{
+  "version": 2,
+  "tables": [
+    "finding",
+    "finding_bucket_definition",
+    "finding_evidence_field_definition",
+    "finding_generation_policy",
+    "finding_priority_definition",
+    "finding_register_column_definition",
+    "finding_severity_definition",
+    "finding_source_policy",
+    "finding_workflow_status_definition",
+    "kpi_calculation_definition",
+    "kpi_calculation_parameter",
+    "kpi_calculation_source",
+    "kpi_definition",
+    "kpi_report_detail_binding",
+    "kpi_report_detail_definition",
+    "kpi_tasking_action_template",
+    "kpi_tasking_condition_template",
+    "kpi_tasking_team",
+    "measures_priority_matrix",
+    "measures_settings_version",
+    "measures_severity_matrix",
+    "network_target_state_asset",
+    "reference_os_current_major",
+    "reference_software_supported_version",
+    "reference_version_set",
+    "server_patch_observation",
+    "spi_applicable_asset_type",
+    "spi_calculation_definition",
+    "spi_calculation_evidence_expression",
+    "spi_calculation_source",
+    "spi_definition",
+    "spi_feature_binding",
+    "spi_finding_classification_rule",
+    "spi_report_detail_definition",
+    "spi_rule_definition",
+    "spi_rule_outcome_template",
+    "spi_rule_parameter",
+    "spi_rule_parameter_definition",
+    "spi_tasking_action_template",
+    "spi_tasking_condition_template",
+    "spi_tasking_team"
+  ],
+  "routines": [
+    {
+      "type": "VIEW",
+      "name": "vw_spi_asset_evaluation_context"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_spi_string_parameter"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_spi_number_parameter"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_spi_boolean_parameter"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_spi_vulnerability_count"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_spi_installed_software_count"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_spi_software_support_status_count"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_evaluate_spi_snapshot"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_evaluate_kpi_snapshot"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_evaluate_kpi_snapshot_bulk"
+    },
+    {
+      "type": "VIEW",
+      "name": "vw_persisted_finding_normalized"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_finding_hash_int"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_generate_spi_findings_snapshot"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_get_effective_findings_snapshot"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_get_finding_history_snapshot"
+    },
+    {
+      "type": "PROCEDURE",
+      "name": "usp_get_finding_spi_history_snapshot"
+    },
+    {
+      "type": "FUNCTION",
+      "name": "fn_kpi_stable_hash"
+    }
+  ],
+  "columns": {
+    "dataset_snapshot": [
+      "reference_version_set_id"
+    ],
+    "asset_operating_system": [
+      "major_version",
+      "current_supported_major",
+      "n_minus"
+    ],
+    "asset_network_os": [
+      "major_version",
+      "current_supported_major",
+      "n_minus"
+    ]
+  }
+}

@@ -27,7 +27,3 @@ export function filterRealNetworkAssets<T extends { networkId: string }>(assets:
 export function filterRealNetworkEvaluations<T extends { networkId: string }>(evaluations: T[]): T[] {
   return evaluations.filter((evaluation) => isRealNetworkId(evaluation.networkId));
 }
-
-export function filterRealNetworkFindings<T extends { scope: { networkId: string } }>(findings: T[]): T[] {
-  return findings.filter((finding) => isRealNetworkId(finding.scope.networkId));
-}

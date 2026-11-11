@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
-import { insightsSnapshotTimestamp } from "@/lib/governance-insights-pdf";
+import { insightsSnapshotTimestamp } from "@/lib/insights-snapshot";
 import { drawInsightsIcon, drawInsightsOpeningPage, drawInsightsPageFrame, drawInsightsRingArc, INSIGHTS_PDF_THEME, loadInsightsPdfAssets, type InsightsPdfAssets, type InsightsPdfRenderOptions } from "@/lib/insights-pdf-theme";
 import type { SoftwareInsightsReportData } from "@/lib/software-insights-report-data";
 

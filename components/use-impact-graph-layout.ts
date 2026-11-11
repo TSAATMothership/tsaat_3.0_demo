@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { interpolateImpactPositions, type ImpactNodePosition } from "@/lib/service-impact-graph";
+import { interpolateImpactPositions, type ImpactNodePosition } from "@/lib/topology-layout";
 
 /** One animation clock for nodes, edges and camera bounds; rapid changes start at the current frame. */
 export function useImpactGraphLayout(target: Map<string, ImpactNodePosition>, layoutKey: string) {

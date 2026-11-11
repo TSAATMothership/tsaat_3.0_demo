@@ -1,6 +1,5 @@
 import { enrichDemoDataset, summarizeDemoDataset, validateDemoDataset } from './enrich-demo-dataset.mjs';
 import { enrichVulnerabilityMetadata } from './enrich-vulnerability-metadata.mjs';
-import { enrichPatchManagement } from './enrich-patch-management.mjs';
 
 export const SAMPLE_EVIDENCE_PROFILE = 'tsaat-aligned-evidence-v1';
 const observationDates = new Set(['snapshotDate', 'generatedAt', 'timestamp', 'closedTimestamp', 'detectedDate', 'capturedAt', 'lastDiscoveredDate', 'lastPatchedDate', 'lastRestartedDate', 'verifiedDate', 'assessmentDate', 'assessmentValidUntil', 'dueDate', 'plannedDate', 'exceptionExpiresDate', 'observedAt']);
@@ -38,10 +37,6 @@ export function completeSampleEvidence(input) {
       grcUrl: 'https://grc.example.test/networks/net-unassigned', discoveryStatus: 'Discovery Non Enabled', ictSystemIds: [], assetIds: []
     });
   }
-  for (const network of dataset.managedNetworks) {
-    network.targetStateAssets ??= {};
-    for (const type of ['server', 'workstation', 'network-device', 'storage-device', 'printer-device', 'other', 'ip-node']) network.targetStateAssets[type] ??= [];
-  }
   for (const asset of dataset.assets) {
     if (asset.type === 'ip-node') continue; // Unidentified nodes must retain unknown identity.
     // Older baseline fixtures carried some observations from later snapshots.
@@ -51,9 +46,6 @@ export function completeSampleEvidence(input) {
     if (property) {
       asset[property] ??= { family: 'Sample Network OS', vendor: 'Sample vendor', version: '1.0', supportStatus: 'Unknown' };
       const os = asset[property];
-      os.majorVersion ??= Number.parseInt(os.version, 10) || 1;
-      os.currentSupportedMajor ??= os.majorVersion;
-      os.nMinus ??= Math.max(0, os.currentSupportedMajor - os.majorVersion);
       os.patchLevel ||= `DEMO-${dataset.snapshotDate.slice(0, 7)}-R1`;
     }
     // The original seed generator uses fictional CVE codes and scanner observations.
@@ -69,7 +61,7 @@ export function completeSampleEvidence(input) {
       vulnerability.referenceUrl ||= 'https://sample.example.test/vulnerabilities/' + encodeURIComponent(vulnerability.cve);
     }
   }
-  dataset = enrichPatchManagement(enrichVulnerabilityMetadata(dataset));
+  dataset = enrichVulnerabilityMetadata(dataset);
   dataset.sampleDataProfile = SAMPLE_EVIDENCE_PROFILE;
   validateDemoDataset(dataset);
   return dataset;
@@ -89,10 +81,7 @@ export function auditSampleEvidence(dataset) {
     }
     const os = asset.operatingSystem ?? asset.networkOs;
     if (['server', 'workstation', 'network-device'].includes(asset.type)) {
-      for (const key of ['family', 'vendor', 'version', 'majorVersion', 'currentSupportedMajor', 'nMinus', 'supportStatus', 'patchLevel']) if (!present(os?.[key])) errors.push(`${asset.id}.os.${key}`);
-    }
-    if (asset.type === 'server') {
-      for (const key of ['installedPatchLevel', 'targetPatchLevel', 'owner', 'maintenanceWindow', 'changeReference', 'source']) if (!present(asset.patchManagement?.[key])) errors.push(`${asset.id}.patch.${key}`);
+      for (const key of ['family', 'vendor', 'version', 'supportStatus', 'patchLevel']) if (!present(os?.[key])) errors.push(`${asset.id}.os.${key}`);
     }
     for (const software of asset.installedSoftware ?? []) if (!present(software.supportStatus)) errors.push(`${asset.id}.software.supportStatus`);
     for (const vulnerability of asset.vulnerabilities) {

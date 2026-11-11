@@ -1,84 +1,32 @@
+import { normalizeNetworkSecurityDomain, normalizeSecurityDomain, securityDomainSelection } from "@/lib/security-domain.mjs";
 import "server-only";
 export { loadPersonaSettings, savePersonaSettings } from "@/lib/sql-persona-settings";
-import { normalizeSecurityDomain, normalizeNetworkSecurityDomain, securityDomainSelection } from "@/lib/security-domain.mjs";
 
-import { createHash } from "node:crypto";
 import { ASSET_TYPES as CANONICAL_ASSET_TYPES, createAssetTypeRecord, formatAssetTypeLabel } from "@/lib/asset-taxonomy";
 import { normalizeDataDate, subtractCalendarMonthsDateKey, todayDateKey } from "@/lib/data-date";
 import {
-  defaultDiscoveryToolsSettings,
-  DiscoveryToolsSettings,
-  normalizeDiscoveryToolsScopeUpdate,
-  normalizeDiscoveryToolsSettings
+	defaultDiscoveryToolsSettings,
+	DiscoveryToolsSettings,
+	normalizeDiscoveryToolsScopeUpdate,
+	normalizeDiscoveryToolsSettings
 } from "@/lib/discovery-tools-settings";
-import {
-  FindingBucketDefinition,
-  FindingDisplayConfiguration,
-  FindingEvidenceFieldDefinition,
-  FindingGenerationPolicy,
-  FindingRegisterColumnDefinition,
-  FindingSourcePolicy,
-  FindingWorkflowStatusDefinition,
-  findingDisplayConfigurationCacheSignature,
-  normalizeFindingDisplayConfiguration
-} from "@/lib/findings-config";
-import { KpiDefinition, kpiDefinitionsCacheSignature, normalizeKpiDefinitions } from "@/lib/kpi-definitions";
-import {
-  defaultMeasuresSettings,
-  FindingPriorityDefinition,
-  MeasuresSettings,
-  normalizeMeasuresSettings,
-  normalizePriorityDefinitions
-} from "@/lib/measures-settings";
-import {
-  normalizeSeverityDefinitions,
-  normalizeSpiDefinitions,
-  renderSpiOutcomeReason,
-  SeverityDefinition,
-  severityDefinitionsCacheSignature,
-  SpiCalculationDefinition,
-  SpiCalculationEvidenceExpression,
-  SpiCalculationSource,
-  SpiDefinition,
-  SpiFeatureBinding,
-  SpiFindingClassificationRule,
-  SpiReportDetailDefinition,
-  SpiRuleDefinition,
-  SpiRuleOutcomeTemplate,
-  SpiRuleParameterDefinition,
-  spiDefinitionsCacheSignature,
-  SpiRuleParameterValue
-} from "@/lib/spi-definitions";
-import { clearAnalyticsCache } from "@/lib/analytics-cache";
-import { clearAppDataCaches } from "@/lib/app-data-cache";
-import { timeAsync } from "@/lib/perf";
-import { ServerMemoryCache } from "@/lib/server-cache";
-import { filterRealNetworks } from "@/lib/network-scope";
 import type { EndpointRecord } from "@/lib/endpoint-explorer";
 import type { InstalledSoftwareRecord } from "@/lib/installed-software-explorer";
-import { buildPatchManagementRows, type PatchManagementData } from "@/lib/patch-management-explorer";
-import type { ServerPatchRecord } from "@/lib/types";
+import { filterRealNetworks } from "@/lib/network-scope";
+import { timeAsync } from "@/lib/perf";
 import type { SecurityVulnerabilityRecord } from "@/lib/security-vulnerability-explorer";
+import { ServerMemoryCache } from "@/lib/server-cache";
 import type { ShadowItRecord } from "@/lib/shadow-it-explorer";
-import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
-import {
-  Asset,
-  AssetType,
-  ComplianceStatus,
-  Dataset,
-  DiscoveryCoverageValue,
-  EnvironmentType,
-  Finding,
-  ICTSystem,
-  ManagedNetwork,
-  ReferenceVersions,
-  SpiId,
-  StoredDiscoveryCoverageEvaluation,
-  StoredKpiEvaluation,
-  StoredScopedKpiEvaluation,
-  StoredSpiEvaluation
-} from "@/lib/types";
 import { executeSqlJson, executeSqlText, toSqlUnicodeLiteral } from "@/lib/sql-server";
+import {
+	Asset,
+	AssetType,
+	Dataset,
+	DiscoveryCoverageValue,
+	EnvironmentType,
+	StoredDiscoveryCoverageEvaluation
+} from "@/lib/types";
+import { scopeIds, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 
 type SnapshotRow = {
   snapshotId: number;
@@ -86,7 +34,7 @@ type SnapshotRow = {
   generatedAt: string;
 };
 
-export type DatasetLoadProfile = "summary" | "risk-summary" | "full";
+export type DatasetLoadProfile = "summary" | "full";
 
 type DatasetLoadOptions = {
   profile?: DatasetLoadProfile;
@@ -140,12 +88,6 @@ type NetworkDeclaredSystemRow = {
 type NetworkDeclaredAssetRow = {
   networkId: string;
   assetId: string;
-};
-
-type NetworkTargetStateAssetRow = {
-  networkId: string;
-  assetType: AssetType;
-  assetName: string;
 };
 
 type SystemRow = {
@@ -227,11 +169,8 @@ type AssetOperatingSystemRow = {
   assetId: string;
   family: string;
   vendor: string;
-  majorVersion: number | null;
   version: string;
   supportStatus: "Supported" | "OutOfSupport" | "Unknown";
-  currentSupportedMajor: number | null;
-  nMinus: number | null;
 };
 
 type AssetPatchStateRow = {
@@ -282,33 +221,11 @@ type CiDependencyRow = {
   observedAt: string | null;
 };
 
-type FindingRow = {
-  id: string;
-  spiId: number;
-  priorityRank: number;
-  severity: string;
-  rawPriorityRank?: number | null;
-  rawSeverity?: string | null;
-  sourceKind?: "persisted" | "generated" | string | null;
-  complianceStatus: "Compliant" | "Non-compliant" | "Unknown";
-  networkId: string;
-  systemId: string | null;
-  environmentType: EnvironmentType | null;
-  assetId: string;
-  title: string;
-  evidence: Record<string, string | number | boolean | null> | null;
-  recommendedAction: string;
-  status: "open" | "closed";
-  timestamp: string;
-  closedTimestamp: string | null;
-};
-
 type SnapshotPayload = {
   managedNetworks: ManagedNetworkRow[];
   managedNetworkHierarchy: ManagedNetworkHierarchyRow[];
   networkDeclaredSystems: NetworkDeclaredSystemRow[];
   networkDeclaredAssets: NetworkDeclaredAssetRow[];
-  networkTargetStateAssets: NetworkTargetStateAssetRow[];
   ictSystems: SystemRow[];
   ictSystemHierarchy: SystemHierarchyRow[];
   systemMissionCapabilities: MissionCapabilityRow[];
@@ -319,133 +236,9 @@ type SnapshotPayload = {
   assetOperatingSystems: AssetOperatingSystemRow[];
   assetNetworkOperatingSystems: AssetOperatingSystemRow[];
   assetPatchStates: AssetPatchStateRow[];
-  serverPatchObservations: Array<ServerPatchRecord & { assetId: string }>;
   assetInstalledSoftware: AssetInstalledSoftwareRow[];
   assetVulnerabilities: AssetVulnerabilityRow[];
   ciDependencies: CiDependencyRow[];
-  findings: FindingRow[];
-};
-
-type MeasuresMatrixRow = {
-  spiId: number;
-  assetType: AssetType;
-  severity: string;
-};
-
-type MeasuresPriorityMatrixRow = {
-  spiId: number;
-  priorityRank: number;
-};
-
-type KpiDefinitionRow = {
-  id: string;
-  displayOrder: number;
-  name: string;
-  description: string;
-  successMeasure: string;
-  calculationKey: string;
-  reportAvailable: boolean | number;
-  enabled?: boolean | number;
-  calculationDefinition?: KpiCalculationDefinitionRow | null;
-  reportDetailDefinition?: KpiReportDetailDefinitionRow | null;
-  taskingTeams?: KpiTaskingTeamRow[];
-  taskingActions?: KpiTaskingActionTemplateRow[];
-  taskingConditions?: KpiTaskingConditionTemplateRow[];
-};
-
-type KpiCalculationDefinitionRow = {
-  calculationKey: string;
-  sourceKey: string;
-  displayOrder: number;
-  name: string;
-  description: string;
-  enabled: boolean | number;
-};
-
-type KpiReportDetailDefinitionRow = {
-  reportDetailKey: string;
-  handlerKey: string;
-  displayOrder: number;
-  name: string;
-  description: string;
-  enabled: boolean | number;
-};
-
-type KpiTaskingTeamRow = {
-  displayOrder: number;
-  team: string;
-  supportQueue: string;
-  contactEmail: string;
-};
-
-type KpiTaskingActionTemplateRow = {
-  displayOrder: number;
-  conditionKey: string;
-  actionText: string;
-};
-
-type KpiTaskingConditionTemplateRow = {
-  conditionKey: string;
-  templateText: string;
-};
-
-type StoredKpiEvaluationRow = StoredKpiEvaluation;
-type StoredScopedKpiEvaluationRow = StoredScopedKpiEvaluation;
-
-type SpiDefinitionRow = {
-  spiId: number;
-  displayOrder: number;
-  name: string;
-  description: string;
-  successMeasure: string;
-  priorityOrder: number;
-  defaultSeverity: string;
-  recommendedAction: string;
-  enabled: boolean | number;
-  ruleKey: string;
-  reportAvailable: boolean | number;
-  trendReportAvailable: boolean | number;
-  reportDetailKey: string;
-};
-
-type SpiApplicableAssetTypeRow = {
-  spiId: number;
-  assetType: AssetType;
-};
-
-type SpiRuleParameterRow = {
-  spiId: number;
-  parameterKey: string;
-  parameterType: "string" | "number" | "boolean";
-  parameterValue: string;
-};
-
-type SpiRuleDefinitionRow = SpiRuleDefinition;
-
-type SpiCalculationSourceRow = SpiCalculationSource;
-
-type SpiCalculationDefinitionRow = Omit<SpiCalculationDefinition, "source" | "evidenceExpressions">;
-
-type SpiCalculationEvidenceExpressionRow = SpiCalculationEvidenceExpression;
-
-type SpiRuleParameterDefinitionRow = Omit<SpiRuleParameterDefinition, "allowedValues"> & {
-  allowedValuesJson: string | null;
-};
-
-type SpiRuleOutcomeTemplateRow = SpiRuleOutcomeTemplate;
-
-type SpiReportDetailDefinitionRow = SpiReportDetailDefinition;
-
-type SpiFindingClassificationRuleRow = SpiFindingClassificationRule;
-
-type SpiFeatureBindingRow = SpiFeatureBinding;
-
-type StoredSpiEvaluationRow = {
-  assetId: string;
-  spiId: number;
-  outcomeKey: string;
-  status: ComplianceStatus;
-  evidence: Record<string, string | number | boolean | null> | null;
 };
 
 type DiscoveryCoverageToolValueRow = {
@@ -463,68 +256,6 @@ type StoredDiscoveryCoverageEvaluationRow = {
   missingToolIds: DiscoveryCoverageArrayValueRow[] | null;
   missingToolNames: DiscoveryCoverageArrayValueRow[] | null;
   coverageCompliance: boolean | number;
-};
-
-type SpiTaskingTeamRow = {
-  spiId: number;
-  displayOrder: number;
-  team: string;
-  supportQueue: string;
-  contactEmail: string;
-};
-
-type SpiTaskingActionTemplateRow = {
-  spiId: number;
-  displayOrder: number;
-  conditionKey: string;
-  actionText: string;
-};
-
-type SpiTaskingConditionTemplateRow = {
-  spiId: number;
-  conditionKey: string;
-  templateText: string;
-};
-
-type SeverityDefinitionRow = {
-  severityKey: string;
-  label: string;
-  displayOrder: number;
-  selectableInSettings: boolean | number;
-  toneKey: string;
-};
-
-type FindingPriorityDefinitionRow = {
-  priorityRank: number;
-  label: string;
-  displayOrder: number;
-  selectableInSettings: boolean | number;
-  description: string;
-};
-
-type FindingSourcePolicyRow = FindingSourcePolicy & {
-  usePersistedFindings: boolean | number;
-  generateWhenEmpty: boolean | number;
-  enabled: boolean | number;
-};
-
-type FindingGenerationPolicyRow = FindingGenerationPolicy;
-
-type FindingWorkflowStatusDefinitionRow = FindingWorkflowStatusDefinition & {
-  terminalStatus: boolean | number;
-};
-
-type FindingBucketDefinitionRow = FindingBucketDefinition & {
-  enabled: boolean | number;
-};
-
-type FindingEvidenceFieldDefinitionRow = Omit<FindingEvidenceFieldDefinition, "candidateKeys" | "enabled"> & {
-  candidateKeysJson: string | null;
-  enabled: boolean | number;
-};
-
-type FindingRegisterColumnDefinitionRow = FindingRegisterColumnDefinition & {
-  enabled: boolean | number;
 };
 
 type DiscoveryToolRow = {
@@ -545,15 +276,8 @@ const DATA_SCHEMA = "tsaat";
 const ASSET_TYPES: AssetType[] = [...CANONICAL_ASSET_TYPES];
 const SNAPSHOT_ROWS_CACHE_TTL_MS = 60 * 1000;
 const DATASET_CACHE_TTL_MS = 30 * 60 * 1000;
-const REFERENCE_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 const SETTINGS_VERSION_CACHE_TTL_MS = 60 * 1000;
 const SETTINGS_BY_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
-const KPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-const KPI_EVALUATIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-const SPI_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-const SEVERITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-const PRIORITY_DEFINITIONS_CACHE_TTL_MS = 5 * 60 * 1000;
-const FINDING_DISPLAY_CONFIGURATION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const snapshotRowsCache = new ServerMemoryCache<SnapshotRow[]>({
   namespace: "data:snapshot-rows",
@@ -593,66 +317,6 @@ const securityVulnerabilityExplorerCache = new ServerMemoryCache<SecurityVulnera
   namespace: "data:security-vulnerability-explorer", ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS, maxEntries: 36
 });
 
-const referenceVersionsCache = new ServerMemoryCache<ReferenceVersions>({
-  namespace: "data:reference-versions",
-  ttlMs: REFERENCE_VERSIONS_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const kpiDefinitionsCache = new ServerMemoryCache<KpiDefinition[]>({
-  namespace: "data:kpi-definitions",
-  ttlMs: KPI_DEFINITIONS_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const kpiEvaluationsCache = new ServerMemoryCache<StoredKpiEvaluation[]>({
-  namespace: "data:kpi-evaluations",
-  ttlMs: KPI_EVALUATIONS_CACHE_TTL_MS,
-  maxEntries: 500
-});
-
-const scopedKpiEvaluationsCache = new ServerMemoryCache<Map<string, StoredKpiEvaluation[]>>({
-  namespace: "data:kpi-evaluations:bulk",
-  ttlMs: KPI_EVALUATIONS_CACHE_TTL_MS,
-  maxEntries: 100
-});
-
-const spiDefinitionsCache = new ServerMemoryCache<SpiDefinition[]>({
-  namespace: "data:spi-definitions",
-  ttlMs: SPI_DEFINITIONS_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const severityDefinitionsCache = new ServerMemoryCache<SeverityDefinition[]>({
-  namespace: "data:severity-definitions",
-  ttlMs: SEVERITY_DEFINITIONS_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const priorityDefinitionsCache = new ServerMemoryCache<FindingPriorityDefinition[]>({
-  namespace: "data:priority-definitions",
-  ttlMs: PRIORITY_DEFINITIONS_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const findingDisplayConfigurationCache = new ServerMemoryCache<FindingDisplayConfiguration>({
-  namespace: "data:finding-display-configuration",
-  ttlMs: FINDING_DISPLAY_CONFIGURATION_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const measuresSettingsVersionCache = new ServerMemoryCache<SettingsVersionRow | null>({
-  namespace: "settings:measures-version",
-  ttlMs: SETTINGS_VERSION_CACHE_TTL_MS,
-  maxEntries: 1
-});
-
-const measuresSettingsByVersionCache = new ServerMemoryCache<MeasuresSettings>({
-  namespace: "settings:measures",
-  ttlMs: SETTINGS_BY_VERSION_CACHE_TTL_MS,
-  maxEntries: 24
-});
-
 const discoveryToolsSettingsVersionCache = new ServerMemoryCache<SettingsVersionRow | null>({
   namespace: "settings:discovery-tools-version",
   ttlMs: SETTINGS_VERSION_CACHE_TTL_MS,
@@ -670,15 +334,7 @@ function targetDateKey(requestedDate: string | undefined): string {
 }
 
 function normalizeDatasetLoadProfile(profile: DatasetLoadProfile | undefined): DatasetLoadProfile {
-  return profile === "summary" || profile === "risk-summary" || profile === "full" ? profile : "full";
-}
-
-function hashCacheValue(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-function cacheSignatureFromParts(parts: Array<string | number | boolean | null | undefined>): string {
-  return hashCacheValue(parts.map((part) => String(part ?? "")).join("|"));
+  return profile === "summary" || profile === "full" ? profile : "full";
 }
 
 function coerceIsoTimestamp(value: string | null | undefined): string {
@@ -692,59 +348,6 @@ function coerceIsoTimestamp(value: string | null | undefined): string {
   }
 
   return value;
-}
-
-function normalizeSqlEvidence(value: unknown): Record<string, string | number | boolean | null> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  const evidence: Record<string, string | number | boolean | null> = {};
-  for (const [key, rawValue] of Object.entries(value)) {
-    if (!/^[A-Za-z0-9_]+$/.test(key)) {
-      continue;
-    }
-    if (
-      rawValue === null ||
-      typeof rawValue === "string" ||
-      typeof rawValue === "number" ||
-      typeof rawValue === "boolean"
-    ) {
-      evidence[key] = rawValue;
-    }
-  }
-  return evidence;
-}
-
-function normalizeStoredSpiEvaluations(
-  rows: StoredSpiEvaluationRow[],
-  spiDefinitions: SpiDefinition[]
-): StoredSpiEvaluation[] {
-  const definitionsById = new Map(spiDefinitions.map((definition) => [definition.spiId, definition]));
-  const evaluations: StoredSpiEvaluation[] = [];
-
-  for (const row of rows) {
-    const definition = definitionsById.get(row.spiId);
-    if (!definition || !["Compliant", "Non-compliant", "Unknown"].includes(row.status)) {
-      continue;
-    }
-
-    const evaluation = {
-      assetId: row.assetId,
-      spiId: row.spiId,
-      outcomeKey: row.outcomeKey,
-      status: row.status,
-      evidence: normalizeSqlEvidence(row.evidence),
-      reasons: []
-    } satisfies StoredSpiEvaluation;
-
-    evaluations.push({
-      ...evaluation,
-      reasons: [renderSpiOutcomeReason(definition, evaluation)]
-    });
-  }
-
-  return evaluations;
 }
 
 function normalizeDiscoveryCoverageValue(value: unknown): DiscoveryCoverageValue {
@@ -784,60 +387,6 @@ function normalizeStoredDiscoveryCoverageEvaluations(
         coverageCompliance: Boolean(row.coverageCompliance)
       };
     });
-}
-
-function normalizeStoredKpiEvaluations(rows: StoredKpiEvaluationRow[], kpiDefinitions: KpiDefinition[]): StoredKpiEvaluation[] {
-  const definitionIds = new Set(kpiDefinitions.map((definition) => definition.id));
-  return rows
-    .filter((row) => definitionIds.has(row.kpiId))
-    .map((row) => ({
-      kpiId: row.kpiId,
-      displayOrder: row.displayOrder,
-      calculationKey: row.calculationKey,
-      score: row.score,
-      scorePercent: Number(row.scorePercent) || 0,
-      compliantCount: Number(row.compliantCount) || 0,
-      applicableCount: Number(row.applicableCount) || 0,
-      nonCompliantCount: Number(row.nonCompliantCount) || 0,
-      unknownCount: Number(row.unknownCount) || 0,
-      highPriorityCount: Number(row.highPriorityCount) || 0
-    }))
-    .sort((left, right) => left.displayOrder - right.displayOrder || left.kpiId.localeCompare(right.kpiId));
-}
-
-function normalizeFindingRows(rows: FindingRow[]): Finding[] {
-  return rows
-    .filter(
-      (row) =>
-        Number.isInteger(row.spiId) &&
-        row.spiId > 0 &&
-        (row.complianceStatus === "Compliant" ||
-          row.complianceStatus === "Non-compliant" ||
-          row.complianceStatus === "Unknown") &&
-        (row.status === "open" || row.status === "closed")
-    )
-    .map((row) => ({
-      id: row.id,
-      spiId: row.spiId as SpiId,
-      priorityRank: row.priorityRank,
-      severity: row.severity,
-      ...(typeof row.rawPriorityRank === "number" ? { rawPriorityRank: row.rawPriorityRank } : {}),
-      ...(row.rawSeverity ? { rawSeverity: row.rawSeverity } : {}),
-      ...(row.sourceKind === "persisted" || row.sourceKind === "generated" ? { sourceKind: row.sourceKind } : {}),
-      status: row.status,
-      complianceStatus: row.complianceStatus,
-      timestamp: coerceIsoTimestamp(row.timestamp),
-      ...(row.closedTimestamp ? { closedTimestamp: coerceIsoTimestamp(row.closedTimestamp) } : {}),
-      scope: {
-        networkId: row.networkId,
-        systemId: row.systemId ?? null,
-        environmentType: row.environmentType ?? null,
-        assetId: row.assetId
-      },
-      title: row.title,
-      evidence: normalizeSqlEvidence(row.evidence),
-      recommendedAction: row.recommendedAction
-    }));
 }
 
 function coerceDateKey(value: string): string {
@@ -887,6 +436,10 @@ function ensureValidSnapshotId(snapshotId: number): number {
 async function loadSnapshotRows(): Promise<SnapshotRow[]> {
   return snapshotRowsCache.getOrSet("all", () =>
     executeSqlJson<SnapshotRow[]>(`
+IF OBJECT_ID(N'${DATA_SCHEMA}.storage_schema_version', N'U') IS NULL
+  THROW 51000, 'Inventory storage v2 is required. Back up the selected database and apply migration 033 before starting this release.', 1;
+IF NOT EXISTS (SELECT 1 FROM [${DATA_SCHEMA}].[storage_schema_version] WHERE [version] = 2)
+  THROW 51000, 'Unsupported inventory storage version.', 1;
 SELECT
   ds.[snapshot_id] AS [snapshotId],
   CONVERT(CHAR(10), ds.[snapshot_date], 23) AS [snapshotDate],
@@ -921,12 +474,10 @@ async function loadSnapshotPayload(
 ): Promise<SnapshotPayload> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
   const normalizedProfile = normalizeDatasetLoadProfile(profile);
-  const includeRiskPayload = normalizedProfile === "risk-summary" || normalizedProfile === "full";
   const includeFullPayload = normalizedProfile === "full";
 
   const raw = await timeAsync(`loadSnapshotPayload:${safeSnapshotId}:${normalizedProfile}`, () => executeSqlJson<Partial<SnapshotPayload>>(`
 DECLARE @snapshotId BIGINT = ${safeSnapshotId};
-DECLARE @includeRiskPayload BIT = ${includeRiskPayload ? 1 : 0};
 DECLARE @includeFullPayload BIT = ${includeFullPayload ? 1 : 0};
 SELECT
   JSON_QUERY((
@@ -980,16 +531,6 @@ SELECT
     ORDER BY nda.[network_id], nda.[asset_id]
     FOR JSON PATH
   )) AS [networkDeclaredAssets],
-  JSON_QUERY((
-    SELECT
-      ntsa.[network_id] AS [networkId],
-      ntsa.[asset_type] AS [assetType],
-      ntsa.[asset_name] AS [assetName]
-    FROM [${DATA_SCHEMA}].[network_target_state_asset] ntsa
-    WHERE ntsa.[snapshot_id] = @snapshotId
-    ORDER BY ntsa.[network_id], ntsa.[asset_type], ntsa.[asset_name]
-    FOR JSON PATH
-  )) AS [networkTargetStateAssets],
   JSON_QUERY((
     SELECT
       s.[system_id] AS [id],
@@ -1094,12 +635,9 @@ SELECT
       aos.[asset_id] AS [assetId],
       aos.[family] AS [family],
       aos.[vendor] AS [vendor],
-      aos.[major_version] AS [majorVersion],
       aos.[version] AS [version],
       aos.[patch_level] AS [patchLevel],
-      aos.[support_status] AS [supportStatus],
-      aos.[current_supported_major] AS [currentSupportedMajor],
-      aos.[n_minus] AS [nMinus]
+      aos.[support_status] AS [supportStatus]
     FROM [${DATA_SCHEMA}].[asset_operating_system] aos
     WHERE aos.[snapshot_id] = @snapshotId
     ORDER BY aos.[asset_id]
@@ -1110,12 +648,9 @@ SELECT
       nos.[asset_id] AS [assetId],
       nos.[family] AS [family],
       nos.[vendor] AS [vendor],
-      nos.[major_version] AS [majorVersion],
       nos.[version] AS [version],
       nos.[patch_level] AS [patchLevel],
-      nos.[support_status] AS [supportStatus],
-      nos.[current_supported_major] AS [currentSupportedMajor],
-      nos.[n_minus] AS [nMinus]
+      nos.[support_status] AS [supportStatus]
     FROM [${DATA_SCHEMA}].[asset_network_os] nos
     WHERE nos.[snapshot_id] = @snapshotId
     ORDER BY nos.[asset_id]
@@ -1131,32 +666,6 @@ SELECT
     ORDER BY ps.[asset_id]
     FOR JSON PATH
   )) AS [assetPatchStates],
-  JSON_QUERY((
-    SELECT pm.[asset_id] AS [assetId],
-      CASE WHEN pm.[assessment_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[assessment_date], 126) + N'Z' END AS [assessmentDate],
-            CONVERT(CHAR(10), pm.[assessment_valid_until], 23) AS [assessmentValidUntil],
-            CASE WHEN pm.[last_patched_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[last_patched_date], 126) + N'Z' END AS [lastPatchedDate],
-            CASE WHEN pm.[last_restarted_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[last_restarted_date], 126) + N'Z' END AS [lastRestartedDate],
-            CASE WHEN pm.[verified_date] IS NOT NULL THEN CONVERT(NVARCHAR(30), pm.[verified_date], 126) + N'Z' END AS [verifiedDate],
-            pm.[installed_patch_level] AS [installedPatchLevel],
-            pm.[target_patch_level] AS [targetPatchLevel],
-            pm.[missing_updates] AS [missingUpdates],
-            pm.[missing_critical_updates] AS [missingCriticalUpdates],
-            pm.[restart_required] AS [restartRequired],
-            pm.[deployment_status] AS [deploymentStatus],
-            CONVERT(CHAR(10), pm.[due_date], 23) AS [dueDate],
-            CONVERT(CHAR(10), pm.[planned_date], 23) AS [plannedDate],
-            pm.[owner] AS [owner],
-            pm.[maintenance_window] AS [maintenanceWindow],
-            pm.[change_reference] AS [changeReference],
-            pm.[exception_reason] AS [exceptionReason],
-            CONVERT(CHAR(10), pm.[exception_expires_date], 23) AS [exceptionExpiresDate],
-            pm.[source] AS [source]
-    FROM [${DATA_SCHEMA}].[server_patch_observation] pm
-    WHERE pm.[snapshot_id] = @snapshotId
-    ORDER BY pm.[asset_id]
-    FOR JSON PATH
-  )) AS [serverPatchObservations],
   JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
     SELECT
       sw.[asset_id] AS [assetId],
@@ -1172,7 +681,7 @@ SELECT
     ORDER BY sw.[asset_id], sw.[software_ordinal]
     FOR JSON PATH
   ) ELSE N'[]' END) AS [assetInstalledSoftware],
-  JSON_QUERY(CASE WHEN @includeRiskPayload = 1 THEN (
+  JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
     SELECT
       v.[asset_id] AS [assetId],
       v.[vulnerability_id] AS [id],
@@ -1208,29 +717,7 @@ SELECT
     WHERE d.[snapshot_id] = @snapshotId
     ORDER BY d.[dependency_id]
     FOR JSON PATH
-  ) ELSE N'[]' END) AS [ciDependencies],
-  JSON_QUERY((
-    SELECT
-      f.[finding_id] AS [id],
-      f.[spi_id] AS [spiId],
-      f.[priority_rank] AS [priorityRank],
-      f.[severity] AS [severity],
-      f.[compliance_status] AS [complianceStatus],
-      f.[network_id] AS [networkId],
-      f.[system_id] AS [systemId],
-      f.[environment_type] AS [environmentType],
-      f.[asset_id] AS [assetId],
-      f.[title] AS [title],
-      JSON_QUERY(f.[evidence]) AS [evidence],
-      f.[recommended_action] AS [recommendedAction],
-      f.[workflow_status] AS [status],
-      CONVERT(NVARCHAR(40), f.[observed_at], 127) AS [timestamp],
-      CONVERT(NVARCHAR(40), f.[closed_at], 127) AS [closedTimestamp]
-    FROM [${DATA_SCHEMA}].[finding] f
-    WHERE f.[snapshot_id] = @snapshotId
-    ORDER BY f.[priority_rank], f.[finding_id]
-    FOR JSON PATH
-  )) AS [findings]
+  ) ELSE N'[]' END) AS [ciDependencies]
 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `));
 
@@ -1239,7 +726,6 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     managedNetworkHierarchy: Array.isArray(raw.managedNetworkHierarchy) ? raw.managedNetworkHierarchy : [],
     networkDeclaredSystems: Array.isArray(raw.networkDeclaredSystems) ? raw.networkDeclaredSystems : [],
     networkDeclaredAssets: Array.isArray(raw.networkDeclaredAssets) ? raw.networkDeclaredAssets : [],
-    networkTargetStateAssets: Array.isArray(raw.networkTargetStateAssets) ? raw.networkTargetStateAssets : [],
     ictSystems: Array.isArray(raw.ictSystems) ? raw.ictSystems : [],
     ictSystemHierarchy: Array.isArray(raw.ictSystemHierarchy) ? raw.ictSystemHierarchy : [],
     systemMissionCapabilities: Array.isArray(raw.systemMissionCapabilities) ? raw.systemMissionCapabilities : [],
@@ -1250,57 +736,10 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
     assetOperatingSystems: Array.isArray(raw.assetOperatingSystems) ? raw.assetOperatingSystems : [],
     assetNetworkOperatingSystems: Array.isArray(raw.assetNetworkOperatingSystems) ? raw.assetNetworkOperatingSystems : [],
     assetPatchStates: Array.isArray(raw.assetPatchStates) ? raw.assetPatchStates : [],
-    serverPatchObservations: Array.isArray(raw.serverPatchObservations) ? raw.serverPatchObservations : [],
     assetInstalledSoftware: Array.isArray(raw.assetInstalledSoftware) ? raw.assetInstalledSoftware : [],
     assetVulnerabilities: Array.isArray(raw.assetVulnerabilities) ? raw.assetVulnerabilities : [],
     ciDependencies: Array.isArray(raw.ciDependencies) ? raw.ciDependencies : [],
-    findings: Array.isArray(raw.findings) ? raw.findings : []
   };
-}
-
-async function loadSnapshotSpiEvaluations(
-  snapshotId: number,
-  spiDefinitions: SpiDefinition[],
-  assetIds?: Iterable<string>
-): Promise<StoredSpiEvaluation[]> {
-  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const assetIdsSql = assetIds ? toSqlJsonArrayLiteral(assetIds) : "NULL";
-  const rows = await timeAsync(`loadSnapshotSpiEvaluations:${safeSnapshotId}`, () => executeSqlJson<StoredSpiEvaluationRow[]>(`
-DECLARE @SpiEvaluations TABLE (
-  [snapshot_id] BIGINT NOT NULL,
-  [asset_id] NVARCHAR(255) NOT NULL,
-  [spi_id] INT NOT NULL,
-  [display_order] INT NOT NULL,
-  [compliance_status] NVARCHAR(20) NOT NULL,
-  [outcome_key] NVARCHAR(100) NOT NULL,
-  [evidence_json] NVARCHAR(MAX) NOT NULL
-);
-
-INSERT INTO @SpiEvaluations (
-  [snapshot_id],
-  [asset_id],
-  [spi_id],
-  [display_order],
-  [compliance_status],
-  [outcome_key],
-  [evidence_json]
-)
-EXEC [${DATA_SCHEMA}].[usp_evaluate_spi_snapshot]
-  @snapshot_id = ${safeSnapshotId},
-  @asset_ids_json = ${assetIdsSql};
-
-SELECT
-  evaluation.[asset_id] AS [assetId],
-  evaluation.[spi_id] AS [spiId],
-  evaluation.[outcome_key] AS [outcomeKey],
-  evaluation.[compliance_status] AS [status],
-  JSON_QUERY(evaluation.[evidence_json]) AS [evidence]
-FROM @SpiEvaluations AS evaluation
-ORDER BY evaluation.[asset_id], evaluation.[display_order], evaluation.[spi_id]
-FOR JSON PATH;
-`));
-
-  return normalizeStoredSpiEvaluations(rows, spiDefinitions);
 }
 
 async function loadSnapshotDiscoveryCoverageEvaluations(
@@ -1317,29 +756,10 @@ EXEC [${DATA_SCHEMA}].[usp_evaluate_discovery_coverage_snapshot]
   return normalizeStoredDiscoveryCoverageEvaluations(rows);
 }
 
-export async function loadSnapshotEffectiveFindings(
-  snapshotId: number,
-  asOfDate?: string | null
-): Promise<Finding[]> {
-  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const normalizedAsOfDate = asOfDate ? normalizeDataDate(asOfDate) : null;
-  const asOfSql = normalizedAsOfDate ? toSqlUnicodeLiteral(normalizedAsOfDate) : "NULL";
-  const rows = await timeAsync(`loadSnapshotEffectiveFindings:${safeSnapshotId}`, () => executeSqlJson<FindingRow[]>(`
-EXEC [${DATA_SCHEMA}].[usp_get_effective_findings_snapshot]
-  @snapshot_id = ${safeSnapshotId},
-  @as_of_date = ${asOfSql},
-  @emit_json = 1;
-`));
-
-  return normalizeFindingRows(rows);
-}
-
 function buildDatasetFromSnapshotRow(
   snapshot: SnapshotRow,
   payload: SnapshotPayload,
-  spiEvaluations: StoredSpiEvaluation[],
   discoveryCoverageEvaluations: StoredDiscoveryCoverageEvaluation[],
-  effectiveFindings: Finding[],
   cacheSignature: string
 ): Dataset {
   const networkChildrenRows = toArrayMap(payload.managedNetworkHierarchy, (row) => row.parentNetworkId);
@@ -1369,20 +789,11 @@ function buildDatasetFromSnapshotRow(
     }
   }
 
-  const networkTargetStateAssets = new Map<string, Record<AssetType, string[]>>();
-  for (const row of payload.networkTargetStateAssets) {
-    const networkRecord =
-      networkTargetStateAssets.get(row.networkId) ?? createAssetTypeRecord(() => []);
-    networkRecord[row.assetType].push(row.assetName);
-    networkTargetStateAssets.set(row.networkId, networkRecord);
-  }
-
   const managedNetworks = payload.managedNetworks.map((network) => {
     const childRows = networkChildrenRows.get(network.id) ?? [];
     const childNetworkIds = sortedValues(childRows.map((row) => row.childNetworkId));
     const systemIds = sortedValues(networkSystemIds.get(network.id) ?? []);
     const assetIds = sortedValues(networkAssetIds.get(network.id) ?? []);
-    const targetStateAssets = networkTargetStateAssets.get(network.id) ?? createAssetTypeRecord<string[]>(() => []);
 
     return {
       id: network.id,
@@ -1409,7 +820,6 @@ function buildDatasetFromSnapshotRow(
       discoveryStatus: network.discoveryStatus,
       ictSystemIds: systemIds,
       assetIds,
-      ...(targetStateAssets ? { targetStateAssets } : {})
     };
   });
 
@@ -1491,11 +901,8 @@ function buildDatasetFromSnapshotRow(
       family: row.family,
       patchLevel: row.patchLevel ?? null,
       vendor: row.vendor,
-      majorVersion: row.majorVersion,
       version: row.version,
-      supportStatus: row.supportStatus,
-      currentSupportedMajor: row.currentSupportedMajor,
-      nMinus: row.nMinus
+      supportStatus: row.supportStatus
     })
   );
 
@@ -1506,11 +913,8 @@ function buildDatasetFromSnapshotRow(
       family: row.family,
       patchLevel: row.patchLevel ?? null,
       vendor: row.vendor,
-      majorVersion: row.majorVersion,
       version: row.version,
-      supportStatus: row.supportStatus,
-      currentSupportedMajor: row.currentSupportedMajor,
-      nMinus: row.nMinus
+      supportStatus: row.supportStatus
     })
   );
 
@@ -1524,7 +928,6 @@ function buildDatasetFromSnapshotRow(
   );
 
   const installedSoftwareRowsByAssetId = toArrayMap(payload.assetInstalledSoftware, (row) => row.assetId);
-  const serverPatchesByAssetId = toFirstValueMap(payload.serverPatchObservations, row => row.assetId, ({ assetId: _assetId, ...record }) => record);
   const vulnerabilitiesByAssetId = toArrayMap(payload.assetVulnerabilities, (row) => row.assetId);
 
   const assets = payload.assets.map((assetRow) => {
@@ -1604,7 +1007,6 @@ function buildDatasetFromSnapshotRow(
         ...withIpAddress,
         type: assetRow.type,
         operatingSystem: operatingSystemsByAssetId.get(assetRow.id) ?? null,
-        ...(assetRow.type === "server" ? { patchManagement: serverPatchesByAssetId.get(assetRow.id) ?? null } : {}),
         installedSoftware
       } as Asset;
     }
@@ -1615,7 +1017,6 @@ function buildDatasetFromSnapshotRow(
     } as Asset;
   });
 
-  const findings = effectiveFindings.length ? effectiveFindings : normalizeFindingRows(payload.findings);
 
   const ciDependencies = payload.ciDependencies.map((row) => ({
     id: row.id,
@@ -1637,89 +1038,21 @@ function buildDatasetFromSnapshotRow(
     managedNetworks,
     ictSystems,
     assets,
-    spiEvaluations,
     discoveryCoverageEvaluations,
     ciDependencies,
-    findings
   };
 }
 
-async function loadDatasetBySnapshotId(
-  snapshotId: number,
-  snapshots?: SnapshotRow[],
-  options: DatasetLoadOptions = {}
-): Promise<Dataset> {
-  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const profile = normalizeDatasetLoadProfile(options.profile);
-  const snapshotRows = snapshots ?? (await loadSnapshotRows());
-  const snapshot = snapshotRows.find((row) => row.snapshotId === safeSnapshotId);
-  if (!snapshot) {
-    throw new Error(`Unable to find snapshot ${safeSnapshotId}.`);
-  }
-
-  const [spiDefinitions, measuresVersion, discoveryToolsVersion, findingDisplayConfiguration] = await Promise.all([
-    loadSpiDefinitions(),
-    loadLatestMeasuresSettingsVersion(),
-    loadLatestDiscoveryToolsSettingsVersion(),
-    loadFindingDisplayConfiguration()
-  ]);
-  const spiSignature = spiDefinitionsCacheSignature(spiDefinitions);
-  const measuresVersionSignature = measuresVersion
-    ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}`
-    : "measures:default";
-  const discoveryVersionSignature = discoveryToolsVersion
-    ? `discovery:${discoveryToolsVersion.settingsVersionId}:${discoveryToolsVersion.updatedAt}`
-    : "discovery:default";
-  const findingConfigurationSignature = findingDisplayConfigurationCacheSignature(findingDisplayConfiguration);
-
-  const cacheSignature = [
-    `snapshot:${safeSnapshotId}`,
-    `profile:${profile}`,
-    `generated:${snapshot.generatedAt}`,
-    spiSignature,
-    measuresVersionSignature,
-    discoveryVersionSignature,
-    findingConfigurationSignature
-  ].join("|");
-
-  return datasetBySnapshotIdCache.getOrSet(
-    cacheSignature,
-    async () => timeAsync(`loadDataset:${safeSnapshotId}:${profile}`, async () => {
-      const [payload, spiEvaluations, discoveryCoverageEvaluations, effectiveFindings] = await Promise.all([
-        loadSnapshotPayload(safeSnapshotId, profile),
-        loadSnapshotSpiEvaluations(safeSnapshotId, spiDefinitions),
-        loadSnapshotDiscoveryCoverageEvaluations(safeSnapshotId),
-        loadSnapshotEffectiveFindings(safeSnapshotId)
-      ]);
-      const payloadSignature = cacheSignatureFromParts([
-        cacheSignature,
-        payload.managedNetworks.length,
-        payload.ictSystems.length,
-        payload.assets.length,
-        payload.assetVulnerabilities.length,
-        payload.assetInstalledSoftware.length,
-        payload.ciDependencies.length,
-        spiEvaluations.length,
-        discoveryCoverageEvaluations.length,
-        effectiveFindings.length
-      ]);
-      return buildDatasetFromSnapshotRow(
-        snapshot,
-        payload,
-        spiEvaluations,
-        discoveryCoverageEvaluations,
-        effectiveFindings,
-        payloadSignature
-      );
-    })
-  );
-}
-
-export async function loadPatchManagementExplorerData(params: WorkspaceSearchParams): Promise<PatchManagementData> {
-  const date = Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate;
-  if (!scopeIds(params.network).length && !scopeIds(params.system).length) return { snapshotDate: normalizeDataDate(date) ?? todayDateKey(), rows: [] };
-  const dataset = await loadDatasetForDate(date, { profile: "full" });
-  return { snapshotDate: dataset.snapshotDate, rows: buildPatchManagementRows(dataset, params) };
+async function loadDatasetBySnapshotId(snapshotId: number, snapshots?: SnapshotRow[], options: DatasetLoadOptions = {}): Promise<Dataset> {
+  const safeSnapshotId = ensureValidSnapshotId(snapshotId), profile = normalizeDatasetLoadProfile(options.profile);
+  const snapshot = (snapshots ?? await loadSnapshotRows()).find(row => row.snapshotId === safeSnapshotId);
+  if (!snapshot) throw new Error("Unable to find selected snapshot.");
+  const discovery = await loadLatestDiscoveryToolsSettingsVersion();
+  const cacheSignature = [safeSnapshotId, profile, snapshot.generatedAt, discovery?.settingsVersionId, discovery?.updatedAt].join("|");
+  return datasetBySnapshotIdCache.getOrSet(cacheSignature, async () => {
+    const [payload, coverage] = await Promise.all([loadSnapshotPayload(safeSnapshotId, profile), loadSnapshotDiscoveryCoverageEvaluations(safeSnapshotId)]);
+    return buildDatasetFromSnapshotRow(snapshot, payload, coverage, cacheSignature);
+  });
 }
 
 export async function loadCurrentDataset(options: DatasetLoadOptions = {}): Promise<Dataset> {
@@ -1968,820 +1301,7 @@ export async function loadSnapshotsForDateWindow(
   return Promise.all(selected.map((snapshot) => loadDatasetBySnapshotId(snapshot.snapshotId, snapshots, options)));
 }
 
-export async function loadReferenceVersions(): Promise<ReferenceVersions> {
-  return referenceVersionsCache.getOrSet("latest", async () => {
-    const row = await executeSqlJson<{ versionSetId: number } | null>(`
-SELECT TOP (1)
-  version_ref.[version_set_id] AS [versionSetId]
-FROM (
-  SELECT ds.[reference_version_set_id] AS [version_set_id], ds.[snapshot_date] AS [snapshot_date], CAST(0 AS INT) AS [ord]
-  FROM [${DATA_SCHEMA}].[dataset_snapshot] ds
-  WHERE ds.[reference_version_set_id] IS NOT NULL
-  UNION ALL
-  SELECT rv.[version_set_id], CAST(NULL AS DATE), CAST(1 AS INT)
-  FROM [${DATA_SCHEMA}].[reference_version_set] rv
-) version_ref
-ORDER BY
-  version_ref.[ord] ASC,
-  version_ref.[snapshot_date] DESC,
-  version_ref.[version_set_id] DESC
-FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`);
-
-    if (!row) {
-      return {
-        osCurrentMajor: {},
-        softwareSupportMatrix: {}
-      };
-    }
-
-    const versionSetId = row.versionSetId;
-    const [osRows, softwareRows] = await Promise.all([
-      executeSqlJson<Array<{ osKey: string; currentSupportedMajor: number }>>(
-        `
-SELECT
-  osm.[os_key] AS [osKey],
-  osm.[current_supported_major] AS [currentSupportedMajor]
-FROM [${DATA_SCHEMA}].[reference_os_current_major] osm
-WHERE osm.[version_set_id] = ${versionSetId}
-ORDER BY osm.[os_key]
-FOR JSON PATH;
-`
-      ),
-      executeSqlJson<Array<{ softwareName: string; versionOrdinal: number; version: string }>>(
-        `
-SELECT
-  ssv.[software_name] AS [softwareName],
-  ssv.[version_ordinal] AS [versionOrdinal],
-  ssv.[version] AS [version]
-FROM [${DATA_SCHEMA}].[reference_software_supported_version] ssv
-WHERE ssv.[version_set_id] = ${versionSetId}
-ORDER BY ssv.[software_name], ssv.[version_ordinal]
-FOR JSON PATH;
-`
-      )
-    ]);
-
-    const osCurrentMajor: Record<string, number> = {};
-    for (const rowItem of osRows) {
-      osCurrentMajor[rowItem.osKey] = rowItem.currentSupportedMajor;
-    }
-
-    const softwareSupportMatrix: Record<string, string[]> = {};
-    for (const rowItem of softwareRows) {
-      const existing = softwareSupportMatrix[rowItem.softwareName];
-      if (existing) {
-        existing.push(rowItem.version);
-      } else {
-        softwareSupportMatrix[rowItem.softwareName] = [rowItem.version];
-      }
-    }
-
-    return {
-      osCurrentMajor,
-      softwareSupportMatrix
-    };
-  });
-}
-
-function ruleParameterValue(row: SpiRuleParameterRow): SpiRuleParameterValue {
-  if (row.parameterType === "number") {
-    const numericValue = Number(row.parameterValue);
-    return Number.isFinite(numericValue) ? numericValue : 0;
-  }
-  if (row.parameterType === "boolean") {
-    return ["1", "true", "yes"].includes(row.parameterValue.trim().toLowerCase());
-  }
-  return row.parameterValue;
-}
-
-function groupBySpiId<T extends { spiId: number }>(rows: T[]): Map<number, T[]> {
-  const grouped = new Map<number, T[]>();
-  for (const row of rows) {
-    const existing = grouped.get(row.spiId);
-    if (existing) {
-      existing.push(row);
-    } else {
-      grouped.set(row.spiId, [row]);
-    }
-  }
-  return grouped;
-}
-
-function groupByRuleKey<T extends { ruleKey: string }>(rows: T[]): Map<string, T[]> {
-  const grouped = new Map<string, T[]>();
-  for (const row of rows) {
-    const existing = grouped.get(row.ruleKey);
-    if (existing) {
-      existing.push(row);
-    } else {
-      grouped.set(row.ruleKey, [row]);
-    }
-  }
-  return grouped;
-}
-
-export async function loadSeverityDefinitions(): Promise<SeverityDefinition[]> {
-  return severityDefinitionsCache.getOrSet("latest", async () => {
-    const rows = await executeSqlJson<SeverityDefinitionRow[]>(`
-SELECT
-  fsd.[severity_key] AS [severityKey],
-  fsd.[label] AS [label],
-  fsd.[display_order] AS [displayOrder],
-  fsd.[selectable_in_settings] AS [selectableInSettings],
-  fsd.[tone_key] AS [toneKey]
-FROM [${DATA_SCHEMA}].[finding_severity_definition] fsd
-ORDER BY fsd.[display_order], fsd.[severity_key]
-FOR JSON PATH;
-`);
-
-    return normalizeSeverityDefinitions(rows);
-  });
-}
-
-export async function loadFindingPriorityDefinitions(): Promise<FindingPriorityDefinition[]> {
-  return priorityDefinitionsCache.getOrSet("latest", async () => {
-    const rows = await executeSqlJson<FindingPriorityDefinitionRow[]>(`
-SELECT
-  fpd.[priority_rank] AS [priorityRank],
-  fpd.[label] AS [label],
-  fpd.[display_order] AS [displayOrder],
-  fpd.[selectable_in_settings] AS [selectableInSettings],
-  fpd.[description] AS [description]
-FROM [${DATA_SCHEMA}].[finding_priority_definition] fpd
-ORDER BY fpd.[display_order], fpd.[priority_rank]
-FOR JSON PATH;
-`);
-
-    return normalizePriorityDefinitions(rows);
-  });
-}
-
-export async function loadFindingDisplayConfiguration(): Promise<FindingDisplayConfiguration> {
-  return findingDisplayConfigurationCache.getOrSet("latest", async () => {
-    const [
-      sourcePolicies,
-      generationPolicies,
-      workflowStatuses,
-      buckets,
-      evidenceFields,
-      registerColumns
-    ] = await Promise.all([
-      executeSqlJson<FindingSourcePolicyRow[]>(`
-SELECT
-  fsp.[policy_key] AS [policyKey],
-  fsp.[display_order] AS [displayOrder],
-  fsp.[name] AS [name],
-  fsp.[description] AS [description],
-  fsp.[use_persisted_findings] AS [usePersistedFindings],
-  fsp.[generate_when_empty] AS [generateWhenEmpty],
-  fsp.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[finding_source_policy] fsp
-ORDER BY fsp.[display_order], fsp.[policy_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<FindingGenerationPolicyRow[]>(`
-SELECT
-  fgp.[policy_key] AS [policyKey],
-  CONVERT(CHAR(10), fgp.[history_start_date], 23) AS [historyStartDate],
-  fgp.[history_window_years] AS [historyWindowYears],
-  fgp.[baseline_backlog_count] AS [baselineBacklogCount],
-  fgp.[min_open_count] AS [minOpenCount],
-  fgp.[max_open_count] AS [maxOpenCount],
-  fgp.[add_probability_percent] AS [addProbabilityPercent],
-  fgp.[add_rate_min_percent] AS [addRateMinPercent],
-  fgp.[add_rate_max_percent] AS [addRateMaxPercent],
-  fgp.[close_rate_min_percent] AS [closeRateMinPercent],
-  fgp.[close_rate_max_percent] AS [closeRateMaxPercent],
-  fgp.[close_backfill_min_count] AS [closeBackfillMinCount],
-  fgp.[close_backfill_max_count] AS [closeBackfillMaxCount],
-  fgp.[timezone_offset_minutes] AS [timezoneOffsetMinutes]
-FROM [${DATA_SCHEMA}].[finding_generation_policy] fgp
-ORDER BY fgp.[policy_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<FindingWorkflowStatusDefinitionRow[]>(`
-SELECT
-  fwsd.[status_key] AS [statusKey],
-  fwsd.[label] AS [label],
-  fwsd.[display_order] AS [displayOrder],
-  fwsd.[tone_key] AS [toneKey],
-  fwsd.[terminal_status] AS [terminalStatus]
-FROM [${DATA_SCHEMA}].[finding_workflow_status_definition] fwsd
-ORDER BY fwsd.[display_order], fwsd.[status_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<FindingBucketDefinitionRow[]>(`
-SELECT
-  fbd.[bucket_key] AS [bucketKey],
-  fbd.[bucket_type] AS [bucketType],
-  fbd.[label] AS [label],
-  fbd.[display_order] AS [displayOrder],
-  fbd.[tone_key] AS [toneKey],
-  fbd.[condition_key] AS [conditionKey],
-  fbd.[severity_key] AS [severityKey],
-  fbd.[priority_min] AS [priorityMin],
-  fbd.[priority_max] AS [priorityMax],
-  fbd.[workflow_status] AS [workflowStatus],
-  fbd.[enabled] AS [enabled],
-  fbd.[description] AS [description]
-FROM [${DATA_SCHEMA}].[finding_bucket_definition] fbd
-ORDER BY fbd.[display_order], fbd.[bucket_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<FindingEvidenceFieldDefinitionRow[]>(`
-SELECT
-  fefd.[field_key] AS [fieldKey],
-  fefd.[display_order] AS [displayOrder],
-  fefd.[label] AS [label],
-  fefd.[purpose_key] AS [purposeKey],
-  JSON_QUERY(fefd.[candidate_keys_json]) AS [candidateKeysJson],
-  fefd.[fallback_value] AS [fallbackValue],
-  fefd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[finding_evidence_field_definition] fefd
-ORDER BY fefd.[display_order], fefd.[field_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<FindingRegisterColumnDefinitionRow[]>(`
-SELECT
-  frcd.[column_key] AS [columnKey],
-  frcd.[label] AS [label],
-  frcd.[display_order] AS [displayOrder],
-  frcd.[value_key] AS [valueKey],
-  frcd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[finding_register_column_definition] frcd
-ORDER BY frcd.[display_order], frcd.[column_key]
-FOR JSON PATH;
-`)
-    ]);
-
-    return normalizeFindingDisplayConfiguration({
-      sourcePolicies,
-      generationPolicies,
-      workflowStatuses,
-      buckets,
-      evidenceFields,
-      registerColumns
-    });
-  });
-}
-
-export async function loadSpiDefinitions(): Promise<SpiDefinition[]> {
-  return spiDefinitionsCache.getOrSet("latest", async () => {
-    const [
-      definitionRows,
-      applicabilityRows,
-      parameterRows,
-      teamRows,
-      actionRows,
-      conditionRows,
-      ruleDefinitionRows,
-      calculationSourceRows,
-      calculationDefinitionRows,
-      calculationEvidenceRows,
-      parameterDefinitionRows,
-      outcomeTemplateRows,
-      reportDetailRows,
-      classificationRuleRows,
-      featureBindingRows
-    ] = await Promise.all([
-      executeSqlJson<SpiDefinitionRow[]>(`
-SELECT
-  sd.[spi_id] AS [spiId],
-  sd.[display_order] AS [displayOrder],
-  sd.[name] AS [name],
-  sd.[description] AS [description],
-  sd.[success_measure] AS [successMeasure],
-  sd.[priority_order] AS [priorityOrder],
-  sd.[default_severity] AS [defaultSeverity],
-  sd.[recommended_action] AS [recommendedAction],
-  sd.[enabled] AS [enabled],
-  sd.[rule_key] AS [ruleKey],
-  sd.[report_available] AS [reportAvailable],
-  sd.[trend_report_available] AS [trendReportAvailable],
-  sd.[report_detail_key] AS [reportDetailKey]
-FROM [${DATA_SCHEMA}].[spi_definition] sd
-ORDER BY sd.[display_order], sd.[spi_id]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiApplicableAssetTypeRow[]>(`
-SELECT
-  saat.[spi_id] AS [spiId],
-  saat.[asset_type] AS [assetType]
-FROM [${DATA_SCHEMA}].[spi_applicable_asset_type] saat
-ORDER BY saat.[spi_id], saat.[asset_type]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiRuleParameterRow[]>(`
-SELECT
-  srp.[spi_id] AS [spiId],
-  srp.[parameter_key] AS [parameterKey],
-  srp.[parameter_type] AS [parameterType],
-  srp.[parameter_value] AS [parameterValue]
-FROM [${DATA_SCHEMA}].[spi_rule_parameter] srp
-ORDER BY srp.[spi_id], srp.[parameter_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiTaskingTeamRow[]>(`
-SELECT
-  stt.[spi_id] AS [spiId],
-  stt.[display_order] AS [displayOrder],
-  stt.[team] AS [team],
-  stt.[support_queue] AS [supportQueue],
-  stt.[contact_email] AS [contactEmail]
-FROM [${DATA_SCHEMA}].[spi_tasking_team] stt
-ORDER BY stt.[spi_id], stt.[display_order], stt.[team]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiTaskingActionTemplateRow[]>(`
-SELECT
-  stat.[spi_id] AS [spiId],
-  stat.[display_order] AS [displayOrder],
-  stat.[condition_key] AS [conditionKey],
-  stat.[action_text] AS [actionText]
-FROM [${DATA_SCHEMA}].[spi_tasking_action_template] stat
-ORDER BY stat.[spi_id], stat.[display_order]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiTaskingConditionTemplateRow[]>(`
-SELECT
-  stct.[spi_id] AS [spiId],
-  stct.[condition_key] AS [conditionKey],
-  stct.[template_text] AS [templateText]
-FROM [${DATA_SCHEMA}].[spi_tasking_condition_template] stct
-ORDER BY stct.[spi_id], stct.[condition_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiRuleDefinitionRow[]>(`
-SELECT
-  srd.[rule_key] AS [ruleKey],
-  srd.[handler_key] AS [handlerKey],
-  srd.[display_order] AS [displayOrder],
-  srd.[name] AS [name],
-  srd.[description] AS [description],
-  srd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[spi_rule_definition] srd
-ORDER BY srd.[display_order], srd.[rule_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiCalculationSourceRow[]>(`
-SELECT
-  scs.[source_key] AS [sourceKey],
-  scs.[source_object_name] AS [sourceObjectName],
-  scs.[display_order] AS [displayOrder],
-  scs.[name] AS [name],
-  scs.[description] AS [description],
-  scs.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[spi_calculation_source] scs
-ORDER BY scs.[display_order], scs.[source_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiCalculationDefinitionRow[]>(`
-SELECT
-  scd.[rule_key] AS [ruleKey],
-  scd.[source_key] AS [sourceKey],
-  scd.[display_order] AS [displayOrder],
-  scd.[status_expression_sql] AS [statusExpressionSql],
-  scd.[outcome_expression_sql] AS [outcomeExpressionSql],
-  scd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[spi_calculation_definition] scd
-ORDER BY scd.[display_order], scd.[rule_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiCalculationEvidenceExpressionRow[]>(`
-SELECT
-  scee.[rule_key] AS [ruleKey],
-  scee.[evidence_key] AS [evidenceKey],
-  scee.[display_order] AS [displayOrder],
-  scee.[value_type] AS [valueType],
-  scee.[value_expression_sql] AS [valueExpressionSql],
-  scee.[omit_when_null] AS [omitWhenNull]
-FROM [${DATA_SCHEMA}].[spi_calculation_evidence_expression] scee
-ORDER BY scee.[rule_key], scee.[display_order], scee.[evidence_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiRuleParameterDefinitionRow[]>(`
-SELECT
-  srpd.[rule_key] AS [ruleKey],
-  srpd.[parameter_key] AS [parameterKey],
-  srpd.[parameter_type] AS [parameterType],
-  srpd.[required] AS [required],
-  srpd.[default_value] AS [defaultValue],
-  srpd.[allowed_values_json] AS [allowedValuesJson],
-  srpd.[display_order] AS [displayOrder],
-  srpd.[description] AS [description]
-FROM [${DATA_SCHEMA}].[spi_rule_parameter_definition] srpd
-ORDER BY srpd.[rule_key], srpd.[display_order], srpd.[parameter_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiRuleOutcomeTemplateRow[]>(`
-SELECT
-  srot.[rule_key] AS [ruleKey],
-  srot.[outcome_key] AS [outcomeKey],
-  srot.[compliance_status] AS [complianceStatus],
-  srot.[reason_template] AS [reasonTemplate],
-  srot.[evidence_template] AS [evidenceTemplate]
-FROM [${DATA_SCHEMA}].[spi_rule_outcome_template] srot
-ORDER BY srot.[rule_key], srot.[outcome_key], srot.[compliance_status]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiReportDetailDefinitionRow[]>(`
-SELECT
-  srdd.[report_detail_key] AS [reportDetailKey],
-  srdd.[handler_key] AS [handlerKey],
-  srdd.[display_order] AS [displayOrder],
-  srdd.[name] AS [name],
-  srdd.[description] AS [description],
-  srdd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[spi_report_detail_definition] srdd
-ORDER BY srdd.[display_order], srdd.[report_detail_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiFindingClassificationRuleRow[]>(`
-SELECT
-  sfcr.[classification_rule_id] AS [classificationRuleId],
-  sfcr.[display_order] AS [displayOrder],
-  sfcr.[enabled] AS [enabled],
-  sfcr.[spi_id] AS [spiId],
-  sfcr.[compliance_status] AS [complianceStatus],
-  sfcr.[condition_key] AS [conditionKey],
-  sfcr.[severity_key] AS [severityKey],
-  sfcr.[priority_rank] AS [priorityRank],
-  sfcr.[description] AS [description]
-FROM [${DATA_SCHEMA}].[spi_finding_classification_rule] sfcr
-ORDER BY sfcr.[display_order], sfcr.[classification_rule_id]
-FOR JSON PATH;
-`),
-      executeSqlJson<SpiFeatureBindingRow[]>(`
-SELECT
-  sfb.[feature_key] AS [featureKey],
-  sfb.[spi_id] AS [spiId],
-  sfb.[display_order] AS [displayOrder],
-  sfb.[compliance_status] AS [complianceStatus],
-  sfb.[outcome_key] AS [outcomeKey],
-  sfb.[enabled] AS [enabled],
-  sfb.[description] AS [description]
-FROM [${DATA_SCHEMA}].[spi_feature_binding] sfb
-ORDER BY sfb.[spi_id], sfb.[display_order], sfb.[feature_key]
-FOR JSON PATH;
-`)
-    ]);
-
-    const applicabilityBySpi = groupBySpiId(applicabilityRows);
-    const parametersBySpi = groupBySpiId(parameterRows);
-    const teamsBySpi = groupBySpiId(teamRows);
-    const actionsBySpi = groupBySpiId(actionRows);
-    const conditionsBySpi = groupBySpiId(conditionRows);
-    const featureBindingsBySpi = groupBySpiId(featureBindingRows);
-    const ruleDefinitionByKey = new Map(ruleDefinitionRows.map((row) => [row.ruleKey, row]));
-    const calculationSourceByKey = new Map(calculationSourceRows.map((row) => [row.sourceKey, row]));
-    const calculationEvidenceByRule = groupByRuleKey(calculationEvidenceRows);
-    const calculationDefinitionByRule = new Map(
-      calculationDefinitionRows.map((row) => [
-        row.ruleKey,
-        {
-          ...row,
-          source: calculationSourceByKey.get(row.sourceKey),
-          evidenceExpressions: calculationEvidenceByRule.get(row.ruleKey) ?? []
-        }
-      ])
-    );
-    const parameterDefinitionsByRule = groupByRuleKey(parameterDefinitionRows);
-    const outcomeTemplatesByRule = groupByRuleKey(outcomeTemplateRows);
-    const reportDetailByKey = new Map(reportDetailRows.map((row) => [row.reportDetailKey, row]));
-
-    return normalizeSpiDefinitions(
-      definitionRows.map((row) => ({
-        ...row,
-        ruleDefinition: ruleDefinitionByKey.get(row.ruleKey),
-        calculationDefinition: calculationDefinitionByRule.get(row.ruleKey),
-        parameterDefinitions: parameterDefinitionsByRule.get(row.ruleKey) ?? [],
-        outcomeTemplates: outcomeTemplatesByRule.get(row.ruleKey) ?? [],
-        classificationRules: classificationRuleRows,
-        featureBindings: featureBindingsBySpi.get(row.spiId) ?? [],
-        reportDetailDefinition: reportDetailByKey.get(row.reportDetailKey),
-        applicableAssetTypes: (applicabilityBySpi.get(row.spiId) ?? []).map((item) => item.assetType),
-        ruleParameters: Object.fromEntries(
-          (parametersBySpi.get(row.spiId) ?? []).map((item) => [item.parameterKey, ruleParameterValue(item)])
-        ),
-        taskingTeams: teamsBySpi.get(row.spiId) ?? [],
-        taskingActions: actionsBySpi.get(row.spiId) ?? [],
-        taskingConditions: conditionsBySpi.get(row.spiId) ?? []
-      }))
-    );
-  });
-}
-
-export async function loadKpiDefinitions(): Promise<KpiDefinition[]> {
-  return kpiDefinitionsCache.getOrSet("latest", async () => {
-    const [
-      rows,
-      calculationRows,
-      reportDetailRows,
-      reportBindingRows,
-      teamRows,
-      actionRows,
-      conditionRows
-    ] = await Promise.all([
-      executeSqlJson<KpiDefinitionRow[]>(`
-SELECT
-  kpi.[kpi_id] AS [id],
-  kpi.[display_order] AS [displayOrder],
-  kpi.[name] AS [name],
-  kpi.[description] AS [description],
-  kpi.[success_measure] AS [successMeasure],
-  kpi.[calculation_key] AS [calculationKey],
-  kpi.[report_available] AS [reportAvailable],
-  kpi.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[kpi_definition] kpi
-ORDER BY kpi.[display_order], kpi.[kpi_id]
-FOR JSON PATH;
-`),
-      executeSqlJson<KpiCalculationDefinitionRow[]>(`
-SELECT
-  kcd.[calculation_key] AS [calculationKey],
-  kcd.[source_key] AS [sourceKey],
-  kcd.[display_order] AS [displayOrder],
-  kcd.[name] AS [name],
-  kcd.[description] AS [description],
-  kcd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[kpi_calculation_definition] kcd
-ORDER BY kcd.[display_order], kcd.[calculation_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<KpiReportDetailDefinitionRow[]>(`
-SELECT
-  krdd.[report_detail_key] AS [reportDetailKey],
-  krdd.[handler_key] AS [handlerKey],
-  krdd.[display_order] AS [displayOrder],
-  krdd.[name] AS [name],
-  krdd.[description] AS [description],
-  krdd.[enabled] AS [enabled]
-FROM [${DATA_SCHEMA}].[kpi_report_detail_definition] krdd
-ORDER BY krdd.[display_order], krdd.[report_detail_key]
-FOR JSON PATH;
-`),
-      executeSqlJson<Array<{ kpiId: string; reportDetailKey: string }>>(`
-SELECT
-  krdb.[kpi_id] AS [kpiId],
-  krdb.[report_detail_key] AS [reportDetailKey]
-FROM [${DATA_SCHEMA}].[kpi_report_detail_binding] krdb
-ORDER BY krdb.[kpi_id]
-FOR JSON PATH;
-`),
-      executeSqlJson<Array<KpiTaskingTeamRow & { kpiId: string }>>(`
-SELECT
-  ktt.[kpi_id] AS [kpiId],
-  ktt.[display_order] AS [displayOrder],
-  ktt.[team] AS [team],
-  ktt.[support_queue] AS [supportQueue],
-  ktt.[contact_email] AS [contactEmail]
-FROM [${DATA_SCHEMA}].[kpi_tasking_team] ktt
-ORDER BY ktt.[kpi_id], ktt.[display_order]
-FOR JSON PATH;
-`),
-      executeSqlJson<Array<KpiTaskingActionTemplateRow & { kpiId: string }>>(`
-SELECT
-  ktat.[kpi_id] AS [kpiId],
-  ktat.[display_order] AS [displayOrder],
-  ktat.[condition_key] AS [conditionKey],
-  ktat.[action_text] AS [actionText]
-FROM [${DATA_SCHEMA}].[kpi_tasking_action_template] ktat
-ORDER BY ktat.[kpi_id], ktat.[display_order]
-FOR JSON PATH;
-`),
-      executeSqlJson<Array<KpiTaskingConditionTemplateRow & { kpiId: string }>>(`
-SELECT
-  ktct.[kpi_id] AS [kpiId],
-  ktct.[condition_key] AS [conditionKey],
-  ktct.[template_text] AS [templateText]
-FROM [${DATA_SCHEMA}].[kpi_tasking_condition_template] ktct
-ORDER BY ktct.[kpi_id], ktct.[condition_key]
-FOR JSON PATH;
-`)
-    ]);
-
-    const calculationByKey = new Map(
-      calculationRows.map((row) => [row.calculationKey, { ...row, enabled: Boolean(row.enabled) }])
-    );
-    const reportDetailByKey = new Map(
-      reportDetailRows.map((row) => [row.reportDetailKey, { ...row, enabled: Boolean(row.enabled) }])
-    );
-    const reportDetailKeyByKpi = new Map(reportBindingRows.map((row) => [row.kpiId, row.reportDetailKey]));
-    const teamsByKpi = toArrayMap(teamRows, (row) => row.kpiId);
-    const actionsByKpi = toArrayMap(actionRows, (row) => row.kpiId);
-    const conditionsByKpi = toArrayMap(conditionRows, (row) => row.kpiId);
-
-    return normalizeKpiDefinitions(
-      rows.map((row) => ({
-        ...row,
-        calculationDefinition: calculationByKey.get(row.calculationKey),
-        reportDetailDefinition: reportDetailByKey.get(reportDetailKeyByKpi.get(row.id) ?? "generic-kpi-summary"),
-        taskingTeams: teamsByKpi.get(row.id) ?? [],
-        taskingActions: actionsByKpi.get(row.id) ?? [],
-        taskingConditions: conditionsByKpi.get(row.id) ?? []
-      }))
-    );
-  });
-}
-
-function toSqlJsonArrayLiteral(values: Iterable<string>): string {
-  return toSqlUnicodeLiteral(JSON.stringify(toSortedStringArray(values)));
-}
-
-function toSortedStringArray(values: Iterable<string>): string[] {
-  return Array.from(new Set(Array.from(values).filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))).sort((left, right) =>
-    left.localeCompare(right)
-  );
-}
-
-function findingsForKpiSql(findings: Finding[]): Array<{ assetId: string; severity: string; priorityRank: number }> {
-  return findings.map((finding) => ({
-    assetId: finding.scope.assetId,
-    severity: finding.severity,
-    priorityRank: finding.priorityRank
-  }));
-}
-
-function findingsForKpiCacheSignature(findings: Finding[]): string {
-  return hashCacheValue(
-    JSON.stringify(
-      findingsForKpiSql(findings).sort((left, right) =>
-        left.assetId.localeCompare(right.assetId) ||
-        left.priorityRank - right.priorityRank ||
-        left.severity.localeCompare(right.severity)
-      )
-    )
-  );
-}
-
-async function kpiEvaluationSettingsSignature(kpiDefinitions: KpiDefinition[]): Promise<string> {
-  const [measuresVersion, discoveryVersion] = await Promise.all([
-    loadLatestMeasuresSettingsVersion(),
-    loadLatestDiscoveryToolsSettingsVersion()
-  ]);
-  return [
-    kpiDefinitionsCacheSignature(kpiDefinitions),
-    measuresVersion ? `measures:${measuresVersion.settingsVersionId}:${measuresVersion.updatedAt}` : "measures:default",
-    discoveryVersion ? `discovery:${discoveryVersion.settingsVersionId}:${discoveryVersion.updatedAt}` : "discovery:default"
-  ].join("|");
-}
-
-export async function loadSnapshotKpiEvaluationsForScope({
-  snapshotId,
-  assetIds,
-  systemIds,
-  networkIds,
-  findings,
-  kpiDefinitions
-}: {
-  snapshotId: number;
-  assetIds: Iterable<string>;
-  systemIds: Iterable<string>;
-  networkIds: Iterable<string>;
-  findings: Finding[];
-  kpiDefinitions?: KpiDefinition[];
-}): Promise<StoredKpiEvaluation[]> {
-  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
-  const sortedAssetIds = toSortedStringArray(assetIds);
-  const sortedSystemIds = toSortedStringArray(systemIds);
-  const sortedNetworkIds = toSortedStringArray(networkIds);
-  const findingsPayload = findingsForKpiSql(findings);
-  const settingsSignature = await kpiEvaluationSettingsSignature(definitions);
-  const cacheKey = cacheSignatureFromParts([
-    safeSnapshotId,
-    settingsSignature,
-    hashCacheValue(JSON.stringify(sortedAssetIds)),
-    hashCacheValue(JSON.stringify(sortedSystemIds)),
-    hashCacheValue(JSON.stringify(sortedNetworkIds)),
-    findingsForKpiCacheSignature(findings)
-  ]);
-
-  return kpiEvaluationsCache.getOrSet(cacheKey, async () => {
-    const assetIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedAssetIds));
-    const systemIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedSystemIds));
-    const networkIdsSql = toSqlUnicodeLiteral(JSON.stringify(sortedNetworkIds));
-    const findingsSql = toSqlUnicodeLiteral(JSON.stringify(findingsPayload));
-    const rows = await timeAsync(`loadSnapshotKpiEvaluations:${safeSnapshotId}`, () => executeSqlJson<StoredKpiEvaluationRow[]>(`
-EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot]
-  @snapshot_id = ${safeSnapshotId},
-  @asset_ids_json = ${assetIdsSql},
-  @system_ids_json = ${systemIdsSql},
-  @network_ids_json = ${networkIdsSql},
-  @effective_findings_json = ${findingsSql},
-  @emit_json = 1;
-`));
-
-    return normalizeStoredKpiEvaluations(rows, definitions);
-  });
-}
-
-export type KpiEvaluationScopeInput = {
-  scopeKey: string;
-  assetIds: Iterable<string>;
-  systemIds: Iterable<string>;
-  networkIds: Iterable<string>;
-  findings: Finding[];
-};
-
-export async function loadSnapshotKpiEvaluationsForScopes({
-  snapshotId,
-  scopes,
-  kpiDefinitions
-}: {
-  snapshotId: number;
-  scopes: KpiEvaluationScopeInput[];
-  kpiDefinitions?: KpiDefinition[];
-}): Promise<Map<string, StoredKpiEvaluation[]>> {
-  const safeSnapshotId = ensureValidSnapshotId(snapshotId);
-  const definitions = kpiDefinitions ?? (await loadKpiDefinitions());
-  const normalizedScopes = scopes
-    .map((scope) => ({
-      scopeKey: scope.scopeKey.trim(),
-      assetIds: toSortedStringArray(scope.assetIds),
-      systemIds: toSortedStringArray(scope.systemIds),
-      networkIds: toSortedStringArray(scope.networkIds),
-      findings: findingsForKpiSql(scope.findings)
-    }))
-    .filter((scope) => scope.scopeKey);
-
-  if (!normalizedScopes.length) {
-    return new Map();
-  }
-
-  const settingsSignature = await kpiEvaluationSettingsSignature(definitions);
-  const cacheKey = cacheSignatureFromParts([
-    safeSnapshotId,
-    settingsSignature,
-    hashCacheValue(JSON.stringify(normalizedScopes))
-  ]);
-
-  return scopedKpiEvaluationsCache.getOrSet(cacheKey, async () => {
-    const rows = await timeAsync(`loadSnapshotKpiEvaluationsBulk:${safeSnapshotId}:${normalizedScopes.length}`, () =>
-      executeSqlJson<StoredScopedKpiEvaluationRow[]>(`
-EXEC [${DATA_SCHEMA}].[usp_evaluate_kpi_snapshot_bulk]
-  @snapshot_id = ${safeSnapshotId},
-  @scope_rows_json = ${toSqlUnicodeLiteral(JSON.stringify(normalizedScopes))},
-  @emit_json = 1;
-`)
-    );
-
-    const rowsByScope = new Map<string, StoredKpiEvaluationRow[]>();
-    for (const row of rows) {
-      if (!row.scopeKey) {
-        continue;
-      }
-      rowsByScope.set(row.scopeKey, [...(rowsByScope.get(row.scopeKey) ?? []), row]);
-    }
-
-    const result = new Map<string, StoredKpiEvaluation[]>();
-    for (const scope of normalizedScopes) {
-      result.set(scope.scopeKey, normalizeStoredKpiEvaluations(rowsByScope.get(scope.scopeKey) ?? [], definitions));
-    }
-    return result;
-  });
-}
-
-export async function loadSnapshotKpiEvaluationsForAnalyticsScope({
-  dataset,
-  analytics,
-  systems,
-  networks,
-  kpiDefinitions
-}: {
-  dataset: Dataset;
-  analytics: { evaluations: Array<{ assetId: string }>; findings: Finding[] };
-  systems: ICTSystem[];
-  networks: ManagedNetwork[];
-  kpiDefinitions?: KpiDefinition[];
-}): Promise<StoredKpiEvaluation[]> {
-  if (!dataset.snapshotId) {
-    throw new Error("SQL-backed KPI evaluation requires a dataset snapshot id.");
-  }
-
-  return loadSnapshotKpiEvaluationsForScope({
-    snapshotId: dataset.snapshotId,
-    assetIds: analytics.evaluations.map((evaluation) => evaluation.assetId),
-    systemIds: systems.map((system) => system.id),
-    networkIds: networks.map((network) => network.id),
-    findings: analytics.findings,
-    kpiDefinitions
-  });
-}
-
 function clearSettingsDependentCaches(): void {
-  kpiEvaluationsCache.clear();
-  scopedKpiEvaluationsCache.clear();
-  clearAnalyticsCache();
-  clearAppDataCaches();
-}
-
-function clearMeasuresSettingsCaches(): void {
-  measuresSettingsVersionCache.clear();
-  measuresSettingsByVersionCache.clear();
-  datasetBySnapshotIdCache.clear();
-  clearSettingsDependentCaches();
 }
 
 function clearDiscoveryToolsSettingsCaches(): void {
@@ -2789,161 +1309,6 @@ function clearDiscoveryToolsSettingsCaches(): void {
   discoveryToolsSettingsByVersionCache.clear();
   datasetBySnapshotIdCache.clear();
   clearSettingsDependentCaches();
-}
-
-async function loadLatestMeasuresSettingsVersion(): Promise<SettingsVersionRow | null> {
-  return measuresSettingsVersionCache.getOrSet("latest", () =>
-    executeSqlJson<SettingsVersionRow | null>(`
-SELECT TOP (1)
-  msv.[settings_version_id] AS [settingsVersionId],
-  CONVERT(NVARCHAR(40), msv.[updated_at], 127) AS [updatedAt]
-FROM [${DATA_SCHEMA}].[measures_settings_version] msv
-ORDER BY msv.[updated_at] DESC, msv.[settings_version_id] DESC
-FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
-`)
-  );
-}
-
-export async function loadMeasuresSettings(
-  providedSpiDefinitions?: SpiDefinition[],
-  providedSeverityDefinitions?: SeverityDefinition[],
-  providedPriorityDefinitions?: FindingPriorityDefinition[]
-): Promise<MeasuresSettings> {
-  const [version, spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
-    loadLatestMeasuresSettingsVersion(),
-    providedSpiDefinitions ? Promise.resolve(providedSpiDefinitions) : loadSpiDefinitions(),
-    providedSeverityDefinitions ? Promise.resolve(providedSeverityDefinitions) : loadSeverityDefinitions(),
-    providedPriorityDefinitions ? Promise.resolve(providedPriorityDefinitions) : loadFindingPriorityDefinitions()
-  ]);
-
-  if (!version) {
-    return defaultMeasuresSettings(spiDefinitions, severityDefinitions, priorityDefinitions);
-  }
-
-  return measuresSettingsByVersionCache.getOrSet(
-    [
-      `version:${version.settingsVersionId}:${version.updatedAt}`,
-      spiDefinitionsCacheSignature(spiDefinitions),
-      severityDefinitionsCacheSignature(severityDefinitions),
-      JSON.stringify(priorityDefinitions.map((definition) => [
-        definition.priorityRank,
-        definition.label,
-        definition.displayOrder,
-        definition.selectableInSettings
-      ]))
-    ].join("::"),
-    async () => {
-      const [severityRows, priorityRows] = await Promise.all([
-        executeSqlJson<MeasuresMatrixRow[]>(`
-SELECT
-  msm.[spi_id] AS [spiId],
-  msm.[asset_type] AS [assetType],
-  msm.[severity] AS [severity]
-FROM [${DATA_SCHEMA}].[measures_severity_matrix] msm
-WHERE msm.[settings_version_id] = ${version.settingsVersionId}
-ORDER BY msm.[spi_id], msm.[asset_type]
-FOR JSON PATH;
-`),
-        executeSqlJson<MeasuresPriorityMatrixRow[]>(`
-SELECT
-  mpm.[spi_id] AS [spiId],
-  mpm.[priority_rank] AS [priorityRank]
-FROM [${DATA_SCHEMA}].[measures_priority_matrix] mpm
-WHERE mpm.[settings_version_id] = ${version.settingsVersionId}
-ORDER BY mpm.[spi_id]
-FOR JSON PATH;
-`)
-      ]);
-
-      const severityMatrix: Record<string, MeasuresMatrixRow["severity"]> = {};
-      for (const row of severityRows) {
-        severityMatrix[`${row.spiId}:${row.assetType}`] = row.severity;
-      }
-
-      const priorityMatrix: Record<string, number> = {};
-      for (const row of priorityRows) {
-        priorityMatrix[String(row.spiId)] = row.priorityRank;
-      }
-
-      return normalizeMeasuresSettings({
-        updatedAt: coerceIsoTimestamp(version.updatedAt),
-        severityMatrix,
-        priorityMatrix
-      }, spiDefinitions, severityDefinitions, priorityDefinitions);
-    }
-  );
-}
-
-export async function saveMeasuresSettings(input: unknown): Promise<MeasuresSettings> {
-  const [spiDefinitions, severityDefinitions, priorityDefinitions] = await Promise.all([
-    loadSpiDefinitions(),
-    loadSeverityDefinitions(),
-    loadFindingPriorityDefinitions()
-  ]);
-  const normalized = normalizeMeasuresSettings(input, spiDefinitions, severityDefinitions, priorityDefinitions);
-  const persisted: MeasuresSettings = {
-    ...normalized,
-    updatedAt: new Date().toISOString()
-  };
-
-  const severityValueTuples: string[] = [];
-  for (const definition of spiDefinitions) {
-    for (const assetType of ASSET_TYPES) {
-      const key = `${definition.spiId}:${assetType}`;
-      const severity = persisted.severityMatrix[key];
-      if (severity) {
-        severityValueTuples.push(`(@newVersionId, ${definition.spiId}, ${toSqlUnicodeLiteral(assetType)}, ${toSqlUnicodeLiteral(severity)})`);
-      }
-    }
-  }
-
-  const priorityValueTuples: string[] = [];
-  for (const definition of spiDefinitions) {
-    const priorityRank = persisted.priorityMatrix[String(definition.spiId)];
-    if (priorityRank) {
-      priorityValueTuples.push(`(@newVersionId, ${definition.spiId}, ${priorityRank})`);
-    }
-  }
-
-  if (!severityValueTuples.length) {
-    throw new Error("No measures severity mappings were produced after normalization.");
-  }
-  if (!priorityValueTuples.length) {
-    throw new Error("No measures priority mappings were produced after normalization.");
-  }
-
-  await executeSqlText(`
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-BEGIN TRANSACTION;
-
-DECLARE @newVersionId BIGINT;
-INSERT INTO [${DATA_SCHEMA}].[measures_settings_version] ([updated_at])
-VALUES (${toSqlUnicodeLiteral(persisted.updatedAt)});
-SET @newVersionId = SCOPE_IDENTITY();
-
-INSERT INTO [${DATA_SCHEMA}].[measures_severity_matrix] (
-  [settings_version_id],
-  [spi_id],
-  [asset_type],
-  [severity]
-)
-VALUES
-${severityValueTuples.join(",\n")};
-
-INSERT INTO [${DATA_SCHEMA}].[measures_priority_matrix] (
-  [settings_version_id],
-  [spi_id],
-  [priority_rank]
-)
-VALUES
-${priorityValueTuples.join(",\n")};
-
-COMMIT TRANSACTION;
-`);
-
-  clearMeasuresSettingsCaches();
-  return persisted;
 }
 
 async function loadLatestDiscoveryToolsSettingsVersion(): Promise<SettingsVersionRow | null> {
@@ -3097,16 +1462,6 @@ export function clearDataLoaderCaches(): void {
   installedSoftwareExplorerCache.clear();
   securityVulnerabilityExplorerCache.clear();
   shadowItExplorerCache.clear();
-  referenceVersionsCache.clear();
-  kpiDefinitionsCache.clear();
-  kpiEvaluationsCache.clear();
-  scopedKpiEvaluationsCache.clear();
-  spiDefinitionsCache.clear();
-  severityDefinitionsCache.clear();
-  priorityDefinitionsCache.clear();
-  findingDisplayConfigurationCache.clear();
-  measuresSettingsVersionCache.clear();
-  measuresSettingsByVersionCache.clear();
   discoveryToolsSettingsVersionCache.clear();
   discoveryToolsSettingsByVersionCache.clear();
   clearSettingsDependentCaches();
@@ -3121,16 +1476,6 @@ export function __resetDataLoaderCachesForTest(): void {
   installedSoftwareExplorerCache.resetStats();
   securityVulnerabilityExplorerCache.resetStats();
   shadowItExplorerCache.resetStats();
-  referenceVersionsCache.resetStats();
-  kpiDefinitionsCache.resetStats();
-  kpiEvaluationsCache.resetStats();
-  scopedKpiEvaluationsCache.resetStats();
-  spiDefinitionsCache.resetStats();
-  severityDefinitionsCache.resetStats();
-  priorityDefinitionsCache.resetStats();
-  findingDisplayConfigurationCache.resetStats();
-  measuresSettingsVersionCache.resetStats();
-  measuresSettingsByVersionCache.resetStats();
   discoveryToolsSettingsVersionCache.resetStats();
   discoveryToolsSettingsByVersionCache.resetStats();
 }

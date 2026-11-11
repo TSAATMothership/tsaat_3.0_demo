@@ -4,7 +4,7 @@ export function validateDemoDataset(dataset: Dataset): void;
 export function enrichDemoDataset(dataset: Dataset): Dataset;
 export interface DemoDataSummary {
   date: string; networks: number; systems: number; assets: number; knownEndpoints: number; shadowNodes: number;
-  installations: number; findings: number; openFindings: number; dependencies: number; vulnerabilities: number;
+  installations: number; dependencies: number; vulnerabilities: number;
   missingEndpointFields: Record<string, number>; missingSoftwareFields: Record<string, number>;
   missingNetworkFields: Record<string, number>; missingSystemFields: Record<string, number>;
 }

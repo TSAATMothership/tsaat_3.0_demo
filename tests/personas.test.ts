@@ -1,182 +1,71 @@
-import { describe, expect, it } from "vitest";
-import { defaultPersonaSettings, isPersonaId, parsePersonaSettings, personaShowsSection, personaShowsPage, personaAllowsHref, personaAllowsPopup, personaDestination, DEFAULT_PERSONAS as PERSONAS, PERSONA_SECTIONS, PERSONA_PAGES, PERSONA_POPUPS } from "@/lib/personas";
-import { isWorkspaceItemVisible, WORKSPACE_GROUPS, workspaceHref } from "@/lib/workspace-navigation";
+import { expect, it } from 'vitest';
+import { defaultPersonaSettings, parsePersonaSettings, personaShowsSection, personaShowsPage, personaAllowsHref, personaAllowsPopup, personaDestination, PERSONA_SECTIONS, PERSONA_PAGES, PERSONA_POPUPS } from '@/lib/personas';
+import { retirePersonaPermissions, RETIRED_PERSONA_PAGES, RETIRED_PERSONA_POPUPS, RETIRED_PERSONA_SECTIONS } from '@/lib/retired-capabilities.mjs';
 
-describe("persona navigation preferences", () => {
-  it("uses source-defined names, IDs and order without restoring deleted defaults", () => {
-    const settings = { ...defaultPersonaSettings(), personas: [
-      { id: "operations-review", label: "  Operations review  ", sections: ["findings"], pages: ["findings-register"], popups: [] },
-      { id: "custom-reader", label: "Custom reader", sections: [], pages: [], popups: [] }
-    ] };
-    const parsed = parsePersonaSettings(settings, { forWrite: true });
-    expect(parsed.personas.map(persona => [persona.id, persona.label])).toEqual([["operations-review", "Operations review"], ["custom-reader", "Custom reader"]]);
-    expect(personaAllowsHref(parsed, "operations-review", "/findings")).toBe(true);
-    expect(personaAllowsHref(parsed, "custom-reader", "/findings")).toBe(false);
-    expect(parsePersonaSettings({ ...settings, personas: [] }).personas).toEqual([]);
-  });
-  it("rejects ambiguous names, invalid IDs, excessive lists and invalid write revisions", () => {
-    const settings = defaultPersonaSettings();
-    for (const patch of [{ label: " " }, { label: "x".repeat(81) }, { label: "bad\nname" }, { label: settings.personas[1].label.toUpperCase() }, { id: "../unsafe" }, { id: settings.personas[1].id }]) {
-      expect(() => parsePersonaSettings({ ...settings, personas: [{ ...settings.personas[0], ...patch }, ...settings.personas.slice(1)] })).toThrow();
-    }
-    expect(() => parsePersonaSettings({ ...settings, personas: Array(51).fill(settings.personas[0]) })).toThrow();
-    expect(() => parsePersonaSettings({ ...settings, updatedAt: "bad" }, { forWrite: true })).toThrow();
-  });
-  it("starts every named persona with all existing sidebar sections enabled", () => {
-    const settings = defaultPersonaSettings();
-    expect(PERSONAS.map(p => p.label)).toEqual(["Analyst", "Life Cycle Management", "Configuration Management", "DSOC Analyst", "Business Reporting"]);
-    expect(PERSONA_SECTIONS.map(s => s.label)).toEqual([...WORKSPACE_GROUPS.map(g => g.label), "Briefs & Reports"]);
-    for (const persona of settings.personas) {
-      expect(persona.sections).toEqual(PERSONA_SECTIONS.map(section => section.id));
-      expect(persona.pages).toEqual(PERSONA_PAGES.map(page => page.id));
-      expect(persona.popups).toEqual(PERSONA_POPUPS.map(popup => popup.id));
-    }
-    settings.personas[0].sections.length = 0;
-    expect(settings.personas[1].sections).toHaveLength(6);
-    expect(defaultPersonaSettings().personas[0].sections).toHaveLength(6);
-  });
-  it("retains empty selections, isolates personas and leaves no-persona navigation available", () => {
-    const input = defaultPersonaSettings();
-    input.personas[0].sections = [];
-    const settings = parsePersonaSettings(input);
-    expect(personaShowsSection(settings, "analyst", "discovery")).toBe(false);
-    expect(personaShowsSection(settings, "dsoc-analyst", "discovery")).toBe(true);
-    expect(personaShowsSection(settings, null, "discovery")).toBe(true);
-    expect(isPersonaId("administrator")).toBe(true);
-  });
-  it("retires Overview without granting Trends or changing other saved preferences", () => {
-    const legacy = defaultPersonaSettings();
-    legacy.personas[0].sections = ["governance"];
-    legacy.personas[0].pages = ["governance-overview"];
-    legacy.personas[0].popups = [];
-    legacy.personas[1].pages.push("governance-overview");
-    const before = JSON.stringify(legacy);
-    for (const forWrite of [false, true]) {
-      const settings = parsePersonaSettings(legacy, { forWrite });
-      expect(settings.personas[0]).toEqual({ id: "analyst", label: "Analyst", sections: ["governance"], pages: [], popups: [] });
-      expect(settings.personas[1].pages).toEqual(defaultPersonaSettings().personas[1].pages);
-      expect(settings.personas.slice(2)).toEqual(legacy.personas.slice(2));
-      expect(personaShowsSection(settings, "analyst", "governance")).toBe(false);
-      expect(personaAllowsHref(settings, "analyst", "/governance/overview?network=net-1")).toBe(false);
-      expect(personaAllowsHref(settings, "life-cycle-management", "/governance/overview")).toBe(true);
-    }
-    expect(JSON.stringify(legacy)).toBe(before);
-    expect(PERSONA_PAGES.some(page => page.id === "governance-overview")).toBe(false);
-    legacy.personas[0].pages.push("governance-overview");
-    expect(() => parsePersonaSettings(legacy)).toThrow(); // Retired IDs still cannot be duplicated.
-  });
-  it.each([
-    null, {}, { ...defaultPersonaSettings(), schemaVersion: 9 },
-    { ...defaultPersonaSettings(), personas: Array(4).fill({ id: "analyst", label: "Analyst", sections: [] }) },
-    { ...defaultPersonaSettings(), personas: [{ id: "unknown", sections: [] }, ...defaultPersonaSettings().personas.slice(1)] },
-    { ...defaultPersonaSettings(), personas: [{ id: "analyst", label: "Analyst", sections: ["discovery", "discovery"] }, ...defaultPersonaSettings().personas.slice(1)] },
-    { ...defaultPersonaSettings(), personas: [{ id: "analyst", label: "Analyst", sections: ["/admin"] }, ...defaultPersonaSettings().personas.slice(1)] },
-    { ...defaultPersonaSettings(), personas: [{ id: "analyst", label: "Analyst", sections: "discovery" }, ...defaultPersonaSettings().personas.slice(1)] }
-  ])("rejects incomplete or unsupported settings: %j", input => {
-    expect(() => parsePersonaSettings(input)).toThrow(/complete persona configuration/);
-  });
-  it.each([1, 2])("adds Business Reporting when reading the original four-persona version %i catalogue", schemaVersion => {
-    const current = defaultPersonaSettings();
-    current.personas[0] = { id: "analyst", label: "Analyst", sections: [], pages: [], popups: [] };
-    current.personas[1] = { id: "life-cycle-management", label: "Life Cycle Management", sections: ["discovery"], pages: ["discovery-overview"], popups: ["cmdb-details"] };
-    const originalPersonas = current.personas.filter(persona => persona.id !== "business-reporting");
-    const legacy = { ...current, schemaVersion, personas: schemaVersion === 1 ? originalPersonas.map(({ id, sections }) => ({ id, sections })) : originalPersonas };
-    const before = JSON.stringify(legacy);
-    const upgraded = parsePersonaSettings(legacy);
-    expect(upgraded.personas).toHaveLength(5);
-    expect(upgraded.personas[0].sections).toEqual([]);
-    expect(upgraded.personas[0].pages).toEqual([]);
-    if (schemaVersion === 2) expect(upgraded.personas.slice(0, 4)).toEqual(originalPersonas);
-    else {
-      expect(upgraded.personas[1].pages).toEqual(PERSONA_SECTIONS.find(section => section.id === "discovery")!.pages.map(page => page.id));
-      expect(upgraded.personas[0].popups).toEqual(PERSONA_POPUPS.map(popup => popup.id));
-    }
-    expect(upgraded.personas[4]).toEqual({ id: "business-reporting", label: "Business Reporting", sections: PERSONA_SECTIONS.map(section => section.id), pages: PERSONA_PAGES.map(page => page.id), popups: PERSONA_POPUPS.map(popup => popup.id) });
-    expect(upgraded.updatedAt).toBe(current.updatedAt);
-    expect(JSON.stringify(legacy)).toBe(before);
-    expect(() => parsePersonaSettings(legacy, { forWrite: true })).toThrow(/complete persona configuration/);
-    expect(parsePersonaSettings(upgraded, { forWrite: true })).toEqual(upgraded);
-  });
-  it("does not refill configured Business Reporting permissions or accept missing original personas", () => {
-    const configured = defaultPersonaSettings();
-    configured.personas[4] = { id: "business-reporting", label: "Business Reporting", sections: ["briefs-reports"], pages: ["briefs-reports"], popups: [] };
-    const saved = parsePersonaSettings(configured);
-    expect(isPersonaId("business-reporting")).toBe(true);
-    expect(saved).toEqual(configured);
-    expect(personaAllowsHref(saved, "business-reporting", "/report")).toBe(true);
-    expect(personaAllowsHref(saved, "business-reporting", "/findings")).toBe(false);
-    expect(personaAllowsPopup(saved, "business-reporting", "cmdb-details")).toBe(false);
-    for (const missing of PERSONAS.filter(persona => persona.id !== "business-reporting")) {
-      expect(() => parsePersonaSettings({ ...configured, schemaVersion: 2, personas: configured.personas.filter(persona => persona.id !== missing.id) })).toThrow();
-    }
-  });
-  it("applies persona sections in addition to existing network/system visibility and retains scope/date", () => {
-    const settings = defaultPersonaSettings();
-    const cyber = WORKSPACE_GROUPS.find(g => g.id === "cyber-security")!;
-    const params = new URLSearchParams("network=net-1&securityDomain=SECRET&dataDate=2026-03-05");
-    const visible = cyber.items.filter(item => personaShowsSection(settings, "analyst", cyber.id) && isWorkspaceItemVisible(item, params, item.href));
-    expect(visible.some(item => item.label === "ICT System Impact Analyser")).toBe(false);
-    expect(visible.some(item => item.label === "Network Risk Profile")).toBe(true);
-    expect(workspaceHref("/findings", params)).toBe("/findings?network=net-1&securityDomain=SECRET&dataDate=2026-03-05");
-    settings.personas[0].sections = ["discovery"];
-    expect(cyber.items.filter(item => personaShowsSection(settings, "analyst", cyber.id) && isWorkspaceItemVisible(item, params, item.href))).toEqual([]);
-  });
-  it("upgrades section-only settings in memory, preserving hidden sections and enabling existing popups", () => {
-    const legacy = { schemaVersion: 1, updatedAt: "2026-11-05T00:00:00Z", personas: PERSONAS.map(({ id }, index) => ({ id, sections: index === 0 ? ["discovery"] : [] })) };
-    const before = JSON.stringify(legacy);
-    const settings = parsePersonaSettings(legacy);
-    expect(settings.schemaVersion).toBe(3);
-    expect(settings.personas[0].pages).toEqual(PERSONA_SECTIONS.find(section => section.id === "discovery")!.pages.map(page => page.id));
-    expect(settings.personas[1].pages).toEqual([]);
-    expect(settings.personas.every(persona => persona.popups.length === PERSONA_POPUPS.length)).toBe(true);
-    expect(JSON.stringify(legacy)).toBe(before);
-  });
-  it("filters individual pages while leaving other pages and independently enabled popups available", () => {
-    const settings = defaultPersonaSettings();
-    settings.personas[0].pages = ["discovery-overview"];
-    settings.personas[0].popups = ["cmdb-details"];
-    expect(personaShowsSection(settings, "analyst", "governance")).toBe(true);
-    expect(personaShowsSection(settings, "analyst", "findings")).toBe(false);
-    expect(personaShowsPage(settings, "analyst", "discovery-tools")).toBe(false);
-    expect(personaShowsPage(settings, "life-cycle-management", "discovery-tools")).toBe(true);
-    expect(personaAllowsPopup(settings, "analyst", "cmdb-details")).toBe(true);
-    expect(personaAllowsPopup(settings, "analyst", "impact-graph")).toBe(false);
-    expect(personaAllowsPopup(settings, null, "impact-graph")).toBe(true);
-    for (const page of PERSONA_PAGES) expect(personaDestination(page.href).pageId).toBe(page.id);
-  });
-  it.each([
-    ["/governance/overview?securityDomain=SECRET&dataDate=2026-01-01", "governance-trends"],
-    ["/networks/net-1?dataDate=2026-01-01", "network-risk-profile"],
-    ["/systems/sys-1", "ict-system-risk-profile"],
-    ["/networks?system=sys-1", "ict-system-risk-profile"],
-    ["/systems?network=net-1", "network-risk-profile"],
-    ["/cyber-cop?copView=network-impact-analyser&system=sys-1", "ict-system-risk-profile"],
-    ["/discovery-coverage?discoveryView=tools-2", "discovery-tools"],
-    ["/discovery-coverage?discoveryView=unknown", "discovery-tools"],
-    ["/measures?measuresTab=%20MEASURES-SPI%20&network=net-1", "measures-spi"],
-    ["/measures?measuresTab=invalid", "measures-summary"],
-    ["/findings/?severity=High+Risk#table", "findings-register"]
-  ])("maps compatibility and filtered destinations: %s", (href, page) => {
-    const settings = defaultPersonaSettings(); settings.personas[0].pages = [];
-    expect(personaDestination(href).pageId).toBe(page);
-    expect(personaAllowsHref(settings, "analyst", href)).toBe(false);
-    expect(personaAllowsHref(settings, null, href)).toBe(true);
-  });
-  it("requires both page and popup permission for links that open entity details", () => {
-    const settings = defaultPersonaSettings(); settings.personas[0].popups = [];
-    expect(personaAllowsHref(settings, "analyst", "/network-risk-profile?networkDetails=net-1")).toBe(false);
-    expect(personaAllowsHref(settings, "analyst", "/networks/net-1")).toBe(false);
-    expect(personaAllowsHref(settings, "analyst", "/systems/sys-1")).toBe(false);
-    expect(personaAllowsHref(settings, "analyst", "/network-risk-profile")).toBe(true);
-    for (const href of ["/settings", "/measures?measuresTab=settings", "/api/findings/report", "https://example.test/findings", "#section", "mailto:a@example.test"]) {
-      expect(personaAllowsHref(settings, "analyst", href)).toBe(true);
-    }
-  });
-  it.each(["pages", "popups"] as const)("rejects missing, duplicate or unknown %s in version 2", key => {
-    for (const invalid of [undefined, ["unknown"], ["cmdb-details", "cmdb-details"], "all"]) {
-      const settings = defaultPersonaSettings();
-      const input = { ...settings, personas: settings.personas.map((p, index) => index ? p : { ...p, [key]: invalid }) };
-      expect(() => parsePersonaSettings(input)).toThrow();
-    }
-  });
+it('preserves custom names, IDs, ordering, empty catalogues and intentionally empty permissions', () => {
+  const source = { ...defaultPersonaSettings(), personas: [
+    { id: 'operations-review', label: '  Operations review  ', sections: ['discovery'], pages: ['discovery-endpoints'], popups: [] },
+    { id: 'custom-reader', label: 'Custom reader', sections: [], pages: [], popups: [] }
+  ] };
+  const parsed = parsePersonaSettings(source, { forWrite:true });
+  expect(parsed.personas.map(p => [p.id,p.label])).toEqual([['operations-review','Operations review'],['custom-reader','Custom reader']]);
+  expect(personaAllowsHref(parsed,'operations-review','/discovery-coverage?discoveryView=endpoints')).toBe(true);
+  expect(personaAllowsHref(parsed,'custom-reader','/discovery-coverage?discoveryView=endpoints')).toBe(false);
+  expect(parsePersonaSettings({...source,personas:[]}).personas).toEqual([]);
+});
+it('has only retained pages and popups while preserving independently cloned defaults', () => {
+  const source=defaultPersonaSettings();
+  expect(PERSONA_SECTIONS.map(s=>s.id)).toEqual(['governance','discovery']);
+  expect(PERSONA_POPUPS.map(p=>p.id)).toEqual(['cmdb-details']);
+  for(const persona of source.personas){
+    expect(persona.sections).toEqual(PERSONA_SECTIONS.map(s=>s.id));
+    expect(persona.pages).toEqual(PERSONA_PAGES.map(p=>p.id));
+  }
+  source.personas[0].sections.length=0;
+  expect(source.personas[1].sections).toHaveLength(2);
+  expect(defaultPersonaSettings().personas[0].sections).toHaveLength(2);
+});
+it('removes retired permissions across revisions without granting replacement pages or mutating the source', () => {
+  const defaults=defaultPersonaSettings();
+  const source={...defaults,personas:defaults.personas.map((persona,index)=>index?persona:{...persona,
+    sections:[...RETIRED_PERSONA_SECTIONS,'governance'],pages:[...RETIRED_PERSONA_PAGES],popups:[...RETIRED_PERSONA_POPUPS]})};
+  const before=JSON.stringify(source);
+  for(const forWrite of [false,true]) {
+    const parsed=parsePersonaSettings(source,{forWrite});
+    expect(parsed).toEqual(retirePersonaPermissions(source));
+    expect(parsed.personas[0]).toMatchObject({sections:['governance'],pages:[],popups:[]});
+    expect(personaShowsSection(parsed,'analyst','governance')).toBe(false);
+    expect(personaAllowsHref(parsed,'analyst','/governance/end-point-insights')).toBe(false);
+  }
+  expect(JSON.stringify(source)).toBe(before);
+  source.personas[0].pages.push(RETIRED_PERSONA_PAGES[0]);
+  expect(()=>parsePersonaSettings(source)).toThrow();
+});
+it.each([1,2])('upgrades legacy v%i settings without refilling intentionally hidden retained pages',schemaVersion=>{
+  const source=defaultPersonaSettings();
+  source.personas[0]={id:'analyst',label:'Analyst',sections:[],pages:[],popups:[]};
+  const original=source.personas.slice(0,4);
+  const legacy={...source,schemaVersion,personas:schemaVersion===1?original.map(({id,sections})=>({id,sections})):original};
+  const before=JSON.stringify(legacy), parsed=parsePersonaSettings(legacy);
+  expect(parsed.personas).toHaveLength(5); expect(parsed.personas[0].pages).toEqual([]);
+  expect(parsed.updatedAt).toBe(source.updatedAt);expect(JSON.stringify(legacy)).toBe(before);
+  expect(()=>parsePersonaSettings(legacy,{forWrite:true})).toThrow();
+  expect(parsePersonaSettings(parsed,{forWrite:true})).toEqual(parsed);
+});
+it('enforces page and CMDB popup permissions separately and allows login-free unselected access',()=>{
+  const source=defaultPersonaSettings();source.personas[0].pages=['discovery-endpoints'];source.personas[0].popups=[];
+  expect(personaShowsPage(source,'analyst','discovery-endpoints')).toBe(true);
+  expect(personaShowsPage(source,'analyst','governance-endpoint-insights')).toBe(false);
+  expect(personaAllowsPopup(source,'analyst','cmdb-details')).toBe(false);
+  expect(personaAllowsPopup(source,null,'cmdb-details')).toBe(true);
+  expect(personaAllowsHref(source,null,'/governance/end-point-insights')).toBe(true);
+  for(const page of PERSONA_PAGES)expect(personaDestination(page.href).pageId).toBe(page.id);
+});
+it.each(['/findings','/cyber-cop','/network-risk-profile','/ict-system-risk-profile','/measures','/report','/governance/trends','/discovery-coverage?discoveryView=tools-2'])('treats retired %s as an informational compatibility URL',href=>{
+  expect(personaDestination(href).pageId).toBeUndefined();
+});
+it('rejects invalid revisions, unknown/duplicate permissions, ambiguous labels and invalid IDs',()=>{
+  const source=defaultPersonaSettings();
+  for(const value of [null,{}, {...source,schemaVersion:99}, {...source,personas:[{...source.personas[0],sections:['/admin']}]}, {...source,personas:[{...source.personas[0],pages:['discovery-endpoints','discovery-endpoints']}]}, {...source,personas:[{...source.personas[0],popups:['unknown']}]}, {...source,personas:[{...source.personas[0],id:'bad id'}]}, {...source,personas:[{...source.personas[0],label:' '}]}]) expect(()=>parsePersonaSettings(value)).toThrow();
+  expect(()=>parsePersonaSettings({...source,personas:[source.personas[0],{...source.personas[1],label:source.personas[0].label}]})).toThrow();
 });

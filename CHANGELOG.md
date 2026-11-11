@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-12 - Database setup repair
+
+- Existing-database replacement can now reuse the selected SQL login after password/SID verification, even when an older or interrupted setup left no database-user mapping or setup marker. Login passwords, server permissions and other databases are preserved; exact-name replacement acknowledgement and server-role rejection remain required.
+- Fixed `setup:database` failing after inventory-v2 import because bootstrap still invoked population for the retired server-patch table. Setup now completes retained data validation, application-login provisioning and encrypted configuration saving.
+- Updated `SqlServerFiles` preflight to select a retained reference from the build manifest instead of the retired reference-version file. Existing-database replacement acknowledgements and lower-level fresh-database guards remain required.
+
+## 2026-11-11 - Retired analytics and aligned inventory storage
+
+- Removed Governance Trends/Cyber Terrain/Discovery Insights; all Cyber Security, Findings and Observed Measures views; Discovery coverage/compliance, patch and lifecycle analytics; Briefs & Reports; and SPI risk/priority settings. Old pages show retirement notices and retired APIs return 410.
+- Retained three Governance Insights, five Discovery Explorers, software Dashboard compatibility, PDF/Excel exports, CMDB, scope/date controls and read-only Personas/Discovery Tools Settings.
+- Aligned SQL and JSON schemas, readers/writers, imports/exports, permissions and all eight weekly snapshots. Removed exclusive analytics structures, references, assets, styles and unused dependencies.
+- Added backed-up SQL 033 and JSON storage-v2 upgrades. Builds preserve existing stores; deployment requires the [paired upgrade](docs/feature-retirement.md).
+
 ## 2026-11-11 - Read-only Settings
 
 - Removed Database Settings and the No-SQL JSON Data Files tab; legacy database operations now return Gone. Command-line database setup remains available.

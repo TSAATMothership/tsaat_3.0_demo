@@ -1,3 +1,4 @@
+import { assertRetainedDataset } from "../lib/inventory-schema.mjs";
 import { createHash } from "node:crypto";
 
 export const DEMO_DATA_PROFILE = "tsaat-complete-demo-v1";
@@ -29,7 +30,7 @@ export function validateDemoDataset(dataset) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataset.snapshotDate) || !Number.isFinite(Date.parse(dataset.snapshotDate + "T00:00:00Z")) ||
       new Date(dataset.snapshotDate + "T00:00:00Z").toISOString().slice(0,10) !== dataset.snapshotDate) throw new Error("Invalid snapshot date.");
   const networks = identifiers(dataset.managedNetworks, "network"), systems = identifiers(dataset.ictSystems, "system"), assets = identifiers(dataset.assets, "asset");
-  identifiers(dataset.findings, "finding");
+  assertRetainedDataset(dataset);
   identifiers(dataset.ciDependencies ?? [], "dependency");
   for (const network of dataset.managedNetworks) {
     if (!Array.isArray(network.assetIds) || !Array.isArray(network.ictSystemIds) || network.assetIds.some(id => !assets.has(id)) || network.ictSystemIds.some(id => !systems.has(id))) throw new Error("Invalid network membership: " + network.id);
@@ -48,7 +49,6 @@ export function validateDemoDataset(dataset) {
       if (!["IP Scan", "ARP Table"].includes(asset.discoveryApproach) || (asset.discoveryApproach === "IP Scan" ? asset.arpOwnerAssetId != null : !owner || owner.type === "ip-node" || owner.networkId !== asset.networkId)) throw new Error("Invalid Shadow IT owner: " + asset.id);
     }
   }
-  if (dataset.findings.some(f => !assets.has(f.scope?.assetId))) throw new Error("Invalid finding asset reference.");
   if ((dataset.ciDependencies ?? []).some(d => !assets.has(d.sourceAssetId) || !assets.has(d.targetAssetId))) throw new Error("Invalid dependency asset reference.");
 }
 function discoveryDate(snapshotDate, seed) {
@@ -60,7 +60,7 @@ function sampleOs(asset, seed) {
   const options = asset.type === "workstation" ? [["Windows", "Microsoft", "11.0"], ["Ubuntu Desktop", "Canonical", "22.04"]] :
     [["Windows Server", "Microsoft", "2022"], ["Ubuntu Server", "Canonical", "22.04"], ["RHEL", "Red Hat", "9.3"]];
   const [family, vendor, version] = options[seed % options.length];
-  return { family, vendor, version, majorVersion: null, supportStatus: "Unknown", currentSupportedMajor: null, nMinus: null };
+  return { family, vendor, version, supportStatus: "Unknown" };
 }
 function claimIp(prefix, ordinal, used, id) {
   for (let cursor = ordinal; cursor <= 65024; cursor++) {
@@ -147,7 +147,7 @@ export function enrichDemoDataset(input) {
     }
     const ipAddress = claimIp("10.88", index + 1, usedIps, candidate.id);
     dataset.assets.push({ ...candidate, type: "ip-node", name: "IP Node " + ipAddress, hostname: "", ipAddress, lastDiscoveredDate: discoveryDate(dataset.snapshotDate, seedFor(candidate.id)), lifecycle: { eolStatus: "Unknown", warrantyStatus: "Unknown" }, vulnerabilities: [] });
-    // Declared/target-state membership remains the original CMDB source, as in SQL.
+    // Declared membership remains the original CMDB source, as in SQL.
   }
   validateDemoDataset(dataset);
   return dataset;
@@ -157,7 +157,6 @@ export function summarizeDemoDataset(dataset) {
   const missing = (rows, fields) => Object.fromEntries(fields.map(key=>[key,rows.filter(row=>!present(row[key])).length]));
   return { date: dataset.snapshotDate, networks: dataset.managedNetworks.length, systems: dataset.ictSystems.length, assets: dataset.assets.length,
     knownEndpoints: known.length, shadowNodes: dataset.assets.length-known.length, installations: software.length,
-    findings: dataset.findings.length, openFindings: dataset.findings.filter(f=>f.status==="open").length,
     dependencies: dataset.ciDependencies?.length ?? 0, vulnerabilities: known.reduce((n,a)=>n+a.vulnerabilities.length,0),
     missingEndpointFields: missing(known,ENDPOINT_FIELDS), missingSoftwareFields: missing(software,SOFTWARE_FIELDS),
     missingNetworkFields: missing(dataset.managedNetworks,ENTITY_FIELDS), missingSystemFields: missing(dataset.ictSystems,ENTITY_FIELDS) };

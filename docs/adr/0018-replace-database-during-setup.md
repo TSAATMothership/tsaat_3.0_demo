@@ -2,6 +2,8 @@
 
 Status: Accepted, 2026-11-06. Supersedes ADR 0017's existing-database validation-only behavior at the user's explicit request.
 
+The marker-only login reuse restriction is superseded by [ADR 0030](0030-reuse-login-for-database-replacement.md). Exact-target acknowledgement, identity checks and login/password preservation remain required.
+
 ## Decision
 
 `npm run setup:database` rebuilds the selected application database if it already exists. Interactive setup targets TSAATDB and displays the server, database, permanent data/settings loss, active-session disconnection and lack of automatic backup. The user types the exact database name to continue. Unattended replacement requires `TSAAT_DB_REPLACE_EXISTING` equal to the target name in addition to the existing unattended configuration; assume-yes alone is insufficient. System databases are refused.

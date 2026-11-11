@@ -57,6 +57,13 @@ test('model CI projection, taxonomy and reference upgrades select coordinated da
     const plan = assess(file); assert.equal(plan.data, true, file); assert.equal(plan.build, true, file);
   }
 });
+test('inventory contract and retirement upgrades select both-provider checks', () => {
+  for (const file of ['lib/inventory-schema.mjs', 'lib/inventory-context.ts', 'lib/inventory-context-data.ts', 'lib/retired-capabilities.mjs', 'scripts/migrate-inventory-store.mjs']) {
+    const plan = assess(file); assert.equal(plan.data, true, file); assert.equal(plan.build, true, file);
+  }
+  assert.equal(assess('Database Schema/data/database-build-manifest.json').docs, true);
+  assert.equal(assess('Database Schema/retired-storage-v2.json').docs, true);
+});
 test('Git paths with spaces, deletions, renames, local edits and untracked files are retained', () => {
   assert.deepEqual(parseChanges('M\0Database Schema/example.sql\0D\0lib/old.ts\0'), [{ status: 'M', file: 'Database Schema/example.sql' }, { status: 'D', file: 'lib/old.ts' }]);
   assert.throws(() => parseChanges('M\0'), /Invalid/);

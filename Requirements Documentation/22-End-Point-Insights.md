@@ -1,6 +1,8 @@
 # End Point Insights
 
-Governance > **End Point Insights** appears below Discovery Insights at `/governance/end-point-insights`. End Point Explorer remains in Discovery. The briefing follows the Cyber Terrain, Installed Software and Discovery Insights visual system: navy/mint illustrated hero, snapshot/scope strip, four headline figures, five numbered chapter anchors, charts and evidence actions. Its local SVG is conceptual, not measured data.
+Current scope: the shared inventory context supplies discovery coverage and snapshot-pinned inventory. Discovery Insights itself is retired; links into retired compliance/tool views are removed. See [retirement scope and upgrades](../docs/feature-retirement.md).
+
+Governance > **End Point Insights** appears below Installed Software Insights at `/governance/end-point-insights`. End Point Explorer remains in Discovery. The briefing follows the retained Insights visual system: navy/mint illustrated hero, snapshot/scope strip, four headline figures, five numbered chapter anchors, charts and evidence actions. Its local SVG is conceptual, not measured data.
 
 ## Story and interpretation
 
@@ -20,7 +22,7 @@ Generation runs in the browser worker. The existing report URL supplies an uncac
 
 ## Data and preferences
 
-The route reuses `loadDiscoveryOverview` and the cached `loadEndpointExplorerData` facade at the overview's resolved snapshot. The component presents unchanged `endpointFacetCounts` and overview measures. No provider query, cohort, rule, score, persisted data, schema, settings format or calculation-contract checksum changes. Both compilation paths use these shared facades. No database migration or JSON upgrade is needed.
+The route reuses `loadInventoryContext` and the cached `loadEndpointExplorerData` facade at the overview's resolved snapshot. The component presents unchanged `endpointFacetCounts` and overview measures. No provider query, cohort, rule, score, persisted data, schema, settings format or calculation-contract checksum changes. Both compilation paths use these shared facades. No database migration or JSON upgrade is needed.
 
 The new persona page ID is `governance-endpoint-insights`. Defaults include it. Existing saved page selections retain their explicit lists; they do not automatically gain a new page. Enable Governance and End Point Insights in Persona Settings to show it for such a persona. Existing routes and Explorer behavior remain compatible.
 

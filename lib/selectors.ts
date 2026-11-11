@@ -19,7 +19,6 @@ export function parseFilters(searchParams: Record<string, string | string[] | un
     securityDomain: securityDomainFilter(searchParams.securityDomain),
     environment: (getValue("environment") as Filters["environment"]) || undefined,
     assetType: (getValue("assetType") as Filters["assetType"]) || undefined,
-    severity: (getValue("severity") as Filters["severity"]) || undefined,
     missionCapability: getValue("mission") || undefined,
     businessService: getValue("service") || undefined
   };

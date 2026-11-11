@@ -12,9 +12,9 @@ Routine CI uses changed-area validation; workflow_dispatch, validation:full and 
 
 ## Browser document assets
 
-PDF and Excel rendering uses repository-local worker code and the existing pinned dependencies. Workers fetch only same-installation assets: `/tsaat-logo.png`, the five PNG illustrations under `/insights-report-art/`, and `/document-assets/network-target-state-template.xlsx`. Deploy these public assets with both artifacts. The workbook template is the reviewed three-sheet source template copied into public assets; its reference sheets remain intact while the selected network populates the editable sheet. No report renderer needs Node filesystem access, an installed office suite, a headless browser service, remote fonts/images or package downloads.
+PDF and Excel rendering uses repository-local worker code and the existing pinned dependencies. Workers fetch only same-installation assets: /tsaat-logo.png and the three retained PNG illustrations under /insights-report-art/. Deploy these public assets with both artifacts. Retired Cyber Terrain/Discovery artwork and the target-state workbook template have been removed. No report renderer needs Node filesystem access, an installed office suite, a headless browser service, remote fonts/images or package downloads.
 
-The migration introduces no dependency version or vendor-archive change. Browser ZIP/XML code uses byte arrays rather than Node buffers/zlib, and report generation runs in a worker to keep the progress/cancel interface responsive. Local HTTP asset reads during app use are distinct from compilation: both guarded builds must remain free of network access. The broad client-bundle/worker change selects archive verification, fresh empty-cache offline installation, both builds and compiled browser/provider checks; completed results belong in validation evidence rather than being inferred from unchanged dependencies. See [document runtime contract](client-document-generation.md).
+Feature retirement removes unused chart/3D/CSV dependencies and their unused archives; the lockfile, provenance manifest and retained vendored graph are aligned. Browser ZIP/XML code uses byte arrays rather than Node buffers/zlib, and report generation runs in a worker to keep the progress/cancel interface responsive. Local HTTP asset reads during app use are distinct from compilation: both guarded builds must remain free of network access. The broad client-bundle/worker change selects archive verification, fresh empty-cache offline installation, both builds and compiled browser/provider checks; completed results belong in validation evidence rather than being inferred from unchanged dependencies. See [document runtime contract](client-document-generation.md).
 
 ## Disconnected use
 
@@ -115,7 +115,7 @@ Network attempt: remove the build-time fetch/download, commit the required asset
 
 Dependency rollback: restore the previous package manifest, lockfile and vendor archives as one change, reinstall offline and rebuild both providers. No SQL schema, JSON format or data migration is associated with this packaging change. Runtime credentials, JSON stores and build outputs remain excluded from Git.
 
-The explicit `enrich:nosql` command uses the already pinned local tsx package and shared TypeScript rule code. It adds no packages or network calls, and builds do not invoke it against existing stores.
+The explicit `migrate:inventory` command uses bundled Node filesystem facilities and the shared inventory projection. It adds no packages or network calls. Builds never invoke it against existing stores; apply requires an exact store path and a new external backup directory.
 
 Risk-profile explorer new-tab links use the existing Next/React packages and local routes; no dependency or build asset changes are required. These navigation changes use focused validation unless the assessed scope also affects data/build behavior.
 

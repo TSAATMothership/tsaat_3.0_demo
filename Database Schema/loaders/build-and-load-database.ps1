@@ -435,22 +435,10 @@ if ($manifest.snapshotSourceDirectory) {
 }
 
 $requiredPackageData = @(
-  (Join-Path $packageDataRoot 'reference-versions.json'),
-  (Join-Path $packageDataRoot 'personas.json'),
-  (Join-Path $packageDataRoot 'kpi-definitions.json'),
-  (Join-Path $packageDataRoot 'kpi-calculations.json'),
-  (Join-Path $packageDataRoot 'kpi-tasking.json'),
-  (Join-Path $packageDataRoot 'kpi-report-detail-definitions.json'),
-  (Join-Path $packageDataRoot 'spi-definitions.json'),
-  (Join-Path $packageDataRoot 'spi-rule-definitions.json'),
-  (Join-Path $packageDataRoot 'spi-report-detail-definitions.json'),
-  (Join-Path $packageDataRoot 'spi-finding-classification-rules.json'),
-  (Join-Path $packageDataRoot 'spi-sql-calculations.json'),
-  (Join-Path $packageDataRoot 'finding-definitions.json'),
-  (Join-Path $packageDataRoot 'severity-definitions.json'),
-  (Join-Path $packageDataRoot 'discovery-coverage-rules.json'),
-  (Join-Path $packageDataRoot 'discovery-tools-settings.json'),
-  (Join-Path $packageDataRoot 'measures-settings.json')
+  foreach ($property in $manifest.packageDataFiles.PSObject.Properties) {
+    if ($property.Value -notmatch '^data/[A-Za-z0-9-]+\.json$') { throw 'Invalid package data filename.' }
+    Join-Path $packageRoot ([string]$property.Value)
+  }
 )
 
 foreach ($file in $requiredPackageData) {
@@ -543,7 +531,8 @@ Invoke-DatabaseBuildStage -Name 'database create' -ScriptBlock {
 
 if ($normalizedDataLoadMode -eq 'SqlServerFiles') {
   Invoke-DatabaseBuildStage -Name 'SqlServerFiles SQL Server file-read preflight' -ScriptBlock {
-    $packageProbePath = Join-SqlPayloadKey -Root $effectivePackageDataRoot -FileName 'reference-versions.json'
+    $packageProbeFile = Split-Path -Leaf ($requiredPackageData | Select-Object -First 1)
+    $packageProbePath = Join-SqlPayloadKey -Root $effectivePackageDataRoot -FileName $packageProbeFile
     $firstSnapshotFile = [string]($manifest.snapshotFiles | Select-Object -First 1)
     $snapshotProbePath = Join-SqlPayloadKey -Root $effectiveSnapshotsRoot -FileName $firstSnapshotFile
 
@@ -560,20 +549,13 @@ Invoke-DatabaseBuildStage -Name 'schema' -ScriptBlock {
   Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $schemaFile -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
 }
 
-Write-Host 'Applying migrations (if any)...'
-$migrationFiles = @()
-if (Test-Path -LiteralPath $migrationsDir) {
-  $migrationFiles = Get-ChildItem -LiteralPath $migrationsDir -Filter '*.sql' -File | Sort-Object Name
-}
-
-if ($migrationFiles.Count -eq 0) {
-  Write-Host 'No migration scripts found.'
-} else {
-  foreach ($migration in $migrationFiles) {
-    Invoke-DatabaseBuildStage -Name "migration $($migration.Name)" -ScriptBlock {
-      Write-Host "Applying migration: $($migration.Name)"
-      Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $migration.FullName -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
-    }
+Write-Host 'Applying the reviewed fresh-schema additions...'
+foreach ($migrationName in $manifest.freshSchemaMigrations) {
+  if ($migrationName -notmatch '^\d{3}_[A-Za-z0-9_]+\.sql$') { throw 'Invalid fresh-schema migration filename.' }
+  $migrationPath = Join-Path $migrationsDir $migrationName
+  if (-not (Test-Path -LiteralPath $migrationPath -PathType Leaf)) { throw "Missing fresh-schema addition: $migrationName" }
+  Invoke-DatabaseBuildStage -Name "fresh schema $migrationName" -ScriptBlock {
+    Invoke-SqlFile -Server $sqlcmdServerInstance -Database $DatabaseName -File $migrationPath -AuthArgs $sqlAuthArgs -SecurityArgs $sqlSecurityArgs
   }
 }
 

@@ -1,23 +1,10 @@
-﻿{
+{
   "applicationDatabaseName": "TSAAT",
   "schemaName": "tsaat",
   "packageDataFiles": {
-    "kpiDefinitions": "data/kpi-definitions.json",
-    "kpiCalculations": "data/kpi-calculations.json",
-    "kpiTasking": "data/kpi-tasking.json",
-    "kpiReportDetailDefinitions": "data/kpi-report-detail-definitions.json",
-    "spiDefinitions": "data/spi-definitions.json",
-    "spiRuleDefinitions": "data/spi-rule-definitions.json",
-    "spiReportDetailDefinitions": "data/spi-report-detail-definitions.json",
-    "spiFindingClassificationRules": "data/spi-finding-classification-rules.json",
-    "spiSqlCalculations": "data/spi-sql-calculations.json",
-    "findingDefinitions": "data/finding-definitions.json",
-    "severityDefinitions": "data/severity-definitions.json",
     "discoveryCoverageRules": "data/discovery-coverage-rules.json",
     "discoveryToolsSettings": "data/discovery-tools-settings.json",
-    "measuresSettings": "data/measures-settings.json",
-    "personas": "data/personas.json",
-    "referenceVersions": "data/reference-versions.json"
+    "personas": "data/personas.json"
   },
   "snapshotSourceDirectory": "../data/snapshots",
   "snapshotFiles": [
@@ -29,5 +16,11 @@
     "week-06.json",
     "week-07.json",
     "week-08.json"
+  ],
+  "storageSchemaVersion": 2,
+  "freshSchemaMigrations": [
+    "025_cmdb_asset_type_attributes.sql",
+    "031_persona_navigation_settings.sql",
+    "032_model_ci_cmdb_attributes.sql"
   ]
 }

@@ -41,3 +41,6 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0027: Portable Node in offline distributions](0027-portable-offline-node.md)
 
 - [0028: Read-only application settings](0028-read-only-settings.md)
+
+- [0029 — Retire analytics features with inventory storage v2](0029-retire-analytics-features.md)
+- [0030: Reuse a verified login during database replacement](0030-reuse-login-for-database-replacement.md)

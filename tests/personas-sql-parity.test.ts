@@ -10,7 +10,7 @@ import { defaultPersonaSettings, parsePersonaSettings, PersonaConflictError } fr
 const target = vi.hoisted(() => ({
   server: process.env.TSAAT_PERSONA_PARITY_SERVER?.trim() ?? "",
   database: process.env.TSAAT_PERSONA_PARITY_DATABASE?.trim() ?? "",
-  trustedConnection: true, sslEnabled: true,
+  trustedConnection: true, sslEnabled: process.env.TSAAT_PERSONA_PARITY_SSL_DISABLED !== "true",
   sslType: process.env.TSAAT_PERSONA_PARITY_TRUST_CERTIFICATE === "true" ? "trust-server-certificate" as const : "strict" as const
 }));
 vi.mock("@/lib/sql-server", async original => {
@@ -21,7 +21,7 @@ describe.runIf(Boolean(target.server && target.database)).sequential("disposable
   let directory: string, previous: string | undefined;
   const replaceSql = async (settings: unknown) => executeSqlTextWithConnection(`SET XACT_ABORT ON; BEGIN TRANSACTION; DELETE FROM tsaat.persona_settings_version; INSERT tsaat.persona_settings_version(settings_json) VALUES (${toSqlUnicodeLiteral(JSON.stringify(settings))}); COMMIT;`, target);
   beforeAll(async () => {
-    if (!/^TSAAT_PersonaParity_[A-Za-z0-9_]+$/.test(target.database)) throw new Error("Select an explicitly disposable TSAAT_PersonaParity_* database with the application schema.");
+    if (!/^(?:TSAAT_PersonaParity|TSAAT_EvidenceParity)_[A-Za-z0-9_]+$/.test(target.database)) throw new Error("Select an explicitly disposable TSAAT_PersonaParity_* database with the application schema.");
     directory = mkdtempSync(path.join(os.tmpdir(), "tsaat-persona-parity-"));
     previous = process.env.TSAAT_JSON_DATA_DIR; process.env.TSAAT_JSON_DATA_DIR = directory;
     await initializeJsonStore({ target: directory });
@@ -42,7 +42,7 @@ describe.runIf(Boolean(target.server && target.database)).sequential("disposable
   it("round-trips custom IDs, Unicode names, order and permissions; rejects stale and concurrent saves", async () => {
     for (const provider of [sql, json]) {
       const draft = await provider.loadPersonaSettings();
-      draft.personas = [{ id: "custom-review", label: "Reviewer's café $(literal)", sections: ["findings"], pages: ["findings-register"], popups: ["cmdb-details"] }, ...draft.personas.slice(0, 2).reverse()];
+      draft.personas = [{ id: "custom-review", label: "Reviewer's café $(literal)", sections: ["discovery"], pages: ["discovery-endpoints"], popups: ["cmdb-details"] }, ...draft.personas.slice(0, 2).reverse()];
       const saved = await provider.savePersonaSettings(draft);
       expect(saved.personas).toEqual(draft.personas); expect(await provider.loadPersonaSettings()).toEqual(saved);
       await expect(provider.savePersonaSettings(draft)).rejects.toBeInstanceOf(PersonaConflictError);

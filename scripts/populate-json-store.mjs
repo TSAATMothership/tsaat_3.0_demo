@@ -15,7 +15,7 @@ function inside(root, relative) {
 }
 async function readPlan(target, sourceDatasets, transformDataset) {
   const manifest = JSON.parse((await fs.readFile(path.join(target,"store.json"),"utf8")).replace(/^\uFEFF/,""));
-  if (manifest.format !== "tsaat-json-store" || manifest.schemaVersion !== 1 || !Array.isArray(manifest.snapshots) || !manifest.snapshots.length) throw new Error("Unsupported or empty JSON store; nothing was changed.");
+  if (manifest.format !== "tsaat-json-store" || manifest.schemaVersion !== 2 || !Array.isArray(manifest.snapshots) || !manifest.snapshots.length) throw new Error("Unsupported or empty JSON store; nothing was changed.");
   const ids = new Set(), dates = new Set(), files = new Set(), snapshots = [];
   for (const entry of manifest.snapshots) {
     if (!Number.isSafeInteger(entry.id) || entry.id < 1 || ids.has(entry.id) || dates.has(entry.date) || files.has(entry.file)) throw new Error("Duplicate or invalid snapshot catalogue entry.");

@@ -639,7 +639,7 @@ function Invoke-SimpleDatabaseSetup {
     $server = Read-ServerEndpoint
     $database = $DefaultDatabase
     $defaultUser = if ($saved.authMode -eq 'sql') { $saved.userId } else { 'tsaat_app' }
-    $userId = Read-RequiredSetupText -Prompt 'Database username (new login, or a login created by this setup)' -DefaultValue $defaultUser
+    $userId = Read-RequiredSetupText -Prompt 'Database username (new login, or existing SQL login when replacing the database)' -DefaultValue $defaultUser
     $password = Read-SetupPassword -Prompt 'Database password (use the existing password on a rerun)' -Confirm
     Write-Host 'Setup needs a SQL Server administrator to create the database and login. Administrator credentials are not saved.'
     $adminTrusted = Read-YesNo -Prompt 'Use your current Windows account for the administrator connection?' -DefaultValue $true

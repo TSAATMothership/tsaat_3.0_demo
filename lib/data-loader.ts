@@ -5,8 +5,7 @@ import { IS_JSON_BUILD } from "@/lib/data-provider-mode";
 
 // One shared contract; the build fixes the provider for every page and API.
 const provider: typeof sql = IS_JSON_BUILD ? jsonDataProvider : sql;
-export type { DatasetLoadProfile, WorkspaceFilterOptions, EndpointExplorerData, InstalledSoftwareExplorerData, SecurityVulnerabilityExplorerData, ShadowItExplorerData, KpiEvaluationScopeInput } from "@/lib/sql-data-loader";
-export const loadSnapshotEffectiveFindings = provider.loadSnapshotEffectiveFindings;
+export type { DatasetLoadProfile, WorkspaceFilterOptions, EndpointExplorerData, InstalledSoftwareExplorerData, SecurityVulnerabilityExplorerData, ShadowItExplorerData } from "@/lib/sql-data-loader";
 export const loadCurrentDataset = provider.loadCurrentDataset;
 export const loadSnapshots = provider.loadSnapshots;
 export const loadLatestSnapshots = provider.loadLatestSnapshots;
@@ -16,21 +15,9 @@ export const loadWorkspaceFilterOptionsForDate = provider.loadWorkspaceFilterOpt
 export const loadEndpointExplorerData = provider.loadEndpointExplorerData;
 export const loadInstalledSoftwareExplorerData = provider.loadInstalledSoftwareExplorerData;
 export const loadSecurityVulnerabilityExplorerData = provider.loadSecurityVulnerabilityExplorerData;
-export const loadPatchManagementExplorerData = provider.loadPatchManagementExplorerData;
 export const loadShadowItExplorerData = provider.loadShadowItExplorerData;
 export const loadLatestSnapshotsForDate = provider.loadLatestSnapshotsForDate;
 export const loadSnapshotsForDateWindow = provider.loadSnapshotsForDateWindow;
-export const loadReferenceVersions = provider.loadReferenceVersions;
-export const loadSeverityDefinitions = provider.loadSeverityDefinitions;
-export const loadFindingPriorityDefinitions = provider.loadFindingPriorityDefinitions;
-export const loadFindingDisplayConfiguration = provider.loadFindingDisplayConfiguration;
-export const loadSpiDefinitions = provider.loadSpiDefinitions;
-export const loadKpiDefinitions = provider.loadKpiDefinitions;
-export const loadSnapshotKpiEvaluationsForScope = provider.loadSnapshotKpiEvaluationsForScope;
-export const loadSnapshotKpiEvaluationsForScopes = provider.loadSnapshotKpiEvaluationsForScopes;
-export const loadSnapshotKpiEvaluationsForAnalyticsScope = provider.loadSnapshotKpiEvaluationsForAnalyticsScope;
-export const loadMeasuresSettings = provider.loadMeasuresSettings;
-export const saveMeasuresSettings = provider.saveMeasuresSettings;
 export const loadDiscoveryToolsSettings = provider.loadDiscoveryToolsSettings;
 export const saveDiscoveryToolsSettings = provider.saveDiscoveryToolsSettings;
 export const loadPersonaSettings = provider.loadPersonaSettings;
