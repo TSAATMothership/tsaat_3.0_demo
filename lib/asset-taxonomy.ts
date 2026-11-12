@@ -37,6 +37,8 @@ export function assetTypeLabel(assetType: CanonicalAssetType): string {
 }
 
 export function formatAssetTypeLabel(value?: string | null): string {
+  // Keep the established SQL/JSON and CMDB type ID while updating its displayed name.
+  if (value === "mission-capability") return "Mission Service";
   if (!value) {
     return "Unknown";
   }

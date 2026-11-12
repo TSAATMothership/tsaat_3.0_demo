@@ -1,6 +1,6 @@
 # TSAAT UI 3
 
-Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app with two compilation paths. The standard build uses Microsoft SQL Server. The No-SQL build uses persistent JSON files. Both share the current pages, reports, settings and interactions.
+Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app with two compilation paths. The standard build uses Microsoft SQL Server. The No-SQL build uses persistent JSON files. Both share the current pages, reports, scope controls and interactions.
 
 ## Start here
 
@@ -22,7 +22,7 @@ This command verifies and unpacks the bundled runtime, verifies the dependency a
 
 Application pages and APIs no longer require a user login. The header has no Signed in or Logout section, and Password Settings is retired. Existing local logindetails files are unused and remain excluded from Git.
 
-Menu → Settings shows read-only Personas and Discovery Tools Settings. Persona selection remains browser-local; saved names and permissions cannot be edited. Database Settings and SPI matrices are removed; SQL setup remains a command-line operation. See [Settings](Requirements%20Documentation/11-Settings.md) and [Personas](docs/personas.md).
+Menu and Settings are retired. Existing persona selection is available directly in the header, with All sections and load recovery. Shared persona definitions and discovery coverage rules remain in SQL/JSON for the retained features. SQL configuration remains a command-line operation. See [Settings retirement](Requirements%20Documentation/11-Settings.md) and [Personas](docs/personas.md).
 
 Choose a build:
 
@@ -52,7 +52,7 @@ npm run check, npm run build:all and npm run test:nosql remain the comprehensive
 
 Governance: Installed Software Insights, End Point Insights and Security Vulnerability Insights, each retaining scoped PDF export. Discovery: End Point, Installed Software, Security Vulnerability, Shadow IT and Topology Explorers; the hidden Installed Software Dashboard remains a compatibility view. Retained tabular Explorers keep Excel exports and CMDB drill-through.
 
-Menu → Settings contains read-only Personas and Discovery Tools Settings. Active persona selection remains available. Database Settings, both SPI matrix tabs, Cyber Security, Observed Measures, Findings and Briefs & Reports are retired. Old URLs show an explicit retirement response.
+The header provides Persona, Security Domain, Managed Network, ICT System and Date controls. Menu and Settings, Database Settings, both SPI matrix tabs, Cyber Security, Observed Measures, Findings and Briefs & Reports are retired. Old URLs show an explicit retirement response.
 
 Existing SQL and JSON stores require the [explicit backed-up storage-v2 upgrade](docs/feature-retirement.md). Fresh setup uses the reduced schema and the same eight weekly snapshots. Builds never overwrite existing JSON data. See [the current solution contracts](Requirements%20Documentation/TSAAT-Solution-Design-Index.md).
 

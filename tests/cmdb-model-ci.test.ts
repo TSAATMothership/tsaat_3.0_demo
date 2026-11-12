@@ -27,7 +27,7 @@ describe("Recorded model CIs in CMDB", () => {
         expect(details.relatedSystems).toContain("s2 (s2) — Non-Critical");
         const view = buildCmdbModelCiView(details, definitions);
         expect(view.attributes.map(row => row.key)).toEqual([...CMDB_MODEL_ATTRIBUTE_KEYS]);
-        expect(view.attributes.find(row => row.key === "ciType")?.value).toBe(type === "business-service" ? "Business Service" : "Mission Capability");
+        expect(view.attributes.find(row => row.key === "ciType")?.value).toBe(type === "business-service" ? "Business Service" : "Mission Service");
         expect(view.networkId).toBe(""); // A logical CI is not assigned a fabricated single network/domain/IP.
         expect(view.attributes.some(row => /^(assetIpAddress|securityDomain|operatingSystemSummary)$/.test(row.key))).toBe(false);
         expect(buildCmdbModelCiView(details, []).attributes).toEqual([]);

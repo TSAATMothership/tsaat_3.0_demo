@@ -89,7 +89,7 @@ if ([string]::IsNullOrWhiteSpace($raw)) {
 
 $trimmed = $raw.Trim()
 if (-not $trimmed.StartsWith('{')) {
-  throw 'DB_config is not in encrypted envelope format. Re-run CreateDB.cmd or compileApp.cmd to recreate it, or open /settings and save database settings.'
+  throw 'DB_config is not in encrypted envelope format. Re-run CreateDB.cmd or compileApp.cmd to recreate it.'
 }
 
 try {

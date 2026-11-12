@@ -34,7 +34,7 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
       return <>{ready}<TopologyExplorer model={model} key={JSON.stringify([model.snapshotDate, scopeIds(searchParams.network), scopeIds(searchParams.system), searchParams.securityDomain])} /></>;
     } catch {
       const query = new URLSearchParams({ discoveryView: "topology" });
-      for (const key of ["network", "system", "securityDomain", "dataDate", "topologyCi", "topologyMode", "topology_filters", "topology_name", "topology_software", "topology_cve", "topology_ip", "topology_kind"]) {
+      for (const key of ["network", "system", "securityDomain", "dataDate", "topologyCi", "topologyAll", "topologyMode", "topology_filters", "topology_name", "topology_software", "topology_cve", "topology_ip", "topology_kind"]) {
         const value = searchParams[key]; if (value) query.set(key, Array.isArray(value) ? value.join(",") : value);
       }
       return <>{ready}<section className="panel p-5" role="alert"><p className="endpoint-eyebrow">Discovery / Topology Explorer</p>

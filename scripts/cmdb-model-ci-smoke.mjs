@@ -25,7 +25,7 @@ export async function checkModelCiCmdb(page, { date, historicalDate, artifacts }
   const verify = async (model, expectedDate, trigger, parent) => {
     await press(trigger); await waitReady();
     const text = await page.$eval(ready, node => node.textContent);
-    for (const value of [model.name, expectedDate, 'CI ID', 'CI Type', model.type === 'business-service' ? 'Business Service' : 'Mission Capability', 'Related ICT systems', system.id]) assert(text.includes(value), value);
+    for (const value of [model.name, expectedDate, 'CI ID', 'CI Type', model.type === 'business-service' ? 'Business Service' : 'Mission Service', 'Related ICT systems', system.id]) assert(text.includes(value), value);
     for (const field of ['IP Address', 'Operating System', 'Patch Status']) assert(!text.includes(field), 'No fabricated endpoint field: ' + field);
     assert(await page.$eval(panel, node => node.matches(':modal') && node.contains(document.activeElement)), 'CMDB is the top modal with focus');
     await page.keyboard.press('Escape'); await page.waitForSelector(panel, { hidden: true });

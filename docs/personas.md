@@ -1,6 +1,6 @@
 # Personas
 
-Personas are shared navigation preferences, not authentication or authorization. Menu → Settings → Personas displays the active SQL or JSON configuration read-only. All sections (no persona) enables the retained workspace; direct page/API/export access remains available. Scope, security domain and selected snapshot are independent.
+Personas are shared navigation preferences, not authentication or authorization. The header Persona selector uses the active SQL or JSON catalogue; Menu and the Settings configuration viewers are retired. All sections (no persona) enables the retained workspace; direct page/API/export access remains available. Scope, security domain and selected snapshot are independent.
 
 The browser stores only the selected stable persona ID. Stored names and ordering drive the selector. Removal of a selected ID resets to All sections. Refresh/focus reload settings except during a modal; failed loads preserve the last configuration, expose Retry and allow recovery. Empty catalogues and explicit empty permissions stay empty.
 
@@ -16,8 +16,8 @@ SQL stores complete revisions in tsaat.persona_settings_version; JSON storage v2
 
 Follow [inventory v2 upgrade](feature-retirement.md): SQL 033 and the JSON migration prune retired IDs from every saved revision while preserving IDs, labels, order, timestamps and retained selections. The parser still supports valid legacy payload versions in memory. Reads and builds do not publish settings revisions. Controlled later changes must validate the whole payload, use backup/revision safeguards and a new UTC updatedAt; changing bootstrap JSON does not update installed settings.
 
-Restore the matching pre-upgrade application and complete database/store backup for rollback. Browser selection is separate and can be reset to All sections. See [read-only decision](adr/0028-read-only-settings.md) and [retirement decision](adr/0029-retire-analytics-features.md).
+Restore the matching pre-upgrade application and complete database/store backup for rollback. Browser selection is separate and can be reset to All sections. See [Menu/Settings removal](adr/0033-remove-menu-and-settings.md), [read-only decision](adr/0028-read-only-settings.md) and [retirement decision](adr/0029-retire-analytics-features.md).
 
 ## Validation
 
-Parser/provider tests cover dynamic catalogues, legacy permissions, empty selections, errors, concurrency, UTF-8 and revision history. Compiled smoke checks exercise keyboard/mobile/filter/reload and read-only API behavior. Real SQL persona parity requires an explicitly disposable TSAAT_PersonaParity_* or TSAAT_EvidenceParity_* database; select TSAAT_PERSONA_PARITY_SERVER and TSAAT_PERSONA_PARITY_DATABASE before running tests/personas-sql-parity.test.ts. Strict TLS is default. Test-only trust/SSL overrides require explicit selection and never modify saved application policy. A skip is not parity evidence.
+Parser/provider tests cover dynamic catalogues, legacy permissions, empty selections, errors, concurrency, UTF-8 and revision history. Compiled smoke checks exercise header keyboard/mobile selection, reload, empty/deleted catalogues, error/retry recovery and read-only API behavior. Real SQL persona parity requires an explicitly disposable TSAAT_PersonaParity_* or TSAAT_EvidenceParity_* database; select TSAAT_PERSONA_PARITY_SERVER and TSAAT_PERSONA_PARITY_DATABASE before running tests/personas-sql-parity.test.ts. Strict TLS is default. Test-only trust/SSL overrides require explicit selection and never modify saved application policy. A skip is not parity evidence.

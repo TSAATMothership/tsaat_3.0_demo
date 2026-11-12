@@ -18,7 +18,7 @@ describe("route loading readiness", () => {
     expect(sharedOverlay).toContain('className = "fixed inset-0 z-[9999]"');
 
     const routeLoadingComponents = [
-      "components/menu-navigation.tsx",
+      "components/workspace-header-controls.tsx",
       "components/workspace-filters.tsx",
       "components/workspace-shell.tsx",
     ];

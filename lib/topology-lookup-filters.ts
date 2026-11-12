@@ -49,7 +49,9 @@ export function parseTopologyColumnFilters(encoded: string | null | undefined): 
     for (const [key, values] of Object.entries(value)) {
       const column = TOPOLOGY_FILTER_COLUMNS.find(column => column.key === key);
       if (!column || !Array.isArray(values) || values.length > 10000 || !values.every(item => typeof item === "string" && item.length <= 1024)) return {};
-      if (values.length) result[column.key] = [...new Set(values)];
+      // Older saved CI-type filters contain the former display label, not a type ID.
+      if (values.length) result[column.key] = [...new Set(values.map(value =>
+        column.key === "kind" && ["Mission Capability", "Mission System"].includes(value) ? TOPOLOGY_KINDS.mission.label : value))];
     }
     return result;
   } catch { return {}; }

@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { CmdbDrillThroughProvider } from "@/components/cmdb-drill-through";
 import { FilterLoadingOverlay } from "@/components/filter-loading-overlay";
-import { MenuNavigation } from "@/components/menu-navigation";
+import { WorkspaceHeaderControls } from "@/components/workspace-header-controls";
 import { WorkspaceShell } from "@/components/workspace-shell";
 import { PersonaProvider } from "@/components/persona-provider";
 import { DocumentGenerationDialog } from "@/components/document-generation-dialog";
@@ -30,20 +30,18 @@ export default function RootLayout({
         <div className="topography-overlay" />
         <PersonaProvider><div className="app-workspace-shell">
           <header className="workspace-header no-print">
-            <div className="w-full px-4 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex shrink-0 items-center gap-3">
-                  <Image src="/tsaat-logo.png" alt="TSAAT logo" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" priority />
-                  <div>
-                    <p className={`${headingFontClass} text-xl uppercase tracking-[0.14em] text-slate-100`}>TSAAT</p>
-                    <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
-                  </div>
-                </div>
+            <div className="workspace-header-inner">
+              <div className="workspace-brand">
+                <Image src="/tsaat-logo.png" alt="TSAAT logo" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" priority />
                 <div className="min-w-0">
-                  <Suspense fallback={<div className="h-[38px]" />}>
-                    <MenuNavigation />
-                  </Suspense>
+                  <p className={`${headingFontClass} text-xl uppercase tracking-[0.14em] text-slate-100`}>TSAAT</p>
+                  <p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p>
                 </div>
+              </div>
+              <div className="min-w-0">
+                <Suspense fallback={<div className="workspace-header-placeholder" />}>
+                  <WorkspaceHeaderControls />
+                </Suspense>
               </div>
             </div>
           </header>

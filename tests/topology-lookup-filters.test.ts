@@ -20,6 +20,14 @@ describe("Topology header filters", () => {
     expect(filterTopologyNodes([renamed, nodes[1]], parseTopologyColumnFilters(serializeTopologyColumnFilters(selected)))).toEqual([renamed]);
     expect(serializeTopologyColumnFilters(selected)).not.toContain("Server 1");
   });
+  it("keeps both former mission type labels working under the Mission Service label", () => {
+    const mission = node("mission", { id: "mission:mission", kind: "mission", type: "Mission Service" });
+    const filters = parseTopologyColumnFilters(JSON.stringify({ kind: ["Mission Capability", "Mission System", "Mission Service"], name: ["mission:mission"] }));
+    expect(filters).toEqual({ kind: ["Mission Service"], name: ["mission:mission"] });
+    expect(filterTopologyNodes([...nodes, mission], filters)).toEqual([mission]);
+    expect(parseTopologyColumnFilters(serializeTopologyColumnFilters(filters))).toEqual(filters);
+    expect(topologyFacetCounts([mission], filters, "kind")).toEqual([{ value: "Mission Service", count: 1 }]);
+  });
   it("combines exact multi-selections with OR within fields and AND between fields", () => {
     expect(filterTopologyNodes(nodes, { software: ["Alpha 1", "Beta 2"] }).map(row => row.sourceId)).toEqual(["1", "2"]);
     expect(filterTopologyNodes(nodes, { software: ["Alpha 1"], cve: ["CVE-2026-2"], kind: ["Endpoint CI"] }).map(row => row.sourceId)).toEqual(["2"]);

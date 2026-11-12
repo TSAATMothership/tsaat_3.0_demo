@@ -46,25 +46,3 @@ describe("cancellable workspace loading", () => {
     expect(source).toContain("cancelRouteNavigation(cancelHref)");
   });
 });
-
-describe("settings popup integration", () => {
-  it("opens settings through a modal button and keeps tab selection local", () => {
-    const read = (name: string) => readFileSync(path.join(process.cwd(), name), "utf8");
-    const menu = read("components/menu-navigation.tsx");
-    const popup = read("components/settings-popup.tsx");
-    const tabs = read("components/settings-tabs.tsx");
-    expect(menu).toContain('aria-haspopup="dialog"');
-    expect(menu).toContain("setIsSettingsOpen(true)");
-    expect(menu).not.toContain('workspaceHref("/settings"');
-    expect(popup).toContain("dialog.showModal()");
-    expect(popup).toContain("controller.abort()");
-    expect(popup).not.toContain("PasswordSettingsPanel");
-    expect(tabs).not.toContain("password-settings");
-    expect(popup).not.toContain("DatabaseSettingsPanel");
-    expect(popup).not.toContain("/api/settings/database");
-    expect(tabs).not.toContain("database-settings");
-    expect(tabs).not.toContain("router.replace");
-    expect(read("app/settings/page.tsx")).toContain("<SettingsRoutePopup");
-    expect(read("app/settings/page.tsx")).not.toContain("<DatabaseSettingsPanel");
-  });
-});

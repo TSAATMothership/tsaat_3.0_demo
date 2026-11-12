@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { activeWorkspaceItem, sameWorkspaceScope, scopeIds, updateWorkspaceScope, workspaceHref, workspaceScopeUpdateHref } from "@/lib/workspace-navigation";
 import { buildLocationKey } from "@/lib/location-key";
 import { startRouteLoading } from "@/lib/route-loading";
-import { usePersona } from "@/components/persona-provider";
+import { PersonaSelector } from "@/components/persona-selector";
 import { matchesSecurityDomain, SECURITY_DOMAINS, securityDomainSelection, type SecurityDomain } from "@/lib/security-domain.mjs";
 
 interface Option { id: string; label: string; securityDomain?: SecurityDomain }
 interface Options { networks: Option[]; systems: Option[] }
 type ScopeKind = "network" | "system" | "securityDomain";
 interface ScopeDraft { locationKey: string; query: string; edited: ScopeKind }
+// Closed controls render on the server; popup placement is only needed in the browser.
+const useClientLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 function ScopeSelect({ label, options, selected, pending, loading, error, onChange, onUpdate, allowSelectAll = false }: {
   label: string; options: Option[]; selected: string[]; pending: boolean; loading: boolean; error: string;
@@ -24,6 +26,38 @@ function ScopeSelect({ label, options, selected, pending, loading, error, onChan
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const search = useRef<HTMLInputElement>(null);
+  const popover = useRef<HTMLDivElement>(null);
+  useClientLayoutEffect(() => {
+    if (!open) return;
+    const placePopover = () => {
+      if (!trigger.current || !popover.current) return;
+      const bounds = trigger.current.getBoundingClientRect();
+      const margin = 16, gap = 8;
+      const viewportWidth = Math.min(document.documentElement.clientWidth, document.documentElement.getBoundingClientRect().width);
+      const width = Math.min(336, viewportWidth - margin * 2);
+      const below = window.innerHeight - bounds.bottom - gap - margin;
+      const above = bounds.top - gap - margin;
+      const opensAbove = above > below;
+      Object.assign(popover.current.style, {
+        width: `${width}px`,
+        left: `${Math.max(margin, Math.min(bounds.left, viewportWidth - width - margin))}px`,
+        top: opensAbove ? "auto" : `${bounds.bottom + gap}px`,
+        bottom: opensAbove ? `${window.innerHeight - bounds.top + gap}px` : "auto",
+        maxHeight: `${Math.max(0, opensAbove ? above : below)}px`
+      });
+    };
+    placePopover();
+    const header = trigger.current?.closest(".workspace-header");
+    const resizeObserver = new ResizeObserver(placePopover);
+    if (header) resizeObserver.observe(header);
+    window.addEventListener("resize", placePopover);
+    window.addEventListener("scroll", placePopover, true);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", placePopover);
+      window.removeEventListener("scroll", placePopover, true);
+    };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     search.current?.focus();
@@ -41,11 +75,11 @@ function ScopeSelect({ label, options, selected, pending, loading, error, onChan
     if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
   }}>
     <button ref={trigger} type="button" className="workspace-scope-trigger" aria-expanded={open} aria-controls={id}
-      aria-label={`${label}: ${summary}`} onClick={() => { setOpen(!open); setQuery(""); }}>
+      aria-label={`${label}: ${summary}`} title={summary} onClick={() => { setOpen(!open); setQuery(""); }}>
       <span className="min-w-0"><span className="workspace-field-label">{label}</span><span className="block truncate">{summary}</span></span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
     </button>
-    {open && <div id={id} className="workspace-scope-popover" role="group" aria-label={`${label} options`}>
+    {open && <div ref={popover} id={id} className="workspace-scope-popover" role="group" aria-label={`${label} options`}>
       <input ref={search} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${label.toLowerCase()}...`} aria-label={`Search ${label}`} />
       <div className="flex items-center justify-between gap-3">
         <button type="button" className="workspace-scope-none" disabled={pending} onClick={() => onChange([])}>none — clear selection</button>
@@ -75,7 +109,6 @@ function ScopeSelect({ label, options, selected, pending, loading, error, onChan
 }
 
 export function WorkspaceFilters({ dataDate }: { dataDate: string }) {
-  const { activePersona, settings: personaSettings } = usePersona();
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
@@ -120,11 +153,8 @@ export function WorkspaceFilters({ dataDate }: { dataDate: string }) {
     startRouteLoading({ href, cancelHref, message: "Updating workspace filters..." });
     startTransition(() => router.replace(href, { scroll: false }));
   };
-  return <div className="flex min-w-0 flex-wrap gap-2" aria-busy={pending}>
-    <div className="workspace-persona" role="status" aria-live="polite" aria-atomic="true" title="Change persona in Menu → Settings → Personas">
-      <span className="workspace-field-label">Persona</span>
-      <span data-active-persona>{personaSettings?.personas.find(persona => persona.id === activePersona)?.label ?? (activePersona ? "Loading persona..." : "All sections (no persona)")}</span>
-    </div>
+  return <div className="workspace-filters" aria-busy={pending}>
+    <PersonaSelector />
     <ScopeSelect label="Security Domain" options={SECURITY_DOMAINS.map(domain => ({ id: domain, label: domain }))} selected={selectedDomains} pending={pending} loading={false} error="" onChange={ids => change("securityDomain", ids)} onUpdate={currentDraft?.edited === "securityDomain" ? applyDraft : undefined} allowSelectAll />
     <ScopeSelect label="Managed Network" options={options.networks.filter(option => matchesSecurityDomain(option.securityDomain, selectedDomains) || scopeIds(selectedParams.getAll("network")).includes(option.id))} selected={scopeIds(selectedParams.getAll("network"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("network", ids)} onUpdate={currentDraft?.edited === "network" ? applyDraft : undefined} allowSelectAll />
     <ScopeSelect label="ICT System" options={options.systems.filter(option => matchesSecurityDomain(option.securityDomain, selectedDomains) || scopeIds(selectedParams.getAll("system")).includes(option.id))} selected={scopeIds(selectedParams.getAll("system"))} pending={pending} loading={loading} error={error} onChange={(ids) => change("system", ids)} onUpdate={currentDraft?.edited === "system" ? applyDraft : undefined} />

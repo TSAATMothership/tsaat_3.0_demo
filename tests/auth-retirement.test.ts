@@ -1,4 +1,4 @@
-import React, { type ReactElement } from "react";
+import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { legacyLoginDestination } from "@/lib/auth-redirect";
 import { POST as login } from "@/app/api/auth/login/route";
@@ -7,7 +7,7 @@ import { POST as logout } from "@/app/api/auth/logout/route";
 import { PUT as password } from "@/app/api/settings/password/route";
 import LoginPage from "@/app/login/page";
 import SettingsPage from "@/app/settings/page";
-import { SettingsRoutePopup } from "@/components/settings-route-popup";
+import { RetiredFeature } from "@/components/retired-feature";
 import { redirect } from "next/navigation";
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn(() => { throw new Error("NEXT_REDIRECT"); }) }));
@@ -52,9 +52,10 @@ describe("Retired login compatibility", () => {
     expect(response.headers.get("set-cookie")).toContain("Path=/");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
-  it.each(["password-settings", "database-settings", "invalid", undefined])("falls back to Personas for retired or missing tab %s", async settingsTab => {
+  it.each(["password-settings", "database-settings", "invalid", undefined])("retires old Settings bookmarks for tab %s", async settingsTab => {
     const page = await SettingsPage({ searchParams: { settingsTab, network: "net-1", dataDate: "2026-11-04" } });
-    const popup = (page.props.children as ReactElement[]).find(child => child.type === SettingsRoutePopup)!;
-    expect(popup.props.initialTab).toBe("personas");
+    expect(page.type).toBe(RetiredFeature);
+    expect(page.props.pathname).toBe("/settings");
+    expect(page.props.searchParams).toMatchObject({ network: "net-1", dataDate: "2026-11-04" });
   });
 });

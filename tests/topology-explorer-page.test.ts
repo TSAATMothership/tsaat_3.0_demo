@@ -22,4 +22,6 @@ it("keeps lookup and scope on sanitized error Retry", async () => {
   expect(html).not.toContain("private SQL"); expect(html).toContain("temporarily unavailable");
   for (const value of ["discoveryView=topology", "system=s1", "securityDomain=SECRET", "dataDate=2026-11-07", "topologyCi=asset%3Aa", "topology_cve=CVE-2024"]) expect(html).toContain(value);
   expect(html).toContain('topologyMode=dependencies'); expect(html).toContain('topology_filters=');
+  const all = renderToStaticMarkup(await Page({ searchParams: { discoveryView: 'topology', network: 'n1', topologyAll: '1' } }));
+  expect(all).toContain('topologyAll=1');
 });

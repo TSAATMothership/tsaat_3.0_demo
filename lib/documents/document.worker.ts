@@ -3,6 +3,7 @@ import type { WorkerRequest, WorkerResponse, AnyDocumentEnvelope } from "@/lib/d
 import { INSIGHTS_DOCUMENT_KINDS, renderInsightsDocument, type InsightsDocumentJob } from "@/lib/documents/insights";
 import { WORKBOOK_DOCUMENT_KINDS, renderWorkbookDocument, type WorkbookDocumentJob } from "@/lib/documents/workbooks";
 import type { DocumentRenderContext } from "@/lib/documents/contracts";
+import type { TopologyImpactReportData } from "@/lib/topology-impact-report";
 
 declare const self: DedicatedWorkerGlobalScope;
 const isInsights = (job: AnyDocumentEnvelope): job is InsightsDocumentJob => INSIGHTS_DOCUMENT_KINDS.some(kind => kind === job.kind);
@@ -13,7 +14,8 @@ self.onmessage = async ({ data: { id, job, assetBaseUrl } }: MessageEvent<Worker
   const context: DocumentRenderContext = { assetBaseUrl, onProgress: (message, completed, total) => post({ type: "progress", progress: { id, title: job.title, stage: "generating", message, completed, total } }) };
   try {
     context.onProgress("Building the document");
-    const bytes = isInsights(job) ? await renderInsightsDocument(job, context)
+    const bytes = job.kind === "pdf-topology-impact" ? await (await import("@/lib/topology-impact-pdf")).createTopologyImpactPdf(job.data as TopologyImpactReportData, new Date(job.generatedAt), context)
+      : isInsights(job) ? await renderInsightsDocument(job, context)
       : isWorkbook(job) ? await renderWorkbookDocument(job, context)
       : undefined;
     if (!bytes?.byteLength) throw new Error("Unsupported or empty document.");

@@ -1,5 +1,7 @@
 # ADR 0028: Read-only application settings
 
+The retained Settings viewers are superseded by [ADR 0033](0033-remove-menu-and-settings.md). Menu/Settings are removed; shared configuration and header persona selection remain.
+
 - Status: Accepted
 - Date: 2026-11-11
 - Supersedes the browser editing portions of ADR 0015/0022 and Database Settings presentation in ADR 0017. Stored persona and CLI setup contracts remain.

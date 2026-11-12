@@ -1,6 +1,6 @@
 # ADR 0020: Topology modes and communication context
 
-Status: Accepted, 2026-11-07.
+Status: Superseded for Dependencies and external-peer behavior by [ADR 0031](0031-topology-model-dependencies.md), 2026-11-12. The original decision follows for history.
 
 ## Context
 

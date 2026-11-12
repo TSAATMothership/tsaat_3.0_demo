@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-11-12 - Persona recovery wording
+
+- Removed the persona-loading error paragraph from the header while keeping Retry loading personas available. The sidebar now says: "Retry loading personas button in the header."
+
+## 2026-11-12 - Workspace scope guidance
+
+- Selecting a page without a managed network or ICT system now shows an illustrated workspace notice with shortcuts to the header selectors and clear Update guidance.
+- Suppressed the full-screen loading animation for unscoped workspace navigation and empty-scope date/filter changes. Scoped data loading, cancellation, selected dates and security domains remain supported.
+
+## 2026-11-12 - Header alignment
+
+- Vertically centred Persona, scope filters and Date while retaining their original compact styling, widths and natural wrapping.
+- Kept long values within their fields and constrained scope dropdowns to the viewport, including resizing and short screens. Native selection, keyboard focus, staged scope changes and snapshot dates are preserved.
+
+## 2026-11-12 - Remove Menu and Settings
+
+- Removed the header Menu and both Settings viewers, their modal/tab code and exclusive styles. Old Settings bookmarks show a scoped retirement page; the discovery-settings API returns HTTP 410.
+- Moved existing persona selection and loading recovery into the header, retaining All sections, saved navigation preferences, scope/date and keyboard/mobile support.
+- Retained shared SQL/JSON persona definitions and discovery coverage rules used by remaining features. No database reset or storage upgrade is required.
+
+## 2026-11-12 - Topology impact reports and all matching results
+
+- Added **Show all results in Impact Topology**, including every lookup match across pagination, with shared CIs/links counted once and bookmark/filter support.
+- Added **Generate Impact Report** for the displayed graph: executive brief, category breakdown, topology and service views, service narratives, cyber analyst guidance, and complete CI/relationship/software evidence registers.
+- Modernised PDF styling with TSAAT branding, vector graphics, readable service labels, consistent colors and wrapped, paginated tables. Reports retain scope/date, mode, layout and moved-node positions, with progress, cancel/retry and keyboard focus support.
+- Dependencies continues to exclude dynamic CI communication. Narratives explain recorded associations without claiming confirmed outages or vulnerability severity. SQL/JSON storage and offline dependencies are unchanged.
+
+## 2026-11-12 - Topology model dependencies
+
+- Renamed Mission Capabilities to Mission Services throughout Topology and CMDB, including the MS graph glyph. Existing saved filters under Mission Capability or Mission System and SQL/JSON records remain compatible; no migration is needed.
+
+- Dependencies now shows recorded relationships between networks, ICT systems, business services, mission capabilities and member endpoint CIs. Business Impact keeps its higher-level view.
+- Replaced communication observations with source/relationship/target/environment evidence. Multiple system memberships remain visible; header scope, security domains, snapshot dates and keyboard/CMDB navigation are preserved.
+- CI-to-CI communication and ARP links are excluded from Dependencies. Existing SQL/JSON communication data is retained for future use; no database migration or JSON upgrade is required.
+
 ## 2026-11-12 - Database setup repair
 
 - Existing-database replacement can now reuse the selected SQL login after password/SID verification, even when an older or interrupted setup left no database-user mapping or setup marker. Login passwords, server permissions and other databases are preserved; exact-name replacement acknowledgement and server-role rejection remain required.

@@ -3,7 +3,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { initializeJsonStore } from "../scripts/setup-json-store.mjs";
-import { traceTopology, type TopologyExplorerModel } from "@/lib/topology-explorer";
+import { traceTopology, traceTopologySelection, type TopologyExplorerModel } from "@/lib/topology-explorer";
+import { topologyImpactReportJob } from "@/lib/topology-impact-report";
 
 const database = process.env.TSAAT_TOPOLOGY_PARITY_DATABASE;
 it.runIf(Boolean(database))("matches lookup evidence, Business Impact and Dependencies across SQL and JSON", async () => {
@@ -29,30 +30,29 @@ it.runIf(Boolean(database))("matches lookup evidence, Business Impact and Depend
       }
     }
     expect(outputs.sql).toEqual(outputs.json);
-    let externalTraces = 0;
+    let memberTraces = 0;
     for (let i = 0; i < outputs.sql.length; i++) {
       const sql = outputs.sql[i], json = outputs.json[i];
+      for (const mode of ["business-impact", "dependencies"] as const) {
+        const left = traceTopologySelection(sql, sql.nodes.map(node => node.id), mode), right = traceTopologySelection(json, json.nodes.map(node => node.id), mode);
+        expect(left).toEqual(right);
+        const capture = (model: TopologyExplorerModel, graph: typeof left) => topologyImpactReportJob(model, graph, "All matching CIs", new URLSearchParams("network=net-1"), [], "hierarchical", new Map(), new Date("2026-11-12T00:00:00Z"));
+        expect(capture(sql, left)).toEqual(capture(json, right));
+      }
       for (const kind of ["asset", "system", "network", "business", "mission"]) {
         const node = sql.nodes.find(node => node.kind === kind);
         if (node) for (const mode of ["business-impact", "dependencies"] as const) expect(traceTopology(sql, node.id, mode)).toEqual(traceTopology(json, node.id, mode));
       }
-      const communicating = sql.edges.find(edge => edge.kind === "communication");
-      if (communicating) {
-        expect(traceTopology(sql, communicating.source, "dependencies")).toEqual(traceTopology(json, communicating.source, "dependencies"));
-        expect(traceTopology(sql, communicating.target, "dependencies")).toEqual(traceTopology(json, communicating.target, "dependencies"));
-      }
-      const lookupIds = new Set(sql.nodes.map(node => node.id));
-      const external = sql.dependencyContext?.edges.find(edge => edge.kind === "communication" && lookupIds.has(edge.source) !== lookupIds.has(edge.target));
-      if (external) {
-        const root = lookupIds.has(external.source) ? external.source : external.target;
-        const graph = traceTopology(sql, root, "dependencies");
-        expect(graph).toEqual(traceTopology(json, root, "dependencies"));
-        expect(graph.nodes.some(node => !lookupIds.has(node.id))).toBe(true);
-        externalTraces++;
+      for (const node of sql.nodes.filter(node => node.kind === "system")) {
+        const graph = traceTopology(sql, node.id, "dependencies");
+        expect(graph).toEqual(traceTopology(json, node.id, "dependencies"));
+        expect(graph.edges.every(edge => edge.kind !== "observation")).toBe(true);
+        expect(graph.nodes.every(node => sql.nodes.some(scoped => scoped.id === node.id))).toBe(true);
+        if (graph.memberCount) memberTraces++;
       }
     }
-    expect(outputs.sql.some(model => model.edges.some(edge => edge.kind === "communication"))).toBe(true);
-    expect(externalTraces).toBeGreaterThan(0);
+    expect(outputs.sql.some(model => model.edges.some(edge => edge.environments?.length))).toBe(true);
+    expect(memberTraces).toBeGreaterThan(0);
   } finally {
     for (const key of keys) { if (before[key] === undefined) delete process.env[key]; else process.env[key] = before[key]; }
     vi.resetModules();

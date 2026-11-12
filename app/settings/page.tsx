@@ -1,38 +1,6 @@
-import { RouteReadyMarker } from "@/components/route-ready-marker";
-import { type SettingsTabId } from "@/components/settings-tabs";
-import { SettingsRoutePopup } from "@/components/settings-route-popup";
-
+import { RetiredFeature } from "@/components/retired-feature";
+import type { WorkspaceSearchParams } from "@/lib/workspace-navigation";
 export const dynamic = "force-dynamic";
-
-function firstParam(value: string | string[] | undefined): string | undefined {
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-
-  return value;
-}
-
-function resolveActiveTab(value: string | undefined): SettingsTabId {
-  const normalized = value?.trim().toLowerCase();
-  if (normalized === "personas") return "personas";
-  if (normalized === "discovery-tools-settings" || normalized === "placeholder-2") {
-    return "discovery-tools-settings";
-  }
-
-  return "personas";
-}
-
-export default async function SettingsPage({
-  searchParams
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
-  const activeTab = resolveActiveTab(firstParam(searchParams.settingsTab));
-
-  return (
-    <>
-      <RouteReadyMarker pathname="/settings" searchParams={searchParams} />
-      <SettingsRoutePopup initialTab={activeTab} />
-    </>
-  );
+export default function SettingsPage({ searchParams }: { searchParams: WorkspaceSearchParams }) {
+  return <RetiredFeature pathname="/settings" searchParams={searchParams} />;
 }

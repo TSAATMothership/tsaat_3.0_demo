@@ -11,7 +11,9 @@ import { checkInstalledSoftwareInsights } from './installed-software-insights-sm
 import { checkSoftwareInsightsPdf } from './software-insights-pdf-smoke.mjs';
 import { checkInventoryInsightsReports } from './inventory-insights-report-smoke.mjs';
 import { checkTopologyExplorer } from './topology-explorer-smoke.mjs';
-import { checkReadOnlySettings } from './settings-read-only-smoke.mjs';
+import { checkSettingsRetirement } from './settings-retirement-smoke.mjs';
+import { checkHeaderLayout } from './header-layout-smoke.mjs';
+import { checkWorkspaceScopeNotice } from './workspace-scope-notice-smoke.mjs';
 import { checkPersonas } from './personas-smoke.mjs';
 import { checkPersonaCatalogue } from './persona-catalogue-smoke.mjs';
 
@@ -74,8 +76,8 @@ export async function checkInventoryRuntime(provider) {
     }
     for(const route of ['/api/findings/export','/api/measures/settings','/api/report/summary','/api/discovery-coverage/overview-report','/api/settings/database'])assert.equal((await fetch(base+route)).status,410,route);
     const settingsBefore=await(await fetch(base+'/api/settings/personas')).json();
-    const discoveryBefore=await(await fetch(base+'/api/discovery-tools/settings')).json();
-    for(const route of ['/api/settings/personas','/api/discovery-tools/settings'])assert.equal((await fetch(base+route,{method:'PUT',body:'not-json'})).status,405);
+    assert.equal((await fetch(base+'/api/settings/personas',{method:'PUT',body:'not-json'})).status,405);
+    for(const method of ['GET','PUT'])assert.equal((await fetch(base+'/api/discovery-tools/settings',{method})).status,410);
     await navigate('/discovery-coverage?discoveryView=endpoints');
     const cmdb='[data-cmdb-asset-id]';await page.waitForSelector(cmdb);await page.focus(cmdb);await page.keyboard.press('Enter');
     await page.waitForSelector('dialog.cmdb-scope-panel[open]');await page.keyboard.press('Escape');await page.waitForSelector('dialog.cmdb-scope-panel[open]',{hidden:true});
@@ -99,15 +101,17 @@ export async function checkInventoryRuntime(provider) {
       await checkSoftwareInsightsPdf(page,{date,historicalDate,directory:path.join(directory,'software-pdfs'),artifacts});
       await checkInventoryInsightsReports(page,{date,historicalDate,directory:path.join(directory,'inventory-pdfs'),artifacts});
     }
-    if(selected.has('topology')) await checkTopologyExplorer(page,{date,historicalDate,artifacts,provider});
+    if(selected.has('topology')) await checkTopologyExplorer(page,{date,historicalDate,artifacts,directory,provider});
     await navigate('/discovery-coverage?discoveryView=endpoints');
     if(selected.has('settings')) {
-      await checkReadOnlySettings(page,{artifacts});await checkPersonas(page,{artifacts});await checkPersonaCatalogue(page);
+      await checkSettingsRetirement(page,{date,historicalDate,artifacts});await checkPersonas(page,{artifacts});await checkPersonaCatalogue(page);
+      await checkHeaderLayout(page,{date,historicalDate,artifacts});
+      await checkWorkspaceScopeNotice(page,{date,historicalDate,artifacts});
     }
     assert.deepEqual(errors,[]);assert.deepEqual(authRequests,[],'No authentication polling');
     await browser.close();browser=undefined;await stop();base=await start();
     assert.deepEqual(await(await fetch(base+'/api/settings/personas')).json(),settingsBefore);
-    assert.deepEqual(await(await fetch(base+'/api/discovery-tools/settings')).json(),discoveryBefore);
+    assert.equal((await fetch(base+'/api/discovery-tools/settings')).status,410);
     assert(!fs.existsSync(path.join(directory,'logindetails')));
     if(provider==='json')assert(!fs.existsSync(path.join(directory,'DB_config')),'No-SQL must not create SQL configuration');
     console.log(`Compiled ${provider} smoke passed: nine retained views, current/historical/empty scopes, retired routes/APIs, four Excel downloads, CMDB keyboard focus, restart persistence; feature checks: ${[...selected].join(', ')}.`);

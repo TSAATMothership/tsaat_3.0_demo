@@ -7,7 +7,7 @@ The current application has two sidebar sections. The header retains network/sys
 | Home and header scope | [Workspace](01-Home-Redirect.md) |
 | Governance | [Installed Software Insights](18-Installed-Software-Insights.md), [End Point Insights](22-End-Point-Insights.md), [Security Vulnerability Insights](23-Security-Vulnerability-Insights.md) |
 | Discovery | [Inventory Explorers](07-Discovery.md), [Topology Explorer](20-Topology-Explorer.md) |
-| Settings | [Read-only Personas and Discovery Tools](11-Settings.md) |
+| Settings retirement and retained shared configuration | [Menu and Settings removal](11-Settings.md) |
 | Exports | [Browser PDF/Excel contracts](../docs/client-document-generation.md) |
 | Offline release | [Offline compilation](14-Offline-Compilation.md) |
 | Data upgrade | [Feature retirement and recovery](../docs/feature-retirement.md) |

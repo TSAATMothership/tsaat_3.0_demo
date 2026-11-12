@@ -44,3 +44,7 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 
 - [0029 — Retire analytics features with inventory storage v2](0029-retire-analytics-features.md)
 - [0030: Reuse a verified login during database replacement](0030-reuse-login-for-database-replacement.md)
+
+- [0031: Dependencies shows recorded model relationships](0031-topology-model-dependencies.md)
+- [0032: Capture displayed topology for impact reports](0032-captured-topology-impact-reports.md)
+- [0033: Remove Menu and Settings](0033-remove-menu-and-settings.md)

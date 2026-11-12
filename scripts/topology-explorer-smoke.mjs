@@ -4,9 +4,10 @@ import path from 'node:path';
 import { checkCmdbTopologyNavigation } from './cmdb-topology-smoke.mjs';
 import { checkFilterPopupOpening } from './filter-popup-smoke.mjs';
 import { checkModelCiCmdb } from './cmdb-model-ci-smoke.mjs';
+import { checkTopologyImpactReport } from './topology-impact-report-smoke.mjs';
 
 /** Run against either compiled provider with the shared disposable sample evidence. */
-export async function checkTopologyExplorer(page, { date, historicalDate, artifacts, provider = 'json' }) {
+export async function checkTopologyExplorer(page, { date, historicalDate, artifacts, directory, provider = 'json' }) {
   const base = new URL(page.url()).origin;
   const sample = JSON.parse(fs.readFileSync(new URL('../data/current.json', import.meta.url), 'utf8'));
   const asset = sample.assets.find(row => row.networkId === 'net-1' && row.type === 'server' && row.systemContext && row.installedSoftware.length && row.vulnerabilities.length);
@@ -161,7 +162,7 @@ export async function checkTopologyExplorer(page, { date, historicalDate, artifa
   assert.equal(await page.$('[aria-label="Active topology filters"]'), null);
   await visit(`system=${asset.systemContext.systemId}&topologyCi=asset:${asset.id}&topologyMode=dependencies`, historicalDate);
   assert(await page.$('.topology-canvas')); assert.equal(new URL(page.url()).searchParams.get('system'), asset.systemContext.systemId);
-  // Modes preserve the selected CI, lookup, header scope and snapshot, with actual directed peer evidence.
+  // Modes preserve the selected CI, lookup, header scope and snapshot. Communication records must not affect paths.
   const byAsset = new Map(sample.assets.map(row => [row.id, row]));
   const externalFlow = sample.ciDependencies.find(row => row.dependencyType === 'Flow Dependency' && byAsset.has(row.sourceAssetId) && byAsset.has(row.targetAssetId) && byAsset.get(row.sourceAssetId).networkId !== byAsset.get(row.targetAssetId).networkId);
   assert(externalFlow, 'Sample includes a cross-network communication.');
@@ -176,7 +177,7 @@ export async function checkTopologyExplorer(page, { date, historicalDate, artifa
   assert(await page.$eval('[role=tab][id$="-dependencies"]', node => node === document.activeElement && node.getAttribute('aria-selected') === 'true'));
   assert.equal(new URL(page.url()).searchParams.get('topologyMode'), 'dependencies');
   assert.equal(new URL(page.url()).searchParams.get('topologyCi'), 'asset:' + origin.id);
-  assert.equal(await page.$eval('.topology-results header span', node => node.textContent), resultCount, 'External peers do not widen the lookup');
+  assert.equal(await page.$eval('.topology-results header span', node => node.textContent), resultCount, 'Changing modes retains the lookup');
   await page.focus('[data-topology-fullscreen]'); await page.keyboard.press('Enter'); await page.waitForSelector('dialog.topology-fullscreen[open]');
   await page.focus('[role=tab][id$="-dependencies"]'); await page.keyboard.press('Home');
   assert(await page.$('dialog.topology-fullscreen[open] [role=tab][id$="-business-impact"][aria-selected=true]'), 'Business Impact can be selected without leaving full screen');
@@ -184,61 +185,47 @@ export async function checkTopologyExplorer(page, { date, historicalDate, artifa
   await page.keyboard.press('End');
   assert(await page.$('dialog.topology-fullscreen[open] [role=tab][id$="-dependencies"][aria-selected=true]'), 'Dependencies can be restored within full screen');
   await page.keyboard.press('Escape'); await page.waitForSelector('dialog.topology-fullscreen[open]', { hidden: true });
-  const selector = '[data-topology-node="asset:' + peer.id + '"]';
-  assert(await page.$(selector + '[data-outside-scope=true]'));
-  assert(await page.$('[data-topology-node="network:' + peer.networkId + '"]'));
-  assert(await page.$('[data-topology-edge-kind=communication][data-source="asset:' + origin.id + '"]'));
-  assert(await page.$('[data-topology-edge-kind=communication][data-target="asset:' + origin.id + '"]'));
-  const direct = sample.ciDependencies.filter(row => row.dependencyType === 'Flow Dependency' && (row.sourceAssetId === origin.id || row.targetAssetId === origin.id) && byAsset.has(row.sourceAssetId) && byAsset.has(row.targetAssetId) && row.sourceAssetId !== row.targetAssetId && (!row.observedAt || Date.parse(row.observedAt) <= Date.parse(date + 'T23:59:59.999Z')));
-  const expectedPeers = [...new Set(direct.flatMap(row => ['asset:' + row.sourceAssetId, 'asset:' + row.targetAssetId]))].sort();
-  for (const id of expectedPeers) assert(await page.$('[data-topology-node="' + id + '"]'));
-  const expectedPairs = [...new Set(direct.map(row => JSON.stringify(['asset:' + row.sourceAssetId, 'asset:' + row.targetAssetId])))].sort();
-  assert.deepEqual(await page.$$eval('[data-topology-edge-kind=communication]', nodes => nodes.map(node => JSON.stringify([node.dataset.source, node.dataset.target])).sort()), expectedPairs, 'Only direct communications are expanded');
-  assert.match(await page.$eval('.topology-communication-summary', node => node.textContent), new RegExp(direct.length + ' communication observations'));
-  await page.click('.topology-communications > summary'); await page.waitForSelector('.topology-communications .endpoint-table');
-  for (const label of ['Source CI', 'Target CI', 'Protocol', 'Source port', 'Target port', 'Observation method', 'Observed at (UTC)']) assert((await page.$eval('.topology-communications', node => node.textContent)).includes(label));
+  assert.equal(await page.$('[data-topology-node="asset:' + peer.id + '"]'), null, 'Communication peers are excluded');
+  assert.equal(await page.$('[data-topology-edge-kind=communication]'), null);
+  assert.equal(await page.$('[data-topology-edge-kind=observation]'), null);
+  assert.deepEqual(await page.$$eval('[data-topology-node^="asset:"]', nodes => nodes.map(node => node.dataset.topologyNode)), ['asset:' + origin.id]);
+  await page.click('.topology-relationships > summary'); await page.waitForSelector('.topology-relationships .endpoint-table');
+  const evidence = await page.$eval('.topology-relationships', node => node.textContent);
+  for (const label of ['Source CI', 'Relationship', 'Target CI', 'Environment']) assert(evidence.includes(label));
+  for (const label of ['Protocol', 'Source port', 'Target port', 'Observation method']) assert(!evidence.includes(label));
   await page.reload({ waitUntil: 'networkidle0' }); await page.waitForSelector('.topology-canvas'); await page.waitForSelector('dialog.loading-modal[open]', { hidden: true });
   assert.equal(await page.$eval('.topology-explorer', node => node.dataset.topologyMode), 'dependencies');
   assert.equal(new URL(page.url()).searchParams.get('network'), origin.networkId); assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
   assert.equal(new URL(page.url()).searchParams.get('topology_name'), origin.hostname);
-  await page.focus('[role=tab][id$="-dependencies"]'); await page.keyboard.press('Home');
-  assert.equal(await page.$('[data-topology-edge-kind=communication]'), null);
-  assert.equal(await page.$$eval('[data-topology-node^="asset:"]', nodes => nodes.length), 1);
-  await page.keyboard.press('End');
-  await page.$eval(selector, node => node.focus()); await page.keyboard.press('Enter');
-  assert.match(await page.$eval('.topology-inspector', node => node.textContent), /Outside lookup scope/);
   await checkTopologyFullscreen(page, { artifacts });
-  await new Promise(resolve => setTimeout(resolve, 750)); // Finish the mode's 650ms graph layout tween before visual capture.
-  if (artifacts) { await page.$eval('.topology-main', node => node.scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(artifacts, 'topology-' + provider + '-dependencies.png') }); }
-  const scopeLink = '.topology-inspector-actions a.endpoint-export';
-  assert(await page.$(scopeLink), 'External peer scope is a native document link');
-  await page.focus(scopeLink);
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 120000 }), page.keyboard.press('Enter')]);
-  await page.waitForSelector('.topology-canvas');
-  assert.equal(new URL(page.url()).searchParams.get('network'), peer.networkId); assert.equal(new URL(page.url()).searchParams.get('topologyCi'), 'asset:' + peer.id);
-  assert.equal(new URL(page.url()).searchParams.get('topologyMode'), 'dependencies');
+  // All five root categories use the same recorded relationships; ancestors do not expand siblings.
+  const system = sample.ictSystems.find(row => row.id === asset.systemContext.systemId);
+  const members = [...new Set([...system.environments.flatMap(row => row.assetIds), ...sample.assets.filter(row => row.systemContext?.systemId === system.id).map(row => row.id)])].sort();
+  for (const root of ['system:' + system.id, 'business:' + system.businessServices[0].id, 'mission:' + system.missionCapabilities[0].id]) {
+    await visit('system=' + system.id + '&topologyCi=' + root + '&topologyMode=dependencies');
+    assert.deepEqual(await page.$$eval('[data-topology-node^="asset:"]', nodes => nodes.map(node => node.dataset.topologyNode.slice(6)).sort()), members);
+    assert.match(await page.$eval('.impact-graph-summary', node => node.textContent), new RegExp(members.length + ' member endpoints in scope'));
+    assert.equal(await page.$('[data-topology-edge-kind=communication]'), null);
+    assert.equal(await page.$('[data-topology-edge-kind=observation]'), null);
+    await page.focus('[role=tab][id$="-dependencies"]'); await page.keyboard.press('Home');
+    assert.equal(await page.$$eval('[data-topology-node^="asset:"]', nodes => nodes.length), 0, 'Business Impact keeps the higher-level view');
+  }
+  await visit('system=' + system.id + '&topologyCi=system:' + system.id + '&topologyMode=dependencies');
+  await page.$eval('[data-topology-node="asset:' + asset.id + '"]', node => node.focus()); await page.keyboard.press('Enter');
+  await page.focus('.topology-inspector-actions button.endpoint-export'); await page.keyboard.press('Enter');
+  assert.equal(new URL(page.url()).searchParams.get('topologyCi'), 'asset:' + asset.id);
+  assert.equal(new URL(page.url()).searchParams.get('system'), system.id);
   assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
-  assert.equal(new URL(page.url()).searchParams.has('topology_name'), false);
-  // The external peer's CMDB action must also open the correct network, retaining mode/date.
-  await visit(rootQuery + '&topologyMode=dependencies'); await page.$eval(selector, node => node.focus()); await page.keyboard.press('Enter');
-  await page.click('[data-cmdb-asset-id="' + peer.id + '"]');
-  await page.waitForSelector('[data-cmdb-drill-through][data-load-state=ready]');
-  await page.waitForFunction(() => document.querySelector('[data-cmdb-drill-through]')?.getBoundingClientRect().left >= -0.5);
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 120000 }), page.click('[data-cmdb-explore-topology]')]);
-  await page.waitForSelector('.topology-canvas');
-  assert.equal(new URL(page.url()).searchParams.get('network'), peer.networkId); assert.equal(new URL(page.url()).searchParams.get('topologyCi'), 'asset:' + peer.id);
-  assert.equal(new URL(page.url()).searchParams.get('topologyMode'), 'dependencies'); assert.equal(new URL(page.url()).searchParams.get('dataDate'), date);
-  await visit('system=' + asset.systemContext.systemId + '&topologyCi=system:' + asset.systemContext.systemId + '&topologyMode=dependencies');
-  assert.match(await page.$eval('.topology-communication-summary', node => node.textContent), /member endpoints/);
-  assert(await page.$('[data-topology-edge-kind=communication]'));
-  const noFlow = sample.assets.find(row => row.networkId === 'net-1' && !sample.ciDependencies.some(edge => edge.sourceAssetId === row.id || edge.targetAssetId === row.id));
-  await visit('network=net-1&topologyCi=asset:' + noFlow.id + '&topologyMode=dependencies');
-  assert.match(await page.$eval('.topology-main', node => node.textContent), /No recorded communication/); assert(await page.$('.topology-canvas'));
+  await visit('network=net-1&topologyCi=network:net-1&topologyMode=dependencies');
+  assert.deepEqual(await page.$$eval('[data-topology-node^="asset:"]', nodes => nodes.map(node => node.dataset.topologyNode.slice(6)).sort()), sample.assets.filter(row => row.networkId === 'net-1').map(row => row.id).sort());
+  await visit('system=' + system.id + '&topologyCi=system:' + system.id + '&topologyMode=dependencies');
+  await new Promise(resolve => setTimeout(resolve, 750));
+  if (artifacts) { await page.$eval('.topology-main', node => node.scrollIntoView({ block: 'start' })); await page.screenshot({ path: path.join(artifacts, 'topology-' + provider + '-dependencies.png') }); }
   await visit('network=net-1&securityDomain=NONE&topologyCi=asset:missing');
   assert.match(await page.$eval('.topology-results', node => node.textContent), /No CIs in this scope/); assert.equal(await page.$('.topology-canvas'), null);
   await visit('network=net-unassigned');
   assert.equal(await page.$$eval('[data-topology-result]', nodes => nodes.length), 0, 'Unassigned scope never widens to all model CIs.');
-  await visit(`network=net-1&topologyCi=asset:${asset.id}&topology_name=${encodeURIComponent(asset.hostname)}`);
+  await visit(`network=net-1&topologyCi=asset:${asset.id}&topologyMode=dependencies&topology_name=${encodeURIComponent(asset.hostname)}`);
   await page.setViewport({ width: 390, height: 844 });
   if (await page.$('[aria-label="Hide sidebar"]')) await page.click('[aria-label="Hide sidebar"]');
   await page.waitForFunction(() => document.querySelector('.workspace-sidebar')?.getBoundingClientRect().width < 50);
@@ -262,8 +249,9 @@ export async function checkTopologyExplorer(page, { date, historicalDate, artifa
   await page.goto(base + '/discovery-coverage?discoveryView=topology', { waitUntil: 'networkidle0' }); assert.equal(await page.$('.topology-explorer'), null);
   await page.setViewport({ width: 1600, height: 1000 });
   await checkModelCiCmdb(page, { date, historicalDate, artifacts });
-  console.log('Topology Explorer browser checks passed: both modes, directed/external peers and context, lookup fields, layouts, keyboard, bookmarks, peer/CMDB scope navigation, history, empty and mobile states.');
+  console.log('Topology Explorer browser checks passed: both modes, recorded model relationships and member CIs, lookup fields, layouts, keyboard, bookmarks, CMDB navigation, history, empty and mobile states.');
   await checkCmdbTopologyNavigation(page, { date, historicalDate, artifacts });
+  await checkTopologyImpactReport(page, { date, historicalDate, artifacts, directory, provider });
 }
 
 /** Real wheel input must zoom without scrolling or changing topology state. */

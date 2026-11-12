@@ -2,6 +2,8 @@
 
 Requested 2026-11-11. This records the removal boundary, selected checks and coordinated deployment procedure.
 
+Follow-up, 2026-11-12: Menu and the remaining Settings viewers are now retired under [ADR 0033](adr/0033-remove-menu-and-settings.md). Persona selection is in the header. Discovery rules and persona revisions remain shared runtime data; this UI removal needs no further SQL/JSON upgrade and does not alter the earlier migration or validation history below.
+
 ## Approved scope
 
 Retire Governance Trends, Cyber Terrain Insights and Discovery Insights; all Cyber Security views (including ICT System Impact Analyser); Discovery Tool Coverage, Discovery Compliance Explorer, Patch Management Explorer and Life Cycle Management; all Observed Measures/KPI/SPI views; Findings Register; Briefs & Reports; and SPI risk/priority Settings. Remove the Cyber Security, Observed Measures and Findings sidebar sections.

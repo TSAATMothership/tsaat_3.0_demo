@@ -9,6 +9,7 @@ import {
   ROUTE_LOADING_COMPLETE_EVENT,
   ROUTE_LOADING_START_EVENT,
   cancelRouteNavigation,
+  shouldShowRouteLoading,
   type RouteLoadingStartDetail
 } from "@/lib/route-loading";
 
@@ -104,6 +105,7 @@ export function FilterLoadingOverlay() {
 
   const startOverlay = useCallback(
     (options: StartOverlayOptions = {}) => {
+      if (!shouldShowRouteLoading(options.targetLocationKey)) return;
       clearTimers();
       setIsLoading(true);
       setProgress(DEFAULT_LOADING_INITIAL_PROGRESS);
@@ -196,6 +198,13 @@ export function FilterLoadingOverlay() {
 
   useEffect(() => {
     if (!isLoading || isCancelling || !startLocationKeyRef.current) {
+      return;
+    }
+
+    // Back/Forward can leave a pending scoped request for an unscoped page.
+    // Do not confuse that with the unscoped source of a new data navigation.
+    if (currentLocationKey !== startLocationKeyRef.current && !shouldShowRouteLoading(currentLocationKey)) {
+      closeOverlay();
       return;
     }
 

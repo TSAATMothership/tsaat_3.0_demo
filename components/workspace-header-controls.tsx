@@ -1,18 +1,15 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useTransition } from "react";
 import { WorkspaceFilters } from "@/components/workspace-filters";
 import { normalizeDataDate, todayDateKey } from "@/lib/data-date";
 import { startRouteLoading } from "@/lib/route-loading";
-import { SettingsPopup } from "@/components/settings-popup";
 
-export function MenuNavigation() {
+export function WorkspaceHeaderControls() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const menuSummaryRef = useRef<HTMLElement>(null);
   const [pending, startTransition] = useTransition();
   const selectedDataDate = normalizeDataDate(searchParams?.get("dataDate")) ?? todayDateKey();
   return <div className="workspace-header-controls">
@@ -27,16 +24,5 @@ export function MenuNavigation() {
         startTransition(() => router.replace(href, { scroll: false }));
       }} />
     </label>
-    <details className="workspace-header-menu">
-      <summary ref={menuSummaryRef}>Menu</summary>
-      <nav aria-label="Main menu"><button type="button" aria-haspopup="dialog" onClick={(event) => {
-        event.currentTarget.closest("details")?.removeAttribute("open");
-        setIsSettingsOpen(true);
-      }}>Settings</button></nav>
-    </details>
-    {isSettingsOpen && <SettingsPopup onClose={() => {
-      setIsSettingsOpen(false);
-      window.requestAnimationFrame(() => menuSummaryRef.current?.focus());
-    }} />}
   </div>;
 }

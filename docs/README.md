@@ -8,9 +8,10 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Product behavior and acceptance contracts | [Solution design index](../Requirements%20Documentation/TSAAT-Solution-Design-Index.md) |
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
 | Software dashboard and Governance briefing | [Installed Software Insights](../Requirements%20Documentation/18-Installed-Software-Insights.md) |
-| CI lookup, Business Impact and communication Dependencies | [Topology Explorer](../Requirements%20Documentation/20-Topology-Explorer.md) |
+| CI lookup, Business Impact and model Dependencies | [Topology Explorer](../Requirements%20Documentation/20-Topology-Explorer.md) |
+| All matching CIs and executive/analyst impact PDFs | [Topology Impact Report](topology-impact-report.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
-| Persona selection, sidebar visibility and settings upgrades | [Personas](personas.md) |
+| Header persona selection, sidebar visibility and stored revisions | [Personas](personas.md) |
 | Endpoint identity gaps, freshness and coverage context | [End Point Insights](../Requirements%20Documentation/22-End-Point-Insights.md) |
 | Vulnerability observations, missing evidence and discovery coverage | [Security Vulnerability Insights](../Requirements%20Documentation/23-Security-Vulnerability-Insights.md) |
 | Endpoint and vulnerability briefing PDF exports | [Inventory Insights reports](inventory-insights-reports.md) |

@@ -129,7 +129,7 @@ Publish TSAAT-compatible logical datasets, not a single many-to-many flat table.
 | --- | --- |
 | Snapshot manifest | One completed evidence revision: snapshot ID/date, generation time, batch, contract/reference versions and required dataset partitions. |
 | Configuration items | One typed CI per snapshot: stable ID, name, addresses, OS, ownership, lifecycle, discovery evidence and independent security domain. |
-| Business context | Networks, ICT systems, Business Services and Mission Capabilities as typed CIs; explicit memberships and hierarchy edges. |
+| Business context | Networks, ICT systems, Business Services and Mission Services as typed CIs; explicit memberships and hierarchy edges. |
 | Software installations | Individual installation observation with CI/snapshot key, product/version, path, source and observed dates. Preserve legitimate repetition. |
 | Vulnerability evidence | Individual CVE observation and affected CI/software associations, severity, detection dates, source and remediation metadata. |
 | Patch evidence | Installation, restart and verification observations with maintenance context; absence of evidence is not success. |
@@ -243,8 +243,8 @@ The extension should occupy the main dashboard workspace and retain the current 
 | Governance Insights | Reuse the existing narrative models, completeness rules and chart components; preserve links to filtered Explorer evidence. |
 | Measures Summary and Trends | Match KPI/SPI results and denominators across supported date windows, including explicit missing history. |
 | Business Impact topology | Preserve model upstream/downstream paths, typed CIs, node details and CMDB drill-through. |
-| Dependencies topology | Include direct communication peers outside selected network/system and their permitted business context; apply data security independently to every node/edge. |
-| CMDB slide-out panels | Load typed attribute mappings and values for endpoints, networks, ICT systems, Business Services and Mission Capabilities. |
+| Dependencies topology | Preserve recorded network/system/service/capability relationships and member CIs within selected scope/date/domains, including environment evidence; exclude CI-to-CI communication and ARP observations. See [ADR 0031](adr/0031-topology-model-dependencies.md). |
+| CMDB slide-out panels | Load typed attribute mappings and values for endpoints, networks, ICT systems, Business Services and Mission Services. |
 | Findings and reports | Preserve raw versus effective classification, scope-relative history, evidence links and report filtering semantics. |
 
 ### Browser adaptation

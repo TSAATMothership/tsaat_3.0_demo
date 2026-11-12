@@ -44,112 +44,83 @@ function dependencyFixture(): Dataset {
     return data;
 }
 describe("Topology graph modes", () => {
-    it("defaults old and invalid bookmarks to Business Impact", () => {
-        for (const value of [undefined, null, "", "upstream", "unexpected"])
-            expect(parseTopologyMode(value)).toBe("business-impact");
+    it("retains mode bookmark compatibility", () => {
+        for (const value of [undefined, null, "", "upstream", "unexpected"]) expect(parseTopologyMode(value)).toBe("business-impact");
         expect(parseTopologyMode("dependencies")).toBe("dependencies");
     });
-    it("adds model ancestors and descendants without spreading through an ancestor to siblings", () => {
-        const data = topologyFixture();
-        data.ictSystems[0].childSystemIds = ["s2"];
-        data.ictSystems.push(system("unrelated"));
-        const graph = traceTopology(buildTopologyExplorer(data, scope), "system:s1");
-        for (const id of ["network:n1", "system:s2", "business:bs-s1", "business:bs-s2", "mission:mc-s2"])
-            expect(ids(graph)).toContain(id);
-        expect(ids(graph)).not.toContain("system:unrelated");
-        expect(ids(graph)).not.toContain("business:bs-unrelated");
-        expect(graph.nodes.some(node => node.kind === "asset")).toBe(false);
+    it("shows endpoint model ancestors without communication peers or siblings", () => {
+        const graph = traceTopology(buildTopologyExplorer(dependencyFixture(), scope), "asset:a", "dependencies");
+        expect(ids(graph)).toEqual(["asset:a", "business:bs-s1", "business:bs-s2", "mission:mc-s1", "mission:mc-s2", "network:n1", "system:s1", "system:s2"]);
+        expect(graph.edges.every(edge => !edge.source.startsWith("asset:"))).toBe(true);
+        expect(graph.edges.some(edge => edge.source.startsWith("mission:") && edge.target.startsWith("business:"))).toBe(false);
     });
-    it("keeps business paths free of communication and peer endpoints", () => {
-        const graph = traceTopology(buildTopologyExplorer(dependencyFixture(), scope), "asset:a");
-        expect(graph.communicationCount).toBe(0);
-        expect(graph.edges.some(edge => edge.kind === "communication")).toBe(false);
-        expect(ids(graph)).not.toContain("asset:b");
-        expect(ids(graph)).not.toContain("asset:c");
-    });
-    it("includes direct incoming/outgoing peers and their context, without a second communication hop", () => {
-        const graph = traceTopology(buildTopologyExplorer(dependencyFixture(), { ...scope, securityDomain: "PROTECTED" }), "asset:a", "dependencies");
-        expect(graph.communicationCount).toBe(3);
-        expect(graph.peerCount).toBe(2);
-        expect(graph.edges.filter(edge => edge.kind === "communication").map(edge => [edge.source, edge.target])).toEqual([["asset:a", "asset:b"], ["asset:a", "asset:outside"], ["asset:b", "asset:a"]]);
-        for (const id of ["asset:b", "system:s2", "business:bs-s2", "mission:mc-s2", "network:n1"])
-            expect(ids(graph)).toContain(id);
-        expect(ids(graph)).toContain("asset:outside");
-        expect(ids(graph)).toContain("network:n2");
-        for (const id of ["asset:c", "asset:secret"])
-            expect(ids(graph)).not.toContain(id);
-    });
-    it.each(["system:s1", "business:bs-s1", "mission:mc-s1"])("rolls up member endpoint communication for %s", root => {
-        const graph = traceTopology(buildTopologyExplorer(dependencyFixture(), { ...scope, securityDomain: "PROTECTED" }), root, "dependencies");
+    it.each(["system:s1", "business:bs-s1", "mission:mc-s1"])("expands recorded member endpoints of %s, then ancestors without sibling expansion", root => {
+        const graph = traceTopology(buildTopologyExplorer(dependencyFixture(), scope), root, "dependencies");
         expect(graph.memberCount).toBe(2);
-        expect(graph.communicationCount).toBe(4);
-        expect(graph.peerCount).toBe(2);
-        expect(ids(graph)).toContain("asset:b");
-        expect(ids(graph)).toContain("business:bs-s2");
+        expect(graph.nodes.filter(node => node.kind === "asset").map(node => node.id).sort()).toEqual(["asset:a", "asset:c"]);
+        for (const id of ["network:n1", "system:s2", "business:bs-s2", "mission:mc-s2"]) expect(ids(graph)).toContain(id);
+        expect(traceTopology(buildTopologyExplorer(dependencyFixture(), scope), root).nodes.some(node => node.kind === "asset")).toBe(false);
     });
-    it("shows communication between members when viewing a network", () => {
+    it("includes network CIs even when no system membership is recorded", () => {
         const graph = traceTopology(buildTopologyExplorer(dependencyFixture(), { ...scope, securityDomain: "PROTECTED" }), "network:n1", "dependencies");
-        expect(graph.communicationCount).toBe(4);
-        expect(graph.peerCount).toBe(1);
+        expect(graph.memberCount).toBe(3);
+        expect(graph.nodes.filter(node => node.kind === "asset").map(node => node.id).sort()).toEqual(["asset:a", "asset:b", "asset:c"]);
+        expect(ids(graph)).not.toContain("asset:outside");
     });
-    it("groups parallel observations but retains direction, ports, timestamps and provenance", () => {
+    it("ignores both types of CI dependency without altering stored records", () => {
         const data = dependencyFixture();
-        data.ciDependencies!.push({ ...data.ciDependencies![0] }, { ...data.ciDependencies![0], id: "other-port", targetPort: 8443 });
-        const graph = traceTopology(buildTopologyExplorer(data, { ...scope, securityDomain: "PROTECTED" }), "asset:a", "dependencies");
-        expect(graph.communicationCount).toBe(4);
-        const out = graph.edges.find(edge => edge.kind === "communication" && edge.source === "asset:a")!;
-        expect(out.observations).toHaveLength(2);
-        expect(out.observations?.map(row => row.targetPort).sort()).toEqual([443, 8443]);
-        expect(out.observations?.find(row => row.id === "out")).toMatchObject({ sourcePort: 51000, protocol: "TCP", observationMethod: "Flow collector", observedAt: "2026-11-06T12:00:00.000Z" });
-    });
-    it("excludes logical, future, unresolved and self records without fabricating ARP communication", () => {
-        const data = dependencyFixture();
-        data.ciDependencies = [
-            { ...data.ciDependencies![0], dependencyType: "Logical Dependency" },
-            { ...data.ciDependencies![0], id: "future", observedAt: "2026-11-08T00:00:00Z" },
-            { ...data.ciDependencies![0], id: "missing", targetAssetId: "missing" },
-            { ...data.ciDependencies![0], id: "self", targetAssetId: "a" }
-        ];
-        const model = buildTopologyExplorer(data, scope), graph = traceTopology(model, "asset:arp", "dependencies");
-        expect(graph.communicationCount).toBe(0);
-        expect(graph.edges.some(edge => edge.kind === "observation")).toBe(true);
-        expect(model.edges.some(edge => edge.kind === "communication")).toBe(false);
-    });
-    it("retains unavailable evidence as unknown and handles missing dependency collections", () => {
-        const data = dependencyFixture();
-        data.ciDependencies = [{ ...data.ciDependencies![0], observedAt: undefined, protocol: " ", observationMethod: undefined, sourcePort: undefined, targetPort: undefined }];
+        data.ciDependencies!.push({ id: "logical", sourceAssetId: "a", targetAssetId: "outside", dependencyType: "Logical Dependency" });
+        const before = JSON.stringify(data);
         const model = buildTopologyExplorer(data, scope);
-        expect(model.edges.find(edge => edge.kind === "communication")?.observations?.[0]).toMatchObject({ observedAt: null, protocol: null, observationMethod: null, sourcePort: null, targetPort: null });
-        delete data.ciDependencies;
-        expect(traceTopology(buildTopologyExplorer(data, scope), "asset:a", "dependencies").communicationCount).toBe(0);
+        expect(JSON.stringify(data)).toBe(before);
+        const without = { ...data, ciDependencies: undefined };
+        expect(model).toEqual(buildTopologyExplorer(without, scope));
+        expect(model.edges.every(edge => ["membership", "association", "hosting", "hierarchy", "observation"].includes(edge.kind))).toBe(true);
     });
-    it("keeps lookup and member roots scoped while permitting direct peers across systems and networks", () => {
-        const data = dependencyFixture();
-        const model = buildTopologyExplorer(data, { system: "s1", securityDomain: "PROTECTED" });
-        expect(ids(model)).not.toContain("asset:b");
-        expect(ids(model)).not.toContain("asset:outside");
-        const trace = traceTopology(model, "system:s1", "dependencies");
-        expect(trace.communicationCount).toBe(4);
-        expect(ids(trace)).toContain("asset:b");
-        expect(ids(trace)).toContain("asset:outside");
-        expect(JSON.stringify(model)).not.toContain('"asset:secret"');
-        expect(buildTopologyExplorer(data, { ...scope, securityDomain: "NONE" }).edges).toEqual([]);
+    it("excludes ARP observations from Dependencies without fabricating system membership", () => {
+        const model = buildTopologyExplorer(topologyFixture(), { system: "s1" });
+        const graph = traceTopology(model, "asset:arp", "dependencies");
+        expect(ids(graph)).toEqual(["asset:arp", "network:n1"]);
+        expect(graph.edges.map(edge => edge.kind)).toEqual(["membership"]);
+        expect(ids(traceTopology(model, "system:s1", "dependencies"))).not.toContain("asset:arp");
+        expect(traceTopology(model, "asset:arp").edges.some(edge => edge.kind === "observation")).toBe(true);
     });
-    it("retains external peer business context without leaking domain-filtered models or taking another hop", () => {
+    it("keeps system, network and independent security-domain restrictions", () => {
         const data = dependencyFixture();
-        data.assets.find(asset => asset.id === "outside")!.systemContext = { systemId: "s3", environmentType: "Production" };
-        data.assets.push(server("second-hop", { networkId: "n2" }));
-        data.ciDependencies!.push({ id: "external-second-hop", sourceAssetId: "outside", targetAssetId: "second-hop", dependencyType: "Flow Dependency" });
-        const graph = traceTopology(buildTopologyExplorer(data, { ...scope, securityDomain: "PROTECTED" }), "asset:a", "dependencies");
-        for (const id of ["system:s3", "business:bs-s3", "mission:mc-s3", "network:n2"])
-            expect(ids(graph)).toContain(id);
-        expect(ids(graph)).not.toContain("asset:second-hop");
-        expect(graph.nodes.find(node => node.id === "asset:outside")?.scope).toEqual({ network: "n2" });
-        data.ictSystems.find(system => system.id === "s3")!.securityDomain = "SECRET";
-        const restricted = traceTopology(buildTopologyExplorer(data, { ...scope, securityDomain: "PROTECTED" }), "asset:a", "dependencies");
-        expect(ids(restricted)).toContain("asset:outside");
-        expect(ids(restricted)).not.toContain("system:s3");
-        expect(ids(restricted)).not.toContain("business:bs-s3");
+        data.ictSystems[1].securityDomain = "SECRET";
+        const graph = traceTopology(buildTopologyExplorer(data, { system: "s1", securityDomain: "PROTECTED" }), "system:s1", "dependencies");
+        expect(graph.memberCount).toBe(2);
+        for (const id of ["system:s2", "business:bs-s2", "mission:mc-s2", "asset:b", "asset:outside", "asset:secret"]) expect(ids(graph)).not.toContain(id);
+        expect(buildTopologyExplorer(data, { ...scope, securityDomain: "NONE" }).nodes).toEqual([]);
+    });
+    it("retains every environment type per system membership and deduplicates overlapping context", () => {
+        const data = topologyFixture();
+        data.ictSystems[0].environments = [
+            { id: "prod", name: "Live", type: "Production", assetIds: ["a", "a"] },
+            { id: "test", name: "Test", type: "Test", assetIds: ["a"] }
+        ];
+        const graph = traceTopology(buildTopologyExplorer(data, scope), "asset:a", "dependencies");
+        const memberships = graph.edges.filter(edge => edge.target === "asset:a" && edge.source === "system:s1");
+        expect(memberships).toHaveLength(1);
+        expect(memberships[0].environments).toEqual(["Production", "Test"]);
+        expect(graph.edges.find(edge => edge.source === "system:s2" && edge.target === "asset:a")?.environments).toEqual(["Production"]);
+        expect(graph.edges.find(edge => edge.source === "network:n1" && edge.target === "asset:a")?.environments).toBeUndefined();
+    });
+    it("expands explicit hierarchy safely through cycles and duplicate declarations", () => {
+        const data = topologyFixture();
+        data.ictSystems[0].childSystemIds = ["s2", "s2"];
+        data.ictSystems[1].parentSystemId = "s1";
+        data.ictSystems[1].childSystemIds = ["s1"];
+        const graph = traceTopology(buildTopologyExplorer(data, scope), "system:s1", "dependencies");
+        expect(graph.memberCount).toBe(2);
+        expect(new Set(graph.edges.map(edge => edge.id)).size).toBe(graph.edges.length);
+        expect(ids(graph)).toContain("asset:b");
+    });
+    it("leaves missing membership unknown and unavailable roots empty", () => {
+        const model = buildTopologyExplorer(topologyFixture(), { network: "orphan" });
+        expect(ids(traceTopology(model, "asset:alone", "dependencies"))).toEqual(["asset:alone"]);
+        expect(traceTopology(model, "asset:alone", "dependencies").edges).toEqual([]);
+        expect(traceTopology(model, "missing", "dependencies").nodes).toEqual([]);
     });
 });
 describe("Topology lookup and recorded paths", () => {

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { WORKSPACE_GROUPS, WORKSPACE_LINKS, activeWorkspaceItem, isWorkspaceItemVisible, workspaceHref, type WorkspaceItem } from "@/lib/workspace-navigation";
+import { WORKSPACE_GROUPS, WORKSPACE_LINKS, activeWorkspaceItem, hasWorkspaceScope, isWorkspaceItemVisible, workspaceHref, type WorkspaceItem } from "@/lib/workspace-navigation";
 import { locationKeyForHref, startRouteLoading } from "@/lib/route-loading";
 import { usePersona } from "@/components/persona-provider";
 import { PERSONA_PAGES, personaShowsPage, personaShowsSection } from "@/lib/personas";
+import { WorkspaceScopeNotice } from "@/components/workspace-scope-notice";
 
 export function WorkspaceShell({ children }: { children: ReactNode }) {
   const { activePersona, settings, error, loading } = usePersona();
@@ -18,6 +19,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const params = new URLSearchParams(useSearchParams()?.toString());
   const active = activeWorkspaceItem(pathname, params);
+  const hasScope = hasWorkspaceScope({ network: params.getAll("network"), system: params.getAll("system") });
   const renderLink = (item: WorkspaceItem) => (
     <Link key={item.href} href={workspaceHref(item.href, params)} prefetch={false}
       aria-current={active?.href === item.href ? "page" : undefined}
@@ -26,7 +28,11 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         event.preventDefault();
         const href = workspaceHref(item.href, params);
         const sourceHref = window.location.pathname + window.location.search + window.location.hash;
-        if (locationKeyForHref(href) === locationKeyForHref(sourceHref)) return;
+        if (!hasScope && window.matchMedia("(max-width: 760px)").matches) setCollapsed(true);
+        if (locationKeyForHref(href) === locationKeyForHref(sourceHref)) {
+          if (!hasScope) document.getElementById("workspace-scope-title")?.focus();
+          return;
+        }
         startRouteLoading({ href, message: `Opening ${item.label}...`, cancelHref: sourceHref });
         router.push(href, { scroll: false });
       }}
@@ -49,8 +55,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         </div>
         <nav id="workspace-navigation" className="workspace-navigation" aria-label="Views" hidden={collapsed}>
           {loading && !settings && <p role="status" className="px-3 py-2 text-xs text-slate-400">Loading personas...</p>}
-          {error && <p role="status" className="px-3 py-2 text-xs text-amber-200">{settings ? "Using previously loaded persona settings." : "Showing all sections; personas are unavailable."} Open Menu → Settings → Personas to retry.</p>}
-          {noSections && <p role="status" className="px-3 py-4 text-sm text-slate-300">No sections are enabled for this persona. Open Menu → Settings → Personas to choose another persona or All sections.</p>}
+          {error && <p role="status" className="px-3 py-2 text-xs text-amber-200">Retry loading personas button in the header.</p>}
+          {noSections && <p role="status" className="px-3 py-4 text-sm text-slate-300">No sections are enabled for this persona. Choose another Persona or All sections in the header.</p>}
           {WORKSPACE_GROUPS.map((group, index) => {
             if (!showSection(group.id)) return null;
             const visibleItems = group.items.filter(item => (!settings || personaShowsPage(settings, activePersona, item.id)) && isWorkspaceItemVisible(item, params, active?.href));
@@ -72,6 +78,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       </aside>
       <main id="workspace" className="workspace-content" aria-label="Workspace">
         {children}
+        {active && !hasScope && <WorkspaceScopeNotice viewLabel={active.label} />}
       </main>
     </div>
   );
