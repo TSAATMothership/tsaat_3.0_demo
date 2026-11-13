@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-13 - Focused inventory reads and flexible build tooling
+
+- Software report labels use a small metadata read. CMDB reads the selected endpoint, and Topology reads scoped endpoint evidence; neither detail path evaluates unrelated discovery coverage or reads unused CI communication records. SQL and JSON retain the same historical results.
+- Bounded cache payloads and concurrent SQL requests, added query/process deadlines and optional payload diagnostics, and fixed pending-read cache invalidation.
+- Accepted stable Node 24.13.1+ and npm 11.8.0+; direct library declarations now allow compatible newer releases while offline installations retain their exact reviewed lockfile and archives.
+
+
+## 2026-11-13 - Remove Installed Software Dashboard
+
+- Removed the hidden Dashboard component, exclusive styles and active navigation/persona page entry. Old Dashboard bookmarks now show the standard retirement notice with a scope/date-preserving return link.
+- Retained Governance Installed Software Insights, its PDF export and Installed Software Explorer. Existing SQL/JSON persona values remain readable as inactive compatibility data, without rewriting preferences or granting replacement pages.
+
 ## 2026-11-12 - Persona recovery wording
 
 - Removed the persona-loading error paragraph from the header while keeping Retry loading personas available. The sidebar now says: "Retry loading personas button in the header."

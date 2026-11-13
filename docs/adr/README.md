@@ -48,3 +48,4 @@ Use a numbered Markdown ADR for changes to data ownership, platform, interfaces,
 - [0031: Dependencies shows recorded model relationships](0031-topology-model-dependencies.md)
 - [0032: Capture displayed topology for impact reports](0032-captured-topology-impact-reports.md)
 - [0033: Remove Menu and Settings](0033-remove-menu-and-settings.md)
+- [0034: Focused reads and toolchain version floors](0034-focused-reads-and-toolchain-floors.md)

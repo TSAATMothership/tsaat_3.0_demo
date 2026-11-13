@@ -51,7 +51,6 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   ] },
   { id: "discovery", label: "Discovery", items: [
     { id: "discovery-endpoints", label: "End Point Explorer", href: "/discovery-coverage?discoveryView=endpoints" },
-    { id: "discovery-software-insights", label: "Installed Software Dashboard", href: "/discovery-coverage?discoveryView=installed-software-insights", sidebar: false },
     { id: "discovery-software", label: "Installed Software Explorer", href: "/discovery-coverage?discoveryView=installed-software" },
     { id: "discovery-vulnerabilities", label: "Security Vulnerability Explorer", href: "/discovery-coverage?discoveryView=security-vulnerabilities" },
     { id: "discovery-shadow-it", label: "Shadow IT Explorer", href: "/discovery-coverage?discoveryView=shadow-it" },

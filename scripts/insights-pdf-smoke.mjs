@@ -13,15 +13,23 @@ export async function checkInsightsPdfDownload(page, { date, directory, snapshot
   assert.equal(new URL(href, page.url()).searchParams.get('dataDate'), date);
   const client = await page.createCDPSession();
   await client.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: directory });
-  let fail = exerciseRetry, attempts = 0;
-  const intercept = async request => {
-    if (new URL(request.url()).pathname !== route) return request.continue();
-    attempts++;
-    if (fail) return request.respond({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Temporary failure' }) });
-    await new Promise(resolve => setTimeout(resolve, 350));
-    return request.continue();
+  let fail = exerciseRetry, attempts = 0, closing = false;
+  const interceptionErrors = [];
+  const intercept = async ({ requestId, request }) => {
+    try {
+      if (new URL(request.url).pathname !== route) return await client.send('Fetch.continueRequest', { requestId });
+      attempts++;
+      if (fail) return await client.send('Fetch.fulfillRequest', { requestId, responseCode: 503,
+        responseHeaders: [{ name: 'content-type', value: 'application/json' }],
+        body: Buffer.from(JSON.stringify({ error: 'Temporary failure' })).toString('base64') });
+      await new Promise(resolve => setTimeout(resolve, 350));
+      if (!closing) await client.send('Fetch.continueRequest', { requestId });
+    } catch (error) { if (!closing) interceptionErrors.push(String(error)); }
   };
-  await page.setRequestInterception(true); page.on('request', intercept);
+  // Intercept only the evidence endpoint. Global page interception can also pause
+  // worker artwork fetches, which are unrelated to the retry/duplicate test.
+  client.on('Fetch.requestPaused', intercept);
+  await client.send('Fetch.enable', { patterns: [{ urlPattern: '*' + route + '*', requestStage: 'Request' }] });
   const expectedFile = path.join(directory, `${filenamePrefix}-${date}.pdf`);
   if (fs.existsSync(expectedFile)) fs.unlinkSync(expectedFile);
   try {
@@ -51,7 +59,7 @@ export async function checkInsightsPdfDownload(page, { date, directory, snapshot
       await page.waitForFunction(() => !document.querySelector('[data-insights-report]').disabled && !document.querySelector('.document-generation-dialog[open]'), { timeout: 60000 });
     } catch (error) {
       const state = await page.evaluate(() => document.querySelector('.document-generation-dialog')?.textContent ?? 'No document dialog');
-      throw new Error(`PDF generation did not finish: ${state}`, { cause: error });
+      throw new Error(`PDF generation did not finish: ${state}; interception errors: ${JSON.stringify(interceptionErrors)}`, { cause: error });
     }
     const deadline = Date.now() + 60000;
     while (!fs.existsSync(expectedFile) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
@@ -62,11 +70,12 @@ export async function checkInsightsPdfDownload(page, { date, directory, snapshot
     if (snapshotSubject) assert(doc.getSubject().includes('Snapshot ' + date));
     if (snapshotTimestamp) assert(doc.getSubject().includes(new Date(snapshotTimestamp).toISOString().replace('T', ' ').replace('Z', ' UTC')));
     assert.equal(attempts, exerciseRetry ? 2 : 1, 'Busy activation does not duplicate the request');
+    assert.deepEqual(interceptionErrors, [], 'Report API interception completed without protocol errors');
     assert.equal(await page.$('.document-generation-dialog [role="alert"]'), null);
     await page.waitForFunction(() => document.activeElement === document.querySelector('[data-insights-report]'));
     if (snapshotAttribute) assert.equal(await page.$eval(root, (node, key) => node.dataset[key], snapshotAttribute), date);
     return { file: expectedFile, pages: doc.getPageCount() };
   } finally {
-    page.off('request', intercept); await page.setRequestInterception(false); await client.detach();
+    closing = true; client.off('Fetch.requestPaused', intercept); await client.send('Fetch.disable'); await client.detach();
   }
 }

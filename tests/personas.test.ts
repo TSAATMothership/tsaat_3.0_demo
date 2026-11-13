@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import initialSettings from '@/Database Schema/data/personas.json';
 import { defaultPersonaSettings, parsePersonaSettings, personaShowsSection, personaShowsPage, personaAllowsHref, personaAllowsPopup, personaDestination, PERSONA_SECTIONS, PERSONA_PAGES, PERSONA_POPUPS } from '@/lib/personas';
 import { retirePersonaPermissions, RETIRED_PERSONA_PAGES, RETIRED_PERSONA_POPUPS, RETIRED_PERSONA_SECTIONS } from '@/lib/retired-capabilities.mjs';
 
@@ -13,13 +14,16 @@ it('preserves custom names, IDs, ordering, empty catalogues and intentionally em
   expect(personaAllowsHref(parsed,'custom-reader','/discovery-coverage?discoveryView=endpoints')).toBe(false);
   expect(parsePersonaSettings({...source,personas:[]}).personas).toEqual([]);
 });
-it('has only retained pages and popups while preserving independently cloned defaults', () => {
+it('lists only active pages and popups while preserving independently cloned bootstrap defaults', () => {
   const source=defaultPersonaSettings();
+  expect(source).toEqual(initialSettings);
+  expect(parsePersonaSettings(initialSettings,{forWrite:true})).toEqual(initialSettings);
+  for (const schemaVersion of [1,2]) expect(parsePersonaSettings({...initialSettings,schemaVersion})).toEqual(initialSettings);
   expect(PERSONA_SECTIONS.map(s=>s.id)).toEqual(['governance','discovery']);
   expect(PERSONA_POPUPS.map(p=>p.id)).toEqual(['cmdb-details']);
   for(const persona of source.personas){
     expect(persona.sections).toEqual(PERSONA_SECTIONS.map(s=>s.id));
-    expect(persona.pages).toEqual(PERSONA_PAGES.map(p=>p.id));
+    expect(persona.pages.filter(id=>id!=='discovery-software-insights')).toEqual(PERSONA_PAGES.map(p=>p.id));
   }
   source.personas[0].sections.length=0;
   expect(source.personas[1].sections).toHaveLength(2);
@@ -61,11 +65,26 @@ it('enforces page and CMDB popup permissions separately and allows login-free un
   expect(personaAllowsHref(source,null,'/governance/end-point-insights')).toBe(true);
   for(const page of PERSONA_PAGES)expect(personaDestination(page.href).pageId).toBe(page.id);
 });
-it.each(['/findings','/cyber-cop','/network-risk-profile','/ict-system-risk-profile','/measures','/report','/governance/trends','/discovery-coverage?discoveryView=tools-2'])('treats retired %s as an informational compatibility URL',href=>{
+it.each(['/discovery-coverage?discoveryView=installed-software-insights','/findings','/cyber-cop','/network-risk-profile','/ict-system-risk-profile','/measures','/report','/governance/trends','/discovery-coverage?discoveryView=tools-2'])('treats retired %s as an informational compatibility URL',href=>{
   expect(personaDestination(href).pageId).toBeUndefined();
 });
 it('rejects invalid revisions, unknown/duplicate permissions, ambiguous labels and invalid IDs',()=>{
   const source=defaultPersonaSettings();
   for(const value of [null,{}, {...source,schemaVersion:99}, {...source,personas:[{...source.personas[0],sections:['/admin']}]}, {...source,personas:[{...source.personas[0],pages:['discovery-endpoints','discovery-endpoints']}]}, {...source,personas:[{...source.personas[0],popups:['unknown']}]}, {...source,personas:[{...source.personas[0],id:'bad id'}]}, {...source,personas:[{...source.personas[0],label:' '}]}]) expect(()=>parsePersonaSettings(value)).toThrow();
   expect(()=>parsePersonaSettings({...source,personas:[source.personas[0],{...source.personas[1],label:source.personas[0].label}]})).toThrow();
+});
+
+it('preserves obsolete dashboard preference values without exposing a page or granting a replacement', () => {
+  const settings=defaultPersonaSettings();
+  settings.personas[0]={...settings.personas[0],sections:['discovery'],pages:['discovery-software-insights'],popups:[]};
+  const before=structuredClone(settings);
+  for (const forWrite of [false,true]) {
+    const parsed=parsePersonaSettings(settings,{forWrite});
+    expect(parsed).toEqual(before);
+    expect(personaShowsPage(parsed,'analyst','discovery-software-insights')).toBe(false);
+    expect(personaShowsPage(parsed,null,'discovery-software-insights')).toBe(false);
+    expect(personaShowsSection(parsed,'analyst','discovery')).toBe(false);
+    expect(personaAllowsHref(parsed,'analyst','/governance/installed-software-insights')).toBe(false);
+  }
+  expect(settings).toEqual(before);
 });

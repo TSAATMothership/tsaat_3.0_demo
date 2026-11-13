@@ -242,12 +242,12 @@ describe("Topology lookup and recorded paths", () => {
         expect(personaAllowsHref(settings, null, item.href)).toBe(true);
     });
 });
-vi.mock("@/lib/data-loader", () => ({ loadDatasetForDate: vi.fn() }));
-import { loadDatasetForDate } from "@/lib/data-loader";
+vi.mock("@/lib/data-loader", () => ({ loadTopologyDatasetForDate: vi.fn() }));
+import { loadTopologyDatasetForDate } from "@/lib/data-loader";
 import { loadTopologyExplorer } from "@/lib/topology-explorer-data";
-it("loads one full historical snapshot using the shared facade", async () => {
-    vi.mocked(loadDatasetForDate).mockResolvedValue(topologyFixture());
+it("loads one scoped historical projection using the shared facade", async () => {
+    vi.mocked(loadTopologyDatasetForDate).mockResolvedValue(topologyFixture());
     const model = await loadTopologyExplorer({ ...scope, dataDate: ["2026-11-08"] });
-    expect(loadDatasetForDate).toHaveBeenCalledWith("2026-11-08", { profile: "full" });
+    expect(loadTopologyDatasetForDate).toHaveBeenCalledWith("2026-11-08", { ...scope, dataDate: ["2026-11-08"] });
     expect(model.snapshotDate).toBe("2026-11-07");
 });

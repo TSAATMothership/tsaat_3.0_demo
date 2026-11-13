@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { Dataset } from "@/lib/types";
 import { GET } from "@/app/api/assets/cmdb-details/route";
-import { loadDatasetForDate } from "@/lib/data-loader";
+import { loadCmdbDatasetForDate } from "@/lib/data-loader";
 import { loadCmdbAttributeDefinitions } from "@/lib/cmdb-attribute-loader";
 import { readFileSync } from "node:fs";
-vi.mock("@/lib/data-loader", () => ({ loadDatasetForDate: vi.fn() }));
+vi.mock("@/lib/data-loader", () => ({ loadCmdbDatasetForDate: vi.fn() }));
 vi.mock("@/lib/cmdb-attribute-loader", () => ({ loadCmdbAttributeDefinitions: vi.fn() }));
 const dataset: Dataset = {
     generatedAt: "2026-10-30T00:00:00Z", snapshotDate: "2026-10-30", managedNetworks: [], ictSystems: [],
@@ -16,12 +16,12 @@ const request = (query = "assetId=ci-1&dataDate=2026-10-30") => new NextRequest(
 describe("CMDB attribute API", () => {
     beforeEach(() => {
         vi.resetAllMocks();
-        vi.mocked(loadDatasetForDate).mockResolvedValue(dataset);
+        vi.mocked(loadCmdbDatasetForDate).mockResolvedValue(dataset);
         vi.mocked(loadCmdbAttributeDefinitions).mockResolvedValue([{ key: "assetName", label: "Printer", displayOrder: 10 }]);
     });
     it("loads the snapshot and applies the actual asset type's mapping", async () => {
         const response = await GET(request());
-        expect(loadDatasetForDate).toHaveBeenCalledWith("2026-10-30", { profile: "full" });
+        expect(loadCmdbDatasetForDate).toHaveBeenCalledWith("2026-10-30", dataset.assets[0].id);
         expect(loadCmdbAttributeDefinitions).toHaveBeenCalledWith("printer-device");
         expect(response.headers.get("Cache-Control")).toBe("no-store");
         expect(await response.json()).toEqual({ snapshotDate: "2026-10-30", asset: {
@@ -49,7 +49,7 @@ describe("CMDB attribute API", () => {
     });
     it("dispatches both model CI types, keeps their scope/date and rejects unknown types without loading data", async () => {
         const sample = JSON.parse(readFileSync("data/current.json", "utf8")) as Dataset;
-        vi.mocked(loadDatasetForDate).mockResolvedValue(sample);
+        vi.mocked(loadCmdbDatasetForDate).mockResolvedValue(sample);
         vi.mocked(loadCmdbAttributeDefinitions).mockResolvedValue([{ key: "ciType", label: "CI Type", displayOrder: 10 }]);
         const system = sample.ictSystems.find(item => item.businessServices.length && item.missionCapabilities.length)!;
         for (const [type, ci] of [["business-service", system.businessServices[0]], ["mission-capability", system.missionCapabilities[0]]] as const) {
@@ -63,8 +63,8 @@ describe("CMDB attribute API", () => {
             query.set("securityDomain", "NONE");
             expect((await GET(request(query.toString()))).status).toBe(404);
         }
-        vi.mocked(loadDatasetForDate).mockClear();
+        vi.mocked(loadCmdbDatasetForDate).mockClear();
         expect((await GET(request("assetId=anything&ciType=invalid"))).status).toBe(400);
-        expect(loadDatasetForDate).not.toHaveBeenCalled();
+        expect(loadCmdbDatasetForDate).not.toHaveBeenCalled();
     });
 });

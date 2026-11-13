@@ -49,6 +49,24 @@ export interface EndpointExplorerData { snapshotDate: string; rows: EndpointReco
 export interface InstalledSoftwareExplorerData { snapshotDate: string; rows: InstalledSoftwareRecord[] }
 export interface SecurityVulnerabilityExplorerData { snapshotDate: string; rows: SecurityVulnerabilityRecord[] }
 export interface ShadowItExplorerData { snapshotDate: string; rows: ShadowItRecord[] }
+export interface SnapshotMetadata extends WorkspaceFilterOptions { snapshotDate: string; generatedAt: string }
+
+type DetailSelection = { assetId?: string; scope?: WorkspaceSearchParams; modelOnly?: boolean };
+
+function detailAssetPredicate(selection: DetailSelection): string {
+  if (selection.modelOnly) return "1 = 0";
+  if (selection.assetId !== undefined) return `a.[asset_id] = ${toSqlUnicodeLiteral(selection.assetId)}`;
+  const networks = scopeIds(selection.scope?.network), systems = scopeIds(selection.scope?.system);
+  if (!networks.length && !systems.length) return "1 = 0";
+  const list = (ids: string[]) => ids.map(toSqlUnicodeLiteral).join(",");
+  const membership = (alias: string) => `(${alias}.[system_id] IN (${list(systems)}) OR EXISTS (
+    SELECT 1 FROM [tsaat].[system_environment_asset] sea WHERE sea.[snapshot_id] = @snapshotId
+      AND sea.[asset_id] = ${alias}.[asset_id] AND sea.[system_id] IN (${list(systems)})))`;
+  return [networks.length ? `a.[network_id] IN (${list(networks)})` : "1 = 1",
+    systems.length ? `(${membership("a")} OR (a.[asset_type] = N'ip-node' AND EXISTS (
+      SELECT 1 FROM [tsaat].[asset] owner WHERE owner.[snapshot_id] = @snapshotId
+        AND owner.[asset_id] = a.[arp_owner_asset_id] AND owner.[network_id] = a.[network_id] AND ${membership("owner")})))` : "1 = 1"].join(" AND ");
+}
 
 type SettingsVersionRow = {
   settingsVersionId: number;
@@ -292,7 +310,7 @@ const datasetBySnapshotIdCache = new ServerMemoryCache<Dataset>({
   sliding: true
 });
 
-const workspaceFilterOptionsCache = new ServerMemoryCache<WorkspaceFilterOptions>({
+const workspaceFilterOptionsCache = new ServerMemoryCache<SnapshotMetadata>({
   namespace: "data:workspace-options",
   ttlMs: SNAPSHOT_ROWS_CACHE_TTL_MS,
   maxEntries: 36
@@ -470,7 +488,8 @@ function latestSnapshot(rows: SnapshotRow[]): SnapshotRow {
 
 async function loadSnapshotPayload(
   snapshotId: number,
-  profile: DatasetLoadProfile = "full"
+  profile: DatasetLoadProfile = "full",
+  selection?: DetailSelection
 ): Promise<SnapshotPayload> {
   const safeSnapshotId = ensureValidSnapshotId(snapshotId);
   const normalizedProfile = normalizeDatasetLoadProfile(profile);
@@ -479,6 +498,15 @@ async function loadSnapshotPayload(
   const raw = await timeAsync(`loadSnapshotPayload:${safeSnapshotId}:${normalizedProfile}`, () => executeSqlJson<Partial<SnapshotPayload>>(`
 DECLARE @snapshotId BIGINT = ${safeSnapshotId};
 DECLARE @includeFullPayload BIT = ${includeFullPayload ? 1 : 0};
+DECLARE @includeDependencies BIT = ${includeFullPayload && !selection ? 1 : 0};
+${selection ? `SELECT a.[asset_id] INTO #selectedAssets FROM [${DATA_SCHEMA}].[asset] a
+WHERE a.[snapshot_id] = @snapshotId AND (${detailAssetPredicate(selection)});
+${selection.scope ? `INSERT INTO #selectedAssets SELECT DISTINCT owner.[asset_id] FROM [${DATA_SCHEMA}].[asset] a
+JOIN [${DATA_SCHEMA}].[asset] owner ON owner.[snapshot_id] = a.[snapshot_id]
+AND owner.[asset_id] = a.[arp_owner_asset_id] AND owner.[network_id] = a.[network_id]
+WHERE a.[snapshot_id] = @snapshotId AND a.[asset_type] = N'ip-node'
+AND a.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)
+AND owner.[asset_id] NOT IN (SELECT [asset_id] FROM #selectedAssets);` : ""}` : ""}
 SELECT
   JSON_QUERY((
     SELECT
@@ -626,7 +654,7 @@ SELECT
       a.[lifecycle_eol_status] AS [eolStatus],
       a.[lifecycle_warranty_status] AS [warrantyStatus]
     FROM [${DATA_SCHEMA}].[asset] a
-    WHERE a.[snapshot_id] = @snapshotId
+    WHERE a.[snapshot_id] = @snapshotId ${selection ? "AND a.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)" : ""}
     ORDER BY a.[asset_id]
     FOR JSON PATH
   )) AS [assets],
@@ -639,7 +667,7 @@ SELECT
       aos.[patch_level] AS [patchLevel],
       aos.[support_status] AS [supportStatus]
     FROM [${DATA_SCHEMA}].[asset_operating_system] aos
-    WHERE aos.[snapshot_id] = @snapshotId
+    WHERE aos.[snapshot_id] = @snapshotId ${selection ? "AND aos.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)" : ""}
     ORDER BY aos.[asset_id]
     FOR JSON PATH
   )) AS [assetOperatingSystems],
@@ -652,7 +680,7 @@ SELECT
       nos.[patch_level] AS [patchLevel],
       nos.[support_status] AS [supportStatus]
     FROM [${DATA_SCHEMA}].[asset_network_os] nos
-    WHERE nos.[snapshot_id] = @snapshotId
+    WHERE nos.[snapshot_id] = @snapshotId ${selection ? "AND nos.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)" : ""}
     ORDER BY nos.[asset_id]
     FOR JSON PATH
   )) AS [assetNetworkOperatingSystems],
@@ -662,7 +690,7 @@ SELECT
       ps.[is_latest] AS [isLatest],
       CONVERT(CHAR(10), ps.[last_patched_date], 23) AS [lastPatchedDate]
     FROM [${DATA_SCHEMA}].[asset_patch_state] ps
-    WHERE ps.[snapshot_id] = @snapshotId
+    WHERE ps.[snapshot_id] = @snapshotId ${selection ? "AND ps.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)" : ""}
     ORDER BY ps.[asset_id]
     FOR JSON PATH
   )) AS [assetPatchStates],
@@ -677,7 +705,7 @@ SELECT
       sw.[discovered_by] AS [discoveredBy],
       sw.[support_status] AS [supportStatus]
     FROM [${DATA_SCHEMA}].[asset_installed_software] sw
-    WHERE sw.[snapshot_id] = @snapshotId
+    WHERE sw.[snapshot_id] = @snapshotId ${selection ? "AND sw.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)" : ""}
     ORDER BY sw.[asset_id], sw.[software_ordinal]
     FOR JSON PATH
   ) ELSE N'[]' END) AS [assetInstalledSoftware],
@@ -698,11 +726,11 @@ SELECT
       CONVERT(NVARCHAR(40), v.[captured_at], 127) AS [capturedAt],
       v.[source] AS [source]
     FROM [${DATA_SCHEMA}].[asset_vulnerability] v
-    WHERE v.[snapshot_id] = @snapshotId
+    WHERE v.[snapshot_id] = @snapshotId ${selection ? "AND v.[asset_id] IN (SELECT [asset_id] FROM #selectedAssets)" : ""}
     ORDER BY v.[asset_id], v.[vulnerability_id]
     FOR JSON PATH
   ) ELSE N'[]' END) AS [assetVulnerabilities],
-  JSON_QUERY(CASE WHEN @includeFullPayload = 1 THEN (
+  JSON_QUERY(CASE WHEN @includeDependencies = 1 THEN (
     SELECT
       d.[dependency_id] AS [id],
       d.[source_asset_id] AS [sourceAssetId],
@@ -1085,8 +1113,24 @@ export async function loadDatasetForDate(
   return loadDatasetBySnapshotId(selected.snapshotId, snapshots, options);
 }
 
-/** Header choices need snapshot names only, never assets, findings or evaluations. */
-export async function loadWorkspaceFilterOptionsForDate(requestedDate?: string): Promise<WorkspaceFilterOptions> {
+/** A detail projection is deliberately separate from the complete dataset contract. */
+async function loadDetailDatasetForDate(date: string | undefined, selection: DetailSelection): Promise<Dataset> {
+  const snapshot = selectSnapshotRowForDate(await loadSnapshotRows(), date);
+  const signature = JSON.stringify(["detail", snapshot.snapshotId, snapshot.generatedAt, selection]);
+  return datasetBySnapshotIdCache.getOrSet(signature, async () => buildDatasetFromSnapshotRow(
+    snapshot, await loadSnapshotPayload(snapshot.snapshotId, "full", selection), [], signature));
+}
+
+export function loadCmdbDatasetForDate(date: string | undefined, assetId?: string): Promise<Dataset> {
+  return loadDetailDatasetForDate(date, assetId === undefined ? { modelOnly: true } : { assetId });
+}
+
+export function loadTopologyDatasetForDate(date: string | undefined, scope: WorkspaceSearchParams): Promise<Dataset> {
+  return loadDetailDatasetForDate(date, { scope: { network: scopeIds(scope.network), system: scopeIds(scope.system) } });
+}
+
+/** Header choices and report labels need names only, never assets or evaluations. */
+export async function loadSnapshotMetadataForDate(requestedDate?: string): Promise<SnapshotMetadata> {
   const snapshots = await loadSnapshotRows();
   const snapshot = selectSnapshotRowForDate(snapshots, requestedDate);
   const snapshotId = ensureValidSnapshotId(snapshot.snapshotId);
@@ -1112,10 +1156,16 @@ FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
 `);
     const byLabel = (left: { label: string }, right: { label: string }) => left.label.localeCompare(right.label);
     return {
-      networks: filterRealNetworks(options.networks ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel),
+      snapshotDate: snapshot.snapshotDate, generatedAt: coerceIsoTimestamp(snapshot.generatedAt),
+      networks: (options.networks ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel),
       systems: (options.systems ?? []).map(option => ({ ...option, securityDomain: normalizeSecurityDomain(option.securityDomain) })).sort(byLabel)
     };
   });
+}
+
+export async function loadWorkspaceFilterOptionsForDate(date?: string): Promise<WorkspaceFilterOptions> {
+  const metadata = await loadSnapshotMetadataForDate(date);
+  return { networks: filterRealNetworks(metadata.networks), systems: metadata.systems };
 }
 
 /** Read only the CMDB fields displayed by the explorer, scoped in SQL. */

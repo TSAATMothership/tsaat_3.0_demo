@@ -68,10 +68,10 @@ export async function checkInventoryRuntime(provider) {
       assert.equal(response.status(),200,route);await page.waitForSelector('dialog.loading-modal[open]',{hidden:true});
       assert(!await page.$('[data-nextjs-dialog-overlay]'),route);assert.deepEqual(errors,[],route);
     }
-    const explorerViews=['endpoints','installed-software','security-vulnerabilities','shadow-it','topology','installed-software-insights'];
+    const explorerViews=['endpoints','installed-software','security-vulnerabilities','shadow-it','topology'];
     const routes=['/governance/installed-software-insights','/governance/end-point-insights','/governance/security-vulnerability-insights',...explorerViews.map(view=>'/discovery-coverage?discoveryView='+view)];
     for(const route of routes)for(const [scope,selected]of [['network=net-1',date],['system=sys-1',historicalDate],['network=net-1&securityDomain=NONE',date]])await navigate(route,scope,selected);
-    for(const route of ['/findings','/measures','/report','/cyber-cop','/network-risk-profile','/ict-system-risk-profile','/governance/trends','/governance/insights','/governance/discovery-insights','/discovery-coverage?discoveryView=patch-management']){
+    for(const route of ['/findings','/measures','/report','/cyber-cop','/network-risk-profile','/ict-system-risk-profile','/governance/trends','/governance/insights','/governance/discovery-insights','/discovery-coverage?discoveryView=patch-management','/discovery-coverage?discoveryView=installed-software-insights']){
       await navigate(route);assert((await page.$eval('main',node=>node.textContent)).includes('retired'),route);
     }
     for(const route of ['/api/findings/export','/api/measures/settings','/api/report/summary','/api/discovery-coverage/overview-report','/api/settings/database'])assert.equal((await fetch(base+route)).status,410,route);
@@ -95,7 +95,7 @@ export async function checkInventoryRuntime(provider) {
     await client.detach();
     if(selected.has('endpoint-insights')) await checkEndpointInsights(page,{date,historicalDate,artifacts});
     if(selected.has('vulnerability-insights')) await checkVulnerabilityInsights(page,{date,historicalDate,artifacts});
-    await navigate('/discovery-coverage?discoveryView=installed-software-insights');
+    await navigate('/governance/installed-software-insights');
     if(selected.has('software-insights')) await checkInstalledSoftwareInsights(page,{date,historicalDate,artifacts});
     if(selected.has('pdfs')) {
       await checkSoftwareInsightsPdf(page,{date,historicalDate,directory:path.join(directory,'software-pdfs'),artifacts});
@@ -114,7 +114,7 @@ export async function checkInventoryRuntime(provider) {
     assert.equal((await fetch(base+'/api/discovery-tools/settings')).status,410);
     assert(!fs.existsSync(path.join(directory,'logindetails')));
     if(provider==='json')assert(!fs.existsSync(path.join(directory,'DB_config')),'No-SQL must not create SQL configuration');
-    console.log(`Compiled ${provider} smoke passed: nine retained views, current/historical/empty scopes, retired routes/APIs, four Excel downloads, CMDB keyboard focus, restart persistence; feature checks: ${[...selected].join(', ')}.`);
+    console.log(`Compiled ${provider} smoke passed: eight retained views, current/historical/empty scopes, retired routes/APIs, four Excel downloads, CMDB keyboard focus, restart persistence; feature checks: ${[...selected].join(', ')}.`);
   } catch(error){console.error(output.slice(-3000));throw error;}
   finally{
     await browser?.close();await stop();

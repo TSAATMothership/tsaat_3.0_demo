@@ -1,6 +1,6 @@
 # Discovery
 
-Discovery contains End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Shadow IT Explorer and Topology Explorer. The hidden Installed Software Dashboard remains a compatibility destination. No inventory is loaded until a network or ICT system is selected.
+Discovery contains End Point Explorer, Installed Software Explorer, Security Vulnerability Explorer, Shadow IT Explorer and Topology Explorer. The former Installed Software Dashboard has been removed; its old URL shows a retirement notice before any inventory is loaded. No inventory is loaded until a network or ICT system is selected.
 
 All retained views preserve network/system selections, security-domain filtering and resolved snapshot dates through the shared data facade. Explorers retain search, facets, sorting, pagination, empty/error states, CMDB drill-through and browser Excel export of the selected rows. Shadow IT retains ARP-owner/system semantics and unidentified-node states.
 

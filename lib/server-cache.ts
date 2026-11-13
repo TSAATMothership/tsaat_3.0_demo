@@ -6,6 +6,8 @@ export interface ServerMemoryCacheOptions {
   namespace: string;
   ttlMs: number;
   maxEntries: number;
+  /** Estimated serialized payload bytes, not a V8 heap measurement. */
+  maxBytes?: number;
   sliding?: boolean;
   now?: CacheClock;
 }
@@ -17,12 +19,15 @@ export interface ServerMemoryCacheStats {
   evictions: number;
   expirations: number;
   invalidations: number;
+  bytes: number;
+  oversized: number;
 }
 
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;
   lastAccessedAt: number;
+  bytes: number;
 }
 
 function shouldDebugCache(): boolean {
@@ -69,6 +74,7 @@ export class ServerMemoryCache<T> {
   private readonly namespace: string;
   private readonly ttlMs: number;
   private readonly maxEntries: number;
+  private readonly maxBytes: number;
   private readonly sliding: boolean;
   private readonly now: CacheClock;
   private readonly entries = new Map<string, CacheEntry<T>>();
@@ -80,13 +86,16 @@ export class ServerMemoryCache<T> {
     sets: 0,
     evictions: 0,
     expirations: 0,
-    invalidations: 0
+    invalidations: 0,
+    bytes: 0,
+    oversized: 0
   };
 
   constructor(options: ServerMemoryCacheOptions) {
     this.namespace = options.namespace;
     this.ttlMs = Math.max(1, options.ttlMs);
     this.maxEntries = Math.max(1, options.maxEntries);
+    this.maxBytes = Math.max(1, options.maxBytes ?? 32 * 1024 * 1024);
     this.sliding = options.sliding ?? false;
     this.now = options.now ?? Date.now;
   }
@@ -101,7 +110,7 @@ export class ServerMemoryCache<T> {
     }
 
     if (entry.expiresAt <= now) {
-      this.entries.delete(key);
+      this.remove(key);
       this.stats.expirations += 1;
       this.stats.misses += 1;
       debugCache(this.namespace, "expired", key);
@@ -120,13 +129,22 @@ export class ServerMemoryCache<T> {
 
   set(key: string, value: T): void {
     const now = this.now();
+    const bytes = Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
+    this.remove(key);
+    if (bytes > this.maxBytes) {
+      this.stats.oversized += 1;
+      debugCache(this.namespace, `oversized bytes=${bytes}`);
+      return; // The caller still receives the result; do not evict useful small entries.
+    }
     this.entries.set(key, {
       value,
+      bytes,
       expiresAt: now + this.ttlMs,
       lastAccessedAt: now
     });
     this.stats.sets += 1;
-    debugCache(this.namespace, "set", key);
+    this.stats.bytes += bytes;
+    debugCache(this.namespace, `set bytes=${bytes}`, key);
     this.prune(now);
   }
 
@@ -162,18 +180,20 @@ export class ServerMemoryCache<T> {
 
   invalidatePrefix(prefix: string): number {
     let count = 0;
+    let pendingCount = 0;
     for (const key of Array.from(this.entries.keys())) {
       if (key.startsWith(prefix)) {
-        this.entries.delete(key);
+        this.remove(key);
         count += 1;
       }
     }
     for (const key of Array.from(this.pending.keys())) {
       if (key.startsWith(prefix)) {
         this.pending.delete(key);
+        pendingCount += 1;
       }
     }
-    if (count > 0) {
+    if (count > 0 || pendingCount > 0) {
       this.revision += 1;
       this.stats.invalidations += count;
       debugCache(this.namespace, `invalidate-prefix ${prefix}`);
@@ -184,6 +204,7 @@ export class ServerMemoryCache<T> {
   clear(): void {
     const count = this.entries.size;
     this.entries.clear();
+    this.stats.bytes = 0;
     this.pending.clear();
     this.revision += 1;
     this.stats.invalidations += count;
@@ -207,29 +228,37 @@ export class ServerMemoryCache<T> {
       sets: 0,
       evictions: 0,
       expirations: 0,
-      invalidations: 0
+      invalidations: 0,
+      bytes: this.stats.bytes,
+      oversized: 0
     };
   }
 
   private prune(now: number): void {
     for (const [key, entry] of this.entries.entries()) {
       if (entry.expiresAt <= now) {
-        this.entries.delete(key);
+        this.remove(key);
         this.stats.expirations += 1;
       }
     }
 
-    if (this.entries.size <= this.maxEntries) {
+    if (this.entries.size <= this.maxEntries && this.stats.bytes <= this.maxBytes) {
       return;
     }
 
     const entriesByAccess = Array.from(this.entries.entries()).sort(
       (left, right) => left[1].lastAccessedAt - right[1].lastAccessedAt
     );
-    const toDelete = this.entries.size - this.maxEntries;
-    for (let index = 0; index < toDelete; index += 1) {
-      this.entries.delete(entriesByAccess[index][0]);
+    for (const [key] of entriesByAccess) {
+      if (this.entries.size <= this.maxEntries && this.stats.bytes <= this.maxBytes) break;
+      this.remove(key);
       this.stats.evictions += 1;
     }
+  }
+
+  private remove(key: string): void {
+    const entry = this.entries.get(key);
+    if (entry) this.stats.bytes -= entry.bytes;
+    this.entries.delete(key);
   }
 }

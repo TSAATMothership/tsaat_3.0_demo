@@ -12,6 +12,10 @@ export async function checkWorkspaceScopeNotice(page, { date, historicalDate, ar
   const originalUrl = page.url(), origin = new URL(originalUrl).origin, originalViewport = page.viewport();
   const previousPersona = await page.evaluate(() => localStorage.getItem("tsaat.active-persona"));
   const mutations = [];
+  const pendingRequests = new Set();
+  const started = request => pendingRequests.add(request);
+  const completed = request => pendingRequests.delete(request);
+  page.on("request", started); page.on("requestfinished", completed); page.on("requestfailed", completed);
   const recordRequest = request => {
     if (new URL(request.url()).origin === origin && new URL(request.url()).pathname.startsWith("/api/") && !["GET", "HEAD", "OPTIONS"].includes(request.method())) mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
   };
@@ -101,7 +105,7 @@ export async function checkWorkspaceScopeNotice(page, { date, historicalDate, ar
     await resetWatch(); await page.goForward();
     await page.waitForFunction(expected => location.href === expected, {}, visited.at(-1)); await expectNotice("Forward without scope");
 
-    await gotoEmpty(`/discovery-coverage?discoveryView=installed-software-insights&${shared}`);
+    await gotoEmpty(`/governance/installed-software-insights?${shared}`);
     await gotoEmpty(`/discovery-coverage?discoveryView=endpoints&network=&system=%20%2C%20&${shared}`);
     await resetWatch(); await setDate(date); await expectNotice("Changing snapshot without scope");
     assert.equal(new URL(page.url()).searchParams.get("securityDomain"), "UNKNOWN");
@@ -113,6 +117,8 @@ export async function checkWorkspaceScopeNotice(page, { date, historicalDate, ar
     for (const choice of domainChoices) if (!(await choice.evaluate(node => node.checked))) await choice.click();
     await page.focus('[aria-label="Update Security Domain filter"]'); await page.keyboard.press("Enter");
     await page.waitForSelector('#security-domain-options', { hidden: true }); await expectNotice("Domain-only Update without scope");
+    // Closing the menu is synchronous; the router commits the canonical all-domain URL later.
+    await page.waitForFunction(() => !new URL(location.href).searchParams.has("securityDomain"));
     const unscoped = new URL(page.url());
     assert.equal(unscoped.searchParams.get("dataDate"), date);
 
@@ -192,7 +198,10 @@ export async function checkWorkspaceScopeNotice(page, { date, historicalDate, ar
       catch (error) { if (!delayed.failure()) throw error; }
     }
     page.off("request", intercept); intercept = undefined; await page.setRequestInterception(false);
-    await page.waitForNetworkIdle({ idleTime: 300, timeout: 10000 });
+    try { await page.waitForNetworkIdle({ idleTime: 300, timeout: 10000 }); }
+    catch (error) {
+      throw new Error(`Unscoped Back did not settle at ${page.url()}; pending requests: ${JSON.stringify([...pendingRequests].map(request => ({ url: request.url(), handled: request.isInterceptResolutionHandled(), failure: request.failure() })))}`, { cause: error });
+    }
     assert.equal(page.url(), previousUnscopedUrl, "A late scoped response must not replace the unscoped Back destination.");
     await noAnimation("Settled unscoped Back destination");
 
@@ -225,6 +234,7 @@ export async function checkWorkspaceScopeNotice(page, { date, historicalDate, ar
     if (heldRequest && !heldRequest.isInterceptResolutionHandled()) await heldRequest.continue();
     if (intercept) { page.off("request", intercept); await page.setRequestInterception(false); }
     page.off("request", recordRequest);
+    page.off("request", started); page.off("requestfinished", completed); page.off("requestfailed", completed);
     await page.removeScriptToEvaluateOnNewDocument(watchScript.identifier);
     await page.evaluate(value => {
       window.__scopeNoticeObserver?.disconnect(); delete window.__scopeNoticeObserver; delete window.__scopeNoticeWatch;

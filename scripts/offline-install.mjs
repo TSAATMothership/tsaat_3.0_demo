@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { checkOfflineDependencies, repositoryRoot } from './offline-dependencies.mjs';
+import { isVersionAtLeast, minimumNodeVersion, minimumNpmVersion } from './toolchain-policy.mjs';
 
 export function parseInstallArguments(args) {
   let cache;
@@ -18,11 +19,11 @@ export function parseInstallArguments(args) {
 
 export function installOffline({ cache } = {}) {
   if (process.platform !== 'win32') throw new Error('The supported offline installer requires Windows and PowerShell.');
-  if (Number(process.versions.node.split('.')[0]) !== 24) {
+  if (!isVersionAtLeast(process.versions.node, minimumNodeVersion)) {
     const launcher = path.join(repositoryRoot, 'scripts/offline-npm.ps1');
-    if (!fs.existsSync(launcher)) throw new Error('Offline runtime launcher is missing. Restore the complete offline package or provision Node.js 24/npm.');
-    console.log(`Node.js ${process.versions.node} is active; switching to the offline Node.js 24 launcher.`);
-    // The PowerShell launcher verifies/selects Node 24 before invoking npm again.
+    if (!fs.existsSync(launcher)) throw new Error(`Offline runtime launcher is missing. Restore the complete offline package or provision Node.js ${minimumNodeVersion}+ and npm ${minimumNpmVersion}+.`);
+    console.log(`Node.js ${process.versions.node} is active; switching to the offline launcher (requires ${minimumNodeVersion} or newer).`);
+    // The PowerShell launcher verifies/selects a runtime meeting the floor before invoking npm again.
     // Handoff occurs before this process takes an install lock or touches dependencies.
     const handedOff = spawnSync('powershell.exe', [
       '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', launcher,
@@ -33,7 +34,9 @@ export function installOffline({ cache } = {}) {
     return handedOff.status;
   }
   const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js');
-  if (!path.isAbsolute(npmCli) || !fs.existsSync(npmCli)) throw new Error('npm CLI not found. Run npm run install:offline with the preinstalled Node.js 24/npm host tools.');
+  if (!path.isAbsolute(npmCli) || !fs.existsSync(npmCli)) throw new Error(`npm CLI not found. Use Node.js ${minimumNodeVersion}+ and npm ${minimumNpmVersion}+, or the bundled offline launcher.`);
+  const npmVersion = JSON.parse(fs.readFileSync(path.resolve(path.dirname(npmCli), '../package.json'), 'utf8')).version;
+  if (!isVersionAtLeast(npmVersion, minimumNpmVersion)) throw new Error(`npm ${minimumNpmVersion} or newer is required; found ${npmVersion}. Use the bundled offline launcher.`);
   const modules = path.join(repositoryRoot, 'node_modules');
   if (fs.existsSync(modules) && fs.lstatSync(modules).isSymbolicLink()) throw new Error('node_modules is a link/junction. Refusing to reinstall outside this checkout.');
   console.log(`Offline dependencies verified: ${checkOfflineDependencies()} archives.`);

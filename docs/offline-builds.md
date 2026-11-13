@@ -4,7 +4,7 @@
 
 A complete checkout must install and compile both SQL and JSON-backed No-SQL versions without network access, an existing node_modules directory, a populated npm cache, a sibling checkout or an external artifact store. All application code, build assets, development tools and native compiler packages required by the locked graph are committed as regular files. Preserve this capability for every change. Repeat the full proof for dependency/build changes and release candidates; unrelated UI, documentation or tooling changes use the [SDLC impact assessment](sdlc.md).
 
-The host supplies Windows x64 and PowerShell. A generated offline distribution also contains the original Node 24.13.1 Windows x64 ZIP with npm 11.8.0 and its license notices. The launcher verifies its pinned SHA-256 and unpacks it locally; installation/builds never download platform tools. A source-only checkout and CI can still use preinstalled Node 24/npm. CI validates Windows x64; archives for all optional platforms in the lockfile are retained, but this does not claim other operating systems support SQL Windows DPAPI configuration. Chrome/Edge is a preinstalled prerequisite for the browser smoke. SQL runtime needs sqlcmd, its configured SQL Server and the selected TLS policy; compilation does not. No-SQL uses local JSON and direct workspace access. External business links still require their destination services when clicked.
+The host supplies Windows x64 and PowerShell. A generated offline distribution also contains the original Node 24.13.1 Windows x64 ZIP with npm 11.8.0 and its license notices. The launcher verifies its pinned SHA-256 and unpacks it locally; installation/builds never download platform tools. A source-only checkout and CI can still use preinstalled stable Node 24.13.1+ and npm 11.8.0+. CI validates Windows x64; archives for all optional platforms in the lockfile are retained, but this does not claim other operating systems support SQL Windows DPAPI configuration. Chrome/Edge is a preinstalled prerequisite for the browser smoke. SQL runtime needs sqlcmd, its configured SQL Server and the selected TLS policy; compilation does not. No-SQL uses local JSON and direct workspace access. External business links still require their destination services when clicked.
 
 The explicit `setup:database` workflow uses the already pinned tsx/Next packages and local schema/reference/sample files. It contacts only the selected SQL Server and downloads nothing. It uses a separate administrator connection to create the database and a dedicated application login, with SSL disabled. Its CLI-only TypeScript path mapping resolves Next's server-only marker for server execution; application compilation is unchanged. Builds never invoke database setup.
 
@@ -15,6 +15,12 @@ Routine CI uses changed-area validation; workflow_dispatch, validation:full and 
 PDF and Excel rendering uses repository-local worker code and the existing pinned dependencies. Workers fetch only same-installation assets: /tsaat-logo.png and the three retained PNG illustrations under /insights-report-art/. Deploy these public assets with both artifacts. Retired Cyber Terrain/Discovery artwork and the target-state workbook template have been removed. No report renderer needs Node filesystem access, an installed office suite, a headless browser service, remote fonts/images or package downloads.
 
 Feature retirement removes unused chart/3D/CSV dependencies and their unused archives; the lockfile, provenance manifest and retained vendored graph are aligned. Browser ZIP/XML code uses byte arrays rather than Node buffers/zlib, and report generation runs in a worker to keep the progress/cancel interface responsive. Local HTTP asset reads during app use are distinct from compilation: both guarded builds must remain free of network access. The broad client-bundle/worker change selects archive verification, fresh empty-cache offline installation, both builds and compiled browser/provider checks; completed results belong in validation evidence rather than being inferred from unchanged dependencies. See [document runtime contract](client-document-generation.md).
+
+## Tooling and library compatibility
+
+Host checks accept stable Node 24.13.1 or newer and npm 11.8.0 or newer, including later major versions. Preview versions are rejected. The generated package continues to verify and use its reviewed portable runtime; use a newer installed runtime directly with npm when desired. Without a bundled archive, the launcher accepts a host that meets these floors. Future tooling is permitted, not automatically release-certified: run the installation, both builds and smoke checks on the chosen runtime.
+
+Direct library requirements use caret ranges to permit compatible minor/patch updates. The lockfile and 572 reviewed archives remain exact for disconnected npm ci installation. Newer libraries must be selected through the explicit maintenance workflow below; incompatible major versions require application review. Builds never resolve or download a newer package. See [ADR 0034](adr/0034-focused-reads-and-toolchain-floors.md).
 
 ## Disconnected use
 
@@ -28,7 +34,7 @@ Patch Management Explorer uses existing packages and local sample-patch-profiles
 
 The Security Vulnerability Explorer catalogue contains reviewed CVE/vendor facts and exact software-version matches as local JSON. Source research is an explicit maintenance activity; installation, compilation, population and page loads do not fetch CVEs. No dependency/archive changes are needed. See [CVE provenance and population](security-vulnerability-explorer.md).
 
-From the extracted offline package, or a complete checkout with Node 24/npm:
+From the extracted offline package, or a complete checkout with stable Node 24.13.1+ and npm 11.8.0+:
 
 ~~~powershell
 .\install-offline.cmd
@@ -73,7 +79,7 @@ The packager uses only local inputs. It verifies and stages Node under ignored r
 
 Transfer the ZIP and checksum together. Verify the checksum, extract the ZIP, open its TSAAT folder and run .\install-offline.cmd. The destination needs Windows x64 and PowerShell, with no Git or preinstalled Node/npm. Use .\tsaat-npm.cmd for later commands, or .\compileApp.cmd all for installation and compilation. No system installation, persistent PATH/profile edit or administrator access is required. SQL/browser prerequisites and deployment access controls are unchanged.
 
-Keep runtime/ and output/ outside Git. Retain the reviewed Node archive with release artifacts and the matching source commit. Future runtime changes require manifest/provenance review, an empty-cache install, both builds and compiled smoke evidence. Corrupt bundles fail without downloads or host fallback; an absent bundle can use preinstalled Node 24/npm in a source checkout.
+Keep runtime/ and output/ outside Git. Retain the reviewed Node archive with release artifacts and the matching source commit. Future runtime changes require manifest/provenance review, an empty-cache install, both builds and compiled smoke evidence. Corrupt bundles fail without downloads or host fallback; an absent bundle can use preinstalled stable Node 24.13.1+ and npm 11.8.0+ in a source checkout.
 
 Interrupted extraction leaves .local/runtime/extract.lock. Confirm every launcher has stopped before removing only that lock and retrying. For an incomplete extracted runtime, stop this package's Node processes, rename .local/runtime and rerun from the verified archive. Never delete application data or credentials for runtime recovery. See [ADR 0027](adr/0027-portable-offline-node.md).
 

@@ -5,7 +5,7 @@ import { isModelCiType } from "@/lib/cmdb-ci-types";
 import { buildCmdbModelCiDetails } from "@/lib/cmdb-model-ci";
 import { loadCmdbAttributeDefinitions } from "@/lib/cmdb-attribute-loader";
 import { DATA_DATE_PARAM, normalizeDataDate } from "@/lib/data-date";
-import { loadDatasetForDate } from "@/lib/data-loader";
+import { loadCmdbDatasetForDate } from "@/lib/data-loader";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (ciType !== null && !isModelCiType(ciType)) return json({ error: "Unsupported CMDB CI type." }, 400);
 
   const dataDate = normalizeDataDate(request.nextUrl.searchParams.get(DATA_DATE_PARAM));
-  const dataset = await loadDatasetForDate(dataDate, { profile: "full" });
+  const dataset = await loadCmdbDatasetForDate(dataDate, isModelCiType(ciType) ? undefined : assetId);
   if (isModelCiType(ciType)) {
     const params = request.nextUrl.searchParams;
     const ci = buildCmdbModelCiDetails(dataset, ciType, assetId, {

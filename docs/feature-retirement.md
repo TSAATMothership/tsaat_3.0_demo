@@ -8,7 +8,9 @@ Follow-up, 2026-11-12: Menu and the remaining Settings viewers are now retired u
 
 Retire Governance Trends, Cyber Terrain Insights and Discovery Insights; all Cyber Security views (including ICT System Impact Analyser); Discovery Tool Coverage, Discovery Compliance Explorer, Patch Management Explorer and Life Cycle Management; all Observed Measures/KPI/SPI views; Findings Register; Briefs & Reports; and SPI risk/priority Settings. Remove the Cyber Security, Observed Measures and Findings sidebar sections.
 
-Retain Installed Software Insights, End Point Insights and Security Vulnerability Insights; End Point, Installed Software, Security Vulnerability, Shadow IT and Topology Explorers; the existing Installed Software Dashboard compatibility view; their PDF/Excel exports; CMDB details; header network/system/domain/snapshot controls; and read-only Personas/Discovery Tools Settings.
+Installed Software Dashboard was subsequently removed on 2026-11-13. Its old URL renders the standard retirement notice without loading software data. Its obsolete persona value is preserved only as inactive compatibility data; this removal does not change the storage-v2 upgrade or its published SQL migration.
+
+Retain Installed Software Insights, End Point Insights and Security Vulnerability Insights; End Point, Installed Software, Security Vulnerability, Shadow IT and Topology Explorers; their PDF/Excel exports; CMDB details; header network/system/domain/snapshot controls; and read-only Personas/Discovery Tools Settings.
 
 ## Dependency boundary
 

@@ -1,15 +1,16 @@
 {
-  "reviewedAgainst": "Inventory storage v2 retirement: real fresh and upgraded SQL/JSON parity passed across all eight weekly dates and identical network/system/domain scopes; retained regression coverage and JSON migration safety reviewed. 2026-11-11.",
+  "reviewedAgainst": "2026-11-13: focused metadata/CMDB/Topology reads reviewed against unchanged full-snapshot behavior; real SQL/JSON parity passed across all eight weekly dates and identical scopes on TSAAT_EvidenceParity_Scale_20261113. No stored format, evidence or calculation changes; existing-store compatibility retained.",
   "instructions": "Review both provider behaviors, common evidence and forward/recovery paths before changing these hashes. Never use a skipped SQL test as parity evidence.",
   "files": {
     "Database Schema/database-schema.sql": "aec95529bc87f56e780dd5fddd0a87ec003d2b6a1faf7f82806eca46d9fac8fc",
     "Database Schema/migrations/033_retire_analytics_features.sql": "5dbb457c78f2981e5ccd54a90ba10d8b22141fe962e39b9b9c5654e7fe5154d1",
     "Database Schema/loaders/load-data.sql": "ac53ccd60ff5a4748a9201156f2acf5191c992454ef6b7685ec9eb108d9fefbc",
     "Database Schema/data/discovery-coverage-rules.json": "99be18dd4bc78804ca1537c1f6a504e5e9c2e7073c42bc198abcc0b7189aea82",
-    "lib/sql-data-loader.ts": "27ad23a4118d4e4e9a27a7330d7192a48ac4dc9ab2e6d7d4d5f5a7c7e1662b12",
-    "lib/json-store/data-loader.ts": "f12c7557ad5269d59d791336f0e239ce4b7229b39cb245e4308b8e525537b45f",
+    "lib/sql-data-loader.ts": "295a1063d88e9b83846bee3c0b3c26a6b2abacb27179b342f30a774dd663c90b",
+    "lib/json-store/data-loader.ts": "4b68de4c59ece7fa1f900bd7f5498e96ebf417b1959aff1826895db684cfbe65",
     "lib/json-store/evaluations.ts": "058ca050a4690ae6bee9fdaec380981539ddd6d7e2cff747c554507ee7927be4",
     "lib/inventory-schema.mjs": "b276e55a73fd302fe2dafea781ad52000d43348fe75e6306e97562b3d02a9408",
-    "NoSQL/cmdb-attributes.json": "bef599da1ac31fe37aa12e17f1623aadb017a0eaa83eb48e572a137083bb28b1"
+    "NoSQL/cmdb-attributes.json": "bef599da1ac31fe37aa12e17f1623aadb017a0eaa83eb48e572a137083bb28b1",
+    "lib/inventory-read-projections.ts": "1131cc44461f772feecc91781a3686b9e9b2f3ee3a045cfd95bcace83691c0df"
   }
 }

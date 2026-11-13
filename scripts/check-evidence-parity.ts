@@ -6,6 +6,9 @@ import * as sql from '../lib/sql-data-loader';
 import * as json from '../lib/json-store/data-loader';
 import { resolveAppDatabaseName } from '../lib/sql-server';
 import { buildInstalledSoftwareInsights } from '../lib/installed-software-insights';
+import { buildTopologyExplorer } from '../lib/topology-explorer';
+import { buildCmdbAssetDetails } from '../lib/cmdb-drill-through';
+import { buildCmdbModelCiDetails } from '../lib/cmdb-model-ci';
 
 /** Representation-only normalization: absent optional values, object/row order and UTC formatting. */
 export function parityValue(value: unknown): unknown {
@@ -54,8 +57,26 @@ export async function checkEvidenceParity() {
   for (const { date } of manifest.snapshots) {
     const [left, right] = await Promise.all([sql.loadDatasetForDate(date, { profile: 'full' }), json.loadDatasetForDate(date, { profile: 'full' })]);
     for (const key of ['assets', 'managedNetworks', 'ictSystems', 'ciDependencies', 'discoveryCoverageEvaluations'] as const) compare(`${date} ${key}`, left[key], right[key]);
+    compare(`${date} metadata`, await sql.loadSnapshotMetadataForDate(date), await json.loadSnapshotMetadataForDate(date));
+    // Compare targeted reads with BOTH complete-snapshot baselines, not just with each other.
+    for (const asset of left.assets.filter((asset, index, all) => all.findIndex(other => other.type === asset.type) === index)) {
+      const [a, b] = await Promise.all([sql.loadCmdbDatasetForDate(date, asset.id), json.loadCmdbDatasetForDate(date, asset.id)]);
+      compare(`${date} CMDB SQL ${asset.id}`, buildCmdbAssetDetails(a, asset.id), buildCmdbAssetDetails(left, asset.id));
+      compare(`${date} CMDB JSON ${asset.id}`, buildCmdbAssetDetails(b, asset.id), buildCmdbAssetDetails(right, asset.id));
+    }
     for (const scope of [{ network: 'net-1' }, { system: 'sys-1' }, { network: 'net-1', securityDomain: 'UNKNOWN' }, { network: 'net-1', securityDomain: 'NONE' }]) {
       const params = { ...scope, dataDate: date };
+      const [topologySql, topologyJson] = await Promise.all([sql.loadTopologyDatasetForDate(date, params), json.loadTopologyDatasetForDate(date, params)]);
+      compare(`${date} Topology SQL ${JSON.stringify(scope)}`, buildTopologyExplorer(topologySql, params), buildTopologyExplorer(left, params));
+      compare(`${date} Topology JSON ${JSON.stringify(scope)}`, buildTopologyExplorer(topologyJson, params), buildTopologyExplorer(right, params));
+      const [modelSql, modelJson] = await Promise.all([sql.loadCmdbDatasetForDate(date), json.loadCmdbDatasetForDate(date)]);
+      for (const type of ['business-service', 'mission-capability'] as const) {
+        const records = left.ictSystems.flatMap(system => type === 'business-service' ? system.businessServices : system.missionCapabilities);
+        for (const id of new Set(records.map(record => record.id))) {
+          compare(`${date} model SQL ${type}/${id}`, buildCmdbModelCiDetails(modelSql, type, id, params), buildCmdbModelCiDetails(left, type, id, params));
+          compare(`${date} model JSON ${type}/${id}`, buildCmdbModelCiDetails(modelJson, type, id, params), buildCmdbModelCiDetails(right, type, id, params));
+        }
+      }
       for (const operation of ['loadEndpointExplorerData', 'loadInstalledSoftwareExplorerData', 'loadSecurityVulnerabilityExplorerData', 'loadShadowItExplorerData'] as const) {
         const [sqlRows, jsonRows] = await Promise.all([sql[operation](params), json[operation](params)]).catch(async error => {
           await fs.writeFile('.local/evidence-parity-results.json', JSON.stringify({ database, failures }, null, 2));

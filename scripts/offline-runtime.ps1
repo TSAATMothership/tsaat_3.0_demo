@@ -19,6 +19,11 @@ function Get-TsaatRuntimeManifest([string]$RepositoryRoot) {
     return Get-Content -LiteralPath (Join-Path $RepositoryRoot 'scripts/offline-runtime.json') -Raw | ConvertFrom-Json
 }
 
+function Test-TsaatVersionFloor([string]$Actual, [string]$Minimum) {
+    if ($Actual -notmatch '^v?\d+\.\d+\.\d+$') { return $false }
+    return [version]($Actual -replace '^v', '') -ge [version]$Minimum
+}
+
 function Assert-TsaatRuntimeArchive([string]$Archive, $Manifest) {
     if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) { throw "Missing offline Node archive: $Archive. Transfer the complete offline package; installation never downloads Node." }
     if ((Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash -ne $Manifest.sha256) { throw "Node archive checksum mismatch: $Archive. Restore the reviewed original archive; no host fallback was attempted." }
@@ -45,12 +50,16 @@ function Get-TsaatNode([string]$RepositoryRoot) {
         $hostNode = Get-Command node.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($hostNode) {
             $version = & $hostNode.Source --version
-            if ($LASTEXITCODE -eq 0 -and $version -match '^v24\.') {
+            if ($LASTEXITCODE -eq 0 -and (Test-TsaatVersionFloor $version '24.13.1')) {
                 $npm = Join-Path (Split-Path $hostNode.Source) 'node_modules/npm/bin/npm-cli.js'
-                if (Test-Path -LiteralPath $npm -PathType Leaf) { return $hostNode.Source }
+                $npmPackage = Join-Path (Split-Path $hostNode.Source) 'node_modules/npm/package.json'
+                if ((Test-Path -LiteralPath $npm -PathType Leaf) -and (Test-Path -LiteralPath $npmPackage -PathType Leaf)) {
+                    $npmVersion = (Get-Content -LiteralPath $npmPackage -Raw | ConvertFrom-Json).version
+                    if (Test-TsaatVersionFloor $npmVersion '11.8.0') { return $hostNode.Source }
+                }
             }
         }
-        throw "Node.js 24/npm is unavailable. Use the complete TSAAT offline ZIP containing runtime/$($manifest.archive), then run .\install-offline.cmd. A source-only checkout requires preinstalled Node 24/npm."
+        throw "Node.js 24.13.1+ and npm 11.8.0+ are unavailable. Use the complete TSAAT offline ZIP containing runtime/$($manifest.archive), then run .\install-offline.cmd. Stable newer versions are accepted; preview versions are excluded."
     }
     Assert-TsaatRuntimeArchive $archive $manifest
     $runtimeRoot = Join-Path $RepositoryRoot '.local/runtime'

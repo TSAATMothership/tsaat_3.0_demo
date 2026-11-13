@@ -7,9 +7,6 @@ import { RouteReadyMarker } from "@/components/route-ready-marker";
 import { hasWorkspaceScope, type WorkspaceSearchParams } from "@/lib/workspace-navigation";
 import { EndpointExplorer } from "@/components/endpoint-explorer";
 import { InstalledSoftwareExplorer } from "@/components/installed-software-explorer";
-import { InstalledSoftwareDashboard } from "@/components/installed-software-insights";
-import { buildInstalledSoftwareInsights } from "@/lib/installed-software-insights";
-import { workspaceHref } from "@/lib/workspace-navigation";
 import { SecurityVulnerabilityExplorer } from "@/components/security-vulnerability-explorer";
 import { parseVulnerabilityFilters } from "@/lib/security-vulnerability-explorer";
 import { emptyExplorerTableFilters } from "@/lib/explorer-table";
@@ -24,7 +21,7 @@ import { RetiredFeature } from "@/components/retired-feature";
 
 export default async function DiscoveryCoveragePage({ searchParams }: { searchParams: WorkspaceSearchParams }) {
   const requestedView = (Array.isArray(searchParams.discoveryView) ? searchParams.discoveryView[0] : searchParams.discoveryView) || "endpoints";
-  if (["overview","tools","tools-2","tool-coverage","compliance","patch-management","life-cycle-management","target-state"].includes(requestedView))
+  if (["installed-software-insights","overview","tools","tools-2","tool-coverage","compliance","patch-management","life-cycle-management","target-state"].includes(requestedView))
     return <RetiredFeature pathname="/discovery-coverage" searchParams={searchParams} />;
   if (!hasWorkspaceScope(searchParams)) return <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
   if (requestedView === "topology") {
@@ -40,23 +37,6 @@ export default async function DiscoveryCoveragePage({ searchParams }: { searchPa
       return <>{ready}<section className="panel p-5" role="alert"><p className="endpoint-eyebrow">Discovery / Topology Explorer</p>
         <h1 className="mt-2 text-2xl font-semibold">Topology is temporarily unavailable</h1><p className="my-4 text-slate-300">The selected snapshot could not be loaded. Retry to refresh the CI inventory and relationships.</p>
         <a className="endpoint-export" href={`/discovery-coverage?${query}`}>Try again</a></section></>;
-    }
-  }
-  if (requestedView === "installed-software-insights") {
-    const ready = <RouteReadyMarker pathname="/discovery-coverage" searchParams={searchParams} />;
-    const scope = { network: searchParams.network, system: searchParams.system, securityDomain: searchParams.securityDomain, dataDate: searchParams.dataDate };
-    try {
-      const data = await loadInstalledSoftwareExplorerData(scope);
-      const model = buildInstalledSoftwareInsights(data.rows, data.snapshotDate);
-      return <>{ready}<InstalledSoftwareDashboard model={model} scope={scope}
-        key={JSON.stringify([data.snapshotDate, scopeIds(scope.network), scopeIds(scope.system), scope.securityDomain])} /></>;
-    } catch {
-      const query = new URLSearchParams();
-      for (const [key, value] of Object.entries(scope)) if (value) query.set(key, Array.isArray(value) ? value.join(",") : value);
-      return <>{ready}<section className="panel p-5" role="alert"><p className="endpoint-eyebrow">Discovery / Installed Software Dashboard</p>
-        <h1 className="mt-2 text-2xl font-semibold">Software dashboard is temporarily unavailable</h1>
-        <p className="my-4 text-slate-300">The selected software inventory could not be loaded. Retry to refresh the evidence.</p>
-        <a className="endpoint-export" href={workspaceHref("/discovery-coverage?discoveryView=installed-software-insights", query)}>Try again</a></section></>;
     }
   }
   if (requestedView === "security-vulnerabilities") {

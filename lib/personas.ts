@@ -8,6 +8,10 @@ export type PersonaId = string;
 export const MAX_PERSONAS = 50;
 export const PERSONA_SECTIONS = WORKSPACE_GROUPS.map(group => ({ id: group.id, label: group.label, pages: group.items }));
 export const PERSONA_PAGES = PERSONA_SECTIONS.flatMap(section => section.pages.map(page => ({ ...page, section: section.id })));
+// Preserve the existing SQL/JSON preference payload and ordering. This obsolete ID
+// has no page metadata, route or navigation permission; only stored settings use it.
+const STORED_PERSONA_PAGES = PERSONA_PAGES.flatMap(page => page.id === "discovery-endpoints"
+  ? [page, { id: "discovery-software-insights", section: "discovery" }] : [page]);
 // Accept known retired permissions in older settings, then discard them without granting a replacement.
 export const PERSONA_POPUPS = [{ id: "cmdb-details", label: "CMDB details" }] as const;
 export type PersonaPopupId = typeof PERSONA_POPUPS[number]["id"];
@@ -51,8 +55,8 @@ export function parsePersonaSettings(input: unknown, { forWrite = false }: { for
     if (!label || label.length > 80 || /[\u0000-\u001f\u007f]/.test(label) || personas.some(persona => persona.label.toLowerCase() === label.toLowerCase())) return fail();
     const sections = selection(entry.sections, [...PERSONA_SECTIONS.map(section => section.id), ...RETIRED_PERSONA_SECTIONS]).filter(id => !RETIRED_PERSONA_SECTIONS.includes(id));
     // Version 1 had only section gates. Upgrade in memory, without rewriting storage on read.
-    const pages = candidate.schemaVersion === 1 ? PERSONA_PAGES.filter(page => sections.includes(page.section)).map(page => page.id)
-      : selection(entry.pages, [...PERSONA_PAGES.map(page => page.id), ...RETIRED_PERSONA_PAGES]).filter(id => !RETIRED_PERSONA_PAGES.includes(id));
+    const pages = candidate.schemaVersion === 1 ? STORED_PERSONA_PAGES.filter(page => sections.includes(page.section)).map(page => page.id)
+      : selection(entry.pages, [...STORED_PERSONA_PAGES.map(page => page.id), ...RETIRED_PERSONA_PAGES]).filter(id => !RETIRED_PERSONA_PAGES.includes(id));
     const popups = candidate.schemaVersion === 1 ? PERSONA_POPUPS.map(popup => popup.id)
       : selection(entry.popups, [...PERSONA_POPUPS.map(popup => popup.id), ...RETIRED_PERSONA_POPUPS]).filter((id): id is PersonaPopupId => PERSONA_POPUPS.some(popup => popup.id === id));
     personas.push({ id: entry.id, label, sections, pages, popups });

@@ -143,7 +143,7 @@ describe("CMDB drill through", () => {
         expect(drawer).toContain('event.key !== "Tab"');
         expect(drawer).toContain('document.addEventListener("focusin", onFocusIn, true)');
         expect(route).toContain("buildCmdbAssetDetails(dataset, assetId)");
-        expect(route).toContain("loadDatasetForDate(dataDate, { profile: \"full\" })");
+        expect(route).toContain("loadCmdbDatasetForDate(dataDate, isModelCiType(ciType) ? undefined : assetId)");
     });
     it("wires every structured device-name table and nested panel surface", () => {
         const expectedTriggerCounts: Array<[string, number]> = [

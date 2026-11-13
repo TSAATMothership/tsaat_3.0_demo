@@ -2,6 +2,30 @@ import { describe, expect, it } from "vitest";
 import { ServerMemoryCache, stableCacheKey } from "@/lib/server-cache";
 
 describe("ServerMemoryCache", () => {
+  it("bounds serialized payload bytes, bypasses oversized values and accounts for replacement/expiry", async () => {
+    let now = 0;
+    const cache = new ServerMemoryCache<string>({ namespace: "bytes", ttlMs: 10, maxEntries: 10, maxBytes: 10, now: () => now });
+    cache.set("a", "1234"); now++;
+    cache.set("b", "5678");
+    expect(cache.get("a")).toBeUndefined();
+    expect(cache.getStats().bytes).toBe(6);
+    expect(await cache.getOrSet("large", async () => "0123456789012345")).toBe("0123456789012345");
+    expect(cache.get("large")).toBeUndefined();
+    expect(cache.get("b")).toBe("5678");
+    cache.set("b", "1"); expect(cache.getStats().bytes).toBe(3);
+    now = 100; expect(cache.getStats().bytes).toBe(0);
+    expect(cache.getStats().oversized).toBe(1);
+  });
+
+  it("does not repopulate an invalidated prefix from an in-flight read", async () => {
+    const cache = new ServerMemoryCache<string>({ namespace: "pending", ttlMs: 100, maxEntries: 2 });
+    let resolve!: (value: string) => void;
+    const pending = cache.getOrSet("snapshot:1", () => new Promise<string>(done => { resolve = done; }));
+    cache.invalidatePrefix("snapshot:");
+    resolve("old"); expect(await pending).toBe("old");
+    expect(cache.get("snapshot:1")).toBeUndefined();
+  });
+
   it("expires entries after the configured TTL", () => {
     let now = 1_000;
     const cache = new ServerMemoryCache<string>({

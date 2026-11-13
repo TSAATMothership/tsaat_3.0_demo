@@ -12,7 +12,7 @@ Threat Surface Area Assessment Tool: one Windows-hosted Next.js/TypeScript app w
 
 ## Local setup
 
-Both builds compile offline on Windows x64 with PowerShell. The generated offline distribution includes portable Node.js 24.13.1 and npm 11.8.0; no Node/npm installation or administrator access is needed. A source-only Git checkout still requires Node.js 24/npm, or the reviewed runtime archive described in [offline packaging](docs/offline-builds.md#package-nodejs-for-a-disconnected-machine). All application packages, including native compiler packages, are checked in under vendor/npm. No registry, prewarmed npm cache or sibling folder is needed:
+Both builds compile offline on Windows x64 with PowerShell. The generated offline distribution includes portable Node.js 24.13.1 and npm 11.8.0; no Node/npm installation or administrator access is needed. A source-only Git checkout still requires stable Node.js 24.13.1+ and npm 11.8.0+, or the reviewed runtime archive described in [offline packaging](docs/offline-builds.md#package-nodejs-for-a-disconnected-machine). All application packages, including native compiler packages, are checked in under vendor/npm. No registry, prewarmed npm cache or sibling folder is needed:
 
 ~~~powershell
 .\install-offline.cmd
@@ -50,7 +50,7 @@ npm run check, npm run build:all and npm run test:nosql remain the comprehensive
 
 ## Current workspace
 
-Governance: Installed Software Insights, End Point Insights and Security Vulnerability Insights, each retaining scoped PDF export. Discovery: End Point, Installed Software, Security Vulnerability, Shadow IT and Topology Explorers; the hidden Installed Software Dashboard remains a compatibility view. Retained tabular Explorers keep Excel exports and CMDB drill-through.
+Governance: Installed Software Insights, End Point Insights and Security Vulnerability Insights, each retaining scoped PDF export. Discovery: End Point, Installed Software, Security Vulnerability, Shadow IT and Topology Explorers; the former Installed Software Dashboard URL shows a retirement notice. Retained tabular Explorers keep Excel exports and CMDB drill-through.
 
 The header provides Persona, Security Domain, Managed Network, ICT System and Date controls. Menu and Settings, Database Settings, both SPI matrix tabs, Cyber Security, Observed Measures, Findings and Briefs & Reports are retired. Old URLs show an explicit retirement response.
 

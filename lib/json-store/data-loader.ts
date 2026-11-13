@@ -11,6 +11,8 @@ import "server-only";
 import { evaluateDiscovery,type DetectionRule } from "./evaluations";
 import { atomicWriteJson,fileVersion,jsonStoreDirectory,loadStoreManifest,readJson,withStoreWriteLock } from "./files";
 import { loadPersonaSettings,savePersonaSettings } from "./persona-settings";
+import { ServerMemoryCache } from "@/lib/server-cache";
+import { topologyReadAssets } from "@/lib/inventory-read-projections";
 import { clearReferenceCaches,reference } from "./references";
 
 export type DatasetLoadProfile = SqlLoader.DatasetLoadProfile;
@@ -19,8 +21,9 @@ export type EndpointExplorerData = SqlLoader.EndpointExplorerData;
 export type InstalledSoftwareExplorerData = SqlLoader.InstalledSoftwareExplorerData;
 export type ShadowItExplorerData = SqlLoader.ShadowItExplorerData;
 type Options = { profile?: DatasetLoadProfile };
-const datasets = new Map<string, Dataset>();
-export function clearDataLoaderCaches() { datasets.clear(); clearReferenceCaches();  }
+const datasets = new ServerMemoryCache<Dataset>({ namespace: "json:datasets", ttlMs: 30 * 60 * 1000, maxEntries: 16 });
+const rawDatasets = new ServerMemoryCache<Dataset>({ namespace: "json:raw-datasets", ttlMs: 30 * 60 * 1000, maxEntries: 16 });
+export function clearDataLoaderCaches() { datasets.clear(); rawDatasets.clear(); clearReferenceCaches();  }
 export const __resetDataLoaderCachesForTest = clearDataLoaderCaches;
 async function persistSettings<T extends { updatedAt: string }>(name: string, value: T): Promise<T> {
   return withStoreWriteLock(async () => {
@@ -36,22 +39,47 @@ export async function loadDiscoveryToolsSettings() { return normalizeDiscoveryTo
 export async function saveDiscoveryToolsSettings(input: unknown) {
   return persistSettings("discovery-tools-settings", normalizeDiscoveryToolsScopeUpdate(input, await loadDiscoveryToolsSettings()));
 }
+async function rawSnapshot(id: number): Promise<Dataset> {
+  const manifest = await loadStoreManifest(), source = manifest.snapshots.find(item => item.id === id);
+  if (!source) throw new Error("Unknown JSON snapshot ID: " + id);
+  const key = JSON.stringify([jsonStoreDirectory(), id, await fileVersion(source.file)]);
+  return rawDatasets.getOrSet(key, async () => {
+    const dataset = normalizeDatasetSecurityDomains(await readJson<Dataset>(source.file));
+    if (dataset.snapshotDate !== source.date || !Array.isArray(dataset.assets) || !Array.isArray(dataset.managedNetworks) || !Array.isArray(dataset.ictSystems))
+      throw new Error("Invalid snapshot data: " + source.file);
+    if (new Set(dataset.assets.map(asset => asset.id)).size !== dataset.assets.length) throw new Error("Duplicate snapshot asset IDs.");
+    assertRetainedDataset(dataset);
+    return { ...dataset, snapshotId: id, discoveryCoverageEvaluations: [] };
+  });
+}
 async function snapshot(id: number): Promise<Dataset> {
   const manifest = await loadStoreManifest(), source = manifest.snapshots.find(item => item.id === id);
   if (!source) throw new Error("Unknown JSON snapshot ID: " + id);
   const [settings, rules, version] = await Promise.all([loadDiscoveryToolsSettings(),
     reference<{ detectionRules: DetectionRule[] }>("discovery-coverage-rules"), fileVersion(source.file)]);
   const key = JSON.stringify([jsonStoreDirectory(), id, version, settings, rules]);
-  const cached = datasets.get(key); if (cached) return cached;
-  const dataset = normalizeDatasetSecurityDomains(await readJson<Dataset>(source.file));
-  if (dataset.snapshotDate !== source.date || !Array.isArray(dataset.assets) || !Array.isArray(dataset.managedNetworks) || !Array.isArray(dataset.ictSystems))
-    throw new Error("Invalid snapshot data: " + source.file);
-  if (new Set(dataset.assets.map(asset => asset.id)).size !== dataset.assets.length) throw new Error("Duplicate snapshot asset IDs.");
-  assertRetainedDataset(dataset);
-  dataset.snapshotId = id;
-  dataset.discoveryCoverageEvaluations = dataset.assets.map(asset => evaluateDiscovery(asset, settings, rules.detectionRules));
-  if (datasets.size >= 16) datasets.delete(datasets.keys().next().value!);
-  datasets.set(key, dataset); return dataset;
+  return datasets.getOrSet(key, async () => {
+    const dataset = await rawSnapshot(id);
+    return { ...dataset, discoveryCoverageEvaluations: dataset.assets.map(asset => evaluateDiscovery(asset, settings, rules.detectionRules)) };
+  });
+}
+async function rawSnapshotForDate(requestedDate?: string) {
+  const sources = (await loadStoreManifest()).snapshots, target = normalizeDataDate(requestedDate) ?? todayDateKey();
+  return rawSnapshot((sources.filter(item => item.date <= target).at(-1) ?? sources[0]).id);
+}
+export async function loadCmdbDatasetForDate(date: string | undefined, assetId?: string): Promise<Dataset> {
+  const dataset = await rawSnapshotForDate(date);
+  return { ...dataset, assets: assetId === undefined ? [] : dataset.assets.filter(asset => asset.id === assetId), ciDependencies: [] };
+}
+export async function loadTopologyDatasetForDate(date: string | undefined, scope: WorkspaceSearchParams): Promise<Dataset> {
+  const dataset = await rawSnapshotForDate(date);
+  return { ...dataset, assets: topologyReadAssets(dataset, scope), ciDependencies: [] };
+}
+export async function loadSnapshotMetadataForDate(date?: string): Promise<SqlLoader.SnapshotMetadata> {
+  const dataset = await rawSnapshotForDate(date);
+  return { snapshotDate: dataset.snapshotDate, generatedAt: dataset.generatedAt,
+    networks: dataset.managedNetworks.map(n => ({ id: n.id, label: n.name, securityDomain: n.securityDomain })).sort((a,b) => a.label.localeCompare(b.label)),
+    systems: dataset.ictSystems.map(s => ({ id: s.id, label: s.name, securityDomain: s.securityDomain })).sort((a,b) => a.label.localeCompare(b.label)) };
 }
 export async function loadCurrentDataset(_options: Options = {}) { return snapshot((await loadStoreManifest()).snapshots.at(-1)!.id); }
 export async function loadSnapshots(_options: Options = {}) { return Promise.all((await loadStoreManifest()).snapshots.map(item => snapshot(item.id))); }
@@ -72,15 +100,12 @@ export async function loadSnapshotsForDateWindow(requestedDate: string | undefin
   return Promise.all((await loadStoreManifest()).snapshots.filter(item => item.date >= from && item.date <= latest.snapshotDate).map(item => snapshot(item.id)));
 }
 export async function loadWorkspaceFilterOptionsForDate(date?: string) {
-  const dataset = await loadDatasetForDate(date);
-  return {
-    networks: dataset.managedNetworks.filter(n => n.id !== "net-unassigned").map(n => ({ id: n.id, label: n.name, securityDomain: n.securityDomain })).sort((a,b) => a.label.localeCompare(b.label)),
-    systems: dataset.ictSystems.map(s => ({ id: s.id, label: s.name, securityDomain: s.securityDomain })).sort((a,b) => a.label.localeCompare(b.label))
-  };
+  const metadata = await loadSnapshotMetadataForDate(date);
+  return { networks: metadata.networks.filter(n => n.id !== "net-unassigned"), systems: metadata.systems };
 }
 
 async function inventory(params: WorkspaceSearchParams) {
-  const dataset = await loadDatasetForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
+  const dataset = await rawSnapshotForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
   const networks = scopeIds(params.network), systems = scopeIds(params.system);
   const assets = dataset.assets.filter(a => matchesSecurityDomain(a.securityDomain, params.securityDomain) && (networks.length || systems.length) && a.networkId !== "net-unassigned" &&
     (!networks.length || networks.includes(a.networkId)) && (!systems.length || systems.includes(a.systemContext?.systemId ?? "")));
@@ -103,7 +128,7 @@ export async function loadInstalledSoftwareExplorerData(params: WorkspaceSearchP
   })) : []) };
 }
 export async function loadShadowItExplorerData(params: WorkspaceSearchParams): Promise<SqlLoader.ShadowItExplorerData> {
-  const dataset = await loadDatasetForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
+  const dataset = await rawSnapshotForDate(Array.isArray(params.dataDate) ? params.dataDate[0] : params.dataDate);
   const networks = scopeIds(params.network), systems = scopeIds(params.system);
   const byId = new Map(dataset.assets.map(asset => [asset.id, asset]));
   return { snapshotDate: dataset.snapshotDate, rows: dataset.assets.flatMap(a => {
@@ -137,6 +162,9 @@ export const jsonDataProvider = {
   loadLatestSnapshots,
   loadDatasetTimeline,
   loadDatasetForDate,
+  loadSnapshotMetadataForDate,
+  loadCmdbDatasetForDate,
+  loadTopologyDatasetForDate,
   loadWorkspaceFilterOptionsForDate,
   loadEndpointExplorerData,
   loadInstalledSoftwareExplorerData,

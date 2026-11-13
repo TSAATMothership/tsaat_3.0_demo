@@ -24,7 +24,7 @@ test('documentation-only changes need no installation, builds or provider checks
   assert.deepEqual(validationCommands(plan), [['scripts/repository-check.mjs'], ['scripts/docs-maintenance.mjs', '--check']]);
 });
 test('SQL, JSON, calculation and persistence changes expand provider validation', () => {
-  for (const file of ['Database Schema/migrations/031_example.sql', 'NoSQL/reference.json', 'lib/json-store/store.ts', 'lib/sql-data-loader.ts', 'lib/types.ts', 'lib/spi-evaluation.ts', 'lib/measures-settings.ts', 'lib/measures-trends.ts', 'lib/measures-trends-data.ts', 'lib/topology-explorer.ts', 'lib/topology-explorer-data.ts', 'scripts/populate-json-store.mjs', 'scripts/sample-evidence.mjs', 'scripts/append-sample-evidence.ps1', 'scripts/check-evidence-parity.ts', 'scripts/check-sample-evidence.ts', 'scripts/prepare-sample-evidence.ts']) {
+  for (const file of ['Database Schema/migrations/031_example.sql', 'NoSQL/reference.json', 'lib/json-store/store.ts', 'lib/sql-data-loader.ts', 'lib/inventory-read-projections.ts', 'lib/types.ts', 'lib/spi-evaluation.ts', 'lib/measures-settings.ts', 'lib/measures-trends.ts', 'lib/measures-trends-data.ts', 'lib/topology-explorer.ts', 'lib/topology-explorer-data.ts', 'scripts/populate-json-store.mjs', 'scripts/sample-evidence.mjs', 'scripts/append-sample-evidence.ps1', 'scripts/check-evidence-parity.ts', 'scripts/check-sample-evidence.ts', 'scripts/prepare-sample-evidence.ts']) {
     const plan = assess(file);
     assert.equal(plan.data, true, file);
     assert.equal(plan.build, true, file);
@@ -32,7 +32,7 @@ test('SQL, JSON, calculation and persistence changes expand provider validation'
   }
 });
 test('dependency/build changes, deletions, unknown files and manual overrides select broad validation', () => {
-  for (const file of ['package-lock.json', 'vendor/npm/package.tgz', 'next.config.mjs', 'eslint.config.mjs', 'scripts/lint.mjs', 'scripts/offline-install.mjs', 'scripts/offline-stop-servers.ps1', 'scripts/offline-runtime.ps1', 'scripts/offline-package.ps1', 'install-offline.cmd', 'tsaat-npm.cmd', 'unclassified.config']) assert.equal(assess(file).full, true, file);
+  for (const file of ['package-lock.json', 'vendor/npm/package.tgz', 'next.config.mjs', 'eslint.config.mjs', 'scripts/lint.mjs', 'scripts/toolchain-policy.mjs', 'scripts/offline-install.mjs', 'scripts/offline-stop-servers.ps1', 'scripts/offline-runtime.ps1', 'scripts/offline-package.ps1', 'install-offline.cmd', 'tsaat-npm.cmd', 'unclassified.config']) assert.equal(assess(file).full, true, file);
   assert.equal(assessChanges([{ file: 'lib/old.ts', status: 'D' }]).full, true);
   assert.equal(assessChanges([], { full: true }).full, true);
   assert.equal(assessChanges([], { data: true }).build, true);

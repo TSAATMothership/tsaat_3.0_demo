@@ -13,6 +13,7 @@ import {
   ParsedDatabaseConnectionSettings
 } from "@/lib/db-config";
 import { timeAsync } from "@/lib/perf";
+import { SqlRequestLimiter } from "@/lib/sql-request-limiter";
 
 const execFileAsync = promisify(execFile);
 
@@ -22,6 +23,7 @@ const SQLCMD_MARKER_BEGIN = "__TSAAT_JSON_BEGIN__";
 const SQLCMD_MARKER_END = "__TSAAT_JSON_END__";
 
 const SQLCMD_MAX_BUFFER = 1024 * 1024 * 1024;
+const sqlRequests = new SqlRequestLimiter();
 
 let cachedManifestDatabaseName: string | null | undefined;
 
@@ -45,6 +47,7 @@ interface ResolvedSqlConnection {
 
 interface ExecuteSqlFileOptions {
   allowTrustedFallback: boolean;
+  signal?: AbortSignal;
 }
 
 export interface SqlConnectionInput {
@@ -398,6 +401,8 @@ async function executeSqlFileAgainstConnection(
         "65001", // Input files and captured output use UTF-8, including configured display names.
         "-x", // Application values are literals, never sqlcmd variable substitutions.
         "-b",
+        "-l", "15", // Bound login and query waits; never change the selected authentication/TLS policy.
+        "-t", "60",
         "-w",
         "65535",
         "-y",
@@ -411,6 +416,8 @@ async function executeSqlFileAgainstConnection(
       ],
       {
         maxBuffer: SQLCMD_MAX_BUFFER,
+        timeout: 65_000,
+        signal: options.signal,
         windowsHide: true,
         env: childEnvironment
       }
@@ -486,14 +493,14 @@ async function executeSqlFileAgainstConnection(
   }
 }
 
-export async function executeSqlText(sqlText: string, databaseName?: string): Promise<string> {
+export async function executeSqlText(sqlText: string, databaseName?: string, signal?: AbortSignal): Promise<string> {
   if (IS_JSON_BUILD) throw new Error("SQL access is disabled in the No-SQL build.");
   const connection = await resolveEffectiveConnection(databaseName);
 
   return timeAsync(`sqlcmd ${connection.database}`, () =>
-    withTempSqlFile(sqlText, async (sqlPath) =>
-      executeSqlFileAgainstConnection(sqlPath, connection, { allowTrustedFallback: true })
-    )
+    sqlRequests.run(() => withTempSqlFile(sqlText, async (sqlPath) =>
+      executeSqlFileAgainstConnection(sqlPath, connection, { allowTrustedFallback: true, signal })
+    ), signal)
   );
 }
 
@@ -501,9 +508,9 @@ export async function executeSqlTextWithConnection(sqlText: string, connection: 
   if (IS_JSON_BUILD) throw new Error("SQL access is disabled in the No-SQL build.");
   const resolved = normalizeExplicitConnection(connection);
   return timeAsync(`sqlcmd ${resolved.database}`, () =>
-    withTempSqlFile(sqlText, async (sqlPath) =>
+    sqlRequests.run(() => withTempSqlFile(sqlText, async (sqlPath) =>
       executeSqlFileAgainstConnection(sqlPath, resolved, { allowTrustedFallback: false })
-    )
+    ))
   );
 }
 
@@ -536,13 +543,15 @@ SELECT N'${SQLCMD_MARKER_END}';
 `;
 }
 
-export async function executeSqlJson<T>(innerSql: string, databaseName?: string): Promise<T> {
+export async function executeSqlJson<T>(innerSql: string, databaseName?: string, signal?: AbortSignal): Promise<T> {
   const wrapped = wrapJsonSql(innerSql);
-  const output = await executeSqlText(wrapped, databaseName);
+  const output = await executeSqlText(wrapped, databaseName, signal);
   const jsonPayload = extractMarkedJsonPayload(output);
 
   try {
-    return JSON.parse(jsonPayload) as T;
+    const result = JSON.parse(jsonPayload) as T;
+    if (process.env.TSAAT_PERF_DEBUG === "1") console.info(`[perf] sql-result bytes=${Buffer.byteLength(jsonPayload, "utf8")} rows=${Array.isArray(result) ? result.length : "object"}`);
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown parse error";
     throw new Error(`Failed to parse SQL JSON payload: ${message}`);

@@ -7,6 +7,17 @@ import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { checkOfflineDependencies, restoreLegacyResolutions } from '../scripts/offline-dependencies.mjs';
 import { parseInstallArguments } from '../scripts/offline-install.mjs';
+import { isVersionAtLeast, minimumNodeVersion, minimumNpmVersion } from '../scripts/toolchain-policy.mjs';
+
+test('toolchain floors accept newer stable versions without accepting older or preview versions', () => {
+  for (const value of ['24.13.1', '24.14.0', '25.0.0', '26.13.1', '30.0.0']) assert.equal(isVersionAtLeast(value, minimumNodeVersion), true);
+  for (const value of ['24.13.0', '24.0.0', '22.22.0', '26.0.0-rc.1', 'garbage']) assert.equal(isVersionAtLeast(value, minimumNodeVersion), false);
+  assert.equal(isVersionAtLeast('12.0.0', minimumNpmVersion), true);
+  assert.equal(isVersionAtLeast('11.7.0', minimumNpmVersion), false);
+  const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  assert.equal(manifest.engines.node, '>=' + minimumNodeVersion);
+  assert.equal(manifest.engines.npm, '>=' + minimumNpmVersion);
+});
 
 function fixture(prefix = 'tsaat-offline-test-') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -256,8 +267,10 @@ function installerFixture() {
   const f = fixture('tsaat-offline-test- [installer] ');
   const scripts = path.join(f.root, 'scripts');
   fs.mkdirSync(scripts);
-  for (const name of ['offline-install.mjs', 'offline-stop-servers.ps1', 'offline-dependencies.mjs', 'offline-network.cjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(scripts, name));
-  const npmCli = path.join(f.root, 'fake-npm.cjs');
+  for (const name of ['offline-install.mjs', 'toolchain-policy.mjs', 'offline-stop-servers.ps1', 'offline-dependencies.mjs', 'offline-network.cjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(scripts, name));
+  const npmCli = path.join(f.root, 'npm/bin/fake-npm.cjs');
+  fs.mkdirSync(path.dirname(npmCli), { recursive: true });
+  fs.writeFileSync(path.join(f.root, 'npm/package.json'), JSON.stringify({ version: '11.8.0' }));
   fs.writeFileSync(npmCli, `require('node:fs').writeFileSync('npm-invocation.json', JSON.stringify({args: process.argv.slice(2), env: {NODE_OPTIONS: process.env.NODE_OPTIONS, npm_config_ignore_scripts: process.env.npm_config_ignore_scripts}}));`);
   const run = (args = [], extraEnv = {}) => spawnSync(process.execPath, [path.join(scripts, 'offline-install.mjs'), ...args], {
     cwd: f.root, env: { ...process.env, npm_execpath: npmCli, ...extraEnv }, encoding: 'utf8', timeout: 60000, windowsHide: true
@@ -334,7 +347,7 @@ test('portable bootstrap works without host Node/npm, preserves arguments and fa
 test('npm entry point hands an incompatible host runtime to portable Node before installation and propagates failures', windowsOnly, () => {
   const f = portableFixture();
   try {
-    for (const name of ['offline-install.mjs', 'offline-dependencies.mjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(f.root, 'scripts', name));
+    for (const name of ['offline-install.mjs', 'toolchain-policy.mjs', 'offline-dependencies.mjs']) fs.copyFileSync(path.resolve('scripts', name), path.join(f.root, 'scripts', name));
     // Simulate the old host version in this parent only; the portable child runs its real version.
     const parent = path.join(f.root, 'old-host.mjs');
     // Windows file paths containing spaces must remain native paths, not URL-encoded paths.

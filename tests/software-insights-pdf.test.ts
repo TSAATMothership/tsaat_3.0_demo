@@ -12,7 +12,7 @@ import { useBundledInsightsAssets, insightsRenderContext } from "./insights-asse
 
 useBundledInsightsAssets();
 
-const readers = vi.hoisted(() => ({ loadDatasetForDate: vi.fn(), loadInstalledSoftwareExplorerData: vi.fn() }));
+const readers = vi.hoisted(() => ({ loadSnapshotMetadataForDate: vi.fn(), loadInstalledSoftwareExplorerData: vi.fn() }));
 vi.mock("@/lib/data-loader", () => readers);
 const date = "2026-10-31", generated = new Date("2026-11-07T10:11:12.000Z"), captured = "2026-10-31T09:10:11.000Z";
 const row = (patch: Partial<InstalledSoftwareRecord> = {}): InstalledSoftwareRecord => ({ assetId: "a1", softwareOrdinal: 1,
@@ -45,8 +45,8 @@ async function readPdf(bytes: Uint8Array) {
 beforeEach(() => {
   vi.clearAllMocks();
   readers.loadInstalledSoftwareExplorerData.mockResolvedValue({ snapshotDate: date, rows });
-  readers.loadDatasetForDate.mockResolvedValue({ snapshotDate: date, generatedAt: captured,
-    managedNetworks: [{ id: "net-1", name: "Example Network" }], ictSystems: [{ id: "sys-1", name: "Example System" }] });
+  readers.loadSnapshotMetadataForDate.mockResolvedValue({ snapshotDate: date, generatedAt: captured,
+    networks: [{ id: "net-1", label: "Example Network" }], systems: [{ id: "sys-1", label: "Example System" }] });
 });
 
 describe("Software Insights PDF", () => {
@@ -106,12 +106,12 @@ describe("Software Insights report data and endpoint", () => {
   it("uses only shared scope and pins metadata to the software projection's resolved date", async () => {
     const result = await loadSoftwareInsightsReport({ network: "net-1", system: "sys-1", securityDomain: "SECRET", dataDate: "2026-11-01", environment: "Production" });
     expect(readers.loadInstalledSoftwareExplorerData).toHaveBeenCalledExactlyOnceWith({ network: ["net-1"], system: ["sys-1"], securityDomain: "SECRET", dataDate: "2026-11-01" });
-    expect(readers.loadDatasetForDate).toHaveBeenCalledExactlyOnceWith(date, { profile: "summary" });
+    expect(readers.loadSnapshotMetadataForDate).toHaveBeenCalledExactlyOnceWith(date);
     expect(result.model).toEqual(buildInstalledSoftwareInsights(rows, date));
     expect(result.scopeLabels).toEqual({ networks: ["Example Network (net-1)"], systems: ["Example System (sys-1)"], domains: ["SECRET"] });
   });
   it("rejects mismatched metadata rather than mixing snapshots", async () => {
-    readers.loadDatasetForDate.mockResolvedValueOnce({ snapshotDate: "2026-11-07" });
+    readers.loadSnapshotMetadataForDate.mockResolvedValueOnce({ snapshotDate: "2026-11-07" });
     await expect(loadSoftwareInsightsReport({ network: "net-1" })).rejects.toThrow("snapshot mismatch");
   });
   it.each(["", "network=net-1&dataDate=bad", "network=net-1&dataDate=2026-02-30", "network=net-1&dataDate=2026-10-31&dataDate=2026-11-07", "system=sys-1&securityDomain=INVALID", "network=" + "x".repeat(256)])("rejects invalid scope/date: %s", async query => {

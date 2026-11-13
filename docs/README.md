@@ -7,7 +7,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Retirement scope, paired upgrade and recovery | [Feature retirement](feature-retirement.md) |
 | Product behavior and acceptance contracts | [Solution design index](../Requirements%20Documentation/TSAAT-Solution-Design-Index.md) |
 | CVE inventory, sources and upgrade/population | [Security Vulnerability Explorer](security-vulnerability-explorer.md) |
-| Software dashboard and Governance briefing | [Installed Software Insights](../Requirements%20Documentation/18-Installed-Software-Insights.md) |
+| Software inventory Governance briefing | [Installed Software Insights](../Requirements%20Documentation/18-Installed-Software-Insights.md) |
 | CI lookup, Business Impact and model Dependencies | [Topology Explorer](../Requirements%20Documentation/20-Topology-Explorer.md) |
 | All matching CIs and executive/analyst impact PDFs | [Topology Impact Report](topology-impact-report.md) |
 | Header domain scope and SQL/JSON upgrades | [Security domains](security-domains.md) |
@@ -17,6 +17,7 @@ This documentation describes the current source. SQL and TypeScript define exact
 | Endpoint and vulnerability briefing PDF exports | [Inventory Insights reports](inventory-insights-reports.md) |
 | All PDF/Excel locations, browser workers and progress behavior | [Client document generation](client-document-generation.md) |
 | System structure and data flow | [Architecture](architecture.md) |
+| Focused reads, build compatibility and measured follow-up decisions | [Scalability improvements](scalability-improvements.md) |
 | Proposed on-premises Tableau extension and transformation plan | [Tableau extension solution design](tableau-extension-solution-design.md) |
 | Shared interactions and accessibility | [UI design](ui-design.md) |
 | SQL and JSON build/storage contracts | [Data providers](data-providers.md) |
