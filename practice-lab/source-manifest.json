@@ -1,0 +1,869 @@
+{
+  "source": "DSMR_TSAAT",
+  "commit": "bb46672a3c53916816f0b502638b265d93facda4",
+  "snapshots": [
+    {
+      "id": 1,
+      "date": "2026-09-19"
+    },
+    {
+      "id": 2,
+      "date": "2026-09-26"
+    },
+    {
+      "id": 3,
+      "date": "2026-10-03"
+    },
+    {
+      "id": 4,
+      "date": "2026-10-10"
+    },
+    {
+      "id": 5,
+      "date": "2026-10-17"
+    },
+    {
+      "id": 6,
+      "date": "2026-10-24"
+    },
+    {
+      "id": 7,
+      "date": "2026-10-31"
+    },
+    {
+      "id": 8,
+      "date": "2026-11-07"
+    }
+  ],
+  "evidence": [
+    {
+      "file": "references/cmdb-attributes.json",
+      "sha256": "bef599da1ac31fe37aa12e17f1623aadb017a0eaa83eb48e572a137083bb28b1"
+    },
+    {
+      "file": "references/discovery-coverage-rules.json",
+      "sha256": "99be18dd4bc78804ca1537c1f6a504e5e9c2e7073c42bc198abcc0b7189aea82"
+    },
+    {
+      "file": "references/discovery-tools-settings.json",
+      "sha256": "3a73dd94dea2289b3518bf9f19312f20cc43092eecbba98636916531c6e18cbb"
+    },
+    {
+      "file": "references/personas.json",
+      "sha256": "92f8f04b4d566e5d3a66a9f3762747b2e999de6743c5bd5e0d6608b77144e85b"
+    },
+    {
+      "file": "settings/discovery-tools-settings.json",
+      "sha256": "3a73dd94dea2289b3518bf9f19312f20cc43092eecbba98636916531c6e18cbb"
+    },
+    {
+      "file": "settings/personas.json",
+      "sha256": "92f8f04b4d566e5d3a66a9f3762747b2e999de6743c5bd5e0d6608b77144e85b"
+    },
+    {
+      "file": "snapshots/week-01.json",
+      "sha256": "5af3204fa1095a84952dcfa6a5bcafa4ca3948070425fcb519d011c1479c8ca1"
+    },
+    {
+      "file": "snapshots/week-02.json",
+      "sha256": "449c7bd96205ac3e6a6bbb54f50d74ef798314b597492ba85fbd831b22a51947"
+    },
+    {
+      "file": "snapshots/week-03.json",
+      "sha256": "dc565dd4873380d67142064c507abb9d97d78ac66a76761a992a574902c9ed30"
+    },
+    {
+      "file": "snapshots/week-04.json",
+      "sha256": "9d52839206ce238eaead157afb502d728086b03476bdc4e9261813a68a81ed13"
+    },
+    {
+      "file": "snapshots/week-05.json",
+      "sha256": "985ece774de110d1f31c0131b88914ad2a0c8e5e1589d34affd80cf7593dea0f"
+    },
+    {
+      "file": "snapshots/week-06.json",
+      "sha256": "8e74c64fbc108de8484296968b7d37dd9d5a242318caeaf03c298af021632a31"
+    },
+    {
+      "file": "snapshots/week-07.json",
+      "sha256": "27c7876cbd27c716f45b5e71c26fe232902007728c4571e66dd98f8eb9f8b55c"
+    },
+    {
+      "file": "snapshots/week-08.json",
+      "sha256": "4014b99d098330cda8278abb7c4bf1f8a98c94e6b60b2d99814070ab7fb4853a"
+    },
+    {
+      "file": "store.json",
+      "sha256": "196b3ff7b02f87176797f10b85de1846f13485f6ecc1e90a0158e53139bdad6e"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/api.ts",
+      "sha256": "64b807444b0b23abbb60a67e4bf3ac55b64e2273aabdef834f603f1ee4cb205e"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/app.tsx",
+      "sha256": "c3f2f6e22a594fd579c4e05def5ea1af9111e28761e3c7aef1fee19ec90f783c"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/empty.ts",
+      "sha256": "2cc006027feab6aafde16d500296b8485921a292edcfaf237a0371ce63150c91"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/image.tsx",
+      "sha256": "60c1dc05b10136dff78364cdf408e4bfe529a74c6baaf267b9183a78665e3c42"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/navigation.tsx",
+      "sha256": "9e37abd0638d3926b81ba0e964cc610aff435ccf0bf5307c45d65f265839d844"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/provider.ts",
+      "sha256": "ac681e15c904a6fc39b7dad4d78610c42e6b18f0981f6f2138a8bc8dbf1eda92"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/route-loading.ts",
+      "sha256": "1f17e2519699b3f60dd07c88bf26e37b35fca2dea79eb3cf8af09baadbde8c70"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/server.ts",
+      "sha256": "f14dcc93211feaaefe3bbb01d3b14a319e760db25a12c513ef23e8382914c3cd"
+    },
+    {
+      "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/store.ts",
+      "sha256": "2691031431a6f96edff56dd2b7a004f65c91f443ebaaf76f1d1f9981bbf33866"
+    },
+    {
+      "file": "Database Schema/data/personas.json",
+      "sha256": "92f8f04b4d566e5d3a66a9f3762747b2e999de6743c5bd5e0d6608b77144e85b"
+    },
+    {
+      "file": "app/api/assets/cmdb-details/route.ts",
+      "sha256": "a98105d59f3c773d8e691e3e346be5037e112701dca8002078cad8754453f8af"
+    },
+    {
+      "file": "app/api/discovery-coverage/endpoints/export/route.ts",
+      "sha256": "7635c23b506ba774cebe8b608a5982e299c893721ad6174cc9087054871d94fe"
+    },
+    {
+      "file": "app/api/discovery-coverage/installed-software/export/route.ts",
+      "sha256": "b5477fa8716ead355c7fd3000f2300cc14f7fe12e80896a5a66f3a89e5da3d37"
+    },
+    {
+      "file": "app/api/discovery-coverage/security-vulnerabilities/export/route.ts",
+      "sha256": "5b239bff6e550960571f40f46f2708926f79d232feaeaaabe65dc1ff0289eaf7"
+    },
+    {
+      "file": "app/api/discovery-coverage/shadow-it/export/route.ts",
+      "sha256": "aac07e925241c4b14e805f44c2bf65904780c35f5ef1e0a59ba3123b2358303f"
+    },
+    {
+      "file": "app/api/discovery/installed-software-insights/report/route.ts",
+      "sha256": "28be2964451bc0d0205a7cd6d5588270bacbf3bcbbd175cee1258395679d3f11"
+    },
+    {
+      "file": "app/api/governance/end-point-insights/report/route.ts",
+      "sha256": "b69f168455c5b9ee3c5ee2140f4711f17ef59eea4c0de0dc21dc9b9f730bc2d8"
+    },
+    {
+      "file": "app/api/governance/security-vulnerability-insights/report/route.ts",
+      "sha256": "9c5dfa20f4dc462cbbc31e72fde348091a61e04710953077bda3caf1be4fff04"
+    },
+    {
+      "file": "app/api/settings/personas/route.ts",
+      "sha256": "b93c45fc7429ad135c870501fae5786f481dde966a0d93a4e318dd3417205fb4"
+    },
+    {
+      "file": "app/api/workspace-options/route.ts",
+      "sha256": "4dbb17a7a0e84c5b6f7e2155ed6aeb8981242c99eeb851042cb1dc4f861100a5"
+    },
+    {
+      "file": "app/discovery-coverage/page.tsx",
+      "sha256": "234a9ecca6f61965f7c7bd4a2bf75668290310ec6b2b88f22850d90cdb0026b4"
+    },
+    {
+      "file": "app/documents/generate/page.tsx",
+      "sha256": "c9d07d3a1d205789f0bc253ff69b34a787a500fe5605f715df7f70792c2c5eec"
+    },
+    {
+      "file": "app/governance/end-point-insights/page.tsx",
+      "sha256": "8cb5c2a2d3ae28e8b82bd4935acb22bd81b6d572200be699703f08cb4d6b44e9"
+    },
+    {
+      "file": "app/governance/installed-software-insights/page.tsx",
+      "sha256": "d016894d4e6beab087c0eafdbb7cd23d627cb02c48f1ef2e0a2ebc9c1b7da43f"
+    },
+    {
+      "file": "app/governance/security-vulnerability-insights/page.tsx",
+      "sha256": "cf5089e24fe381430e106149ca40ad30fe15368cbfd75bcab744f9e3170b748b"
+    },
+    {
+      "file": "components/cmdb-drill-through.tsx",
+      "sha256": "3040dc84d72a377650ec8196569e30dff3115941812ae155199494d6abd000d9"
+    },
+    {
+      "file": "components/document-download-button.tsx",
+      "sha256": "7066f4024b33ad19caaf186c4fb71689608e75d08c43abb1270f3fe5caf82d5e"
+    },
+    {
+      "file": "components/document-generation-dialog.tsx",
+      "sha256": "5066c8e06f77b1d44ff4f473d3574b763cc0636885c16ec8935b341db9784123"
+    },
+    {
+      "file": "components/document-generation-page.tsx",
+      "sha256": "2ec8d8a3392f2d94d0f1fbb36b542584a544bb4adbdd6dee911c9ff5d5f7c5a7"
+    },
+    {
+      "file": "components/endpoint-explorer.tsx",
+      "sha256": "982e9e3d1c3cd4d71ec0ad3406b557bf55e14e4351c83011d31c936903d82fc3"
+    },
+    {
+      "file": "components/endpoint-insights.tsx",
+      "sha256": "27de420f345d031fdc6666f4788e663ac942bf138975c9e191b5a260241bde35"
+    },
+    {
+      "file": "components/findings-data-table.tsx",
+      "sha256": "1fd2cc6f043e6b7011b2d35870d47350d25fd6f4687bd91f93660bba89747f5b"
+    },
+    {
+      "file": "components/impact-graph-node-visual.tsx",
+      "sha256": "c5461d3ed992d76a201821f4bc2fedc0e0cde1fe676aab0211cac23ee4e95637"
+    },
+    {
+      "file": "components/insights-report-button.tsx",
+      "sha256": "3e21696f8b0ed989eb2693964452df7e8efe0b9074928e978e6e7ae15c5888fb"
+    },
+    {
+      "file": "components/installed-software-explorer.tsx",
+      "sha256": "2449187ac34753adae180c557e55b6213ea483f487d2fc776a10e85ef1d954ef"
+    },
+    {
+      "file": "components/installed-software-insights.tsx",
+      "sha256": "132c4399484dba520770d8654e15ea979ac7247d1cc737868f7dc344195c565d"
+    },
+    {
+      "file": "components/inventory-explorer-controls.tsx",
+      "sha256": "c0ce61f854b7a59ca603e4e2fb1ef5c944d3b07b510b680136c56612dc7d04ca"
+    },
+    {
+      "file": "components/persona-link.tsx",
+      "sha256": "a5903bc073751e3102041f6113344e80ef99765253088289c68cf256035107ce"
+    },
+    {
+      "file": "components/persona-popup-button.tsx",
+      "sha256": "17ac366bc26ce106f4da7d4f40d842128946837ef704a4da6c038b2c54f15cf2"
+    },
+    {
+      "file": "components/persona-provider.tsx",
+      "sha256": "87caec88afc0001c1a1d40d75bcf9343196137cb3bf048107bc0c9a5735bebee"
+    },
+    {
+      "file": "components/persona-selector.tsx",
+      "sha256": "05c704ab51d5d1c155f4e71c749dc371af4427ca11f2099eca80b8a0c268f3b7"
+    },
+    {
+      "file": "components/retired-feature.tsx",
+      "sha256": "e2ae0e81e4a5b02f15a125506fc4bd8b541a40d578fcbaf3e7c9baeb6c163c93"
+    },
+    {
+      "file": "components/route-ready-marker.tsx",
+      "sha256": "c4e0bc211df46dc9f4e3c2ebfe1fd8775fd05fe4d56913d4983ebaabd06af6f1"
+    },
+    {
+      "file": "components/security-vulnerability-explorer.tsx",
+      "sha256": "170231bc223e1bdcfc00abafc52fbdae6ac6fd11cc2462eee1ad801a1790adb7"
+    },
+    {
+      "file": "components/shadow-it-explorer.tsx",
+      "sha256": "d148a4291cc6d2e2e19e4d824483e4b18dbe7bb57175e7d009c4be2c475f1aaf"
+    },
+    {
+      "file": "components/software-insights-briefing.tsx",
+      "sha256": "f9338abd86854c24153ddc22ee959c0f1505d3dbc9d9534dbdb66a3238e6d355"
+    },
+    {
+      "file": "components/topology-explorer.tsx",
+      "sha256": "b43bd75d907ed501db0e00af236dc6e99786c3e9ec9f2ee4a0c057bcc56c0d78"
+    },
+    {
+      "file": "components/topology-impact-report-button.tsx",
+      "sha256": "c5b15b78fff4d0083f72390ace75110ce563825c0c6cb5f00e736c17516c407e"
+    },
+    {
+      "file": "components/use-impact-graph-layout.ts",
+      "sha256": "133bdfb46cbe02b2741f0b9298d6cb62449e8ad0cb2c07ad038b195c4470383e"
+    },
+    {
+      "file": "components/vulnerability-insights.tsx",
+      "sha256": "474e7350feed6d06e2c2d2b2da9e933edc01baf1d557400e0c9be6872ebf2d8c"
+    },
+    {
+      "file": "components/workspace-filters.tsx",
+      "sha256": "3eb2efc440a81961030a9b3746781c4245acd4af351fdf1356ef3c1f7e587def"
+    },
+    {
+      "file": "components/workspace-header-controls.tsx",
+      "sha256": "7065ee171c2df487d9f6a344f4ea9732031f874dd6d0afb95bb2baf55e54ab1b"
+    },
+    {
+      "file": "components/workspace-scope-notice.tsx",
+      "sha256": "512995f970c6da0dd1691cf3057a647f963b653919b39405372586e7212b3b95"
+    },
+    {
+      "file": "components/workspace-shell.tsx",
+      "sha256": "816ec35d9f2dad80904cdc85e4548a361357839e546bd1d6c7c786a618ca8b87"
+    },
+    {
+      "file": "components/workspace-tabs.tsx",
+      "sha256": "b1e000858d2030fe4e56e46e836e70491e090df97fecc2df5aef03acd33914c5"
+    },
+    {
+      "file": "lib/asset-taxonomy.ts",
+      "sha256": "74996c41d5916c8284b14ab5e71f9b0f5162c67cfeeb9fced27e17edd5c39047"
+    },
+    {
+      "file": "lib/browser-location.ts",
+      "sha256": "5760f4aa090e0bd4c3fe1d73fb0c83df1cb6f2fe736c7c0b6a7a1a77fbcf68a5"
+    },
+    {
+      "file": "lib/cmdb-attributes.ts",
+      "sha256": "6cf82f533ccaed141bb41d3bb1e7825c0c68a8794d0836cae638cd4ae323c62f"
+    },
+    {
+      "file": "lib/cmdb-ci-types.ts",
+      "sha256": "7108e10e164cdf0573cdf6198f7332a5390b630d0cad0cc06afb2049e68ba4af"
+    },
+    {
+      "file": "lib/cmdb-drill-through.ts",
+      "sha256": "35c427d6f99ad92a831a12e6a66c16f44e46be94d5350abf12347a287ad100c4"
+    },
+    {
+      "file": "lib/cmdb-model-ci.ts",
+      "sha256": "c313165198de848084c04385530949e4a3275dfb5b67c9c2ef12db23f7c16980"
+    },
+    {
+      "file": "lib/cmdb-topology-navigation.ts",
+      "sha256": "065f2cdac618d8bfaac726711fc4929a262cf6ceace1cb26b265541e22f7c1b2"
+    },
+    {
+      "file": "lib/data-date.ts",
+      "sha256": "773c3cf052ffa6cb886cc639bc69e3b15e20ba7d7ca9670c5c5506a70b0c0d6e"
+    },
+    {
+      "file": "lib/discovery-coverage.ts",
+      "sha256": "783a2c13869321439c2baf0e88ca68af0f232c0945a55b072a7a389685607802"
+    },
+    {
+      "file": "lib/discovery-explorer-links.ts",
+      "sha256": "9fdc8ee4ce0e3fa50e7d034b0e3ca2c348aa918de4c52600328e5aecf906ff1b"
+    },
+    {
+      "file": "lib/discovery-filter-scope.ts",
+      "sha256": "e2d2ffd163949bfd808181233fb1842d7f172344a9ae31d4d7e842840584505a"
+    },
+    {
+      "file": "lib/discovery-tools-settings.ts",
+      "sha256": "9045a5aa6c3e882f685455022e8a2575a41ae7a6897d58853bf9800ea8dafc17"
+    },
+    {
+      "file": "lib/documents/client.ts",
+      "sha256": "f9860d45ab3c998699f52353ef424a859f32027be216ed40749c94d397ae0b65"
+    },
+    {
+      "file": "lib/documents/contracts.ts",
+      "sha256": "94f170c7c08130ed66f62eddc86ba69fc775f6503b21b7b397d1d3165fa6e0f8"
+    },
+    {
+      "file": "lib/documents/document.worker.ts",
+      "sha256": "b4bc2a906995beee1ff34e3f536939fcf0d63014e07a4ffe76caa1d8a2e0e2dd"
+    },
+    {
+      "file": "lib/documents/insights.ts",
+      "sha256": "13c72533ede123661db7c25c03b1118c92907a34df57a13b464560c25a48afc7"
+    },
+    {
+      "file": "lib/documents/protocol.ts",
+      "sha256": "4e2eea1f84fbd0bf1dd05921beefb08089221057f2f609ccf9ce90585af47c34"
+    },
+    {
+      "file": "lib/documents/server-response.ts",
+      "sha256": "ab9b16c9b45725a7afe82404d27e759f68393839c99fffee56672efc43b57597"
+    },
+    {
+      "file": "lib/documents/workbooks.ts",
+      "sha256": "e1fa083e51fa0915b020403146c56325a60aa3e064de72040aefe075d3ecff95"
+    },
+    {
+      "file": "lib/endpoint-explorer-workbook.ts",
+      "sha256": "5f351915e6a447d1bee4fc6b1d98766b395685f0e05d78123321f8b7317ae832"
+    },
+    {
+      "file": "lib/endpoint-explorer.ts",
+      "sha256": "d736901c3433015989f41787d27b30ccaa54c4524cea77a1d1a7675021bcfcb7"
+    },
+    {
+      "file": "lib/explorer-table.ts",
+      "sha256": "d412d84ce3324d2208a14005fe9e3268384c6297f23e463476ceee5409e23df9"
+    },
+    {
+      "file": "lib/insights-navigation.ts",
+      "sha256": "753381a20bafd0b9956496a4e182f3c25870a1f5d03d300ce650697db4c3913f"
+    },
+    {
+      "file": "lib/insights-pdf-theme.ts",
+      "sha256": "f4ecca4455e81d4b11a2801f9c74181a6a117898681877fdf164b106f20e6122"
+    },
+    {
+      "file": "lib/insights-snapshot.ts",
+      "sha256": "6fd83454cfed191472bd1b482db8ec04a3d7f1a94a1fdc8ace7960495fa23080"
+    },
+    {
+      "file": "lib/installed-software-explorer.ts",
+      "sha256": "fdd1cae5fbf0446647b7ebaf166ac75dfee3dfc367318a108fafa91e92986c58"
+    },
+    {
+      "file": "lib/installed-software-insights.ts",
+      "sha256": "c3c210aedf504a6f7213b31848ad820323bfa7b353efbafe27da3503a00e4fe7"
+    },
+    {
+      "file": "lib/installed-software-workbook.ts",
+      "sha256": "b461fc711b34731e6ba6fc0ac8df0e1fe449aba0dfae81946495040ac35df64a"
+    },
+    {
+      "file": "lib/inventory-context-data.ts",
+      "sha256": "4c729f0996fc625f383af27c52600a4101242c901093a516fc6f588da290be16"
+    },
+    {
+      "file": "lib/inventory-context.ts",
+      "sha256": "3f284c460300bea66c64e866714375a80115e3a3649c004e23d7bf451993ae61"
+    },
+    {
+      "file": "lib/inventory-explorer-workbook.ts",
+      "sha256": "749e5f74fef71d6556aac2a9d27804af232a6be95e6f56ff61f4a44c81a2d086"
+    },
+    {
+      "file": "lib/inventory-insights-pdf.ts",
+      "sha256": "7f7faa1f2f8500d6fb425f5a1596d093d8377856088630bc4c20f17191f6d793"
+    },
+    {
+      "file": "lib/inventory-insights-report-links.ts",
+      "sha256": "646d7b1c30563a8e37a64c7c49ffd0274d03a99091896bdad6dd19fcbd608745"
+    },
+    {
+      "file": "lib/inventory-insights-report.ts",
+      "sha256": "fc074e335396c60de25d3d3732a18ad02ef53d59bf2f95f32e062516885d2528"
+    },
+    {
+      "file": "lib/inventory-read-projections.ts",
+      "sha256": "1131cc44461f772feecc91781a3686b9e9b2f3ee3a045cfd95bcace83691c0df"
+    },
+    {
+      "file": "lib/inventory-report-layout.ts",
+      "sha256": "ded038af04b9306311041cc28187948c8555ed8a56c32cf901c4353ce1b8de56"
+    },
+    {
+      "file": "lib/inventory-schema.mjs",
+      "sha256": "b276e55a73fd302fe2dafea781ad52000d43348fe75e6306e97562b3d02a9408"
+    },
+    {
+      "file": "lib/json-store/cmdb-attributes.ts",
+      "sha256": "4c86311c9da7aff6f4d5d12d080ec1b91539deade5650433f1ecd915b81843ae"
+    },
+    {
+      "file": "lib/json-store/data-loader.ts",
+      "sha256": "4b68de4c59ece7fa1f900bd7f5498e96ebf417b1959aff1826895db684cfbe65"
+    },
+    {
+      "file": "lib/json-store/evaluations.ts",
+      "sha256": "058ca050a4690ae6bee9fdaec380981539ddd6d7e2cff747c554507ee7927be4"
+    },
+    {
+      "file": "lib/json-store/files.ts",
+      "sha256": "917f495a11d960a6a2d84b6b6e7b82eb6b8e0063433340e2a0e71a2fd91ca2f2"
+    },
+    {
+      "file": "lib/json-store/persona-settings.ts",
+      "sha256": "98d7466e8ce8b97c02f52d3b3ad06b1fc7083379e421667530bfe2509ca0c11d"
+    },
+    {
+      "file": "lib/json-store/references.ts",
+      "sha256": "9b75f0401329a9ccb0dca2664a411f88c6fd9c0fc53d6dc881017008323d81be"
+    },
+    {
+      "file": "lib/location-key.ts",
+      "sha256": "8213ed310f54b2da21ee5cc7cc1691880d034e20dde7c5b77196e3b1a3d86795"
+    },
+    {
+      "file": "lib/network-scope.ts",
+      "sha256": "ebf805f07b0180c6073d74728ab58aa870d33bf7c8b5d7075c1485f61634c87f"
+    },
+    {
+      "file": "lib/personas.ts",
+      "sha256": "f72e4ea75904788ff764cf9ce231722479001ce6839cbe25d303f27f0366c518"
+    },
+    {
+      "file": "lib/report-template-pdf.ts",
+      "sha256": "467aa6b80f57131cfa685f9ea41831b6621de3efa3345075669028a84fe613c4"
+    },
+    {
+      "file": "lib/retired-capabilities.mjs",
+      "sha256": "64f418f9a47e6c7bd4ea88bb51eb0915df02d5c42e55c828081905b455e2201d"
+    },
+    {
+      "file": "lib/scoped-discovery-tool-coverage.ts",
+      "sha256": "1df1015439da70565a8f7a8293c4ab5b0091008491778bf4cb3f2b78efd4cd02"
+    },
+    {
+      "file": "lib/security-domain.mjs",
+      "sha256": "4f0549fa6e0f366921a6a847110c4c146d442a90b0284410a78ccf089289cf95"
+    },
+    {
+      "file": "lib/security-vulnerability-explorer.ts",
+      "sha256": "df95c2a2fdb817a7060f09f7db98719287adf1dc72429a9af1e6b0df7afb3c56"
+    },
+    {
+      "file": "lib/security-vulnerability-workbook.ts",
+      "sha256": "391dd873d59659e3efcda22867c05a9db0d7e63a93b1b96d379d200f9efaf1fb"
+    },
+    {
+      "file": "lib/selectors.ts",
+      "sha256": "c8a81d1e1dbad6f5ffd10f954e5e91eda86f536ddd54ff5333c0cc9cc17aa8f6"
+    },
+    {
+      "file": "lib/server-cache.ts",
+      "sha256": "d9fdd99afe0890cbe55d65d7a0fa98502e3d015f39f9b4c2cfb29f096987fa4c"
+    },
+    {
+      "file": "lib/shadow-it-explorer.ts",
+      "sha256": "f41ceae4e98b9781d912789b889d9ef1c329dbccc27b171529a8f6da614f660b"
+    },
+    {
+      "file": "lib/shadow-it-workbook.ts",
+      "sha256": "ba1d746e30ce458bcefad2ab481cf39acf0f88853a414324ef7b999da4c30c2b"
+    },
+    {
+      "file": "lib/software-insights-pdf.ts",
+      "sha256": "ab5b25ca2ac8cc96f3e287a939e231ce8dcd61a45f2bbeffb6e1a4248b4d6637"
+    },
+    {
+      "file": "lib/software-insights-report-data.ts",
+      "sha256": "0bd0cab3945e0563bc9b6511ddceee3c95f4c3d275399832b1766360344f39f4"
+    },
+    {
+      "file": "lib/topology-explorer-data.ts",
+      "sha256": "ae51c3140200244d3a34f51702002d9351a8d9d7880487a8b663d9540324bf69"
+    },
+    {
+      "file": "lib/topology-explorer.ts",
+      "sha256": "d6701af5fac40c13ab43b1117b5264c35cea2ab8a22c52d2045c8bd564e65a2c"
+    },
+    {
+      "file": "lib/topology-impact-pdf.ts",
+      "sha256": "4869f177e7263af37b95b99c4d9e4d0b5e75a09a0e9b835f26a96052894682c9"
+    },
+    {
+      "file": "lib/topology-impact-report.ts",
+      "sha256": "da15ef0381a55b8298014c721c042571d03636cafcccefb27f6b3dfb60a124ba"
+    },
+    {
+      "file": "lib/topology-layout.ts",
+      "sha256": "354a4f5cc7a0d5588cf573981b67458a4d8ef0bca6bc9adf522b96a69db7ec29"
+    },
+    {
+      "file": "lib/topology-lookup-filters.ts",
+      "sha256": "955d389a3e0e87cd82fff88d23a3e2fe32775873e87e72b4084539a5414bdadc"
+    },
+    {
+      "file": "lib/workspace-navigation.ts",
+      "sha256": "1bd8761c63324c3019771bf6774282bbbecdb8fefe2735f8b1f0fb67dbf9fdf9"
+    },
+    {
+      "file": "lib/xlsx-zip.ts",
+      "sha256": "2c306848f965a227332f865cab2130e072d3bbf5f720264b28fa7a97f3b5365f"
+    }
+  ],
+  "buildInputs": [
+    {
+      "file": "scripts/build_browser_lab.mjs",
+      "sha256": "f32529f6cf272ba9ab0c08015e0c9d9881841618a23415da86cbc37e93586e35"
+    },
+    {
+      "file": "practice-lab/browser/api.ts",
+      "sha256": "64b807444b0b23abbb60a67e4bf3ac55b64e2273aabdef834f603f1ee4cb205e"
+    },
+    {
+      "file": "practice-lab/browser/app.tsx",
+      "sha256": "c3f2f6e22a594fd579c4e05def5ea1af9111e28761e3c7aef1fee19ec90f783c"
+    },
+    {
+      "file": "practice-lab/browser/empty.ts",
+      "sha256": "2cc006027feab6aafde16d500296b8485921a292edcfaf237a0371ce63150c91"
+    },
+    {
+      "file": "practice-lab/browser/image.tsx",
+      "sha256": "60c1dc05b10136dff78364cdf408e4bfe529a74c6baaf267b9183a78665e3c42"
+    },
+    {
+      "file": "practice-lab/browser/navigation.tsx",
+      "sha256": "9e37abd0638d3926b81ba0e964cc610aff435ccf0bf5307c45d65f265839d844"
+    },
+    {
+      "file": "practice-lab/browser/personas.ts",
+      "sha256": "095ae414e2be5a108facd046c78382c7c14ddd8eba30ff108bf02f23cc0cb960"
+    },
+    {
+      "file": "practice-lab/browser/practice.css",
+      "sha256": "cb8cf3456c71df9bc8e1fe1f5b71f88433e715da93609fba926994050da82b83"
+    },
+    {
+      "file": "practice-lab/browser/provider.ts",
+      "sha256": "ac681e15c904a6fc39b7dad4d78610c42e6b18f0981f6f2138a8bc8dbf1eda92"
+    },
+    {
+      "file": "practice-lab/browser/route-loading.ts",
+      "sha256": "1f17e2519699b3f60dd07c88bf26e37b35fca2dea79eb3cf8af09baadbde8c70"
+    },
+    {
+      "file": "practice-lab/browser/server.ts",
+      "sha256": "f14dcc93211feaaefe3bbb01d3b14a319e760db25a12c513ef23e8382914c3cd"
+    },
+    {
+      "file": "practice-lab/browser/store.ts",
+      "sha256": "2691031431a6f96edff56dd2b7a004f65c91f443ebaaf76f1d1f9981bbf33866"
+    },
+    {
+      "file": "../DSMR_TSAAT/app/globals.css",
+      "sha256": "2dfed9b1b2b5fb181a0899be7b28afaae9cb11fa459c6581a59e176023d48b8e"
+    },
+    {
+      "file": "../DSMR_TSAAT/tailwind.config.ts",
+      "sha256": "8b70e74b14b2b1106bb9ab1d197e1eb73e59e08115ae4efdf3f839f4cc079077"
+    },
+    {
+      "file": "../DSMR_TSAAT/package-lock.json",
+      "sha256": "e0f57609d2bcfc677eb5cf4ca1cd74f1950ea9416416d504c53dbdf2dcf20990"
+    },
+    {
+      "file": "../DSMR_TSAAT/scripts/setup-json-store.mjs",
+      "sha256": "a142546fc91afd127782094750761372d3ddfc231fe75672b5d95719606acac6"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/bg-topography.svg",
+      "sha256": "ee63ca856edf0347dedbe0df5db82dad2e4e7573a5a89bc291be1063dea81853"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/tsaat-logo.png",
+      "sha256": "bd1d82e0c2c3315240ff4cb77a76d972bea48e8130e5f35c456ca74713297101"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/endpoint-evidence.svg",
+      "sha256": "815cd0f204a113fd0d96116472edfb08e01a43d0e78c5863907c0e8c5ffeca28"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/software-terrain.svg",
+      "sha256": "d4e05efdf83f4380e39748cc5863e2385230b94f0c37678312ec250885a15625"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/vulnerability-evidence.svg",
+      "sha256": "61a6320c03c6b6d9c121c69d0546e3aece34fd21461cf969e61a7286a980a152"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/insights-report-art/endpoint-evidence.png",
+      "sha256": "67dcd9fe3f3f6a6394ed1e7671ddb5b319e5cd5860c0a8f36fddfca1c206fa62"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/insights-report-art/software-terrain.png",
+      "sha256": "418e9e4c61ec28b396b814c433b22f7dd7297987d028c0f1ee9ef1c2baa2bb1e"
+    },
+    {
+      "file": "../DSMR_TSAAT/public/insights-report-art/vulnerability-evidence.png",
+      "sha256": "d55aeb3167c4623213d67e215bbd6335fd388ff0d1b78b03dc0c0d9c7a060c6b"
+    }
+  ],
+  "dependencies": [
+    "node_modules/@pdf-lib/standard-fonts/es/Courier-Bold.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Courier-BoldOblique.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Courier-Oblique.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Courier.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Encoding.js",
+    "node_modules/@pdf-lib/standard-fonts/es/Font.js",
+    "node_modules/@pdf-lib/standard-fonts/es/Helvetica-Bold.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Helvetica-BoldOblique.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Helvetica-Oblique.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Helvetica.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Symbol.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Times-Bold.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Times-BoldItalic.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Times-Italic.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/Times-Roman.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/ZapfDingbats.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/all-encodings.compressed.json",
+    "node_modules/@pdf-lib/standard-fonts/es/index.js",
+    "node_modules/@pdf-lib/standard-fonts/es/utils.js",
+    "node_modules/@pdf-lib/upng/UPNG.js",
+    "node_modules/pako/index.js",
+    "node_modules/pako/lib/deflate.js",
+    "node_modules/pako/lib/inflate.js",
+    "node_modules/pako/lib/utils/common.js",
+    "node_modules/pako/lib/utils/strings.js",
+    "node_modules/pako/lib/zlib/adler32.js",
+    "node_modules/pako/lib/zlib/constants.js",
+    "node_modules/pako/lib/zlib/crc32.js",
+    "node_modules/pako/lib/zlib/deflate.js",
+    "node_modules/pako/lib/zlib/gzheader.js",
+    "node_modules/pako/lib/zlib/inffast.js",
+    "node_modules/pako/lib/zlib/inflate.js",
+    "node_modules/pako/lib/zlib/inftrees.js",
+    "node_modules/pako/lib/zlib/messages.js",
+    "node_modules/pako/lib/zlib/trees.js",
+    "node_modules/pako/lib/zlib/zstream.js",
+    "node_modules/pdf-lib/es/api/PDFDocument.js",
+    "node_modules/pdf-lib/es/api/PDFDocumentOptions.js",
+    "node_modules/pdf-lib/es/api/PDFEmbeddedFile.js",
+    "node_modules/pdf-lib/es/api/PDFEmbeddedPage.js",
+    "node_modules/pdf-lib/es/api/PDFFont.js",
+    "node_modules/pdf-lib/es/api/PDFImage.js",
+    "node_modules/pdf-lib/es/api/PDFJavaScript.js",
+    "node_modules/pdf-lib/es/api/PDFPage.js",
+    "node_modules/pdf-lib/es/api/PDFPageOptions.js",
+    "node_modules/pdf-lib/es/api/StandardFonts.js",
+    "node_modules/pdf-lib/es/api/colors.js",
+    "node_modules/pdf-lib/es/api/errors.js",
+    "node_modules/pdf-lib/es/api/form/PDFButton.js",
+    "node_modules/pdf-lib/es/api/form/PDFCheckBox.js",
+    "node_modules/pdf-lib/es/api/form/PDFDropdown.js",
+    "node_modules/pdf-lib/es/api/form/PDFField.js",
+    "node_modules/pdf-lib/es/api/form/PDFForm.js",
+    "node_modules/pdf-lib/es/api/form/PDFOptionList.js",
+    "node_modules/pdf-lib/es/api/form/PDFRadioGroup.js",
+    "node_modules/pdf-lib/es/api/form/PDFSignature.js",
+    "node_modules/pdf-lib/es/api/form/PDFTextField.js",
+    "node_modules/pdf-lib/es/api/form/appearances.js",
+    "node_modules/pdf-lib/es/api/form/index.js",
+    "node_modules/pdf-lib/es/api/image/alignment.js",
+    "node_modules/pdf-lib/es/api/image/index.js",
+    "node_modules/pdf-lib/es/api/index.js",
+    "node_modules/pdf-lib/es/api/objects.js",
+    "node_modules/pdf-lib/es/api/operations.js",
+    "node_modules/pdf-lib/es/api/operators.js",
+    "node_modules/pdf-lib/es/api/rotations.js",
+    "node_modules/pdf-lib/es/api/sizes.js",
+    "node_modules/pdf-lib/es/api/svgPath.js",
+    "node_modules/pdf-lib/es/api/text/alignment.js",
+    "node_modules/pdf-lib/es/api/text/index.js",
+    "node_modules/pdf-lib/es/api/text/layout.js",
+    "node_modules/pdf-lib/es/core/PDFContext.js",
+    "node_modules/pdf-lib/es/core/PDFObjectCopier.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroButton.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroCheckBox.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroChoice.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroComboBox.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroField.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroForm.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroListBox.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroNonTerminal.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroPushButton.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroRadioButton.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroSignature.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroTerminal.js",
+    "node_modules/pdf-lib/es/core/acroform/PDFAcroText.js",
+    "node_modules/pdf-lib/es/core/acroform/flags.js",
+    "node_modules/pdf-lib/es/core/acroform/index.js",
+    "node_modules/pdf-lib/es/core/acroform/utils.js",
+    "node_modules/pdf-lib/es/core/annotation/AppearanceCharacteristics.js",
+    "node_modules/pdf-lib/es/core/annotation/BorderStyle.js",
+    "node_modules/pdf-lib/es/core/annotation/PDFAnnotation.js",
+    "node_modules/pdf-lib/es/core/annotation/PDFWidgetAnnotation.js",
+    "node_modules/pdf-lib/es/core/annotation/flags.js",
+    "node_modules/pdf-lib/es/core/annotation/index.js",
+    "node_modules/pdf-lib/es/core/document/PDFCrossRefSection.js",
+    "node_modules/pdf-lib/es/core/document/PDFHeader.js",
+    "node_modules/pdf-lib/es/core/document/PDFTrailer.js",
+    "node_modules/pdf-lib/es/core/document/PDFTrailerDict.js",
+    "node_modules/pdf-lib/es/core/embedders/CMap.js",
+    "node_modules/pdf-lib/es/core/embedders/CustomFontEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/CustomFontSubsetEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/FileEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/FontFlags.js",
+    "node_modules/pdf-lib/es/core/embedders/JavaScriptEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/JpegEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/PDFPageEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/PngEmbedder.js",
+    "node_modules/pdf-lib/es/core/embedders/StandardFontEmbedder.js",
+    "node_modules/pdf-lib/es/core/errors.js",
+    "node_modules/pdf-lib/es/core/index.js",
+    "node_modules/pdf-lib/es/core/interactive/ViewerPreferences.js",
+    "node_modules/pdf-lib/es/core/objects/PDFArray.js",
+    "node_modules/pdf-lib/es/core/objects/PDFBool.js",
+    "node_modules/pdf-lib/es/core/objects/PDFDict.js",
+    "node_modules/pdf-lib/es/core/objects/PDFHexString.js",
+    "node_modules/pdf-lib/es/core/objects/PDFInvalidObject.js",
+    "node_modules/pdf-lib/es/core/objects/PDFName.js",
+    "node_modules/pdf-lib/es/core/objects/PDFNull.js",
+    "node_modules/pdf-lib/es/core/objects/PDFNumber.js",
+    "node_modules/pdf-lib/es/core/objects/PDFObject.js",
+    "node_modules/pdf-lib/es/core/objects/PDFRawStream.js",
+    "node_modules/pdf-lib/es/core/objects/PDFRef.js",
+    "node_modules/pdf-lib/es/core/objects/PDFStream.js",
+    "node_modules/pdf-lib/es/core/objects/PDFString.js",
+    "node_modules/pdf-lib/es/core/operators/PDFOperator.js",
+    "node_modules/pdf-lib/es/core/operators/PDFOperatorNames.js",
+    "node_modules/pdf-lib/es/core/parser/BaseParser.js",
+    "node_modules/pdf-lib/es/core/parser/ByteStream.js",
+    "node_modules/pdf-lib/es/core/parser/PDFObjectParser.js",
+    "node_modules/pdf-lib/es/core/parser/PDFObjectStreamParser.js",
+    "node_modules/pdf-lib/es/core/parser/PDFParser.js",
+    "node_modules/pdf-lib/es/core/parser/PDFXRefStreamParser.js",
+    "node_modules/pdf-lib/es/core/streams/Ascii85Stream.js",
+    "node_modules/pdf-lib/es/core/streams/AsciiHexStream.js",
+    "node_modules/pdf-lib/es/core/streams/DecodeStream.js",
+    "node_modules/pdf-lib/es/core/streams/FlateStream.js",
+    "node_modules/pdf-lib/es/core/streams/LZWStream.js",
+    "node_modules/pdf-lib/es/core/streams/RunLengthStream.js",
+    "node_modules/pdf-lib/es/core/streams/Stream.js",
+    "node_modules/pdf-lib/es/core/streams/decode.js",
+    "node_modules/pdf-lib/es/core/structures/PDFCatalog.js",
+    "node_modules/pdf-lib/es/core/structures/PDFContentStream.js",
+    "node_modules/pdf-lib/es/core/structures/PDFCrossRefStream.js",
+    "node_modules/pdf-lib/es/core/structures/PDFFlateStream.js",
+    "node_modules/pdf-lib/es/core/structures/PDFObjectStream.js",
+    "node_modules/pdf-lib/es/core/structures/PDFPageLeaf.js",
+    "node_modules/pdf-lib/es/core/structures/PDFPageTree.js",
+    "node_modules/pdf-lib/es/core/syntax/CharCodes.js",
+    "node_modules/pdf-lib/es/core/syntax/Delimiters.js",
+    "node_modules/pdf-lib/es/core/syntax/Irregular.js",
+    "node_modules/pdf-lib/es/core/syntax/Keywords.js",
+    "node_modules/pdf-lib/es/core/syntax/Numeric.js",
+    "node_modules/pdf-lib/es/core/syntax/Whitespace.js",
+    "node_modules/pdf-lib/es/core/writers/PDFStreamWriter.js",
+    "node_modules/pdf-lib/es/core/writers/PDFWriter.js",
+    "node_modules/pdf-lib/es/index.js",
+    "node_modules/pdf-lib/es/types/index.js",
+    "node_modules/pdf-lib/es/utils/Cache.js",
+    "node_modules/pdf-lib/es/utils/arrays.js",
+    "node_modules/pdf-lib/es/utils/async.js",
+    "node_modules/pdf-lib/es/utils/base64.js",
+    "node_modules/pdf-lib/es/utils/errors.js",
+    "node_modules/pdf-lib/es/utils/index.js",
+    "node_modules/pdf-lib/es/utils/numbers.js",
+    "node_modules/pdf-lib/es/utils/objects.js",
+    "node_modules/pdf-lib/es/utils/pdfDocEncoding.js",
+    "node_modules/pdf-lib/es/utils/png.js",
+    "node_modules/pdf-lib/es/utils/rng.js",
+    "node_modules/pdf-lib/es/utils/strings.js",
+    "node_modules/pdf-lib/es/utils/unicode.js",
+    "node_modules/pdf-lib/es/utils/validators.js",
+    "node_modules/pdf-lib/node_modules/tslib/tslib.es6.js",
+    "node_modules/react-dom/cjs/react-dom.production.min.js",
+    "node_modules/react-dom/client.js",
+    "node_modules/react-dom/index.js",
+    "node_modules/react/cjs/react-jsx-runtime.production.min.js",
+    "node_modules/react/cjs/react.production.min.js",
+    "node_modules/react/index.js",
+    "node_modules/react/jsx-runtime.js",
+    "node_modules/scheduler/cjs/scheduler.production.min.js",
+    "node_modules/scheduler/index.js"
+  ],
+  "htmlSha256": "b55465f9ac3177bcdfcfdeaf6b62a3ec592ef8b13bf65c37d286309e24be1339"
+}

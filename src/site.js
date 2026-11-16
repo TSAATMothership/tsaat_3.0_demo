@@ -7,7 +7,7 @@ const required=JSON.parse(byId('required').textContent);
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const defaults=byId('workbook').textContent.trim();
 let originalGuideText;
-let book=defaults, copy=new Map(), sourceMode='embed', selectedAnswer=null, lastRoute='', searchItems=[], opener=null, workbookBusy=false;
+let book=defaults, copy=new Map(), sourceMode='embed', lastRoute='', searchItems=[], opener=null, workbookBusy=false;
 const u=k=>msg('ui.'+k);
 function msg(k){if(!copy.has(k))throw new Error('Missing text key '+k);return copy.get(k).text;}
 const tx=k=>safe(msg(k));

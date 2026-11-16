@@ -37,7 +37,7 @@ fs.mkdirSync(results,{recursive:true});
  await p.locator('[data-example="1"]').click();await p.waitForSelector('.root-node');assert.match(await p.locator('.teaching-graph').textContent(),/Endpoint B/);await p.screenshot({path:path.join(results,'topology-page.png')});
  await p.goto(url+'#topic/govern-end');await p.locator('[data-example="2"]').click();assert.match(await p.locator('#example-note').textContent(),/four applicable/);
  await p.goto(url+'#map');await p.waitForSelector('.map-block');assert.equal(await p.locator('.map-block .mini-topic').count(),8);
- await p.goto(url+'#practice/arp');await p.locator('[data-answer="0"]').click();assert.match(await p.locator('#feedback').textContent(),/Review/);await p.locator('[data-answer="2"]').click();assert.match(await p.locator('#feedback').textContent(),/Correct/);
+ await p.goto(url+'#practice/arp');await p.locator('#lab-launch').waitFor();assert.equal(await p.locator('[data-answer],.scenario,.scenario-link').count(),0);assert.match(await p.locator('.launch-copy').textContent(),/No installation, server or internet/);
  await p.goto(url+'#reference/fix/nopath');assert.equal(await p.locator('#ref-nopath').getAttribute('open'),'');
  await p.keyboard.press('/');await p.locator('#query').fill('reservation date');assert.ok(await p.locator('.search-result').count()>0);
  await p.locator('#query').fill('zznothingxyz');assert.match(await p.locator('.nothing').textContent(),/No matching/);
@@ -55,6 +55,9 @@ fs.mkdirSync(results,{recursive:true});
  await p.locator('#workbook-picker').setInputFiles({name:'edited.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:fresh});await p.waitForFunction(()=>document.getElementById('book-status')?.textContent.includes('edited workbook'));
  promise=p.waitForEvent('download');await p.locator('[data-action="save"]').click();const saved=path.join(results,'edited-qa.html');await (await promise).saveAs(saved);
  await p.goto(pathToFileURL(saved).href);await p.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();
+ await p.locator('#sidebar a[href="#practice"]').click();await p.locator('#learner-name').fill('Saved guide');
+ const labWindow=ctx.waitForEvent('page');await p.locator('#lab-launch button').click();const savedLab=await labWindow;
+ await savedLab.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();await savedLab.close();
  const mobile=await ctx.newPage({});await mobile.setViewportSize({width:390,height:844});await mobile.goto(url);await mobile.locator('.hero').waitFor();await mobile.screenshot({path:path.join(results,'mobile.png'),fullPage:true});
  for(const route of ['overview','roles','map','role/system','topic/topology','topic/govern-soft','practice','reference']){await mobile.goto(url+'#'+route);await mobile.waitForTimeout(25);assert.ok(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile overflow '+route);}
  await mobile.locator('.hamb').click();await mobile.locator('#sidebar a[href="#roles"]').click();await mobile.locator('.role-card[href="#role/manager"]').click();assert.equal(await mobile.locator('body').getAttribute('class')||'','');
@@ -62,7 +65,7 @@ fs.mkdirSync(results,{recursive:true});
  const web=await ctx.newPage();const original=fs.readFileSync(path.join(out,'TSAAT-User-Guide.html'));let mode='valid';
  await web.route('https://guide.test/**',r=>{const file=new URL(r.request().url()).pathname;if(file.endsWith('.xlsx'))return r.fulfill({status:mode==='missing'?404:200,contentType:'application/octet-stream',body:mode==='valid'?fresh:Buffer.from('bad')});return r.fulfill({status:200,contentType:'text/html',body:original});});
  for(const test of ['valid','missing','bad']){mode=test;await web.goto('https://guide.test/index.html');await web.waitForSelector('.hero');if(test==='valid')await web.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();await web.locator('[data-action=workbook]').click();await web.waitForFunction(s=>document.getElementById('book-status').textContent.includes(s),test==='valid'?'companion workbook beside':test==='missing'?'embedded':'could not be read');}
- assert.deepEqual(fail,[]);console.log('PASS: browser rendered desktop/mobile; four role pathways; thirteen walkthroughs; eight screen links; diagrams, glossary, quizzes, search, XLSX export/import, edited HTML offline reload, HTTP workbook selection/fallback.');
+ assert.deepEqual(fail,[]);console.log('PASS: browser rendered desktop/mobile; four role pathways; thirteen walkthroughs; eight screen links; diagrams, glossary, practice launcher without scenarios, search, XLSX export/import, edited HTML offline reload, HTTP workbook selection/fallback.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
 

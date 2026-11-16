@@ -94,6 +94,7 @@ def build():
         "WARN": html.escape(copy["ui.dataWarning"]), "LOGO": media["logo"], "BOOK": encode(workbook.read_bytes()),
         "STRUCTURE": script_json(json.loads(read(SRC / "structure.json"))),
         "REQUIRED": script_json(keys), "MEDIA": script_json(media),
+        "PRACTICE": encode((GUIDE / "TSAAT-Practice-Lab.html").read_bytes()),
         "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css")),
         "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "training.js", "interactions.js")),
         "ZIP": ("/* Library distribution notice\n" + notice + "\n*/\n" + read(vendor / "jszip.min.js")).replace("</script", r"<\/script"),

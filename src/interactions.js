@@ -4,20 +4,12 @@ function refPage(group,id){
   const records=model[group].map(item=>{const k=group+'.'+item+'.';return `<details class="reference-item" id="ref-${item}" ${id===item?'open':''}><summary><span>${tx(k+'title')}</span>${icon('down',16)}</summary><p>${tx(k+'body')}</p></details>`;}).join('');
   return crumb(ui('reference'))+heading(ui('guide'),ui('reference'),ui('referenceIntro'))+`<nav class="segments" aria-label="${ui('reference')}">${tabs}</nav><section class="ref-list">${records}</section>`;
 }
-function practice(id){
-  if(!model.labs[id])id=Object.keys(model.labs)[0];const lab=model.labs[id],k='l.'+id+'.';
-  const choices=[0,1,2].map(i=>`<button class="answer ${selectedAnswer===i?(i===lab.correct?'yes':'no'):''}" aria-pressed="${selectedAnswer===i}" data-answer="${i}"><b>${String.fromCharCode(65+i)}</b><span>${tx(k+'a'+i)}</span>${selectedAnswer===i?icon(i===lab.correct?'check':'info',19):''}</button>`).join('');
-  const feed=selectedAnswer===null?'':`<div class="feedback ${selectedAnswer===lab.correct?'yes':'no'}"><strong>${ui(selectedAnswer===lab.correct?'correct':'review')}</strong><p>${tx(k+'b'+selectedAnswer)}</p>${link('topic/'+lab.topic,ui('learnTopic')+icon('arrow',15),'inline-link')}</div>`;
-  const menu=Object.entries(model.labs).map(([key,item],i)=>link('practice/'+key,`<span class="number">${pad(i+1)}</span><span>${tx('l.'+key+'.title')}</span>${icon('chev',15)}`,'scenario-link'+(key===id?' current':''),key===id?'aria-current="page"':'')).join('');
-  return crumb(ui('practice'))+heading(ui('guide'),ui('practice'),ui('labIntro'))+launchPanel()+sectionHead(phrase('scenarios'))+`<div class="lab-grid"><nav class="lab-choices" aria-label="${ui('scenario')}">${menu}</nav><section class="scenario"><div class="scenario-head">${pillIcon(lab.icon)}${eyebrow(ui('scenario'))}</div><h2>${tx(k+'title')}</h2><p>${tx(k+'question')}</p><fieldset><legend>${ui('answers')}</legend>${choices}</fieldset><div id="feedback" aria-live="polite">${feed}</div></section></div>`;
+function practice(){
+  return crumb(ui('practice'))+heading(ui('guide'),ui('practice'),ui('labIntro'))+launchPanel();
 }
 function routeView(focus=false){
   const [name='feature-guide',id,item]=path();let page,nav=name;
-  clearProbe();
-  const user=name==='session'?sessionName(id):'';
-  document.body.classList.toggle('in-session',Boolean(user));
-  if(user){page=workspace(user);nav='practice';}
-  else if(name==='session'){page=practice();nav='practice';}
+  if(name==='session'){page=practice();nav='practice';}
   else if(name==='topic'&&model.topics[id]){page=topicPage(id);nav='feature-guide';}
   else if(name==='role'&&model.roles[id]){page=rolePage(id);nav='roles';}
   else if(name==='roles')page=rolesPage();
@@ -31,7 +23,6 @@ function routeView(focus=false){
   document.title=byId('main').querySelector('h1').textContent+' · '+u('brand');
   if(focus){window.scrollTo(0,0);byId('main').focus({preventScroll:true});if(name==='reference'&&item)byId('ref-'+item)?.scrollIntoView({block:'nearest'});}
   lastRoute=location.hash;
-  if(user)probeRuntime();
 }
 function setupSearch(){
   searchItems=[];
@@ -42,7 +33,7 @@ function setupSearch(){
   }
   for(const [id,t] of Object.entries(model.topics))enter('t.'+id,'topic/'+id,u(t.group),t.icon);
   for(const [id,r] of Object.entries(model.roles))enter('r.'+id,'role/'+id,u('roleGroup'),r.icon);
-  for(const [id,v] of Object.entries(model.labs))enter('l.'+id,'practice/'+id,u('practice'),v.icon);
+  searchItems.push({title:u('practice'),category:u('guide'),icon:'lab',route:'practice',parts:[msg('lab.catch')]});
   for(const [g,label] of [['gloss','terms'],['fix','issues'],['keys','shortcuts']])for(const id of model[g])enter(g+'.'+id,'reference/'+g+'/'+id,u(label),'book');
 }
 function results(query){
@@ -66,7 +57,7 @@ function modal(kind){
     results('');d.showModal();byId('query').focus();
   }else{
     const [p,id]=path();
-    const key=p==='topic'&&model.topics[id]?'t.'+id+'.title':p==='role'&&model.roles[id]?'r.'+id+'.title':p==='practice'?'l.'+(model.labs[id]?id:Object.keys(model.labs)[0])+'.title':p==='reference'?'ui.reference':p==='roles'?'ui.roles':'ui.map';
+    const key=p==='topic'&&model.topics[id]?'t.'+id+'.title':p==='role'&&model.roles[id]?'r.'+id+'.title':p==='practice'?'lab.title':p==='reference'?'ui.reference':p==='roles'?'ui.roles':'ui.map';
     const actions=[['download','download'],['upload','upload'],['save','download']];
     const rows=actions.map(([a,ico],i)=>`<div class="wb-row"><span class="number">${pad(i+1)}</span><div><h3>${ui('wb'+(i+1))}</h3><p>${ui('wb'+(i+1)+'d')}</p><button class="button secondary" data-action="${a}">${icon(ico,15)}${ui(a)}</button></div></div>`).join('');
     d.innerHTML=dialogHeader(ui('workbook'))+`<p class="dialog-lead">${ui('workbookIntro')}</p><div class="keyline"><span>${ui('referenceKey')}</span><code>${safe(key)}</code></div>${rows}<input type="file" id="workbook-picker" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div id="book-status" class="book-status" role="status">${icon('workbook',16)}<span>${ui(sourceMode)}</span></div>`;
@@ -98,10 +89,7 @@ document.addEventListener('click',e=>{
   if(el.hasAttribute('data-result')){closeDialog();if(el.hash===location.hash)routeView(true);}
   if(el.tagName==='A'&&el.hash)setMenu(false);
   if(el.dataset.example!==undefined){exampleChoice=Number(el.dataset.example);el.closest('.example-panel').outerHTML=workedExample(path()[1]);document.querySelector('[data-example="'+exampleChoice+'"]').focus({preventScroll:true});return;}
-  if(el.dataset.answer!==undefined){selectedAnswer=Number(el.dataset.answer);routeView();document.querySelector('[data-answer="'+selectedAnswer+'"]')?.focus({preventScroll:true});return;}
   switch(el.dataset.action){
-    case 'lab-retry':probeRuntime();break;
-    case 'end-session':try{sessionStorage.removeItem('tsaat.lab.displayName');}catch{}location.hash='practice';break;
     case 'menu':setMenu(!document.body.classList.contains('menu-open'));break;
     case 'search':case 'workbook':modal(el.dataset.action);break;
     case 'close':closeDialog();break;
@@ -123,7 +111,7 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='Enter'&&e.target.id==='query'){const first=byId('search-results').querySelector('a');if(first){e.preventDefault();first.click();}}
 });
-window.addEventListener('hashchange',()=>{if(lastRoute!==location.hash){selectedAnswer=null;exampleChoice=0;setMenu(false);routeView(true);}});
+window.addEventListener('hashchange',()=>{if(lastRoute!==location.hash){exampleChoice=0;setMenu(false);routeView(true);}});
 window.matchMedia('(min-width: 901px)').addEventListener('change',e=>{if(e.matches&&copy.size)setMenu(false);});
 async function start(){
   const embedded=await readBook(base64ToBytes(defaults));originalGuideText=embedded;applyContent(embedded,defaults,'embed');byId('boot').hidden=true;

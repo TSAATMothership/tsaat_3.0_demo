@@ -2,9 +2,11 @@
   "name": "dsmr-tsaat-user-guide",
   "version": "0.1.0",
   "private": true,
-  "description": "Offline TSAAT feature guide and Windows training lab",
+  "description": "Offline TSAAT feature guide and self-contained browser practice lab",
   "scripts": {
-    "test": "node tests/guide.cjs && node tests/previous-workbook.cjs",
+    "build": "python scripts/build_guide.py",
+    "build:practice": "python scripts/build_practice_lab.py",
+    "test": "node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/practice.cjs",
     "test:practice": "node tests/practice.cjs"
   },
   "devDependencies": {

@@ -186,23 +186,6 @@
       ]
     }
   },
-  "labs": {
-    "date": {
-      "correct": 1,
-      "topic": "scope",
-      "icon": "calendar"
-    },
-    "arp": {
-      "correct": 2,
-      "topic": "shadow",
-      "icon": "radar"
-    },
-    "export": {
-      "correct": 0,
-      "topic": "exports",
-      "icon": "download"
-    }
-  },
   "groups": {
     "shared": [
       "scope",

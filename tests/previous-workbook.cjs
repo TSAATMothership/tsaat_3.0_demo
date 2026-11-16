@@ -9,7 +9,8 @@ const bytes=await zip.generateAsync({type:'nodebuffer'});
 const b=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL || 'chrome'});try{
  const p=await b.newPage();await p.goto(pathToFileURL(path.join(out,'TSAAT-User-Guide.html')).href);await p.locator('[data-action=workbook]').click();await p.locator('#workbook-picker').setInputFiles({name:'Prior guide.xlsx',mimeType:'application/octet-stream',buffer:bytes});await p.waitForFunction(()=>document.getElementById('book-status')?.textContent.includes('edited workbook'));
  const wait=p.waitForEvent('download');await p.locator('[data-action=download]').click();const z=await JSZip.loadAsync(fs.readFileSync(await (await wait).path()));
- assert.ok((await z.file(table).async('string')).includes('A1:D'+rows.length));assert.ok((await z.file(sheet).async('string')).includes('lab.needName'));
+ const restored=await z.file(sheet).async('string'),last=Math.max(...[...restored.matchAll(/<[^>]*row\b[^>]*\br="(\d+)"/g)].map(match=>Number(match[1])));
+ assert.ok((await z.file(table).async('string')).includes('A1:D'+last));assert.ok(restored.includes('lab.needName'));
  await p.locator('[data-action=close]').click();await p.getByRole('heading',{name:'My edited feature guide'}).waitFor();
  await p.locator('#sidebar a[href="#practice"]').click();await p.locator('#learner-name').waitFor();assert.equal(await p.getByText('TSAAT UI 3',{exact:true}).count(),0);
  console.log('PASS: prior workbook customisations preserved; new launch text appended to editable Excel table.');}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
