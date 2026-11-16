@@ -2,6 +2,8 @@
 
 Open [the interactive guide](guide/TSAAT-User-Guide.html) in a browser. It contains the feature directory, role pathways, worked examples and a self-contained practice lab. The guide and practice app work offline.
 
+The overview and topic pages use interactive graphics. Select a node in the illustration or use its keyboard-accessible buttons to highlight the connected relationships and read an explanation. These are conceptual teaching diagrams, not live estate statistics. Labels and explanations remain editable through the guide workbook, and the graphics work in saved standalone copies. Motion follows the browser's reduced-motion preference.
+
 ## Run the practice lab
 
 1. Open `guide/TSAAT-User-Guide.html` and select **Practice lab**.
@@ -21,6 +23,8 @@ To rebuild the guide from its workbook and the checked-in practice app:
 ```powershell
 python scripts/build_guide.py
 ```
+
+To also refresh the release ZIP while preserving the existing practice app, run `python scripts/build_practice_lab.py --guide-only`.
 
 When serving the guide over HTTP, keep the workbook beside it to load edited wording automatically. Both HTML files also open directly from disk.
 
@@ -52,4 +56,4 @@ For another location, add `--app-source "D:\Projects\DSMR_TSAAT"`. The builder i
 
 With Node.js and Chrome installed, run `npm install` followed by `npm test`. Set `PLAYWRIGHT_CHANNEL=msedge` to use Edge. `npm run test:practice` runs the browser lab checks alone. Test artifacts go to the ignored `build/` folder.
 
-The practice test disables network access and checks popup launch/fallback, standalone copies, sample counts across eight dates, navigation, filtering, CMDB details, reports, session isolation and mobile layout. The guide checks cover role pathways, examples, search and workbook import/export with saved HTML reloads.
+The practice test disables network access and checks popup launch/fallback, standalone copies, sample counts across eight dates, navigation, filtering, CMDB details, reports, session isolation and mobile layout. The guide checks cover role pathways, examples, search and workbook import/export with saved HTML reloads. `npm run test:graphics` checks interactive diagrams, keyboard selection, mobile layouts, reduced motion and migration of older workbooks.

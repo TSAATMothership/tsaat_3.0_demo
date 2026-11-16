@@ -19,13 +19,13 @@ fs.mkdirSync(results,{recursive:true});
    await p.getByRole('heading',{name:'TSAAT Feature Guide',exact:true,level:1}).waitFor();
    assert.equal(await p.locator('#sidebar a').count(),4);
    assert.equal(await p.locator('#sidebar a[aria-current="page"]').innerText(),'TSAAT Feature Guide');
-   assert.equal(await p.locator('.role-card,.hero button,.hero a,.role-nav,[data-layer]').count(),0);
-   for(const label of removedNames)assert.equal(await p.getByText(label,{exact:true}).count(),0,'Unexpected label '+label);
+   assert.equal(await p.locator('.role-card,.hero-copy button,.hero-copy a,.role-nav,[data-layer]').count(),0);
+   for(const label of removedNames)assert.equal(await p.getByText(label,{exact:true}).evaluateAll(elements=>elements.filter(el=>!el.closest('.dynamic-graphic')).length),0,'Unexpected label '+label);
    assert.equal(await p.locator('.map-block.gov a').count(),3);
    assert.equal(await p.locator('.map-block.dis a').count(),5);
    assert.equal(await p.locator('.group-cards.wide a').count(),5);
  }
- await p.getByRole('link',{name:/Workspace scope/}).click();
+ await p.locator('.group-cards.wide').getByRole('link',{name:/Workspace scope/}).click();
  await p.getByRole('heading',{name:'Set your scope',exact:true}).waitFor();
  await p.locator('.breadcrumb').getByRole('link',{name:'TSAAT Feature Guide'}).click();
  await p.getByRole('heading',{name:'TSAAT Feature Guide',exact:true}).waitFor();
