@@ -1,0 +1,262 @@
+{
+  "topics": {
+    "scope": {
+      "group": "shared",
+      "icon": "scope",
+      "art": "terrain",
+      "n": 5,
+      "links": [
+        "navigate",
+        "govern-end",
+        "tables"
+      ]
+    },
+    "navigate": {
+      "group": "shared",
+      "icon": "compass",
+      "art": "terrain",
+      "n": 4,
+      "links": [
+        "scope",
+        "cmdb",
+        "exports"
+      ]
+    },
+    "tables": {
+      "group": "shared",
+      "icon": "table",
+      "art": "endpoint",
+      "n": 4,
+      "links": [
+        "explore-end",
+        "explore-soft",
+        "explore-vuln"
+      ]
+    },
+    "cmdb": {
+      "group": "shared",
+      "icon": "layers",
+      "art": "endpoint",
+      "n": 4,
+      "links": [
+        "topology",
+        "scope",
+        "tables"
+      ]
+    },
+    "exports": {
+      "group": "shared",
+      "icon": "download",
+      "art": "software",
+      "n": 4,
+      "links": [
+        "govern-end",
+        "explore-vuln",
+        "topology"
+      ]
+    },
+    "govern-soft": {
+      "group": "gov",
+      "icon": "layers",
+      "art": "software",
+      "n": 5,
+      "links": [
+        "explore-soft",
+        "tables",
+        "exports"
+      ]
+    },
+    "govern-end": {
+      "group": "gov",
+      "icon": "device",
+      "art": "endpoint",
+      "n": 5,
+      "links": [
+        "explore-end",
+        "shadow",
+        "cmdb"
+      ]
+    },
+    "govern-vuln": {
+      "group": "gov",
+      "icon": "shield",
+      "art": "vulnerability",
+      "n": 5,
+      "links": [
+        "explore-vuln",
+        "topology",
+        "exports"
+      ]
+    },
+    "explore-end": {
+      "group": "dis",
+      "icon": "device",
+      "art": "endpoint",
+      "n": 4,
+      "links": [
+        "govern-end",
+        "cmdb",
+        "tables"
+      ]
+    },
+    "explore-soft": {
+      "group": "dis",
+      "icon": "layers",
+      "art": "software",
+      "n": 4,
+      "links": [
+        "govern-soft",
+        "cmdb",
+        "exports"
+      ]
+    },
+    "explore-vuln": {
+      "group": "dis",
+      "icon": "shield",
+      "art": "vulnerability",
+      "n": 4,
+      "links": [
+        "govern-vuln",
+        "cmdb",
+        "topology"
+      ]
+    },
+    "shadow": {
+      "group": "dis",
+      "icon": "radar",
+      "art": "endpoint",
+      "n": 4,
+      "links": [
+        "explore-end",
+        "cmdb",
+        "topology"
+      ]
+    },
+    "topology": {
+      "group": "dis",
+      "icon": "network",
+      "art": "terrain",
+      "n": 6,
+      "links": [
+        "cmdb",
+        "shadow",
+        "exports"
+      ]
+    }
+  },
+  "roles": {
+    "manager": {
+      "icon": "briefcase",
+      "color": "amber",
+      "links": [
+        "scope",
+        "govern-end",
+        "govern-vuln",
+        "exports"
+      ]
+    },
+    "network": {
+      "icon": "network",
+      "color": "teal",
+      "links": [
+        "scope",
+        "explore-end",
+        "shadow",
+        "exports"
+      ]
+    },
+    "system": {
+      "icon": "layers",
+      "color": "violet",
+      "links": [
+        "scope",
+        "topology",
+        "topology",
+        "exports"
+      ]
+    },
+    "analyst": {
+      "icon": "scan",
+      "color": "blue",
+      "links": [
+        "govern-vuln",
+        "explore-vuln",
+        "cmdb",
+        "exports"
+      ]
+    }
+  },
+  "labs": {
+    "date": {
+      "correct": 1,
+      "topic": "scope",
+      "icon": "calendar"
+    },
+    "arp": {
+      "correct": 2,
+      "topic": "shadow",
+      "icon": "radar"
+    },
+    "export": {
+      "correct": 0,
+      "topic": "exports",
+      "icon": "download"
+    }
+  },
+  "groups": {
+    "shared": [
+      "scope",
+      "navigate",
+      "tables",
+      "cmdb",
+      "exports"
+    ],
+    "gov": [
+      "govern-soft",
+      "govern-end",
+      "govern-vuln"
+    ],
+    "dis": [
+      "explore-end",
+      "explore-soft",
+      "explore-vuln",
+      "shadow",
+      "topology"
+    ]
+  },
+  "gloss": [
+    "ci",
+    "scope",
+    "date",
+    "coverage",
+    "observation",
+    "install",
+    "domain",
+    "absent",
+    "relationship",
+    "arp",
+    "cmdb",
+    "cve"
+  ],
+  "fix": [
+    "blank",
+    "zero",
+    "persona",
+    "dates",
+    "nopath",
+    "failure",
+    "nocount",
+    "old"
+  ],
+  "keys": [
+    "tab",
+    "tabs",
+    "escape",
+    "graph"
+  ],
+  "examples": [
+    "govern-soft",
+    "govern-end",
+    "govern-vuln"
+  ]
+}

@@ -1,0 +1,11 @@
+/build/
+/releases/
+/node_modules/
+__pycache__/
+*.py[cod]
+*.partial
+.env
+.env.*
+DB_config
+logindetails
+
