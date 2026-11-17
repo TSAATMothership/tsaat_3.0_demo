@@ -110,6 +110,7 @@ function icon(key,size=20){return `<svg class="ico" width="${size}" height="${si
 function link(route,body,cls='',extra=''){return `<a class="${cls}" href="#${route}" ${extra}>${body}</a>`;}
 function pillIcon(symbol,cls=''){return `<span class="icon-box ${cls}">${icon(symbol,23)}</span>`;}
 function coverImage(id,cls=''){return `<img alt="" class="${cls}" src="${media[id]}" draggable="false">`;}
+function featureArtwork(){return new TextDecoder().decode(base64ToBytes(media.terrain.split(',')[1])).replace('<svg ','<svg class="terrain-art" aria-hidden="true" focusable="false" ');}
 function eyebrow(label){return `<p class="eyebrow"><span></span>${label}</p>`;}
 const pad=n=>String(n).padStart(2,'0');
 function path(){return location.hash.slice(1).split('/').filter(Boolean);}
@@ -137,8 +138,8 @@ function note(body,ico='info'){return `<div class="note">${icon(ico,18)}<p>${bod
 function groupCards(g,klass=''){return `<div class="group-cards ${klass}">${model.groups[g].map(id=>miniTopic(id,id==='scope'?ui('begin'):undefined)).join('')}</div>`;}
 function featureGuidePage(){
   const groups=['gov','dis'].map((g,i)=>`<section class="map-block ${g}"><header>${pillIcon(i?'scan':'layers')}<div><h2>${ui(g)}</h2><p>${ui(i?'introDis':'introGov')}</p></div><b>${pad(model.groups[g].length)}</b></header>${groupCards(g)}</section>`).join('');
-  return crumb(ui('map'))+`<header class="hero"><div class="hero-copy">${eyebrow(ui('handbook'))}<h1>${ui('map')}</h1><p>${ui('mapIntro')}</p></div><div class="terrain" aria-hidden="true"><div class="plot"><i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i>${coverImage('terrain')}</div></div></header>
-  <div class="map-grid feature-sections">${groups}</div><section class="section">${sectionHead(ui('shared'),ui('coreIntro'))}${groupCards('shared','wide')}</section>`;
+  return crumb(ui('map'))+`<div class="feature-guide"><header class="hero"><div class="hero-copy">${eyebrow(ui('handbook'))}<h1>${ui('map')}</h1><p>${ui('mapIntro')}</p></div><div class="terrain" aria-hidden="true"><div class="plot"><i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i>${featureArtwork()}</div></div></header>
+  <div class="map-grid feature-sections">${groups}<section class="map-block shared"><header>${pillIcon('flag')}<div><h2>${ui('shared')}</h2><p>${ui('coreIntro')}</p></div><b>${pad(model.groups.shared.length)}</b></header>${groupCards('shared','wide')}</section></div></div>`;
 }
 function rolePage(id){
   const r=model.roles[id],k='r.'+id+'.',title=tx(k+'title');

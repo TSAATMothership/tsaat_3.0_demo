@@ -4,6 +4,8 @@ Open [the interactive guide](guide/TSAAT-User-Guide.html) in a browser. It conta
 
 The original overview and topic artwork responds with a gentle tilt and glow as the pointer moves across its banner. Click or tap the banner for a brief light pulse. These decorative effects preserve the page layout, work offline and switch off when reduced motion is enabled.
 
+On the feature guide, hovering Governance lights the third (bottom) image layer, Discovery lights the middle layer, and Getting started lights the orange route. Keyboard focus inside each panel gives the same highlight. Getting started spans the full width beneath the other two panels. Reduced motion keeps these highlights instant.
+
 ## Run the practice lab
 
 1. Open `guide/TSAAT-User-Guide.html` and select **Practice lab**.

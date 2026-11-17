@@ -36,7 +36,7 @@ fs.mkdirSync(results,{recursive:true});
  for(const [id,t] of topics){await p.goto(url+'#topic/'+id);await p.waitForSelector('.topic-banner h1');assert.equal(await p.locator('.steps li').count(),t.n);}
  await p.locator('[data-example="1"]').click();await p.waitForSelector('.root-node');assert.match(await p.locator('.teaching-graph').textContent(),/Endpoint B/);await p.screenshot({path:path.join(results,'topology-page.png')});
  await p.goto(url+'#topic/govern-end');await p.locator('[data-example="2"]').click();assert.match(await p.locator('#example-note').textContent(),/four applicable/);
- await p.goto(url+'#map');await p.waitForSelector('.map-block');assert.equal(await p.locator('.map-block .mini-topic').count(),8);
+ await p.goto(url+'#map');await p.waitForSelector('.map-block');assert.equal(await p.locator('.map-block .mini-topic').count(),13);
  await p.goto(url+'#practice/arp');await p.locator('#lab-launch').waitFor();assert.equal(await p.locator('[data-answer],.scenario,.scenario-link').count(),0);assert.match(await p.locator('.launch-copy').textContent(),/No installation, server or internet/);
  await p.goto(url+'#reference/fix/nopath');assert.equal(await p.locator('#ref-nopath').getAttribute('open'),'');
  await p.keyboard.press('/');await p.locator('#query').fill('reservation date');assert.ok(await p.locator('.search-result').count()>0);

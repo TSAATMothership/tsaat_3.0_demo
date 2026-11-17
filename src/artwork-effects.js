@@ -5,7 +5,7 @@ const artworkFinePointer=matchMedia('(hover: hover) and (pointer: fine)');
 let artworkActive=null,artworkFrame=0,artworkPoint=null,artworkPulse=null,artworkPulseTimer=0;
 function artworkHost(target){
   const host=target instanceof Element?target.closest('.hero,.topic-banner'):null;
-  return host?.querySelector('.plot img,.topic-art')?host:null;
+  return host?.querySelector('.plot img,.terrain-art,.topic-art')?host:null;
 }
 function resetArtworkHover(){
   cancelAnimationFrame(artworkFrame);artworkFrame=0;artworkPoint=null;

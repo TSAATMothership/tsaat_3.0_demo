@@ -1,7 +1,21 @@
 /* Animate the original decorative artwork without changing its layout. */
-.hero .plot img,.topic-banner .topic-art{transform-origin:center;transition:transform .32s ease-out,filter .4s ease-out}
-.art-engaged .plot img,.art-engaged .topic-art{transform:perspective(700px) translate3d(var(--art-x,0px),var(--art-y,0px),0) rotateX(var(--art-rx,0deg)) rotateY(var(--art-ry,0deg)) scale(1.025);filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 12px #79e2d23d) brightness(1.08)}
-.art-pulse .plot img,.art-pulse .topic-art{animation:guide-art-pulse .65s ease-out}
+.plot .terrain-art{width:100%;position:absolute;height:100%;top:-5px;overflow:visible;filter:drop-shadow(0 5px 14px #06121d80)}
+.hero .plot :is(img,.terrain-art),.topic-banner .topic-art{transform-origin:center;transition:transform .32s ease-out,filter .4s ease-out}
+.art-engaged .plot :is(img,.terrain-art),.art-engaged .topic-art{transform:perspective(700px) translate3d(var(--art-x,0px),var(--art-y,0px),0) rotateX(var(--art-rx,0deg)) rotateY(var(--art-ry,0deg)) scale(1.025);filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 12px #79e2d23d) brightness(1.08)}
+.art-pulse .plot :is(img,.terrain-art),.art-pulse .topic-art{animation:guide-art-pulse .65s ease-out}
 @keyframes guide-art-pulse{0%,100%{filter:drop-shadow(0 5px 14px #06121d80)}45%{filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 20px #79e2d278) brightness(1.18)}}
-@media(prefers-reduced-motion:reduce){.hero .plot img,.topic-banner .topic-art{animation:none!important;transform:none!important;transition:none!important}}
-@media print{.hero .plot img,.topic-banner .topic-art{animation:none!important;transform:none!important;filter:none!important}}
+.map-block.shared{grid-column:1/-1;--accent:#f0b674;--tone:#392e25}
+.map-block.shared header{background:linear-gradient(115deg,#322d29,#132532)}
+.map-block.shared .group-cards.wide{padding:8px;gap:5px 10px}
+.map-block.shared .mini-topic{background:none;border-color:transparent}
+.map-block.shared .mini-topic:hover{background:#272a2b;border-color:#79624a}
+.terrain-layer-bottom,.terrain-layer-middle,.terrain-route{transition:filter .25s ease-out}
+.feature-guide:has(.map-block.gov:hover) .terrain-layer-bottom,
+.feature-guide:not(:has(.map-block:hover)):has(.map-block.gov:focus-within) .terrain-layer-bottom{filter:drop-shadow(0 0 3px #79e2d2) drop-shadow(0 0 9px #4ee3cf99) brightness(1.35)}
+.feature-guide:has(.map-block.dis:hover) .terrain-layer-middle,
+.feature-guide:not(:has(.map-block:hover)):has(.map-block.dis:focus-within) .terrain-layer-middle{filter:drop-shadow(0 0 3px #99d4ff) drop-shadow(0 0 9px #6dbbff99) brightness(1.4)}
+.feature-guide:has(.map-block.shared:hover) .terrain-route,
+.feature-guide:not(:has(.map-block:hover)):has(.map-block.shared:focus-within) .terrain-route{filter:drop-shadow(0 0 3px #ffd18b) drop-shadow(0 0 8px #ffad43) brightness(1.5)}
+@media(max-width:680px){.plot .terrain-art{height:174px;top:-4px;left:0}}
+@media(prefers-reduced-motion:reduce){.hero .plot :is(img,.terrain-art),.topic-banner .topic-art{animation:none!important;transform:none!important;transition:none!important}.terrain-layer-bottom,.terrain-layer-middle,.terrain-route{transition:none!important}}
+@media print{.hero .plot :is(img,.terrain-art),.topic-banner .topic-art,.terrain-layer-bottom,.terrain-layer-middle,.terrain-route{animation:none!important;transform:none!important;filter:none!important}}
