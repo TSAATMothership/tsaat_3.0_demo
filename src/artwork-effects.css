@@ -1,0 +1,7 @@
+/* Animate the original decorative artwork without changing its layout. */
+.hero .plot img,.topic-banner .topic-art{transform-origin:center;transition:transform .32s ease-out,filter .4s ease-out}
+.art-engaged .plot img,.art-engaged .topic-art{transform:perspective(700px) translate3d(var(--art-x,0px),var(--art-y,0px),0) rotateX(var(--art-rx,0deg)) rotateY(var(--art-ry,0deg)) scale(1.025);filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 12px #79e2d23d) brightness(1.08)}
+.art-pulse .plot img,.art-pulse .topic-art{animation:guide-art-pulse .65s ease-out}
+@keyframes guide-art-pulse{0%,100%{filter:drop-shadow(0 5px 14px #06121d80)}45%{filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 20px #79e2d278) brightness(1.18)}}
+@media(prefers-reduced-motion:reduce){.hero .plot img,.topic-banner .topic-art{animation:none!important;transform:none!important;transition:none!important}}
+@media print{.hero .plot img,.topic-banner .topic-art{animation:none!important;transform:none!important;filter:none!important}}

@@ -14,7 +14,7 @@ GUIDE = ROOT / "guide"
 SRC = ROOT / "src"
 NS = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-ASSETS = ("logo.png",)
+ASSETS = ("logo.png", "terrain.svg", "endpoint.svg", "software.svg", "vulnerability.svg")
 
 
 def strings(node):
@@ -95,8 +95,8 @@ def build():
         "STRUCTURE": script_json(json.loads(read(SRC / "structure.json"))),
         "REQUIRED": script_json(keys), "MEDIA": script_json(media),
         "PRACTICE": encode((GUIDE / "TSAAT-Practice-Lab.html").read_bytes()),
-        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "dynamic-graphics.css")),
-        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "dynamic-graphics.js", "training.js", "interactions.js")),
+        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css")),
+        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "artwork-effects.js", "training.js", "interactions.js")),
         "ZIP": ("/* Library distribution notice\n" + notice + "\n*/\n" + read(vendor / "jszip.min.js")).replace("</script", r"<\/script"),
     }
     document = re.sub(r"__([A-Z]+)__", lambda m: parts[m[1]], read(SRC / "template.html"))

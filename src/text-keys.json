@@ -408,17 +408,5 @@
   "lab.return",
   "lab.blocked",
   "lab.fallback",
-  "lab.runtime",
-  "graphic.label",
-  "graphic.concept",
-  "graphic.hint",
-  "graphic.open",
-  "graphic.endpoints",
-  "graphic.software",
-  "graphic.vulnerabilities",
-  "graphic.identity",
-  "graphic.discovery",
-  "graphic.version",
-  "graphic.product",
-  "graphic.connected"
+  "lab.runtime"
 ]

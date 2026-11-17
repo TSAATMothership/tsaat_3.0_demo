@@ -8,6 +8,7 @@ function practice(){
   return crumb(ui('practice'))+heading(ui('guide'),ui('practice'),ui('labIntro'))+launchPanel();
 }
 function routeView(focus=false){
+  resetArtworkEffects();
   const [name='feature-guide',id,item]=path();let page,nav=name;
   if(name==='session'){page=practice();nav='practice';}
   else if(name==='topic'&&model.topics[id]){page=topicPage(id);nav='feature-guide';}
@@ -17,7 +18,6 @@ function routeView(focus=false){
   else if(name==='practice')page=practice(id);
   else{page=featureGuidePage();nav='feature-guide';}
   byId('main').innerHTML=page;
-  bindDynamicGraphics(byId('main'));
   for(const n of document.querySelectorAll('[data-nav]')){
     if(n.dataset.nav===nav)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');
   }

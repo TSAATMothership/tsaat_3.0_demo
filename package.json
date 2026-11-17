@@ -6,8 +6,7 @@
   "scripts": {
     "build": "python scripts/build_guide.py",
     "build:practice": "python scripts/build_practice_lab.py",
-    "test": "node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/graphics.cjs && node tests/practice.cjs",
-    "test:graphics": "node tests/graphics.cjs",
+    "test": "node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/practice.cjs",
     "test:practice": "node tests/practice.cjs"
   },
   "devDependencies": {
