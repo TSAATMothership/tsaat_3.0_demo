@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Open Shadow IT Explorer and choose an approach such as ARP Table.",
+        "Check the matching IP-node count; the two discovery approaches represent different evidence."
+      ],
+      "title": "Choose how the address was found"
+    },
+    {
+      "captions": [
+        "Check who collected the observation and when it was last discovered.",
+        "For ARP observations, also check the CI type of the endpoint that supplied the table."
+      ],
+      "title": "Review how the IP was seen"
+    },
+    {
+      "captions": [
+        "Compare the unidentified IP address with the linked End Point Name.",
+        "The linked CMDB panel describes the observer. IP Scan records show N/A for the ARP owner."
+      ],
+      "title": "Identify the observing device"
+    },
+    {
+      "captions": [
+        "Close the panel and keep the observation address and date with the result.",
+        "Export the matching IP nodes so the owner can compare address assignments and CMDB records."
+      ],
+      "title": "Prepare to check ownership"
+    }
+  ],
+  "topic": "shadow",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "1a5ba5828c880b6350e6c9f0215e6ea7ce4b01a704024002e2e4e14bd0f683d7",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

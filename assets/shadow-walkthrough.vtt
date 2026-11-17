@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Open Shadow IT Explorer and choose an approach such as ARP Table.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Check the matching IP-node count; the two discovery approaches represent different evidence.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Check who collected the observation and when it was last discovered.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. For ARP observations, also check the CI type of the endpoint that supplied the table.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Compare the unidentified IP address with the linked End Point Name.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. The linked CMDB panel describes the observer. IP Scan records show N/A for the ARP owner.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Close the panel and keep the observation address and date with the result.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Export the matching IP nodes so the owner can compare address assignments and CMDB records.

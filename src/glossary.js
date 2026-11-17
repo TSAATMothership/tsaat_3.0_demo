@@ -20,7 +20,7 @@ function linkGlossaryTerms(root){
   const pattern=new RegExp('\\b(?:'+aliases.map(({term})=>term).sort((a,b)=>b.length-a.length).map(term=>term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')\\b','gi');
   const seen=new Set([...root.querySelectorAll('[data-glossary-term]')].map(a=>a.dataset.glossaryTerm));
   for(const paragraph of root.querySelectorAll('p,.ex-note span')){
-    if(paragraph.closest('a,button,summary,.eyebrow,.breadcrumb,.route-line,.sourceline'))continue;
+    if(paragraph.closest('a,button,summary,.eyebrow,.breadcrumb,.route-line,.sourceline,.scope-video'))continue;
     const ownTerm=paragraph.closest('.reference-item')?.id.replace('ref-','');
     const walker=document.createTreeWalker(paragraph,NodeFilter.SHOW_TEXT,{acceptNode:node=>node.parentElement.closest('a,button,code')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
     const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);

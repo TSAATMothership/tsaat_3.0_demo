@@ -1,0 +1,59 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Open a lookup filter and search for the CIs you want to examine.",
+        "Select matching values. Values within a field combine with OR; different fields combine with AND."
+      ],
+      "title": "Choose a starting item"
+    },
+    {
+      "captions": [
+        "Show all matching results together in Impact Topology.",
+        "Select one result to return to a graph with a single starting CI."
+      ],
+      "title": "Choose what the graph includes"
+    },
+    {
+      "captions": [
+        "Use Business Impact to see the model relationships around the starting CI.",
+        "For a model, this view shows the higher-level context; member endpoints appear in Dependencies."
+      ],
+      "title": "Choose Business Impact"
+    },
+    {
+      "captions": [
+        "Switch to Dependencies to include recorded model dependencies and member endpoints.",
+        "Expand Relationship evidence to inspect each source, relationship, target and environment."
+      ],
+      "title": "Choose Dependencies"
+    },
+    {
+      "captions": [
+        "Select a graph node to read its details and connections.",
+        "Explore from this CI changes the starting point. Choose a layout and use Fit graph."
+      ],
+      "title": "Inspect and navigate"
+    },
+    {
+      "captions": [
+        "Generate Impact Report for the current mode and starting CI or group.",
+        "The report includes the full graph and evidence. Keep its scope, snapshot and starting point together."
+      ],
+      "title": "Capture the result"
+    }
+  ],
+  "topic": "topology",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 78,
+  "videoSha256": "5cdc974f59c9e0bbad514f360d89bdad0e77e705284f3833e9bfafdcbdd392cc",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Expand Governance to see its three briefing pages.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Expand Discovery and open End Point Explorer.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Check Persona when pages or actions seem to be missing.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Business Reporting shows the pages available to that persona.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Choose All sections (no persona) to restore the full navigation.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. If personas fail to load, use Retry loading personas when it appears.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Apply a header selection with Update before leaving the page.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Open another explorer: the applied network, domains and date carry across.

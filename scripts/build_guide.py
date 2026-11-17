@@ -87,6 +87,20 @@ def build():
         asset = ROOT / "assets" / filename
         mime = "image/png" if asset.suffix == ".png" else "image/svg+xml"
         media[asset.stem] = f"data:{mime};base64,{encode(asset.read_bytes())}"
+    media['walkthroughs'] = {}
+    for topic, details in json.loads(read(SRC / 'structure.json'))['topics'].items():
+        metadata = ROOT / 'assets' / f'{topic}-walkthrough.json'
+        if not metadata.exists():
+            raise ValueError(f'Missing feature walkthrough: {topic}')
+        capture = json.loads(read(metadata))
+        if len(capture['scenes']) != details['n']:
+            raise ValueError(f'Walkthrough chapter count does not match the guide: {topic}')
+        item = {'duration': capture['durationSeconds'],
+                'chapters': [i*capture['secondsPerStep'] for i in range(len(capture['scenes']))]}
+        for key, extension, mime in (('video', 'mp4', 'video/mp4'), ('poster', 'png', 'image/png'), ('captions', 'vtt', 'text/vtt')):
+            data = (ROOT / 'assets' / f'{topic}-walkthrough.{extension}').read_bytes()
+            item[key] = f'data:{mime};base64,{encode(data)}'
+        media['walkthroughs'][topic] = item
     vendor = ROOT / "vendor" / "jszip"
     notice = read(vendor / "LICENSE.markdown").replace("*/", "* /")
     pdf_vendor = ROOT / "vendor" / "pdf-lib"
@@ -97,8 +111,8 @@ def build():
         "STRUCTURE": script_json(json.loads(read(SRC / "structure.json"))),
         "REQUIRED": script_json(keys), "MEDIA": script_json(media),
         "PRACTICE": encode((GUIDE / "TSAAT-Practice-Lab.html").read_bytes()),
-        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css")),
-        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
+        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css", "scope-video.css")),
+        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "scope-video.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
         "ZIP": ("/* Library distribution notice\n" + notice + "\n*/\n" + read(vendor / "jszip.min.js")).replace("</script", r"<\/script"),
         "PDF": re.sub(r"</script", lambda _: r"<\/script", "/* PDF-lib distribution notice\n" + pdf_notice + "\n*/\n" + read(pdf_vendor / "pdf-lib.min.js"), flags=re.IGNORECASE),
     }

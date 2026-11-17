@@ -1,0 +1,37 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Open a lookup filter and search for the CIs you want to examine.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Select matching values. Values within a field combine with OR; different fields combine with AND.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Show all matching results together in Impact Topology.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Select one result to return to a graph with a single starting CI.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Use Business Impact to see the model relationships around the starting CI.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. For a model, this view shows the higher-level context; member endpoints appear in Dependencies.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Switch to Dependencies to include recorded model dependencies and member endpoints.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Expand Relationship evidence to inspect each source, relationship, target and environment.
+
+00:00:52.000 --> 00:00:58.500
+Step 5. Select a graph node to read its details and connections.
+
+00:00:58.500 --> 00:01:05.000
+Step 5. Explore from this CI changes the starting point. Choose a layout and use Fit graph.
+
+00:01:05.000 --> 00:01:11.500
+Step 6. Generate Impact Report for the current mode and starting CI or group.
+
+00:01:11.500 --> 00:01:18.000
+Step 6. The report includes the full graph and evidence. Keep its scope, snapshot and starting point together.

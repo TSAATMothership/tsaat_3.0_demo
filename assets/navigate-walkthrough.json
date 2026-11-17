@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Expand Governance to see its three briefing pages.",
+        "Expand Discovery and open End Point Explorer."
+      ],
+      "title": "Open a sidebar group"
+    },
+    {
+      "captions": [
+        "Check Persona when pages or actions seem to be missing.",
+        "Business Reporting shows the pages available to that persona."
+      ],
+      "title": "Check Persona"
+    },
+    {
+      "captions": [
+        "Choose All sections (no persona) to restore the full navigation.",
+        "If personas fail to load, use Retry loading personas when it appears."
+      ],
+      "title": "Restore a missing page"
+    },
+    {
+      "captions": [
+        "Apply a header selection with Update before leaving the page.",
+        "Open another explorer: the applied network, domains and date carry across."
+      ],
+      "title": "Apply changes before moving on"
+    }
+  ],
+  "topic": "navigate",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "ff9c86a80ed57b5584b6d509f309c775b26dd70bb85b5b12ee7ea6f753cfcccf",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

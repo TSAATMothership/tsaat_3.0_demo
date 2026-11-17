@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Choose a severity category, then search for a CVE code.",
+        "Check the matching observations and the active severity filter."
+      ],
+      "title": "Choose the records to review"
+    },
+    {
+      "captions": [
+        "Read the affected software and installed version for each observation.",
+        "Scroll across to read the recorded remediation, severity and detection source."
+      ],
+      "title": "Check the finding"
+    },
+    {
+      "captions": [
+        "Date Detected belongs to the observation on the endpoint.",
+        "Date CVE Code Created is the CVE reservation date; it is a different event."
+      ],
+      "title": "Check the two dates"
+    },
+    {
+      "captions": [
+        "Open the linked device name to check its CMDB context, then close the panel.",
+        "Valid CVE codes link to an external record. Export Excel shares the filtered observations."
+      ],
+      "title": "Check the device and share the records"
+    }
+  ],
+  "topic": "explore-vuln",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "15449939f59f27afa0579f0e2fe7dfd54097ea33d9b39427bb3771dce68a8f43",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

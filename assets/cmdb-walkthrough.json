@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Select a linked CI name in the inventory table.",
+        "Check the record name, Asset ID and snapshot before interpreting the details."
+      ],
+      "title": "Open the record"
+    },
+    {
+      "captions": [
+        "Read the Field and Value pairs; search within the detail table if needed.",
+        "Available fields vary by CI type. Missing values need follow-up with the owner."
+      ],
+      "title": "Read the details for this type of item"
+    },
+    {
+      "captions": [
+        "Choose Explore Topology to use this CI as the starting point.",
+        "The topology uses the panel snapshot; inventory table filters do not carry across."
+      ],
+      "title": "Look at the item's relationships"
+    },
+    {
+      "captions": [
+        "Return to the explorer and open the record again.",
+        "Press Escape or Close to return to the control that opened the panel."
+      ],
+      "title": "Return to the table"
+    }
+  ],
+  "topic": "cmdb",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "68639d7c0b6a9f6325f6801ac263954a08da4e45aa5b3c5c815c13ac7ecfec97",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Choose a product from the chart, then open the Software Version column menu.",
+        "Select the exact recorded version and check the applied filter chips."
+      ],
+      "title": "Find a product"
+    },
+    {
+      "captions": [
+        "Compare the host operating systems and discovery sources.",
+        "Check Last discovered against the snapshot; each row is an installation record."
+      ],
+      "title": "Narrow the device group"
+    },
+    {
+      "captions": [
+        "Read the installed version and file path alongside the host device.",
+        "Select the linked device name to inspect its CMDB details."
+      ],
+      "title": "Compare installations"
+    },
+    {
+      "captions": [
+        "Close the host panel and confirm the matching installation count.",
+        "Export Excel and ask the owner to confirm the versions, paths and deployment context."
+      ],
+      "title": "Export the affected installations"
+    }
+  ],
+  "topic": "explore-soft",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "348b63bb0509aff4a5531cbfb3cd7e33491bf8372198b8200a66e4e6a6622e13",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

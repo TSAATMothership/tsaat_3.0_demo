@@ -1,0 +1,52 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Read the observation, CVE, endpoint and critical/high totals as different measures.",
+        "Follow a severity link to inspect its underlying vulnerability observations."
+      ],
+      "title": "Read Recorded exposure"
+    },
+    {
+      "captions": [
+        "Open Evidence gaps and check the missing version, remediation and source fields.",
+        "Expand the remaining fields. Gap counts can overlap on the same observation."
+      ],
+      "title": "Review Evidence gaps"
+    },
+    {
+      "captions": [
+        "Open Sources & context to review affected software, platforms, sources and dates.",
+        "Follow a detection source to see the observations it supplied."
+      ],
+      "title": "Read Sources & context"
+    },
+    {
+      "captions": [
+        "Read Discovery coverage as supporting inventory evidence.",
+        "Required discovery checks cover scoped CIs, including those with no vulnerability observations."
+      ],
+      "title": "Read Discovery coverage"
+    },
+    {
+      "captions": [
+        "Review the critical/high observations and validate affected versions and remediation.",
+        "Return to the briefing and Generate PDF for the applied scope and snapshot."
+      ],
+      "title": "Act on Next steps"
+    }
+  ],
+  "topic": "govern-vuln",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 65,
+  "videoSha256": "3e60105db30f192d5b856866ad0dce60e4cbc479fecf962ee109819a8ad2a877",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Open End Point Explorer and check the applied scope and snapshot.",
+        "Use the CI type, network, discovery source and observation-age charts to understand the inventory."
+      ],
+      "title": "Choose the devices to review"
+    },
+    {
+      "captions": [
+        "Search for a recorded name, identifier or address, then open a column filter.",
+        "Tick an exact value in the menu and check the matching records."
+      ],
+      "title": "Read the record"
+    },
+    {
+      "captions": [
+        "Clear the earlier filters and select an observation-age category.",
+        "Open a linked endpoint name to inspect the CMDB record and its snapshot."
+      ],
+      "title": "Check missing or old details"
+    },
+    {
+      "captions": [
+        "Close the record panel and confirm the matching-record count.",
+        "Export Excel preserves all matching rows for follow-up with the endpoint owner."
+      ],
+      "title": "Export the records to check"
+    }
+  ],
+  "topic": "explore-end",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "10dc85d08ed6b8edb63ccbd775f9df63f2b27e002de8168dca32decaa3c70ac9",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

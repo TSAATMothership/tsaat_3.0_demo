@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Choose a severity category, then search for a CVE code.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Check the matching observations and the active severity filter.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Read the affected software and installed version for each observation.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Scroll across to read the recorded remediation, severity and detection source.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Date Detected belongs to the observation on the endpoint.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Date CVE Code Created is the CVE reservation date; it is a different event.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Open the linked device name to check its CMDB context, then close the panel.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Valid CVE codes link to an external record. Export Excel shares the filtered observations.

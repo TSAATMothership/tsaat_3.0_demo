@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Open a Governance briefing and choose Generate PDF.",
+        "The briefing uses the applied header scope and snapshot."
+      ],
+      "title": "Create a briefing PDF"
+    },
+    {
+      "captions": [
+        "Open an explorer and filter the inventory you want to share.",
+        "Export Excel includes all matching rows, with an export timestamp in UTC."
+      ],
+      "title": "Download the filtered rows"
+    },
+    {
+      "captions": [
+        "Open Topology Explorer and choose a starting CI.",
+        "Choose the analysis mode and review the graph before generating an Impact Report."
+      ],
+      "title": "Show how items are connected"
+    },
+    {
+      "captions": [
+        "Generate the report and wait for the progress dialog to finish.",
+        "Before sharing, check the downloaded file against the scope, snapshot and records."
+      ],
+      "title": "Check the downloaded file"
+    }
+  ],
+  "topic": "exports",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "783c483e52345377bb36883f0b973f7c3300165b74c0415334fa83110445e40a",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

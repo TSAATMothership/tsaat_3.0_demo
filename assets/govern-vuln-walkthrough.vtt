@@ -1,0 +1,31 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Read the observation, CVE, endpoint and critical/high totals as different measures.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Follow a severity link to inspect its underlying vulnerability observations.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Open Evidence gaps and check the missing version, remediation and source fields.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Expand the remaining fields. Gap counts can overlap on the same observation.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Open Sources & context to review affected software, platforms, sources and dates.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Follow a detection source to see the observations it supplied.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Read Discovery coverage as supporting inventory evidence.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Required discovery checks cover scoped CIs, including those with no vulnerability observations.
+
+00:00:52.000 --> 00:00:58.500
+Step 5. Review the critical/high observations and validate affected versions and remediation.
+
+00:00:58.500 --> 00:01:05.000
+Step 5. Return to the briefing and Generate PDF for the applied scope and snapshot.

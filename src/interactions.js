@@ -8,6 +8,7 @@ function practice(){
   return crumb(ui('practice'))+heading(ui('guide'),ui('practice'),ui('labIntro'))+launchPanel();
 }
 function routeView(focus=false){
+  disposeScopeVideo();
   resetArtworkEffects();
   resetStepEffects();
   const [name='feature-guide',id,item]=path();let page,nav=name;
@@ -19,6 +20,7 @@ function routeView(focus=false){
   else if(name==='practice')page=practice(id);
   else{page=featureGuidePage();nav='feature-guide';}
   byId('main').innerHTML=page;
+  setupScopeVideo();
   linkGlossaryTerms(byId('main'));
   for(const n of document.querySelectorAll('[data-nav]')){
     if(n.dataset.nav===nav)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');

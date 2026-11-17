@@ -1,0 +1,45 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Open End Point Explorer and check the total records in scope.",
+        "Chart bars summarise the inventory; the table shows matching records."
+      ],
+      "title": "Choose the records to examine"
+    },
+    {
+      "captions": [
+        "Click a chart bar to filter the records, then open a column filter.",
+        "Select an exact value from the column menu to narrow the result further."
+      ],
+      "title": "Narrow the results"
+    },
+    {
+      "captions": [
+        "Check the filter chips. Remove a chip or choose Clear all filters.",
+        "Use the search box to find a name, identifier or other recorded value."
+      ],
+      "title": "Check the filters you have applied"
+    },
+    {
+      "captions": [
+        "Select a linked name to inspect its CMDB record, then close the panel.",
+        "Export Excel downloads every matching record, across all table pages."
+      ],
+      "title": "Open details or download the records"
+    }
+  ],
+  "topic": "tables",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 52,
+  "videoSha256": "bb592d440e91175f7a7a70faa33f945cea92c43ac8b05a7eb7b9cbeb071d32e8",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

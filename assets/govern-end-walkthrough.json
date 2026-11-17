@@ -1,0 +1,52 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Open End Point Insights and read the four evidence totals.",
+        "Check the snapshot: older discoveries and missing evidence have different meanings."
+      ],
+      "title": "Review your cyber terrain"
+    },
+    {
+      "captions": [
+        "Open Missing details and inspect a field-level gap.",
+        "The linked explorer shows the affected rows. Missing-field counts can overlap."
+      ],
+      "title": "Check Missing details"
+    },
+    {
+      "captions": [
+        "Open Discovery evidence to check when records were observed and by which source.",
+        "Follow Older discoveries to review observations more than 30 days before the snapshot."
+      ],
+      "title": "Check Discovery evidence"
+    },
+    {
+      "captions": [
+        "Read Coverage context and its required tool-check denominator.",
+        "One CI can require several checks; CIs without required mappings are outside the percentage."
+      ],
+      "title": "Read Coverage context"
+    },
+    {
+      "captions": [
+        "Investigate unidentified nodes in Shadow IT Explorer.",
+        "Return to the briefing and Generate PDF to share the evidence and next steps."
+      ],
+      "title": "Follow Next steps"
+    }
+  ],
+  "topic": "govern-end",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 65,
+  "videoSha256": "256605e4d1aee6b11ca1140b46f783af947cef6a50d62880ac115982ca8d6c27",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Select a linked CI name in the inventory table.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Check the record name, Asset ID and snapshot before interpreting the details.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Read the Field and Value pairs; search within the detail table if needed.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Available fields vary by CI type. Missing values need follow-up with the owner.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Choose Explore Topology to use this CI as the starting point.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. The topology uses the panel snapshot; inventory table filters do not carry across.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Return to the explorer and open the record again.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Press Escape or Close to return to the control that opened the panel.

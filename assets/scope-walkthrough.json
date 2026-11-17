@@ -1,0 +1,60 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "title": "Open a page first",
+      "captions": [
+        "Expand Discovery and choose End Point Explorer.",
+        "Choose Select managed networks to open the selection control."
+      ]
+    },
+    {
+      "title": "Choose networks or ICT systems",
+      "captions": [
+        "Search by name or ID, then tick the networks you need.",
+        "Choose Update. An ICT system selection would replace these networks."
+      ]
+    },
+    {
+      "title": "Set Security Domain",
+      "captions": [
+        "Open Security Domain. Keep PROTECTED; untick SECRET and UNKNOWN.",
+        "Choose Update. Keep at least one domain and a network or ICT system."
+      ]
+    },
+    {
+      "title": "Check which snapshot was loaded",
+      "captions": [
+        "Set Date to 4 November 2026, then check Snapshot on the page.",
+        "Snapshot is 31 October: the most recent saved data on or before the chosen date."
+      ]
+    },
+    {
+      "title": "Keep the same selection as you work",
+      "captions": [
+        "Open Installed Software Explorer. Your selections carry across.",
+        "Before sharing a result, check networks or systems, domains and the loaded snapshot."
+      ]
+    }
+  ],
+  "selection": {
+    "networks": [
+      "Aegis Mesh North",
+      "Citadel Fusion Central"
+    ],
+    "securityDomain": "PROTECTED",
+    "requestedDate": "2026-11-04",
+    "loadedSnapshot": "2026-10-31"
+  },
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 65,
+  "videoSha256": "5d7654d9a696546603aad6a6a9cfa0105f9fbdad6ddd2019b4079673798cb1c6",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

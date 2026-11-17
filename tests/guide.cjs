@@ -1,5 +1,6 @@
 const fs=require('fs'),path=require('path'),os=require('os'),assert=require('node:assert/strict');
 const {pathToFileURL}=require('url');
+const http=require('node:http');
 const {chromium}=require('playwright');
 const JSZip=require('jszip');
 const out=path.resolve(__dirname,'../guide'),url=pathToFileURL(path.join(out,'TSAAT-User-Guide.html')).href;
@@ -8,6 +9,7 @@ const results=path.join(__dirname,'../build/test-results');
 fs.mkdirSync(results,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL || 'chrome',headless:true,args:['--disable-extensions','--disable-background-networking','--no-first-run','--disable-default-apps','--no-proxy-server']});
+ let fixtureServer;
  try{
  const ctx=await browser.newContext({viewport:{width:1440,height:940},acceptDownloads:true}),p=await ctx.newPage();
  p.on('pageerror',e=>{fail.push(e.message);console.log('PAGE ERROR',e.message);});
@@ -27,7 +29,7 @@ fs.mkdirSync(results,{recursive:true});
    assert.equal(await p.locator('.group-cards.wide a').count(),5);
  }
  await p.locator('.group-cards.wide a[href="#topic/scope"]').click();
- await p.getByRole('heading',{name:'Choose what to include',exact:true}).waitFor();
+ await p.getByRole('heading',{name:'Choose what to include',exact:true,level:1}).waitFor();
  await p.locator('.breadcrumb').getByRole('link',{name:'TSAAT Feature Guide'}).click();
  await p.getByRole('heading',{name:'TSAAT Feature Guide',exact:true}).waitFor();
  await p.locator('#sidebar a[href="#roles"]').click();
@@ -70,11 +72,18 @@ fs.mkdirSync(results,{recursive:true});
  const mobile=await ctx.newPage({});await mobile.setViewportSize({width:390,height:844});await mobile.goto(url);await mobile.locator('.hero').waitFor();await mobile.screenshot({path:path.join(results,'mobile.png'),fullPage:true});
  for(const route of ['overview','roles','map','role/system','topic/topology','topic/govern-soft','practice','reference']){await mobile.goto(url+'#'+route);await mobile.waitForTimeout(25);assert.ok(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile overflow '+route);}
  await mobile.locator('.hamb').click();await mobile.locator('#sidebar a[href="#roles"]').click();await mobile.locator('.role-card[href="#role/manager"]').click();assert.equal(await mobile.locator('body').getAttribute('class')||'','');
- // A browser HTTP fixture exercises fresh companion data, a missing companion and corrupt data without external services.
- const web=await ctx.newPage();const original=fs.readFileSync(path.join(out,'TSAAT-User-Guide.html'));let mode='valid';
- await web.route('https://guide.test/**',r=>{const file=new URL(r.request().url()).pathname;if(file.endsWith('.xlsx'))return r.fulfill({status:mode==='missing'?404:200,contentType:'application/octet-stream',body:mode==='valid'?fresh:Buffer.from('bad')});return r.fulfill({status:200,contentType:'text/html',body:original});});
- for(const test of ['valid','missing','bad']){mode=test;await web.goto('https://guide.test/index.html');await web.waitForSelector('.hero');if(test==='valid')await web.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();await web.locator('[data-action=workbook]').click();await web.waitForFunction(s=>document.getElementById('book-status').textContent.includes(s),test==='valid'?'separate workbook stored beside':test==='missing'?'workbook stored inside':'could not be read');}
+ // Stream the complete media-rich guide over loopback without passing a large
+ // base64 response through the browser automation transport.
+ const web=await ctx.newPage();let mode='valid';
+ fixtureServer=http.createServer((request,response)=>{
+   if(request.url.endsWith('.xlsx')){response.writeHead(mode==='missing'?404:200,{'Content-Type':'application/octet-stream'});response.end(mode==='valid'?fresh:Buffer.from('bad'));return;}
+   if(request.url!=='/index.html'){response.writeHead(404);response.end();return;}
+   response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});fs.createReadStream(path.join(out,'TSAAT-User-Guide.html')).pipe(response);
+ });
+ await new Promise((resolve,reject)=>{fixtureServer.once('error',reject);fixtureServer.listen(0,'127.0.0.1',resolve);});
+ const fixtureUrl=`http://127.0.0.1:${fixtureServer.address().port}/index.html`;
+ for(const test of ['valid','missing','bad']){mode=test;await web.goto(fixtureUrl);await web.waitForSelector('.hero');if(test==='valid')await web.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();await web.locator('[data-action=workbook]').click();await web.waitForFunction(s=>document.getElementById('book-status').textContent.includes(s),test==='valid'?'separate workbook stored beside':test==='missing'?'workbook stored inside':'could not be read');}
  assert.deepEqual(fail,[]);console.log('PASS: browser rendered desktop/mobile; four role pathways; thirteen walkthroughs; eight screen links; diagrams, glossary, practice launcher without scenarios, search, XLSX export/import, edited HTML offline reload, HTTP workbook selection/fallback.');
- }finally{await browser.close();}
+ }finally{await browser.close();if(fixtureServer)await new Promise(resolve=>fixtureServer.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});
 

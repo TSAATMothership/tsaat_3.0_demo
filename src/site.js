@@ -153,7 +153,7 @@ function topicPage(id){
   const t=model.topics[id],k='t.'+id+'.',title=tx(k+'title');
   let steps='';for(let i=1;i<=t.n;i++)steps+=`<li id="step${i}" tabindex="0" aria-labelledby="step${i}-number step${i}-title"><span class="step-index" id="step${i}-number">${pad(i)}</span><div><h3 id="step${i}-title">${tx(k+'s'+i)}</h3><p>${tx(k+'b'+i)}</p></div></li>`;
   return crumb(title,link('feature-guide',ui('map')))+`<header class="topic-banner"><div>${eyebrow(ui(t.group))}<h1>${title}</h1><p>${tx(k+'short')}</p><div class="route-line">${icon('pin',15)}<span>${tx(k+'route')}</span></div></div>${coverImage(t.art,'topic-art')}</header>
-  <div class="reading-grid"><section>${sectionHead(ui('steps'))}<ol class="steps interactive-steps">${steps}</ol></section><aside class="side-cards">${workedExample(id)}<section class="takeaway">${icon('scope',23)}<h2>${ui('interpret')}</h2><p>${tx(k+'interpret')}</p></section><section class="takeaway amber">${icon('flag',23)}<h2>${ui('deliver')}</h2><p>${tx(k+'output')}</p></section></aside></div>
+  ${scopeVideoPanel(id)}<div class="reading-grid"><section>${sectionHead(ui('steps'))}<ol class="steps interactive-steps">${steps}</ol></section><aside class="side-cards">${workedExample(id)}<section class="takeaway">${icon('scope',23)}<h2>${ui('interpret')}</h2><p>${tx(k+'interpret')}</p></section><section class="takeaway amber">${icon('flag',23)}<h2>${ui('deliver')}</h2><p>${tx(k+'output')}</p></section></aside></div>
   <section class="section">${sectionHead(ui('next'))}<div class="task-grid">${t.links.map(tid=>miniTopic(tid)).join('')}</div></section><details class="sourceline"><summary>${ui('source')}</summary><p>${safe(copy.get(k+'title').source)}</p></details>`;
 }
 

@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Open a Governance briefing and choose Generate PDF.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. The briefing uses the applied header scope and snapshot.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Open an explorer and filter the inventory you want to share.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Export Excel includes all matching rows, with an export timestamp in UTC.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Open Topology Explorer and choose a starting CI.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Choose the analysis mode and review the graph before generating an Impact Report.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Generate the report and wait for the progress dialog to finish.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Before sharing, check the downloaded file against the scope, snapshot and records.

@@ -1,0 +1,31 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Open End Point Insights and read the four evidence totals.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Check the snapshot: older discoveries and missing evidence have different meanings.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Open Missing details and inspect a field-level gap.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. The linked explorer shows the affected rows. Missing-field counts can overlap.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Open Discovery evidence to check when records were observed and by which source.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Follow Older discoveries to review observations more than 30 days before the snapshot.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Read Coverage context and its required tool-check denominator.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. One CI can require several checks; CIs without required mappings are outside the percentage.
+
+00:00:52.000 --> 00:00:58.500
+Step 5. Investigate unidentified nodes in Shadow IT Explorer.
+
+00:00:58.500 --> 00:01:05.000
+Step 5. Return to the briefing and Generate PDF to share the evidence and next steps.

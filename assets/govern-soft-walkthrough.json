@@ -1,0 +1,52 @@
+{
+  "source": "guide/TSAAT-Practice-Lab.html",
+  "sha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff",
+  "viewport": {
+    "width": 1440,
+    "height": 810
+  },
+  "secondsPerStep": 13,
+  "scenes": [
+    {
+      "captions": [
+        "Start with recorded installations, named products, endpoints and version evidence.",
+        "One endpoint can have many installations; these totals describe different things."
+      ],
+      "title": "Read Footprint"
+    },
+    {
+      "captions": [
+        "Open Concentration and review the leading products.",
+        "The three-product share uses all installations as its denominator, including unnamed records."
+      ],
+      "title": "Read Concentration"
+    },
+    {
+      "captions": [
+        "Open Version variation and choose a product with multiple recorded versions.",
+        "The filtered explorer lets you compare versions, paths, sources and host devices."
+      ],
+      "title": "Check Version variation"
+    },
+    {
+      "captions": [
+        "Read Evidence priorities to choose a collection or verification task.",
+        "These gaps overlap. Follow a review link to inspect the affected records."
+      ],
+      "title": "Read Evidence priorities"
+    },
+    {
+      "captions": [
+        "Export the filtered evidence to Excel for follow-up with the software owner.",
+        "Return to the briefing and Generate PDF to share the scoped summary."
+      ],
+      "title": "Prepare the briefing"
+    }
+  ],
+  "topic": "govern-soft",
+  "networkRequests": 0,
+  "pageErrors": 0,
+  "durationSeconds": 65,
+  "videoSha256": "6af33aa6b55dc55e5ae1ff1d0051a7f343102f09aa1b360a7259cd3aa1835ae4",
+  "captureMethod": "Playwright screencast of the guide-launched practice lab; caption, pointer and focus overlays only."
+}

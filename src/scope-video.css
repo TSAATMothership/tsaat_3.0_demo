@@ -1,0 +1,19 @@
+.scope-video{margin-top:24px;border:1px solid #345462;border-radius:var(--round);overflow:hidden;background:linear-gradient(120deg,#102a34,#101f2e 65%)}
+.scope-video-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 24px}
+.scope-video-heading h2{font-size:23px;margin:7px 0}.scope-video-heading p:not(.eyebrow){color:var(--sub);font-size:13px;line-height:1.5}
+.scope-video-duration{flex-shrink:0;color:var(--teal);font:12px/1.5 "Segoe UI",sans-serif;padding:7px 11px;border:1px solid #365c62;border-radius:20px;background:#122c35}
+.scope-video video{display:block;width:100%;aspect-ratio:16/9;background:#0a1521;object-fit:contain;border-block:1px solid var(--line)}
+.scope-video video:focus-visible{outline:2px solid var(--teal);outline-offset:-3px}
+.scope-video-help{padding:13px 22px 0;color:var(--muted);font-size:12px;line-height:1.5}
+.scope-video-chapters{display:grid;grid-template-columns:repeat(var(--chapter-count,5),minmax(0,1fr));gap:7px;padding:13px 20px 18px}
+.scope-video-chapters button{display:flex;align-items:flex-start;gap:9px;padding:11px 8px;text-align:left;border:1px solid transparent;border-radius:7px;font-size:12px;line-height:1.4;color:var(--sub)}
+.scope-video-chapters button>span:first-child{font:12px/1.5 Consolas,monospace;color:var(--teal)}
+.scope-video-chapters button small{display:block;color:var(--muted);font:11px/1.5 Consolas,monospace;margin-top:5px}
+.scope-video-chapters button:hover,.scope-video-chapters button[aria-current]{background:#16363e;border-color:#3c666b;color:var(--text)}
+.scope-video-error{padding:0 22px 16px;color:var(--amber);font-size:13px;line-height:1.5}
+.scope-video-transcript{border-top:1px solid var(--line);background:#0e202c}.scope-video-transcript summary{cursor:pointer;padding:15px 22px;font-size:13px;color:var(--sub)}
+.scope-video-transcript ol{padding:0 24px 8px 45px;margin:0;max-width:95ch}.scope-video-transcript li{padding:0 0 17px 5px;color:var(--teal)}
+.scope-video-transcript h3{font-size:15px;color:var(--text)}.scope-video-transcript p{font-size:13px;line-height:1.65;color:var(--sub);margin-top:5px}
+@media(max-width:900px){.scope-video-chapters{grid-template-columns:repeat(3,minmax(0,1fr))}.scope-video-heading{align-items:flex-start;flex-direction:column;gap:12px}}
+@media(max-width:680px){.scope-video-heading{padding:19px 16px}.scope-video-heading h2{font-size:21px}.scope-video-chapters{grid-template-columns:1fr;padding:10px 12px}.scope-video-chapters button{align-items:center;min-height:44px}.scope-video-chapters button>span:last-child{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:1}.scope-video-chapters button small{margin:0}.scope-video-help{padding-inline:16px}.scope-video-transcript summary{padding-inline:16px}}
+@media print{.scope-video{display:none!important}}

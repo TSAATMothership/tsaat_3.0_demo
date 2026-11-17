@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Open End Point Explorer and check the applied scope and snapshot.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Use the CI type, network, discovery source and observation-age charts to understand the inventory.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Search for a recorded name, identifier or address, then open a column filter.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Tick an exact value in the menu and check the matching records.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Clear the earlier filters and select an observation-age category.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Open a linked endpoint name to inspect the CMDB record and its snapshot.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Close the record panel and confirm the matching-record count.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Export Excel preserves all matching rows for follow-up with the endpoint owner.

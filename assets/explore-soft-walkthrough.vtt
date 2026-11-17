@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Choose a product from the chart, then open the Software Version column menu.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Select the exact recorded version and check the applied filter chips.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Compare the host operating systems and discovery sources.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Check Last discovered against the snapshot; each row is an installation record.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Read the installed version and file path alongside the host device.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Select the linked device name to inspect its CMDB details.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Close the host panel and confirm the matching installation count.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Export Excel and ask the owner to confirm the versions, paths and deployment context.

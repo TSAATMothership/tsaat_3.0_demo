@@ -1,0 +1,25 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.500
+Step 1. Open End Point Explorer and check the total records in scope.
+
+00:00:06.500 --> 00:00:13.000
+Step 1. Chart bars summarise the inventory; the table shows matching records.
+
+00:00:13.000 --> 00:00:19.500
+Step 2. Click a chart bar to filter the records, then open a column filter.
+
+00:00:19.500 --> 00:00:26.000
+Step 2. Select an exact value from the column menu to narrow the result further.
+
+00:00:26.000 --> 00:00:32.500
+Step 3. Check the filter chips. Remove a chip or choose Clear all filters.
+
+00:00:32.500 --> 00:00:39.000
+Step 3. Use the search box to find a name, identifier or other recorded value.
+
+00:00:39.000 --> 00:00:45.500
+Step 4. Select a linked name to inspect its CMDB record, then close the panel.
+
+00:00:45.500 --> 00:00:52.000
+Step 4. Export Excel downloads every matching record, across all table pages.
