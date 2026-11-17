@@ -219,7 +219,25 @@
     "relationship",
     "arp",
     "cmdb",
-    "cve"
+    "cve",
+    "terrain",
+    "endpoint",
+    "vulnerability",
+    "ip",
+    "evidence",
+    "discovery",
+    "governance",
+    "topology",
+    "model",
+    "severity",
+    "remediation",
+    "source",
+    "persona",
+    "utc",
+    "version",
+    "inventory",
+    "ict",
+    "os"
   ],
   "fix": [
     "blank",
@@ -241,5 +259,25 @@
     "govern-soft",
     "govern-end",
     "govern-vuln"
+  ],
+  "glossExtensions": [
+    "terrain",
+    "endpoint",
+    "vulnerability",
+    "ip",
+    "evidence",
+    "discovery",
+    "governance",
+    "topology",
+    "model",
+    "severity",
+    "remediation",
+    "source",
+    "persona",
+    "utc",
+    "version",
+    "inventory",
+    "ict",
+    "os"
   ]
 }

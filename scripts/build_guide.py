@@ -89,15 +89,18 @@ def build():
         media[asset.stem] = f"data:{mime};base64,{encode(asset.read_bytes())}"
     vendor = ROOT / "vendor" / "jszip"
     notice = read(vendor / "LICENSE.markdown").replace("*/", "* /")
+    pdf_vendor = ROOT / "vendor" / "pdf-lib"
+    pdf_notice = read(pdf_vendor / "LICENSE.md").replace("*/", "* /")
     parts = {
         "TITLE": html.escape(copy["ui.browserTitle"]), "WAIT": html.escape(copy["ui.wait"]),
         "WARN": html.escape(copy["ui.dataWarning"]), "LOGO": media["logo"], "BOOK": encode(workbook.read_bytes()),
         "STRUCTURE": script_json(json.loads(read(SRC / "structure.json"))),
         "REQUIRED": script_json(keys), "MEDIA": script_json(media),
         "PRACTICE": encode((GUIDE / "TSAAT-Practice-Lab.html").read_bytes()),
-        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css")),
-        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "artwork-effects.js", "training.js", "interactions.js")),
+        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css")),
+        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
         "ZIP": ("/* Library distribution notice\n" + notice + "\n*/\n" + read(vendor / "jszip.min.js")).replace("</script", r"<\/script"),
+        "PDF": re.sub(r"</script", lambda _: r"<\/script", "/* PDF-lib distribution notice\n" + pdf_notice + "\n*/\n" + read(pdf_vendor / "pdf-lib.min.js"), flags=re.IGNORECASE),
     }
     document = re.sub(r"__([A-Z]+)__", lambda m: parts[m[1]], read(SRC / "template.html"))
     target = GUIDE / "TSAAT-User-Guide.html"

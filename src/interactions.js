@@ -9,6 +9,7 @@ function practice(){
 }
 function routeView(focus=false){
   resetArtworkEffects();
+  resetStepEffects();
   const [name='feature-guide',id,item]=path();let page,nav=name;
   if(name==='session'){page=practice();nav='practice';}
   else if(name==='topic'&&model.topics[id]){page=topicPage(id);nav='feature-guide';}
@@ -18,11 +19,12 @@ function routeView(focus=false){
   else if(name==='practice')page=practice(id);
   else{page=featureGuidePage();nav='feature-guide';}
   byId('main').innerHTML=page;
+  linkGlossaryTerms(byId('main'));
   for(const n of document.querySelectorAll('[data-nav]')){
     if(n.dataset.nav===nav)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');
   }
   document.title=byId('main').querySelector('h1').textContent+' · '+u('brand');
-  if(focus){window.scrollTo(0,0);byId('main').focus({preventScroll:true});if(name==='reference'&&item)byId('ref-'+item)?.scrollIntoView({block:'nearest'});}
+  if(focus){window.scrollTo(0,0);byId('main').focus({preventScroll:true});if(name==='reference'&&item){const definition=byId('ref-'+item);definition?.scrollIntoView({block:'start'});definition?.querySelector('summary')?.focus({preventScroll:true});}}
   lastRoute=location.hash;
 }
 function setupSearch(){
@@ -49,8 +51,9 @@ function results(query){
 }
 function dialogHeader(title){return `<div class="dialog-head"><h2 id="dialog-heading">${title}</h2><button data-action="close" class="icon-only" aria-label="${ui('close')}">${icon('close')}</button></div>`;}
 function modal(kind){
-  setMenu(false);
   const d=byId('dialog');opener=document.activeElement;
+  if(window.matchMedia('(max-width: 900px)').matches&&(kind==='workbook'||opener?.closest('#sidebar')))opener=document.querySelector('.hamb');
+  setMenu(false);
   d.className=kind==='search'?'search-dialog':'book-dialog';
   d.setAttribute('aria-labelledby','dialog-heading');
   if(kind==='search'){
@@ -88,11 +91,12 @@ document.addEventListener('click',e=>{
   if(el.matches('.skip')){e.preventDefault();byId('main').focus();return;}
   if(el.tagName==='DIALOG'){if(e.target!==el)return;const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();return;}
   if(el.hasAttribute('data-result')){closeDialog();if(el.hash===location.hash)routeView(true);}
-  if(el.tagName==='A'&&el.hash)setMenu(false);
-  if(el.dataset.example!==undefined){exampleChoice=Number(el.dataset.example);el.closest('.example-panel').outerHTML=workedExample(path()[1]);document.querySelector('[data-example="'+exampleChoice+'"]').focus({preventScroll:true});return;}
+  if(el.tagName==='A'&&el.hash&&!el.dataset.action)setMenu(false);
+  if(el.dataset.example!==undefined){exampleChoice=Number(el.dataset.example);el.closest('.example-panel').outerHTML=workedExample(path()[1]);linkGlossaryTerms(byId('main'));document.querySelector('[data-example="'+exampleChoice+'"]').focus({preventScroll:true});return;}
   switch(el.dataset.action){
     case 'menu':setMenu(!document.body.classList.contains('menu-open'));break;
-    case 'search':case 'workbook':modal(el.dataset.action);break;
+    case 'search':modal('search');break;
+    case 'workbook':e.preventDefault();modal('workbook');break;
     case 'close':closeDialog();break;
     case 'download':download(new Blob([base64ToBytes(book)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'TSAAT-Guide-Text.xlsx');break;
     case 'upload':byId('workbook-picker').click();break;
@@ -101,6 +105,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('input',e=>{if(e.target.id==='query')results(e.target.value);});
 document.addEventListener('change',e=>{if(e.target.id==='workbook-picker')importFile(e.target);});
+document.addEventListener('cancel',e=>{if(e.target.id==='dialog'){e.preventDefault();closeDialog();}},true);
 document.addEventListener('keydown',e=>{
   const editing=e.target.matches('input,textarea,[contenteditable=true]');
   if(e.key==='/'&&!document.body.classList.contains('in-session')&&!editing&&!e.ctrlKey&&!e.metaKey&&!byId('dialog').open){e.preventDefault();modal('search');}

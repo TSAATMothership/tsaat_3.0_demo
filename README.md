@@ -2,23 +2,33 @@
 
 Open [the interactive guide](guide/TSAAT-User-Guide.html) in a browser. It contains the feature directory, role pathways, worked examples and a self-contained practice lab. The guide and practice app work offline.
 
+The guide uses plain English and calls the devices, software, networks and services you look after your **cyber terrain**. Underlined technical terms open their glossary definitions. The glossary and walkthrough wording remain editable in the workbook. Older workbooks keep their custom wording and gain any missing new glossary entries when loaded.
+
 The original overview and topic artwork responds with a gentle tilt and glow as the pointer moves across its banner. Click or tap the banner for a brief light pulse. These decorative effects preserve the page layout, work offline and switch off when reduced motion is enabled.
 
+Numbered steps on the 13 topic guidance pages use an open, border-free layout with a soft pointer-following light, a glowing number badge, a short heading underline and an illuminated connector line. The number responds more strongly when the pointer is nearby; the text stays still. Tab to a step or one of its glossary links for the same visual emphasis, with the keyboard focus ring around the number. Reduced motion uses a static highlight. Touch scrolling, text selection and glossary navigation keep their normal behavior, and the effects stay out of printed pages and the PDF handbook.
+
 On the feature guide, hovering Governance lights the third (bottom) image layer, Discovery lights the middle layer, and Getting started lights the orange route. Keyboard focus inside each panel gives the same highlight. Getting started spans the full width beneath the other two panels. Reduced motion keeps these highlights instant.
+
+Use **Generate PDF User Guide** beneath the Feature Guide introduction to download a PDF of the current guide text. It uses any workbook wording loaded in the guide, including your edits. PDF generation runs in the browser and works offline using the bundled PDF-lib library; it does not upload the guide or require a separate installation.
+
+The handbook includes a linked contents page, illustrated walkthroughs for all 13 topics, worked examples, four role pathways, practice instructions, troubleshooting, keyboard guidance and the full glossary. It uses selectable text and links back to the contents and glossary. The additional PDF narrative and page layouts live in `src/pdf-content.js` and `src/pdf-guide.js`. Saved HTML copies keep the complete generator. The PDF explains how to use the practice lab; launch the lab from the interactive guide's button.
 
 ## Run the practice lab
 
 1. Open `guide/TSAAT-User-Guide.html` and select **Practice lab**.
-2. Enter a username and choose **Launch TSAAT in a new window**.
+2. Use the practice launch button to open the app immediately in a new window. There is no identity form to complete.
 3. Explore the app using the eight bundled weekly sample snapshots. Use **Reset practice** to return to the starting view.
 
-The practice app runs entirely in the browser. No installation, Node runtime, local server or database is needed. It includes all eight active NoSQL workspace screens, filtering, historical dates, CMDB details, topology, Excel exports and PDF reports. Each window has its own practice state. The username is a window label, not a login.
+The practice app runs entirely in the browser. No installation, Node runtime, local server or database is needed. It includes all eight active NoSQL workspace screens, filtering, historical dates, CMDB details, topology, Excel exports and PDF reports. Each window has its own practice state. If your browser blocks the new window, allow popups for the guide and use the launch button again. There is no direct-launch fallback link.
 
-The entire app is embedded in the guide, including copies saved through **Save updated guide**. [TSAAT-Practice-Lab.html](guide/TSAAT-Practice-Lab.html) is also available as a separate standalone file. See [the practice lab notes](practice-lab/README.md) for implementation and sample data details.
+The entire app is embedded in the guide, including copies saved through **Save updated guide**. The distribution also includes [TSAAT-Practice-Lab.html](guide/TSAAT-Practice-Lab.html), but opening that file directly does not start a session. Every new session must start with the guide's launch button. Each opened app URL is tied to its own window; copying it into a fresh tab or window does not launch the app. See [the practice lab notes](practice-lab/README.md) for implementation and sample data details.
+
+The browser launch rule is not authentication.
 
 ## Edit the guide
 
-The [Excel workbook](guide/TSAAT-Guide-Text.xlsx) supplies the guide's wording. Edit the **Text** column of the **Guide text** worksheet. Stable keys connect rows to interface elements. In the guide, **Guide workbook → Load edited workbook** previews changes and **Save updated guide** downloads a standalone HTML copy with the complete practice app.
+The [Excel workbook](guide/TSAAT-Guide-Text.xlsx) supplies the guide's wording. Edit the **Text** column of the **Guide text** worksheet. Stable keys connect rows to interface elements. Open **Guide workbook** using the book icon and **How to use TSAAT** link at the bottom of the left sidebar (open the navigation menu first on a small screen). **Load edited workbook** previews changes and **Save updated guide** downloads a standalone HTML copy with the complete practice app.
 
 To rebuild the guide from its workbook and the checked-in practice app:
 
@@ -26,7 +36,7 @@ To rebuild the guide from its workbook and the checked-in practice app:
 python scripts/build_guide.py
 ```
 
-When serving the guide over HTTP, keep the workbook beside it to load edited wording automatically. Both HTML files also open directly from disk.
+When serving the guide over HTTP, keep the workbook beside it to load edited wording automatically. The guide also opens directly from disk; start each new practice session from its launch button.
 
 ## Rebuild the browser practice app
 
@@ -50,10 +60,13 @@ For another location, add `--app-source "D:\Projects\DSMR_TSAAT"`. The builder i
 | `scripts/` | Guide builder and browser lab packager |
 | `tests/` | Guide/workbook and offline app regression checks |
 | `vendor/jszip/` | Offline JSZip distribution and licence |
+| `vendor/pdf-lib/` | Offline PDF-lib distribution, licence and provenance |
 | `releases/` | Ignored, locally generated distribution ZIPs |
 
 ## Run the checks
 
 With Node.js and Chrome installed, run `npm install` followed by `npm test`. Set `PLAYWRIGHT_CHANNEL=msedge` to use Edge. `npm run test:practice` runs the browser lab checks alone. Test artifacts go to the ignored `build/` folder.
 
-The practice test disables network access and checks popup launch/fallback, standalone copies, sample counts across eight dates, navigation, filtering, CMDB details, reports, session isolation and mobile layout. The guide checks cover role pathways, examples, search and workbook import/export with saved HTML reloads.
+`npm run test:pdf` checks offline PDF downloads, complete guide wording, artwork, workbook changes, pagination and generation from saved HTML. It also writes a sample handbook to `output/pdf/TSAAT-User-Guide.pdf` for visual review.
+
+The practice test disables network access and checks immediate button launch, blocked popups and direct launches, saved guide copies, sample counts across eight dates, navigation, filtering, CMDB details, reports, session isolation and mobile layout. The guide checks cover role pathways, examples, search and workbook import/export with saved HTML reloads.

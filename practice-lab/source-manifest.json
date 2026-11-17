@@ -104,7 +104,7 @@
     },
     {
       "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/app.tsx",
-      "sha256": "c3f2f6e22a594fd579c4e05def5ea1af9111e28761e3c7aef1fee19ec90f783c"
+      "sha256": "9aaad98c1a53169fa1cdc22977a6d84760bba00e429fc384c33954df37705bb0"
     },
     {
       "file": "../DSMR_TSAAT_User_Guide/practice-lab/browser/empty.ts",
@@ -586,7 +586,7 @@
   "buildInputs": [
     {
       "file": "scripts/build_browser_lab.mjs",
-      "sha256": "f32529f6cf272ba9ab0c08015e0c9d9881841618a23415da86cbc37e93586e35"
+      "sha256": "efe657deac71b11bc7ea3c3368cae714c956234bee64f27b3b8b5a770bbd69e5"
     },
     {
       "file": "practice-lab/browser/api.ts",
@@ -594,7 +594,7 @@
     },
     {
       "file": "practice-lab/browser/app.tsx",
-      "sha256": "c3f2f6e22a594fd579c4e05def5ea1af9111e28761e3c7aef1fee19ec90f783c"
+      "sha256": "9aaad98c1a53169fa1cdc22977a6d84760bba00e429fc384c33954df37705bb0"
     },
     {
       "file": "practice-lab/browser/empty.ts",
@@ -614,7 +614,7 @@
     },
     {
       "file": "practice-lab/browser/practice.css",
-      "sha256": "cb8cf3456c71df9bc8e1fe1f5b71f88433e715da93609fba926994050da82b83"
+      "sha256": "fa51e327f21a2a9fcba92cc0394088141714787aa5f57175ed7a938f6d70a18d"
     },
     {
       "file": "practice-lab/browser/provider.ts",
@@ -865,5 +865,5 @@
     "node_modules/scheduler/cjs/scheduler.production.min.js",
     "node_modules/scheduler/index.js"
   ],
-  "htmlSha256": "b55465f9ac3177bcdfcfdeaf6b62a3ec592ef8b13bf65c37d286309e24be1339"
+  "htmlSha256": "da5fe5882350cab10d0c44141d554d18fdec7a736bb8ca5fa6839b6a56d4efff"
 }

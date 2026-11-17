@@ -54,8 +54,10 @@ async function readBook(bytes){
   if(!header)throw Error('Incomplete workbook');
   const missing=required.filter(k=>!map.has(k));
   if(missing.length){
-    // The preceding guide has no launcher rows. Extend that workbook while retaining the editor's own text and formatting.
-    if(!originalGuideText||[...map.keys()].some(k=>k.startsWith('lab.'))||missing.some(k=>!k.startsWith('lab.')))throw Error('Incomplete workbook');
+    // Fill known additions in older workbooks while keeping the editor's wording.
+    const legacyLab=![...map.keys()].some(k=>k.startsWith('lab.'));
+    const addedGlossary=new Set((model.glossExtensions||[]).flatMap(id=>['gloss.'+id+'.title','gloss.'+id+'.body']));
+    if(!originalGuideText||missing.some(k=>!addedGlossary.has(k)&&!(legacyLab&&k.startsWith('lab.'))))throw Error('Incomplete workbook');
     const data=descendants(sheetXml,'sheetData')[0],last=descendants(data,'row').at(-1),ns=data.namespaceURI;
     const oldEnd=Number(last.getAttribute('r'));let end=oldEnd;
     const serialize=doc=>new XMLSerializer().serializeToString(doc);
@@ -119,10 +121,10 @@ function shell(){
   document.title=u('browserTitle');
   byId('app').innerHTML=`<a class="skip" href="#main">${ui('skip')}</a>
   <header class="topbar"><div class="brandblock"><button class="hamb" data-action="menu" aria-expanded="false" aria-controls="sidebar" aria-label="${ui('menu')}">${icon('menu')}</button>${link('feature-guide',coverImage('logo')+`<span><strong>${ui('brand')}</strong><small>${ui('brandSub')}</small></span>`,'brand')}</div>
-  <div class="header-tools"><button class="search-trigger" data-action="search" aria-label="${ui('search')}">${icon('search',16)}<span>${ui('search')}</span><kbd aria-hidden="true">/</kbd></button><button class="workbtn" data-action="workbook" aria-label="${ui('workbook')}">${icon('workbook',17)}<span>${ui('workbook')}</span></button></div></header>
+  <div class="header-tools"><button class="search-trigger" data-action="search" aria-label="${ui('search')}">${icon('search',16)}<span>${ui('search')}</span><kbd aria-hidden="true">/</kbd></button></div></header>
   <div class="layout"><aside id="sidebar"><nav aria-label="${ui('guideNav')}"><div class="nav-caption">${ui('guideNav')}</div>
   ${activeLink('feature-guide','feature-guide','map',ui('map'))}${activeLink('roles','roles','roles',ui('roles'))}${activeLink('practice','practice','lab',ui('practice'))}${activeLink('reference','reference','book',ui('reference'))}</nav>
-  <div class="sidebottom">${icon('book',18)}<strong>${ui('handbook')}</strong></div></aside><button class="shade" data-action="menu" aria-label="${ui('menuClose')}"></button>
+  <a class="sidebottom" href="#dialog" data-action="workbook" aria-label="${ui('handbook')} - ${ui('workbook')}" title="${ui('workbook')}" aria-haspopup="dialog" aria-controls="dialog">${icon('book',18)}<strong>${ui('handbook')}</strong></a></aside><button class="shade" data-action="menu" aria-label="${ui('menuClose')}"></button>
   <main id="main" tabindex="-1"></main></div><dialog id="dialog"></dialog>`;
 }
 function crumb(label,parent=''){return `<nav class="breadcrumb" aria-label="${ui('guideNav')}">${link('feature-guide',icon('book',15)+' '+ui('guide'))}${icon('chev',12)}${parent?parent+icon('chev',12):''}<span>${label}</span></nav>`;}
@@ -138,7 +140,7 @@ function note(body,ico='info'){return `<div class="note">${icon(ico,18)}<p>${bod
 function groupCards(g,klass=''){return `<div class="group-cards ${klass}">${model.groups[g].map(id=>miniTopic(id,id==='scope'?ui('begin'):undefined)).join('')}</div>`;}
 function featureGuidePage(){
   const groups=['gov','dis'].map((g,i)=>`<section class="map-block ${g}"><header>${pillIcon(i?'scan':'layers')}<div><h2>${ui(g)}</h2><p>${ui(i?'introDis':'introGov')}</p></div><b>${pad(model.groups[g].length)}</b></header>${groupCards(g)}</section>`).join('');
-  return crumb(ui('map'))+`<div class="feature-guide"><header class="hero"><div class="hero-copy">${eyebrow(ui('handbook'))}<h1>${ui('map')}</h1><p>${ui('mapIntro')}</p></div><div class="terrain" aria-hidden="true"><div class="plot"><i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i>${featureArtwork()}</div></div></header>
+  return crumb(ui('map'))+`<div class="feature-guide"><header class="hero"><div class="hero-copy">${eyebrow(ui('handbook'))}<h1>${ui('map')}</h1><p>${ui('mapIntro')}</p><div class="guide-pdf-action"><button id="generate-guide-pdf" class="button primary" type="button" data-action="generate-pdf" aria-describedby="pdf-help"${pdfGuideBusy?' disabled aria-busy="true"':''}>${icon('download',17)}<span>Generate PDF User Guide</span></button><p id="pdf-help">Download a PDF of the current guide text. Works offline.</p><p id="pdf-status" role="status" aria-live="polite" aria-atomic="true">${safe(pdfGuideStatus)}</p></div></div><div class="terrain" aria-hidden="true"><div class="plot"><i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i>${featureArtwork()}</div></div></header>
   <div class="map-grid feature-sections">${groups}<section class="map-block shared"><header>${pillIcon('flag')}<div><h2>${ui('shared')}</h2><p>${ui('coreIntro')}</p></div><b>${pad(model.groups.shared.length)}</b></header>${groupCards('shared','wide')}</section></div></div>`;
 }
 function rolePage(id){
@@ -149,9 +151,9 @@ function rolePage(id){
 }
 function topicPage(id){
   const t=model.topics[id],k='t.'+id+'.',title=tx(k+'title');
-  let steps='';for(let i=1;i<=t.n;i++)steps+=`<li id="step${i}"><span class="step-index">${pad(i)}</span><div><h3>${tx(k+'s'+i)}</h3><p>${tx(k+'b'+i)}</p></div></li>`;
+  let steps='';for(let i=1;i<=t.n;i++)steps+=`<li id="step${i}" tabindex="0" aria-labelledby="step${i}-number step${i}-title"><span class="step-index" id="step${i}-number">${pad(i)}</span><div><h3 id="step${i}-title">${tx(k+'s'+i)}</h3><p>${tx(k+'b'+i)}</p></div></li>`;
   return crumb(title,link('feature-guide',ui('map')))+`<header class="topic-banner"><div>${eyebrow(ui(t.group))}<h1>${title}</h1><p>${tx(k+'short')}</p><div class="route-line">${icon('pin',15)}<span>${tx(k+'route')}</span></div></div>${coverImage(t.art,'topic-art')}</header>
-  <div class="reading-grid"><section>${sectionHead(ui('steps'))}<ol class="steps">${steps}</ol></section><aside class="side-cards">${workedExample(id)}<section class="takeaway">${icon('scope',23)}<h2>${ui('interpret')}</h2><p>${tx(k+'interpret')}</p></section><section class="takeaway amber">${icon('flag',23)}<h2>${ui('deliver')}</h2><p>${tx(k+'output')}</p></section></aside></div>
+  <div class="reading-grid"><section>${sectionHead(ui('steps'))}<ol class="steps interactive-steps">${steps}</ol></section><aside class="side-cards">${workedExample(id)}<section class="takeaway">${icon('scope',23)}<h2>${ui('interpret')}</h2><p>${tx(k+'interpret')}</p></section><section class="takeaway amber">${icon('flag',23)}<h2>${ui('deliver')}</h2><p>${tx(k+'output')}</p></section></aside></div>
   <section class="section">${sectionHead(ui('next'))}<div class="task-grid">${t.links.map(tid=>miniTopic(tid)).join('')}</div></section><details class="sourceline"><summary>${ui('source')}</summary><p>${safe(copy.get(k+'title').source)}</p></details>`;
 }
 

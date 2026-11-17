@@ -24,7 +24,8 @@ const pages: Record<string, any> = {
   '/documents/generate': DocumentPage,
   '/': () => <section className="panel p-5"><h1>Choose a workspace view</h1><p>Select a view from Governance or Discovery to explore the sample evidence.</p></section>
 };
-let learner = '', initialRoute = '';
+const learner = 'Practice session';
+let initialRoute = '';
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
   state = { error: false };
   static getDerivedStateFromError() { return { error: true }; }
@@ -51,19 +52,38 @@ function App() {
   return <NavigationContext.Provider value={route}><div className="app-bg" /><div className="topography-overlay" />
     <div className="practice-banner"><strong>Practice lab</strong><span>Sample data · Browser only</span><span className="practice-learner">{learner}</span>
       <button onClick={() => { clearDataLoaderCaches(); (window as any).__practicePersona = null; setReset(x => x + 1); navigate(initialRoute, true); }}>Reset practice</button>
-      <button onClick={() => window.print()}>Print view</button></div>
+    </div>
     <PersonaProvider key={reset}><div className="app-workspace-shell">
       <header className="workspace-header no-print"><div className="workspace-header-inner"><div className="workspace-brand"><Image src="/tsaat-logo.png" alt="TSAAT logo" width={48} height={48} className="h-12 w-12 shrink-0 object-contain" /><div><p className="text-xl uppercase tracking-[0.14em] text-slate-100">TSAAT</p><p className="text-xs text-slate-300/75">Threat Surface Area Assessment Tool</p></div></div><WorkspaceHeaderControls /></div></header>
       <WorkspaceShell><CmdbDrillThroughProvider key={route + reset}><div aria-busy={pending}>{pending ? <p className="panel p-5" role="status">Loading sample evidence…</p> : <ErrorBoundary key={route + reset}>{view}</ErrorBoundary>}</div></CmdbDrillThroughProvider></WorkspaceShell>
     </div></PersonaProvider><DocumentGenerationDialog /></NavigationContext.Provider>;
 }
+function validLaunch() {
+  try {
+    const marker = document.getElementById('practice-launch');
+    if (!(marker instanceof HTMLScriptElement) || marker.type !== 'application/json') return false;
+    const launch = JSON.parse(marker.textContent || 'null');
+    if (!launch || typeof launch !== 'object' || Array.isArray(launch)) return false;
+    if (typeof launch.windowToken !== 'string' || !/^[a-f0-9]{32}$/.test(launch.windowToken)) return false;
+    return window.name === 'tsaat-practice:' + launch.windowToken;
+  } catch { return false; }
+}
+function BlockedLaunch() {
+  return <main className="practice-blocked"><section aria-labelledby="practice-blocked-title">
+    <p className="practice-blocked-label">TSAAT practice lab</p>
+    <h1 id="practice-blocked-title">Open the lab from the user guide</h1>
+    <p>Return to the user guide's Practice lab section and use the launch button to open a new practice window.</p>
+  </section></main>;
+}
 async function start() {
+  if (!validLaunch()) {
+    createRoot(document.getElementById('practice-root')!).render(<BlockedLaunch />);
+    return;
+  }
   installLocalApi();
   const manifest = await loadStoreManifest();
   initialRoute = '/discovery-coverage?discoveryView=endpoints&network=net-1&dataDate=' + manifest.snapshots.at(-1).date;
   const original = new URL(currentRoute(), BASE);
-  learner = (original.searchParams.get('learner') || (window.name.startsWith('tsaat-practice:') ? window.name.slice(15) : '') || 'Practice session').slice(0, 64);
-  window.name = 'tsaat-practice:' + learner;
   original.searchParams.delete('learner');
   navigate(original.pathname === '/' ? initialRoute : original.pathname + original.search, true);
   document.addEventListener('click', event => {

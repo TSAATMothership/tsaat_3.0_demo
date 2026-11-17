@@ -6,12 +6,15 @@
   "scripts": {
     "build": "python scripts/build_guide.py",
     "build:practice": "python scripts/build_practice_lab.py",
-    "test": "node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/practice.cjs",
+    "test": "node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/practice.cjs && node tests/pdf-guide.cjs",
+    "test:pdf": "node tests/pdf-guide.cjs",
     "test:practice": "node tests/practice.cjs"
   },
   "devDependencies": {
     "jszip": "3.10.1",
-    "playwright": "1.62.1"
+    "playwright": "1.62.1",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "5.6.205"
   }
 }
 

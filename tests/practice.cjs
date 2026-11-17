@@ -24,10 +24,11 @@ fs.mkdirSync(results,{recursive:true});
   });
   const guide=await context.newPage();await guide.goto(guideUrl+'#practice');await guide.locator('#lab-launch').waitFor();
   assert.equal(await guide.locator('.scenario,[data-answer]').count(),0);
-  assert.equal(await guide.getByText('Practice scenarios',{exact:true}).count(),0);
-  await guide.locator('#learner-name').fill('   ');await guide.locator('#lab-launch button').click();
-  assert.equal(await guide.locator('#learner-name').evaluate(el=>el.validity.valid),false);
-  await guide.locator('#learner-name').fill('Avery & Kim');await guide.screenshot({path:path.join(results,'practice-launch.png')});
+  for(const label of ['Practice scenarios','Practice questions'])assert.equal(await guide.getByText(label,{exact:true}).count(),0);
+  const launch=guide.locator('#lab-launch button[type="submit"]');
+  assert.equal(await guide.locator('input[type="email"],#learner-name,#lab-launch input').count(),0);
+  assert.equal(await launch.isEnabled(),true);
+  await guide.screenshot({path:path.join(results,'practice-launch.png')});
   const popup=context.waitForEvent('page');await guide.locator('#lab-launch button').click();const app=await popup;
   async function ready(title='End Point Explorer'){
    const insights={'Installed Software Insights':'#software-briefing-title','End Point Insights':'#endpoint-insights-title','Security Vulnerability Insights':'#vulnerability-insights-title'};
@@ -42,7 +43,11 @@ fs.mkdirSync(results,{recursive:true});
    assert.ok(bytes.length>1000);assert.equal(bytes.subarray(0,suffix==='.pdf'?5:2).toString(),suffix==='.pdf'?'%PDF-':'PK');
    await item.saveAs(path.join(results,item.suggestedFilename()));return bytes;
   }
-  await ready();assert.equal(await app.locator('.practice-learner').innerText(),'Avery & Kim');
+  await ready();assert.equal(await app.locator('.practice-learner').innerText(),'Practice session');
+  const firstToken=await app.evaluate(()=>window.name);assert.match(firstToken,/^tsaat-practice:[a-f0-9]{32}$/);
+  function assertPrivateLaunchUrl(page){assert.doesNotMatch(decodeURIComponent(page.url()),/[?&#](?:learner|email|name)=/i);}
+  assertPrivateLaunchUrl(app);
+  const liveBlobUrl=app.url();assert.match(liveBlobUrl,/^blob:/);
   assert.equal(await app.evaluate(()=>window.opener),null);
   assert.equal(Number((await app.locator('.endpoint-total strong').innerText()).replaceAll(',','')),expected(latest));
   assert.equal(await app.locator('iframe').count(),0);
@@ -114,24 +119,34 @@ fs.mkdirSync(results,{recursive:true});
    if(await anchor.count()){const previous=app.url();await anchor.click();assert.equal(app.url(),previous);}
   }
   await app.getByLabel('Active persona').selectOption({label:'Analyst'});
-  await guide.locator('#learner-name').fill('Morgan');const secondWindow=context.waitForEvent('page');await guide.locator('#lab-launch button').click();const second=await secondWindow;
+  const secondWindow=context.waitForEvent('page');await guide.locator('#lab-launch button').click();const second=await secondWindow;
   await second.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();assert.equal(await second.getByLabel('Active persona').inputValue(),'');
-  assert.equal(await second.locator('.practice-learner').innerText(),'Morgan');
+  assert.equal(await second.locator('.practice-learner').innerText(),'Practice session');
+  const secondToken=await second.evaluate(()=>window.name);assert.match(secondToken,/^tsaat-practice:[a-f0-9]{32}$/);assert.notEqual(secondToken,firstToken);assertPrivateLaunchUrl(second);
   await app.getByRole('button',{name:'Reset practice',exact:true}).click();await ready();assert.equal(await app.getByLabel('Active persona').inputValue(),'');
-  await app.reload();await ready();assert.equal(await app.locator('.practice-learner').innerText(),'Avery & Kim');
+  await app.reload();await ready();assert.equal(await app.locator('.practice-learner').innerText(),'Practice session');assert.equal(await app.evaluate(()=>window.name),firstToken);assertPrivateLaunchUrl(app);
   await app.setViewportSize({width:390,height:844});await app.locator('.workspace-layout.sidebar-collapsed').waitFor();
   await app.screenshot({path:path.join(results,'practice-mobile.png'),fullPage:true,animations:'disabled'});
   assert.ok(await app.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Practice layout overflows mobile viewport');
   await app.getByRole('button',{name:'Show sidebar',exact:true}).click();await app.getByRole('button',{name:'Discovery',exact:true}).click();
   await app.getByRole('link',{name:'Installed Software Explorer',exact:true}).click();await ready('Installed Software Explorer');await app.locator('.workspace-layout.sidebar-collapsed').waitFor();
-  // Popup fallback remains a complete offline launch.
-  await guide.evaluate(()=>{window.open=()=>null});await guide.locator('#lab-launch button').click();
-  const fallback=guide.locator('#launch-status a');assert.match(await fallback.getAttribute('href'),/^blob:/);assert.equal(await fallback.getAttribute('rel'),'noopener noreferrer');
-  const fallbackWindow=context.waitForEvent('page');await fallback.click();const third=await fallbackWindow;await third.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();
-  // A copied standalone artifact has no path dependencies on the project.
+  // A blocked popup offers status only; retrying the launch button remains the only entry.
+  assert.equal(await launch.isEnabled(),true);
+  const pagesBeforeBlocked=context.pages().length;
+  await guide.evaluate(()=>{window.__testNativeOpen=window.open;window.open=()=>null;});await launch.click();
+  await guide.waitForFunction(()=>document.getElementById('launch-status')?.textContent.trim());
+  assert.match(await guide.locator('#launch-status').innerText(),/blocked|pop.?up/i);
+  assert.equal(await guide.locator('#launch-status a').count(),0);assert.equal(context.pages().length,pagesBeforeBlocked);
+  await guide.evaluate(()=>{window.open=window.__testNativeOpen;delete window.__testNativeOpen;});
+  const retryWindow=context.waitForEvent('page');await launch.click();const third=await retryWindow;await third.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();
+  assert.equal(await third.locator('.practice-learner').innerText(),'Practice session');assertPrivateLaunchUrl(third);
+  // A copied URL or standalone file must not bypass the guide's launch-button gate.
+  async function denied(page){await page.getByRole('heading',{name:'Open the lab from the user guide',exact:true}).waitFor();assert.equal(await page.locator('#workspace').count(),0);}
+  const copiedBlob=await context.newPage();await copiedBlob.goto(liveBlobUrl);await denied(copiedBlob);
   const copied=path.join(results,'isolated-practice.html');fs.writeFileSync(copied,bundle);const direct=await context.newPage();await direct.goto(pathToFileURL(copied).href);
-  await direct.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();await direct.reload();await direct.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();
+  await denied(direct);await direct.reload();await denied(direct);
+  await direct.goto(pathToFileURL(copied).href+'#/?learner=x@defence.gov.au');await denied(direct);
   assert.deepEqual(requests,[],'Practice attempted network requests');assert.deepEqual(errors,[],'Browser errors');
-  console.log('PASS: offline popup and fallback; independent HTML; eight snapshots/screens; network/system/domain scope; CMDB keyboard/focus and topology handoff; filtered Excel and four PDF report types; session isolation/reset; reload; mobile navigation; no network requests.');
+  console.log('PASS: immediately enabled button-only launch without a name/email field; private per-window tokens; copied URL and standalone entry denied; popup retry; eight snapshots/screens; network/system/domain scope; CMDB keyboard/focus and topology handoff; filtered Excel and four PDF report types; session isolation/reset; reload; mobile navigation; no network requests.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1});

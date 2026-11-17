@@ -1,0 +1,23 @@
+/* Keep the reading position fixed while light and the number badge respond. */
+.interactive-steps>li{isolation:isolate;padding:8px 0 22px;margin:0 0 4px;gap:14px;border:0;border-radius:0;background:none;box-shadow:none}
+.interactive-steps>li:before{left:17px;top:42px;bottom:-4px;background:linear-gradient(#3d656a,#29414f);pointer-events:none;z-index:0;transition:background .22s ease,box-shadow .22s ease}
+.interactive-steps>li:after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse 240px 110px at var(--step-x,35px) var(--step-y,32px),#79e2d21c,transparent 75%);mask-image:linear-gradient(transparent,#000 18%,#000 65%,transparent);transition:opacity .22s ease}
+.interactive-steps>li>div,.interactive-steps .step-index{position:relative;z-index:1;min-width:0}
+.interactive-steps h3{position:relative;transition:color .22s ease}
+.interactive-steps h3:after{content:"";position:absolute;left:0;bottom:-3px;width:90px;max-width:100%;height:1px;background:linear-gradient(90deg,#8ce7d8,transparent);transform:scaleX(0);transform-origin:left;opacity:0;transition:transform .28s ease,opacity .22s ease;pointer-events:none}
+.interactive-steps .step-index{align-self:start;font-variant-numeric:tabular-nums;transform-origin:center;transition:transform .18s ease-out,color .2s ease,background .2s ease,border-color .2s ease,box-shadow .2s ease}
+.interactive-steps .step-index:after{content:"";position:absolute;inset:-5px;border:1px solid #8ae9d99c;border-radius:10px;pointer-events:none;opacity:0}
+.interactive-steps>li:is(.step-hover,:focus-within):before{background:linear-gradient(#79e2d2,#29414f);box-shadow:0 0 7px #79e2d244}
+.interactive-steps>li:is(.step-hover,:focus-within):after{opacity:1}
+.interactive-steps>li:is(.step-hover,:focus-within) h3{color:#d6fff5}
+.interactive-steps>li:is(.step-hover,:focus-within) h3:after{opacity:1;transform:scaleX(1)}
+.interactive-steps>li:is(.step-hover,:focus-within) .step-index{background:#1c4c4b;color:#c4fff1;border-color:#85e7d7;box-shadow:0 0 var(--step-aura,17px) #79e2d247,inset 0 0 10px #79e2d21c;transform:translate3d(var(--step-dx,0px),var(--step-dy,0px),0) scale(var(--step-scale,1.04))}
+.interactive-steps>li.step-hover .step-index:after{animation:step-entry-ring .48s ease-out both}
+.interactive-steps>li:focus-visible{outline:none}
+.interactive-steps>li:focus-visible .step-index{outline:2px solid #90f3e8;outline-offset:5px}
+@keyframes step-entry-ring{0%{opacity:.7;transform:scale(.85)}100%{opacity:0;transform:scale(1.18)}}
+@media(max-width:680px){.interactive-steps>li{gap:11px}}
+@media(prefers-reduced-motion:reduce){.interactive-steps>li,.interactive-steps>li:before,.interactive-steps>li:after,.interactive-steps h3,.interactive-steps h3:after,.interactive-steps .step-index{transition:none!important}.interactive-steps>li:after{background:radial-gradient(ellipse at 35px 32px,#79e2d219,transparent 75%)}.interactive-steps .step-index{transform:none!important}.interactive-steps .step-index:after{animation:none!important}}
+@media(hover:none){.interactive-steps .step-index{transform:none!important}.interactive-steps .step-index:after{animation:none!important}}
+@media(forced-colors:active){.interactive-steps>li:is(.step-hover,:focus-within) h3{text-decoration:underline}.interactive-steps>li:focus-visible .step-index{outline-color:Highlight}}
+@media print{.interactive-steps>li{background:none!important;box-shadow:none!important;outline:none!important}.interactive-steps>li:before{box-shadow:none!important}.interactive-steps>li:after,.interactive-steps h3:after,.interactive-steps .step-index:after{display:none!important}.interactive-steps .step-index{transform:none!important;box-shadow:none!important;animation:none!important;outline:none!important}.interactive-steps>li,.interactive-steps>li:before,.interactive-steps h3,.interactive-steps .step-index{transition:none!important}}
