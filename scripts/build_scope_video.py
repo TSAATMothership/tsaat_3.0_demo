@@ -43,7 +43,7 @@ def render_assets(ffmpeg, reuse_recording=False):
     # Recorder stop overhead is trimmed; a last frame can pad a short clip.
     filters = [f'[{i}:v]fps=25,tpad=stop_mode=clone:stop_duration=1,trim=duration={seconds},setpts=PTS-STARTPTS[v{i}]' for i in range(len(scenes))]
     filters += [''.join(f'[v{i}]' for i in range(len(scenes))) + f'concat=n={len(scenes)}:v=1:a=0[out]']
-    output = ASSETS / 'scope-walkthrough.mp4'
+    output = ROOT / 'guide/scope-walkthrough.mp4'
     pending = CAPTURE / 'scope-walkthrough.mp4'
     command += ['-filter_complex', ';'.join(filters), '-map', '[out]', '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(pending)]
     subprocess.run(command, check=True)

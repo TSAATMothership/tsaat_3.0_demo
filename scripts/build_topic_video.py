@@ -50,7 +50,7 @@ def render_assets(topic, ffmpeg, reuse_recording=False, steps=None):
     # Recorder stop overhead is trimmed; a last frame can pad a short clip.
     filters = [f'[{i}:v]fps=25,tpad=stop_mode=clone:stop_duration=1,trim=duration={seconds},setpts=PTS-STARTPTS[v{i}]' for i in range(len(scenes))]
     filters += [''.join(f'[v{i}]' for i in range(len(scenes))) + f'concat=n={len(scenes)}:v=1:a=0[out]']
-    output = ASSETS / f'{TOPIC}-walkthrough.mp4'
+    output = ROOT / 'guide' / f'{TOPIC}-walkthrough.mp4'
     pending = CAPTURE / f'{TOPIC}-walkthrough.mp4'
     command += ['-filter_complex', ';'.join(filters), '-map', '[out]', '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(pending)]
     subprocess.run(command, check=True)

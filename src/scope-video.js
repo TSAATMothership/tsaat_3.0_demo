@@ -1,4 +1,4 @@
-// The video, poster and captions are bundled into saved HTML copies.
+// Videos live beside the HTML; posters and captions stay in saved HTML copies.
 let disposeScopeVideo = () => {};
 function scopeVideoPanel(id) {
   const recording=media.walkthroughs?.[id];
@@ -10,7 +10,7 @@ function scopeVideoPanel(id) {
     <video id="scope-video-player" controls playsinline preload="none" poster="${recording.poster}" aria-label="${tx('t.'+id+'.title')}: ${count}-step video walkthrough" aria-describedby="scope-video-help"><p>Your browser cannot play this video. Follow the step-by-step guide below.</p></video>
     <p id="scope-video-help" class="scope-video-help">No audio needed. Use the player controls or jump to a step. On a small screen, use fullscreen for a closer look.</p>
     <nav class="scope-video-chapters" style="--chapter-count:${count}" aria-label="Video steps">${scopeVideoChapters.map((time,i)=>`<button type="button" data-video-step="${i}" aria-controls="scope-video-player" aria-label="Jump to step ${i+1}: ${tx('t.'+id+'.s'+(i+1))}"><span>${pad(i+1)}</span><span>${tx('t.'+id+'.s'+(i+1))}<small>${Math.floor(time/60)}:${pad(time%60)}</small></span></button>`).join('')}</nav>
-    <p class="scope-video-error" role="status" hidden>The video could not be played. You can follow all ${count} steps in the transcript or guide below.</p>
+    <p class="scope-video-error" role="status" hidden>The video could not be played. Keep ${safe(recording.video)} in the same folder as this guide. You can also follow all ${count} steps in the transcript or guide below.</p>
     <details class="scope-video-transcript"><summary>Read the walkthrough transcript</summary><ol>${scopeVideoChapters.map((_,i)=>`<li><h3>${tx('t.'+id+'.s'+(i+1))}</h3><p>${tx('t.'+id+'.b'+(i+1))}</p></li>`).join('')}</ol></details>
   </section>`;
 }
@@ -21,7 +21,7 @@ function setupScopeVideo() {
   const recording=media.walkthroughs[panel.dataset.videoTopic],scopeVideoChapters=recording.chapters;
   const urls=[];
   const asset=(data,type)=>{const url=URL.createObjectURL(new Blob([base64ToBytes(data.split(',')[1])],{type}));urls.push(url);return url;};
-  video.src=asset(recording.video,'video/mp4');
+  video.src=recording.video;
   const track=document.createElement('track');
   track.kind='captions';track.label='English';track.srclang='en';track.src=asset(recording.captions,'text/vtt');video.append(track);
   const update=()=>{const active=scopeVideoChapters.findLastIndex(time=>video.currentTime>=time);buttons.forEach((button,i)=>{if(i===active)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');});};

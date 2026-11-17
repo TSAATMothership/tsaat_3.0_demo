@@ -97,7 +97,11 @@ def build():
             raise ValueError(f'Walkthrough chapter count does not match the guide: {topic}')
         item = {'duration': capture['durationSeconds'],
                 'chapters': [i*capture['secondsPerStep'] for i in range(len(capture['scenes']))]}
-        for key, extension, mime in (('video', 'mp4', 'video/mp4'), ('poster', 'png', 'image/png'), ('captions', 'vtt', 'text/vtt')):
+        video = GUIDE / f'{topic}-walkthrough.mp4'
+        if not video.is_file():
+            raise ValueError(f'Missing companion video: {video.name}')
+        item['video'] = video.name
+        for key, extension, mime in (('poster', 'png', 'image/png'), ('captions', 'vtt', 'text/vtt')):
             data = (ROOT / 'assets' / f'{topic}-walkthrough.{extension}').read_bytes()
             item[key] = f'data:{mime};base64,{encode(data)}'
         media['walkthroughs'][topic] = item

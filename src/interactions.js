@@ -65,7 +65,7 @@ function modal(kind){
     const [p,id]=path();
     const key=p==='topic'&&model.topics[id]?'t.'+id+'.title':p==='role'&&model.roles[id]?'r.'+id+'.title':p==='practice'?'lab.title':p==='reference'?'ui.reference':p==='roles'?'ui.roles':'ui.map';
     const actions=[['download','download'],['upload','upload'],['save','download']];
-    const rows=actions.map(([a,ico],i)=>`<div class="wb-row"><span class="number">${pad(i+1)}</span><div><h3>${ui('wb'+(i+1))}</h3><p>${ui('wb'+(i+1)+'d')}</p><button class="button secondary" data-action="${a}">${icon(ico,15)}${ui(a)}</button></div></div>`).join('');
+    const rows=actions.map(([a,ico],i)=>`<div class="wb-row"><span class="number">${pad(i+1)}</span><div><h3>${ui('wb'+(i+1))}</h3><p>${ui('wb'+(i+1)+'d')}</p>${a==='save'?'<p>Keep the saved HTML file and the walkthrough MP4 files together in the same folder so the videos can play.</p>':''}<button class="button secondary" data-action="${a}">${icon(ico,15)}${ui(a)}</button></div></div>`).join('');
     d.innerHTML=dialogHeader(ui('workbook'))+`<p class="dialog-lead">${ui('workbookIntro')}</p><div class="keyline"><span>${ui('referenceKey')}</span><code>${safe(key)}</code></div>${rows}<input type="file" id="workbook-picker" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div id="book-status" class="book-status" role="status">${icon('workbook',16)}<span>${ui(sourceMode)}</span></div>`;
     d.showModal();
   }

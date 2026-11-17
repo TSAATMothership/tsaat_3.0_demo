@@ -9,7 +9,7 @@ const out=path.join(root,'build/test-results');fs.mkdirSync(out,{recursive:true}
   const capture=JSON.parse(fs.readFileSync(path.join(root,`assets/${topic}-walkthrough.json`),'utf8'));
   const digest=file=>createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex');
   assert.equal(capture.sha256,digest(capture.source),'Recording must use the current practice app');
-  assert.equal(capture.videoSha256,digest(`assets/${topic}-walkthrough.mp4`),'Recording provenance must match the video');
+  assert.equal(capture.videoSha256,digest(`guide/${topic}-walkthrough.mp4`),'Recording provenance must match the companion video');
   assert.equal(capture.networkRequests,0);assert.equal(capture.pageErrors,0);
   const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL||'chrome',headless:true});
   try{
@@ -18,6 +18,7 @@ const out=path.join(root,'build/test-results');fs.mkdirSync(out,{recursive:true}
     const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.goto(url+'#topic/'+topic);
     const video=page.locator('#scope-video-player');await video.waitFor();
+    assert.equal(await video.getAttribute('src'),`${topic}-walkthrough.mp4`,'Video must use a relative companion file');
     assert.equal(await video.evaluate(v=>v.paused&&!v.autoplay&&v.preload==='none'),true);
     assert.equal(await page.locator('[data-video-step]').count(),capture.scenes.length);
     // Seeking works even before the first play request has loaded metadata.

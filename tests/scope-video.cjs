@@ -8,7 +8,8 @@ const out=path.join(root,'build/test-results');fs.mkdirSync(out,{recursive:true}
   const capture=JSON.parse(fs.readFileSync(path.join(root,'assets/scope-walkthrough.json'),'utf8'));
   const digest=file=>createHash('sha256').update(fs.readFileSync(path.join(root,file))).digest('hex');
   assert.equal(capture.sha256,digest(capture.source),'Recording must use the current practice app');
-  assert.equal(capture.videoSha256,digest('assets/scope-walkthrough.mp4'),'Recording provenance must match the video');
+  assert.equal(capture.videoSha256,digest('guide/scope-walkthrough.mp4'),'Recording provenance must match the companion video');
+  assert.ok(!fs.readFileSync(path.join(root,'guide/TSAAT-User-Guide.html'),'utf8').includes('data:video/mp4;base64,'),'The HTML must not embed video files');
   assert.equal(capture.networkRequests,0);assert.equal(capture.pageErrors,0);
   const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL||'chrome',headless:true});
   try{
@@ -17,6 +18,7 @@ const out=path.join(root,'build/test-results');fs.mkdirSync(out,{recursive:true}
     const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
     await page.goto(url+'#topic/scope');
     const video=page.locator('#scope-video-player');await video.waitFor();
+    assert.equal(await video.getAttribute('src'),'scope-walkthrough.mp4');
     assert.equal(await video.evaluate(v=>v.paused&&!v.autoplay&&v.preload==='none'),true);
     assert.equal(await page.locator('[data-video-step]').count(),5);
     // Seeking works even before the first play request has loaded metadata.
@@ -50,12 +52,20 @@ const out=path.join(root,'build/test-results');fs.mkdirSync(out,{recursive:true}
     await page.locator('.group-cards a[href="#topic/scope"]').click();await video.waitFor();
     await page.locator('[data-action="workbook"]').click();
     const downloaded=page.waitForEvent('download');await page.locator('[data-action="save"]').click();
-    const saved=path.join(out,'scope-video-saved.html');await (await downloaded).saveAs(saved);
+    const savedFolder=fs.mkdtempSync(path.join(out,'video-copy-'));
+    const saved=path.join(savedFolder,'TSAAT-User-Guide.html');await (await downloaded).saveAs(saved);
     await page.goto(pathToFileURL(saved).href+'#topic/scope');await video.waitFor();
+    // An HTML-only copy explains the missing companion; moving both files restores playback.
+    await page.locator('[data-video-step="4"]').click();
+    await page.locator('.scope-video-error:not([hidden])').waitFor();
+    assert.match(await page.locator('.scope-video-error').innerText(),/scope-walkthrough\.mp4.*same folder/);
+    for(const topic of ['scope','topology'])fs.copyFileSync(path.join(root,`guide/${topic}-walkthrough.mp4`),path.join(savedFolder,`${topic}-walkthrough.mp4`));
+    await page.reload();await video.waitFor();
+    assert.equal(await video.getAttribute('src'),'scope-walkthrough.mp4');
     await page.locator('[data-video-step="4"]').click();
     await page.waitForFunction(()=>document.querySelector('video').currentTime===52);
     await video.evaluate(v=>v.play());await page.waitForFunction(()=>document.querySelector('video').currentTime>52.2);await video.evaluate(v=>v.pause());
-    // Saved copies also retain another topic's media and all six chapter controls.
+    // Relative paths also work for another topic after moving the guide and videos.
     await page.evaluate(()=>{location.hash='#topic/topology';});
     await page.locator('[data-video-step="5"]').click();
     await page.waitForFunction(()=>document.querySelector('video').currentTime===65);

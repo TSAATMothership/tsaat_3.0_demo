@@ -27,6 +27,10 @@ def package(source, guide_only=False):
         with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
             for name in ('TSAAT-User-Guide.html', 'TSAAT-Practice-Lab.html', 'TSAAT-Guide-Text.xlsx'):
                 archive.write(GUIDE / name, name)
+            topics = json.loads((ROOT / 'src/structure.json').read_text(encoding='utf-8'))['topics']
+            for topic in topics:
+                name = f'{topic}-walkthrough.mp4'
+                archive.write(GUIDE / name, name)
             archive.write(ROOT / 'practice-lab/source-manifest.json', 'source-manifest.json')
             archive.write(ROOT / 'practice-lab/README.md', 'README.md')
             archive.write(ROOT / 'practice-lab/THIRD-PARTY-NOTICES.txt', 'THIRD-PARTY-NOTICES.txt')
