@@ -1,0 +1,13 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.000
+A vulnerability observation records a potential weakness associated with a device or software.
+
+00:00:06.000 --> 00:00:12.000
+Examine the affected records, recorded CVE details and the source that reported the observation.
+
+00:00:12.000 --> 00:00:18.000
+A recorded finding is not proof that a weakness is exploitable or has been exploited.
+
+00:00:18.000 --> 00:00:24.000
+Combine recorded evidence with system context and validation to inform the next step.

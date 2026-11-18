@@ -8,19 +8,22 @@ function practice(){
   return crumb(ui('practice'))+heading(ui('guide'),ui('practice'),ui('labIntro'))+launchPanel();
 }
 function routeView(focus=false){
+  disposeOverview();
   disposeScopeVideo();
   resetArtworkEffects();
   resetStepEffects();
-  const [name='feature-guide',id,item]=path();let page,nav=name;
+  const [name='overview',id,item]=path();let page,nav=name;
   if(name==='session'){page=practice();nav='practice';}
   else if(name==='topic'&&model.topics[id]){page=topicPage(id);nav='feature-guide';}
   else if(name==='role'&&model.roles[id]){page=rolePage(id);nav='roles';}
   else if(name==='roles')page=rolesPage();
   else if(name==='reference')page=refPage(id,item);
   else if(name==='practice')page=practice(id);
-  else{page=featureGuidePage();nav='feature-guide';}
+  else if(name==='feature-guide'||name==='map'){page=featureGuidePage();nav='feature-guide';}
+  else{page=overviewPage();nav='overview';}
   byId('main').innerHTML=page;
   setupScopeVideo();
+  setupOverview();
   linkGlossaryTerms(byId('main'));
   for(const n of document.querySelectorAll('[data-nav]')){
     if(n.dataset.nav===nav)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');
@@ -30,7 +33,7 @@ function routeView(focus=false){
   lastRoute=location.hash;
 }
 function setupSearch(){
-  searchItems=[];
+  searchItems=[{title:overviewContent.title,category:u('guide'),icon:'overview',route:'overview',parts:[overviewContent.intro,...overviewContent.sections.flatMap(section=>[section.title,section.lead,...section.body]),...overviewContent.timeline.flatMap(item=>[item.date,item.title,item.body])]}];
   function enter(pre,route,category,iconId){
     const parts=[...copy].filter(([k])=>k.startsWith(pre+'.')&&k!==pre+'.title').map(([,v])=>v.text);
     const title=msg(pre+'.title');
@@ -63,10 +66,11 @@ function modal(kind){
     results('');d.showModal();byId('query').focus();
   }else{
     const [p,id]=path();
-    const key=p==='topic'&&model.topics[id]?'t.'+id+'.title':p==='role'&&model.roles[id]?'r.'+id+'.title':p==='practice'?'lab.title':p==='reference'?'ui.reference':p==='roles'?'ui.roles':'ui.map';
+    const key=p==='topic'&&model.topics[id]?'t.'+id+'.title':p==='role'&&model.roles[id]?'r.'+id+'.title':p==='practice'?'lab.title':p==='reference'?'ui.reference':p==='roles'?'ui.roles':p==='feature-guide'||p==='map'?'ui.map':'';
     const actions=[['download','download'],['upload','upload'],['save','download']];
-    const rows=actions.map(([a,ico],i)=>`<div class="wb-row"><span class="number">${pad(i+1)}</span><div><h3>${ui('wb'+(i+1))}</h3><p>${ui('wb'+(i+1)+'d')}</p>${a==='save'?'<p>Keep the saved HTML file and the walkthrough MP4 files together in the same folder so the videos can play.</p>':''}<button class="button secondary" data-action="${a}">${icon(ico,15)}${ui(a)}</button></div></div>`).join('');
-    d.innerHTML=dialogHeader(ui('workbook'))+`<p class="dialog-lead">${ui('workbookIntro')}</p><div class="keyline"><span>${ui('referenceKey')}</span><code>${safe(key)}</code></div>${rows}<input type="file" id="workbook-picker" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div id="book-status" class="book-status" role="status">${icon('workbook',16)}<span>${ui(sourceMode)}</span></div>`;
+    const overviewHelp=(!p||p==='overview')?'<p class="dialog-lead">This workbook edits the Feature Guide, role pathways and reference text. The Overview story and films are maintained separately.</p>':'';
+    const rows=actions.map(([a,ico],i)=>`<div class="wb-row"><span class="number">${pad(i+1)}</span><div><h3>${ui('wb'+(i+1))}</h3><p>${ui('wb'+(i+1)+'d')}</p>${a==='save'?'<p>Keep the saved HTML file, overview MP4 films and walkthrough MP4 files together in the same folder so the videos can play.</p>':''}<button class="button secondary" data-action="${a}">${icon(ico,15)}${ui(a)}</button></div></div>`).join('');
+    d.innerHTML=dialogHeader(ui('workbook'))+`<p class="dialog-lead">${ui('workbookIntro')}</p>${overviewHelp}${key?`<div class="keyline"><span>${ui('referenceKey')}</span><code>${safe(key)}</code></div>`:''}${rows}<input type="file" id="workbook-picker" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden><div id="book-status" class="book-status" role="status">${icon('workbook',16)}<span>${ui(sourceMode)}</span></div>`;
     d.showModal();
   }
 }
@@ -109,8 +113,8 @@ document.addEventListener('input',e=>{if(e.target.id==='query')results(e.target.
 document.addEventListener('change',e=>{if(e.target.id==='workbook-picker')importFile(e.target);});
 document.addEventListener('cancel',e=>{if(e.target.id==='dialog'){e.preventDefault();closeDialog();}},true);
 document.addEventListener('keydown',e=>{
-  const editing=e.target.matches('input,textarea,[contenteditable=true]');
-  if(e.key==='/'&&!document.body.classList.contains('in-session')&&!editing&&!e.ctrlKey&&!e.metaKey&&!byId('dialog').open){e.preventDefault();modal('search');}
+  const editing=e.target.matches('input,textarea,select,[contenteditable=true]');
+  if(e.key==='/'&&!document.body.classList.contains('in-session')&&!editing&&!e.ctrlKey&&!e.metaKey&&!document.querySelector('dialog[open]')){e.preventDefault();modal('search');}
   if(e.key==='Escape'&&document.body.classList.contains('menu-open')){setMenu(false);document.querySelector('.hamb')?.focus();}
   if(document.body.classList.contains('menu-open')&&e.key==='Tab'){
     const elems=[document.querySelector('.hamb'),...document.querySelectorAll('#sidebar a')];

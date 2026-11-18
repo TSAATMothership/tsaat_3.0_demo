@@ -1,6 +1,24 @@
 # DSMR TSAAT User Guide
 
-Open [the interactive guide](guide/TSAAT-User-Guide.html) in a browser. It contains the feature directory, role pathways, worked examples and a self-contained practice lab. The guide and practice app work offline.
+Open [the interactive guide](guide/TSAAT-User-Guide.html) in a browser. It opens on **TSAAT Overview**, an interactive ten-part story, followed by the feature directory, role pathways, worked examples and a self-contained practice lab. The guide and practice app work offline.
+
+## TSAAT Overview
+
+The default landing page introduces TSAAT, its supplied programme history, cyber terrain, Governance and Discovery, ICT systems and networks, security vulnerabilities, Shadow IT, service dependencies, focused reporting and benefits. It combines flat and isometric diagrams, scroll-linked progress, device hover feedback and keyboard-operable selections. Chapter controls jump through the story without changing pages. **Pause motion** and the operating system's reduced-motion preference stop animated communication paths. Diagrams are illustrative, not live Defence data; the timeline labels January 2027 delivery of V3.0 as planned.
+
+The page and films share one visual model: orange devices, attached blue software, green ICT systems and purple services. D1/D2 form System A, D3/D4 form B, and D5/D6 form C. The ICT service depends on A, Mission service A on B and C, and Mission service B on C. Moving dotted lines indicate communication; solid arrows show membership, support or reporting steps. Hovering a device highlights its repeated appearances without moving the diagram. Films use brief reveals followed by stable reading time.
+
+The opening graphic is a compact concept illustration: an interconnected web of devices, software, example CVE identifiers, networks, ICT systems, mission systems and unknown observations. It introduces TSAAT's discovery, assessment and reporting purpose; it is not a deployment topology or live data. Example CVE references: [Apache Log4j](https://logging.apache.org/security.html) and [OpenSSL](https://www.openssl-library.org/news/vulnerabilities-3.0/).
+
+The Overview has named chapter navigation, a compact chapter chooser on smaller screens, and previous/next controls. Each interactive explanation stays beside its controls. Six detailed diagrams can be expanded, zoomed and panned while preserving the selected view; close the dialog to return to the same control. Intro shortcuts lead directly to terrain, investigation and reporting, and every film has a chapter-specific accessible name.
+
+The Reporting chapter demonstrates how scope and Explorer search affect filtered Excel, briefing PDFs and topology impact PDFs. It preserves the distinction between header-scoped briefings and Explorer row filters, with a link to the detailed reporting guidance.
+
+Each of the ten sections opens an original caption-led motion-graphics film in a popup with native playback/fullscreen controls, English captions and an exact transcript. Films play only when requested; closing the popup or leaving the page stops playback. Nine films run for 24 seconds and the six-milestone origins film runs for 36 seconds. No audio is needed.
+
+Keep all ten `overview-*.mp4` films alongside the guide HTML, as well as the existing 13 walkthrough MP4s. Posters, captions, story text and interactive graphics are embedded in the HTML and retained by **Save updated guide**. The distribution ZIP includes all 23 videos.
+
+The overview narrative lives in `src/overview-content.json`, with presentation and interactions in `src/overview.js` and `src/overview.css`. Its story text and films are maintained separately from the feature-guide workbook. Regenerate motion graphics with `python scripts/build_overview_videos.py`, then rebuild the guide with `python scripts/build_guide.py`. Film generation uses Pillow and FFmpeg; normal guide builds use the checked-in media. `npm run test:overview` checks the offline page, interactions, reduced motion, popup films, saved copies and mobile layout.
 
 The guide uses plain English and calls the devices, software, networks and services you look after your **cyber terrain**. Underlined technical terms open their glossary definitions. The glossary and walkthrough wording remain editable in the workbook. Older workbooks keep their custom wording and gain any missing new glossary entries when loaded.
 
@@ -10,7 +28,7 @@ Record one topic at a time with `python scripts/build_topic_video.py TOPIC` (for
 
 Recording requires the project's Playwright dependency, Chrome and Playwright's FFmpeg recorder (`npx playwright install ffmpeg`), plus an H.264 FFmpeg encoder (`--ffmpeg PATH`, or `imageio-ffmpeg` installed in `build/video-tools`). Raw clips stay in ignored `build/TOPIC-recording/`. `--reuse-recording` re-encodes only when the lab source hash still matches. `--steps 3,4` refreshes selected chapters only when all original clips exist and the source and chapter wording are unchanged. Recorders write the MP4 files to `guide/` and the posters, captions and provenance to `assets/`. Normal guide builds use this checked-in media without recording dependencies. Rebuild with `python scripts/build_guide.py`, then run `node tests/topic-video.cjs TOPIC` for a single page or `npm run test:video` for every page.
 
-The original overview and topic artwork responds with a gentle tilt and glow as the pointer moves across its banner. Click or tap the banner for a brief light pulse. These decorative effects preserve the page layout, work offline and switch off when reduced motion is enabled.
+The Feature Guide and topic artwork responds with a gentle tilt and glow as the pointer moves across its banner. Click or tap the banner for a brief light pulse. These decorative effects preserve the page layout, work offline and switch off when reduced motion is enabled. The TSAAT Overview uses stationary diagrams and device identity highlights instead.
 
 Numbered steps on the 13 topic guidance pages use an open, border-free layout with a soft pointer-following light, a glowing number badge, a short heading underline and an illuminated connector line. The number responds more strongly when the pointer is nearby; the text stays still. Tab to a step or one of its glossary links for the same visual emphasis, with the keyboard focus ring around the number. Reduced motion uses a static highlight. Touch scrolling, text selection and glossary navigation keep their normal behavior, and the effects stay out of printed pages and the PDF handbook.
 

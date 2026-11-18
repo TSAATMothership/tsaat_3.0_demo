@@ -1,6 +1,7 @@
 """Build the offline HTML guide from its editable Excel workbook and local assets."""
 import base64
 import html
+import hashlib
 import json
 import posixpath
 import re
@@ -75,6 +76,29 @@ def read(path):
     return path.read_text(encoding="utf-8")
 
 
+def overview_content():
+    """Embed the story, posters and captions while keeping MP4s beside the HTML."""
+    content = json.loads(read(SRC / "overview-content.json"))
+    manifest_path = ROOT / "assets" / "overview-videos.json"
+    manifest = json.loads(read(manifest_path))
+    for section in content["sections"]:
+        recording = manifest[section["id"]]
+        filename = f"overview-{section['id']}.mp4"
+        if recording["file"] != filename:
+            raise ValueError(f"Unexpected overview video filename: {recording['file']}")
+        video = GUIDE / filename
+        if not video.is_file():
+            raise ValueError(f"Missing overview film: {filename}")
+        if hashlib.sha256(video.read_bytes()).hexdigest() != recording["sha256"]:
+            raise ValueError(f"Overview film differs from its manifest: {filename}")
+        item = {key: recording[key] for key in ("file", "duration", "label", "scenes")}
+        for key, extension, mime in (("poster", "-poster.jpg", "image/jpeg"), ("captions", ".vtt", "text/vtt")):
+            asset = ROOT / "assets" / f"overview-{section['id']}{extension}"
+            item[key] = f"data:{mime};base64,{encode(asset.read_bytes())}"
+        section["video"] = item
+    return content
+
+
 def build():
     workbook = GUIDE / "TSAAT-Guide-Text.xlsx"
     copy = read_copy(workbook)
@@ -114,9 +138,10 @@ def build():
         "WARN": html.escape(copy["ui.dataWarning"]), "LOGO": media["logo"], "BOOK": encode(workbook.read_bytes()),
         "STRUCTURE": script_json(json.loads(read(SRC / "structure.json"))),
         "REQUIRED": script_json(keys), "MEDIA": script_json(media),
+        "OVERVIEW": script_json(overview_content()),
         "PRACTICE": encode((GUIDE / "TSAAT-Practice-Lab.html").read_bytes()),
-        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css", "scope-video.css")),
-        "JS": "\n".join(read(SRC / f) for f in ("site.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "scope-video.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
+        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css", "scope-video.css", "overview.css")),
+        "JS": "\n".join(read(SRC / f) for f in ("site.js", "overview.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "scope-video.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
         "ZIP": ("/* Library distribution notice\n" + notice + "\n*/\n" + read(vendor / "jszip.min.js")).replace("</script", r"<\/script"),
         "PDF": re.sub(r"</script", lambda _: r"<\/script", "/* PDF-lib distribution notice\n" + pdf_notice + "\n*/\n" + read(pdf_vendor / "pdf-lib.min.js"), flags=re.IGNORECASE),
     }

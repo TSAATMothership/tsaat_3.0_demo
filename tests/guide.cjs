@@ -13,13 +13,13 @@ fs.mkdirSync(results,{recursive:true});
  try{
  const ctx=await browser.newContext({viewport:{width:1440,height:940},acceptDownloads:true}),p=await ctx.newPage();
  p.on('pageerror',e=>{fail.push(e.message);console.log('PAGE ERROR',e.message);});
- await p.goto(url);await p.getByRole('heading',{name:'TSAAT Feature Guide'}).waitFor({timeout:7000});
+ await p.goto(url+'#feature-guide');await p.getByRole('heading',{name:'TSAAT Feature Guide'}).waitFor({timeout:7000});
  await p.screenshot({path:path.join(results,'desktop.png')});
  const removedNames=['Choose your role','Common tasks','Set your scope','Explore workspace','Scope','Insights','Evidence','Workspace map'];
- for(const route of ['', '#overview', '#map', '#feature-guide']){
+ for(const route of ['#map', '#feature-guide']){
    await p.goto(url+route);
    await p.getByRole('heading',{name:'TSAAT Feature Guide',exact:true,level:1}).waitFor();
-   assert.equal(await p.locator('#sidebar nav a').count(),4);
+   assert.equal(await p.locator('#sidebar nav a').count(),5);
    assert.equal(await p.locator('#sidebar a[aria-current="page"]').innerText(),'TSAAT Feature Guide');
    assert.equal(await p.locator('.role-card,.hero button:not(#generate-guide-pdf),.hero a:not(.glossary-link),.role-nav,[data-layer]').count(),0);
    assert.equal(await p.locator('.hero #generate-guide-pdf').count(),1);
@@ -64,12 +64,12 @@ fs.mkdirSync(results,{recursive:true});
  zip.file(file,xml);let fresh=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
  await p.locator('#workbook-picker').setInputFiles({name:'edited.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:fresh});await p.waitForFunction(()=>document.getElementById('book-status')?.textContent.includes('edited workbook'));
  promise=p.waitForEvent('download');await p.locator('[data-action="save"]').click();const saved=path.join(results,'edited-qa.html');await (await promise).saveAs(saved);
- await p.goto(pathToFileURL(saved).href);await p.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();
+ await p.goto(pathToFileURL(saved).href+'#feature-guide');await p.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();
  await p.locator('#sidebar a[href="#practice"]').click();await p.locator('#lab-launch button').waitFor();
  assert.equal(await p.locator('input[type="email"],#learner-name,#lab-launch input').count(),0);assert.equal(await p.locator('#lab-launch button').isEnabled(),true);
  const labWindow=ctx.waitForEvent('page');await p.locator('#lab-launch button').click();const savedLab=await labWindow;
  await savedLab.getByRole('heading',{name:'End Point Explorer',exact:true}).waitFor();await savedLab.close();
- const mobile=await ctx.newPage({});await mobile.setViewportSize({width:390,height:844});await mobile.goto(url);await mobile.locator('.hero').waitFor();await mobile.screenshot({path:path.join(results,'mobile.png'),fullPage:true});
+ const mobile=await ctx.newPage({});await mobile.setViewportSize({width:390,height:844});await mobile.goto(url+'#feature-guide');await mobile.locator('.hero').waitFor();await mobile.screenshot({path:path.join(results,'mobile.png'),fullPage:true});
  for(const route of ['overview','roles','map','role/system','topic/topology','topic/govern-soft','practice','reference']){await mobile.goto(url+'#'+route);await mobile.waitForTimeout(25);assert.ok(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile overflow '+route);}
  await mobile.locator('.hamb').click();await mobile.locator('#sidebar a[href="#roles"]').click();await mobile.locator('.role-card[href="#role/manager"]').click();assert.equal(await mobile.locator('body').getAttribute('class')||'','');
  // Stream the complete media-rich guide over loopback without passing a large
@@ -77,12 +77,12 @@ fs.mkdirSync(results,{recursive:true});
  const web=await ctx.newPage();let mode='valid';
  fixtureServer=http.createServer((request,response)=>{
    if(request.url.endsWith('.xlsx')){response.writeHead(mode==='missing'?404:200,{'Content-Type':'application/octet-stream'});response.end(mode==='valid'?fresh:Buffer.from('bad'));return;}
-   if(request.url!=='/index.html'){response.writeHead(404);response.end();return;}
+   if(request.url.split('?')[0]!=='/index.html'){response.writeHead(404);response.end();return;}
    response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});fs.createReadStream(path.join(out,'TSAAT-User-Guide.html')).pipe(response);
  });
  await new Promise((resolve,reject)=>{fixtureServer.once('error',reject);fixtureServer.listen(0,'127.0.0.1',resolve);});
  const fixtureUrl=`http://127.0.0.1:${fixtureServer.address().port}/index.html`;
- for(const test of ['valid','missing','bad']){mode=test;await web.goto(fixtureUrl);await web.waitForSelector('.hero');if(test==='valid')await web.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();await web.locator('[data-action=workbook]').click();await web.waitForFunction(s=>document.getElementById('book-status').textContent.includes(s),test==='valid'?'separate workbook stored beside':test==='missing'?'workbook stored inside':'could not be read');}
+ for(const test of ['valid','missing','bad']){mode=test;await web.goto(fixtureUrl+'?case='+test+'#feature-guide');await web.waitForSelector('.hero');if(test==='valid')await web.getByRole('heading',{name:'Evidence & assurance field guide'}).waitFor();await web.locator('[data-action=workbook]').click();await web.waitForFunction(s=>document.getElementById('book-status').textContent.includes(s),test==='valid'?'separate workbook stored beside':test==='missing'?'workbook stored inside':'could not be read');}
  assert.deepEqual(fail,[]);console.log('PASS: browser rendered desktop/mobile; four role pathways; thirteen walkthroughs; eight screen links; diagrams, glossary, practice launcher without scenarios, search, XLSX export/import, edited HTML offline reload, HTTP workbook selection/fallback.');
  }finally{await browser.close();if(fixtureServer)await new Promise(resolve=>fixtureServer.close(resolve));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

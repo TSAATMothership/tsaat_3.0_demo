@@ -1,0 +1,466 @@
+{
+  "what": {
+    "file": "overview-what.mp4",
+    "poster": "assets/overview-what-poster.jpg",
+    "captions": "assets/overview-what.vtt",
+    "duration": 24,
+    "label": "See the whole picture",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "0f8895196890611ac33ad3adf2d0c0047c8ffe93fb5bfb6ee38c7933dc754096",
+    "bytes": 404101,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "See the whole picture.",
+        "subtitle": "Threat Surface Area Assessment Tool",
+        "body": "TSAAT brings recorded cyber terrain evidence into a clearer view."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "From records to context.",
+        "subtitle": "Devices. Software. Vulnerabilities. Links.",
+        "body": "Explore recorded devices, installed software, vulnerability observations and their relationships."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Two views. One terrain.",
+        "subtitle": "Governance + Discovery",
+        "body": "Use Governance for summaries and Discovery to examine the records behind them."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Evidence for better questions.",
+        "subtitle": "Understand. Investigate. Communicate.",
+        "body": "Use the evidence to ask better questions, investigate gaps and explain what you find."
+      }
+    ]
+  },
+  "origins": {
+    "file": "overview-origins.mp4",
+    "poster": "assets/overview-origins-poster.jpg",
+    "captions": "assets/overview-origins.vtt",
+    "duration": 36,
+    "label": "From discovery to understanding",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "1501642f130ef763d0aa23c1815df92998a48338636b2c0d7bccbd51574289fd",
+    "bytes": 410648,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "2019",
+        "subtitle": "The foundation",
+        "body": "OPORD/01-2019 starts CMDB and dynamic discovery. An enterprise platform reaches DPE and DSE by June 2022."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Q3 2022",
+        "subtitle": "Make the connections",
+        "body": "Configuration Management processes are established, including ICT System Modelling."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "2023-24",
+        "subtitle": "Assess the critical systems",
+        "body": "DSR: HICTO orders 66 and 67 assess about 87 critical ICT Systems against 28 compliance questions. TSAAT v1.0 reports the findings."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "2024-25",
+        "subtitle": "Scale the inventory",
+        "body": "DIIS captures ICT System inventory and ownership. OMWOW models about 3,000 systems. TSAAT v2.0 and training arrive in Q4 2025."
+      },
+      {
+        "start": 24,
+        "end": 30,
+        "headline": "Q1 2026",
+        "subtitle": "A wider conversation",
+        "body": "TSAAT is presented to DSOC and Cyber Command as a reporting tool for visibility of the Cyber Terrain."
+      },
+      {
+        "start": 30,
+        "end": 36,
+        "headline": "Jan 2027",
+        "subtitle": "The next chapter - planned",
+        "body": "TSAAT v3.0 is designed in Q4 2026 for DSOC needs, with delivery planned for January 2027."
+      }
+    ]
+  },
+  "terrain": {
+    "file": "overview-terrain.mp4",
+    "poster": "assets/overview-terrain-poster.jpg",
+    "captions": "assets/overview-terrain.vtt",
+    "duration": 24,
+    "label": "More than a list of devices",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "000416a9a76412288c009d66c2566f794acaf2376be95e3d37d712814fb34d6c",
+    "bytes": 390139,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "More than a device list.",
+        "subtitle": "The environment your organisation relies on",
+        "body": "Cyber Terrain includes the devices, software, networks and services you look after."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Layers that work together.",
+        "subtitle": "Devices + software + networks",
+        "body": "A device runs software. Networks connect devices. Together, they support ICT Systems and services."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Relationships add meaning.",
+        "subtitle": "The connections matter",
+        "body": "Recorded relationships help explain how technical components fit together."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Know the shape of it.",
+        "subtitle": "Keep the evidence in view",
+        "body": "Understand what is recorded, how it connects and where the picture is incomplete."
+      }
+    ]
+  },
+  "understand": {
+    "file": "overview-understand.mp4",
+    "poster": "assets/overview-understand-poster.jpg",
+    "captions": "assets/overview-understand.vtt",
+    "duration": 24,
+    "label": "Turn detail into understanding",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "d45b1600b118168d729361609840b3b3af6d6d9017c266e8a39a49a964ff7cf8",
+    "bytes": 328026,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "Choose your view.",
+        "subtitle": "Start with the question",
+        "body": "Select the cyber terrain and snapshot you need before interpreting a result."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Find the pattern.",
+        "subtitle": "Governance",
+        "body": "Read summaries to see recorded patterns, missing details and discovery gaps."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Follow the evidence.",
+        "subtitle": "Discovery",
+        "body": "Explore the underlying records, open details and follow recorded relationships."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Explain what you found.",
+        "subtitle": "A shared basis for discussion",
+        "body": "Use reports and exports to support a focused conversation about the evidence."
+      }
+    ]
+  },
+  "systems": {
+    "file": "overview-systems.mp4",
+    "poster": "assets/overview-systems-poster.jpg",
+    "captions": "assets/overview-systems.vtt",
+    "duration": 24,
+    "label": "Put the pieces in context",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "5409d90489e9ffc2d148a554dd4b0600d65bff661185f0770ff205d370a80e61",
+    "bytes": 433267,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "A system has a purpose.",
+        "subtitle": "More than a single component",
+        "body": "An ICT System brings components together to deliver an intended function."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Networks make connections.",
+        "subtitle": "The paths between components",
+        "body": "Networks link devices and help components exchange information."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Different views. Related evidence.",
+        "subtitle": "System, network and component",
+        "body": "A system view explains purpose and ownership. A network view explains connectivity."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Follow the recorded links.",
+        "subtitle": "An illustrative system",
+        "body": "Use recorded relationships to explore how components, networks and ICT Systems fit together."
+      }
+    ]
+  },
+  "vulnerabilities": {
+    "file": "overview-vulnerabilities.mp4",
+    "poster": "assets/overview-vulnerabilities-poster.jpg",
+    "captions": "assets/overview-vulnerabilities.vtt",
+    "duration": 24,
+    "label": "A signal to investigate",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "e39f513f7c828143790861470c0740ea63c413ebd0ababc6d69e64d9ec970e34",
+    "bytes": 461558,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "A finding is a starting point.",
+        "subtitle": "Security vulnerabilities",
+        "body": "A vulnerability observation records a potential weakness associated with a device or software."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Add the context.",
+        "subtitle": "Which device? Which software?",
+        "body": "Examine the affected records, recorded CVE details and the source that reported the observation."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Separate signal from proof.",
+        "subtitle": "Observation is not exploitation",
+        "body": "A recorded finding is not proof that a weakness is exploitable or has been exploited."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Investigate. Then prioritise.",
+        "subtitle": "Evidence supports judgement",
+        "body": "Combine recorded evidence with system context and validation to inform the next step."
+      }
+    ]
+  },
+  "shadow": {
+    "file": "overview-shadow.mp4",
+    "poster": "assets/overview-shadow-poster.jpg",
+    "captions": "assets/overview-shadow.vtt",
+    "duration": 24,
+    "label": "Make the unknown visible",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "ac11c5e1a77b03adb4ff077a77a9a44d88d3ff8ea8cdf3ff423794035832e7d7",
+    "bytes": 400866,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "What is missing?",
+        "subtitle": "Shadow IT",
+        "body": "An unfamiliar address or device can reveal a gap between observed activity and known inventory."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Keep the roles separate.",
+        "subtitle": "Observed device + reporting device",
+        "body": "Distinguish the unknown device from the known device that reported seeing it."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Unknown does not mean hostile.",
+        "subtitle": "A lead to investigate",
+        "body": "An unexplained record could reflect an inventory gap, an expected device or something requiring attention."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Investigate the gap.",
+        "subtitle": "Identify. Validate. Follow up.",
+        "body": "Review the evidence and establish the device identity, owner and place in the terrain."
+      }
+    ]
+  },
+  "services": {
+    "file": "overview-services.mp4",
+    "poster": "assets/overview-services-poster.jpg",
+    "captions": "assets/overview-services.vtt",
+    "duration": 24,
+    "label": "Trace what depends on what",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "3acb083a312a20a2fbd99735ff1090efaa8747f3fb3d0318bf42d0d42b65634f",
+    "bytes": 426663,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "Start with the service.",
+        "subtitle": "What needs to keep working?",
+        "body": "Services depend on ICT Systems, networks, software and devices working together."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Trace the dependencies.",
+        "subtitle": "An illustrative dependency path",
+        "body": "Follow recorded relationships to identify components that may support a service."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Ask what else could be affected.",
+        "subtitle": "Potential impact, not a prediction",
+        "body": "A component issue may have wider implications. Recorded links help frame the investigation."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Validate with the owners.",
+        "subtitle": "Turn a connection into a conversation",
+        "body": "Confirm dependencies and operational context with owners before drawing conclusions about service impact."
+      }
+    ]
+  },
+  "reporting": {
+    "file": "overview-reporting.mp4",
+    "poster": "assets/overview-reporting-poster.jpg",
+    "captions": "assets/overview-reporting.vtt",
+    "duration": 24,
+    "label": "A focused answer. Context you can share.",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "2604bca96872f843fc2b94ea5413231341a653d3468317c172115779d3e6c4e8",
+    "bytes": 377448,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "Start with your view.",
+        "subtitle": "A question gives the evidence purpose",
+        "body": "Start with the information available in your TSAAT view and the question you need to answer."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Narrow the view.",
+        "subtitle": "Terrain. Snapshot. Relevant filters.",
+        "body": "Select cyber terrain and date, then check the loaded snapshot. Use relevant Discovery search and table filters."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "A focused answer.",
+        "subtitle": "Governance summaries / Discovery records",
+        "body": "Use Governance for scoped summaries and Discovery to inspect matching records. Choose the view that answers your question."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Report with context.",
+        "subtitle": "Keep scope and snapshot with the result",
+        "body": "Governance PDFs use header scope and snapshot. Explorer Excel exports matching filtered rows. Check what the download includes before sharing."
+      }
+    ]
+  },
+  "benefits": {
+    "file": "overview-benefits.mp4",
+    "poster": "assets/overview-benefits-poster.jpg",
+    "captions": "assets/overview-benefits.vtt",
+    "duration": 24,
+    "label": "A clearer picture. A better conversation.",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "codec": "h264",
+    "rendererSha256": "e6488225d150f5b6e0c6863028e2ff1de2e60cce74a0a92dd167f2265766cda8",
+    "audio": "none; caption-led motion graphics",
+    "sha256": "3fabe2b69402f50dc061880d11d143dcd3d11c3fdf99b329b09b6ad13f8013db",
+    "bytes": 291395,
+    "scenes": [
+      {
+        "start": 0,
+        "end": 6,
+        "headline": "See what you have.",
+        "subtitle": "Visibility",
+        "body": "Bring recorded inventory, relationships and observations into a view people can explore."
+      },
+      {
+        "start": 6,
+        "end": 12,
+        "headline": "Find the questions.",
+        "subtitle": "Investigation",
+        "body": "Spot missing details and follow the evidence behind summaries and findings."
+      },
+      {
+        "start": 12,
+        "end": 18,
+        "headline": "Share the understanding.",
+        "subtitle": "Communication",
+        "body": "Use consistent views, reports and exports to discuss the same evidence."
+      },
+      {
+        "start": 18,
+        "end": 24,
+        "headline": "Know the terrain. Take the next step.",
+        "subtitle": "Explore the TSAAT Feature Guide",
+        "body": "Choose a feature, learn how it works and practise using the guide."
+      }
+    ]
+  }
+}

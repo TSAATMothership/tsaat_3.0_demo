@@ -3,6 +3,7 @@
 const byId=id=>document.getElementById(id);
 const model=JSON.parse(byId('structure').textContent);
 const media=JSON.parse(byId('media').textContent);
+const overviewContent=JSON.parse(byId('overview-content').textContent);
 const required=JSON.parse(byId('required').textContent);
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const defaults=byId('workbook').textContent.trim();
@@ -120,14 +121,14 @@ function activeLink(id,route,ico,label){return link(route,icon(ico,18)+`<span>${
 function shell(){
   document.title=u('browserTitle');
   byId('app').innerHTML=`<a class="skip" href="#main">${ui('skip')}</a>
-  <header class="topbar"><div class="brandblock"><button class="hamb" data-action="menu" aria-expanded="false" aria-controls="sidebar" aria-label="${ui('menu')}">${icon('menu')}</button>${link('feature-guide',coverImage('logo')+`<span><strong>${ui('brand')}</strong><small>${ui('brandSub')}</small></span>`,'brand')}</div>
+  <header class="topbar"><div class="brandblock"><button class="hamb" data-action="menu" aria-expanded="false" aria-controls="sidebar" aria-label="${ui('menu')}">${icon('menu')}</button>${link('overview',coverImage('logo')+`<span><strong>${ui('brand')}</strong><small>${ui('brandSub')}</small></span>`,'brand')}</div>
   <div class="header-tools"><button class="search-trigger" data-action="search" aria-label="${ui('search')}">${icon('search',16)}<span>${ui('search')}</span><kbd aria-hidden="true">/</kbd></button></div></header>
   <div class="layout"><aside id="sidebar"><nav aria-label="${ui('guideNav')}"><div class="nav-caption">${ui('guideNav')}</div>
-  ${activeLink('feature-guide','feature-guide','map',ui('map'))}${activeLink('roles','roles','roles',ui('roles'))}${activeLink('practice','practice','lab',ui('practice'))}${activeLink('reference','reference','book',ui('reference'))}</nav>
+  ${activeLink('overview','overview','overview',safe(overviewContent.title))}${activeLink('feature-guide','feature-guide','map',ui('map'))}${activeLink('roles','roles','roles',ui('roles'))}${activeLink('practice','practice','lab',ui('practice'))}${activeLink('reference','reference','book',ui('reference'))}</nav>
   <a class="sidebottom" href="#dialog" data-action="workbook" aria-label="${ui('handbook')} - ${ui('workbook')}" title="${ui('workbook')}" aria-haspopup="dialog" aria-controls="dialog">${icon('book',18)}<strong>${ui('handbook')}</strong></a></aside><button class="shade" data-action="menu" aria-label="${ui('menuClose')}"></button>
   <main id="main" tabindex="-1"></main></div><dialog id="dialog"></dialog>`;
 }
-function crumb(label,parent=''){return `<nav class="breadcrumb" aria-label="${ui('guideNav')}">${link('feature-guide',icon('book',15)+' '+ui('guide'))}${icon('chev',12)}${parent?parent+icon('chev',12):''}<span>${label}</span></nav>`;}
+function crumb(label,parent=''){return `<nav class="breadcrumb" aria-label="${ui('guideNav')}">${link('overview',icon('book',15)+' '+ui('guide'))}${icon('chev',12)}${parent?parent+icon('chev',12):''}<span>${label}</span></nav>`;}
 function heading(k,title,desc){return `<header class="pagehead">${eyebrow(k)}<h1>${title}</h1><p>${desc}</p></header>`;}
 function sectionHead(title,desc='',right=''){return `<div class="section-head"><div><h2>${title}</h2>${desc?'<p>'+desc+'</p>':''}</div>${right}</div>`;}
 function action(route,label,symbol='arrow',cls='primary'){return link(route,ui(label)+icon(symbol,16),'button '+cls);}

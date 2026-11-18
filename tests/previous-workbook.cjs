@@ -26,7 +26,7 @@ async function workbookRows(page,bytes){
 async function verifyMigration(page,bytes,name,current){
  const before=await workbookRows(page,bytes),missing=required.filter(key=>!before.rows.has(key));
  assert.ok(missing.length>0,'Fixture must need migration');
- await page.goto(pathToFileURL(path.join(out,'TSAAT-User-Guide.html')).href);
+ await page.goto(pathToFileURL(path.join(out,'TSAAT-User-Guide.html')).href+'#feature-guide');
  await page.locator('[data-action=workbook]').click();
  await page.locator('#workbook-picker').setInputFiles({name,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:bytes});
  await page.waitForFunction(()=>document.getElementById('book-status')?.textContent.includes('edited workbook'));
