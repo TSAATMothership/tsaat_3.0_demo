@@ -4,9 +4,8 @@
 .art-engaged .plot :is(img,.terrain-art),.art-engaged .topic-art{transform:perspective(700px) translate3d(var(--art-x,0px),var(--art-y,0px),0) rotateX(var(--art-rx,0deg)) rotateY(var(--art-ry,0deg)) scale(1.025);filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 12px #79e2d23d) brightness(1.08)}
 .art-pulse .plot :is(img,.terrain-art),.art-pulse .topic-art{animation:guide-art-pulse .65s ease-out}
 @keyframes guide-art-pulse{0%,100%{filter:drop-shadow(0 5px 14px #06121d80)}45%{filter:drop-shadow(0 5px 14px #06121d80) drop-shadow(0 0 20px #79e2d278) brightness(1.18)}}
-.map-block.shared{grid-column:1/-1;--accent:#f0b674;--tone:#392e25}
+.map-block.shared{--accent:#f0b674;--tone:#392e25}
 .map-block.shared header{background:linear-gradient(115deg,#322d29,#132532)}
-.map-block.shared .group-cards.wide{padding:8px;gap:5px 10px}
 .map-block.shared .mini-topic{background:none;border-color:transparent}
 .map-block.shared .mini-topic:hover{background:#272a2b;border-color:#79624a}
 .terrain-layer-bottom,.terrain-layer-middle,.terrain-route{transition:filter .25s ease-out}

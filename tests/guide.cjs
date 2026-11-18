@@ -26,9 +26,9 @@ fs.mkdirSync(results,{recursive:true});
    for(const label of removedNames)assert.equal(await p.getByText(label,{exact:true}).count(),0,'Unexpected label '+label);
    assert.equal(await p.locator('.map-block.gov .mini-topic').count(),3);
    assert.equal(await p.locator('.map-block.dis .mini-topic').count(),5);
-   assert.equal(await p.locator('.group-cards.wide a').count(),5);
+   assert.equal(await p.locator('.map-block.shared a').count(),5);
  }
- await p.locator('.group-cards.wide a[href="#topic/scope"]').click();
+ await p.locator('.map-block.shared a[href="#topic/scope"]').click();
  await p.getByRole('heading',{name:'Choose what to include',exact:true,level:1}).waitFor();
  await p.locator('.breadcrumb').getByRole('link',{name:'TSAAT Feature Guide'}).click();
  await p.getByRole('heading',{name:'TSAAT Feature Guide',exact:true}).waitFor();
