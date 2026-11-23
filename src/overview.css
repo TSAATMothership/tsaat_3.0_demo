@@ -15,8 +15,8 @@ main:has(>.overview-page){max-width:1700px}
 /* Independent reading columns balance the four full-width story headers. */
 @media(min-width:901px){
 :is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy{column-count:2;column-gap:clamp(32px,4vw,64px);column-fill:balance;max-width:none}
-:is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy>:is(.ov-kicker,h2,.ov-lead,.ov-body,.ov-film-button){break-inside:avoid}
-:is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy>:is(.ov-kicker,h2){break-after:avoid-column}
+:is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy>:is(.ov-kicker,h2,h3,.ov-lead,.ov-body,.ov-film-button){break-inside:avoid}
+:is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy>:is(.ov-kicker,h2,h3){break-after:avoid-column}
 :is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy>.ov-body{break-before:column;margin-top:0;max-width:none}
 :is(.ov-understand,.ov-services,.ov-reporting,.ov-benefits) .ov-section-top>.ov-copy>.ov-film-button{margin-top:18px}
 }
@@ -94,7 +94,7 @@ main:has(>.overview-page){max-width:1700px}
 /* Service impact follows the same recorded device, system and service relationships. */
 .ov-service-map{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:28px 30px;padding:26px;min-width:0}
 .ov-impact-controls{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:20px;border-bottom:1px solid #345461;padding-bottom:22px}
-.ov-impact-controls h3{font-size:19px;font-weight:550;letter-spacing:-.025em;line-height:1.4;margin-top:6px;color:#d1e6e5}
+.ov-impact-controls h4{font-size:19px;font-weight:550;letter-spacing:-.025em;line-height:1.4;margin-top:6px;color:#d1e6e5}
 .ov-impact-controls .ov-controls{margin:0;flex-shrink:0}
 .ov-impact-controls .ov-controls button{min-height:42px;font-size:12px}
 .ov-impact-visual .ov-diagram{margin:0;height:auto;max-height:760px}
@@ -102,7 +102,7 @@ main:has(>.overview-page){max-width:1700px}
 .ov-impact-reading .ov-live-detail>strong{font-size:24px;line-height:1.22;letter-spacing:-.035em;color:#dbedeb}
 .ov-impact-reading .ov-live-detail>p{font-size:13px;line-height:1.8;margin-top:16px}
 .ov-impact-review{margin-top:25px;border-top:1px solid #3b4f62;padding-top:20px}
-.ov-impact-review h3{font:600 11px/1.5 Consolas,monospace;text-transform:uppercase;letter-spacing:.06em;color:#b9c7df}
+.ov-impact-review h4{font:600 11px/1.5 Consolas,monospace;text-transform:uppercase;letter-spacing:.06em;color:#b9c7df}
 .ov-impact-review ul{list-style:none;padding:0;margin:13px 0 0;display:grid;gap:10px}
 .ov-impact-review li{display:flex;align-items:center;gap:12px;border:1px solid #6b638a;border-radius:9px;background:#292c433d;padding:14px 12px}
 .ov-impact-review li>span{width:12px;height:12px;flex-shrink:0;border:1px solid #c7b7ff;background:#c7b7ff22;border-radius:3px;transform:none}
@@ -117,7 +117,7 @@ main:has(>.overview-page){max-width:1700px}
 .ov-impact-node{opacity:.85}.ov-impact-node[data-related=true]{opacity:1}
 .ov-impact-system .ov-terrain-system>text,.ov-impact-membership+text{paint-order:stroke;stroke:#102633;stroke-width:4;stroke-linejoin:round}
 @media(max-width:1100px){.ov-service-map{grid-template-columns:1fr;padding:24px}.ov-impact-controls{flex-wrap:wrap;gap:17px}.ov-impact-visual{max-width:680px;width:100%;justify-self:center}.ov-impact-reading{border-left:0;border-top:1px solid #345461;padding:24px 0 0}.ov-impact-review ul{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-impact-reading .ov-live-detail>strong{font-size:22px}}
-@media(max-width:760px){.ov-service-map{padding:20px 12px;gap:20px}.ov-impact-controls{padding:0 3px 19px;gap:15px}.ov-impact-controls h3{font-size:18px}.ov-impact-controls .ov-controls{gap:7px;max-width:100%}.ov-impact-controls .ov-controls button{font-size:11px;padding:9px 11px}.ov-impact-visual .ov-diagram{max-height:none}.ov-impact-reading{padding:22px 4px 0}.ov-impact-review ul{grid-template-columns:1fr}.ov-impact-reading .ov-live-detail>strong{font-size:21px}}
+@media(max-width:760px){.ov-service-map{padding:20px 12px;gap:20px}.ov-impact-controls{padding:0 3px 19px;gap:15px}.ov-impact-controls h4{font-size:18px}.ov-impact-controls .ov-controls{gap:7px;max-width:100%}.ov-impact-controls .ov-controls button{font-size:11px;padding:9px 11px}.ov-impact-visual .ov-diagram{max-height:none}.ov-impact-reading{padding:22px 4px 0}.ov-impact-review ul{grid-template-columns:1fr}.ov-impact-reading .ov-live-detail>strong{font-size:21px}}
 
 /* Reporting makes the selected scope and the meaning of each output visible. */
 
@@ -195,7 +195,7 @@ main:has(>.overview-page){max-width:1700px}
 .ov-diagram-caption{font-size:12px;line-height:1.6;color:#98b7c2;padding:13px 24px}
 .overview-page:has(.ov-diagram-dialog[open]) *{animation-play-state:paused!important}
 body:has(.overview-page dialog[open]){overflow:hidden}
-@media(min-width:1101px) and (min-height:800px){.ov-terrain .ov-copy,.ov-systems .ov-copy,.ov-vulnerabilities .ov-copy{position:sticky;top:calc(var(--head) + 92px)}}
+@media(min-width:1101px) and (min-height:800px){.ov-terrain .ov-copy,.ov-systems .ov-copy{position:sticky;top:calc(var(--head) + 92px)}}
 @media(max-width:1100px){.ov-rail-track{display:none}.ov-rail-mobile{display:block;flex:1;padding:9px 6px 9px 12px}.ov-rail-mobile label{display:flex;align-items:center;justify-content:space-between;gap:10px;font:10px/1.4 Consolas,monospace;color:#97b5c2;padding:0 7px 3px 2px}.ov-rail-mobile label>span{color:#84ddca;white-space:nowrap}.ov-rail-mobile select{display:block;width:100%;min-width:0;max-width:100%;min-height:40px;border:0;border-radius:5px;padding:5px 23px 5px 2px;color:#d8eeeb;background:#0c1d2a;font:500 14px/1.4 'Segoe UI',sans-serif;cursor:pointer}.ov-rail-mobile option{background:#102633;color:#e1eeed}.ov-motion-toggle{align-self:stretch}.ov-section{scroll-margin-top:calc(var(--head) + 89px)}.ov-impact-reading .ov-live-detail>p,.ov-report-reading .ov-live-detail>p{font-size:15px}}
 @media(max-width:760px){
  .ov-section{padding:42px 0 28px;gap:22px;scroll-margin-top:calc(var(--head) + 123px)}.ov-section h2{font-size:clamp(29px,7vw,37px);max-width:22ch;line-height:1.18}.ov-kicker{font-size:10px;letter-spacing:.05em;margin-bottom:15px}.ov-lead{font-size:19px;margin-top:14px}.ov-body p,.ov-intro .ov-body p{font-size:15px;line-height:1.72}.ov-body{margin-top:12px}.ov-takeaway{font-size:14px;padding-top:14px;gap:10px}
@@ -207,7 +207,7 @@ body:has(.overview-page dialog[open]){overflow:hidden}
  .ov-diagram-tools{gap:8px;margin-bottom:14px}.ov-diagram-tools>span{font-size:10px}.ov-diagram-tools>button{font-size:12px}.ov-risk-device-picker{font-size:13px;gap:10px}.ov-risk-trace-detail>strong{font-size:14px}.ov-risk-trace-detail>p{font-size:15px}.ov-illustration-note{font-size:11px}
  .ov-flow-stage{padding:20px;gap:18px}.ov-flow-stage .ov-live-detail{grid-row:1;min-height:0}.ov-flow-steps button{padding:14px 10px}.ov-flow-steps strong{font-size:13px}
  .ov-timeline-reading{padding:19px;min-height:0}.ov-timeline-track strong{font-size:12px}.ov-timeline-track small{font-size:12px}.ov-timeline-reading .ov-live-detail p{font-size:15px}
- .ov-service-map,.ov-report-workbench{padding:18px 12px;gap:18px}.ov-impact-controls,.ov-report-toolbar{gap:14px}.ov-impact-controls h3,.ov-report-toolbar h3{font-size:18px}.ov-impact-reading,.ov-report-reading{padding-top:18px}.ov-impact-reading .ov-live-detail>strong,.ov-report-reading .ov-live-detail>strong{font-size:22px}.ov-report-filters{padding:15px 3px;gap:15px}.ov-report-filters legend,.ov-report-filters button{font-size:13px}.ov-report-filters>p{font-size:12px}.ov-report-filters p>span{font-size:11px}.ov-report-context>div{font-size:13px;grid-template-columns:110px minmax(0,1fr)}.ov-report-metric>span{font-size:14px}.ov-report-reading .ov-live-detail>.ov-report-reminder,.ov-impact-reading .ov-live-detail>.ov-impact-validation{font-size:13px}
+ .ov-service-map,.ov-report-workbench{padding:18px 12px;gap:18px}.ov-impact-controls,.ov-report-toolbar{gap:14px}.ov-impact-controls h4,.ov-report-toolbar h3{font-size:18px}.ov-impact-reading,.ov-report-reading{padding-top:18px}.ov-impact-reading .ov-live-detail>strong,.ov-report-reading .ov-live-detail>strong{font-size:22px}.ov-report-filters{padding:15px 3px;gap:15px}.ov-report-filters legend,.ov-report-filters button{font-size:13px}.ov-report-filters>p{font-size:12px}.ov-report-filters p>span{font-size:11px}.ov-report-context>div{font-size:13px;grid-template-columns:110px minmax(0,1fr)}.ov-report-metric>span{font-size:14px}.ov-report-reading .ov-live-detail>.ov-report-reminder,.ov-impact-reading .ov-live-detail>.ov-impact-validation{font-size:13px}
  .ov-benefit-grid strong{font-size:17px}.ov-benefit-detail{min-height:0}.ov-next{padding:21px}.ov-next h3{font-size:26px}.ov-next .button{min-height:44px;font-size:13px}.ov-ending{padding-top:20px}
  .ov-diagram-dialog{width:calc(100% - 16px);max-height:calc(100dvh - 16px);border-radius:10px}.ov-diagram-heading{padding:16px;gap:12px}.ov-diagram-heading h2{font-size:20px}.ov-diagram-heading .ov-eyebrow{font-size:9px}.ov-diagram-zoom{padding:0 16px 12px;gap:7px;flex-wrap:wrap}.ov-diagram-zoom>span{width:100%;font-size:11px;margin:3px 0 0}.ov-diagram-canvas{max-height:57dvh}.ov-diagram-caption{padding:11px 16px;font-size:11px}
 }
@@ -291,3 +291,31 @@ body:has(.overview-page dialog[open]){overflow:hidden}
 
 /* Concept nodes stay fixed while the pointer emphasises their outline. */
 .ov-concept-node:hover>:is(rect,circle,ellipse,polygon,path){stroke:#e6fff5;stroke-width:2.6}
+
+/* Investigation is one chapter with three focused examples. Text remains in document flow. */
+.ov-investigate{display:block;padding-bottom:0}
+.ov-investigate-intro{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:40px;align-items:start}
+.ov-investigate-intro h2{max-width:22ch}
+.ov-investigate-topics{display:grid;gap:12px}
+.ov-investigate-topics button{display:grid;gap:7px;text-align:left;padding:18px;border:1px solid #3d626c;border-radius:9px;background:#102a35;min-height:78px}
+.ov-investigate-topics button:hover{border-color:#8de2cd;background:#183c40}
+.ov-investigate-topics span{font-size:17px;color:#c6eee5;font-weight:550}
+.ov-investigate-topics small{font-size:14px;line-height:1.5;color:#aac3cd}
+.ov-subsection{padding-inline:0;align-items:start}
+.ov-subsection:last-child{border-bottom:0}
+.ov-subsection .ov-copy>h3{font-size:clamp(27px,2.7vw,42px);line-height:1.15;letter-spacing:-.035em;max-width:20ch;text-wrap:balance}
+.ov-subsection .ov-copy>h3:focus{outline:none}
+.ov-vulnerabilities .ov-copy{position:static;align-self:start}
+.ov-body p,.ov-intro .ov-body p{font-size:16px}
+.ov-rail-track button>b{font-size:12px;white-space:normal}
+.ov-rail-track button{min-width:76px}
+@media(min-width:1101px) and (max-width:1350px){.ov-rail-track button>b{display:block}}
+@media(max-width:760px){.ov-investigate-intro{grid-template-columns:1fr;gap:25px}.ov-investigate-topics button{min-height:74px;padding:16px}.ov-subsection .ov-copy>h3{font-size:30px}.ov-subsection{padding-top:48px}}
+
+/* Fit includes both dimensions; zoom alone introduces scrollbars. */
+.ov-diagram-dialog[open]{display:flex;flex-direction:column;height:min(860px,calc(100dvh - 28px));overflow:hidden}
+.ov-diagram-heading,.ov-diagram-zoom,.ov-diagram-caption{flex-shrink:0}
+.ov-diagram-dialog .ov-diagram-canvas{flex:1;min-height:0;max-height:none;padding:16px}
+.ov-diagram-zoom>button[aria-pressed=true]{background:#204b45;border-color:#90d9ca}
+@media(max-width:760px){.ov-diagram-dialog[open]{height:calc(100dvh - 16px)}}
+@media(max-height:540px){.ov-diagram-heading{padding:10px 16px}.ov-diagram-heading h2{font-size:18px}.ov-diagram-heading .ov-eyebrow,.ov-diagram-zoom>span,.ov-diagram-caption{display:none}.ov-diagram-zoom{padding:0 16px 10px}.ov-diagram-dialog .ov-diagram-canvas{padding:10px}}

@@ -33,6 +33,8 @@ def package(source, guide_only=False):
                 archive.write(GUIDE / name, name)
             overview = json.loads((ROOT / 'src/overview-content.json').read_text(encoding='utf-8'))
             for section in overview['sections']:
+                if not section.get('video'):
+                    continue
                 name = f"overview-{section['id']}.mp4"
                 archive.write(GUIDE / name, name)
             archive.write(ROOT / 'practice-lab/source-manifest.json', 'source-manifest.json')

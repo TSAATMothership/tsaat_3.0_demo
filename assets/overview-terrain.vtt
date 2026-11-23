@@ -1,13 +1,13 @@
 WEBVTT
 
 00:00:00.000 --> 00:00:06.000
-Cyber Terrain includes the devices, software, networks and services you look after.
+Mission services and business services depend on ICT systems, networks and configuration items, or CIs.
 
 00:00:06.000 --> 00:00:12.000
-A device runs software. Networks connect devices. Together, they support ICT Systems and services.
+Servers, workstations and other CIs form the technical foundation. Blue SW icons identify software installed on servers.
 
 00:00:12.000 --> 00:00:18.000
-Recorded relationships help explain how technical components fit together.
+Communication paths connect CIs across networks. Recorded system membership gives those components a shared purpose.
 
 00:00:18.000 --> 00:00:24.000
-Understand what is recorded, how it connects and where the picture is incomplete.
+Follow dependencies to see which systems support each service. Select a layer in the guide, or highlight all components.

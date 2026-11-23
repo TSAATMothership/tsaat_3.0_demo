@@ -1,13 +1,13 @@
 WEBVTT
 
 00:00:00.000 --> 00:00:06.000
-Start with the information available in your TSAAT view and the question you need to answer.
+Choose filtered Excel for matching records, a briefing PDF for a scoped summary, or an impact PDF for traced relationships.
 
 00:00:06.000 --> 00:00:12.000
-Select cyber terrain and date, then check the loaded snapshot. Use relevant Discovery search and table filters.
+Explorer Excel exports include every row matching the selected scope and Explorer filters, across all pages.
 
 00:00:12.000 --> 00:00:18.000
-Use Governance for scoped summaries and Discovery to inspect matching records. Choose the view that answers your question.
+Governance briefing PDFs use applied header scope and the loaded snapshot. Explorer search does not narrow the briefing.
 
 00:00:18.000 --> 00:00:24.000
-Governance PDFs use header scope and snapshot. Explorer Excel exports matching filtered rows. Check what the download includes before sharing.
+Choose a starting CI or matching results in Topology Explorer. Export the full traced graph and supporting evidence, with the scope and snapshot.

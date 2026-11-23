@@ -1,0 +1,49 @@
+/* Keep every layer control alongside a complete, fitted topology. */
+.ov-terrain{grid-template-columns:minmax(0,1fr);align-items:start;row-gap:24px}
+.ov-terrain>.ov-copy{position:static!important;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 32px;align-items:start}
+.ov-terrain>.ov-copy>.ov-kicker{grid-column:1;grid-row:1;margin-bottom:14px}
+.ov-terrain>.ov-copy>h2{grid-column:1;grid-row:2;max-width:24ch}
+.ov-terrain>.ov-copy>.ov-lead{grid-column:1;grid-row:3;margin-top:14px;max-width:45ch}
+.ov-terrain>.ov-copy>.ov-body{grid-column:2;grid-row:1/4;margin:0;max-width:none}
+.ov-terrain>.ov-copy>.ov-film-button{grid-column:1;grid-row:4;margin-top:16px;justify-self:start}
+.ov-terrain-workbench{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start;min-width:0;scroll-margin-top:calc(var(--head) + 90px)}
+.ov-terrain-workbench>.ov-explore-panel{margin:0;padding:16px;align-self:start}
+.ov-terrain-workbench .ov-explore-prompt{font-size:14px;line-height:1.5}
+.ov-terrain .ov-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:none;margin-top:14px}
+.ov-terrain .ov-controls button{font-size:14px;min-height:58px;padding:9px 10px;line-height:1.35}
+.ov-terrain .ov-controls .ov-control-dot{display:none}
+/* Overlapping grid cells reserve the longest description at any font size. */
+#ov-layer-detail{display:grid;align-items:start;margin-top:16px;padding-top:14px}
+.ov-layer-description{grid-area:1/1;visibility:hidden;min-width:0}
+.ov-layer-description.is-active{visibility:visible}
+.ov-layer-description>strong{font-size:16px;line-height:1.45;color:#d8eeed;font-weight:550}
+.ov-terrain-workbench .ov-layer-description>p{font-size:14px;line-height:1.65;margin-top:8px}
+.ov-terrain-visual{width:100%;max-width:none;min-width:0;align-self:start}
+.ov-terrain-visual>.ov-diagram-tools{padding:0;margin:0 0 10px;border:0;min-height:36px}
+.ov-terrain-visual>.ov-diagram-tools>button{min-height:36px;padding:7px 10px;font-size:13px}
+.ov-topology-scroll{width:100%;aspect-ratio:1200/580;max-height:min(420px,calc(100dvh - var(--head) - 180px));overflow:hidden;border:1px solid #345765;border-radius:10px;background:#102633}
+.ov-terrain-visual .ov-diagram{width:100%;height:100%;min-width:0;max-height:none!important;margin:0;overflow:hidden}
+.ov-topology-part{opacity:1;transition:opacity .2s ease}
+.ov-terrain-visual:not([data-layer='0']) .ov-topology-part{opacity:.16}
+.ov-terrain-visual[data-layer='1'] [data-layer-part~='1'],
+.ov-terrain-visual[data-layer='2'] [data-layer-part~='2'],
+.ov-terrain-visual[data-layer='3'] [data-layer-part~='3'],
+.ov-terrain-visual[data-layer='4'] [data-layer-part~='4'],
+.ov-terrain-visual[data-layer='5'] [data-layer-part~='5']{opacity:1}
+.ov-terrain-visual:not([data-layer='0']) .ov-topology-network-zone{opacity:.55}
+.ov-terrain-visual[data-layer='2'] .ov-topology-network-zone{stroke:#8edcff;stroke-width:2;opacity:1}
+.ov-topology-ci:hover .ov-topology-node-face,.ov-topology-ci.ov-entity-highlight .ov-topology-node-face{stroke:#fff0d9;stroke-width:3.5}
+.ov-topology-ci:hover>text,.ov-topology-ci.ov-entity-highlight>text{fill:#fff0d9}
+.ov-topology-ci>text,.ov-topology-network>text{paint-order:stroke;stroke:#102d3b;stroke-width:5px;stroke-linejoin:round}
+.ov-topology-ci .ov-topology-node-face,.ov-topology-software>rect{transition:stroke .15s ease}
+
+.ov-topology-legend{display:flex;flex-wrap:wrap;gap:7px 16px;margin-top:12px;color:#b7d0da;font-size:13px;line-height:1.5}
+.ov-topology-legend>span{display:inline-flex;align-items:center;gap:7px}
+.ov-topology-legend i{width:10px;height:10px;background:var(--key);border-radius:2px;flex-shrink:0}
+.ov-topology-note{font-size:13px;line-height:1.5;color:#9fbcc7;margin-top:8px}
+.ov-diagram-canvas .ov-terrain-visual .ov-diagram{min-width:0;height:auto}
+@media(max-width:1100px){.ov-terrain-workbench{grid-template-columns:230px minmax(0,1fr);gap:14px}.ov-terrain-workbench>.ov-explore-panel{padding:13px}.ov-terrain .ov-controls button{font-size:13px;padding-inline:8px}}
+@media(max-width:900px){.ov-terrain>.ov-copy{display:block}.ov-terrain>.ov-copy>.ov-body{margin-top:16px}.ov-terrain-workbench{grid-template-columns:1fr;gap:14px;scroll-margin-top:calc(var(--head) + 123px)}.ov-terrain-workbench>.ov-explore-panel{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);column-gap:20px}.ov-terrain-workbench .ov-explore-prompt{grid-column:1/-1}.ov-terrain .ov-controls{margin-top:10px}#ov-layer-detail{margin:10px 0 0;padding:0 0 0 16px;border-top:0;border-left:1px solid #355461}.ov-terrain-visual>.ov-diagram-tools{margin-bottom:8px}}
+@media(max-width:550px){.ov-terrain-workbench>.ov-explore-panel{display:block}.ov-terrain .ov-controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.ov-terrain .ov-controls button{font-size:13px;min-height:52px;padding:7px}#ov-layer-detail{margin-top:12px;padding:12px 0 0;border-left:0;border-top:1px solid #355461}.ov-terrain-workbench .ov-layer-description>p{font-size:14px;line-height:1.5}.ov-topology-legend{font-size:12px;gap:5px 11px}.ov-topology-note{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.ov-topology-part,.ov-topology-ci .ov-topology-node-face,.ov-topology-software>rect{transition:none!important}}
+@media print{.ov-terrain>.ov-copy{display:block}.ov-terrain-workbench{display:block}.ov-terrain-workbench>.ov-explore-panel{display:none}.ov-topology-scroll{max-height:none}.ov-topology-part{opacity:1!important}.ov-topology-legend,.ov-topology-note{color:inherit}}

@@ -7,26 +7,26 @@
     {
       "id": "what",
       "number": "01",
-      "kicker": "From inventory to understanding",
+      "kicker": "From observations to context",
       "title": "What is TSAAT?",
-      "lead": "Turn recorded data into a connected picture.",
+      "lead": "Turn observations into context.",
       "body": [
-        "The Threat Surface Area Assessment Tool brings recorded information about your cyber terrain together to explore and report on.",
-        "Start with a summary, then inspect the devices, installed software, reported vulnerabilities and relationships behind it. See what is known and where to investigate next."
+        "The Threat Surface Area Assessment Tool (TSAAT) brings recorded observations about the cyber terrain together to create a context aware data set to explore and report on.",
+        "TSAAT assists cyber teams in governing the cyber posture of the Defence Cyber Terrain (DCT) and reducing the threat surface area of networks and ICT systems."
       ],
-      "takeaway": "Start with the picture. Follow it to the records.",
+      "takeaway": "Understand the Cyber Terrain. Investigate an issue or finding. Turn insights into a report.",
       "film": [
         {
-          "headline": "A device is only the beginning.",
-          "body": "One endpoint. Installed software. Network connections."
+          "headline": "Turn observations into context.",
+          "body": "Bring recorded observations about devices, software, networks and services into a context aware data set."
         },
         {
-          "headline": "Connections create the bigger picture.",
-          "body": "ICT systems and services depend on this connected terrain."
+          "headline": "Connect the cyber terrain.",
+          "body": "Explore how ICT systems support mission services and business services."
         },
         {
-          "headline": "Meet TSAAT.",
-          "body": "The Threat Surface Area Assessment Tool helps you explore and report on the recorded evidence."
+          "headline": "Support the next decision.",
+          "body": "Help cyber teams govern the posture of the Defence Cyber Terrain and reduce the threat surface area of networks and ICT systems."
         }
       ],
       "video": {
@@ -34,8 +34,9 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch What is TSAAT"
-      }
+        "label": "Watch Video: What is TSAAT?"
+      },
+      "chapterLabel": "Introduction"
     },
     {
       "id": "origins",
@@ -50,15 +51,15 @@
       "takeaway": "Discovery provided the foundation for a wider view of the terrain.",
       "film": [
         {
-          "headline": "2019 \u2192 2022",
+          "headline": "2019 → 2022",
           "body": "A CMDB and dynamic discovery foundation, followed by configuration management and ICT system modelling."
         },
         {
-          "headline": "2023 \u2192 2025",
+          "headline": "2023 → 2025",
           "body": "Critical system assessments, DIIS ownership records, OMWOW modelling and TSAAT V2.0."
         },
         {
-          "headline": "2026 \u2192 planned January 2027",
+          "headline": "2026 → planned January 2027",
           "body": "DSOC and Cyber Command engagement informs the design of TSAAT V3.0."
         }
       ],
@@ -67,8 +68,9 @@
         "poster": "",
         "captions": "",
         "duration": 36,
-        "label": "Watch Where did it come from"
-      }
+        "label": "Watch Video: Where did it come from?"
+      },
+      "chapterLabel": "Origins"
     },
     {
       "id": "terrain",
@@ -77,22 +79,22 @@
       "title": "What is the cyber terrain?",
       "lead": "The digital environment your work depends on.",
       "body": [
-        "Cyber terrain is your devices, software, networks and services, together with the relationships between them.",
-        "Select a layer to see how devices connect, form ICT systems and support services."
+        "Cyber terrain includes devices, installed software, networks, ICT systems, mission services and business services, together with their recorded relationships.",
+        "Explore this illustrative topology of three networks and 18 device configuration items (CIs). Select a layer to highlight its components, or show all components to see the connected picture."
       ],
       "takeaway": "Understand the parts and how they fit together.",
       "film": [
         {
-          "headline": "Start with the building blocks.",
-          "body": "Devices and installed software form part of your digital environment."
+          "headline": "Start with the configuration items.",
+          "body": "Servers, workstations and network devices form the terrain. SW tiles show software installed on servers."
         },
         {
-          "headline": "Add the connections.",
-          "body": "Networks and recorded relationships connect those building blocks."
+          "headline": "Follow the connections.",
+          "body": "Multiple networks connect devices, while ICT systems group the components that support a capability."
         },
         {
-          "headline": "See the cyber terrain.",
-          "body": "Together, these assets and connections support ICT systems and services."
+          "headline": "Connect to the purpose.",
+          "body": "Mission services and business services depend on these systems and their recorded relationships."
         }
       ],
       "video": {
@@ -100,100 +102,28 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch What is the cyber terrain"
-      }
+        "label": "Watch Video: What is the cyber terrain?"
+      },
+      "chapterLabel": "Cyber Terrain"
     },
     {
-      "id": "understand",
+      "id": "investigate",
       "number": "04",
-      "kicker": "Two ways into the evidence",
-      "title": "How does TSAAT help you understand it?",
-      "lead": "See a pattern. Follow it to the evidence.",
+      "kicker": "From an observation to a question",
+      "title": "Investigate an issue or finding",
+      "lead": "Find the record. Follow its relationships. Decide what to investigate next.",
       "body": [
-        "Governance summarises endpoints, installed software and security vulnerability observations.",
-        "Discovery opens the individual records, unknown devices and recorded links. Choose a scope and snapshot to keep both views focused on the same question."
+        "Start with a reported vulnerability, an unknown device or a possible service impact. Check the source and affected configuration item, then follow its recorded relationships to understand the wider context.",
+        "The three focused examples below show how to examine the evidence, identify gaps and involve the right owner."
       ],
-      "takeaway": "Use the summary to find a question, then the records to investigate it.",
-      "options": [
-        {
-          "id": "governance",
-          "label": "Governance",
-          "title": "See the patterns",
-          "body": "Review summaries and gaps within the selected scope. Use the briefing to focus discussion and support reporting."
-        },
-        {
-          "id": "discovery",
-          "label": "Discovery",
-          "title": "Inspect the evidence",
-          "body": "Open records, filter the inventory and follow links to inspect the detail behind a summary."
-        },
-        {
-          "id": "scope",
-          "label": "Scope + snapshot",
-          "title": "Keep the question in focus",
-          "body": "Choose the terrain and saved point in time you want to examine. Counts describe that selection."
-        }
-      ],
-      "film": [
-        {
-          "headline": "Start with a question.",
-          "body": "Choose the scope and snapshot you want to understand."
-        },
-        {
-          "headline": "Governance reveals patterns.",
-          "body": "Review summaries, recorded findings and gaps."
-        },
-        {
-          "headline": "Discovery opens the detail.",
-          "body": "Filter records. Follow relationships. Bring the evidence into the conversation."
-        }
-      ],
-      "video": {
-        "file": "overview-understand.mp4",
-        "poster": "",
-        "captions": "",
-        "duration": 24,
-        "label": "Watch How does TSAAT help you understand it"
-      }
-    },
-    {
-      "id": "systems",
-      "number": "05",
-      "kicker": "From individual assets to a working whole",
-      "title": "Where do ICT systems and networks fit?",
-      "lead": "Networks connect components. Systems give them a shared purpose.",
-      "body": [
-        "An ICT system model records the devices, software and other configuration items that support a defined capability.",
-        "A system may span networks, and a network may support several systems. Follow the same six devices below to see how these connections extend to services."
-      ],
-      "takeaway": "A component can be part of a wider chain of dependencies.",
-      "film": [
-        {
-          "headline": "Devices do not work alone.",
-          "body": "They run software and communicate through networks."
-        },
-        {
-          "headline": "A system brings the parts together.",
-          "body": "An ICT system model records the components and relationships that support a capability."
-        },
-        {
-          "headline": "Shared connections matter.",
-          "body": "Networks can support many systems. Systems can depend on more than one network."
-        }
-      ],
-      "video": {
-        "file": "overview-systems.mp4",
-        "poster": "",
-        "captions": "",
-        "duration": 24,
-        "label": "Watch Where do ICT systems and networks fit"
-      }
+      "takeaway": "",
+      "chapterLabel": "Investigate"
     },
     {
       "id": "vulnerabilities",
-      "number": "06",
+      "number": "04.1",
       "kicker": "Put a finding in context",
-      "title": "Security vulnerabilities",
+      "title": "Security Vulnerabilities",
       "lead": "Locate the weakness. Understand what depends on it.",
       "body": [
         "Vulnerabilities can affect devices and their installed software. TSAAT helps you inspect the affected device and the source that reported the finding.",
@@ -239,12 +169,13 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch Security vulnerabilities"
-      }
+        "label": "Watch Video: Security Vulnerabilities"
+      },
+      "parent": "investigate"
     },
     {
       "id": "shadow",
-      "number": "07",
+      "number": "04.2",
       "kicker": "Make the unknown visible",
       "title": "Shadow IT",
       "lead": "An unknown address is a question to resolve.",
@@ -292,18 +223,19 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch Shadow IT"
-      }
+        "label": "Watch Video: Shadow IT"
+      },
+      "parent": "investigate"
     },
     {
       "id": "services",
-      "number": "08",
+      "number": "04.3",
       "kicker": "Follow the dependency chain",
-      "title": "Service impacts",
+      "title": "Service Impacts",
       "lead": "Follow a local issue to the services that may depend on it.",
       "body": [
-        "ICT and mission services rely on systems, their devices and software, and the networks connecting them. A device or network issue may involve more than one service.",
-        "Explore three illustrative scenarios using the same devices and relationships. Trace the dependencies to review, then confirm the actual service state with its owner."
+        "Mission services, business services and ICT services rely on systems, their devices and software, and the networks connecting them. A device or network issue may involve more than one service.",
+        "Explore three focused examples using six device records and their relationships. Trace the dependencies to review, then confirm the actual service state with its owner."
       ],
       "takeaway": "Trace the dependency. Confirm what it means for the service.",
       "options": [
@@ -321,7 +253,7 @@
         },
         {
           "id": "network-link",
-          "label": "D2\u2013D4 link",
+          "label": "D2–D4 link",
           "title": "A network issue spans two system contexts",
           "body": "The unavailable link joins D2 in System A and D4 in System B. Review the ICT service and Mission service A. This example follows only those endpoints; a full impact assessment must also consider alternative paths and other dependencies."
         }
@@ -345,18 +277,19 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch Service impacts"
-      }
+        "label": "Watch Video: Service Impacts"
+      },
+      "parent": "investigate"
     },
     {
       "id": "reporting",
-      "number": "09",
+      "number": "05",
       "kicker": "Choose the right output",
       "title": "Reporting and focused insights",
-      "lead": "Choose the scope. Focus the records. Select the report.",
+      "lead": "Start with a question. Choose the output that answers it.",
       "body": [
-        "Start with managed networks or ICT systems, apply Security Domain filters and check the loaded snapshot.",
-        "Choose filtered Excel for matching records, a Governance PDF for the briefing, or an impact PDF for traced relationships. Each follows a different set of filters."
+        "Take matching records into Excel, brief the selected cyber terrain, or show the dependencies behind an issue.",
+        "Use the example below to see what each report includes. Keep the scope and loaded snapshot with the findings you share."
       ],
       "takeaway": "Choose the report whose scope matches your question.",
       "options": [
@@ -402,12 +335,67 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch Reporting and focused insights"
-      }
+        "label": "Watch Video: Reporting and focused insights"
+      },
+      "chapterLabel": "Reporting"
+    },
+    {
+      "id": "understand",
+      "number": "06",
+      "kicker": "Two ways into the evidence",
+      "title": "How does TSAAT help you understand it?",
+      "lead": "See a pattern. Follow it to the evidence.",
+      "body": [
+        "Governance summarises endpoints, installed software and security vulnerability observations.",
+        "Discovery opens the individual records, unknown devices and recorded links. Choose a scope and snapshot to keep both views focused on the same question."
+      ],
+      "takeaway": "Use the summary to find a question, then the records to investigate it.",
+      "options": [
+        {
+          "id": "governance",
+          "label": "Governance",
+          "title": "See the patterns",
+          "body": "Review summaries and gaps within the selected scope. Use the briefing to focus discussion and support reporting."
+        },
+        {
+          "id": "discovery",
+          "label": "Discovery",
+          "title": "Inspect the evidence",
+          "body": "Open records, filter the inventory and follow links to inspect the detail behind a summary."
+        },
+        {
+          "id": "scope",
+          "label": "Scope + snapshot",
+          "title": "Keep the question in focus",
+          "body": "Choose the terrain and saved point in time you want to examine. Counts describe that selection."
+        }
+      ],
+      "film": [
+        {
+          "headline": "Start with a question.",
+          "body": "Choose the scope and snapshot you want to understand."
+        },
+        {
+          "headline": "Governance reveals patterns.",
+          "body": "Review summaries, recorded findings and gaps."
+        },
+        {
+          "headline": "Discovery opens the detail.",
+          "body": "Filter records. Follow relationships. Bring the evidence into the conversation."
+        }
+      ],
+      "video": {
+        "file": "overview-understand.mp4",
+        "poster": "",
+        "captions": "",
+        "duration": 24,
+        "label": "Watch Video: How does TSAAT help you understand it?"
+      },
+      "chapterLabel": "How TSAAT helps"
     },
     {
       "id": "benefits",
-      "number": "10",
+      "number": "07",
       "kicker": "Better visibility. Better conversations.",
       "title": "TSAAT benefits",
       "lead": "A clearer starting point for the next decision.",
@@ -435,13 +423,14 @@
         "poster": "",
         "captions": "",
         "duration": 24,
-        "label": "Watch TSAAT benefits"
-      }
+        "label": "Watch Video: TSAAT benefits"
+      },
+      "chapterLabel": "Benefits"
     }
   ],
   "timeline": [
     {
-      "date": "2019 \u2013 June 2022",
+      "date": "2019 – June 2022",
       "title": "Build the discovery foundation",
       "body": "OPORD/01-2019: HICTO initiates a project to establish a CMDB and dynamic discovery of Defence networks. An enterprise CMDB discovery platform is delivered for DPE and DSE by June 2022."
     },
@@ -451,12 +440,12 @@
       "body": "Configuration Management Processes are established, including ICT System Modelling."
     },
     {
-      "date": "June 2023 \u2013 June 2024",
+      "date": "June 2023 – June 2024",
       "title": "Assess critical ICT systems",
       "body": "For the Defence Strategic Review (DSR), HICTO-directed orders 66 and 67 assess the threat surface area of approximately 87 critical ICT systems. Systems are assessed against 28 compliance questions and reported through TSAAT V1.0."
     },
     {
-      "date": "2024 \u2013 2025",
+      "date": "2024 – 2025",
       "title": "Scale the system picture",
       "body": "The Defence ICT Inventory System (DIIS) is created to record ICT systems across Defence networks and capture ownership details. OMWOW progresses modelling of approximately 3,000 ICT systems across the Defence cyber terrain. TSAAT V2.0 is released in Q4 2025, with training to support OMWOW."
     },
@@ -466,7 +455,7 @@
       "body": "TSAAT is presented to DSOC and Cyber Command as a reporting tool to assist with visibility of the cyber terrain."
     },
     {
-      "date": "Q4 2026 \u2192 January 2027",
+      "date": "Q4 2026 → January 2027",
       "title": "Design the next release",
       "body": "TSAAT V3.0 is designed to meet DSOC needs, with delivery planned for January 2027.",
       "status": "Planned delivery"
@@ -474,41 +463,34 @@
   ],
   "layers": [
     {
+      "id": "all",
+      "label": "All components",
+      "description": "See the complete illustrative topology: 18 device CIs across three networks, their ICT systems, and the mission and business services they support."
+    },
+    {
       "id": "assets",
       "label": "Devices + software",
-      "description": "Orange cubes represent devices. Attached blue tiles represent software on a device; some devices have no software tile shown in this example."
+      "description": "Orange nodes are device configuration items (CIs). Attached blue SW tiles show installed software on servers."
     },
     {
       "id": "connections",
       "label": "Networks + relationships",
-      "description": "Devices communicate across a topology of dotted paths. The glowing yellow path highlights a connection between two devices."
+      "description": "Highlight the devices and their network connections across Operations, Enterprise and Support. Moving dashed lines show communication between the devices and networks."
     },
     {
       "id": "systems",
-      "label": "ICT systems",
-      "description": "Three green ICT systems bring together orange device components from the foundation layer. Each system groups components that support a defined capability."
+      "label": "ICT systems + services",
+      "description": "Highlight all 18 devices, their three ICT systems, and the mission and business services they support. Each service can depend on one or more ICT systems."
     },
     {
-      "id": "services",
-      "label": "Services",
-      "description": "An ICT service and mission services depend on one or more ICT systems. Follow the links to see which systems support each illustrative service."
-    }
-  ],
-  "systems": [
-    {
-      "id": "network",
-      "label": "Network",
-      "description": "The shared topology connects the same six devices across Systems A, B and C. Moving dotted paths show communication; the glowing yellow link connects D2 in System A to D4 in System B."
+      "id": "mission",
+      "label": "Mission services",
+      "description": "Mission service A depends on Systems B and C. Mission service B depends on System C. Both services, their connected ICT systems and linked devices are highlighted."
     },
     {
-      "id": "system",
-      "label": "ICT system",
-      "description": "The green ICT systems group orange device components: A contains D1 and D2, B contains D3 and D4, and C contains D5 and D6. Blue tiles mark software on D1, D3 and D5."
-    },
-    {
-      "id": "service",
-      "label": "Service",
-      "description": "The ICT service is supported by System A. Mission service A depends on Systems B and C; Mission service B depends on System C. These illustrative links show that a service can rely on more than one system."
+      "id": "business",
+      "label": "Business services",
+      "description": "Business service A depends on System A. Business service B depends on Systems A and B. Both services, their connected ICT systems and linked devices are highlighted."
     }
   ],
   "benefits": [

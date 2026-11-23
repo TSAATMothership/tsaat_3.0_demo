@@ -1,4 +1,4 @@
-"""Render the ten original, caption-led TSAAT Overview motion-graphics films.
+"""Render the active, caption-led TSAAT Overview motion-graphics videos.
 
 Usage: python scripts/build_overview_videos.py [SECTION ...] [--ffmpeg PATH]
 Requires Pillow and an H.264 FFmpeg encoder; uses build/video-tools as fallback.
@@ -41,12 +41,12 @@ FONT_CACHE = {}
 
 FILMS = {
  'what': {
-  'title':'What is TSAAT?', 'label':'See the whole picture', 'seconds':6,
+  'title':'What is TSAAT?', 'label':'Turn observations into context', 'seconds':6,
   'scenes':[
-   ['See the\nwhole picture.', 'Threat Surface Area Assessment Tool', 'TSAAT brings recorded cyber terrain evidence into a clearer view.'],
-   ['From records\nto context.', 'Devices. Software. Vulnerabilities. Links.', 'Explore recorded devices, installed software, vulnerability observations and their relationships.'],
-   ['Two views.\nOne terrain.', 'Governance + Discovery', 'Use Governance for summaries and Discovery to examine the records behind them.'],
-   ['Evidence for\nbetter questions.', 'Understand. Investigate. Communicate.', 'Use the evidence to ask better questions, investigate gaps and explain what you find.']
+   ['Turn observations\ninto context.', 'Threat Surface Area Assessment Tool (TSAAT)', 'TSAAT brings recorded observations about the cyber terrain together into a context aware data set.'],
+   ['See the\nconnected terrain.', 'Devices. Software. Networks. Services.', 'Explore how configuration items and ICT systems connect to mission services and business services.'],
+   ['Govern the\ncyber posture.', 'Defence Cyber Terrain (DCT)', 'TSAAT assists cyber teams in governing the cyber posture of the Defence Cyber Terrain and reducing the threat surface area of networks and ICT systems.'],
+   ['Understand.\nInvestigate. Report.', 'Put the observations to work', 'Understand the cyber terrain, investigate an issue or finding, and turn insights into a report.']
   ]},
  'origins': {
   'title':'Where did it come from?', 'label':'From discovery to understanding', 'seconds':6,
@@ -59,12 +59,12 @@ FILMS = {
    ['Jan 2027', 'The next chapter - planned', 'TSAAT v3.0 is designed in Q4 2026 for DSOC needs, with delivery planned for January 2027.']
   ]},
  'terrain': {
-  'title':'What is the Cyber Terrain?', 'label':'More than a list of devices', 'seconds':6,
+  'title':'What is the Cyber Terrain?', 'label':'Explore the connected cyber terrain', 'seconds':6,
   'scenes':[
-   ['More than\na device list.', 'The environment your organisation relies on', 'Cyber Terrain includes the devices, software, networks and services you look after.'],
-   ['Layers that\nwork together.', 'Devices + software + networks', 'A device runs software. Networks connect devices. Together, they support ICT Systems and services.'],
-   ['Relationships\nadd meaning.', 'The connections matter', 'Recorded relationships help explain how technical components fit together.'],
-   ['Know the\nshape of it.', 'Keep the evidence in view', 'Understand what is recorded, how it connects and where the picture is incomplete.']
+   ['See the\nwhole terrain.', 'An illustrative topology', 'Mission services and business services depend on ICT systems, networks and configuration items, or CIs.'],
+   ['Inspect the\nbuilding blocks.', 'Devices + installed software', 'Servers, workstations and other CIs form the technical foundation. Blue SW icons identify software installed on servers.'],
+   ['Follow the\nconnections.', 'Multiple networks + ICT systems', 'Communication paths connect CIs across networks. Recorded system membership gives those components a shared purpose.'],
+   ['Connect to\nservice purpose.', 'Mission services + business services', 'Follow dependencies to see which systems support each service. Select a layer in the guide, or highlight all components.']
   ]},
  'understand': {
   'title':'How TSAAT helps you understand', 'label':'Turn detail into understanding', 'seconds':6,
@@ -73,14 +73,6 @@ FILMS = {
    ['Find the\npattern.', 'Governance', 'Read summaries to see recorded patterns, missing details and discovery gaps.'],
    ['Follow the\nevidence.', 'Discovery', 'Explore the underlying records, open details and follow recorded relationships.'],
    ['Explain what\nyou found.', 'A shared basis for discussion', 'Use reports and exports to support a focused conversation about the evidence.']
-  ]},
- 'systems': {
-  'title':'ICT Systems and networks', 'label':'Put the pieces in context', 'seconds':6,
-  'scenes':[
-   ['A system has\na purpose.', 'More than a single component', 'An ICT System brings components together to deliver an intended function.'],
-   ['Networks make\nconnections.', 'The paths between components', 'Networks link devices and help components exchange information.'],
-   ['Different views.\nRelated evidence.', 'System, network and component', 'A system view explains purpose and ownership. A network view explains connectivity.'],
-   ['Follow the\nrecorded links.', 'An illustrative system', 'Use recorded relationships to explore how components, networks and ICT Systems fit together.']
   ]},
  'vulnerabilities': {
   'title':'Security vulnerabilities', 'label':'A signal to investigate', 'seconds':6,
@@ -101,7 +93,7 @@ FILMS = {
  'services': {
   'title':'Service impacts', 'label':'Trace what depends on what', 'seconds':6,
   'scenes':[
-   ['Start with\nthe service.', 'What needs to keep working?', 'Services depend on ICT Systems, networks, software and devices working together.'],
+   ['Start with\nthe service.', 'What needs to keep working?', 'Mission services, business services and ICT services depend on systems, networks, software and devices working together.'],
    ['Trace the\ndependencies.', 'An illustrative dependency path', 'Follow recorded relationships to identify components that may support a service.'],
    ['Ask what else\ncould be affected.', 'Potential impact, not a prediction', 'A component issue may have wider implications. Recorded links help frame the investigation.'],
    ['Validate with\nthe owners.', 'Turn a connection into a conversation', 'Confirm dependencies and operational context with owners before drawing conclusions about service impact.']
@@ -109,10 +101,10 @@ FILMS = {
  'reporting': {
   'title':'Reporting and focused insights', 'label':'A focused answer. Context you can share.', 'seconds':6,
   'scenes':[
-   ['Start with\nyour view.', 'A question gives the evidence purpose', 'Start with the information available in your TSAAT view and the question you need to answer.'],
-   ['Narrow\nthe view.', 'Terrain. Snapshot. Relevant filters.', 'Select cyber terrain and date, then check the loaded snapshot. Use relevant Discovery search and table filters.'],
-   ['A focused\nanswer.', 'Governance summaries / Discovery records', 'Use Governance for scoped summaries and Discovery to inspect matching records. Choose the view that answers your question.'],
-   ['Report with\ncontext.', 'Keep scope and snapshot with the result', 'Governance PDFs use header scope and snapshot. Explorer Excel exports matching filtered rows. Check what the download includes before sharing.']
+   ['Choose the\nanswer you need.', 'Records, a briefing, or service relationships', 'Choose filtered Excel for matching records, a briefing PDF for a scoped summary, or an impact PDF for traced relationships.'],
+   ['Export the\nmatching records.', 'Filtered Excel', 'Explorer Excel exports include every row matching the selected scope and Explorer filters, across all pages.'],
+   ['Brief the\nselected terrain.', 'Briefing PDF', 'Governance briefing PDFs use applied header scope and the loaded snapshot. Explorer search does not narrow the briefing.'],
+   ['Show the\ntraced connections.', 'Impact PDF', 'Choose a starting CI or matching results in Topology Explorer. Export the full traced graph and supporting evidence, with the scope and snapshot.']
   ]},
  'benefits': {
   'title':'TSAAT benefits', 'label':'A clearer picture. A better conversation.', 'seconds':6,
@@ -123,6 +115,17 @@ FILMS = {
    ['Know the terrain.\nTake the next step.', 'Explore the TSAAT Feature Guide', 'Choose a feature, learn how it works and practise using the guide.']
   ]}
 }
+
+# Follow the overview's reading sequence. The investigation introduction groups
+# its three videos; the retired systems chapter is covered by the terrain video.
+FILMS = {key: FILMS[key] for key in (
+    'what', 'origins', 'terrain', 'vulnerabilities', 'shadow', 'services',
+    'reporting', 'understand', 'benefits')}
+OVERVIEW_SECTIONS = {section['id']: section for section in json.loads(
+    (ROOT / 'src/overview-content.json').read_text(encoding='utf-8'))['sections']}
+for section_id, film in FILMS.items():
+    film['title'] = OVERVIEW_SECTIONS[section_id]['title']
+    film['number'] = OVERVIEW_SECTIONS[section_id]['number']
 
 
 def font(size, bold=False, light=False):
@@ -199,7 +202,7 @@ def route(draw, points, time, color=CYAN, width=2):
         draw.ellipse((x-4,y-4,x+4,y+4),fill=color)
 
 
-def entity_device(draw,x,y,identity,scale=1,show_label=True,highlight=False):
+def entity_device(draw,x,y,identity,scale=1,show_label=True,highlight=False,software=None):
     def pts(items):return [(x+px*scale,y+py*scale) for px,py in items]
     outline=AMBER if highlight else ORANGE
     draw.polygon(pts([(0,-56),(28,-42),(28,-14),(0,0),(-28,-14),(-28,-42)]),fill='#30291f')
@@ -209,7 +212,7 @@ def entity_device(draw,x,y,identity,scale=1,show_label=True,highlight=False):
     line(draw,pts([(0,-28),(0,0)]),outline,2)
     line(draw,pts([(-20,-29),(-8,-23)]),outline,1)
     line(draw,pts([(-20,-22),(-8,-16)]),outline,1)
-    if identity in SOFTWARE_DEVICES and scale >= .6:
+    if (identity in SOFTWARE_DEVICES if software is None else software) and scale >= .6:
         line(draw,pts([(19,-31),(29,-49)]),BLUE,2)
         draw.rounded_rectangle((x+12*scale,y-67*scale,x+51*scale,y-36*scale),radius=4,fill='#153b50',outline=BLUE,width=2)
         label(draw,(x+31.5*scale,y-51*scale),'SW',BLUE,max(13,round(16*scale)),True,'mm')
@@ -342,7 +345,7 @@ def what_scene(draw,t,scene):
                  [(850,502),(876,456),(907,428),(926,412)]]:
         what_curve(draw,edge,blend(NAVY,TEAL,.35),1)
 
-    # Seven familiar concept marks; names replace inventory identities/counts.
+    # Familiar concept marks; names replace inventory identities/counts.
     entity_device(draw,745,251,'D1',.84,False)
     entity_device(draw,786,268,'D2',.66,False)
     label(draw,(760,292),'Devices',ORANGE,18,True,'mm')
@@ -367,7 +370,14 @@ def what_scene(draw,t,scene):
     what_cube(draw,1050,535)
     label(draw,(1050,592),'ICT systems',GREEN,18,True,'mm')
     what_cube(draw,830,535,True)
-    label(draw,(830,592),'Mission systems',GREEN,18,True,'mm')
+    label(draw,(830,592),'Mission services',PURPLE,18,True,'mm')
+
+    # Business services belong in the same context as mission services.
+    what_curve(draw,[(1152,330),(1117,363),(1067,364),(1031,368)],blend(NAVY,PURPLE,.5),1)
+    draw.rounded_rectangle((1124,295,1178,330),radius=6,fill='#282d48',outline=PURPLE,width=2)
+    draw.rounded_rectangle((1140,286,1162,300),radius=3,outline=PURPLE,width=2)
+    line(draw,[(1125,307),(1177,307)],PURPLE,1)
+    label(draw,(1151,352),'Business services',PURPLE,17,True,'mm')
 
     dashed_round_rect(draw,(694,369,756,431),12,AMBER,2)
     label(draw,(725,400),'?',AMBER,38,False,'mm')
@@ -376,20 +386,57 @@ def what_scene(draw,t,scene):
     # The platform is a lens on recorded context, not another device on the network.
     draw.rounded_rectangle((861,327,1031,412),radius=25,fill=NAVY,outline=TEAL if scene>=2 else '#31515b',width=2)
     label(draw,(946,356),'TSAAT',TEAL,31,True,'mm')
-    label(draw,(946,389),'Discover \u00b7 Assess \u00b7 Report',MUTED,13,False,'mm')
+    label(draw,(946,389),'Context aware',MUTED,17,False,'mm')
     label(draw,(947,116),'ONE TERRAIN. MANY QUESTIONS.',TEAL,18,True,'mm')
     label(draw,(947,637),'CONCEPTUAL VIEW / CVE CODES ARE EXAMPLES',MUTED,12,True,'mm')
 
 
+TOPOLOGY_NETWORKS = [
+    ('Operations', 'A', ['D1','D2','D7','D8','D9','D10']),
+    ('Enterprise', 'B', ['D3','D4','D11','D12','D13','D14']),
+    ('Support', 'C', ['D5','D6','D15','D16','D17','D18'])]
+TOPOLOGY_SOFTWARE = {'D1','D7','D3','D11','D5','D15'}
+
+
 def terrain_scene(draw,t,scene,theme):
-    if theme=='terrain' and scene==0:
-        label(draw,(947,195),'DEVICES + SOFTWARE',ORANGE,22,True,'mm')
-        for i in range(6):entity_device(draw,775+(i//2)*172,340+(i%2)*145,'D'+str(i+1),1.25)
-        label(draw,(947,582),'A DEVICE LIST IS ONE PART OF THE PICTURE',MUTED,16,True,'mm')
-        return
-    entity_landscape(draw,t,True,scene>0)
-    if theme=='what' and scene==2:label(draw,(947,118),'GOVERNANCE  /  DISCOVERY',TEAL,18,True,'mm')
-    else:label(draw,(947,118),'CONNECTED CYBER TERRAIN',TEAL,18,True,'mm')
+    """The same 18-CI, three-network topology used by the interactive overview."""
+    label(draw,(957,118),'AN ILLUSTRATIVE CYBER TERRAIN',TEAL,18,True,'mm')
+    services=[('Mission','A',750),('Mission','B',888),('Business','A',1026),('Business','B',1164)]
+    system_x={'A':772,'B':956,'C':1140}
+    # Recorded support edges remain distinct from moving communication paths.
+    dependencies=[('B',750,'Mission'),('C',750,'Mission'),('C',888,'Mission'),('A',1026,'Business'),('A',1164,'Business'),('B',1164,'Business')]
+    for index,(system,x,kind) in enumerate(dependencies):
+        bend=232+(index%3)*9
+        tone=PURPLE if kind=='Mission' else '#efb8dc'
+        line(draw,[(system_x[system],273),(system_x[system],bend),(x,bend),(x,212)],blend(NAVY,tone,.85 if scene in (0,3) else .38),2)
+    for kind,identity,x in services:
+        tone=PURPLE if kind=='Mission' else '#efb8dc'
+        color=tone if scene in (0,3) else blend(NAVY,tone,.55)
+        draw.rounded_rectangle((x-51,158,x+51,212),radius=8,fill='#282d48',outline=color,width=2)
+        label(draw,(x,175 if identity else 185),kind+' service',color,14,True,'mm')
+        if identity:label(draw,(x,198),identity,color,21,True,'mm')
+    points={}
+    for index,(network,system,members) in enumerate(TOPOLOGY_NETWORKS):
+        x=system_x[system]
+        system_color=GREEN if scene in (0,2,3) else blend(NAVY,GREEN,.6)
+        draw.rounded_rectangle((x-72,273,x+72,315),radius=8,fill='#123b2e',outline=system_color,width=2)
+        label(draw,(x,293),'System '+system,system_color,21,True,'mm')
+        line(draw,[(x,316),(x,347)],system_color,2)
+        draw.rounded_rectangle((x-87,347,x+87,609),radius=12,fill='#102633',outline=BLUE if scene==2 else '#365969',width=2 if scene==2 else 1)
+        label(draw,(x,366),network,BLUE,18,True,'mm')
+        label(draw,(x,388),'network',MUTED,16,False,'mm')
+        for j,identity in enumerate(members):
+            points[identity]=(x-42+(j%2)*80,449+(j//2)*66)
+        for a,b in [(members[0],members[1]),(members[0],members[2]),(members[1],members[3]),(members[2],members[3]),(members[2],members[4]),(members[3],members[5])]:
+            pa,pb=points[a],points[b]
+            route(draw,[(pa[0],pa[1]-17),(pb[0],pb[1]-17)],t,CYAN,2)
+    # Cross-network paths make the shared terrain explicit.
+    for a,b in [('D2','D3'),('D4','D5')]:
+        pa,pb=points[a],points[b]
+        route(draw,[(pa[0],pa[1]-17),(pb[0],pb[1]-17)],t,YELLOW,2)
+    for identity,(x,y) in points.items():
+        entity_device(draw,x,y,identity,.64,True,False,identity in TOPOLOGY_SOFTWARE)
+    label(draw,(957,631),['18 CIs / 3 NETWORKS / 4 SERVICES','BLUE SW TILES MARK INSTALLED SOFTWARE','COMMUNICATION + RECORDED MEMBERSHIP','MISSION AND BUSINESS DEPENDENCIES'][scene],MUTED,14,True,'mm')
 
 
 def timeline_scene(draw,t,scene,phase):
@@ -429,11 +476,6 @@ def understand_scene(draw,t,scene):
         label(draw,(1136,y-19),caption,WHITE,15,True,'mm')
         label(draw,(1136,y+14),'Summaries' if y==275 else 'Records',MUTED,19,False,'mm')
     label(draw,(947,606),'SCOPE  /  EVIDENCE  /  UNDERSTANDING',MUTED,16,True,'mm')
-
-
-def systems_scene(draw,t,scene):
-    label(draw,(947,118),'PURPOSE + RECORDED MEMBERSHIP',GREEN,20,True,'mm')
-    entity_landscape(draw,t,True,scene>=1)
 
 
 def vulnerabilities_scene(draw,t,scene):
@@ -484,38 +526,51 @@ def services_scene(draw,t,scene):
 def reporting_scene(draw,t,scene):
     cx=947
     if scene==0:
-        label(draw,(cx,178),'ILLUSTRATIVE INVENTORY',TEAL,21,True,'mm')
-        for i in range(6):
-            y=240+i*57
-            draw.rounded_rectangle((736,y-18,1170,y+18),radius=5,fill='#102633')
-            label(draw,(767,y),'D'+str(i+1),ORANGE,20,True,'mm')
-            label(draw,(920,y),'System '+('A' if i<2 else 'B' if i<4 else 'C'),GREEN,18,False,'mm')
-            if i%2==0:label(draw,(1121,y),'SW',BLUE,18,True,'mm')
-        label(draw,(cx,608),'START WITH THE AVAILABLE RECORDS',MUTED,15,True,'mm')
+        label(draw,(cx,168),'WHAT DO YOU NEED TO SHARE?',TEAL,21,True,'mm')
+        for i,(question,output,color) in enumerate([
+            ('The matching records','Filtered Excel',GREEN),
+            ('A summary of the selected terrain','Briefing PDF',BLUE),
+            ('The service dependency evidence','Impact PDF',PURPLE)]):
+            y=238+i*125
+            draw.rounded_rectangle((702,y-29,1192,y+68),radius=12,fill='#102633',outline=color,width=2)
+            label(draw,(727,y-9),question,MUTED,19)
+            label(draw,(727,y+24),output,color,26,True)
+        label(draw,(cx,610),'CHOOSE THE OUTPUT THAT ANSWERS YOUR QUESTION',MUTED,14,True,'mm')
         return
-    draw.rounded_rectangle((726,148,1170,226),radius=10,fill='#12343c',outline=GREEN,width=2)
+    draw.rounded_rectangle((716,148,1180,226),radius=10,fill='#12343c',outline=GREEN,width=2)
     label(draw,(cx,173),'EXAMPLE SCOPE: SYSTEM C',GREEN,19,True,'mm')
     label(draw,(cx,203),'Security domains + loaded snapshot',MUTED,17,False,'mm')
     if scene==1:
-        entity_device(draw,836,376,'D5',1.15,True,True)
-        entity_device(draw,1064,376,'D6',1.15)
-        route(draw,[(cx,227),(cx,275),(836,275),(836,300)],t,GREEN)
-        route(draw,[(cx,227),(cx,275),(1064,275),(1064,300)],t,GREEN)
-        draw.rounded_rectangle((765,458,1130,514),radius=8,fill='#12313f',outline=TEAL,width=2)
-        label(draw,(cx,485),'Explorer search: D5',TEAL,22,True,'mm')
-        label(draw,(cx,579),'SCOPE FIRST. THEN FOCUS THE RECORDS.',MUTED,16,True,'mm')
+        route(draw,[(cx,227),(cx,270)],t,TEAL)
+        draw.rounded_rectangle((747,274,1147,331),radius=8,fill='#12313f',outline=BLUE,width=2)
+        label(draw,(cx,302),'Explorer search: D5',BLUE,23,True,'mm')
+        route(draw,[(cx,332),(cx,385)],t,TEAL)
+        draw.rounded_rectangle((716,388,1180,550),radius=12,fill='#102633',outline=GREEN,width=2)
+        label(draw,(cx,418),'FILTERED EXCEL',GREEN,23,True,'mm')
+        label(draw,(cx,469),'D5',ORANGE,42,True,'mm')
+        label(draw,(cx,520),'1 matching device record',MUTED,20,False,'mm')
+        label(draw,(cx,602),'ALL MATCHING ROWS, ACROSS ALL PAGES',MUTED,15,True,'mm')
         return
-    for x,caption,records in [(815,'GOVERNANCE','D5 + D6'),(1080,'DISCOVERY','D5')]:
-        route(draw,[(cx,227),(cx,274),(x,274),(x,320)],t,TEAL)
-        draw.rounded_rectangle((x-103,320,x+103,527),radius=10,fill='#102633',outline=TEAL,width=2)
-        label(draw,(x,349),caption,WHITE,16,True,'mm')
-        if scene==3:report_symbol(draw,x,413,'PDF' if x==815 else 'EXCEL')
-        else:
-            label(draw,(x,413),records,ORANGE,28,True,'mm')
-            label(draw,(x,463),'Scope records' if x==815 else 'Search matches',MUTED,17,False,'mm')
-        if scene==3:label(draw,(x,510),records,ORANGE,18,True,'mm')
-    label(draw,(cx,572),'Explorer search: D5',TEAL,17,True,'mm')
-    label(draw,(cx,610),'CHECK SCOPE, SNAPSHOT AND INCLUDED RECORDS',MUTED,14,True,'mm')
+    if scene==2:
+        route(draw,[(cx,227),(cx,328)],t,BLUE)
+        draw.rounded_rectangle((716,331,1180,528),radius=12,fill='#102633',outline=BLUE,width=2)
+        label(draw,(cx,368),'BRIEFING PDF',BLUE,23,True,'mm')
+        label(draw,(cx,427),'D5 + D6',ORANGE,39,True,'mm')
+        label(draw,(cx,483),'2 devices in the selected scope',MUTED,20,False,'mm')
+        label(draw,(cx,567),'Explorer search does not narrow this PDF.',MUTED,20,False,'mm')
+        label(draw,(cx,610),'HEADER SCOPE + LOADED SNAPSHOT',MUTED,15,True,'mm')
+        return
+    label(draw,(cx,269),'IMPACT PDF / ILLUSTRATIVE TRACE',PURPLE,21,True,'mm')
+    entity_device(draw,751,401,'D5',1.0)
+    route(draw,[(786,372),(878,372)],t,PURPLE)
+    draw.rounded_rectangle((880,339,1012,407),radius=10,fill='#123b2e',outline=GREEN,width=2)
+    label(draw,(946,372),'System C',GREEN,23,True,'mm')
+    for y,service in [(330,'A'),(446,'B')]:
+        route(draw,[(1014,372),(1040,372),(1040,y),(1070,y)],t,PURPLE)
+        entity_service(draw,1137,y,'Mission service '+service)
+    draw.rounded_rectangle((716,518,1180,573),radius=8,fill='#102633',outline=PURPLE,width=2)
+    label(draw,(cx,545),'Full traced graph + supporting evidence',PURPLE,20,True,'mm')
+    label(draw,(cx,613),'STARTING CI + TRACE MODE + SCOPE + SNAPSHOT',MUTED,14,True,'mm')
 
 
 def benefits_scene(draw,t,scene):
@@ -553,7 +608,7 @@ def render(section,frame):
     label(d,(1220,32),film['title'].upper(),MUTED,14,True,'ra')
     slide=round((1-ease(local/.55))*18)
     textlayer=Image.new('RGBA',(WIDTH,HEIGHT));td=ImageDraw.Draw(textlayer)
-    label(td,(60,131+slide),f'{list(FILMS).index(section)+1:02d}   /   {scene+1:02d}',col,16,True)
+    label(td,(60,131+slide),f'{film["number"]}   /   {scene+1:02d}',col,16,True)
     max_width=560
     title_size=61 if section!='origins' else 71
     title_lines=headline.split('\n')
@@ -574,7 +629,6 @@ def render(section,frame):
     elif section=='terrain':terrain_scene(d,t,scene,section)
     elif section=='origins':timeline_scene(d,t,scene,local)
     elif section=='understand':understand_scene(d,t,scene)
-    elif section=='systems':systems_scene(d,t,scene)
     elif section=='vulnerabilities':vulnerabilities_scene(d,t,scene)
     elif section=='shadow':shadow_scene(d,t,scene)
     elif section=='services':services_scene(d,t,scene)
@@ -647,7 +701,8 @@ def main():
     args=parser.parse_args();sections=args.sections or list(FILMS)
     if any(s not in FILMS for s in sections):parser.error('Unknown section; choose: '+', '.join(FILMS))
     manifest_path=ROOT/'assets/overview-videos.json'
-    manifest=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+    existing=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+    manifest={section: existing[section] for section in FILMS if section in existing}
     encoder=encoder_path(args.ffmpeg) if not args.preview_only else None
     for section in sections:
         result=render_film(section,encoder,args.preview_only)

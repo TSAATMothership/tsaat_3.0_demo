@@ -1,0 +1,48 @@
+/* Reporting follows one decision: question, selection, included output. */
+.ov-report-workbench.ov-report-guide{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;padding:28px;background:#102631;border-color:#36535f}
+.ov-report-guide h3{font-size:21px;line-height:1.4;font-weight:550;color:#dbefea;letter-spacing:-.02em}
+.ov-report-choice-heading>p{margin-top:6px;font-size:16px;line-height:1.6;color:#a9c4cf}
+.ov-report-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ov-report-choices>button{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0;padding:20px;text-align:left;border:1px solid #42606d;border-radius:10px;background:#142e3b;color:#a9c4cf;min-height:160px}
+.ov-report-choices>button>span{font-size:14px;line-height:1.5}
+.ov-report-choices>button>strong{font-size:22px;line-height:1.3;color:#d2e4e7;font-weight:550}
+.ov-report-choices>button>small{font-size:14px;line-height:1.6;max-width:27ch}
+.ov-report-choices>button:hover{border-color:#87bdbe;background:#1b3d45}
+.ov-report-choices>button[aria-pressed=true]{border-color:#8ce2cb;background:#1b403c;box-shadow:inset 0 3px #8ce2cb;color:#b8ddd4}
+.ov-report-choices>button[aria-pressed=true]>strong{color:#acffe3}
+.ov-report-example{display:grid;grid-template-columns:minmax(220px,.72fr) minmax(0,1.6fr);gap:28px;border-top:1px solid #35535f;padding-top:28px;align-items:start}
+.ov-report-guide .ov-report-filters{grid-column:auto;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:22px;padding:0;border:0;min-width:0}
+.ov-report-guide .ov-report-filters>p{width:auto;color:#aac2cc;font-size:15px;line-height:1.7;margin-top:-13px}
+.ov-report-guide .ov-report-filters legend{font:550 15px/1.5 'Segoe UI',sans-serif;color:#cee5e6;margin-bottom:10px}
+.ov-report-guide .ov-report-filters fieldset>div{gap:7px}
+.ov-report-guide .ov-report-filters button{min-height:44px;padding:10px 13px;font-size:14px;line-height:1.5;border-color:#526e79;border-radius:7px}
+.ov-report-guide .ov-report-filters button[aria-pressed=true]{border-color:#87d6dd;background:#1b4350;color:#c9f5ff}
+.ov-report-guide .ov-report-filters .ov-report-search-note{display:none;margin-top:11px;font-size:14px;line-height:1.6;color:#a9dded}
+.ov-report-guide[data-report='1'] .ov-report-search-note{display:block}
+.ov-report-guide[data-report='1'] [data-ov-report-focus]{border-style:dashed}
+.ov-report-guide .ov-report-filters .ov-report-snapshot{font-size:13px;color:#9ebbc6;margin-top:0;padding-top:16px;border-top:1px solid #35535f}
+.ov-report-result{min-width:0;padding:22px;border:1px solid #456573;border-radius:11px;background:#0e222e}
+.ov-report-result-heading>p{font:12px/1.5 Consolas,monospace;letter-spacing:.06em;color:#8fb7c5;margin-bottom:6px}
+.ov-report-result-heading h3{font-size:23px;line-height:1.45;color:#b6eddd}
+.ov-report-guide .ov-report-visual{max-width:none;width:100%;margin-top:16px;justify-self:stretch}
+.ov-report-guide .ov-report-visual .ov-diagram{width:100%;max-width:100%;max-height:none;margin:0}
+.ov-report-guide #ov-report-graphic{overflow-x:auto;scrollbar-color:#5f8997 #0e222e;scrollbar-width:thin}
+.ov-report-guide #ov-report-graphic:focus-visible{outline:2px solid #8de1cf;outline-offset:4px}
+.ov-report-guide .ov-diagram-tools{justify-content:flex-end;margin:0 0 12px}
+.ov-report-guide .ov-diagram-tools>span{display:none}
+.ov-report-guide .ov-diagram-tools>button{font-size:13px;min-height:36px}
+.ov-report-guide .ov-report-reading{border-left:0;border-top:1px solid #35535f;margin-top:18px;padding:20px 0 0;align-self:stretch}
+.ov-report-explanation>strong{font-size:17px;line-height:1.4;color:#e0eeec;font-weight:550}
+.ov-report-explanation>p{font-size:16px;line-height:1.7;color:#bdd1da;margin-top:8px}
+.ov-report-rules{margin-top:17px;display:grid;gap:9px}
+.ov-report-rules>div{display:grid;grid-template-columns:82px minmax(0,1fr);gap:12px;font-size:14px;line-height:1.6}
+.ov-report-rules dt{color:#88aeba}.ov-report-rules dd{margin:0;color:#c2dce0}
+.ov-report-share{display:flex;gap:28px;justify-content:space-between;align-items:flex-start;border-top:1px solid #35535f;padding-top:21px}
+.ov-report-share>p{max-width:70ch;font-size:15px;line-height:1.7;color:#acc8ce}
+.ov-report-share>p>strong{display:block;font-weight:550;color:#d2e9e3;margin-bottom:4px}
+.ov-report-guide .ov-report-links{margin:0;padding:0;border:0;gap:10px;flex-shrink:0}
+.ov-report-guide .ov-report-links a{font-size:14px;line-height:1.6;min-height:32px}
+@media(max-width:1100px){.ov-report-example{grid-template-columns:1fr;gap:24px}.ov-report-guide .ov-report-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px}.ov-report-guide .ov-report-filters>h3,.ov-report-guide .ov-report-filters>p{grid-column:1/-1}.ov-report-guide .ov-report-filters>p{max-width:70ch}.ov-report-guide .ov-report-filters .ov-report-snapshot{padding-top:0;border:0}.ov-report-share{flex-direction:column;gap:17px}.ov-report-guide .ov-report-links{display:flex;flex-wrap:wrap;gap:12px 28px}}
+@media(max-width:760px){.ov-report-workbench.ov-report-guide{padding:20px 15px;gap:20px}.ov-report-choices{grid-template-columns:1fr;gap:9px}.ov-report-choices>button{min-height:0;padding:16px 18px;gap:5px}.ov-report-choices>button>strong{font-size:21px}.ov-report-choices>button>small{max-width:none}.ov-report-guide h3{font-size:20px}.ov-report-example{padding-top:22px}.ov-report-result{padding:18px 13px}.ov-report-result-heading h3{font-size:20px}.ov-report-guide .ov-report-filters{display:flex;gap:20px}.ov-report-guide .ov-report-filters>p{margin-top:-11px}.ov-report-guide .ov-report-filters .ov-report-snapshot{margin:0}.ov-report-explanation>p{font-size:16px}.ov-report-rules>div{grid-template-columns:64px minmax(0,1fr);gap:9px}.ov-report-share>p{font-size:15px}.ov-report-guide .ov-report-links{display:grid;gap:8px}}
+@media print{.ov-report-workbench.ov-report-guide{display:block}.ov-report-choices,.ov-report-filters{display:none!important}.ov-report-result,.ov-report-share{break-inside:avoid}}
+@media(max-width:760px){.ov-report-guide #ov-report-graphic>.ov-diagram{min-width:520px}.ov-report-guide .ov-report-visual:after{content:'Scroll the preview or expand for detail.';display:block;margin-top:9px;font-size:13px;line-height:1.5;color:#94b6c2}}
