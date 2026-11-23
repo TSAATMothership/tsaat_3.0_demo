@@ -111,10 +111,35 @@
       "number": "04",
       "kicker": "From an observation to a question",
       "title": "Investigate an issue or finding",
-      "lead": "Find the record. Follow its relationships. Decide what to investigate next.",
+      "lead": "One device. Three leads to investigate.",
       "body": [
-        "Start with a reported vulnerability, an unknown device or a possible service impact. Check the source and affected configuration item, then follow its recorded relationships to understand the wider context.",
-        "The three focused examples below show how to examine the evidence, identify gaps and involve the right owner."
+        "Follow D3 from a software finding to an unmatched address and the services connected through its ICT system. Each observation raises a different question about the same terrain."
+      ],
+      "story": [
+        {
+          "title": "A finding gives you a starting point.",
+          "body": "F-01 is recorded against software on D3. Check the finding, installed software and reporting source.",
+          "topic": "vulnerabilities",
+          "action": "Examine the vulnerability"
+        },
+        {
+          "title": "The same device reveals a gap.",
+          "body": "D3 also communicates with 192.0.2.87, which has no matching endpoint record. Establish its identity and owner.",
+          "topic": "shadow",
+          "action": "Investigate the unmatched address"
+        },
+        {
+          "title": "The record connects to service purpose.",
+          "body": "D3 belongs to System B, supporting Mission service A and Business service B. Review the dependencies and service state.",
+          "topic": "services",
+          "action": "Explore service impacts"
+        },
+        {
+          "title": "Three leads. A clearer investigation.",
+          "body": "Validate the finding, identify the unknown and review dependencies. These observations do not prove exploitation or an outage.",
+          "topic": "vulnerabilities",
+          "action": "Start with the finding"
+        }
       ],
       "takeaway": "",
       "chapterLabel": "Investigate"
@@ -127,7 +152,7 @@
       "lead": "Locate the weakness. Understand what depends on it.",
       "body": [
         "Vulnerabilities can affect devices and their installed software. TSAAT helps you inspect the affected device and the source that reported the finding.",
-        "Follow that device through its network, ICT system and dependent services. Use the relationships to focus your investigation, then validate exploitability and service impact."
+        "Use the same cyber terrain to trace the affected device to its ICT system and dependent mission or business services. Validate exploitability and service impact before deciding on action."
       ],
       "takeaway": "Connect the finding to its asset, then validate the wider context.",
       "options": [
@@ -141,13 +166,13 @@
           "id": "asset",
           "label": "Asset",
           "title": "Locate the affected component",
-          "body": "The orange device carries the finding; its blue tile represents installed software. Follow the same device ID into the network and its green ICT system."
+          "body": "Locate the marked device within its network. Its blue SW tile represents installed software. The device stays in the same position as in the Cyber Terrain view."
         },
         {
           "id": "context",
           "label": "Context",
           "title": "Connect it to a decision",
-          "body": "Trace the device through its shared network and recorded system membership to dependent services. A communication link alone does not establish exploitability or service impact."
+          "body": "Highlight the device's ICT system and dependent mission or business services. The other devices stay visible for context. These relationships do not confirm exploitation or a service impact."
         }
       ],
       "film": [
@@ -180,42 +205,57 @@
       "title": "Shadow IT",
       "lead": "An unknown address is a question to resolve.",
       "body": [
-        "Network observations can reveal an IP address or device that has no match in the known endpoint records.",
-        "Use Shadow IT Explorer to investigate. Distinguish the unknown device from the device that reported it, and establish its identity before drawing conclusions about malicious activity."
+        "Network observations can reveal an address with no match in known endpoint records. CMDB discovery scans can also detect an address without being able to classify its device type.",
+        "Explore the three scenarios below. Distinguish the observing device or discovery source from the unknown address, then investigate its identity, classification and ownership."
       ],
-      "takeaway": "Identify what was seen, who observed it and who can resolve it.",
+      "takeaway": "Keep the source and the unknown address separate. Validate identity, device type and ownership.",
       "options": [
         {
-          "id": "observe",
-          "label": "Observe",
-          "title": "An address is seen",
-          "body": "A known device reports a network observation involving another address."
+          "id": "endpoint",
+          "label": "Endpoint observation",
+          "title": "A known endpoint reports an address",
+          "body": "D3 is the reporting endpoint in ICT System B. Its network observations include an address with no matching endpoint record.",
+          "address": "192.0.2.87",
+          "observer": "D3",
+          "revealLabel": "Reveal unmatched address",
+          "revealedTitle": "An unmatched address, separate from D3",
+          "revealedBody": "192.0.2.87 has no matching endpoint record. Check the observation, identity and owner. D3 is the known reporting device; it is not the unknown endpoint."
         },
         {
-          "id": "match",
-          "label": "Match",
-          "title": "Look for a known record",
-          "body": "Compare the observed address with endpoint records. A missing match identifies a gap to investigate, not its cause."
+          "id": "network-device",
+          "label": "Network device communication",
+          "title": "A network device communicates with an address",
+          "body": "Known network device ND1 communicates with another address that has no matching endpoint record. Keep ND1 separate from the unmatched address.",
+          "address": "198.51.100.64",
+          "observer": "ND1",
+          "revealLabel": "Reveal unmatched address",
+          "revealedTitle": "ND1 is known; the other address is unmatched",
+          "revealedBody": "198.51.100.64 is the unmatched address observed in ND1's communication. Check ND1's records and network context, then establish the other endpoint's identity and owner."
         },
         {
-          "id": "investigate",
-          "label": "Investigate",
-          "title": "Establish identity and ownership",
-          "body": "Check the observing device, network context and responsible team. Confirm the unknown device's identity and ownership before acting."
+          "id": "discovery",
+          "label": "CMDB discovery scan",
+          "title": "Discovery finds an address it cannot classify",
+          "body": "CMDB discovery scans an IP range and detects 192.0.2.47, but cannot classify it as a Server, Computer, Printer or Router.",
+          "address": "192.0.2.47",
+          "observer": "CMDB discovery",
+          "revealLabel": "Reveal unclassified address",
+          "revealedTitle": "Detected address; device type unknown",
+          "revealedBody": "192.0.2.47 was detected by the scan, but its device type is unclassified. Review discovery evidence and classification results; establish its type, identity and owner before assigning a class."
         }
       ],
       "film": [
         {
-          "headline": "A signal appears.",
-          "body": "A known device observes an address that has not been matched to a known endpoint."
+          "headline": "An endpoint observes an unmatched address.",
+          "body": "D3 reports communication with an address that has no matching endpoint record."
         },
         {
-          "headline": "Unknown does not mean malicious.",
-          "body": "The observing device and the unknown device are different things."
+          "headline": "A network device sees another unmatched address.",
+          "body": "ND1 is the known network device. The other address is the one to investigate."
         },
         {
-          "headline": "Follow the question.",
-          "body": "Investigate the address, network context and ownership to resolve the uncertainty."
+          "headline": "Discovery finds an unclassified address.",
+          "body": "A CMDB IP-range scan detects an address but cannot classify it as a Server, Computer, Printer or Router."
         }
       ],
       "video": {
@@ -234,42 +274,42 @@
       "title": "Service Impacts",
       "lead": "Follow a local issue to the services that may depend on it.",
       "body": [
-        "Mission services, business services and ICT services rely on systems, their devices and software, and the networks connecting them. A device or network issue may involve more than one service.",
-        "Explore three focused examples using six device records and their relationships. Trace the dependencies to review, then confirm the actual service state with its owner."
+        "Mission and business services depend on ICT systems, their devices and software, and the networks connecting them. An issue in one component may be relevant to several services.",
+        "Use the same cyber terrain to explore a device issue or an unavailable device link. Follow the highlighted relationships to identify services to review, then confirm the actual impact with their owners."
       ],
       "takeaway": "Trace the dependency. Confirm what it means for the service.",
       "options": [
         {
           "id": "device-d1",
           "label": "Device D1",
-          "title": "A device issue can reach an ICT service",
-          "body": "D1 belongs to System A, which supports the ICT service. Follow the device through its recorded system membership to the service dependency that needs review."
+          "title": "D1 to System A to business services",
+          "body": "D1 belongs to ICT System A. Business services A and B depend on A, so review both. Business service B also depends on System B; validate those dependencies and the current service state."
         },
         {
           "id": "device-d5",
           "label": "Device D5",
-          "title": "One system supports two mission services",
-          "body": "D5 belongs to System C. Mission services A and B both depend on C, so review both. Mission service A also depends on System B; that link remains visible for context."
+          "title": "D5 to System C to mission services",
+          "body": "D5 belongs to ICT System C. Mission services A and B depend on C, so review both. Mission service A also depends on System B; that relationship remains visible for context."
         },
         {
-          "id": "network-link",
-          "label": "D2–D4 link",
-          "title": "A network issue spans two system contexts",
-          "body": "The unavailable link joins D2 in System A and D4 in System B. Review the ICT service and Mission service A. This example follows only those endpoints; a full impact assessment must also consider alternative paths and other dependencies."
+          "id": "device-link",
+          "label": "Device link",
+          "title": "D7 to D3: two system contexts",
+          "body": "The link between D7 in System A and D3 in System B is unavailable. Follow those endpoints to Business services A and B and Mission service A. Check alternative paths before confirming service impact."
         }
       ],
       "film": [
         {
-          "headline": "One component. Wider connections.",
-          "body": "A service can depend on a system, its application, its data and its network path."
+          "headline": "The same terrain. A different question.",
+          "body": "Start with a device issue or an unavailable device link and trace its recorded dependencies."
         },
         {
-          "headline": "Follow the recorded chain.",
-          "body": "Topology helps you explore which parts are connected."
+          "headline": "Identify the services to review.",
+          "body": "ICT systems connect the starting issue to mission and business services. Highlighted services require investigation."
         },
         {
           "headline": "Validate the impact.",
-          "body": "Confirm dependencies, resilience and the current service state with the service owner."
+          "body": "Confirm dependencies, alternative paths and current service state with the service owner."
         }
       ],
       "video": {
@@ -286,10 +326,9 @@
       "number": "05",
       "kicker": "Choose the right output",
       "title": "Reporting and focused insights",
-      "lead": "Start with a question. Choose the output that answers it.",
+      "lead": "Watch observations become a focused report.",
       "body": [
-        "Take matching records into Excel, brief the selected cyber terrain, or show the dependencies behind an issue.",
-        "Use the example below to see what each report includes. Keep the scope and loaded snapshot with the findings you share."
+        "Choose a scenario. Adjust scope or search, then pause or step through the result."
       ],
       "takeaway": "Choose the report whose scope matches your question.",
       "options": [
@@ -340,62 +379,8 @@
       "chapterLabel": "Reporting"
     },
     {
-      "id": "understand",
-      "number": "06",
-      "kicker": "Two ways into the evidence",
-      "title": "How does TSAAT help you understand it?",
-      "lead": "See a pattern. Follow it to the evidence.",
-      "body": [
-        "Governance summarises endpoints, installed software and security vulnerability observations.",
-        "Discovery opens the individual records, unknown devices and recorded links. Choose a scope and snapshot to keep both views focused on the same question."
-      ],
-      "takeaway": "Use the summary to find a question, then the records to investigate it.",
-      "options": [
-        {
-          "id": "governance",
-          "label": "Governance",
-          "title": "See the patterns",
-          "body": "Review summaries and gaps within the selected scope. Use the briefing to focus discussion and support reporting."
-        },
-        {
-          "id": "discovery",
-          "label": "Discovery",
-          "title": "Inspect the evidence",
-          "body": "Open records, filter the inventory and follow links to inspect the detail behind a summary."
-        },
-        {
-          "id": "scope",
-          "label": "Scope + snapshot",
-          "title": "Keep the question in focus",
-          "body": "Choose the terrain and saved point in time you want to examine. Counts describe that selection."
-        }
-      ],
-      "film": [
-        {
-          "headline": "Start with a question.",
-          "body": "Choose the scope and snapshot you want to understand."
-        },
-        {
-          "headline": "Governance reveals patterns.",
-          "body": "Review summaries, recorded findings and gaps."
-        },
-        {
-          "headline": "Discovery opens the detail.",
-          "body": "Filter records. Follow relationships. Bring the evidence into the conversation."
-        }
-      ],
-      "video": {
-        "file": "overview-understand.mp4",
-        "poster": "",
-        "captions": "",
-        "duration": 24,
-        "label": "Watch Video: How does TSAAT help you understand it?"
-      },
-      "chapterLabel": "How TSAAT helps"
-    },
-    {
       "id": "benefits",
-      "number": "07",
+      "number": "06",
       "kicker": "Better visibility. Better conversations.",
       "title": "TSAAT benefits",
       "lead": "A clearer starting point for the next decision.",

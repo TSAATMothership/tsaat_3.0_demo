@@ -66,45 +66,36 @@ FILMS = {
    ['Follow the\nconnections.', 'Multiple networks + ICT systems', 'Communication paths connect CIs across networks. Recorded system membership gives those components a shared purpose.'],
    ['Connect to\nservice purpose.', 'Mission services + business services', 'Follow dependencies to see which systems support each service. Select a layer in the guide, or highlight all components.']
   ]},
- 'understand': {
-  'title':'How TSAAT helps you understand', 'label':'Turn detail into understanding', 'seconds':6,
-  'scenes':[
-   ['Choose your\nview.', 'Start with the question', 'Select the cyber terrain and snapshot you need before interpreting a result.'],
-   ['Find the\npattern.', 'Governance', 'Read summaries to see recorded patterns, missing details and discovery gaps.'],
-   ['Follow the\nevidence.', 'Discovery', 'Explore the underlying records, open details and follow recorded relationships.'],
-   ['Explain what\nyou found.', 'A shared basis for discussion', 'Use reports and exports to support a focused conversation about the evidence.']
-  ]},
  'vulnerabilities': {
   'title':'Security vulnerabilities', 'label':'A signal to investigate', 'seconds':6,
   'scenes':[
    ['A finding is\na starting point.', 'Security vulnerabilities', 'A vulnerability observation records a potential weakness associated with a device or software.'],
    ['Add the\ncontext.', 'Which device? Which software?', 'Examine the affected records, recorded CVE details and the source that reported the observation.'],
    ['Separate\nsignal from proof.', 'Observation is not exploitation', 'A recorded finding is not proof that a weakness is exploitable or has been exploited.'],
-   ['Investigate.\nThen prioritise.', 'Evidence supports judgement', 'Combine recorded evidence with system context and validation to inform the next step.']
+   ['Investigate.\nThen prioritise.', 'Evidence supports judgement', 'Trace D3 to System B, Mission service A and Business service B. Validate the evidence and service relevance before deciding on action.']
   ]},
  'shadow': {
   'title':'Shadow IT', 'label':'Make the unknown visible', 'seconds':6,
   'scenes':[
-   ['What is\nmissing?', 'Shadow IT', 'An unfamiliar address or device can reveal a gap between observed activity and known inventory.'],
-   ['Keep the\nroles separate.', 'Observed device + reporting device', 'Distinguish the unknown device from the known device that reported seeing it.'],
-   ['Unknown does\nnot mean hostile.', 'A lead to investigate', 'An unexplained record could reflect an inventory gap, an expected device or something requiring attention.'],
-   ['Investigate\nthe gap.', 'Identify. Validate. Follow up.', 'Review the evidence and establish the device identity, owner and place in the terrain.']
+   ['An endpoint\nsees an address.', 'Scenario 1 / Current example', 'Known endpoint D3 reports communication with 192.0.2.87, which has no matching endpoint record.'],
+   ['A network device\ncommunicates.', 'Scenario 2 / Network device', 'Known network device ND1 communicates with unmatched address 198.51.100.64. Keep the two endpoints separate.'],
+   ['Discovery finds\nan unknown type.', 'Scenario 3 / CMDB discovery scan', 'CMDB discovery scans an IP range and detects 192.0.2.47, but cannot classify it as a Server, Computer, Printer or Router.'],
+   ['Investigate\nthe gap.', 'Identify. Classify. Validate.', 'Check the source and evidence, then establish identity, device type and ownership. An unknown address is not proof of malicious activity.']
   ]},
  'services': {
   'title':'Service impacts', 'label':'Trace what depends on what', 'seconds':6,
   'scenes':[
-   ['Start with\nthe service.', 'What needs to keep working?', 'Mission services, business services and ICT services depend on systems, networks, software and devices working together.'],
-   ['Trace the\ndependencies.', 'An illustrative dependency path', 'Follow recorded relationships to identify components that may support a service.'],
-   ['Ask what else\ncould be affected.', 'Potential impact, not a prediction', 'A component issue may have wider implications. Recorded links help frame the investigation.'],
-   ['Validate with\nthe owners.', 'Turn a connection into a conversation', 'Confirm dependencies and operational context with owners before drawing conclusions about service impact.']
+   ['A device issue.\nBusiness context.', 'D1 / ICT System A', 'D1 belongs to System A. Business services A and B depend on that system, so review both services.'],
+   ['Shared mission\nsupport.', 'D5 / ICT System C', 'D5 belongs to System C, which supports Mission services A and B. Mission service A also depends on System B.'],
+   ['A device link\nis unavailable.', 'D7 / D3', 'The link joins D7 in System A and D3 in System B. Review Business services A and B and Mission service A, and check alternative paths.'],
+   ['Review does not\nmean outage.', 'Validate with the service owner', 'Confirm the recorded dependencies, alternative paths and current service state before concluding that a service is affected.']
   ]},
  'reporting': {
-  'title':'Reporting and focused insights', 'label':'A focused answer. Context you can share.', 'seconds':6,
+  'title':'Reporting and focused insights', 'label':'Watch observations become a focused report.', 'seconds':8,
   'scenes':[
-   ['Choose the\nanswer you need.', 'Records, a briefing, or service relationships', 'Choose filtered Excel for matching records, a briefing PDF for a scoped summary, or an impact PDF for traced relationships.'],
-   ['Export the\nmatching records.', 'Filtered Excel', 'Explorer Excel exports include every row matching the selected scope and Explorer filters, across all pages.'],
-   ['Brief the\nselected terrain.', 'Briefing PDF', 'Governance briefing PDFs use applied header scope and the loaded snapshot. Explorer search does not narrow the briefing.'],
-   ['Show the\ntraced connections.', 'Impact PDF', 'Choose a starting CI or matching results in Topology Explorer. Export the full traced graph and supporting evidence, with the scope and snapshot.']
+   ['Filter. Build.\nShare the rows.', 'Filtered Excel', 'Start with the header scope, apply Explorer search, then export every matching row across all pages. Here, searching for D5 includes D5.'],
+   ['Scope. Summarise.\nBrief the terrain.', 'Briefing PDF', 'Keep every device in the applied header scope and loaded snapshot. The briefing includes D5 and D6 in System C, even when Explorer search shows only D5.'],
+   ['Start. Trace.\nShare the evidence.', 'Impact PDF', 'Follow a starting CI through its ICT system to dependent services. Package the full traced graph and supporting evidence with the selected scope and snapshot.']
   ]},
  'benefits': {
   'title':'TSAAT benefits', 'label':'A clearer picture. A better conversation.', 'seconds':6,
@@ -120,7 +111,7 @@ FILMS = {
 # its three videos; the retired systems chapter is covered by the terrain video.
 FILMS = {key: FILMS[key] for key in (
     'what', 'origins', 'terrain', 'vulnerabilities', 'shadow', 'services',
-    'reporting', 'understand', 'benefits')}
+    'reporting', 'benefits')}
 OVERVIEW_SECTIONS = {section['id']: section for section in json.loads(
     (ROOT / 'src/overview-content.json').read_text(encoding='utf-8'))['sections']}
 for section_id, film in FILMS.items():
@@ -398,9 +389,12 @@ TOPOLOGY_NETWORKS = [
 TOPOLOGY_SOFTWARE = {'D1','D7','D3','D11','D5','D15'}
 
 
-def terrain_scene(draw,t,scene,theme):
+def terrain_scene(draw,t,scene,theme,finding=None,impact=None):
     """The same 18-CI, three-network topology used by the interactive overview."""
-    label(draw,(957,118),'AN ILLUSTRATIVE CYBER TERRAIN',TEAL,18,True,'mm')
+    finding_system=next((system for _,system,members in TOPOLOGY_NETWORKS if finding in members),None)
+    active_systems=impact['systems'] if impact else []
+    heading=impact['title'] if impact else 'FINDING F-01 / DEVICE '+finding if finding else 'AN ILLUSTRATIVE CYBER TERRAIN'
+    label(draw,(957,118),heading,AMBER if finding or impact else TEAL,18,True,'mm')
     services=[('Mission','A',750),('Mission','B',888),('Business','A',1026),('Business','B',1164)]
     system_x={'A':772,'B':956,'C':1140}
     # Recorded support edges remain distinct from moving communication paths.
@@ -408,10 +402,16 @@ def terrain_scene(draw,t,scene,theme):
     for index,(system,x,kind) in enumerate(dependencies):
         bend=232+(index%3)*9
         tone=PURPLE if kind=='Mission' else '#efb8dc'
-        line(draw,[(system_x[system],273),(system_x[system],bend),(x,bend),(x,212)],blend(NAVY,tone,.85 if scene in (0,3) else .38),2)
+        strength=(1 if system==finding_system and scene>=2 else .22) if finding else (.85 if scene in (0,3) else .38)
+        if impact:strength=1 if system in active_systems else .22
+        line(draw,[(system_x[system],273),(system_x[system],bend),(x,bend),(x,212)],blend(NAVY,tone,strength),3 if (finding or impact) and strength==1 else 2)
     for kind,identity,x in services:
         tone=PURPLE if kind=='Mission' else '#efb8dc'
         color=tone if scene in (0,3) else blend(NAVY,tone,.55)
+        if finding:
+            related=any(system==finding_system and service_x==x for system,service_x,_ in dependencies)
+            color=tone if related and scene>=2 else blend(NAVY,tone,.28)
+        if impact:color=tone if any(system in active_systems and service_x==x for system,service_x,_ in dependencies) else blend(NAVY,tone,.28)
         draw.rounded_rectangle((x-51,158,x+51,212),radius=8,fill='#282d48',outline=color,width=2)
         label(draw,(x,175 if identity else 185),kind+' service',color,14,True,'mm')
         if identity:label(draw,(x,198),identity,color,21,True,'mm')
@@ -419,6 +419,8 @@ def terrain_scene(draw,t,scene,theme):
     for index,(network,system,members) in enumerate(TOPOLOGY_NETWORKS):
         x=system_x[system]
         system_color=GREEN if scene in (0,2,3) else blend(NAVY,GREEN,.6)
+        if finding:system_color=GREEN if system==finding_system and scene>=2 else blend(NAVY,GREEN,.28)
+        if impact:system_color=GREEN if system in active_systems else blend(NAVY,GREEN,.28)
         draw.rounded_rectangle((x-72,273,x+72,315),radius=8,fill='#123b2e',outline=system_color,width=2)
         label(draw,(x,293),'System '+system,system_color,21,True,'mm')
         line(draw,[(x,316),(x,347)],system_color,2)
@@ -426,17 +428,48 @@ def terrain_scene(draw,t,scene,theme):
         label(draw,(x,366),network,BLUE,18,True,'mm')
         label(draw,(x,388),'network',MUTED,16,False,'mm')
         for j,identity in enumerate(members):
-            points[identity]=(x-42+(j%2)*80,449+(j//2)*66)
-        for a,b in [(members[0],members[1]),(members[0],members[2]),(members[1],members[3]),(members[2],members[3]),(members[2],members[4]),(members[3],members[5])]:
+            points[identity]=(x-55+(j%3)*55,449+(j//3)*118) if impact else (x-42+(j%2)*80,449+(j//2)*66)
+        edges=[(0,1),(1,2),(0,3),(1,4),(2,5),(3,4),(4,5)] if impact else [(0,1),(0,2),(1,3),(2,3),(2,4),(3,5)]
+        for ai,bi in edges:
+            a,b=members[ai],members[bi]
             pa,pb=points[a],points[b]
             route(draw,[(pa[0],pa[1]-17),(pb[0],pb[1]-17)],t,CYAN,2)
     # Cross-network paths make the shared terrain explicit.
-    for a,b in [('D2','D3'),('D4','D5')]:
-        pa,pb=points[a],points[b]
-        route(draw,[(pa[0],pa[1]-17),(pb[0],pb[1]-17)],t,YELLOW,2)
+    if impact:
+        route(draw,[(772,347),(772,332),(956,332),(956,347)],t,CYAN,2)
+        route(draw,[(956,347),(956,332),(1140,332),(1140,347)],t,CYAN,2)
+    else:
+        for a,b in [('D2','D3'),('D4','D5')]:
+            pa,pb=points[a],points[b]
+            route(draw,[(pa[0],pa[1]-17),(pb[0],pb[1]-17)],t,YELLOW,2)
     for identity,(x,y) in points.items():
         entity_device(draw,x,y,identity,.64,True,False,identity in TOPOLOGY_SOFTWARE)
-    label(draw,(957,631),['18 CIs / 3 NETWORKS / 4 SERVICES','BLUE SW TILES MARK INSTALLED SOFTWARE','COMMUNICATION + RECORDED MEMBERSHIP','MISSION AND BUSINESS DEPENDENCIES'][scene],MUTED,14,True,'mm')
+    if impact:
+        if impact['issue']=='link':
+            a,b=points['D7'],points['D3'];mid=(a[0]+b[0])/2;y=a[1]-17
+            line(draw,[(a[0]+18,y),(mid-13,y)],YELLOW,3)
+            line(draw,[(mid+13,y),(b[0]-18,y)],YELLOW,3)
+            draw.ellipse((mid-9,y-9,mid+9,y+9),fill='#3d3522',outline=YELLOW,width=2)
+            label(draw,(mid,y),'!',YELLOW,16,True,'mm')
+            for identity,system in [('D7','A'),('D3','B')]:
+                x,dy=points[identity];sx=system_x[system]
+                line(draw,[(x-18,dy-22),(x-18,409),(sx-82,409),(sx-82,332),(sx,332),(sx,315)],GREEN,2)
+        if impact['issue']=='device':
+            x,y=points[impact['device']];sx=system_x[active_systems[0]]
+            line(draw,[(x-18,y-22),(sx-82,y-22),(sx-82,332),(sx,332),(sx,315)],GREEN,3)
+            draw.ellipse((x-33,y-48,x-9,y-24),fill='#572d2e',outline='#ff958b',width=2)
+            label(draw,(x-21,y-36),'!','#ffe4dc',20,True,'mm')
+        caption=impact['caption']
+    elif finding:
+        x,y=points[finding]
+        if scene>=2:
+            sx=system_x[finding_system]
+            line(draw,[(x-18,y-22),(sx-82,y-22),(sx-82,332),(sx,332),(sx,315)],GREEN,3)
+        draw.ellipse((x-33,y-48,x-9,y-24),fill='#572d2e',outline='#ff958b',width=2)
+        label(draw,(x-21,y-36),'!','#ffe4dc',20,True,'mm')
+        caption=['F-01 IS A REPORTED SOFTWARE FINDING','THE SAME DEVICE IN THE SAME CYBER TERRAIN','RECORDED DEPENDENCIES / IMPACT TO VALIDATE','D3 > SYSTEM B > MISSION A + BUSINESS B'][scene]
+    else:caption=['18 CIs / 3 NETWORKS / 4 SERVICES','BLUE SW TILES MARK INSTALLED SOFTWARE','COMMUNICATION + RECORDED MEMBERSHIP','MISSION AND BUSINESS DEPENDENCIES'][scene]
+    label(draw,(957,631),caption,MUTED,14,True,'mm')
 
 
 def timeline_scene(draw,t,scene,phase):
@@ -463,26 +496,8 @@ def timeline_scene(draw,t,scene,phase):
     else:label(draw,(947,540),['DISCOVERY FOUNDATION','MODELLING + PROCESS','ASSESSMENT','INVENTORY AT SCALE','VISIBILITY OF THE TERRAIN','NEXT CHAPTER'][scene],TEAL,16,True,'mm')
 
 
-def understand_scene(draw,t,scene):
-    for i,identity in enumerate(['D1','D3','D5']):
-        y=275+i*125
-        entity_device(draw,746,y,identity,.85)
-        route(draw,[(790,y-20),(868,377)],t,CYAN)
-    draw.rounded_rectangle((865,335,961,420),radius=14,fill='#103740',outline=TEAL,width=2)
-    label(draw,(913,377),'TSAAT',WHITE,23,True,'mm')
-    for y,caption in [(275,'GOVERNANCE'),(478,'DISCOVERY')]:
-        route(draw,[(962,377),(1011,377),(1011,y),(1080,y)],t,TEAL)
-        draw.rounded_rectangle((1060,y-48,1212,y+48),radius=9,fill='#102633',outline=TEAL,width=2)
-        label(draw,(1136,y-19),caption,WHITE,15,True,'mm')
-        label(draw,(1136,y+14),'Summaries' if y==275 else 'Records',MUTED,19,False,'mm')
-    label(draw,(947,606),'SCOPE  /  EVIDENCE  /  UNDERSTANDING',MUTED,16,True,'mm')
-
-
 def vulnerabilities_scene(draw,t,scene):
-    label(draw,(947,118),'RECORDED FINDING ON D3',AMBER,20,True,'mm')
-    entity_landscape(draw,t,True,True,finding='D3')
-    draw.rectangle((678,619,1225,644),fill=NAVY)
-    label(draw,(947,632),'A FINDING NEEDS CONTEXT AND VALIDATION',MUTED,15,True,'mm')
+    terrain_scene(draw,t,scene,None,finding='D3')
 
 
 def dashed_round_rect(draw,box,radius,color,width=2):
@@ -497,80 +512,156 @@ def dashed_round_rect(draw,box,radius,color,width=2):
         draw.arc(bounds,start+55,start+90,fill=color,width=width)
 
 
+def shadow_device(draw,x,y,identity,router=False,server=False,observer=False):
+    if observer:draw.ellipse((x-29,y-29,x+29,y+29),outline=CYAN,width=2)
+    draw.ellipse((x-21,y-21,x+21,y+21),fill='#302b27',outline=ORANGE,width=2)
+    if router:
+        draw.rectangle((x-14,y-7,x+14,y+8),outline=ORANGE,width=2)
+        line(draw,[(x-9,y-12),(x+9,y-12),(x+5,y-16)],ORANGE,2)
+        line(draw,[(x+9,y+13),(x-9,y+13),(x-5,y+17)],ORANGE,2)
+    elif server:
+        draw.rounded_rectangle((x-10,y-15,x+10,y+15),radius=2,outline=ORANGE,width=2)
+        for dy in (-5,5):line(draw,[(x-10,y+dy),(x+10,y+dy)],ORANGE,1)
+        draw.rounded_rectangle((x+13,y-36,x+43,y-15),radius=4,fill='#153b50',outline=BLUE,width=1)
+        label(draw,(x+28,y-25),'SW',BLUE,12,True,'mm')
+    else:
+        draw.rectangle((x-14,y-10,x+14,y+8),outline=ORANGE,width=2)
+        line(draw,[(x,y+8),(x,y+14),(x-8,y+14),(x+8,y+14)],ORANGE,2)
+    label(draw,(x,y+43),identity,ORANGE,18,True,'mm')
+
+
 def shadow_scene(draw,t,scene):
-    entity_system(draw,795,214,'B',.75)
-    points=network_points(385,105)
-    draw.rounded_rectangle((710,310,1204,537),radius=12,fill='#102633',outline='#294553',width=1)
-    network_paths(draw,points,t)
-    # D3 is a known observer, marked by a static outline rather than a finding.
-    draw.rounded_rectangle((915,320,994,409),radius=9,outline=ORANGE,width=2)
-    for identity,(x,y) in points.items():entity_device(draw,x,y,identity,.86)
-    x,y=1122,184
-    dashed_round_rect(draw,(x-44,y-44,x+44,y+44),13,AMBER,2)
-    label(draw,(x,y),'?',AMBER,46,False,'mm')
-    label(draw,(x,256),'Unmatched address',AMBER,18,True,'mm')
-    label(draw,(x,282),'Identity unknown',MUTED,17,False,'mm')
-    route(draw,[(947,320),(947,300),(1222,300),(1222,184),(1166,184)],t,CYAN)
-    label(draw,(947,576),'D3: REPORTING DEVICE',ORANGE,18,True,'mm')
-    label(draw,(947,608),'OBSERVED COMMUNICATION / IDENTITY TO CHECK',MUTED,14,True,'mm')
+    if scene==3:
+        label(draw,(947,135),'KEEP THE QUESTIONS DISTINCT',TEAL,20,True,'mm')
+        for i,(title,question) in enumerate([
+            ('Endpoint or network observation','Which address has no matching record?'),
+            ('CMDB discovery scan','Which detected address has no device type?'),
+            ('Investigation and follow-up','What is it, who owns it, and what is the evidence?')]):
+            y=225+i*132
+            draw.rounded_rectangle((705,y-43,1210,y+54),radius=12,fill='#102633',outline=CYAN if i<2 else AMBER,width=2)
+            label(draw,(729,y-24),title,BLUE if i<2 else AMBER,22,True)
+            paragraph(draw,(729,y+12),question,455,18,MUTED,24)
+        label(draw,(947,625),'UNKNOWN DOES NOT MEAN MALICIOUS',MUTED,15,True,'mm')
+        return
+    scan=scene==2
+    observer='ND1' if scene==1 else 'D3'
+    address=['192.0.2.87','198.51.100.64','192.0.2.47'][scene]
+    label(draw,(947,125),['ENDPOINT OBSERVATION','NETWORK DEVICE COMMUNICATION','CMDB IP-RANGE DISCOVERY'][scene],TEAL,19,True,'mm')
+    if scan:
+        draw.rounded_rectangle((705,185,1001,281),radius=10,fill='#153340',outline=BLUE,width=2)
+        label(draw,(853,218),'CMDB discovery',BLUE,26,True,'mm')
+        label(draw,(853,253),'Scan configured IP range',MUTED,18,False,'mm')
+        route(draw,[(853,282),(853,340)],t,CYAN,2)
+        draw.rounded_rectangle((705,340,1001,571),radius=12,fill='#102633',outline='#365969',width=1)
+        label(draw,(853,370),'192.0.2.1 - 192.0.2.254',BLUE,18,True,'mm')
+        label(draw,(853,402),'Examples classified by the scan',MUTED,16,False,'mm')
+        for i,kind in enumerate(['Server','Computer','Printer','Router']):
+            x=779+(i%2)*147;y=455+(i//2)*65
+            draw.rounded_rectangle((x-62,y-22,x+62,y+22),radius=7,fill='#17352c',outline=GREEN,width=1)
+            label(draw,(x,y),kind,GREEN,19,True,'mm')
+        path=[(1002,233),(1040,233),(1040,300),(1068,300)]
+    else:
+        draw.rounded_rectangle((695,190,1005,570),radius=12,fill='#102633',outline='#365969',width=1)
+        label(draw,(850,219),'KNOWN NETWORK RECORDS',BLUE,17,True,'mm')
+        label(draw,(850,247),'ND1: known network device' if scene==1 else 'D3: known endpoint in System B',MUTED,16,False,'mm')
+        points={'D1':(745,346),'D2':(745,478),observer:(850,346),'D4':(850,478),'D5':(955,346),'D6':(955,478)}
+        for a,b in [('D1',observer),(observer,'D5'),('D1','D2'),(observer,'D4'),('D5','D6'),('D2','D4'),('D4','D6')]:route(draw,[points[a],points[b]],t,CYAN,1)
+        for identity,(x,y) in points.items():shadow_device(draw,x,y,identity,identity=='ND1',identity in ('D1','D3','D5'),identity==observer)
+        path=[(850,317),(850,284),(1040,284),(1040,300),(1068,300)]
+    route(draw,path,t,CYAN,2)
+    label(draw,(1135,206),'Discovery result' if scan else 'Observed address',BLUE,18,True,'mm')
+    dashed_round_rect(draw,(1070,250,1200,350),13,AMBER,2)
+    label(draw,(1135,300),'?',AMBER,55,False,'mm')
+    label(draw,(1135,389),'Unclassified' if scan else 'Unmatched',AMBER,23,True,'mm')
+    label(draw,(1135,420),address,AMBER,18,True,'mm')
+    label(draw,(1135,453),'Device type unknown' if scan else 'Identity not matched',MUTED,17,False,'mm')
+    if scan:
+        label(draw,(1135,497),'Server? Computer?',MUTED,16,False,'mm')
+        label(draw,(1135,522),'Printer? Router?',MUTED,16,False,'mm')
+    label(draw,(947,621),'DETECTED ADDRESS / CLASSIFICATION TO RESOLVE' if scan else observer+' IS KNOWN / THE OTHER ADDRESS IS UNMATCHED',MUTED,14,True,'mm')
 
 
 def services_scene(draw,t,scene):
-    label(draw,(947,118),'FOLLOW RECORDED DEPENDENCIES',PURPLE,18,True,'mm')
-    entity_landscape(draw,t,True,False,'D3' if scene>=2 else None)
-    if scene>=2:
-        draw.rectangle((678,618,1225,642),fill=NAVY)
-        label(draw,(947,630),'D3 > SYSTEM B > MISSION SERVICE A: INVESTIGATE',AMBER,14,True,'mm')
+    if scene==3:
+        label(draw,(947,135),'SERVICES TO REVIEW / IMPACT TO VALIDATE',TEAL,19,True,'mm')
+        for i,(title,detail) in enumerate([
+            ('Confirm the dependency','Check the records and responsible owner.'),
+            ('Check alternative paths','Consider other systems and network routes.'),
+            ('Validate service state','Establish the actual operational impact.')]):
+            y=225+i*132
+            draw.rounded_rectangle((705,y-43,1210,y+54),radius=12,fill='#102633',outline=PURPLE if i<2 else TEAL,width=2)
+            label(draw,(729,y-24),title,WHITE,23,True)
+            paragraph(draw,(729,y+12),detail,455,19,MUTED,25)
+        label(draw,(947,625),'A HIGHLIGHT IS NOT A CONFIRMED OUTAGE',MUTED,15,True,'mm')
+        return
+    scenarios=[
+        {'systems':['A'],'issue':'device','device':'D1','title':'DEVICE D1 / ICT SYSTEM A','caption':'REVIEW BUSINESS SERVICES A + B'},
+        {'systems':['C'],'issue':'device','device':'D5','title':'DEVICE D5 / ICT SYSTEM C','caption':'REVIEW MISSION SERVICES A + B'},
+        {'systems':['A','B'],'issue':'link','title':'D7-D3 DEVICE LINK UNAVAILABLE','caption':'REVIEW BUSINESS A + B AND MISSION A'}]
+    terrain_scene(draw,t,scene,None,impact=scenarios[scene])
 
 
 def reporting_scene(draw,t,scene):
-    cx=947
-    if scene==0:
-        label(draw,(cx,168),'WHAT DO YOU NEED TO SHARE?',TEAL,21,True,'mm')
-        for i,(question,output,color) in enumerate([
-            ('The matching records','Filtered Excel',GREEN),
-            ('A summary of the selected terrain','Briefing PDF',BLUE),
-            ('The service dependency evidence','Impact PDF',PURPLE)]):
-            y=238+i*125
-            draw.rounded_rectangle((702,y-29,1192,y+68),radius=12,fill='#102633',outline=color,width=2)
-            label(draw,(727,y-9),question,MUTED,19)
-            label(draw,(727,y+24),output,color,26,True)
-        label(draw,(cx,610),'CHOOSE THE OUTPUT THAT ANSWERS YOUR QUESTION',MUTED,14,True,'mm')
-        return
-    draw.rounded_rectangle((716,148,1180,226),radius=10,fill='#12343c',outline=GREEN,width=2)
-    label(draw,(cx,173),'EXAMPLE SCOPE: SYSTEM C',GREEN,19,True,'mm')
-    label(draw,(cx,203),'Security domains + loaded snapshot',MUTED,17,False,'mm')
-    if scene==1:
-        route(draw,[(cx,227),(cx,270)],t,TEAL)
-        draw.rounded_rectangle((747,274,1147,331),radius=8,fill='#12313f',outline=BLUE,width=2)
-        label(draw,(cx,302),'Explorer search: D5',BLUE,23,True,'mm')
-        route(draw,[(cx,332),(cx,385)],t,TEAL)
-        draw.rounded_rectangle((716,388,1180,550),radius=12,fill='#102633',outline=GREEN,width=2)
-        label(draw,(cx,418),'FILTERED EXCEL',GREEN,23,True,'mm')
-        label(draw,(cx,469),'D5',ORANGE,42,True,'mm')
-        label(draw,(cx,520),'1 matching device record',MUTED,20,False,'mm')
-        label(draw,(cx,602),'ALL MATCHING ROWS, ACROSS ALL PAGES',MUTED,15,True,'mm')
-        return
+    local=t-scene*8
+    stage=min(3,int(local/2));color=[TEAL,BLUE,PURPLE][scene]
+    def panel(box,outline='#365563'):
+        draw.rounded_rectangle(box,radius=10,fill='#102633',outline=outline,width=2)
+    def flight(identity,points,start,duration=1.4,delay=0):
+        progress=clamp((local-start-delay)/duration)
+        if 0<progress<1:
+            x,y=point_on_path(points,ease(progress))
+            draw.rounded_rectangle((x-21,y-15,x+21,y+15),radius=5,fill='#21453e',outline=color,width=2)
+            label(draw,(x,y),identity,WHITE,18,True,'mm')
+    def trace(points,progress):
+        line(draw,points,blend(NAVY,color,.25),2)
+        if progress>0:
+            end=point_on_path(points,clamp(progress))
+            line(draw,[points[0],end],color,3)
+    panel((700,145,1195,280))
+    label(draw,(947,167),'SELECTED TERRAIN / SYSTEM C',GREEN,19,True,'mm')
+    for identity,x in [('D5',845),('D6',1050)]:
+        ink=blend(NAVY,ORANGE,.3) if identity=='D6' and scene!=1 and stage>0 else ORANGE
+        draw.ellipse((x-25,192,x+25,242),fill='#302b27',outline=ink,width=2)
+        draw.rectangle((x-12,202,x+12,231),outline=ink,width=2)
+        for y in (210,219):line(draw,[(x-8,y),(x+8,y)],ink,2)
+        label(draw,(x,260),identity,ink,20,True,'mm')
+        if identity=='D5':
+            draw.rounded_rectangle((x+15,183,x+47,203),radius=4,fill='#173e51',outline=BLUE)
+            label(draw,(x+31,193),'SW',BLUE,12,True,'mm')
+    panel((700,315,1195,420),color if stage>0 else '#365563')
     if scene==2:
-        route(draw,[(cx,227),(cx,328)],t,BLUE)
-        draw.rounded_rectangle((716,331,1180,528),radius=12,fill='#102633',outline=BLUE,width=2)
-        label(draw,(cx,368),'BRIEFING PDF',BLUE,23,True,'mm')
-        label(draw,(cx,427),'D5 + D6',ORANGE,39,True,'mm')
-        label(draw,(cx,483),'2 devices in the selected scope',MUTED,20,False,'mm')
-        label(draw,(cx,567),'Explorer search does not narrow this PDF.',MUTED,20,False,'mm')
-        label(draw,(cx,610),'HEADER SCOPE + LOADED SNAPSHOT',MUTED,15,True,'mm')
-        return
-    label(draw,(cx,269),'IMPACT PDF / ILLUSTRATIVE TRACE',PURPLE,21,True,'mm')
-    entity_device(draw,751,401,'D5',1.0)
-    route(draw,[(786,372),(878,372)],t,PURPLE)
-    draw.rounded_rectangle((880,339,1012,407),radius=10,fill='#123b2e',outline=GREEN,width=2)
-    label(draw,(946,372),'System C',GREEN,23,True,'mm')
-    for y,service in [(330,'A'),(446,'B')]:
-        route(draw,[(1014,372),(1040,372),(1040,y),(1070,y)],t,PURPLE)
-        entity_service(draw,1137,y,'Mission service '+service)
-    draw.rounded_rectangle((716,518,1180,573),radius=8,fill='#102633',outline=PURPLE,width=2)
-    label(draw,(cx,545),'Full traced graph + supporting evidence',PURPLE,20,True,'mm')
-    label(draw,(cx,613),'STARTING CI + TRACE MODE + SCOPE + SNAPSHOT',MUTED,14,True,'mm')
+        panel((737,343,880,392),GREEN)
+        label(draw,(809,368),'System C',GREEN,21,True,'mm')
+        for i,y in enumerate((342,393)):
+            trace([(880,368),(1014,y)],(local-2.35-i*.25)/1.1)
+            panel((1014,y-20,1177,y+20),PURPLE)
+            label(draw,(1095,y),'Mission service '+chr(65+i),PURPLE,16,True,'mm')
+    else:
+        label(draw,(947,349),'Explorer search: D5' if scene==0 else 'Keep the header scope',color,25,True,'mm')
+        label(draw,(947,389),'Keep D5; D6 does not match' if scene==0 else 'D5 + D6 / search does not narrow this PDF',MUTED,18,False,'mm')
+    line(draw,[(947,281),(947,314)],blend(NAVY,color,.5),2)
+    line(draw,[(947,421),(947,454)],blend(NAVY,color,.5),2)
+    panel((700,455,1195,603),color)
+    label(draw,(947,480),['FILTERED EXCEL','BRIEFING PDF','IMPACT PDF'][scene],color,23,True,'mm')
+    build=clamp((local-4)/1.7)
+    if build>0:
+        if scene==0:
+            draw.rounded_rectangle((730,513,730+435*ease(build),555),radius=5,fill='#1b3c47')
+            if build>.4:label(draw,(947,534),'D5       System C       SW',WHITE,23,True,'mm')
+        elif scene==1:
+            label(draw,(947,529),str(round(2*build))+' devices in scope',WHITE,29,True,'mm')
+            draw.rounded_rectangle((780,554,780+333*ease(build),565),radius=4,fill=BLUE)
+        else:
+            label(draw,(947,524),'D5 > System C > Mission A + B',WHITE,21,True,'mm')
+            for i in range(3):
+                if build>(i*.2):line(draw,[(782,546+i*10),(782+(330-i*45)*ease(build),546+i*10)],PURPLE,3)
+        if build>.6:label(draw,(947,583),['Every matching row, across all pages','Header scope + loaded snapshot','Full traced graph + supporting evidence'][scene],MUTED,17,False,'mm')
+    else:label(draw,(947,550),'The output builds here',MUTED,21,False,'mm')
+    for i,(identity,x) in enumerate([('D5',845),('D6',1050)]):
+        if scene==1 or identity=='D5':
+            flight(identity,[(x,260),(809 if scene==2 else 947,368)],2,delay=i*.25)
+            flight(identity,[(1095 if scene==2 else 947,393),(947,534)],4,delay=i*.25)
+    label(draw,(947,628),['1 / SELECT TERRAIN','2 / '+['APPLY SEARCH','KEEP SCOPE','TRACE RELATIONSHIPS'][scene],'3 / BUILD THE OUTPUT','4 / READY TO SHARE'][stage],color,15,True,'mm')
 
 
 def benefits_scene(draw,t,scene):
@@ -628,7 +719,6 @@ def render(section,frame):
     if section=='what':what_scene(d,t,scene)
     elif section=='terrain':terrain_scene(d,t,scene,section)
     elif section=='origins':timeline_scene(d,t,scene,local)
-    elif section=='understand':understand_scene(d,t,scene)
     elif section=='vulnerabilities':vulnerabilities_scene(d,t,scene)
     elif section=='shadow':shadow_scene(d,t,scene)
     elif section=='services':services_scene(d,t,scene)

@@ -10,4 +10,4 @@ Examine the affected records, recorded CVE details and the source that reported 
 A recorded finding is not proof that a weakness is exploitable or has been exploited.
 
 00:00:18.000 --> 00:00:24.000
-Combine recorded evidence with system context and validation to inform the next step.
+Trace D3 to System B, Mission service A and Business service B. Validate the evidence and service relevance before deciding on action.

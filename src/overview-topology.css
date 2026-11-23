@@ -1,28 +1,28 @@
 /* Keep every layer control alongside a complete, fitted topology. */
-.ov-terrain{grid-template-columns:minmax(0,1fr);align-items:start;row-gap:24px}
-.ov-terrain>.ov-copy{position:static!important;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 32px;align-items:start}
-.ov-terrain>.ov-copy>.ov-kicker{grid-column:1;grid-row:1;margin-bottom:14px}
-.ov-terrain>.ov-copy>h2{grid-column:1;grid-row:2;max-width:24ch}
-.ov-terrain>.ov-copy>.ov-lead{grid-column:1;grid-row:3;margin-top:14px;max-width:45ch}
-.ov-terrain>.ov-copy>.ov-body{grid-column:2;grid-row:1/4;margin:0;max-width:none}
-.ov-terrain>.ov-copy>.ov-film-button{grid-column:1;grid-row:4;margin-top:16px;justify-self:start}
-.ov-terrain-workbench{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start;min-width:0;scroll-margin-top:calc(var(--head) + 90px)}
-.ov-terrain-workbench>.ov-explore-panel{margin:0;padding:16px;align-self:start}
-.ov-terrain-workbench .ov-explore-prompt{font-size:14px;line-height:1.5}
-.ov-terrain .ov-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:none;margin-top:14px}
-.ov-terrain .ov-controls button{font-size:14px;min-height:58px;padding:9px 10px;line-height:1.35}
-.ov-terrain .ov-controls .ov-control-dot{display:none}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services){grid-template-columns:minmax(0,1fr);align-items:start;row-gap:24px}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy{position:static!important;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 32px;align-items:start}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy>.ov-kicker{grid-column:1;grid-row:1;margin-bottom:14px}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy>:is(h2,h3){grid-column:1;grid-row:2;max-width:24ch}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy>.ov-lead{grid-column:1;grid-row:3;margin-top:14px;max-width:45ch}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy>.ov-body{grid-column:2;grid-row:1/4;margin:0;max-width:none}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy>.ov-film-button{grid-column:1;grid-row:4;margin-top:16px;justify-self:start}
+:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench){display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px;align-items:start;min-width:0;scroll-margin-top:calc(var(--head) + 90px)}
+:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench)>.ov-explore-panel{margin:0;padding:16px;align-self:start}
+:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench) .ov-explore-prompt{font-size:14px;line-height:1.5}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:none;margin-top:14px}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls button{font-size:14px;min-height:58px;padding:9px 10px;line-height:1.35}
+:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls .ov-control-dot{display:none}
 /* Overlapping grid cells reserve the longest description at any font size. */
-#ov-layer-detail{display:grid;align-items:start;margin-top:16px;padding-top:14px}
+:is(#ov-layer-detail,#ov-risk-detail,#ov-service-detail){display:grid;align-items:start;margin-top:16px;padding-top:14px}
 .ov-layer-description{grid-area:1/1;visibility:hidden;min-width:0}
 .ov-layer-description.is-active{visibility:visible}
 .ov-layer-description>strong{font-size:16px;line-height:1.45;color:#d8eeed;font-weight:550}
-.ov-terrain-workbench .ov-layer-description>p{font-size:14px;line-height:1.65;margin-top:8px}
-.ov-terrain-visual{width:100%;max-width:none;min-width:0;align-self:start}
-.ov-terrain-visual>.ov-diagram-tools{padding:0;margin:0 0 10px;border:0;min-height:36px}
-.ov-terrain-visual>.ov-diagram-tools>button{min-height:36px;padding:7px 10px;font-size:13px}
+:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench) .ov-layer-description>p{font-size:14px;line-height:1.65;margin-top:8px}
+.ov-topology-visual{width:100%;max-width:none;min-width:0;align-self:start}
+.ov-topology-visual>.ov-diagram-tools{padding:0;margin:0 0 10px;border:0;min-height:36px}
+.ov-topology-visual>.ov-diagram-tools>button{min-height:36px;padding:7px 10px;font-size:13px}
 .ov-topology-scroll{width:100%;aspect-ratio:1200/580;max-height:min(420px,calc(100dvh - var(--head) - 180px));overflow:hidden;border:1px solid #345765;border-radius:10px;background:#102633}
-.ov-terrain-visual .ov-diagram{width:100%;height:100%;min-width:0;max-height:none!important;margin:0;overflow:hidden}
+.ov-topology-visual .ov-diagram{width:100%;height:100%;min-width:0;max-height:none!important;margin:0;overflow:hidden}
 .ov-topology-part{opacity:1;transition:opacity .2s ease}
 .ov-terrain-visual:not([data-layer='0']) .ov-topology-part{opacity:.16}
 .ov-terrain-visual[data-layer='1'] [data-layer-part~='1'],
@@ -41,9 +41,102 @@
 .ov-topology-legend>span{display:inline-flex;align-items:center;gap:7px}
 .ov-topology-legend i{width:10px;height:10px;background:var(--key);border-radius:2px;flex-shrink:0}
 .ov-topology-note{font-size:13px;line-height:1.5;color:#9fbcc7;margin-top:8px}
-.ov-diagram-canvas .ov-terrain-visual .ov-diagram{min-width:0;height:auto}
-@media(max-width:1100px){.ov-terrain-workbench{grid-template-columns:230px minmax(0,1fr);gap:14px}.ov-terrain-workbench>.ov-explore-panel{padding:13px}.ov-terrain .ov-controls button{font-size:13px;padding-inline:8px}}
-@media(max-width:900px){.ov-terrain>.ov-copy{display:block}.ov-terrain>.ov-copy>.ov-body{margin-top:16px}.ov-terrain-workbench{grid-template-columns:1fr;gap:14px;scroll-margin-top:calc(var(--head) + 123px)}.ov-terrain-workbench>.ov-explore-panel{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);column-gap:20px}.ov-terrain-workbench .ov-explore-prompt{grid-column:1/-1}.ov-terrain .ov-controls{margin-top:10px}#ov-layer-detail{margin:10px 0 0;padding:0 0 0 16px;border-top:0;border-left:1px solid #355461}.ov-terrain-visual>.ov-diagram-tools{margin-bottom:8px}}
-@media(max-width:550px){.ov-terrain-workbench>.ov-explore-panel{display:block}.ov-terrain .ov-controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.ov-terrain .ov-controls button{font-size:13px;min-height:52px;padding:7px}#ov-layer-detail{margin-top:12px;padding:12px 0 0;border-left:0;border-top:1px solid #355461}.ov-terrain-workbench .ov-layer-description>p{font-size:14px;line-height:1.5}.ov-topology-legend{font-size:12px;gap:5px 11px}.ov-topology-note{font-size:12px}}
+.ov-diagram-canvas .ov-topology-visual .ov-diagram{min-width:0;height:auto}
+@media(max-width:1100px){:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench){grid-template-columns:230px minmax(0,1fr);gap:14px}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench)>.ov-explore-panel{padding:13px}:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls button{font-size:13px;padding-inline:8px}}
+@media(max-width:900px){:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy{display:block}:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy>.ov-body{margin-top:16px}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench){grid-template-columns:1fr;gap:14px;scroll-margin-top:calc(var(--head) + 123px)}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench)>.ov-explore-panel{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);column-gap:20px}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench) .ov-explore-prompt{grid-column:1/-1}:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls{margin-top:10px}:is(#ov-layer-detail,#ov-risk-detail,#ov-service-detail){margin:10px 0 0;padding:0 0 0 16px;border-top:0;border-left:1px solid #355461}.ov-topology-visual>.ov-diagram-tools{margin-bottom:8px}}
+@media(max-width:550px){:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench)>.ov-explore-panel{display:block}:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services) .ov-controls button{font-size:13px;min-height:52px;padding:7px}:is(#ov-layer-detail,#ov-risk-detail,#ov-service-detail){margin-top:12px;padding:12px 0 0;border-left:0;border-top:1px solid #355461}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench) .ov-layer-description>p{font-size:14px;line-height:1.5}.ov-topology-legend{font-size:12px;gap:5px 11px}.ov-topology-note{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.ov-topology-part,.ov-topology-ci .ov-topology-node-face,.ov-topology-software>rect{transition:none!important}}
-@media print{.ov-terrain>.ov-copy{display:block}.ov-terrain-workbench{display:block}.ov-terrain-workbench>.ov-explore-panel{display:none}.ov-topology-scroll{max-height:none}.ov-topology-part{opacity:1!important}.ov-topology-legend,.ov-topology-note{color:inherit}}
+@media print{:is(.ov-terrain,.ov-vulnerabilities,.ov-shadow,.ov-services)>.ov-copy{display:block}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench){display:block}:is(.ov-terrain-workbench,.ov-risk-workbench,.ov-shadow-workbench,.ov-service-workbench)>.ov-explore-panel{display:none}.ov-topology-scroll{max-height:none}.ov-topology-part{opacity:1!important}.ov-topology-legend,.ov-topology-note{color:inherit}}
+
+/* Investigate a finding on the same topology used by Cyber Terrain. */
+.ov-risk-stage{width:100%;max-width:none;min-width:0}
+.ov-risk-workbench>.ov-explore-panel{display:block}
+.ov-risk-workbench .ov-controls{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ov-risk-workbench .ov-controls button{min-height:44px;padding:8px;font-size:13px;justify-content:center}
+.ov-risk-workbench .ov-risk-device-picker{display:grid;gap:9px;margin-top:15px;padding:12px 0;border-block:1px solid #355461;font-size:13px}
+.ov-risk-device-picker>div{display:flex;gap:8px}
+.ov-risk-device-picker button{flex:1}
+.ov-risk-stage .ov-topology-part{opacity:.28}
+.ov-risk-stage [data-risk-role='asset'][data-related='true']{opacity:1}
+.ov-risk-stage [data-risk-role='context'][data-related='true']{opacity:.48}
+.ov-risk-stage[data-risk='2'] [data-risk-role='context'][data-related='true']{opacity:1}
+.ov-risk-stage .ov-topology-network-zone{opacity:.55}
+.ov-risk-stage[data-risk='0'] [data-related='true'] .ov-topology-software>rect{stroke:#ff958b;stroke-width:3}
+.ov-risk-stage[data-risk='1'] [data-related='true'] .ov-topology-ci>.ov-topology-node-face{stroke:#ff958b;stroke-width:3}
+.ov-risk-stage[data-risk='2'] [data-related='true'] .ov-topology-dependency{stroke-width:3}
+.ov-risk-stage .ov-risk-finding-badge text{paint-order:normal;stroke:none}
+.ov-risk-trace-detail{display:grid;margin:14px 0 0;padding-left:14px}
+.ov-risk-trace-option{grid-area:1/1;visibility:hidden;min-width:0}
+.ov-risk-trace-option.is-active{visibility:visible}
+.ov-risk-trace-option>strong{font-size:15px;font-weight:550;line-height:1.5;color:#f2c4b8}
+.ov-risk-trace-option>p{font-size:14px;line-height:1.55;color:#bacdd5;margin-top:6px}
+@media(max-width:900px) and (min-width:551px){
+ .ov-risk-workbench>.ov-explore-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 20px}
+ .ov-risk-workbench .ov-risk-device-picker,.ov-risk-workbench .ov-controls{grid-column:1}
+ .ov-risk-workbench #ov-risk-detail{grid-column:2;grid-row:2/4;margin-top:15px}
+}
+@media(max-width:550px){
+ .ov-risk-workbench .ov-controls{margin-top:12px}
+ .ov-risk-workbench #ov-risk-detail{margin-top:12px}
+}
+
+/* Keep the evidence source and the unknown address distinct in every scenario. */
+.ov-shadow-workbench>.ov-explore-panel{display:block}
+.ov-shadow-workbench .ov-shadow-visual{grid-row:auto;max-width:none}
+.ov-shadow-scenarios{display:grid;gap:8px;margin-top:14px}
+.ov-shadow-scenarios button{display:flex;align-items:center;gap:10px;min-height:48px;padding:9px 10px;border:1px solid #546574;border-radius:7px;text-align:left;color:#b7cbd4;font-size:14px;line-height:1.35}
+.ov-shadow-scenarios button small{font:12px Consolas,monospace;color:#c9b88f}
+.ov-shadow-scenarios button:hover{background:#30323a;color:#ffe1d9}
+.ov-shadow-scenarios button[aria-pressed=true]{color:#ffe0a0;border-color:#ad9569;background:#373329}
+.ov-shadow-workbench .ov-reveal-button{width:100%;min-height:64px;margin-top:14px;font-size:14px}
+.ov-shadow-detail-grid{display:grid;align-items:start}
+.ov-shadow-reading-option{grid-area:1/1;visibility:hidden;min-width:0}
+.ov-shadow-reading-option.is-active{visibility:visible}
+.ov-shadow-reading-option>strong{font-size:16px;line-height:1.45;color:#d8eeed;font-weight:550}
+.ov-shadow-reading-option>p{font-size:14px;line-height:1.65;color:#b3cbd4;margin-top:8px}
+.ov-shadow-known-device>text{paint-order:stroke;stroke:#102b39;stroke-width:4px;stroke-linejoin:round}
+@media(max-width:900px) and (min-width:551px){
+ .ov-shadow-workbench>.ov-explore-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 20px}
+ .ov-shadow-scenarios{grid-column:1;grid-row:2}
+ .ov-shadow-workbench .ov-reveal-button{grid-column:1;grid-row:3}
+ .ov-shadow-workbench #ov-shadow-detail{grid-column:2;grid-row:2/4;margin-top:14px;padding:0 0 0 16px;border-top:0;border-left:1px solid #355461}
+}
+@media(max-width:550px){
+ .ov-shadow-scenarios{gap:6px}
+ .ov-shadow-scenarios button{min-height:44px}
+ .ov-shadow-reading-option>p{line-height:1.5}
+}
+
+/* Service review follows the same fixed terrain and highlights only its trace. */
+.ov-service-workbench>.ov-explore-panel{display:block}
+.ov-service-workbench .ov-controls{grid-template-columns:1fr}
+.ov-service-workbench .ov-controls button{min-height:48px}
+.ov-service-result{min-width:0}
+.ov-impact-visual{max-width:none;width:100%}
+.ov-impact-visual .ov-topology-part{opacity:.24}
+.ov-impact-visual [data-impact-role][data-related='true']{opacity:1}
+.ov-impact-visual .ov-topology-network-zone{opacity:.55}
+.ov-impact-visual [data-related='true'] .ov-topology-dependency{stroke-width:3}
+.ov-impact-visual[data-impact-issue='device'] [data-impact-role='asset'][data-related='true'] .ov-topology-ci>.ov-topology-node-face{stroke:#ff958b;stroke-width:3}
+.ov-impact-issue text,.ov-impact-link-issue text{paint-order:normal;stroke:none}
+.ov-impact-outcomes{margin-top:16px;border-top:1px solid #355461;padding-top:14px}
+.ov-impact-outcomes>h4{font-size:15px;font-weight:550;color:#d8eeed;line-height:1.5;margin:0}
+.ov-impact-outcomes>ul{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;list-style:none;padding:0;margin:10px 0 0}
+.ov-impact-service-card{border:1px solid #31515b;border-radius:8px;padding:10px;min-width:0;color:#91aab6;background:#102633}
+.ov-impact-service-card strong{display:block;font-size:14px;font-weight:550;line-height:1.45}
+.ov-impact-service-card span{display:block;font-size:13px;line-height:1.5;margin-top:4px}
+.ov-impact-service-card small{display:block;font-size:12px;line-height:1.5;margin-top:3px}
+.ov-impact-service-card[data-related='true']{border-color:var(--service-tone);color:#ccdae0;background:#182d3a}
+.ov-impact-service-card[data-related='true'] strong{color:var(--service-tone)}
+.ov-impact-outcomes>p{font-size:14px;line-height:1.55;color:#adc6ce;margin-top:12px}
+@media(max-width:1100px){.ov-impact-outcomes>ul{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px) and (min-width:551px){
+ .ov-service-workbench>.ov-explore-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 20px}
+ .ov-service-workbench .ov-controls{grid-column:1}
+ .ov-service-workbench #ov-service-detail{grid-column:2;grid-row:2;margin-top:14px}
+}
+@media(max-width:550px){
+ .ov-service-workbench .ov-controls{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .ov-service-workbench .ov-controls button{justify-content:center;font-size:13px;min-height:48px}
+ .ov-impact-service-card{padding:9px}
+}

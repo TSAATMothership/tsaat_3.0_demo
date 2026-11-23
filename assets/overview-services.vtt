@@ -1,13 +1,13 @@
 WEBVTT
 
 00:00:00.000 --> 00:00:06.000
-Mission services, business services and ICT services depend on systems, networks, software and devices working together.
+D1 belongs to System A. Business services A and B depend on that system, so review both services.
 
 00:00:06.000 --> 00:00:12.000
-Follow recorded relationships to identify components that may support a service.
+D5 belongs to System C, which supports Mission services A and B. Mission service A also depends on System B.
 
 00:00:12.000 --> 00:00:18.000
-A component issue may have wider implications. Recorded links help frame the investigation.
+The link joins D7 in System A and D3 in System B. Review Business services A and B and Mission service A, and check alternative paths.
 
 00:00:18.000 --> 00:00:24.000
-Confirm dependencies and operational context with owners before drawing conclusions about service impact.
+Confirm the recorded dependencies, alternative paths and current service state before concluding that a service is affected.

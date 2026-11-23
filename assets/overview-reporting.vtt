@@ -1,13 +1,10 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:06.000
-Choose filtered Excel for matching records, a briefing PDF for a scoped summary, or an impact PDF for traced relationships.
+00:00:00.000 --> 00:00:08.000
+Start with the header scope, apply Explorer search, then export every matching row across all pages. Here, searching for D5 includes D5.
 
-00:00:06.000 --> 00:00:12.000
-Explorer Excel exports include every row matching the selected scope and Explorer filters, across all pages.
+00:00:08.000 --> 00:00:16.000
+Keep every device in the applied header scope and loaded snapshot. The briefing includes D5 and D6 in System C, even when Explorer search shows only D5.
 
-00:00:12.000 --> 00:00:18.000
-Governance briefing PDFs use applied header scope and the loaded snapshot. Explorer search does not narrow the briefing.
-
-00:00:18.000 --> 00:00:24.000
-Choose a starting CI or matching results in Topology Explorer. Export the full traced graph and supporting evidence, with the scope and snapshot.
+00:00:16.000 --> 00:00:24.000
+Follow a starting CI through its ICT system to dependent services. Package the full traced graph and supporting evidence with the selected scope and snapshot.

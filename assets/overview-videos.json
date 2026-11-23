@@ -158,10 +158,10 @@
     "height": 720,
     "fps": 24,
     "codec": "h264",
-    "rendererSha256": "c42cdf8bc7a3830625224c3eab2b4970f2ffc6ed73d3ac840fc92fe1c71b7104",
+    "rendererSha256": "2f022798677c59ec117ab90057c3e5f7d927e3070f54c6b71c5ac5ae04fa23df",
     "audio": "none; caption-led motion graphics",
-    "sha256": "94d5b8025947f91d14e61230448581a757b0848e55a6ee58f63ef997f8c685e6",
-    "bytes": 462301,
+    "sha256": "9427494396e8b9ca5a0c8ee643dc2a2fb1269ddae417df47f673be2f92bccdaf",
+    "bytes": 575588,
     "scenes": [
       {
         "start": 0,
@@ -189,7 +189,7 @@
         "end": 24,
         "headline": "Investigate. Then prioritise.",
         "subtitle": "Evidence supports judgement",
-        "body": "Combine recorded evidence with system context and validation to inform the next step."
+        "body": "Trace D3 to System B, Mission service A and Business service B. Validate the evidence and service relevance before deciding on action."
       }
     ]
   },
@@ -203,38 +203,38 @@
     "height": 720,
     "fps": 24,
     "codec": "h264",
-    "rendererSha256": "c42cdf8bc7a3830625224c3eab2b4970f2ffc6ed73d3ac840fc92fe1c71b7104",
+    "rendererSha256": "a4421f7d87c26c2e5bb2421f26288454f377a310b05cfea52542defcc23dbec5",
     "audio": "none; caption-led motion graphics",
-    "sha256": "cc5ee1e7695c83213818eca1f21c155b7d9c361878a0164bb6879bbf27ea3360",
-    "bytes": 409291,
+    "sha256": "54fcf9a860923fbf250ef9badb145a8d103068cca8bc4fb225c23db35ef6c013",
+    "bytes": 458417,
     "scenes": [
       {
         "start": 0,
         "end": 6,
-        "headline": "What is missing?",
-        "subtitle": "Shadow IT",
-        "body": "An unfamiliar address or device can reveal a gap between observed activity and known inventory."
+        "headline": "An endpoint sees an address.",
+        "subtitle": "Scenario 1 / Current example",
+        "body": "Known endpoint D3 reports communication with 192.0.2.87, which has no matching endpoint record."
       },
       {
         "start": 6,
         "end": 12,
-        "headline": "Keep the roles separate.",
-        "subtitle": "Observed device + reporting device",
-        "body": "Distinguish the unknown device from the known device that reported seeing it."
+        "headline": "A network device communicates.",
+        "subtitle": "Scenario 2 / Network device",
+        "body": "Known network device ND1 communicates with unmatched address 198.51.100.64. Keep the two endpoints separate."
       },
       {
         "start": 12,
         "end": 18,
-        "headline": "Unknown does not mean hostile.",
-        "subtitle": "A lead to investigate",
-        "body": "An unexplained record could reflect an inventory gap, an expected device or something requiring attention."
+        "headline": "Discovery finds an unknown type.",
+        "subtitle": "Scenario 3 / CMDB discovery scan",
+        "body": "CMDB discovery scans an IP range and detects 192.0.2.47, but cannot classify it as a Server, Computer, Printer or Router."
       },
       {
         "start": 18,
         "end": 24,
         "headline": "Investigate the gap.",
-        "subtitle": "Identify. Validate. Follow up.",
-        "body": "Review the evidence and establish the device identity, owner and place in the terrain."
+        "subtitle": "Identify. Classify. Validate.",
+        "body": "Check the source and evidence, then establish identity, device type and ownership. An unknown address is not proof of malicious activity."
       }
     ]
   },
@@ -248,38 +248,38 @@
     "height": 720,
     "fps": 24,
     "codec": "h264",
-    "rendererSha256": "c42cdf8bc7a3830625224c3eab2b4970f2ffc6ed73d3ac840fc92fe1c71b7104",
+    "rendererSha256": "4a4008105f4cfb47b0929a42d19cba14e15965a6a8d004eee8ce8ffce7f050c6",
     "audio": "none; caption-led motion graphics",
-    "sha256": "66329468cfc67614c4c9d6e94e4f5b577c915f16ae181273dfd1ef9ac77ff4ac",
-    "bytes": 438100,
+    "sha256": "b7b27e53f6447c1a100a1cd21d25e57e00495352a478d75df1fc0450693b1663",
+    "bytes": 494627,
     "scenes": [
       {
         "start": 0,
         "end": 6,
-        "headline": "Start with the service.",
-        "subtitle": "What needs to keep working?",
-        "body": "Mission services, business services and ICT services depend on systems, networks, software and devices working together."
+        "headline": "A device issue. Business context.",
+        "subtitle": "D1 / ICT System A",
+        "body": "D1 belongs to System A. Business services A and B depend on that system, so review both services."
       },
       {
         "start": 6,
         "end": 12,
-        "headline": "Trace the dependencies.",
-        "subtitle": "An illustrative dependency path",
-        "body": "Follow recorded relationships to identify components that may support a service."
+        "headline": "Shared mission support.",
+        "subtitle": "D5 / ICT System C",
+        "body": "D5 belongs to System C, which supports Mission services A and B. Mission service A also depends on System B."
       },
       {
         "start": 12,
         "end": 18,
-        "headline": "Ask what else could be affected.",
-        "subtitle": "Potential impact, not a prediction",
-        "body": "A component issue may have wider implications. Recorded links help frame the investigation."
+        "headline": "A device link is unavailable.",
+        "subtitle": "D7 / D3",
+        "body": "The link joins D7 in System A and D3 in System B. Review Business services A and B and Mission service A, and check alternative paths."
       },
       {
         "start": 18,
         "end": 24,
-        "headline": "Validate with the owners.",
-        "subtitle": "Turn a connection into a conversation",
-        "body": "Confirm dependencies and operational context with owners before drawing conclusions about service impact."
+        "headline": "Review does not mean outage.",
+        "subtitle": "Validate with the service owner",
+        "body": "Confirm the recorded dependencies, alternative paths and current service state before concluding that a service is affected."
       }
     ]
   },
@@ -288,88 +288,36 @@
     "poster": "assets/overview-reporting-poster.jpg",
     "captions": "assets/overview-reporting.vtt",
     "duration": 24,
-    "label": "A focused answer. Context you can share.",
+    "label": "Watch observations become a focused report.",
     "width": 1280,
     "height": 720,
     "fps": 24,
     "codec": "h264",
-    "rendererSha256": "c42cdf8bc7a3830625224c3eab2b4970f2ffc6ed73d3ac840fc92fe1c71b7104",
+    "rendererSha256": "6e6ec148ee31c41c9be06141fb3798f9ae34102b414d1d79dfd782cfcd1672b8",
     "audio": "none; caption-led motion graphics",
-    "sha256": "6f790c140f7d0967b537e87c2e97bd746f499c83e0141019543abd0b23417418",
-    "bytes": 413374,
+    "sha256": "c0f2d49df27984afa322d807583a99db11b8aa5c47aababbe75f7cd8317bd6a7",
+    "bytes": 440131,
     "scenes": [
       {
         "start": 0,
-        "end": 6,
-        "headline": "Choose the answer you need.",
-        "subtitle": "Records, a briefing, or service relationships",
-        "body": "Choose filtered Excel for matching records, a briefing PDF for a scoped summary, or an impact PDF for traced relationships."
-      },
-      {
-        "start": 6,
-        "end": 12,
-        "headline": "Export the matching records.",
+        "end": 8,
+        "headline": "Filter. Build. Share the rows.",
         "subtitle": "Filtered Excel",
-        "body": "Explorer Excel exports include every row matching the selected scope and Explorer filters, across all pages."
+        "body": "Start with the header scope, apply Explorer search, then export every matching row across all pages. Here, searching for D5 includes D5."
       },
       {
-        "start": 12,
-        "end": 18,
-        "headline": "Brief the selected terrain.",
+        "start": 8,
+        "end": 16,
+        "headline": "Scope. Summarise. Brief the terrain.",
         "subtitle": "Briefing PDF",
-        "body": "Governance briefing PDFs use applied header scope and the loaded snapshot. Explorer search does not narrow the briefing."
+        "body": "Keep every device in the applied header scope and loaded snapshot. The briefing includes D5 and D6 in System C, even when Explorer search shows only D5."
       },
       {
-        "start": 18,
+        "start": 16,
         "end": 24,
-        "headline": "Show the traced connections.",
+        "headline": "Start. Trace. Share the evidence.",
         "subtitle": "Impact PDF",
-        "body": "Choose a starting CI or matching results in Topology Explorer. Export the full traced graph and supporting evidence, with the scope and snapshot."
-      }
-    ]
-  },
-  "understand": {
-    "file": "overview-understand.mp4",
-    "poster": "assets/overview-understand-poster.jpg",
-    "captions": "assets/overview-understand.vtt",
-    "duration": 24,
-    "label": "Turn detail into understanding",
-    "width": 1280,
-    "height": 720,
-    "fps": 24,
-    "codec": "h264",
-    "rendererSha256": "c42cdf8bc7a3830625224c3eab2b4970f2ffc6ed73d3ac840fc92fe1c71b7104",
-    "audio": "none; caption-led motion graphics",
-    "sha256": "b2092a2dc25f3b503a5db3317ecc6e86cf17f69b20aea571fac842e149c7bf09",
-    "bytes": 328964,
-    "scenes": [
-      {
-        "start": 0,
-        "end": 6,
-        "headline": "Choose your view.",
-        "subtitle": "Start with the question",
-        "body": "Select the cyber terrain and snapshot you need before interpreting a result."
-      },
-      {
-        "start": 6,
-        "end": 12,
-        "headline": "Find the pattern.",
-        "subtitle": "Governance",
-        "body": "Read summaries to see recorded patterns, missing details and discovery gaps."
-      },
-      {
-        "start": 12,
-        "end": 18,
-        "headline": "Follow the evidence.",
-        "subtitle": "Discovery",
-        "body": "Explore the underlying records, open details and follow recorded relationships."
-      },
-      {
-        "start": 18,
-        "end": 24,
-        "headline": "Explain what you found.",
-        "subtitle": "A shared basis for discussion",
-        "body": "Use reports and exports to support a focused conversation about the evidence."
+        "body": "Follow a starting CI through its ICT system to dependent services. Package the full traced graph and supporting evidence with the selected scope and snapshot."
       }
     ]
   },
@@ -383,10 +331,10 @@
     "height": 720,
     "fps": 24,
     "codec": "h264",
-    "rendererSha256": "c42cdf8bc7a3830625224c3eab2b4970f2ffc6ed73d3ac840fc92fe1c71b7104",
+    "rendererSha256": "c281e1ab3559bb262264c05a86ad98c9d64b80991068142dd10267c2e21ff4c1",
     "audio": "none; caption-led motion graphics",
-    "sha256": "90606df712cd2ebc47b6eb06300cb54b82d20966f69a4a34f785b40b122b700d",
-    "bytes": 290837,
+    "sha256": "7e9807f379a9ce40edd0f3e60901338a2db7d1e025f3783066f10937fa9ffd2c",
+    "bytes": 290635,
     "scenes": [
       {
         "start": 0,

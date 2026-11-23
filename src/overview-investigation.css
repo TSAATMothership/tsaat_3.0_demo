@@ -1,0 +1,38 @@
+/* A continuous, selectable story replaces the investigation topic cards. */
+.ov-investigate-intro{grid-template-columns:minmax(260px,.8fr) minmax(0,1.8fr);gap:26px;align-items:center}
+.ov-investigate-intro h2{font-size:clamp(28px,2.8vw,40px);max-width:16ch}
+.ov-investigate-intro .ov-lead{font-size:19px;line-height:1.5;margin-top:17px}
+.ov-investigate-intro .ov-body p{font-size:15px;line-height:1.7}
+.ov-investigation-story{min-width:0;padding:12px;background:#102631;border:1px solid #365965;border-radius:12px}
+.ov-investigation-story-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:4px;min-height:30px}
+.ov-investigation-story-heading h3{font-size:16px;line-height:1.5;color:#cce7e4;font-weight:550}
+.ov-investigation-story-heading>span{max-width:13ch;font:11px/1.5 Consolas,monospace;color:#91bcbf;text-align:right}
+.ov-investigation-visual{min-width:0}
+.ov-investigation-diagram{width:100%;height:auto;overflow:hidden}
+.ov-story-object{cursor:pointer;outline:none}
+.ov-story-focus{opacity:0;pointer-events:none}
+.ov-story-object:focus-visible .ov-story-focus,.ov-story-object:hover .ov-story-focus{opacity:1}
+.ov-story-object[aria-pressed=false]{opacity:.38}
+.ov-investigation-story[data-investigation-step='3'] .ov-story-object{opacity:1}
+.ov-story-object:focus-visible,.ov-story-object:hover{opacity:1}
+.ov-investigation-transport{display:flex;align-items:center;gap:6px;margin-top:4px}
+.ov-investigation-transport button{display:flex;align-items:center;justify-content:center;min-height:36px;min-width:60px;padding:7px 10px;font-size:13px;line-height:1.4;border:1px solid #507783;border-radius:5px;color:#badfda;background:#17363e}
+.ov-investigation-transport [data-ov-investigation-replay]{background:transparent}
+.ov-investigation-transport button:disabled{opacity:.4;cursor:default}
+.ov-investigation-stepper{display:flex;align-items:center;gap:9px;margin-left:auto}
+.ov-investigation-stepper>span{font:12px/1.5 Consolas,monospace;white-space:nowrap;color:#afd7d2}
+.ov-investigation-stepper>button{min-width:36px;width:36px;padding:6px}
+.ov-investigation-stepper [data-ov-investigation-prev] svg{transform:rotate(180deg)}
+.ov-investigation-progress{height:3px;margin:8px 0;background:#284653;border-radius:3px;overflow:hidden}
+.ov-investigation-progress>i{display:block;height:100%;width:0;background:#8ee1cf}
+.ov-investigation-caption{display:grid;min-width:0}
+.ov-investigation-moment{grid-area:1/1;visibility:hidden;pointer-events:none;min-width:0;font-size:14px;line-height:1.65}
+.ov-investigation-moment.is-active{visibility:visible;pointer-events:auto}
+.ov-investigation-moment>strong{display:inline;margin-right:7px;font-size:16px;line-height:1.5;color:#d1ece4;font-weight:550}
+.ov-investigation-moment>p{display:inline;margin:0;font-size:14px;line-height:1.65;color:#b4ccd6;max-width:80ch}
+.ov-investigation-action{display:flex;align-items:center;gap:9px;margin-top:6px;min-height:32px;text-align:left;color:#95e6d2;font-size:13px;line-height:1.5}
+.ov-investigation-action:hover{text-decoration:underline}
+.ov-investigation-story button:focus-visible{outline:2px solid #b6f7e5;outline-offset:3px}
+@media(max-width:1100px){.ov-investigate-intro{grid-template-columns:1fr;gap:22px}.ov-investigate-intro h2{max-width:none}.ov-investigate-intro>.ov-copy{max-width:80ch}.ov-investigation-story-heading h3{font-size:17px}}
+@media(max-width:760px){.ov-investigate-intro{gap:18px}.ov-investigation-story{padding:10px 8px}.ov-investigation-story-heading{gap:10px;min-height:40px}.ov-investigation-story-heading h3{font-size:15px;max-width:22ch}.ov-investigation-story-heading>span{font-size:10px}.ov-investigation-transport button{min-height:40px;padding:7px 9px}.ov-investigation-stepper{gap:6px}.ov-investigation-stepper>button{width:40px;min-width:40px}.ov-investigation-stepper>span{font-size:11px}.ov-investigation-moment>strong{font-size:16px}.ov-investigation-moment>p{font-size:14px}.ov-investigation-action{min-height:40px}}
+@media print{.ov-investigation-transport,.ov-investigation-progress,.ov-investigation-action{display:none!important}}

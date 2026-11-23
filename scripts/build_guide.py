@@ -142,8 +142,8 @@ def build():
         "REQUIRED": script_json(keys), "MEDIA": script_json(media),
         "OVERVIEW": script_json(overview_content()),
         "PRACTICE": encode((GUIDE / "TSAAT-Practice-Lab.html").read_bytes()),
-        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css", "scope-video.css", "overview.css", "overview-topology.css", "overview-reporting.css")),
-        "JS": "\n".join(read(SRC / f) for f in ("site.js", "overview.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "scope-video.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
+        "CSS": "\n".join(read(SRC / f) for f in ("guide.css", "examples.css", "training.css", "artwork-effects.css", "step-effects.css", "scope-video.css", "overview.css", "overview-topology.css", "overview-reporting.css", "overview-investigation.css")),
+        "JS": "\n".join(read(SRC / f) for f in ("site.js", "overview.js", "overview-investigation.js", "illustrations.js", "artwork-effects.js", "step-effects.js", "scope-video.js", "glossary.js", "training.js", "pdf-content.js", "pdf-guide.js", "interactions.js")),
         "ZIP": ("/* Library distribution notice\n" + notice + "\n*/\n" + read(vendor / "jszip.min.js")).replace("</script", r"<\/script"),
         "PDF": re.sub(r"</script", lambda _: r"<\/script", "/* PDF-lib distribution notice\n" + pdf_notice + "\n*/\n" + read(pdf_vendor / "pdf-lib.min.js"), flags=re.IGNORECASE),
     }

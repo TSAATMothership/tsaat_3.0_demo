@@ -1,13 +1,13 @@
 WEBVTT
 
 00:00:00.000 --> 00:00:06.000
-An unfamiliar address or device can reveal a gap between observed activity and known inventory.
+Known endpoint D3 reports communication with 192.0.2.87, which has no matching endpoint record.
 
 00:00:06.000 --> 00:00:12.000
-Distinguish the unknown device from the known device that reported seeing it.
+Known network device ND1 communicates with unmatched address 198.51.100.64. Keep the two endpoints separate.
 
 00:00:12.000 --> 00:00:18.000
-An unexplained record could reflect an inventory gap, an expected device or something requiring attention.
+CMDB discovery scans an IP range and detects 192.0.2.47, but cannot classify it as a Server, Computer, Printer or Router.
 
 00:00:18.000 --> 00:00:24.000
-Review the evidence and establish the device identity, owner and place in the terrain.
+Check the source and evidence, then establish identity, device type and ownership. An unknown address is not proof of malicious activity.
