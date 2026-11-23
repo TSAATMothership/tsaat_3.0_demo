@@ -271,14 +271,14 @@ body:has(.overview-page dialog[open]){overflow:hidden}
 
 .ov-subsection{padding-inline:0;align-items:start}
 .ov-subsection:last-child{border-bottom:0}
-.ov-subsection .ov-heading-row>h3{font-size:clamp(27px,2.7vw,42px);line-height:1.15;letter-spacing:-.035em;max-width:20ch;text-wrap:balance}
+.ov-subsection .ov-heading-row>h3{font-size:clamp(32px,3.35vw,48px);font-weight:600;line-height:1.15;letter-spacing:-.035em;max-width:20ch;text-wrap:balance}
 .ov-subsection .ov-heading-row>h3:focus{outline:none}
 .ov-vulnerabilities .ov-copy{position:static;align-self:start}
 .ov-body p,.ov-intro .ov-body p{font-size:16px}
 .ov-rail-track button>b{font-size:12px;white-space:normal}
 .ov-rail-track button{min-width:76px}
 @media(min-width:1101px) and (max-width:1350px){.ov-rail-track button>b{display:block}}
-@media(max-width:760px){.ov-investigate-intro{grid-template-columns:1fr;gap:25px}.ov-subsection .ov-heading-row>h3{font-size:30px}.ov-subsection{padding-top:48px}}
+@media(max-width:760px){.ov-investigate-intro{grid-template-columns:1fr;gap:25px}.ov-subsection .ov-heading-row>h3{font-size:32px}.ov-subsection{padding-top:48px}}
 
 /* Fit includes both dimensions; zoom alone introduces scrollbars. */
 .ov-diagram-dialog[open]{display:flex;flex-direction:column;height:min(860px,calc(100dvh - 28px));overflow:hidden}
