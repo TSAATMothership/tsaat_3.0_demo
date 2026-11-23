@@ -98,6 +98,9 @@ document.addEventListener('click',e=>{
   if(el.tagName==='DIALOG'){if(e.target!==el)return;const r=el.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();return;}
   if(el.hasAttribute('data-result')){closeDialog();if(el.hash===location.hash)routeView(true);}
   if(el.tagName==='A'&&el.hash&&!el.dataset.action)setMenu(false);
+  if(el.tagName==='A'&&el.hash==='#overview'&&e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&document.querySelector('.overview-page')){
+    e.preventDefault();overviewRuntime?.showIntroTab('what',{resetScroll:true});window.scrollTo({top:0,behavior:'instant'});byId('main').querySelector('h1')?.focus({preventScroll:true});return;
+  }
   if(el.dataset.example!==undefined){exampleChoice=Number(el.dataset.example);el.closest('.example-panel').outerHTML=workedExample(path()[1]);linkGlossaryTerms(byId('main'));document.querySelector('[data-example="'+exampleChoice+'"]').focus({preventScroll:true});return;}
   switch(el.dataset.action){
     case 'menu':setMenu(!document.body.classList.contains('menu-open'));break;

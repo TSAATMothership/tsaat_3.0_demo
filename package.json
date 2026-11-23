@@ -6,11 +6,11 @@
   "scripts": {
     "build": "python scripts/build_guide.py",
     "build:practice": "python scripts/build_practice_lab.py",
-    "test": "node tests/overview.cjs && node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/practice.cjs && node tests/pdf-guide.cjs && node tests/videos.cjs",
+    "test": "node tests/overview.cjs && node tests/overview-navigation.cjs && node tests/overview-layout.cjs && node tests/guide.cjs && node tests/previous-workbook.cjs && node tests/practice.cjs && node tests/pdf-guide.cjs && node tests/videos.cjs",
     "test:video": "node tests/videos.cjs",
     "test:pdf": "node tests/pdf-guide.cjs",
     "test:practice": "node tests/practice.cjs",
-    "test:overview": "node tests/overview.cjs",
+    "test:overview": "node tests/overview.cjs && node tests/overview-navigation.cjs && node tests/overview-layout.cjs",
     "build:overview-videos": "python scripts/build_overview_videos.py"
   },
   "devDependencies": {

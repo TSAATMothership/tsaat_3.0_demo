@@ -118,7 +118,7 @@ function ovServiceImpactArt(index=0) {return ovTopologyArt({impact:ovServiceScen
 function ovServiceWorkbench() {
  return `<div class="ov-service-workbench">${ovExplorePanel(ovOptions(ovSection('services').options),'service','Choose a starting issue')}<div class="ov-service-result"><div class="ov-visual ov-impact-visual ov-topology-visual" data-service="0" data-impact-issue="device">${ovExpandButton('services')}<div id="ov-service-graphic">${ovServiceImpactArt()}</div></div><div class="ov-impact-outcomes"><h4 data-ov-service-summary aria-live="polite">${ovServiceSummary()}</h4><ul id="ov-service-review" aria-label="Service dependency review">${ovServiceReview()}</ul><p>Highlighted dependencies show potential impact. Confirm alternative paths and the current service state with the service owner.</p></div></div></div>`;
 }
-const ovReportStageMs=2500,ovReportDuration=10000;
+const ovReportStageMs=2000,ovReportDuration=ovReportStageMs*4;
 function ovReportModel(index=0,scope='all',focus='all') {
  const records=['D1','D2','D3','D4','D5','D6'].map((id,i)=>({id,system:['A','B','C'][Math.floor(i/2)],software:i%2===0}));
  const scoped=records.filter(record=>scope==='all'||record.system===scope),matched=scoped.filter(record=>focus==='all'||record.id===focus);
@@ -213,7 +213,8 @@ function ovShadowWorkbench() {
  return `<div class="ov-shadow-workbench"><div class="ov-explore-panel"><p class="ov-explore-prompt">Explore how the unknown is found</p><div class="ov-shadow-scenarios" role="group" aria-label="Choose a Shadow IT scenario">${scenarios.map((scenario,index)=>`<button type="button" data-ov-shadow-scenario="${index}" aria-pressed="${index===0}" aria-controls="ov-shadow-graphic ov-shadow-detail"><small>${String(index+1).padStart(2,'0')}</small><span>${ovEscape(scenario.label)}</span></button>`).join('')}</div><button type="button" class="ov-reveal-button" data-ov-shadow aria-pressed="false" aria-controls="ov-shadow-graphic ov-shadow-detail">${icon('scan',18)}<span>${scenarios[0].revealLabel}</span></button><div id="ov-shadow-detail" class="ov-live-detail ov-shadow-detail-grid" aria-live="polite" aria-atomic="true">${ovShadowReading()}</div></div><div class="ov-visual ov-shadow-visual ov-topology-visual" data-shadow="hidden" data-shadow-scenario="0">${ovExpandButton('shadow')}<div id="ov-shadow-graphic" class="ov-topology-scroll">${ovShadowArt()}</div><p class="ov-topology-note">Illustrative records and example IP addresses. An unmatched or unclassified address is a lead to investigate, not proof of malicious activity.</p></div></div>`;
 }
 function ovFilmButton(section) {if(!section.video)return '';return `<button type="button" class="ov-film-button" data-overview-video="${ovEscape(section.id)}" aria-label="Watch Video: ${ovEscape(section.title)}, ${Number(section.video?.duration || 24)} seconds" aria-haspopup="dialog" aria-controls="overview-video-dialog"><span class="ov-play" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="m7 4 9 6-9 6Z" fill="currentColor"/></svg></span><span>Watch Video<small>${Number(section.video?.duration || 24)} sec</small></span></button>`;}
-function ovCopy(section,additional='') {const heading=section.parent?'h3':'h2';return `<div class="ov-copy"><p class="ov-kicker"><span>${ovEscape(section.number)}</span>${ovEscape(section.kicker)}</p><${heading} id="ov-title-${ovEscape(section.id)}" tabindex="-1">${ovEscape(section.title)}</${heading}><p class="ov-lead">${ovEscape(section.lead)}</p><div class="ov-body">${ovParagraphs(section.body)}</div>${additional}${ovFilmButton(section)}</div>`;}
+function ovHeading(section) {const heading=section.parent?'h3':'h2';return `<div class="ov-heading-row"><${heading} id="ov-title-${ovEscape(section.id)}" tabindex="-1">${ovEscape(section.title)}</${heading}>${ovFilmButton(section)}</div>`;}
+function ovCopy(section,additional='') {return `<div class="ov-copy"><p class="ov-kicker"><span>${ovEscape(section.number)}</span>${ovEscape(section.kicker)}</p>${ovHeading(section)}<p class="ov-lead">${ovEscape(section.lead)}</p><div class="ov-body">${ovParagraphs(section.body)}</div>${additional}</div>`;}
 function ovTakeaway(section) {return section.takeaway?`<p class="ov-takeaway"><span aria-hidden="true">↳</span>${ovEscape(section.takeaway)}</p>`:'';}
 function ovControls(items,kind,label) {return `<div class="ov-controls" role="group" aria-label="${ovEscape(label)}">${items.map((item,index)=>`<button type="button" data-ov-${kind}="${index}" aria-pressed="${index===0}" aria-controls="ov-${kind}-detail"><span class="ov-control-dot" aria-hidden="true"></span>${ovEscape(item.label || item.title)}</button>`).join('')}</div>`;}
 function ovExplorePanel(items,kind,prompt,beforeControls='') {
@@ -252,28 +253,30 @@ function overviewPage() {
  const sections=overviewContent.sections.filter(section=>!section.parent),layers=ovOptions(overviewContent.layers),risk=ovOptions(ovSection('vulnerabilities').options),service=ovOptions(ovSection('services').options),benefits=ovOptions(overviewContent.benefits),timeline=overviewContent.timeline;
  const what=ovSection('what'),origins=ovSection('origins'),terrain=ovSection('terrain'),investigate=ovSection('investigate'),vulnerabilities=ovSection('vulnerabilities'),shadow=ovSection('shadow'),services=ovSection('services'),reporting=ovSection('reporting'),benefit=ovSection('benefits');
  return `<div class="overview-page" data-motion="active">
- <div class="ov-masthead"><p class="ov-eyebrow">TURN OBSERVATIONS INTO CONTEXT</p><span>${sections.length} chapters &middot; Explore at your own pace</span></div>
  <nav class="ov-rail" aria-label="Overview chapters"><div class="ov-rail-track">${sections.map((section,index)=>`<button type="button" data-ov-jump="${ovEscape(section.id)}" aria-label="Chapter ${index+1}: ${ovEscape(section.title)}" aria-controls="ov-${ovEscape(section.id)}" ${index===0?'aria-current="step"':''} title="${ovEscape(section.title)}"><span>${String(index+1).padStart(2,'0')}</span><b>${ovEscape(section.chapterLabel || section.title)}</b></button>`).join('')}</div><div class="ov-rail-mobile"><label for="ov-chapter-select">Explore the overview <span data-ov-chapter-count>01 / ${sections.length}</span></label><select id="ov-chapter-select" data-ov-chapter-select aria-label="Choose an overview chapter">${sections.map(section=>`<option value="${section.id}">${section.number} &middot; ${ovEscape(section.title)}</option>`).join('')}</select></div><div class="ov-rail-actions"><button type="button" data-ov-prev aria-label="Previous chapter" disabled>${icon('chev',16)}</button><button type="button" data-ov-next aria-label="Next chapter">${icon('chev',16)}</button></div><button type="button" class="ov-motion-toggle" data-ov-motion aria-pressed="false" aria-label="Pause overview animations"><span aria-hidden="true">&#8545;</span><span class="ov-motion-label">Pause motion</span></button><div class="ov-rail-progress" aria-hidden="true"><i class="ov-rail-fill"></i></div></nav>
- <section class="ov-section ov-intro" id="ov-what" data-ov-section="what" aria-labelledby="ov-title-what">
- <div class="ov-intro-copy"><p class="ov-kicker"><span>01</span>${ovEscape(what.kicker)}</p><h1 tabindex="-1">${ovEscape(overviewContent.title)}</h1><div class="ov-kinetic" aria-hidden="true"><span>See the terrain.</span><span>Connect the story.</span></div><h2 id="ov-title-what" tabindex="-1">${ovEscape(what.title)}</h2><p class="ov-lead">${ovEscape(what.lead)}</p><div class="ov-body">${ovParagraphs(what.body)}</div>${ovFilmButton(what)}<div class="ov-intro-actions">${link('feature-guide','Open the Feature Guide '+icon('arrow',16),'button secondary')}<button type="button" class="ov-scroll-cue" data-ov-jump="origins"><span aria-hidden="true">↓</span>Start the story</button></div></div>
- <div class="ov-visual ov-hero-visual">${ovHeroArt()}<div class="ov-visual-caption">A connected view of the cyber terrain.</div></div><div class="ov-start-here"><p>Or jump to what you need</p><div><button type="button" data-ov-jump="terrain"><span>Understand the Cyber Terrain</span><small>Devices, networks and systems</small>${icon('arrow',17)}</button><button type="button" data-ov-jump="investigate"><span>Investigate an issue or finding</span><small>Findings, unknowns and service impacts</small>${icon('arrow',17)}</button><button type="button" data-ov-jump="reporting"><span>Turn insights into a report</span><small>Scope, filters and the right output</small>${icon('arrow',17)}</button></div></div></section>
- <section class="ov-section ov-origins" id="ov-origins" data-ov-section="origins" aria-labelledby="ov-title-origins">
+ <div class="ov-introduction" data-ov-frame="introduction">
+ <div class="ov-intro-tabs" role="tablist" aria-label="TSAAT introduction"><button type="button" role="tab" id="ov-intro-tab-what" data-ov-intro-tab="what" aria-selected="true" aria-controls="ov-what" tabindex="0">TSAAT Overview</button><button type="button" role="tab" id="ov-intro-tab-origins" data-ov-intro-tab="origins" aria-selected="false" aria-controls="ov-origins" tabindex="-1">Where did it come from?</button></div>
+ <section class="ov-section ov-intro" id="ov-what" data-ov-section="what" role="tabpanel" tabindex="0" aria-labelledby="ov-intro-tab-what">
+ <div class="ov-intro-copy"><p class="ov-kicker"><span>01</span>${ovEscape(what.kicker)}</p><h1 tabindex="-1">${ovEscape(overviewContent.title)}</h1><div class="ov-kinetic" aria-hidden="true"><span>See the terrain.</span><span>Connect the story.</span></div>${ovHeading(what)}<p class="ov-lead">${ovEscape(what.lead)}</p><div class="ov-body">${ovParagraphs(what.body)}</div><div class="ov-intro-actions">${link('feature-guide','Open the Feature Guide '+icon('arrow',16),'button secondary')}<button type="button" class="ov-scroll-cue" data-ov-jump="origins">Explore the history</button></div></div>
+ <div class="ov-visual ov-hero-visual">${ovHeroArt()}<div class="ov-visual-caption">A connected view of the cyber terrain.</div></div><div class="ov-process"><h3 id="ov-process-title">TSAAT Process</h3><ol aria-labelledby="ov-process-title"><li class="ov-process-step"><span>Understand the Cyber Terrain</span><small>Devices, networks and systems</small></li><li class="ov-process-step"><span>Investigate an issue or finding</span><small>Findings, unknowns and service impacts</small></li><li class="ov-process-step"><span>Turn insights into a report</span><small>Scope, filters and the right output</small></li></ol></div></section>
+ <section class="ov-section ov-origins" id="ov-origins" data-ov-section="origins" role="tabpanel" tabindex="0" aria-labelledby="ov-intro-tab-origins" hidden>
  <div class="ov-section-top">${ovCopy(origins)}<div class="ov-era" aria-hidden="true"><span>2019</span><svg viewBox="0 0 200 30"><path d="M0 15h190m-15-12 15 12-15 12" fill="none" stroke="currentColor"/></svg><span>2027</span><small>A journey in visibility</small></div></div>
  ${ovOriginsTimeline(timeline)}${ovTakeaway(origins)}</section>
- <section class="ov-section ov-terrain" id="ov-terrain" data-ov-section="terrain" aria-labelledby="ov-title-terrain">
+ </div>
+ <section class="ov-section ov-terrain" id="ov-terrain" data-ov-frame="terrain" tabindex="0" data-ov-section="terrain" aria-labelledby="ov-title-terrain">
  ${ovCopy(terrain)}<div class="ov-terrain-workbench">${ovExplorePanel(layers,'layer','Select a layer to see how it contributes')}<div class="ov-visual ov-terrain-visual ov-topology-visual" data-layer="0">${ovExpandButton('terrain')}${ovTerrainArt()}</div></div>${ovTakeaway(terrain)}</section>
  <section class="ov-section ov-investigate" id="ov-investigate" data-ov-section="investigate" aria-labelledby="ov-title-investigate">
- <div class="ov-investigate-intro">${ovCopy(investigate)}${ovInvestigationStory()}</div>
- <section class="ov-section ov-subsection ov-vulnerabilities" id="ov-vulnerabilities" data-ov-subsection="vulnerabilities" aria-labelledby="ov-title-vulnerabilities">
+ <div class="ov-investigate-intro" data-ov-frame="investigate" tabindex="0" role="region" aria-labelledby="ov-title-investigate">${ovCopy(investigate)}${ovInvestigationStory()}</div>
+ <section class="ov-section ov-subsection ov-vulnerabilities" id="ov-vulnerabilities" data-ov-frame="vulnerabilities" tabindex="0" data-ov-subsection="vulnerabilities" aria-labelledby="ov-title-vulnerabilities">
  ${ovCopy(vulnerabilities)}<div class="ov-risk-workbench">${ovExplorePanel(risk,'risk','Follow the finding through the terrain',`<div class="ov-risk-device-picker"><span id="ov-risk-picker-label">Finding F-01 on software</span><div role="group" aria-labelledby="ov-risk-picker-label">${Object.keys(ovRiskExamples).map(id=>`<button type="button" data-ov-risk-device="${id}" aria-pressed="${id==='D3'}" aria-controls="ov-risk-graphic ov-risk-trace">${id}</button>`).join('')}</div></div>`)}<div class="ov-visual ov-risk-stage ov-topology-visual" data-risk="0" data-risk-device="D3">${ovExpandButton('vulnerabilities')}<div id="ov-risk-graphic">${ovVulnerabilityArt()}</div><div id="ov-risk-trace" class="ov-risk-trace-detail" aria-live="polite" aria-atomic="true">${ovRiskTrace()}</div></div></div>${ovTakeaway(vulnerabilities)}</section>
- <section class="ov-section ov-subsection ov-shadow" id="ov-shadow" data-ov-subsection="shadow" aria-labelledby="ov-title-shadow">
+ <section class="ov-section ov-subsection ov-shadow" id="ov-shadow" data-ov-frame="shadow" tabindex="0" data-ov-subsection="shadow" aria-labelledby="ov-title-shadow">
  ${ovCopy(shadow)}${ovShadowWorkbench()}${ovTakeaway(shadow)}</section>
- <section class="ov-section ov-subsection ov-services" id="ov-services" data-ov-subsection="services" aria-labelledby="ov-title-services">
+ <section class="ov-section ov-subsection ov-services" id="ov-services" data-ov-frame="services" tabindex="0" data-ov-subsection="services" aria-labelledby="ov-title-services">
  ${ovCopy(services)}${ovServiceWorkbench()}${ovTakeaway(services)}</section>
  </section>
- <section class="ov-section ov-reporting" id="ov-reporting" data-ov-section="reporting" aria-labelledby="ov-title-reporting">
+ <section class="ov-section ov-reporting" id="ov-reporting" data-ov-frame="reporting" tabindex="0" data-ov-section="reporting" aria-labelledby="ov-title-reporting">
  <div class="ov-section-top">${ovCopy(reporting)}</div>${ovReportingWorkbench()}</section>
- <section class="ov-section ov-benefits" id="ov-benefits" data-ov-section="benefits" aria-labelledby="ov-title-benefits">
+ <section class="ov-section ov-benefits" id="ov-benefits" data-ov-frame="benefits" tabindex="0" data-ov-section="benefits" aria-labelledby="ov-title-benefits">
  <div class="ov-section-top">${ovCopy(benefit)}</div><div class="ov-benefit-grid" role="group" aria-label="Explore TSAAT benefits">${benefits.map((item,index)=>`<button type="button" data-ov-benefit="${index}" aria-pressed="${index===0}" aria-controls="ov-benefit-detail"><span class="ov-benefit-number">${String(index+1).padStart(2,'0')}</span><strong>${ovEscape(item.label)}</strong><span class="ov-benefit-arrow" aria-hidden="true">↗</span></button>`).join('')}</div><div id="ov-benefit-detail" class="ov-live-detail ov-benefit-detail" aria-live="polite" aria-atomic="true">${ovDetail(benefits[0])}</div>${ovTakeaway(benefit)}<div class="ov-next"><div><p class="ov-eyebrow">MAKE IT PRACTICAL</p><h3>Now explore the tool.</h3><p>Turn the overview into a first step.</p></div><div>${link('feature-guide','Open the Feature Guide '+icon('arrow',18),'button primary')}${link('practice','Try the practice lab '+icon('ne',16),'button secondary')}</div></div></section>
  <div class="ov-ending"><span>TSAAT</span><p>${ovEscape(overviewContent.sourceNote)}</p><button type="button" data-ov-jump="what">Back to the beginning ↑</button></div>
  <dialog id="overview-diagram-dialog" class="ov-diagram-dialog" aria-labelledby="ov-diagram-title"><div class="ov-diagram-heading"><div><p class="ov-eyebrow">EXPLORE THE DETAIL</p><h2 id="ov-diagram-title"></h2></div><button type="button" data-ov-close-diagram aria-label="Close diagram">${icon('close',22)}</button></div><div class="ov-diagram-zoom" role="group" aria-label="Diagram zoom"><button type="button" data-ov-zoom="out" aria-label="Zoom out">&minus;</button><output id="ov-diagram-scale" aria-live="polite">100%</output><button type="button" data-ov-zoom="in" aria-label="Zoom in">+</button><button type="button" data-ov-zoom="fit">Fit to view</button><span>Zoom in to inspect detail.</span></div><div id="ov-diagram-canvas" class="ov-diagram-canvas" tabindex="0" role="region" aria-label="Diagram fitted to view; zoom in to inspect and scroll"></div><p class="ov-diagram-caption">This is your selected view. Close the diagram to change its controls.</p></dialog>
@@ -291,7 +294,7 @@ function setupOverview() {
  disposeOverview();const root=document.querySelector('.overview-page');if(!root)return;
  const abort=new AbortController(),signal=abort.signal,motion=matchMedia('(prefers-reduced-motion: reduce)');
  const r={root,abort,observer:null,scrollFrame:0,hoverHost:null,dialog:root.querySelector('#overview-video-dialog'),video:root.querySelector('#overview-film'),videoOpener:null,diagram:root.querySelector('#overview-diagram-dialog'),canvas:root.querySelector('#ov-diagram-canvas'),diagramOpener:null,diagramZoom:1,diagramWidth:840,diagramHeight:840,diagramFitted:true,urls:[]};overviewRuntime=r;
- const sections=[...root.querySelectorAll('[data-ov-section]')],nav=[...root.querySelectorAll('.ov-rail [data-ov-jump]')],reduced=()=>motion.matches||overviewMotionPaused;
+ const sections=[...root.querySelectorAll('[data-ov-section]')],frames=[...root.querySelectorAll('[data-ov-frame]')],rail=root.querySelector('.ov-rail'),nav=[...rail.querySelectorAll('[data-ov-jump]')],reduced=()=>motion.matches||overviewMotionPaused;
  const resetHover=()=>{r.hoverHost?.querySelectorAll('.ov-entity-highlight').forEach(node=>node.classList.remove('ov-entity-highlight'));r.hoverHost=null;};
  const updateMotion=()=>{
   const paused=reduced();root.dataset.motion=paused?'paused':'active';root.classList.toggle('ov-motion-paused',paused);
@@ -300,26 +303,54 @@ function setupOverview() {
   if(motion.matches&&r.paintReport){r.reportElapsed=ovReportDuration;r.reportIntent=false;r.reportManual=true;r.paintReport();}
   r.syncReportPlayback?.();r.investigation?.motionChanged();
  };
+ const showIntroTab=(id,{resetScroll=false}={})=>{
+  if(!['what','origins'].includes(id))return;
+  root.querySelectorAll('[data-ov-intro-tab]').forEach(button=>{
+   const selected=button.dataset.ovIntroTab===id;
+   button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1;
+   const panel=root.querySelector('#'+button.getAttribute('aria-controls'));panel.hidden=!selected;if(selected&&resetScroll)panel.scrollTop=0;
+  });
+ };
+ r.showIntroTab=showIntroTab;
+ const navigationOffset=()=>parseFloat(getComputedStyle(rail).top)+rail.getBoundingClientRect().height;
+ const fitNavigationEnd=()=>{
+  // Leave enough trailing space to align the final section even on tall monitors.
+  const last=frames.at(-1),previous=parseFloat(root.style.getPropertyValue('--ov-tail-space'))||0;
+  const afterLast=document.documentElement.scrollHeight-(window.scrollY+last.getBoundingClientRect().bottom)-previous;
+  const needed=Math.max(0,innerHeight-navigationOffset()-last.getBoundingClientRect().height-afterLast);
+  root.style.setProperty('--ov-tail-space',Math.ceil(needed)+'px');
+ };
  const jumpToChapter=id=>{
   const target=root.querySelector('#ov-'+CSS.escape(id));if(!target)return;
-  const offset=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head'))+root.querySelector('.ov-rail').getBoundingClientRect().height+18;
-  window.scrollTo({top:Math.max(0,window.scrollY+target.getBoundingClientRect().top-offset),behavior:reduced()?'instant':'smooth'});
+  showIntroTab(id,{resetScroll:true});target.scrollTop=0;
+  const destination=target.closest('.ov-introduction')||(target.matches('[data-ov-frame]')?target:target.querySelector('[data-ov-frame]'))||target;
+  destination.scrollTop=0;fitNavigationEnd();const offset=navigationOffset();
+  // Complete navigation before another click or manual scroll can change the chapter.
+  window.scrollTo({top:Math.max(0,window.scrollY+destination.getBoundingClientRect().top-offset),behavior:'instant'});
   target.querySelector('h1,h2,h3')?.focus({preventScroll:true});
+  updateScroll();
  };
  const updateScroll=()=>{
-  r.scrollFrame=0;if(!root.isConnected)return;
+  cancelAnimationFrame(r.scrollFrame);r.scrollFrame=0;if(!root.isConnected)return;
   const top=root.getBoundingClientRect().top,total=Math.max(1,root.scrollHeight-innerHeight);root.style.setProperty('--ov-progress',Math.max(0,Math.min(1,-top/total)).toFixed(4));
-  const threshold=root.querySelector('.ov-rail').getBoundingClientRect().bottom+48;let active=sections[0]?.dataset.ovSection;
-  for(const section of sections){if(section.getBoundingClientRect().top<=threshold)active=section.dataset.ovSection;}
+  const readingTop=rail.getBoundingClientRect().bottom;let active=null,largest=0,fallback=sections.find(section=>!section.hidden)?.dataset.ovSection;
+  for(const frame of frames){
+   const chapter=frame.classList.contains('ov-introduction')?frame.querySelector('[data-ov-section]:not([hidden])'):frame.closest('[data-ov-section]'),box=frame.getBoundingClientRect();
+   if(!chapter)continue;
+   if(box.top<=readingTop)fallback=chapter.dataset.ovSection;
+   const visible=Math.max(0,Math.min(box.bottom,innerHeight)-Math.max(box.top,readingTop));
+   if(visible>largest){largest=visible;active=chapter.dataset.ovSection;}
+  }
+  active=active||fallback;
   for(const button of nav){if(button.dataset.ovJump===active)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');}
   const activeIndex=sections.findIndex(section=>section.dataset.ovSection===active),chooser=root.querySelector('[data-ov-chapter-select]');
-  if(document.activeElement!==chooser)chooser.value=active;
+  chooser.value=active;
   root.querySelector('[data-ov-chapter-count]').textContent=String(activeIndex+1).padStart(2,'0')+' / '+sections.length;
   for(const [direction,offset] of [['prev',-1],['next',1]]){
    const button=root.querySelector('[data-ov-'+direction+']'),next=sections[activeIndex+offset];button.disabled=!next;
    button.setAttribute('aria-label',(direction==='prev'?'Previous':'Next')+' chapter'+(next?': '+ovSection(next.dataset.ovSection).title:''));
   }
-  if(root.dataset.activeChapter!==active){const button=nav.find(item=>item.dataset.ovJump===active),track=root.querySelector('.ov-rail-track');if(button&&track.clientWidth)track.scrollTo({left:button.offsetLeft-track.offsetLeft-(track.clientWidth-button.offsetWidth)/2,behavior:reduced()?'instant':'smooth'});}
+  if(root.dataset.activeChapter!==active){const button=nav.find(item=>item.dataset.ovJump===active),track=root.querySelector('.ov-rail-track');if(button&&track.clientWidth&&track.scrollWidth>track.clientWidth)track.scrollTo({left:button.offsetLeft-track.offsetLeft-(track.clientWidth-button.offsetWidth)/2,behavior:'instant'});}
   root.dataset.activeChapter=active;
  };
  const queueScroll=()=>{if(!r.scrollFrame)r.scrollFrame=requestAnimationFrame(updateScroll);};
@@ -449,8 +480,9 @@ function setupOverview() {
  };
  root.addEventListener('click',event=>{
   const button=event.target.closest('button');if(!button||!root.contains(button))return;
+  if(button.hasAttribute('data-ov-intro-tab')){showIntroTab(button.dataset.ovIntroTab);updateScroll();return;}
   if(button.hasAttribute('data-ov-jump')){jumpToChapter(button.dataset.ovJump);return;}
-  if(button.hasAttribute('data-ov-prev')||button.hasAttribute('data-ov-next')){const index=sections.findIndex(section=>section.dataset.ovSection===root.dataset.activeChapter),next=sections[index+(button.hasAttribute('data-ov-prev')?-1:1)];if(next)jumpToChapter(next.dataset.ovSection);return;}
+  if(button.hasAttribute('data-ov-prev')||button.hasAttribute('data-ov-next')){updateScroll();const index=sections.findIndex(section=>section.dataset.ovSection===root.dataset.activeChapter),next=sections[index+(button.hasAttribute('data-ov-prev')?-1:1)];if(next)jumpToChapter(next.dataset.ovSection);return;}
   if(button.hasAttribute('data-ov-expand')){openDiagram(button.dataset.ovExpand,button);return;}
   if(button.hasAttribute('data-ov-close-diagram')){closeDiagram();return;}
   if(button.hasAttribute('data-ov-zoom')){const action=button.dataset.ovZoom;if(action==='fit')fitDiagram();else setDiagramZoom(r.diagramZoom+(action==='in'?.25:-.25));return;}
@@ -484,6 +516,11 @@ function setupOverview() {
   if(button.hasAttribute('data-ov-shadow-scenario')){updateShadow(Number(button.dataset.ovShadowScenario));return;}
   if(button.hasAttribute('data-ov-shadow'))updateShadow(Number(root.querySelector('.ov-shadow-visual').dataset.shadowScenario),button.getAttribute('aria-pressed')!=='true');
  },{signal});
+ root.addEventListener('keydown',event=>{
+  const tab=event.target.closest('[data-ov-intro-tab]');if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();const tabs=[...root.querySelectorAll('[data-ov-intro-tab]')],index=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
+  showIntroTab(tabs[next].dataset.ovIntroTab);tabs[next].focus({preventScroll:true});updateScroll();
+ },{signal});
  root.addEventListener('change',event=>{if(event.target.matches('[data-ov-chapter-select]'))jumpToChapter(event.target.value);},{signal});
  r.diagram.addEventListener('cancel',event=>{event.preventDefault();closeDiagram();},{signal});
  r.diagram.addEventListener('close',()=>{r.canvas.replaceChildren();const button=r.diagramOpener;r.diagramOpener=null;if(button?.isConnected)button.focus({preventScroll:true});syncReportPlayback();r.investigation?.sync();},{signal});
@@ -496,9 +533,9 @@ function setupOverview() {
   resetHover();r.hoverHost=host;host.querySelectorAll('.ov-terrain-device').forEach(node=>node.classList.toggle('ov-entity-highlight',node.dataset.device===device.dataset.device));
  },{signal,passive:true});
  root.addEventListener('pointerout',event=>{if(event.target.closest('.ov-terrain-device')&&!event.target.closest('.ov-terrain-device').contains(event.relatedTarget))resetHover();},{signal,passive:true});window.addEventListener('blur',resetHover,{signal});
- window.addEventListener('scroll',queueScroll,{signal,passive:true});window.addEventListener('resize',()=>{queueScroll();paintReport();r.investigation?.resize();if(r.diagram.open&&r.diagramFitted)fitDiagram();},{signal,passive:true});document.addEventListener('visibilitychange',()=>{root.classList.toggle('ov-document-hidden',document.hidden);if(document.hidden)resetHover();syncReportPlayback();r.investigation?.sync();},{signal});motion.addEventListener('change',updateMotion,{signal});
+ window.addEventListener('scroll',queueScroll,{signal,passive:true});window.addEventListener('resize',()=>{fitNavigationEnd();queueScroll();paintReport();r.investigation?.resize();if(r.diagram.open&&r.diagramFitted)fitDiagram();},{signal,passive:true});document.addEventListener('visibilitychange',()=>{root.classList.toggle('ov-document-hidden',document.hidden);if(document.hidden)resetHover();syncReportPlayback();r.investigation?.sync();},{signal});motion.addEventListener('change',updateMotion,{signal});
  if('IntersectionObserver' in window){r.observer=new IntersectionObserver(entries=>entries.forEach(entry=>entry.target.classList.toggle('is-visible',entry.isIntersecting)),{rootMargin:'10% 0px 10% 0px'});sections.forEach(section=>r.observer.observe(section));}else sections.forEach(section=>section.classList.add('is-visible'));
  if('IntersectionObserver' in window){r.reportObserver=new IntersectionObserver(entries=>{r.reportVisible=entries[0].isIntersecting&&entries[0].intersectionRatio>=.15;syncReportPlayback();},{threshold:[0,.15]});r.reportObserver.observe(reportVisual);}else r.reportVisible=true;
  r.investigation=ovSetupInvestigationStory(root,{signal,reduced,prefersReduced:()=>motion.matches,isBlocked:()=>document.hidden||r.diagram.open||r.dialog.open});
- restartReport();updateMotion();updateScroll();
+ restartReport();updateMotion();fitNavigationEnd();updateScroll();
 }

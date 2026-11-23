@@ -31,21 +31,22 @@ const filmIds=['what','origins','terrain','vulnerabilities','shadow','services',
   assert.deepEqual(Object.keys(films).sort(),[...filmIds].sort(),'Video manifest must contain only active chapters');
   assert.equal(await page.locator('video[src]').count(),0,'Films must not preload before a request');
   for(const id of filmIds){
-   await page.locator(`#ov-${id}`).waitFor();
+   await page.locator(`#ov-${id}`).waitFor({state:'attached'});
    assert.ok(await page.locator(`[data-overview-video="${id}"]`).count()>0,'Missing film button: '+id);
   }
   assert.equal(await page.locator('#ov-systems').count(),0,'Removed systems chapter is still present');
   assert.deepEqual(await page.locator('#ov-investigate [data-ov-subsection]').evaluateAll(nodes=>nodes.map(node=>node.dataset.ovSubsection)),['vulnerabilities','shadow','services']);
   assert.equal(await page.locator('#ov-investigate > .ov-investigate-intro h2').innerText(),'Investigate an issue or finding');
-  for(const id of ['vulnerabilities','shadow','services'])assert.equal(await page.locator(`#ov-${id} .ov-copy > h3`).count(),1);
+  for(const id of ['vulnerabilities','shadow','services'])assert.equal(await page.locator(`#ov-${id} .ov-copy > .ov-heading-row > h3`).count(),1);
   assert.equal(await page.locator('#ov-what .ov-lead').innerText(),'Turn observations into context.');
   assert.match(await page.locator('.ov-hero-visual').innerText(),/Business services/);
   assert.match(await page.locator('.ov-hero-visual').innerText(),/Mission services/);
   assert.match(await page.locator('.ov-hero-visual').innerText(),/Context aware/);
   assert.doesNotMatch(await page.locator('.overview-page').innerText(),/Watch film|Mission systems|Connected context/);
-  assert.deepEqual(await page.locator('.ov-start-here button > span').allTextContents(),['Understand the Cyber Terrain','Investigate an issue or finding','Turn insights into a report']);
+  assert.equal(await page.locator('#ov-process-title').innerText(),'TSAAT Process');
+  assert.deepEqual(await page.locator('.ov-process-step > span').allTextContents(),['Understand the Cyber Terrain','Investigate an issue or finding','Turn insights into a report']);
   assert.equal(await page.locator('.ov-vulnerabilities .ov-copy').evaluate(el=>getComputedStyle(el).position),'static');
-  await page.locator('.ov-start-here [data-ov-jump="investigate"]').click();
+  await page.locator('.ov-rail [data-ov-jump="investigate"]').click();
   await page.waitForFunction(()=>document.querySelector('.overview-page').dataset.activeChapter==='investigate');
   // The investigation introduction is a connected story with selectable evidence.
   const investigation=page.locator('.ov-investigation-story');
@@ -116,6 +117,7 @@ const filmIds=['what','origins','terrain','vulnerabilities','shadow','services',
   await page.locator('#sidebar a[href="#feature-guide"]').click();await page.locator('.feature-guide').waitFor();
   await page.locator('.brand').click();await ready();
   // Keyboard selection exposes every supplied timeline milestone, including the planned release.
+  await page.getByRole('tab',{name:'Where did it come from?',exact:true}).click();
   assert.equal(await page.locator('button[data-ov-timeline]').count(),content.timeline.length);
   for(let index=0;index<content.timeline.length;index++){
    const button=page.locator(`[data-ov-timeline="${index}"]`);
@@ -355,7 +357,7 @@ const filmIds=['what','origins','terrain','vulnerabilities','shadow','services',
   await page.waitForFunction(()=>document.querySelector('.ov-report-workbench').dataset.reportPlayback==='playing');
   await page.waitForFunction(()=>document.querySelector('.ov-report-workbench').dataset.reportPlayback==='complete',null,{timeout:15000});
   const completedFrame=await reportFrame();await page.waitForTimeout(250);assert.equal(await reportFrame(),completedFrame,'The completed scenario should hold its output');
-  assert.equal(await reportElapsed(),10000,'Autoplay must reach the final frame');
+  assert.equal(await reportElapsed(),8000,'Autoplay must reach the final frame in eight seconds');
   const reportLayout=()=>reportHost.evaluate(host=>Object.fromEntries(['.ov-report-player','.ov-report-visual','.ov-report-playback','#ov-report-caption','#ov-report-detail'].map(selector=>{const el=host.querySelector(selector),box=el.getBoundingClientRect();return [selector,{top:Math.round(box.top-host.getBoundingClientRect().top),width:Math.round(box.width),height:Math.round(box.height)}];})));
   const reportBounds=await reportLayout();
   for(let scenario=0;scenario<3;scenario++){
@@ -470,6 +472,7 @@ const filmIds=['what','origins','terrain','vulnerabilities','shadow','services',
   await motion.click();assert.equal(await page.locator('.overview-page').getAttribute('data-motion'),'active');
   // Each companion film decodes offline, supplies captions and pauses when its popup closes.
   for(const id of filmIds){
+   if(id==='what'||id==='origins')await page.locator(`[data-ov-intro-tab="${id}"]`).click();
    const trigger=page.locator(`[data-overview-video="${id}"]`).first();
    assert.ok((await trigger.getAttribute('aria-label')||'').includes(content.sections.find(section=>section.id===id).title),'Film button needs a chapter-specific accessible name: '+id);
    await trigger.click();
@@ -542,7 +545,7 @@ const filmIds=['what','origins','terrain','vulnerabilities','shadow','services',
    await page.evaluate(()=>scrollTo(0,0));
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Overview overflow at '+width);
    assert.equal(await page.locator('[data-ov-section]').count(),ids.length);
-   for(const id of ids)assert.equal(await page.locator(`.ov-section[data-ov-section="${id}"] h2`).first().isVisible(),true);
+   for(const id of ids){const section=page.locator(`.ov-section[data-ov-section="${id}"]`);assert.equal(await section.locator('h2').first().isVisible(),!(await section.evaluate(node=>node.hidden)));}
    const chapter=page.locator('#ov-chapter-select');
    assert.equal(await chapter.isVisible(),true,'Named chapter selector is missing at '+width);
    assert.deepEqual(await chapter.locator('option').evaluateAll(options=>options.map(option=>option.value)),ids);

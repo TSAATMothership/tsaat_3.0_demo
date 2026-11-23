@@ -1,0 +1,70 @@
+/* Every visible Overview section occupies one exact-height frame. */
+@media screen{main:has(>.overview-page){padding-top:18px}}
+.overview-page{--ov-frame-height:870px;--ov-rail-gap:18px;padding-bottom:var(--ov-tail-space,0px)}
+.overview-page>.ov-rail{top:calc(var(--head) + var(--ov-rail-gap))}
+.overview-page [data-ov-frame]{box-sizing:border-box;height:var(--ov-frame-height);min-height:var(--ov-frame-height);max-height:var(--ov-frame-height);min-width:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#527580 #102633;scrollbar-gutter:stable;scroll-padding-block:20px;align-content:start}
+.overview-page :is(.ov-section,.ov-investigate-intro)[data-ov-frame]{padding:22px 10px 18px;row-gap:16px;align-items:start;border-bottom:1px solid var(--ov-line)}
+.overview-page .ov-introduction[data-ov-frame]{display:flex;flex-direction:column;margin:0;padding:18px 0 0;overflow:hidden;scrollbar-gutter:auto}
+.ov-introduction>.ov-intro-tabs{flex:none}
+.overview-page .ov-introduction>.ov-section{flex:1;min-height:0;padding:22px 10px 22px;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#527580 #102633;scrollbar-gutter:stable;scroll-padding-block:20px;align-content:start;row-gap:18px}
+.overview-page .ov-investigate{padding:0;border:0}
+.ov-investigate-intro[data-ov-frame]{align-content:start}
+.overview-page :is(.ov-copy,.ov-intro-copy,.ov-section-top){align-self:start}
+.ov-heading-row{display:flex;align-items:center;gap:14px;min-width:0;break-inside:avoid}
+.overview-page .ov-heading-row>:is(h2,h3){min-width:0;margin:0}
+.overview-page .ov-heading-row>.ov-film-button{flex:none;align-self:center;margin:0;white-space:nowrap}
+.ov-heading-row>.ov-film-button>span:nth-child(2){flex-direction:column;align-items:flex-start;gap:1px}
+.overview-page .ov-intro .ov-heading-row{margin-top:16px}
+.overview-page .ov-intro h1{font-size:clamp(38px,3.6vw,56px);max-width:none;margin-bottom:14px}
+.overview-page .ov-intro .ov-kicker{margin-bottom:14px}
+.overview-page .ov-process{padding-top:14px}
+.overview-page .ov-body p{line-height:1.6}
+.overview-page .ov-takeaway{padding-top:14px}
+.overview-page .ov-chronology{margin-top:0}
+.overview-page .ov-history-step{min-height:160px;padding-block:12px}
+.overview-page .ov-history-stage{margin-top:12px}
+.overview-page .ov-chronology .ov-history-panel{min-height:0;margin-top:12px}
+.overview-page .ov-history-panel-meta{padding:18px 22px 0}
+.overview-page .ov-history-panel-content{padding:16px 22px 20px;gap:18px}
+.overview-page .ov-chronology #ov-timeline-detail p{line-height:1.6}
+.overview-page .ov-history-heading{margin-bottom:16px;padding-bottom:12px}
+.overview-page [data-ov-frame] .ov-topology-visual{container-type:inline-size}
+.overview-page [data-ov-frame] .ov-topology-scroll{height:min(300px,48.333333cqw,calc(100dvh - var(--head) - 180px));max-height:none;aspect-ratio:auto}
+.overview-page .ov-shadow-workbench>.ov-explore-panel{padding:12px}
+.overview-page .ov-shadow-scenarios button{min-height:44px;padding-block:8px}
+.overview-page .ov-shadow-workbench .ov-reveal-button{margin-top:14px}
+.overview-page .ov-services .ov-topology-scroll{height:min(240px,48.333333cqw)}
+.overview-page .ov-impact-outcomes{margin-top:12px;padding-top:10px}
+.overview-page .ov-impact-outcomes>ul{margin-top:8px}
+.overview-page .ov-impact-service-card{padding:8px}
+.overview-page .ov-impact-outcomes>p{margin-top:8px}
+.overview-page .ov-report-guide .ov-report-visual .ov-diagram{max-height:310px}
+@media(min-width:901px){
+ .overview-page .ov-origins .ov-section-top .ov-copy{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px;max-width:none}
+ .overview-page .ov-origins .ov-kicker{grid-column:1;grid-row:1}
+ .overview-page .ov-origins .ov-heading-row{grid-column:1;grid-row:2}
+ .overview-page .ov-origins h2{font-size:32px;max-width:none}
+ .overview-page .ov-origins .ov-lead{grid-column:1;grid-row:3;font-size:19px;margin-top:12px}
+ .overview-page .ov-origins .ov-body{grid-column:2;grid-row:1/4;max-width:none;margin:0}
+}
+.overview-page [data-ov-frame]:focus-visible,.overview-page .ov-introduction>.ov-section:focus-visible{outline:2px solid #8de5cf;outline-offset:-2px}
+@media(max-width:1100px){.ov-investigate-intro[data-ov-frame]{align-content:start}}
+@media(max-width:900px){
+ .overview-page :is(.ov-section,.ov-investigate-intro)[data-ov-frame],.overview-page .ov-introduction>.ov-section{padding-inline:8px}
+ .overview-page .ov-history-step{min-height:123px}
+ .overview-page .ov-intro h1{font-size:clamp(38px,8vw,56px)}
+}
+@media(max-width:550px){.overview-page .ov-impact-service-card span{min-height:3em}}
+@media(max-width:550px){
+ .ov-heading-row{gap:10px}
+ .overview-page .ov-heading-row>.ov-film-button{width:44px;height:44px;padding:7px;justify-content:center}
+ .ov-heading-row>.ov-film-button>span:nth-child(2){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+/* Printed pages flow naturally so all content remains available on paper. */
+@media print{
+ .overview-page{padding-bottom:0}
+ .overview-page [data-ov-frame]{height:auto;min-height:0;max-height:none;overflow:visible;scrollbar-gutter:auto}
+ .overview-page .ov-introduction[data-ov-frame]{display:block;padding:0;overflow:visible}
+ .overview-page .ov-introduction>.ov-section{overflow:visible;scrollbar-gutter:auto;min-height:0}
+ .overview-page [data-ov-frame] .ov-topology-scroll{height:auto;max-height:none;aspect-ratio:1200/580}
+}
