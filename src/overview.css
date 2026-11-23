@@ -192,7 +192,6 @@ body:has(.overview-page dialog[open]){overflow:hidden}
 /* Focused origins refinement. Append after the existing overview stylesheet. */
 .ov-origins:has(.ov-chronology) .ov-era{display:none}
 .ov-origins:has(.ov-chronology) .ov-section-top{grid-template-columns:1fr;gap:0}
-.ov-origins:has(.ov-chronology) .ov-section-top .ov-copy{max-width:760px}
 .ov-chronology{--history-accent:#8ae9d1;--history-strong:#dff5ef;--history-progress:0%;margin-top:0;min-width:0}
 .ov-history-heading{display:flex;justify-content:space-between;align-items:center;gap:25px;margin-bottom:25px;padding-bottom:16px;border-bottom:1px solid #2d4c58}
 .ov-history-heading p{font:600 10px/1.5 Bahnschrift,Consolas,sans-serif;letter-spacing:.14em;color:#8fbebf}
